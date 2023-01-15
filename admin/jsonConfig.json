@@ -2,14 +2,19 @@
 	"i18n": true,
 	"type": "panel",
 	"items": {
-		"option1": {
-			"type": "checkbox",
-			"label": "option1",
+		"username": {
+			"type": "text",
+			"label": "Login",
 			"newLine": true
 		},
-		"option2": {
-			"type": "text",
-			"label": "option2",
+		"password": {
+			"type": "password",
+			"label": "Passwort",
+			"newLine": true
+		},
+		"updateInterval": {
+			"type": "number",
+			"label": "Update interval",
 			"newLine": true
 		}
 	}

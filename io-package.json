@@ -78,8 +78,9 @@
 		]
 	},
 	"native": {
-		"option1": true,
-		"option2": "42"
+		"username": "",
+		"password": "",
+		"updateInterval": 60000
 	},
 	"objects": [],
 	"instanceObjects": []
