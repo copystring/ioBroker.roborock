@@ -274,7 +274,7 @@ class Roborock extends utils.Adapter {
 				vacuum.getNetworkInfo(duid);
 
 				vacuum.getFirmwareFeatures(duid, firmwareFeatureList);
-			}, this.config.updateInterval);
+			}, this.config.updateInterval*1000);
 
 
 			// sub to all commands & deviceConfig

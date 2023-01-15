@@ -80,7 +80,7 @@
 	"native": {
 		"username": "",
 		"password": "",
-		"updateInterval": 60000
+		"updateInterval": 60
 	},
 	"objects": [],
 	"instanceObjects": []

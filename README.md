@@ -117,7 +117,7 @@ For later updates, the above procedure is not necessary. Just do the following:
 ## License
 MIT License
 
-Copyright (c) 2022 copystring <copystring@gmail.com>
+Copyright (c) 2023 copystring <copystring@gmail.com>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
