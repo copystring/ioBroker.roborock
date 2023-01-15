@@ -65,35 +65,51 @@ class Roborock extends utils.Adapter {
 			},
 		});
 		// api/v1/getUrlByEmail(email = ...)
-
-		// UserData
-		await this.setObjectNotExistsAsync("UserData", {
-			type: "state",
-			common: {
-				name: "UserData string",
-				type: "string",
-				role: "value",
-				read: true,
-				write: false,
-			},
-			native: {},
-		});
 		// Try to load existing userdata.
 		const userdataObj = await this.getStateAsync("UserData");
 		let userdata;
-		if (userdataObj) {
+		if ((userdataObj) && (typeof(userdataObj) != "undefined")) {
 			userdata = JSON.parse(userdataObj.val);
 		} else {
-			// Log in.
+			// try log in.
 			userdata = await loginApi.post("api/v1/login", new URLSearchParams({username: username, password: password, needtwostepauth: "false"}).toString()).then(res => res.data.data);
-			await this.setStateAsync("UserData", { val: JSON.stringify(userdata), ack: true });
 
 			// Alternative without password:
 			// await loginApi.post("api/v1/sendEmailCode", new url.URLSearchParams({username: username, type: "auth"}).toString()).then(res => res.data);
 			// // ... get code from user ...
 			// userdata = await loginApi.post("api/v1/loginWithCode", new url.URLSearchParams({username: username, verifycode: code, verifycodetype: "AUTH_EMAIL_CODE"}).toString()).then(res => res.data.data);
+
+			this.log.debug("UserData: " + userdata);
+			if (userdata == null) {
+				this.deleteStateAsync("HomeData");
+				this.deleteStateAsync("UserData");
+				this.log.error("Error! Failed to login. Maybe wrong username or password?");
+				return;
+			}
+
+			// UserData
+			await this.setObjectNotExistsAsync("UserData", {
+				type: "state",
+				common: {
+					name: "UserData string",
+					type: "string",
+					role: "value",
+					read: true,
+					write: false,
+				},
+				native: {},
+			});
+			await this.setStateAsync("UserData", { val: JSON.stringify(userdata), ack: true });
 		}
-		loginApi.defaults.headers.common["Authorization"] = userdata.token;
+
+		try {
+			loginApi.defaults.headers.common["Authorization"] = userdata.token;
+		}
+		catch (error) {
+			this.log.error("Failed to login. Most likely wrong token! Deleting HomeData and UserData. Try again! " + error);
+			this.deleteStateAsync("HomeData");
+			this.deleteStateAsync("UserData");
+		}
 		const rriot = userdata.rriot;
 
 		// Initialize the real API.
