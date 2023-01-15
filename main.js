@@ -192,6 +192,8 @@ class Roborock extends utils.Adapter {
 
 			vacuum.getFirmwareFeatures(duid, firmwareFeatureList);
 
+			vacuum.getWaterBoxCustomMode(duid);
+
 			// create rooms
 			await this.setObjectNotExistsAsync("Rooms", {
 				type: "folder",
@@ -274,6 +276,27 @@ class Roborock extends utils.Adapter {
 				native: {},
 			});
 
+			await this.setObjectNotExistsAsync("Devices." + duid + ".commands.set_water_box_custom_mode", {
+				type: "state",
+				common: {
+					name: "Change water box custom mode",
+					type: "number",
+					def: 200,
+					role: "indicator",
+					read: true,
+					write: true,
+					"states": {
+						"200": "Off",
+						"201": "Low",
+						"202": "Medium",
+						"203": "High",
+						"204": "Customize (Auto)",
+						"207": "Custom (Levels)"
+					},
+				},
+				native: {},
+			});
+
 
 			setInterval( () => {
 
@@ -290,6 +313,8 @@ class Roborock extends utils.Adapter {
 				vacuum.getNetworkInfo(duid);
 
 				vacuum.getFirmwareFeatures(duid, firmwareFeatureList);
+
+				vacuum.getWaterBoxCustomMode(duid);
 			}, this.config.updateInterval*1000);
 
 
@@ -376,6 +401,11 @@ class Roborock extends utils.Adapter {
 					case "set_mop_mode":
 						this.log.debug("Changed mop mode to: " + state.val);
 						vacuum.changeMopMode(duid, state.val);
+						break;
+
+					case "set_water_box_custom_mode":
+						this.log.debug("Changed water box custom mode to: " + state.val);
+						vacuum.changeWaterBoxCustomMode(duid, state.val);
 						break;
 
 					default:
