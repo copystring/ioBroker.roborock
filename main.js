@@ -259,7 +259,7 @@ class Roborock extends utils.Adapter {
 			});
 
 
-			const updateData = setInterval( () => {
+			setInterval( () => {
 
 				this.log.debug("Latest data requested");
 
