@@ -1,11 +1,5 @@
 "use strict";
 
-/*
- * Created with @iobroker/create-adapter v2.3.0
- */
-
-// The adapter-core module gives you access to the core ioBroker functions
-// you need to create an adapter
 const utils = require("@iobroker/adapter-core");
 
 const axios = require("axios");
@@ -18,8 +12,6 @@ const rr = new EventEmitter();
 
 let vacuum;
 let rr_mqtt_connector;
-
-const firmwareFeatureList = {101:"unknown", 102: "unknown", 103: "Clean Time Supported", 104:"unknown", 105:"unknown", 106:"unknown", 107:"unknown", 108:"unknown", 109:"unknown", 110:"unknown", 111:"Supports FSEndPoint", 112:"Supports AutoSplitSegments", 113:"Supports Delete Map feature", 114:"Supports OrderSegmentClean", 115:"Spot Clean", 116:"Map Segment Supported", 117:"unknown", 118:"unknown", 119:"Supports Led Status Switch", 120:"Multi Floor Supported", 121:"unknown", 122:"Supports FetchTimer Summary", 123:"Orders Clean Supported", 124:"Analysis Supported", 125:"Remote Supported", 126:"unknown", 127:"unknown", 128:"unknown", 129:"unknown"};
 
 class Roborock extends utils.Adapter {
 
@@ -36,6 +28,7 @@ class Roborock extends utils.Adapter {
 		// this.on("objectChange", this.onObjectChange.bind(this));
 		// this.on("message", this.onMessage.bind(this));
 		this.on("unload", this.onUnload.bind(this));
+		this.roomIDs = {};
 	}
 
 	/**
@@ -49,13 +42,6 @@ class Roborock extends utils.Adapter {
 			this.log.error("Username or password missing!");
 			return;
 		}
-
-		vacuum = new vacuum_class(this, rr);
-
-		// disabled for now. I don't know how to figure out a clean way to categorize received data which was not sent by this adapter.
-		// eg "dps debug: {"id":48,"result":{"ssid":"SuperRouter2G","ip":"192.168.1.100","mac":"b0:4a:39:37:a6:4a","bssid":"ce:40:d0:49:9a:bc","rssi":0}}"
-		// is networkdata but roborock doesn't seem to provide the information if this ist networkdata or something else.
-		//this.setupEmitter();
 
 		// Initialize the login API (which is needed to get access to the real API).
 		const loginApi = axios.create({
@@ -153,7 +139,17 @@ class Roborock extends utils.Adapter {
 			await this.setStateAsync("HomeData", { val: JSON.stringify(homedata), ack: true });
 		}
 
-		rr_mqtt_connector = new roborock_mqtt_connector(this, rr);
+		// store name of each room via ID
+		const rooms = homedata.rooms;
+		for (const room in rooms){
+			const roomID = rooms[room].id;
+			const roomName = rooms[room].name;
+
+			this.roomIDs[roomID] = roomName;
+		}
+		this.log.debug("RoomIDs debug: " + JSON.stringify(this.roomIDs));
+
+		rr_mqtt_connector = new roborock_mqtt_connector(this);
 		rr_mqtt_connector.initUser(userdata, homedata);
 		rr_mqtt_connector.initMQTT_Subscribe();
 		rr_mqtt_connector.initMQTT_Message(rr);
@@ -166,161 +162,48 @@ class Roborock extends utils.Adapter {
 			native: {},
 		});
 
+		vacuum = new vacuum_class(this, rr);
+
 		// create devices
 		const devices = homedata.devices;
 		for (const device in devices){
 			const duid = devices[device].duid;
 
-			// create device object
-			await this.setObjectNotExistsAsync("Devices." + duid, {
-				type: "device",
-				common: {
-					name: devices[device].name,
-				},
-				native: {},
-			});
+			await vacuum.setUpObjects(duid);
 
-			vacuum.getVacuumStatus(duid, devices[device]);
+			this.updateDataMinimumData(duid, devices[device]);
+			this.updateDataExtraData(duid);
 
-			vacuum.getMopMode(duid);
+			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval*1000, duid, devices[device]);
 
-			vacuum.getConsumables(duid);
-
-			vacuum.getCleanSummary(duid);
-
-			vacuum.getNetworkInfo(duid);
-
-			vacuum.getFirmwareFeatures(duid, firmwareFeatureList);
-
-			vacuum.getWaterBoxCustomMode(duid);
-
-			// create rooms
-			await this.setObjectNotExistsAsync("Rooms", {
-				type: "folder",
-				common: {
-					name: "Rooms",
-				},
-				native: {},
-			});
-
-			vacuum.getRoomData(homedata);
-
-			await this.setObjectNotExistsAsync("Devices." + duid + ".commands.start", {
-				type: "state",
-				common: {
-					name: "Start vacuum",
-					type: "boolean",
-					def: false,
-					role: "indicator",
-					read: true,
-					write: true,
-				},
-				native: {
-				},
-			});
-
-			await this.setObjectNotExistsAsync("Devices." + duid + ".commands.stop", {
-				type: "state",
-				common: {
-					name: "Stop vacuum",
-					type: "boolean",
-					def: false,
-					role: "indicator",
-					read: true,
-					write: true,
-				},
-				native: {},
-			});
-
-			await this.setObjectNotExistsAsync("Devices." + duid + ".commands.pause", {
-				type: "state",
-				common: {
-					name: "Pause vacuum",
-					type: "boolean",
-					def: false,
-					role: "indicator",
-					read: true,
-					write: true,
-				},
-				native: {},
-			});
-
-			await this.setObjectNotExistsAsync("Devices." + duid + ".commands.charge", {
-				type: "state",
-				common: {
-					name: "Charge vacuum",
-					type: "boolean",
-					def: false,
-					role: "indicator",
-					read: true,
-					write: true,
-				},
-				native: {},
-			});
-
-			await this.setObjectNotExistsAsync("Devices." + duid + ".commands.set_mop_mode", {
-				type: "state",
-				common: {
-					name: "Change mop mode",
-					type: "number",
-					def: 300,
-					role: "indicator",
-					read: true,
-					write: true,
-					"states": {
-						"300": "Standard",
-						"301": "Deep",
-						"302": "Deep+"
-					},
-				},
-				native: {},
-			});
-
-			await this.setObjectNotExistsAsync("Devices." + duid + ".commands.set_water_box_custom_mode", {
-				type: "state",
-				common: {
-					name: "Change water box custom mode",
-					type: "number",
-					def: 200,
-					role: "indicator",
-					read: true,
-					write: true,
-					"states": {
-						"200": "Off",
-						"201": "Low",
-						"202": "Medium",
-						"203": "High",
-						"204": "Customize (Auto)",
-						"207": "Custom (Levels)"
-					},
-				},
-				native: {},
-			});
-
-
-			setInterval( () => {
-
-				this.log.debug("Latest data requested");
-
-				vacuum.getVacuumStatus(duid, devices[device]);
-
-				vacuum.getMopMode(duid);
-
-				vacuum.getConsumables(duid);
-
-				vacuum.getCleanSummary(duid);
-
-				vacuum.getNetworkInfo(duid);
-
-				vacuum.getFirmwareFeatures(duid, firmwareFeatureList);
-
-				vacuum.getWaterBoxCustomMode(duid);
-			}, this.config.updateInterval*1000);
-
-
-			// sub to all commands & deviceConfig
+			// sub to all commands
 			this.subscribeStates("Devices." + duid + ".commands.*");
 		}
+	}
+
+	updateDataMinimumData(duid, device) {
+		this.log.debug("Latest data requested");
+
+		vacuum.deviceInfo(duid, device);
+
+		vacuum.getParameter(duid, "get_mop_mode");
+		vacuum.getParameter(duid, "get_water_box_custom_mode");
+		vacuum.getParameter(duid, "get_status"); // gets fan_power and water_box_mode
+
+		vacuum.getParameter(duid, "get_consumable");
+
+		vacuum.getParameter(duid, "get_network_info");
+
+		vacuum.getCleanSummary(duid);
+
+	}
+
+	updateDataExtraData(duid) {
+		vacuum.getParameter(duid, "get_fw_features");
+
+		vacuum.getParameter(duid, "get_multi_maps_list");
+
+		vacuum.getParameter(duid, "get_room_mapping");
 	}
 
 	/**
@@ -363,56 +246,29 @@ class Roborock extends utils.Adapter {
 	 * @param {string} id
 	 * @param {ioBroker.State | null | undefined} state
 	 */
-	onStateChange(id, state) {
+	async onStateChange(id, state) {
 		if (state) {
 			const duid = id.substring(19, 41);
 			const command = id.split(".").slice(-1)[0];
 
-			if (state.val == true) {
-				switch (command) {
-					case "start":
-						this.log.debug("Start vacuum");
-						vacuum.startVacuum(duid);
-						break;
+			this.log.debug("onStateChange: " + command + " with value: " + state.val);
+			if ((state.val == true) && (typeof(state.val) == "boolean")) {
+				vacuum.command(duid, command);
 
-					case "stop":
-						this.log.debug("Stop vacuum");
-						vacuum.stopVacuum(duid);
-						break;
-
-					case "pause":
-						this.log.debug("Pause vacuum");
-						vacuum.pauseVacuum(duid);
-						break;
-
-					case "charge":
-						this.log.debug("Charge vacuum");
-						vacuum.chargeVacuum(duid);
-						break;
-
-					default:
-				}
+				// set back command to false after 1 second
 				setTimeout(() =>{
 					this.setStateAsync(id, false);
 				}, 1000);
 			}
-			else {
-				switch (command) {
-					case "set_mop_mode":
-						this.log.debug("Changed mop mode to: " + state.val);
-						vacuum.changeMopMode(duid, state.val);
-						break;
-
-					case "set_water_box_custom_mode":
-						this.log.debug("Changed water box custom mode to: " + state.val);
-						vacuum.changeWaterBoxCustomMode(duid, state.val);
-						break;
-
-					default:
-				}
+			else if (command == "load_multi_map")
+			{
+				await vacuum.command(duid, "load_multi_map", state.val);
+			}
+			else if (typeof(state.val) != "boolean") {
+				vacuum.command(duid, command, state.val);
 			}
 		} else {
-			this.log.info("Error! Missing state onChangeState!");
+			this.log.error("Error! Missing state onChangeState!");
 		}
 	}
 
@@ -433,171 +289,11 @@ class Roborock extends utils.Adapter {
 	// 		}
 	// 	}
 	// }
-
-	// respond to messages this adapter did not send itself
-	setupEmitter() {
-		rr.on("response.102", async (deviceId, id, result) => {
-			let attributeCategory;
-			let attribute;
-			let value;
-			const firmwareAttributes = {};
-			switch (id) {
-				case 1:
-					attributeCategory = "deviceConfig";
-					attribute = "mop_mode";
-					value = result;
-					break;
-
-				case 2:
-					attributeCategory = "consumables";
-					attribute = result;
-					break;
-				case 3:
-					attributeCategory = "networkInfo";
-					attribute = result;
-					break;
-
-				case 4:
-					attributeCategory = "cleaningInfo";
-					attribute = result;
-					break;
-
-				case 5:
-					attributeCategory = "firmwareFeatures";
-					for (const featureID in result)
-					{
-						firmwareAttributes[featureID] = result[featureID].toString();
-					}
-					attribute = firmwareAttributes;
-					break;
-
-				default:
-			}
-
-			if (typeof(attributeCategory) != "undefined")
-			{
-				this.log.debug("Debug attributeCategory: Devices." + deviceId + "." + attributeCategory + ": " + JSON.stringify(attribute));
-				if (typeof(attribute) == "string") {
-					this.setStateAsync("Devices." + deviceId + "." + attributeCategory + "." + attribute, value);
-				}
-				else if (typeof(attribute) == "object") {
-					for (const objectAttribute in attribute) {
-						if (id == 5)
-						{
-							const featureID = attribute[objectAttribute];
-							this.setStateAsync("Devices." + deviceId + ".firmwareFeatures." + objectAttribute, { val: firmwareFeatureList[featureID], ack: true });
-						}
-						else if (objectAttribute == "records")
-						{
-							this.log.debug("Cleaning records found!!!");
-							for (const cleaningRecord in attribute["records"])
-							{
-								rr_mqtt_connector.sendRequest(deviceId, rr, "get_clean_record", [attribute["records"][cleaningRecord]]).then(async cleaningRecordAttributes => {
-									cleaningRecordAttributes = cleaningRecordAttributes[0];
-									for (const cleaningRecordAttribute in cleaningRecordAttributes) {
-										// this.log.debug("cleaning record value helper: " + JSON.stringify(cleaningRecord));
-										// let cleaningRecordAttribute_val = attribute["records"][cleaningRecord][cleaningRecordAttribute];
-										// this.log.debug("cleaningRecordAttribute_val: " + JSON.stringify(cleaningRecordAttribute_val));
-										let cleaningRecordAttribute_val = cleaningRecordAttributes[cleaningRecordAttribute];
-										let cleaningRecordAttributeType;
-										let cleaningRecordAttributeName;
-										let cleaningRecordAttributeUnit = "";
-
-										switch (cleaningRecordAttribute) {
-											case "begin":
-												cleaningRecordAttributeName = "Start cleaning time";
-												cleaningRecordAttributeType = "string";
-												cleaningRecordAttribute_val = new Date(attribute["records"][cleaningRecord] * 1000).toString();
-												break;
-
-											case "end":
-												cleaningRecordAttributeName = "End cleaning time";
-												cleaningRecordAttributeType = "string";
-												cleaningRecordAttribute_val = new Date(attribute["records"][cleaningRecord] * 1000).toString();
-												break;
-
-											case "duration":
-												cleaningRecordAttributeName = "Duration cleaning time";
-												cleaningRecordAttributeType = "number";
-												cleaningRecordAttribute_val = Math.round(cleaningRecordAttribute_val/60);
-												cleaningRecordAttributeUnit = "min";
-												break;
-
-											case "area":
-												cleaningRecordAttributeName = "Cleaning Area";
-												cleaningRecordAttributeType = "number";
-												cleaningRecordAttribute_val = Math.round(cleaningRecordAttribute_val/1000/1000);
-												cleaningRecordAttributeUnit = "m³";
-												break;
-
-											case "error":
-												cleaningRecordAttributeName = "Error Type";
-												cleaningRecordAttributeType = "number";
-												break;
-
-											case "complete":
-												cleaningRecordAttributeName = "Completion Type";
-												cleaningRecordAttributeType = "number";
-												break;
-
-											case "start_type":
-												cleaningRecordAttributeName = "Start Type";
-												cleaningRecordAttributeType = "number";
-												break;
-
-											case "clean_type":
-												cleaningRecordAttributeName = "Clean Type";
-												cleaningRecordAttributeType = "number";
-												break;
-
-											case "finish_reason":
-												cleaningRecordAttributeName = "Clean Finish Reason";
-												cleaningRecordAttributeType = "number";
-												break;
-
-											case "dust_collection_status":
-												cleaningRecordAttributeName = "Dust Collection Status";
-												cleaningRecordAttributeType = "number";
-												break;
-
-											default:
-										}
-
-										await this.setObjectNotExistsAsync("Devices." + deviceId + ".cleaningInfo.Records." + cleaningRecord + "." + cleaningRecordAttribute, {
-											type: "state",
-											common: {
-												type: cleaningRecordAttributeType,
-												name: cleaningRecordAttributeName,
-												role: "value",
-												read: true,
-												write: false,
-												unit: cleaningRecordAttributeUnit,
-											},
-											native: {},
-										});
-										// this.adapter.setStateAsync("Devices." + duid + ".cleaningInfo.Records." + cleaningRecord + "." + cleaningRecordAttribute, { val: cleaningRecordAttribute_val, ack: true });
-										this.setStateAsync("Devices." + deviceId + ".cleaningInfo.Records." + cleaningRecord + "." + cleaningRecordAttribute, { val: cleaningRecordAttribute_val, ack: true });
-									}
-								});
-							}
-						}
-						else  {
-							// this.log.debug("Received new data for " + attributeCategory + " with value: " + objectAttribute);
-							this.setStateAsync("Devices." + deviceId + "." + attributeCategory + "." + objectAttribute, { val: attribute[objectAttribute], ack: true });
-						}
-					}
-				}
-				else if (typeof(attribute) != "undefined") {
-					this.log.error("Unknown attribute: " + attribute + " with type: " + typeof(attribute));
-				}
-			}
-
-			// this.log.debug("Emitter response.102");
-			// this.log.debug(deviceId);
-			// this.log.debug(id);
-			// this.log.debug(result);
-		});
-	}
+	// this.log.debug(deviceId);
+	// this.log.debug(id);
+	// this.log.debug(result);
+	// });
+	// }
 
 }
 
