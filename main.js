@@ -196,6 +196,9 @@ class Roborock extends utils.Adapter {
 
 		vacuum.getCleanSummary(duid);
 
+		vacuum.getParameter(duid, "get_carpet_mode");
+		vacuum.getParameter(duid, "get_carpet_cleaning_mode");
+
 	}
 
 	updateDataExtraData(duid) {
@@ -255,10 +258,13 @@ class Roborock extends utils.Adapter {
 			if ((state.val == true) && (typeof(state.val) == "boolean")) {
 				vacuum.command(duid, command);
 
+				this.log.debug("Command to test: " + command);
 				// set back command to false after 1 second
-				setTimeout(() =>{
-					this.setStateAsync(id, false);
-				}, 1000);
+				if ((command != "set_carpet_mode") && (command != "set_carpet_cleaning_mode")) {
+					setTimeout(() =>{
+						this.setStateAsync(id, false);
+					}, 1000);
+				}
 			}
 			else if (command == "load_multi_map")
 			{
