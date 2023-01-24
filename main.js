@@ -9,8 +9,8 @@ const EventEmitter = require("node:events");
 const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roborock_mqtt_connector;
 const vacuum_class = require("./lib/vacuum").vacuum;
 const rr = new EventEmitter();
+const vacuums = {};
 
-let vacuum;
 let rr_mqtt_connector;
 
 class Roborock extends utils.Adapter {
@@ -162,26 +162,28 @@ class Roborock extends utils.Adapter {
 			native: {},
 		});
 
-		vacuum = new vacuum_class(this, rr);
 
 		// create devices
 		const devices = homedata.devices;
 		for (const device in devices){
+			const robotName = devices[device]["name"];
+			this.log.debug("Detected robot name: " + robotName);
 			const duid = devices[device].duid;
+			vacuums[duid] = new vacuum_class(this, rr, robotName);
 
-			await vacuum.setUpObjects(duid);
+			await vacuums[duid].setUpObjects(duid);
 
-			this.updateDataMinimumData(duid, devices[device]);
-			this.updateDataExtraData(duid);
+			this.updateDataMinimumData(duid, devices[device], vacuums[duid]);
+			this.updateDataExtraData(duid, vacuums[duid]);
 
-			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval*1000, duid, devices[device]);
+			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval*1000, duid, devices[device], vacuums[duid]);
 
-			// sub to all commands
+			// sub to all commands of this robot
 			this.subscribeStates("Devices." + duid + ".commands.*");
 		}
 	}
 
-	updateDataMinimumData(duid, device) {
+	updateDataMinimumData(duid, device, vacuum) {
 		this.log.debug("Latest data requested");
 
 		vacuum.deviceInfo(duid, device);
@@ -201,7 +203,7 @@ class Roborock extends utils.Adapter {
 
 	}
 
-	updateDataExtraData(duid) {
+	updateDataExtraData(duid, vacuum) {
 		vacuum.getParameter(duid, "get_fw_features");
 
 		vacuum.getParameter(duid, "get_multi_maps_list");
@@ -256,7 +258,7 @@ class Roborock extends utils.Adapter {
 
 			this.log.debug("onStateChange: " + command + " with value: " + state.val);
 			if ((state.val == true) && (typeof(state.val) == "boolean")) {
-				vacuum.command(duid, command);
+				vacuums[duid].command(duid, command);
 
 				this.log.debug("Command to test: " + command);
 				// set back command to false after 1 second
@@ -268,10 +270,10 @@ class Roborock extends utils.Adapter {
 			}
 			else if (command == "load_multi_map")
 			{
-				await vacuum.command(duid, "load_multi_map", state.val);
+				await vacuums[duid].command(duid, "load_multi_map", state.val);
 			}
 			else if (typeof(state.val) != "boolean") {
-				vacuum.command(duid, command, state.val);
+				vacuums[duid].command(duid, command, state.val);
 			}
 		} else {
 			this.log.error("Error! Missing state onChangeState!");
