@@ -170,7 +170,6 @@ class Roborock extends utils.Adapter {
 			const robotModel = products[device]["model"];
 			const duid = devices[device].duid;
 
-			this.log.debug("Detected robot model: " + robotModel);
 			vacuums[duid] = new vacuum_class(this, rr, robotModel);
 
 			await vacuums[duid].setUpObjects(duid);
