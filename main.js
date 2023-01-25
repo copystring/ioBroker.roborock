@@ -165,11 +165,13 @@ class Roborock extends utils.Adapter {
 
 		// create devices
 		const devices = homedata.devices;
+		const products = homedata.products;
 		for (const device in devices){
-			const robotName = devices[device]["name"];
-			this.log.debug("Detected robot name: " + robotName);
+			const robotModel = products[device]["model"];
 			const duid = devices[device].duid;
-			vacuums[duid] = new vacuum_class(this, rr, robotName);
+
+			this.log.debug("Detected robot model: " + robotModel);
+			vacuums[duid] = new vacuum_class(this, rr, robotModel);
 
 			await vacuums[duid].setUpObjects(duid);
 
