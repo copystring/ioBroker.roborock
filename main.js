@@ -191,7 +191,7 @@ class Roborock extends utils.Adapter {
 
 		vacuum.getParameter(duid, "get_mop_mode");
 		vacuum.getParameter(duid, "get_water_box_custom_mode");
-		vacuum.getParameter(duid, "get_status"); // gets fan_power and water_box_mode
+		vacuum.getParameter(duid, "get_status");
 
 		vacuum.getParameter(duid, "get_consumable");
 
