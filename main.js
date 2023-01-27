@@ -254,9 +254,9 @@ class Roborock extends utils.Adapter {
 	 */
 	async onStateChange(id, state) {
 		if (state) {
-			let duid = id.replace(`${this.namespace}.Devices.`, "");
-			duid = duid.substring(0, duid.indexOf("."));
-			const command = id.split(".").slice(-1)[0];
+			const idParts = id.split(".");
+			const duid = idParts[3];
+			const command = idParts[5];
 
 			this.log.debug("onStateChange: " + command + " with value: " + state.val);
 			if ((state.val == true) && (typeof (state.val) == "boolean")) {
