@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.0.3-alpha.0",
+    "version": "0.0.4-alpha.0",
     "news": {
+      "0.0.4-alpha.0": {
+        "en": "add missing mop and carpet commands",
+        "de": "fehlende mop- und teppichbefehle hinzufügen",
+        "ru": "добавьте отсутствующие команды ковров и ковров",
+        "pt": "adicionar comandos de esfregão e carpete ausentes",
+        "nl": "vertaling:",
+        "fr": "ajouter des commandes mop et tapis manquantes",
+        "it": "aggiungere comandi mop e tappeti mancanti",
+        "es": "añadir comandos faltantes de mop y alfombra",
+        "pl": "brakujące polecenia",
+        "uk": "додавати відсутні моп і килимові команди",
+        "zh-cn": "增加失踪的汽车和汽车行长指挥"
+      },
       "0.0.3-alpha.0": {
         "en": "randomize the client ID",
         "de": "die Client-ID randomisieren",

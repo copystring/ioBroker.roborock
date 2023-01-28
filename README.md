@@ -19,7 +19,7 @@ Describe your project here
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.0.4-alpha.0 (2023-01-28)
 * (copystring) add missing mop and carpet commands
 
 ### 0.0.3-alpha.0 (2023-01-28)
