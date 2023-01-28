@@ -5,7 +5,6 @@ const utils = require("@iobroker/adapter-core");
 const axios = require("axios");
 const crypto = require("crypto");
 const EventEmitter = require("node:events");
-const uuidv4 = require("uuid/v4");
 
 const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roborock_mqtt_connector;
 const vacuum_class = require("./lib/vacuum").vacuum;
@@ -45,13 +44,16 @@ class Roborock extends utils.Adapter {
 		}
 
 		// create new clientID if it doesn't exist yet
-		const storedClientID = await this.getStateAsync("clientID");
 		let clientID;
+		const storedClientID = await this.getStateAsync("clientID");
 		if ((storedClientID) && (typeof (storedClientID) != "undefined")) {
+			clientID = storedClientID.val;
+		}
+		else {
 			await this.setObjectNotExistsAsync("clientID", {
 				type: "state",
 				common: {
-					name: "UserData string",
+					name: "Client ID",
 					type: "string",
 					role: "value",
 					read: true,
@@ -59,11 +61,8 @@ class Roborock extends utils.Adapter {
 				},
 				native: {},
 			});
-			clientID = uuidv4();
+			clientID = crypto.randomUUID();
 			await this.setStateAsync("clientID", { val: clientID, ack: true });
-		}
-		else {
-			clientID = storedClientID;
 		}
 
 		// Initialize the login API (which is needed to get access to the real API).
