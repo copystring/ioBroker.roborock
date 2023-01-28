@@ -19,6 +19,9 @@ Describe your project here
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) randomize the client ID
+
 ### 0.0.2-alpha.0 (2023-01-28)
 * (copystring) initial release
 
