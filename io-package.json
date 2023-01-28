@@ -1,87 +1,100 @@
 {
-	"common": {
-		"name": "roborock",
-		"version": "0.0.1",
-		"news": {
-			"0.0.1": {
-				"en": "initial release",
-				"de": "Erstveröffentlichung",
-				"ru": "Начальная версия",
-				"pt": "lançamento inicial",
-				"nl": "Eerste uitgave",
-				"fr": "Première version",
-				"it": "Versione iniziale",
-				"es": "Versión inicial",
-				"pl": "Pierwsze wydanie",
-				"zh-cn": "首次出版"
-			}
-		},
-		"title": "Roborock",
-		"titleLang": {
-			"en": "Roborock",
-			"de": "Roborock",
-			"ru": "Роборок",
-			"pt": "Roborock",
-			"nl": "Roborock",
-			"fr": "Roborock",
-			"it": "Roborock",
-			"es": "roborock",
-			"pl": "Roborock",
-			"zh-cn": "石头"
-		},
-		"desc": {
-			"en": "roborock",
-			"de": "Roborock",
-			"ru": "роборок",
-			"pt": "roborock",
-			"nl": "roborock",
-			"fr": "roborock",
-			"it": "Roborock",
-			"es": "roborock",
-			"pl": "roborock",
-			"zh-cn": "机器人摇滚"
-		},
-		"authors": [
-			"copystring <copystring@gmail.com>"
-		],
-		"keywords": [
-			"ioBroker",
-			"template",
-			"Smart Home",
-			"home automation"
-		],
-		"license": "MIT",
-		"platform": "Javascript/Node.js",
-		"main": "main.js",
-		"icon": "roborock.png",
-		"enabled": true,
-		"extIcon": "https://raw.githubusercontent.com/copystring/ioBroker.roborock/main/admin/roborock.png",
-		"readme": "https://github.com/copystring/ioBroker.roborock/blob/main/README.md",
-		"loglevel": "info",
-		"mode": "daemon",
-		"type": "household",
-		"compact": true,
-		"connectionType": "cloud",
-		"dataSource": "poll",
-		"adminUI": {
-			"config": "json"
-		},
-		"dependencies": [
-			{
-				"js-controller": ">=3.3.22"
-			}
-		],
-		"globalDependencies": [
-			{
-				"admin": ">=5.1.13"
-			}
-		]
-	},
-	"native": {
-		"username": "",
-		"password": "",
-		"updateInterval": 60
-	},
-	"objects": [],
-	"instanceObjects": []
+  "common": {
+    "name": "roborock",
+    "version": "0.0.2-alpha.0",
+    "news": {
+      "0.0.2-alpha.0": {
+        "en": "initial release",
+        "de": "erstausstrahlung",
+        "ru": "начальный выпуск",
+        "pt": "lançamento inicial",
+        "nl": "niet",
+        "fr": "initial release",
+        "it": "rilascio iniziale",
+        "es": "liberación inicial",
+        "pl": "pierwsze wydanie",
+        "uk": "початковий реліз",
+        "zh-cn": "初步释放"
+      },
+      "0.0.1": {
+        "en": "initial release",
+        "de": "Erstveröffentlichung",
+        "ru": "Начальная версия",
+        "pt": "lançamento inicial",
+        "nl": "Eerste uitgave",
+        "fr": "Première version",
+        "it": "Versione iniziale",
+        "es": "Versión inicial",
+        "pl": "Pierwsze wydanie",
+        "zh-cn": "首次出版"
+      }
+    },
+    "title": "Roborock",
+    "titleLang": {
+      "en": "Roborock",
+      "de": "Roborock",
+      "ru": "Роборок",
+      "pt": "Roborock",
+      "nl": "Roborock",
+      "fr": "Roborock",
+      "it": "Roborock",
+      "es": "roborock",
+      "pl": "Roborock",
+      "zh-cn": "石头"
+    },
+    "desc": {
+      "en": "roborock",
+      "de": "Roborock",
+      "ru": "роборок",
+      "pt": "roborock",
+      "nl": "roborock",
+      "fr": "roborock",
+      "it": "Roborock",
+      "es": "roborock",
+      "pl": "roborock",
+      "zh-cn": "机器人摇滚"
+    },
+    "authors": [
+      "copystring <copystring@gmail.com>"
+    ],
+    "keywords": [
+      "ioBroker",
+      "template",
+      "Smart Home",
+      "home automation"
+    ],
+    "license": "MIT",
+    "platform": "Javascript/Node.js",
+    "main": "main.js",
+    "icon": "roborock.png",
+    "enabled": true,
+    "extIcon": "https://raw.githubusercontent.com/copystring/ioBroker.roborock/main/admin/roborock.png",
+    "readme": "https://github.com/copystring/ioBroker.roborock/blob/main/README.md",
+    "loglevel": "info",
+    "mode": "daemon",
+    "type": "household",
+    "compact": true,
+    "connectionType": "cloud",
+    "dataSource": "poll",
+    "adminUI": {
+      "config": "json"
+    },
+    "dependencies": [
+      {
+        "js-controller": ">=3.3.22"
+      }
+    ],
+    "globalDependencies": [
+      {
+        "admin": ">=5.1.13"
+      }
+    ]
+  },
+  "native": {
+    "username": "",
+    "password": "",
+    "updateInterval": 60
+  },
+  "objects": [],
+  "instanceObjects": []
 }
