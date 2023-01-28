@@ -174,24 +174,22 @@ class Roborock extends utils.Adapter {
 
 			await vacuums[duid].setUpObjects(duid);
 
-			this.updateDataMinimumData(duid, devices[device], vacuums[duid]);
+			this.updateDataMinimumData(duid, vacuums[duid]);
 			this.updateDataExtraData(duid, vacuums[duid]);
 
-			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, devices[device], vacuums[duid]);
+
+			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, vacuums[duid]);
 
 			// sub to all commands of this robot
 			this.subscribeStates("Devices." + duid + ".commands.*");
 		}
 	}
 
-	updateDataMinimumData(duid, device, vacuum) {
+	updateDataMinimumData(duid, vacuum) {
 		this.log.debug("Latest data requested");
 
-		vacuum.deviceInfo(duid, device);
-
-		vacuum.getParameter(duid, "get_mop_mode");
-		vacuum.getParameter(duid, "get_water_box_custom_mode");
 		vacuum.getParameter(duid, "get_status");
+		vacuum.getParameter(duid, "get_water_box_custom_mode");
 
 		vacuum.getParameter(duid, "get_consumable");
 
@@ -200,7 +198,7 @@ class Roborock extends utils.Adapter {
 		vacuum.getCleanSummary(duid);
 
 		vacuum.getParameter(duid, "get_carpet_mode");
-		vacuum.getParameter(duid, "get_carpet_cleaning_mode");
+		vacuum.getParameter(duid, "get_carpet_clean_mode");
 
 	}
 
