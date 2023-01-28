@@ -43,14 +43,37 @@ class Roborock extends utils.Adapter {
 			return;
 		}
 
+		// create new clientID if it doesn't exist yet
+		let clientID;
+		const storedClientID = await this.getStateAsync("clientID");
+		if ((storedClientID) && (typeof (storedClientID) != "undefined")) {
+			clientID = storedClientID.val;
+		}
+		else {
+			await this.setObjectNotExistsAsync("clientID", {
+				type: "state",
+				common: {
+					name: "Client ID",
+					type: "string",
+					role: "value",
+					read: true,
+					write: false,
+				},
+				native: {},
+			});
+			clientID = crypto.randomUUID();
+			await this.setStateAsync("clientID", { val: clientID, ack: true });
+		}
+
 		// Initialize the login API (which is needed to get access to the real API).
 		const loginApi = axios.create({
 			baseURL: "https://euiot.roborock.com",
 			headers: {
-				"header_clientid": crypto.createHash("md5").update(username).update("should_be_unique").digest().toString("base64"),
+				"header_clientid": crypto.createHash("md5").update(username).update(clientID).digest().toString("base64"),
 			},
 		});
 		// api/v1/getUrlByEmail(email = ...)
+
 		// Try to load existing userdata.
 		const userdataObj = await this.getStateAsync("UserData");
 		let userdata;
