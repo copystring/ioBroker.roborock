@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.0.2-alpha.0",
+    "version": "0.0.3-alpha.0",
     "news": {
+      "0.0.3-alpha.0": {
+        "en": "randomize the client ID",
+        "de": "die Client-ID randomisieren",
+        "ru": "рандомизируйте ID клиента",
+        "pt": "randomizar o ID do cliente",
+        "nl": "vertaling:",
+        "fr": "randomiser l'ID du client",
+        "it": "casualizzare l'ID client",
+        "es": "aleatorizar el ID del cliente",
+        "pl": "z randomizował ID klienta",
+        "uk": "випадання ідентифікатора клієнта",
+        "zh-cn": "随机将客户开发协会"
+      },
       "0.0.2-alpha.0": {
         "en": "initial release",
         "de": "erstausstrahlung",
