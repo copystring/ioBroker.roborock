@@ -5,6 +5,7 @@ const utils = require("@iobroker/adapter-core");
 const axios = require("axios");
 const crypto = require("crypto");
 const EventEmitter = require("node:events");
+const uuidv4 = require("uuid/v4");
 
 const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roborock_mqtt_connector;
 const vacuum_class = require("./lib/vacuum").vacuum;
@@ -43,14 +44,37 @@ class Roborock extends utils.Adapter {
 			return;
 		}
 
+		// create new clientID if it doesn't exist yet
+		const storedClientID = await this.getStateAsync("clientID");
+		let clientID;
+		if ((storedClientID) && (typeof (storedClientID) != "undefined")) {
+			await this.setObjectNotExistsAsync("clientID", {
+				type: "state",
+				common: {
+					name: "UserData string",
+					type: "string",
+					role: "value",
+					read: true,
+					write: false,
+				},
+				native: {},
+			});
+			clientID = uuidv4();
+			await this.setStateAsync("clientID", { val: clientID, ack: true });
+		}
+		else {
+			clientID = storedClientID;
+		}
+
 		// Initialize the login API (which is needed to get access to the real API).
 		const loginApi = axios.create({
 			baseURL: "https://euiot.roborock.com",
 			headers: {
-				"header_clientid": crypto.createHash("md5").update(username).update("should_be_unique").digest().toString("base64"),
+				"header_clientid": crypto.createHash("md5").update(username).update(clientID).digest().toString("base64"),
 			},
 		});
 		// api/v1/getUrlByEmail(email = ...)
+
 		// Try to load existing userdata.
 		const userdataObj = await this.getStateAsync("UserData");
 		let userdata;
