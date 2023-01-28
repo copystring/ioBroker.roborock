@@ -9,8 +9,8 @@ const EventEmitter = require("node:events");
 const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roborock_mqtt_connector;
 const vacuum_class = require("./lib/vacuum").vacuum;
 const rr = new EventEmitter();
+const vacuums = {};
 
-let vacuum;
 let rr_mqtt_connector;
 
 class Roborock extends utils.Adapter {
@@ -54,11 +54,11 @@ class Roborock extends utils.Adapter {
 		// Try to load existing userdata.
 		const userdataObj = await this.getStateAsync("UserData");
 		let userdata;
-		if ((userdataObj) && (typeof(userdataObj) != "undefined")) {
+		if ((userdataObj) && (typeof (userdataObj) != "undefined")) {
 			userdata = JSON.parse(userdataObj.val);
 		} else {
 			// try log in.
-			userdata = await loginApi.post("api/v1/login", new URLSearchParams({username: username, password: password, needtwostepauth: "false"}).toString()).then(res => res.data.data);
+			userdata = await loginApi.post("api/v1/login", new URLSearchParams({ username: username, password: password, needtwostepauth: "false" }).toString()).then(res => res.data.data);
 
 			// Alternative without password:
 			// await loginApi.post("api/v1/sendEmailCode", new url.URLSearchParams({username: username, type: "auth"}).toString()).then(res => res.data);
@@ -141,7 +141,7 @@ class Roborock extends utils.Adapter {
 
 		// store name of each room via ID
 		const rooms = homedata.rooms;
-		for (const room in rooms){
+		for (const room in rooms) {
 			const roomID = rooms[room].id;
 			const roomName = rooms[room].name;
 
@@ -162,33 +162,34 @@ class Roborock extends utils.Adapter {
 			native: {},
 		});
 
-		vacuum = new vacuum_class(this, rr);
 
 		// create devices
 		const devices = homedata.devices;
-		for (const device in devices){
+		const products = homedata.products;
+		for (const device in devices) {
+			const robotModel = products[device]["model"];
 			const duid = devices[device].duid;
 
-			await vacuum.setUpObjects(duid);
+			vacuums[duid] = new vacuum_class(this, rr, robotModel);
 
-			this.updateDataMinimumData(duid, devices[device]);
-			this.updateDataExtraData(duid);
+			await vacuums[duid].setUpObjects(duid);
 
-			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval*1000, duid, devices[device]);
+			this.updateDataMinimumData(duid, vacuums[duid]);
+			this.updateDataExtraData(duid, vacuums[duid]);
 
-			// sub to all commands
+
+			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, vacuums[duid]);
+
+			// sub to all commands of this robot
 			this.subscribeStates("Devices." + duid + ".commands.*");
 		}
 	}
 
-	updateDataMinimumData(duid, device) {
+	updateDataMinimumData(duid, vacuum) {
 		this.log.debug("Latest data requested");
 
-		vacuum.deviceInfo(duid, device);
-
-		vacuum.getParameter(duid, "get_mop_mode");
+		vacuum.getParameter(duid, "get_status");
 		vacuum.getParameter(duid, "get_water_box_custom_mode");
-		vacuum.getParameter(duid, "get_status"); // gets fan_power and water_box_mode
 
 		vacuum.getParameter(duid, "get_consumable");
 
@@ -197,11 +198,11 @@ class Roborock extends utils.Adapter {
 		vacuum.getCleanSummary(duid);
 
 		vacuum.getParameter(duid, "get_carpet_mode");
-		vacuum.getParameter(duid, "get_carpet_cleaning_mode");
+		vacuum.getParameter(duid, "get_carpet_clean_mode");
 
 	}
 
-	updateDataExtraData(duid) {
+	updateDataExtraData(duid, vacuum) {
 		vacuum.getParameter(duid, "get_fw_features");
 
 		vacuum.getParameter(duid, "get_multi_maps_list");
@@ -251,27 +252,27 @@ class Roborock extends utils.Adapter {
 	 */
 	async onStateChange(id, state) {
 		if (state) {
-			const duid = id.substring(19, 41);
-			const command = id.split(".").slice(-1)[0];
+			const idParts = id.split(".");
+			const duid = idParts[3];
+			const command = idParts[5];
 
 			this.log.debug("onStateChange: " + command + " with value: " + state.val);
-			if ((state.val == true) && (typeof(state.val) == "boolean")) {
-				vacuum.command(duid, command);
+			if ((state.val == true) && (typeof (state.val) == "boolean")) {
+				vacuums[duid].command(duid, command);
 
 				this.log.debug("Command to test: " + command);
 				// set back command to false after 1 second
 				if ((command != "set_carpet_mode") && (command != "set_carpet_cleaning_mode")) {
-					setTimeout(() =>{
+					setTimeout(() => {
 						this.setStateAsync(id, false);
 					}, 1000);
 				}
 			}
-			else if (command == "load_multi_map")
-			{
-				await vacuum.command(duid, "load_multi_map", state.val);
+			else if (command == "load_multi_map") {
+				await vacuums[duid].command(duid, "load_multi_map", state.val);
 			}
-			else if (typeof(state.val) != "boolean") {
-				vacuum.command(duid, command, state.val);
+			else if (typeof (state.val) != "boolean") {
+				vacuums[duid].command(duid, command, state.val);
 			}
 		} else {
 			this.log.error("Error! Missing state onChangeState!");
