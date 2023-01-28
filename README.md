@@ -19,7 +19,7 @@ Describe your project here
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.0.5-alpha.0 (2023-01-28)
 * (copystring) remove old and unused deviceInfo code
 
 ### 0.0.4-alpha.0 (2023-01-28)
