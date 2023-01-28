@@ -251,7 +251,6 @@ class Roborock extends utils.Adapter {
 	 */
 	async onStateChange(id, state) {
 		if (state) {
-			this.log.debug("onStateChange: " + id);
 			const duid = id.substring(19, 41);
 			const command = id.split(".").slice(-1)[0];
 
