@@ -88,7 +88,7 @@ class Roborock extends utils.Adapter {
 			// // ... get code from user ...
 			// userdata = await loginApi.post("api/v1/loginWithCode", new url.URLSearchParams({username: username, verifycode: code, verifycodetype: "AUTH_EMAIL_CODE"}).toString()).then(res => res.data.data);
 
-			this.log.debug("UserData: " + userdata);
+			this.log.debug("UserData: " + JSON.stringify(userdata));
 			if (userdata == null) {
 				this.deleteStateAsync("HomeData");
 				this.deleteStateAsync("UserData");
