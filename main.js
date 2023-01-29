@@ -190,7 +190,10 @@ class Roborock extends utils.Adapter {
 		const devices = homedata.devices;
 		const products = homedata.products;
 		for (const device in devices) {
-			const robotModel = products[device]["model"];
+			const productID = devices[device]["productId"];
+			// const robotModel = products[device]["model"];
+			const robotModel = this.getRobotModel(products, productID);
+			this.getRobotModel(products, productID);
 			const duid = devices[device].duid;
 
 			vacuums[duid] = new vacuum_class(this, rr, robotModel);
@@ -206,6 +209,19 @@ class Roborock extends utils.Adapter {
 			// sub to all commands of this robot
 			this.subscribeStates("Devices." + duid + ".commands.*");
 		}
+	}
+
+	getRobotModel(products, productID) {
+		this.log.debug("Products: " + typeof(products));
+		for (const product in products) {
+			if (products[product].id == productID) {
+				const model = products[product].model;
+				this.log.debug("Product result: " + productID);
+				this.log.debug("Product model: " + model);
+				return model;
+			}
+		}
+
 	}
 
 	updateDataMinimumData(duid, vacuum) {
