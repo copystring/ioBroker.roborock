@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.0.5-alpha.0",
+    "version": "0.0.6-alpha.0",
     "news": {
+      "0.0.6-alpha.0": {
+        "en": "report unknown attributes",
+        "de": "unbekannte attribute melden",
+        "ru": "сообщить неизвестные атрибуты",
+        "pt": "relatar atributos desconhecidos",
+        "nl": "onbekend verslag",
+        "fr": "des attributs inconnus",
+        "it": "report attributi sconosciuti",
+        "es": "reportar atributos desconocidos",
+        "pl": "raport nieznany",
+        "uk": "звіт невідомого атрибуту",
+        "zh-cn": "未报告的属性"
+      },
       "0.0.5-alpha.0": {
         "en": "remove old and unused deviceInfo code",
         "de": "altes und ungenutztes Gerät entfernen Infocode",

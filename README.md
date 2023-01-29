@@ -19,7 +19,7 @@ Describe your project here
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.0.6-alpha.0 (2023-01-29)
 * (copystring) report unknown attributes
 
 ### 0.0.5-alpha.0 (2023-01-28)
