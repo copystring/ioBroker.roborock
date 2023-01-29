@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.0.4-alpha.0",
+    "version": "0.0.5-alpha.0",
     "news": {
+      "0.0.5-alpha.0": {
+        "en": "remove old and unused deviceInfo code",
+        "de": "altes und ungenutztes Gerät entfernen Infocode",
+        "ru": "удалить старое и неиспользуемое устройство Инфо код",
+        "pt": "remover dispositivo antigo e não usado Código de informação",
+        "nl": "verwijder oud en onbruikbaar apparaat Info",
+        "fr": "supprimer vieux et un appareil inutilisé Code d ' information",
+        "it": "rimuovere dispositivo vecchio e non utilizzato Codice info",
+        "es": "quitar el dispositivo viejo y no utilizado Código de información",
+        "pl": "usunąć stare i nieużywane urządzenie kod",
+        "uk": "видалити старий і невикористаний пристрій Контакти",
+        "zh-cn": "拆除旧和未使用的装置 信息守则"
+      },
       "0.0.4-alpha.0": {
         "en": "add missing mop and carpet commands",
         "de": "fehlende mop- und teppichbefehle hinzufügen",
