@@ -88,7 +88,6 @@ class Roborock extends utils.Adapter {
 			// // ... get code from user ...
 			// userdata = await loginApi.post("api/v1/loginWithCode", new url.URLSearchParams({username: username, verifycode: code, verifycodetype: "AUTH_EMAIL_CODE"}).toString()).then(res => res.data.data);
 
-			this.log.debug("UserData: " + JSON.stringify(userdata));
 			if (userdata == null) {
 				this.deleteStateAsync("HomeData");
 				this.deleteStateAsync("UserData");
@@ -206,6 +205,12 @@ class Roborock extends utils.Adapter {
 
 			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, vacuums[duid]);
 
+			// get map every second. Maybe I find a way later on to only update every second if the robot is running.
+			setInterval(function () {
+				vacuums[duid].getMap(duid);
+			}, 1000);
+			// setInterval(vacuums[duid].getMap, 1000, duid);
+
 			// sub to all commands of this robot
 			this.subscribeStates("Devices." + duid + ".commands.*");
 		}
@@ -238,7 +243,6 @@ class Roborock extends utils.Adapter {
 
 		vacuum.getParameter(duid, "get_carpet_mode");
 		vacuum.getParameter(duid, "get_carpet_clean_mode");
-
 	}
 
 	updateDataExtraData(duid, vacuum) {
@@ -247,6 +251,8 @@ class Roborock extends utils.Adapter {
 		vacuum.getParameter(duid, "get_multi_maps_list");
 
 		vacuum.getParameter(duid, "get_room_mapping");
+
+		vacuum.getMap(duid);
 	}
 
 	/**
