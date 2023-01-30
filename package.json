@@ -26,6 +26,8 @@
     "axios": "^0.27.2",
     "binary-parser": "^2.2.1",
     "canvas": "^2.11.0",
+    "buffer": "^6.0.3",
+    "crc-32": "^1.2.2",
     "mqtt": "^4.3.7"
   },
   "devDependencies": {
