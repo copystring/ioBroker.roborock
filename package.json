@@ -25,12 +25,14 @@
     "@iobroker/adapter-core": "^2.6.7",
     "axios": "^0.27.2",
     "binary-parser": "^2.2.1",
-    "canvas": "^2.11.0",
     "buffer": "^6.0.3",
+    "canvas": "^2.11.0",
     "crc": "^4.1.1",
     "crc-32": "^1.2.2",
+    "crypto": "^1.0.1",
     "mqtt": "^4.3.7",
-    "process": "^0.11.10"
+    "process": "^0.11.10",
+    "zlib": "^1.0.5"
   },
   "devDependencies": {
     "@alcalzone/release-script": "^3.5.9",
