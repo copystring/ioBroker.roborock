@@ -251,7 +251,9 @@ class Roborock extends utils.Adapter {
 
 		vacuum.getParameter(duid, "get_room_mapping");
 
-		vacuum.getMap(duid);
+		if (this.config.enable_map_creation == true) {
+			vacuum.getMap(duid);
+		}
 	}
 
 	/**
