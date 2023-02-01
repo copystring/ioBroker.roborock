@@ -12,6 +12,11 @@
 			"label": "Passwort",
 			"newLine": true
 		},
+		"enable_map_creation": {
+			"type": "checkbox",
+			"label": "Enable Map Creation",
+			"newLine": true
+		},
 		"updateInterval": {
 			"type": "number",
 			"label": "Update interval",
