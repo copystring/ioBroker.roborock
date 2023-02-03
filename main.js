@@ -364,6 +364,10 @@ class Roborock extends utils.Adapter {
 			else if (typeof (state.val) != "boolean") {
 				vacuums[duid].command(duid, command, state.val);
 			}
+			else if ((command == "app_start") || (command == "app_segment_clean") || (command == "app_charge") || (command == "app_spot"))
+			{
+				this.startMapUpdater(duid);
+			}
 		} else {
 			this.log.error("Error! Missing state onChangeState!");
 		}
