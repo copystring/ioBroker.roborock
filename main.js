@@ -248,7 +248,7 @@ class Roborock extends utils.Adapter {
 			// get map x seconds. Maybe I find a way later on to only update every second if the robot is running.
 			vacuums[duid].mapUpdater = setInterval(function () {
 				vacuums[duid].getMap(duid);
-			}, 2000);
+			}, this.config.map_creation_interval*1000);
 		}
 		else {
 			this.log.debug("Map updater on robot: " + duid + " already running!");
