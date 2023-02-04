@@ -206,15 +206,59 @@ class Roborock extends utils.Adapter {
 			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, vacuums[duid]);
 
 			if (this.config.enable_map_creation == true) {
-				// get map x seconds. Maybe I find a way later on to only update every second if the robot is running.
-				setInterval(function () {
-					vacuums[duid].getMap(duid);
-				}, 2000);
+				const in_returning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_returning");
+				const in_cleaning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_cleaning");
+				const is_locating = await this.getStateAsync("roborock.0.Devices." + duid + ".deviceStatus.is_locating");
+
+				if (((in_cleaning.val == 1) || (in_returning.val == 1)) && (is_locating.val == 0)) {
+					this.startMapUpdater(duid);
+				}
 			}
 
 			// sub to all commands of this robot
 			this.subscribeStates("Devices." + duid + ".commands.*");
 		}
+
+		rr.on("foreign.message", (duid, result) => {
+			let value;
+
+			this.log.debug("foreign.message duid: " + duid);
+
+			for (const attribute in result) {
+				this.log.debug("foreign.message attribute: " + attribute);
+				switch(attribute) {
+					case "121":
+						value = result[attribute];
+						if ((value == 4) || (value == 5) || (value == 6) || (value == 7) || (value == 11) || (value == 15) || (value == 16) || (value == 17) || (value == 18)) {
+							this.startMapUpdater(duid);
+						}
+						else {
+							this.stopMapUpdater(duid);
+						}
+						break;
+					default:
+				}
+			}
+		});
+	}
+
+	async startMapUpdater(duid) {
+		if (vacuums[duid].mapUpdater == null) {
+			this.log.debug("Started map updater on robot: " + duid);
+			// get map x seconds. Maybe I find a way later on to only update every second if the robot is running.
+			vacuums[duid].mapUpdater = setInterval(function () {
+				vacuums[duid].getMap(duid);
+			}, this.config.map_creation_interval*1000);
+		}
+		else {
+			this.log.debug("Map updater on robot: " + duid + " already running!");
+		}
+	}
+
+	stopMapUpdater(duid) {
+		this.log.debug("Stopped map updater on robot: " + duid);
+		this.clearInterval(vacuums[duid].mapUpdater);
+		vacuums[duid].mapUpdater = null;
 	}
 
 	getRobotModel(products, productID) {
@@ -319,6 +363,10 @@ class Roborock extends utils.Adapter {
 			}
 			else if (typeof (state.val) != "boolean") {
 				vacuums[duid].command(duid, command, state.val);
+			}
+			else if ((command == "app_start") || (command == "app_segment_clean") || (command == "app_charge") || (command == "app_spot"))
+			{
+				this.startMapUpdater(duid);
 			}
 		} else {
 			this.log.error("Error! Missing state onChangeState!");
