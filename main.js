@@ -124,21 +124,22 @@ class Roborock extends utils.Adapter {
 		const api = axios.create({
 			baseURL: rriot.r.a,
 		});
-		try {
-			api.interceptors.request.use(config => {
+		api.interceptors.request.use(config => {
+			try {
 				const timestamp = Math.floor(Date.now() / 1000);
 				const nonce = crypto.randomBytes(6).toString("base64").substring(0, 6).replace("+", "X").replace("/", "Y");
 				const url = new URL(api.getUri(config));
 				const prestr = [rriot.u, rriot.s, nonce, timestamp, md5hex(url.pathname), /*queryparams*/ "", /*body*/ ""].join(":");
 				const mac = crypto.createHmac("sha256", rriot.h).update(prestr).digest("base64");
+
 				this.log.debug("Init debug: " + JSON.stringify(config.headers.common));
 				config.headers.common["Authorization"] = `Hawk id="${rriot.u}", s="${rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
 				return config;
-			});
-		}
-		catch (error) {
-			this.log.error("Failed to initialize API. Error: " + error);
-		}
+			}
+			catch (error) {
+				this.log.error("Failed to initialize API. Error: " + error);
+			}
+		});
 
 		// Get home details.
 		const homeId = await loginApi.get("api/v1/getHomeDetail").then(res => res.data.data.rrHomeId);
