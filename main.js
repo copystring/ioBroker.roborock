@@ -131,8 +131,8 @@ class Roborock extends utils.Adapter {
 				const url = new URL(api.getUri(config));
 				const prestr = [rriot.u, rriot.s, nonce, timestamp, md5hex(url.pathname), /*queryparams*/ "", /*body*/ ""].join(":");
 				const mac = crypto.createHmac("sha256", rriot.h).update(prestr).digest("base64");
-				config.headers.common["Authorization"] = `Hawk id="${rriot.u}", s="${rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
 				this.log.debug("Init debug: " + JSON.stringify(config.headers.common));
+				config.headers.common["Authorization"] = `Hawk id="${rriot.u}", s="${rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
 				return config;
 			});
 		}
