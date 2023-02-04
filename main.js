@@ -133,7 +133,7 @@ class Roborock extends utils.Adapter {
 				const mac = crypto.createHmac("sha256", rriot.h).update(prestr).digest("base64");
 
 				this.log.debug("Init debug: " + JSON.stringify(config.headers.common));
-				config.headers.common["Authorization"] = `Hawk id="${rriot.u}", s="${rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
+				config.headers["Authorization"] = `Hawk id="${rriot.u}", s="${rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
 				return config;
 			}
 			catch (error) {
