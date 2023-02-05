@@ -78,10 +78,10 @@
         "it": "Versione iniziale",
         "es": "Versión inicial",
         "pl": "Pierwsze wydanie",
+        "uk": "початковий реліз",
         "zh-cn": "首次出版"
       }
     },
-    "title": "Roborock",
     "titleLang": {
       "en": "Roborock",
       "de": "Roborock",
@@ -110,9 +110,8 @@
       "copystring <copystring@gmail.com>"
     ],
     "keywords": [
-      "ioBroker",
+      "roborock",
       "template",
-      "Smart Home",
       "home automation"
     ],
     "license": "MIT",
