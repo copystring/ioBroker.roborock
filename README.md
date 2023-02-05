@@ -19,6 +19,14 @@ Describe your project here
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Fix cleaningInfo for Roborock S4 to S6
+* (copystring) Add optional map with selectable update intervall
+* (copystring) Prepare for npm releases
+* (copystring) Fix crashes on initialisation
+* (copystring) Fix type m³ to m²
+* (copystring) Add ukranian language
+
 ### 0.0.6-alpha.0 (2023-01-29)
 * (copystring) report unknown attributes
 
