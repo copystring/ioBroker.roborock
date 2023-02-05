@@ -24,7 +24,7 @@ Describe your project here
 * (copystring) Add optional map with selectable update intervall
 * (copystring) Prepare for npm releases
 * (copystring) Fix crashes on initialisation
-* (copystring) Fix type wrong units - square meter instead of cubic meter
+* (copystring) Fix type m³ to m²
 * (copystring) Add ukranian language
 
 ### 0.0.6-alpha.0 (2023-01-29)
