@@ -26,6 +26,7 @@ Describe your project here
 * (copystring) Fix crashes on initialisation
 * (copystring) Fix type m³ to m²
 * (copystring) Add ukranian language
+* (copystring) Fix map creation check
 
 ### 0.0.6-alpha.0 (2023-01-29)
 * (copystring) report unknown attributes
