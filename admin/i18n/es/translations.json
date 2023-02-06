@@ -1,5 +1,10 @@
 {
     "option1": "Opción 1",
     "option2": "opcion 2",
-    "roborock adapter settings": "Ajustes del adaptador para roborock"
+    "roborock adapter settings": "Ajustes del adaptador para roborock",
+    "Login": "Acceso",
+    "Password": "Contraseña",
+    "Enable Map Creation": "Habilitar la creación de mapas",
+    "Map Creation Interval": "Intervalo de creación de mapas",
+    "Update interval": "Intervalo de actualización"
 }
