@@ -32,7 +32,7 @@ This adapter allows you the control, get states, cleaning history and view the m
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.0.7-alpha.0 (2023-02-06)
 * (copystring) Fix cleaningInfo for Roborock S4 to S6
 * (copystring) Add optional map with selectable update intervall
 * (copystring) Prepare for npm releases
