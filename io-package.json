@@ -1,168 +1,168 @@
 {
-  "common": {
-    "name": "roborock",
-    "version": "0.0.7-alpha.0",
-    "news": {
-      "0.0.7-alpha.0": {
-        "en": "Fix cleaningInfo for Roborock S4 to S6\nAdd optional map with selectable update intervall\nPrepare for npm releases\nFix crashes on initialisation\nFix type m³ to m²\nAdd ukranian language\nFix map creation check",
-        "de": "Reinigung Infos fÃ1⁄4r Roborock S4 zu S6\nOptionale Karte mit wählbarem Update Intervall hinzufügen\nBereiten Sie sich auf npm Releases vor\nAbsturz bei der Initialisierung beheben\nFix Typ m3 bis m2\nUkranianische Sprache hinzufügen\nErstellung der Karte",
-        "ru": "Fix чистка Информация для Roborock S4 до S6\nДобавить необязательную карту с отборным интервалом обновления\nПодготовьтесь к выпуску npm\nИсправление аварий на инициализации\nТип фиксации m3 до m2\nДобавить украинский язык\nFix проверка создания карты",
-        "pt": "Limpeza fixa Info para Roborock S4 a S6\nAdicionar mapa opcional com intervalo de atualização selecionável\nPreparar para versões npm\nCorrigir falhas na inicialização\nFix tipo m3 para m2\nAdicionar idioma ukranian\nVerificação da criação do mapa",
-        "nl": "Reinigen. Info over Roborock S4 aan S6\nVoeg een optie kaart met geselecteerde update\nBereid je voor op NPM vrijlating\nVertaling:\nFix type M3\nVertaling:\nFix kaart creatie controle",
-        "fr": "Nettoyage fixe Info pour Roborock S4 à S6\nAjouter une carte optionnelle avec intervalles de mise à jour sélectionnables\nPréparer les rejets de npm\nFix crashes on initialisation\nType fixe m3 à m2\nAjouter la langue ukranienne\nCorrection de la création de carte",
-        "it": "Fissare la pulizia Info per Roborock S4 a S6\nAggiungi la mappa opzionale con l'intervallo di aggiornamento selezionabile\nPreparare per npm releases\nFissare i crash sull'inizializzazione\nTipo di fissaggio m3 a m2\nAggiungere la lingua ucraina\nControllare la creazione della mappa",
-        "es": "Limpieza fija Info para Roborock S4 a S6\nAñadir mapa opcional con intervalo de actualización seleccionable\nPrepararse para las versiones npm\nEstrecho en la inicialización\nTipo de fijación m3 a m2\nAgregar idioma ukraniano\nVerificación de la creación del mapa",
-        "pl": "Czyszczenie Info\nOpcjonalna mapa z dodatkiem aktualizacji\nPrepare for FM releases\nFix rozbił się na inicjacji\nTyp m3 do m2\nJęzyk ukranowski\nMapa",
-        "uk": "Фіксація Інформація для Roborock S4 до S6\nДодати додаткову карту з вибраним інтервалом оновлення\nПідготовка до релізів npm\nВиправлення аварійних ситуацій на ініціалізації\nФіксований тип м3 до м2\nДодати мову\nПеревірка створення карт",
-        "zh-cn": "固定清洁 Roborock S4至S6的信息\n增加可选择的最新间隔图\n排放准备\nB. 初始化事故\nFix型 m3至m2\n增加ukranian语\n固定地图"
-      },
-      "0.0.6-alpha.0": {
-        "en": "report unknown attributes",
-        "de": "unbekannte attribute melden",
-        "ru": "сообщить неизвестные атрибуты",
-        "pt": "relatar atributos desconhecidos",
-        "nl": "onbekend verslag",
-        "fr": "des attributs inconnus",
-        "it": "report attributi sconosciuti",
-        "es": "reportar atributos desconocidos",
-        "pl": "raport nieznany",
-        "uk": "звіт невідомого атрибуту",
-        "zh-cn": "未报告的属性"
-      },
-      "0.0.5-alpha.0": {
-        "en": "remove old and unused deviceInfo code",
-        "de": "altes und ungenutztes Gerät entfernen Infocode",
-        "ru": "удалить старое и неиспользуемое устройство Инфо код",
-        "pt": "remover dispositivo antigo e não usado Código de informação",
-        "nl": "verwijder oud en onbruikbaar apparaat Info",
-        "fr": "supprimer vieux et un appareil inutilisé Code d ' information",
-        "it": "rimuovere dispositivo vecchio e non utilizzato Codice info",
-        "es": "quitar el dispositivo viejo y no utilizado Código de información",
-        "pl": "usunąć stare i nieużywane urządzenie kod",
-        "uk": "видалити старий і невикористаний пристрій Контакти",
-        "zh-cn": "拆除旧和未使用的装置 信息守则"
-      },
-      "0.0.4-alpha.0": {
-        "en": "add missing mop and carpet commands",
-        "de": "fehlende mop- und teppichbefehle hinzufügen",
-        "ru": "добавьте отсутствующие команды ковров и ковров",
-        "pt": "adicionar comandos de esfregão e carpete ausentes",
-        "nl": "vertaling:",
-        "fr": "ajouter des commandes mop et tapis manquantes",
-        "it": "aggiungere comandi mop e tappeti mancanti",
-        "es": "añadir comandos faltantes de mop y alfombra",
-        "pl": "brakujące polecenia",
-        "uk": "додавати відсутні моп і килимові команди",
-        "zh-cn": "增加失踪的汽车和汽车行长指挥"
-      },
-      "0.0.3-alpha.0": {
-        "en": "randomize the client ID",
-        "de": "die Client-ID randomisieren",
-        "ru": "рандомизируйте ID клиента",
-        "pt": "randomizar o ID do cliente",
-        "nl": "vertaling:",
-        "fr": "randomiser l'ID du client",
-        "it": "casualizzare l'ID client",
-        "es": "aleatorizar el ID del cliente",
-        "pl": "z randomizował ID klienta",
-        "uk": "випадання ідентифікатора клієнта",
-        "zh-cn": "随机将客户开发协会"
-      },
-      "0.0.2-alpha.0": {
-        "en": "initial release",
-        "de": "erstausstrahlung",
-        "ru": "начальный выпуск",
-        "pt": "lançamento inicial",
-        "nl": "niet",
-        "fr": "initial release",
-        "it": "rilascio iniziale",
-        "es": "liberación inicial",
-        "pl": "pierwsze wydanie",
-        "uk": "початковий реліз",
-        "zh-cn": "初步释放"
-      },
-      "0.0.1": {
-        "en": "initial release",
-        "de": "Erstveröffentlichung",
-        "ru": "Начальная версия",
-        "pt": "lançamento inicial",
-        "nl": "Eerste uitgave",
-        "fr": "Première version",
-        "it": "Versione iniziale",
-        "es": "Versión inicial",
-        "pl": "Pierwsze wydanie",
-        "uk": "початковий реліз",
-        "zh-cn": "首次出版"
-      }
+    "common": {
+        "name": "roborock",
+        "version": "0.0.7-alpha.0",
+        "news": {
+            "0.0.7-alpha.0": {
+                "en": "Fix cleaningInfo for Roborock S4 to S6\nAdd optional map with selectable update intervall\nPrepare for npm releases\nFix crashes on initialisation\nFix type m³ to m²\nAdd ukranian language\nFix map creation check",
+                "de": "Reinigung Infos fÃ1⁄4r Roborock S4 zu S6\nOptionale Karte mit wählbarem Update Intervall hinzufügen\nBereiten Sie sich auf npm Releases vor\nAbsturz bei der Initialisierung beheben\nFix Typ m3 bis m2\nUkranianische Sprache hinzufügen\nErstellung der Karte",
+                "ru": "Fix чистка Информация для Roborock S4 до S6\nДобавить необязательную карту с отборным интервалом обновления\nПодготовьтесь к выпуску npm\nИсправление аварий на инициализации\nТип фиксации m3 до m2\nДобавить украинский язык\nFix проверка создания карты",
+                "pt": "Limpeza fixa Info para Roborock S4 a S6\nAdicionar mapa opcional com intervalo de atualização selecionável\nPreparar para versões npm\nCorrigir falhas na inicialização\nFix tipo m3 para m2\nAdicionar idioma ukranian\nVerificação da criação do mapa",
+                "nl": "Reinigen. Info over Roborock S4 aan S6\nVoeg een optie kaart met geselecteerde update\nBereid je voor op NPM vrijlating\nVertaling:\nFix type M3\nVertaling:\nFix kaart creatie controle",
+                "fr": "Nettoyage fixe Info pour Roborock S4 à S6\nAjouter une carte optionnelle avec intervalles de mise à jour sélectionnables\nPréparer les rejets de npm\nFix crashes on initialisation\nType fixe m3 à m2\nAjouter la langue ukranienne\nCorrection de la création de carte",
+                "it": "Fissare la pulizia Info per Roborock S4 a S6\nAggiungi la mappa opzionale con l'intervallo di aggiornamento selezionabile\nPreparare per npm releases\nFissare i crash sull'inizializzazione\nTipo di fissaggio m3 a m2\nAggiungere la lingua ucraina\nControllare la creazione della mappa",
+                "es": "Limpieza fija Info para Roborock S4 a S6\nAñadir mapa opcional con intervalo de actualización seleccionable\nPrepararse para las versiones npm\nEstrecho en la inicialización\nTipo de fijación m3 a m2\nAgregar idioma ukraniano\nVerificación de la creación del mapa",
+                "pl": "Czyszczenie Info\nOpcjonalna mapa z dodatkiem aktualizacji\nPrepare for FM releases\nFix rozbił się na inicjacji\nTyp m3 do m2\nJęzyk ukranowski\nMapa",
+                "uk": "Фіксація Інформація для Roborock S4 до S6\nДодати додаткову карту з вибраним інтервалом оновлення\nПідготовка до релізів npm\nВиправлення аварійних ситуацій на ініціалізації\nФіксований тип м3 до м2\nДодати мову\nПеревірка створення карт",
+                "zh-cn": "固定清洁 Roborock S4至S6的信息\n增加可选择的最新间隔图\n排放准备\nB. 初始化事故\nFix型 m3至m2\n增加ukranian语\n固定地图"
+            },
+            "0.0.6-alpha.0": {
+                "en": "report unknown attributes",
+                "de": "unbekannte attribute melden",
+                "ru": "сообщить неизвестные атрибуты",
+                "pt": "relatar atributos desconhecidos",
+                "nl": "onbekend verslag",
+                "fr": "des attributs inconnus",
+                "it": "report attributi sconosciuti",
+                "es": "reportar atributos desconocidos",
+                "pl": "raport nieznany",
+                "uk": "звіт невідомого атрибуту",
+                "zh-cn": "未报告的属性"
+            },
+            "0.0.5-alpha.0": {
+                "en": "remove old and unused deviceInfo code",
+                "de": "altes und ungenutztes Gerät entfernen Infocode",
+                "ru": "удалить старое и неиспользуемое устройство Инфо код",
+                "pt": "remover dispositivo antigo e não usado Código de informação",
+                "nl": "verwijder oud en onbruikbaar apparaat Info",
+                "fr": "supprimer vieux et un appareil inutilisé Code d ' information",
+                "it": "rimuovere dispositivo vecchio e non utilizzato Codice info",
+                "es": "quitar el dispositivo viejo y no utilizado Código de información",
+                "pl": "usunąć stare i nieużywane urządzenie kod",
+                "uk": "видалити старий і невикористаний пристрій Контакти",
+                "zh-cn": "拆除旧和未使用的装置 信息守则"
+            },
+            "0.0.4-alpha.0": {
+                "en": "add missing mop and carpet commands",
+                "de": "fehlende mop- und teppichbefehle hinzufügen",
+                "ru": "добавьте отсутствующие команды ковров и ковров",
+                "pt": "adicionar comandos de esfregão e carpete ausentes",
+                "nl": "vertaling:",
+                "fr": "ajouter des commandes mop et tapis manquantes",
+                "it": "aggiungere comandi mop e tappeti mancanti",
+                "es": "añadir comandos faltantes de mop y alfombra",
+                "pl": "brakujące polecenia",
+                "uk": "додавати відсутні моп і килимові команди",
+                "zh-cn": "增加失踪的汽车和汽车行长指挥"
+            },
+            "0.0.3-alpha.0": {
+                "en": "randomize the client ID",
+                "de": "die Client-ID randomisieren",
+                "ru": "рандомизируйте ID клиента",
+                "pt": "randomizar o ID do cliente",
+                "nl": "vertaling:",
+                "fr": "randomiser l'ID du client",
+                "it": "casualizzare l'ID client",
+                "es": "aleatorizar el ID del cliente",
+                "pl": "z randomizował ID klienta",
+                "uk": "випадання ідентифікатора клієнта",
+                "zh-cn": "随机将客户开发协会"
+            },
+            "0.0.2-alpha.0": {
+                "en": "initial release",
+                "de": "erstausstrahlung",
+                "ru": "начальный выпуск",
+                "pt": "lançamento inicial",
+                "nl": "niet",
+                "fr": "initial release",
+                "it": "rilascio iniziale",
+                "es": "liberación inicial",
+                "pl": "pierwsze wydanie",
+                "uk": "початковий реліз",
+                "zh-cn": "初步释放"
+            },
+            "0.0.1": {
+                "en": "initial release",
+                "de": "Erstveröffentlichung",
+                "ru": "Начальная версия",
+                "pt": "lançamento inicial",
+                "nl": "Eerste uitgave",
+                "fr": "Première version",
+                "it": "Versione iniziale",
+                "es": "Versión inicial",
+                "pl": "Pierwsze wydanie",
+                "uk": "початковий реліз",
+                "zh-cn": "首次出版"
+            }
+        },
+        "titleLang": {
+            "en": "Roborock",
+            "de": "Roborock",
+            "ru": "Роборок",
+            "pt": "Roborock",
+            "nl": "Roborock",
+            "fr": "Roborock",
+            "it": "Roborock",
+            "es": "roborock",
+            "pl": "Roborock",
+            "uk": "Роборок",
+            "zh-cn": "石头"
+        },
+        "desc": {
+            "en": "roborock",
+            "de": "Roborock",
+            "ru": "роборок",
+            "pt": "roborock",
+            "nl": "roborock",
+            "fr": "roborock",
+            "it": "Roborock",
+            "es": "roborock",
+            "pl": "roborock",
+            "uk": "Роборок",
+            "zh-cn": "机器人摇滚"
+        },
+        "authors": [
+            "copystring <copystring@gmail.com>"
+        ],
+        "keywords": [
+            "roborock",
+            "template",
+            "home automation"
+        ],
+        "license": "MIT",
+        "platform": "Javascript/Node.js",
+        "main": "main.js",
+        "icon": "roborock.png",
+        "enabled": true,
+        "extIcon": "https://raw.githubusercontent.com/copystring/ioBroker.roborock/main/admin/roborock.png",
+        "readme": "https://github.com/copystring/ioBroker.roborock/blob/main/README.md",
+        "loglevel": "info",
+        "mode": "daemon",
+        "type": "household",
+        "compact": true,
+        "connectionType": "cloud",
+        "dataSource": "poll",
+        "adminUI": {
+            "config": "json"
+        },
+        "dependencies": [
+            {
+                "js-controller": ">=3.3.22"
+            }
+        ],
+        "globalDependencies": [
+            {
+                "admin": ">=5.1.13"
+            }
+        ]
     },
-    "titleLang": {
-      "en": "Roborock",
-      "de": "Roborock",
-      "ru": "Роборок",
-      "pt": "Roborock",
-      "nl": "Roborock",
-      "fr": "Roborock",
-      "it": "Roborock",
-      "es": "roborock",
-      "pl": "Roborock",
-      "uk": "Роборок",
-      "zh-cn": "石头"
+    "native": {
+        "username": "",
+        "password": "",
+        "enable_map_creation": false,
+        "map_creation_interval": 2,
+        "updateInterval": 60
     },
-    "desc": {
-      "en": "roborock",
-      "de": "Roborock",
-      "ru": "роборок",
-      "pt": "roborock",
-      "nl": "roborock",
-      "fr": "roborock",
-      "it": "Roborock",
-      "es": "roborock",
-      "pl": "roborock",
-      "uk": "Роборок",
-      "zh-cn": "机器人摇滚"
-    },
-    "authors": [
-      "copystring <copystring@gmail.com>"
-    ],
-    "keywords": [
-      "roborock",
-      "template",
-      "home automation"
-    ],
-    "license": "MIT",
-    "platform": "Javascript/Node.js",
-    "main": "main.js",
-    "icon": "roborock.png",
-    "enabled": true,
-    "extIcon": "https://raw.githubusercontent.com/copystring/ioBroker.roborock/main/admin/roborock.png",
-    "readme": "https://github.com/copystring/ioBroker.roborock/blob/main/README.md",
-    "loglevel": "info",
-    "mode": "daemon",
-    "type": "household",
-    "compact": true,
-    "connectionType": "cloud",
-    "dataSource": "poll",
-    "adminUI": {
-      "config": "json"
-    },
-    "dependencies": [
-      {
-        "js-controller": ">=3.3.22"
-      }
-    ],
-    "globalDependencies": [
-      {
-        "admin": ">=5.1.13"
-      }
-    ]
-  },
-  "native": {
-    "username": "",
-    "password": "",
-    "enable_map_creation": false,
-    "map_creation_interval": 2,
-    "updateInterval": 60
-  },
-  "objects": [],
-  "instanceObjects": []
+    "objects": [],
+    "instanceObjects": []
 }

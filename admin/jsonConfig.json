@@ -9,7 +9,7 @@
 		},
 		"password": {
 			"type": "password",
-			"label": "Passwort",
+			"label": "Password",
 			"newLine": true
 		},
 		"enable_map_creation": {
