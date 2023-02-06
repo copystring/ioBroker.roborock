@@ -10,9 +10,22 @@
 
 **Tests:** ![Test and Release](https://github.com/copystring/ioBroker.roborock/workflows/Test%20and%20Release/badge.svg)
 
-## roborock adapter for ioBroker
+## Roborock adapter for ioBroker
 
-Describe your project here
+This adapter allows you the control, get states, cleaning history and view the map of a Roborock vacuum cleaner which is set up in the Roborock app.
+
+## The supported robots are:
+
+- Roborock S4
+- Roborock S5
+- Roborock S5 Max
+- Roborock S6
+- Roborock S6 Pure
+- Roborock S6 MaxV
+- Roborock S7
+- Roborock S7 MaxV (Ultra)
+- Roborock Q7 Max
+- Roborock S7 Pro Ultra
 
 ## Changelog
 <!--
