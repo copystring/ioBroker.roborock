@@ -1,8 +1,7 @@
 {
-    "option2": "Option 2",
     "Login": "Anmeldung",
     "Password": "Passwort",
     "Enable Map Creation": "Kartenerstellung aktivieren",
     "Map Creation Interval": "Kartenerstellungsintervall",
-    "Update interval": "Updateintervall"
+    "Update interval": "Aktualisierungsintervall"
 }
