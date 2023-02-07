@@ -209,7 +209,7 @@ class Roborock extends utils.Adapter {
 			this.updateDataExtraData(duid, vacuums[duid]);
 
 
-			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, vacuums[duid]);
+			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, vacuums[duid], robotModel);
 
 			if (this.config.enable_map_creation == true) {
 				const in_returning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_returning");
@@ -292,7 +292,6 @@ class Roborock extends utils.Adapter {
 			case "roborock.vacuum.s4":
 			case "roborock.vacuum.s5":
 			case "roborock.vacuum.s5e":
-			case "roborock.vacuum.s6":
 			case "roborock.vacuum.a08":
 			case "roborock.vacuum.a10":
 				//do nothing
