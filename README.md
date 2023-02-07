@@ -10,6 +10,8 @@
 
 **Tests:** ![Test and Release](https://github.com/copystring/ioBroker.roborock/workflows/Test%20and%20Release/badge.svg)
 
+[![Translation status](https://weblate.iobroker.net/widgets/adapters/-/<your adapter name>/svg-badge.svg)](https://weblate.iobroker.net/engage/adapters/?utm_source=widget)
+
 ## Roborock adapter for ioBroker
 
 This adapter allows you the control, get states, cleaning history and view the map of a Roborock vacuum cleaner which is set up in the Roborock app.
