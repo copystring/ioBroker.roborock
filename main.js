@@ -199,18 +199,17 @@ class Roborock extends utils.Adapter {
 			const productID = devices[device]["productId"];
 			// const robotModel = products[device]["model"];
 			const robotModel = this.getRobotModel(products, productID);
-			this.getRobotModel(products, productID);
 			const duid = devices[device].duid;
 
 			vacuums[duid] = new vacuum_class(this, rr, robotModel);
 
 			await vacuums[duid].setUpObjects(duid);
 
-			this.updateDataMinimumData(duid, vacuums[duid]);
+			this.updateDataMinimumData(duid, vacuums[duid], robotModel);
 			this.updateDataExtraData(duid, vacuums[duid]);
 
 
-			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, vacuums[duid]);
+			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, vacuums[duid], robotModel);
 
 			const in_returning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_returning");
 			const in_cleaning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_cleaning");
@@ -267,7 +266,6 @@ class Roborock extends utils.Adapter {
 	}
 
 	getRobotModel(products, productID) {
-		this.log.debug("Products: " + typeof(products));
 		for (const product in products) {
 			if (products[product].id == productID) {
 				const model = products[product].model;
@@ -277,11 +275,10 @@ class Roborock extends utils.Adapter {
 
 	}
 
-	updateDataMinimumData(duid, vacuum) {
+	updateDataMinimumData(duid, vacuum, robotModel) {
 		this.log.debug("Latest data requested");
 
 		vacuum.getParameter(duid, "get_status");
-		vacuum.getParameter(duid, "get_water_box_custom_mode");
 
 		vacuum.getParameter(duid, "get_consumable");
 
@@ -289,8 +286,22 @@ class Roborock extends utils.Adapter {
 
 		vacuum.getCleanSummary(duid);
 
-		vacuum.getParameter(duid, "get_carpet_mode");
-		vacuum.getParameter(duid, "get_carpet_clean_mode");
+		switch (robotModel) {
+			case "roborock.vacuum.s4":
+			case "roborock.vacuum.s5":
+			case "roborock.vacuum.s5e":
+			case "roborock.vacuum.a08":
+			case "roborock.vacuum.a10":
+				//do nothing
+				break;
+			case "roborock.vacuum.s6":
+				vacuum.getParameter(duid, "get_carpet_mode");
+				break;
+			default:
+				vacuum.getParameter(duid, "get_carpet_mode");
+				vacuum.getParameter(duid, "get_carpet_clean_mode");
+				vacuum.getParameter(duid, "get_water_box_custom_mode");
+		}
 	}
 
 	updateDataExtraData(duid, vacuum) {
