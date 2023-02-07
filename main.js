@@ -296,6 +296,9 @@ class Roborock extends utils.Adapter {
 			case "roborock.vacuum.a10":
 				//do nothing
 				break;
+			case "roborock.vacuum.s6":
+				vacuum.getParameter(duid, "get_carpet_mode");
+				break;
 			default:
 				vacuum.getParameter(duid, "get_carpet_mode");
 				vacuum.getParameter(duid, "get_carpet_clean_mode");
