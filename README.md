@@ -34,7 +34,7 @@ This adapter allows you the control, get states, cleaning history and view the m
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.0.8-alpha.0 (2023-02-08)
 * (copystring) Update translations
 * (copystring) Enable translations via weblate
 * (copystring) Fix robot commands
