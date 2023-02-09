@@ -244,6 +244,11 @@ class Roborock extends utils.Adapter {
 				}
 			}
 		});
+
+		rr.on("response.raw", (duid, data) => {
+
+			this.log.debug("response.raw duid: " + duid + " - data: " + JSON.stringify(data));
+		});
 	}
 
 	async startMapUpdater(duid) {
@@ -275,16 +280,16 @@ class Roborock extends utils.Adapter {
 
 	}
 
-	updateDataMinimumData(duid, vacuum, robotModel) {
+	async updateDataMinimumData(duid, vacuum, robotModel) {
 		this.log.debug("Latest data requested");
 
-		vacuum.getParameter(duid, "get_status");
+		await vacuum.getParameter(duid, "get_status");
 
-		vacuum.getParameter(duid, "get_consumable");
+		await vacuum.getParameter(duid, "get_consumable");
 
-		vacuum.getParameter(duid, "get_network_info");
+		await vacuum.getParameter(duid, "get_network_info");
 
-		vacuum.getCleanSummary(duid);
+		await vacuum.getCleanSummary(duid);
 
 		switch (robotModel) {
 			case "roborock.vacuum.s4":
@@ -295,12 +300,12 @@ class Roborock extends utils.Adapter {
 				//do nothing
 				break;
 			case "roborock.vacuum.s6":
-				vacuum.getParameter(duid, "get_carpet_mode");
+				await vacuum.getParameter(duid, "get_carpet_mode");
 				break;
 			default:
-				vacuum.getParameter(duid, "get_carpet_mode");
-				vacuum.getParameter(duid, "get_carpet_clean_mode");
-				vacuum.getParameter(duid, "get_water_box_custom_mode");
+				await vacuum.getParameter(duid, "get_carpet_mode");
+				await vacuum.getParameter(duid, "get_carpet_clean_mode");
+				await vacuum.getParameter(duid, "get_water_box_custom_mode");
 		}
 	}
 
