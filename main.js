@@ -205,11 +205,8 @@ class Roborock extends utils.Adapter {
 
 			await vacuums[duid].setUpObjects(duid);
 
-			this.updateDataMinimumData(duid, vacuums[duid], robotModel);
-			this.updateDataExtraData(duid, vacuums[duid]);
-
-
-			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, vacuums[duid], robotModel);
+			await this.updateDataMinimumData(duid, vacuums[duid], robotModel);
+			await this.updateDataExtraData(duid, vacuums[duid]);
 
 			const in_returning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_returning");
 			const in_cleaning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_cleaning");
@@ -221,6 +218,8 @@ class Roborock extends utils.Adapter {
 
 			// sub to all commands of this robot
 			this.subscribeStates("Devices." + duid + ".commands.*");
+
+			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, vacuums[duid], robotModel);
 		}
 
 		rr.on("foreign.message", (duid, result) => {
