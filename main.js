@@ -7,6 +7,7 @@ const crypto = require("crypto");
 const EventEmitter = require("node:events");
 const websocket = require("ws");
 const express = require("express");
+const os = require('os');
 
 const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roborock_mqtt_connector;
 const vacuum_class = require("./lib/vacuum").vacuum;
@@ -277,7 +278,19 @@ class Roborock extends utils.Adapter {
 		const app = express();
 
 		app.get("/ip", (req, res) => {
-			const localIp = req.connection.remoteAddress;
+			const interfaces = os.networkInterfaces();
+			let localIp = '';
+			Object.values(interfaces).forEach((addresses) => {
+				addresses.forEach((address) => {
+					if (address.family === 'IPv4' && !address.internal) {
+						localIp = address.address;
+						return;
+					}
+				});
+				if (localIp) {
+					return;
+				}
+			});
 			res.send({ ip: localIp });
 		});
 
