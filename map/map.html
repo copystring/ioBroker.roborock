@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="zones.js"></script>
+    <style>
+      body {
+        display: flex;
+        align-items: center;
+        background-color: #000000;
+      }
+
+      #myCanvas {
+        border: 2px solid #4F4F4F;
+        box-shadow: 0px 0px 10px #333;
+        border-radius: 15px;
+      }
+
+      button {
+        margin: 10px 20px;
+        padding: 10px 20px;
+        border-radius: 10px;
+        background-color: #2D9CDB;
+        color: #F0F0F0;
+        cursor: pointer;
+        transition: background-color 0.2s ease-in-out;
+        font-size: 16px;
+        font-weight: bold;
+        border: 1px solid #4F4F4F;
+        width: 200px;
+      }
+
+      button:hover {
+        background-color: #47A9DC;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="myCanvas" width="471" height="412"></canvas>
+    <div style="display: flex; flex-direction: column; align-items: center;"> 
+      <div style="margin-left: auto;">
+        <select id="robotSelect"></select>
+      </div> 
+      <div style="margin-left: auto;">
+        <select id="cleanCount">
+          <option value="1">1 Time</option>
+          <option value="2">2 Times</option>
+          <option value="3">3 Times</option>
+        </select>
+      </div>
+  
+      <button id="addButton">+ Add Zone</button>
+      <button id="deleteButton">- Delete Zone</button>
+      <button id="startButton">Start</button>
+    </div>
+  </body>
+</html>
