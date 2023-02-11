@@ -276,7 +276,7 @@ class Roborock extends utils.Adapter {
 	startWebserver() {
 		const app = express();
 
-		app.use(express.static("map"));
+		app.use(express.static("lib/map"));
 		app.listen(this.config.webserverPort, () => {
 			console.log("Server started on http://localhost:3000");
 		});
