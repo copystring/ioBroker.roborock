@@ -277,7 +277,7 @@ class Roborock extends utils.Adapter {
 		const app = express();
 
 		app.get("/ip", (req, res) => {
-			const localIp = req.socket.remoteAddress.split(":").pop();
+			const localIp = req.connection.remoteAddress;
 			res.send({ ip: localIp });
 		});
 
