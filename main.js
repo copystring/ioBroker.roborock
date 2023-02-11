@@ -7,7 +7,6 @@ const crypto = require("crypto");
 const EventEmitter = require("node:events");
 const websocket = require("ws");
 const express = require("express");
-const os = require('os');
 
 const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roborock_mqtt_connector;
 const vacuum_class = require("./lib/vacuum").vacuum;
@@ -304,7 +303,7 @@ class Roborock extends utils.Adapter {
 		const server = new websocket.Server({ port: 7906 });
 		let parameters;
 		let robot;
-		const sendValue = {};
+		let image;
 
 		server.on("connection", (socket) => {
 			this.log.debug("Websocket client connected");
@@ -313,18 +312,18 @@ class Roborock extends utils.Adapter {
 				const data = JSON.parse(message);
 				const command = data["command"];
 				let left, top, height, width;
+				const sendValue = {};
+				sendValue.parameters = [];
 
 				switch (command)
 				{
 					case "app_zoned_clean":
 						parameters = data["parameters"];
-						this.log.debug("Zoned Clean: " + JSON.stringify(parameters));
 						vacuums[data["duid"]].command(data["duid"], command, parameters);
 						break;
 
 					case "getRobots":
 						sendValue.command = "robotList";
-						sendValue.parameters = [];
 						for (const robotID in vacuums)
 						{
 							robot = [robotID, vacuums[robotID].name];
@@ -335,7 +334,6 @@ class Roborock extends utils.Adapter {
 
 					case "getMapCoordinates":
 						sendValue.command = "mapCoordinates";
-						sendValue.parameters = [];
 						left = await this.getStateAsync("Devices." + data["duid"] + ".map.left");
 						top = await this.getStateAsync("Devices." + data["duid"] + ".map.top");
 						height = await this.getStateAsync("Devices." + data["duid"] + ".map.height");
@@ -345,7 +343,13 @@ class Roborock extends utils.Adapter {
 						sendValue.parameters.push(top.val);
 						sendValue.parameters.push(height.val);
 						sendValue.parameters.push(width.val);
-						this.log.debug("Map coords test: " + data["duid"]);
+						socket.send(JSON.stringify(sendValue));
+						break;
+
+					case "getbase64Image":
+						sendValue.command = "base64Image";
+						image = await this.getStateAsync("Devices." + data["duid"] + ".map.mapBase64");
+						sendValue.parameters.push(image.val);
 						socket.send(JSON.stringify(sendValue));
 						break;
 				}
