@@ -205,17 +205,6 @@ class Roborock extends utils.Adapter {
 
 			await vacuums[duid].setUpObjects(duid);
 
-			await this.updateDataMinimumData(duid, vacuums[duid], robotModel);
-			await this.updateDataExtraData(duid, vacuums[duid]);
-
-			const in_returning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_returning");
-			const in_cleaning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_cleaning");
-			const is_locating = await this.getStateAsync("roborock.0.Devices." + duid + ".deviceStatus.is_locating");
-
-			if (((in_cleaning.val == 1) || (in_returning.val == 1)) && (is_locating.val == 0)) {
-				this.startMapUpdater(duid);
-			}
-
 			// sub to all commands of this robot
 			this.subscribeStates("Devices." + duid + ".commands.*");
 
@@ -303,7 +292,7 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
-	updateDataExtraData(duid, vacuum) {
+	async updateDataExtraData(duid, vacuum, robotModel) {
 		vacuum.getParameter(duid, "get_fw_features");
 
 		vacuum.getParameter(duid, "get_multi_maps_list");
@@ -311,6 +300,17 @@ class Roborock extends utils.Adapter {
 		vacuum.getParameter(duid, "get_room_mapping");
 
 		vacuum.getMap(duid);
+
+		await this.updateDataMinimumData(duid, vacuums[duid], robotModel);
+		await this.updateDataExtraData(duid, vacuums[duid], robotModel);
+
+		const in_returning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_returning");
+		const in_cleaning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_cleaning");
+		const is_locating = await this.getStateAsync("roborock.0.Devices." + duid + ".deviceStatus.is_locating");
+
+		if (((in_cleaning.val == 1) || (in_returning.val == 1)) && (is_locating.val == 0)) {
+			this.startMapUpdater(duid);
+		}
 	}
 
 	/**
