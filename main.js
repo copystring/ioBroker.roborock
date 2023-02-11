@@ -276,6 +276,11 @@ class Roborock extends utils.Adapter {
 	startWebserver() {
 		const app = express();
 
+		app.get("/ip", (req, res) => {
+			const localIp = req.socket.remoteAddress.split(":").pop();
+			res.send({ ip: localIp });
+		});
+
 		app.use(express.static("lib/map"));
 		app.listen(this.config.webserverPort, () => {
 			console.log("Server started on http://localhost:3000");
