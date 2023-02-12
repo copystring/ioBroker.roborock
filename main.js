@@ -6,6 +6,7 @@ const axios = require("axios");
 const crypto = require("crypto");
 const EventEmitter = require("node:events");
 const websocket = require("ws");
+const os = require("os");
 const express = require("express");
 
 const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roborock_mqtt_connector;
@@ -227,6 +228,10 @@ class Roborock extends utils.Adapter {
 			// sub to all commands of this robot
 			this.subscribeStates("Devices." + duid + ".commands.*");
 		}
+
+		// rr.on("response.raw", (duid, result) => {
+		// 	this.log.debug("raw: " + JSON.stringify(result));
+		// });
 
 		rr.on("foreign.message", (duid, result) => {
 			let value;
