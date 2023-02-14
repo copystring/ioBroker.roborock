@@ -29,11 +29,22 @@ This adapter allows you the control, get states, cleaning history and view the m
 - Roborock Q7 Max
 - Roborock S7 Pro Ultra
 
+## Zone cleaning
+This feature only works when map creation is enabled in the adapter options!
+ - There is a webserver running. Default port is 6824
+ - Open http://iobroker:6824/map.html in your browser (change http://iobroker your ioBroker hostname or ip!!!)
+ - Draw your square meant for cleaning. Roborock supports up to 4 cleaning zones at once.
+
+ ![](https://github.com/copystring/ioBroker.roborock/blob/main/images/Rockrock_zone_cleaning.gif)
+
 ## Changelog
 <!--
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Added zone cleaning
+
 ### 0.0.8-alpha.0 (2023-02-08)
 * (copystring) Update translations
 * (copystring) Enable translations via weblate
