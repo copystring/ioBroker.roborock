@@ -341,17 +341,9 @@ class Roborock extends utils.Adapter {
 						sendValue.command = "mapCoordinates";
 						left = await this.getStateAsync("Devices." + data["duid"] + ".map.left");
 						top = await this.getStateAsync("Devices." + data["duid"] + ".map.top");
-						offsetX = await this.getStateAsync("Devices." + data["duid"] + ".map.offsetX");
-						offsetY = await this.getStateAsync("Devices." + data["duid"] + ".map.offsetY");
-						height = await this.getStateAsync("Devices." + data["duid"] + ".map.height");
-						width = await this.getStateAsync("Devices." + data["duid"] + ".map.width");
 
 						sendValue.parameters.push(left.val);
 						sendValue.parameters.push(top.val);
-						sendValue.parameters.push(offsetX.val);
-						sendValue.parameters.push(offsetY.val);
-						sendValue.parameters.push(height.val);
-						sendValue.parameters.push(width.val);
 						socket.send(JSON.stringify(sendValue));
 						break;
 
