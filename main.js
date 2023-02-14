@@ -283,10 +283,10 @@ class Roborock extends utils.Adapter {
 
 		app.get("/ip", (req, res) => {
 			const interfaces = os.networkInterfaces();
-			let localIp = '';
+			let localIp = "";
 			Object.values(interfaces).forEach((addresses) => {
 				addresses.forEach((address) => {
-					if (address.family === 'IPv4' && !address.internal) {
+					if (address.family === "IPv4" && !address.internal) {
 						localIp = address.address;
 						return;
 					}
@@ -316,7 +316,7 @@ class Roborock extends utils.Adapter {
 			socket.on("message", async (message) => {
 				const data = JSON.parse(message);
 				const command = data["command"];
-				let left, top, offsetX, offsetY, height, width;
+				let left, top;
 				const sendValue = {};
 				sendValue.parameters = [];
 
