@@ -5,6 +5,9 @@ const utils = require("@iobroker/adapter-core");
 const axios = require("axios");
 const crypto = require("crypto");
 const EventEmitter = require("node:events");
+const websocket = require("ws");
+const os = require("os");
+const express = require("express");
 
 const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roborock_mqtt_connector;
 const vacuum_class = require("./lib/vacuum").vacuum;
@@ -200,8 +203,10 @@ class Roborock extends utils.Adapter {
 			// const robotModel = products[device]["model"];
 			const robotModel = this.getRobotModel(products, productID);
 			const duid = devices[device].duid;
+			const name = devices[device].name;
 
 			vacuums[duid] = new vacuum_class(this, rr, robotModel);
+			vacuums[duid].name = name;
 
 			await vacuums[duid].setUpObjects(duid);
 
@@ -210,6 +215,10 @@ class Roborock extends utils.Adapter {
 
 			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, vacuums[duid], robotModel);
 		}
+
+		// rr.on("response.raw", (duid, result) => {
+		// 	this.log.debug("raw: " + JSON.stringify(result));
+		// });
 
 		rr.on("foreign.message", (duid, result) => {
 			let value;
@@ -232,6 +241,9 @@ class Roborock extends utils.Adapter {
 				}
 			}
 		});
+
+		this.startWebserver();
+		this.startWebsocketServer();
 	}
 
 	async startMapUpdater(duid) {
@@ -251,6 +263,90 @@ class Roborock extends utils.Adapter {
 		this.log.debug("Stopped map updater on robot: " + duid);
 		this.clearInterval(vacuums[duid].mapUpdater);
 		vacuums[duid].mapUpdater = null;
+	}
+
+	startWebserver() {
+		const app = express();
+
+		app.get("/ip", (req, res) => {
+			const interfaces = os.networkInterfaces();
+			let localIp = "";
+			Object.values(interfaces).forEach((addresses) => {
+				addresses.forEach((address) => {
+					if (address.family === "IPv4" && !address.internal) {
+						localIp = address.address;
+						return;
+					}
+				});
+				if (localIp) {
+					return;
+				}
+			});
+			res.send({ ip: localIp });
+		});
+
+		app.use(express.static("lib/map"));
+		app.listen(this.config.webserverPort, () => {
+			console.log("Server started on http://localhost:3000");
+		});
+	}
+
+	async startWebsocketServer() {
+		const server = new websocket.Server({ port: 7906 });
+		let parameters;
+		let robot;
+		let image;
+
+		server.on("connection", (socket) => {
+			this.log.debug("Websocket client connected");
+
+			socket.on("message", async (message) => {
+				const data = JSON.parse(message);
+				const command = data["command"];
+				let left, top;
+				const sendValue = {};
+				sendValue.parameters = [];
+
+				switch (command)
+				{
+					case "app_zoned_clean":
+						parameters = data["parameters"];
+						vacuums[data["duid"]].command(data["duid"], command, parameters);
+						break;
+
+					case "getRobots":
+						sendValue.command = "robotList";
+						for (const robotID in vacuums)
+						{
+							robot = [robotID, vacuums[robotID].name];
+							sendValue.parameters.push(robot);
+						}
+						socket.send(JSON.stringify(sendValue));
+						break;
+
+					case "getMapCoordinates":
+						sendValue.command = "mapCoordinates";
+						left = await this.getStateAsync("Devices." + data["duid"] + ".map.left");
+						top = await this.getStateAsync("Devices." + data["duid"] + ".map.top");
+
+						sendValue.parameters.push(left.val);
+						sendValue.parameters.push(top.val);
+						socket.send(JSON.stringify(sendValue));
+						break;
+
+					case "getbase64Image":
+						sendValue.command = "base64Image";
+						image = await this.getStateAsync("Devices." + data["duid"] + ".map.mapBase64");
+						sendValue.parameters.push(image.val);
+						socket.send(JSON.stringify(sendValue));
+						break;
+				}
+			});
+
+			socket.on("close", () => {
+				this.log.debug("Client disconnected");
+			});
+		});
 	}
 
 	getRobotModel(products, productID) {
@@ -377,9 +473,15 @@ class Roborock extends utils.Adapter {
 			else if (typeof (state.val) != "boolean") {
 				vacuums[duid].command(duid, command, state.val);
 			}
-			else if ((command == "app_start") || (command == "app_segment_clean") || (command == "app_charge") || (command == "app_spot"))
+			else if ((command == "app_start") || (command == "app_segment_clean") || (command == "app_charge") || (command == "app_spot") || (command == "app_zoned_clean"))
 			{
 				this.startMapUpdater(duid);
+
+				if (command == "app_zoned_clean") {
+					// vacuums[duid].command(duid, command, [[ 24575,28050,25225,28500,1 ]]);
+					// vacuums[duid].command(duid, command, [[ 24450,27800,25125,28450,1 ]]); // known good
+					vacuums[duid].command(duid, command, [[23875,27850,25125,29100,1]]);
+				}
 			}
 		} else {
 			this.log.error("Error! Missing state onChangeState!");

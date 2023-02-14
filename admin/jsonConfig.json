@@ -26,6 +26,11 @@
 			"type": "number",
 			"label": "Update interval",
 			"newLine": true
+		},
+		"webserverPort": {
+			"type": "number",
+			"label": "Webserver Port",
+			"newLine": true
 		}
 	}
 }
