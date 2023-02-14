@@ -202,7 +202,6 @@ class Roborock extends utils.Adapter {
 			const productID = devices[device]["productId"];
 			// const robotModel = products[device]["model"];
 			const robotModel = this.getRobotModel(products, productID);
-			this.getRobotModel(products, productID);
 			const duid = devices[device].duid;
 			const name = devices[device].name;
 
@@ -211,22 +210,10 @@ class Roborock extends utils.Adapter {
 
 			await vacuums[duid].setUpObjects(duid);
 
-			this.updateDataMinimumData(duid, vacuums[duid]);
-			this.updateDataExtraData(duid, vacuums[duid]);
-
-
-			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, vacuums[duid]);
-
-			const in_returning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_returning");
-			const in_cleaning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_cleaning");
-			const is_locating = await this.getStateAsync("roborock.0.Devices." + duid + ".deviceStatus.is_locating");
-
-			if (((in_cleaning.val == 1) || (in_returning.val == 1)) && (is_locating.val == 0)) {
-				this.startMapUpdater(duid);
-			}
-
 			// sub to all commands of this robot
 			this.subscribeStates("Devices." + duid + ".commands.*");
+
+			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, vacuums[duid], robotModel);
 		}
 
 		// rr.on("response.raw", (duid, result) => {
@@ -363,7 +350,6 @@ class Roborock extends utils.Adapter {
 	}
 
 	getRobotModel(products, productID) {
-		this.log.debug("Products: " + typeof(products));
 		for (const product in products) {
 			if (products[product].id == productID) {
 				const model = products[product].model;
@@ -373,11 +359,10 @@ class Roborock extends utils.Adapter {
 
 	}
 
-	updateDataMinimumData(duid, vacuum) {
+	updateDataMinimumData(duid, vacuum, robotModel) {
 		this.log.debug("Latest data requested");
 
 		vacuum.getParameter(duid, "get_status");
-		vacuum.getParameter(duid, "get_water_box_custom_mode");
 
 		vacuum.getParameter(duid, "get_consumable");
 
@@ -385,11 +370,25 @@ class Roborock extends utils.Adapter {
 
 		vacuum.getCleanSummary(duid);
 
-		vacuum.getParameter(duid, "get_carpet_mode");
-		vacuum.getParameter(duid, "get_carpet_clean_mode");
+		switch (robotModel) {
+			case "roborock.vacuum.s4":
+			case "roborock.vacuum.s5":
+			case "roborock.vacuum.s5e":
+			case "roborock.vacuum.a08":
+			case "roborock.vacuum.a10":
+				//do nothing
+				break;
+			case "roborock.vacuum.s6":
+				vacuum.getParameter(duid, "get_carpet_mode");
+				break;
+			default:
+				vacuum.getParameter(duid, "get_carpet_mode");
+				vacuum.getParameter(duid, "get_carpet_clean_mode");
+				vacuum.getParameter(duid, "get_water_box_custom_mode");
+		}
 	}
 
-	updateDataExtraData(duid, vacuum) {
+	async updateDataExtraData(duid, vacuum, robotModel) {
 		vacuum.getParameter(duid, "get_fw_features");
 
 		vacuum.getParameter(duid, "get_multi_maps_list");
@@ -397,6 +396,17 @@ class Roborock extends utils.Adapter {
 		vacuum.getParameter(duid, "get_room_mapping");
 
 		vacuum.getMap(duid);
+
+		await this.updateDataMinimumData(duid, vacuums[duid], robotModel);
+		await this.updateDataExtraData(duid, vacuums[duid], robotModel);
+
+		const in_returning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_returning");
+		const in_cleaning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_cleaning");
+		const is_locating = await this.getStateAsync("roborock.0.Devices." + duid + ".deviceStatus.is_locating");
+
+		if (((in_cleaning.val == 1) || (in_returning.val == 1)) && (is_locating.val == 0)) {
+			this.startMapUpdater(duid);
+		}
 	}
 
 	/**
