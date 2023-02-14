@@ -95,13 +95,6 @@
         "zh-cn": "初步释放"
       }
     },
-    "native": {
-        "username": "",
-        "password": "",
-        "enable_map_creation": false,
-        "map_creation_interval": 2,
-        "updateInterval": 60,
-		"webserverPort": 6824
     "titleLang": {
       "en": "Roborock",
       "de": "Roborock",
@@ -164,11 +157,12 @@
     ]
   },
   "native": {
-    "username": "",
-    "password": "",
-    "enable_map_creation": false,
-    "map_creation_interval": 2,
-    "updateInterval": 60
+      "username": "",
+      "password": "",
+      "enable_map_creation": false,
+      "map_creation_interval": 2,
+      "updateInterval": 60,
+      "webserverPort": 6824
   },
   "objects": [],
   "instanceObjects": []
