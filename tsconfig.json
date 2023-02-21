@@ -9,7 +9,8 @@
 
 		// check JS files
 		"allowJs": true,
-		"checkJs": false,
+		"checkJs": true,
+		  
 
 		// This is necessary for the automatic typing of the adapter config
 		"resolveJsonModule": true,
@@ -32,6 +33,7 @@
 	],
 	"exclude": [
 		"node_modules/**",
-		"widgets/**"
+		"widgets/**",
+		"lib/map/zones.js"
 	]
 }

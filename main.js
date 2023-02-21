@@ -2,7 +2,7 @@
 
 const utils = require("@iobroker/adapter-core");
 
-const axios = require("axios");
+const axios = require("axios").default;
 const crypto = require("crypto");
 const EventEmitter = require("node:events");
 const websocket = require("ws");
@@ -51,10 +51,10 @@ class Roborock extends utils.Adapter {
 		}
 
 		// create new clientID if it doesn't exist yet
-		let clientID;
+		let clientID = "";
 		const storedClientID = await this.getStateAsync("clientID");
-		if ((storedClientID) && (typeof (storedClientID) != "undefined")) {
-			clientID = storedClientID.val;
+		if (storedClientID && typeof (storedClientID) != "undefined") {
+			clientID = storedClientID.val?.toString() ?? "";
 		}
 		else {
 			await this.setObjectNotExistsAsync("clientID", {
@@ -84,8 +84,8 @@ class Roborock extends utils.Adapter {
 		// Try to load existing userdata.
 		const userdataObj = await this.getStateAsync("UserData");
 		let userdata;
-		if ((userdataObj) && (typeof (userdataObj) != "undefined")) {
-			userdata = JSON.parse(userdataObj.val);
+		if (userdataObj && typeof (userdataObj) != "undefined") {
+			userdata = JSON.parse(userdataObj.val?.toString() || "{}");
 		} else {
 			// try log in.
 			userdata = await loginApi.post("api/v1/login", new URLSearchParams({ username: username, password: password, needtwostepauth: "false" }).toString()).then(res => res.data.data);
@@ -141,11 +141,11 @@ class Roborock extends utils.Adapter {
 
 				this.log.debug("Init debug: " + JSON.stringify(config.headers.common));
 				config.headers["Authorization"] = `Hawk id="${rriot.u}", s="${rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
-				return config;
 			}
 			catch (error) {
 				this.log.error("Failed to initialize API. Error: " + error);
 			}
+			return config;
 		});
 
 		// Get home details.
@@ -167,7 +167,7 @@ class Roborock extends utils.Adapter {
 		const homedataObj = await this.getStateAsync("HomeData");
 		let homedata;
 		if (homedataObj) {
-			homedata = JSON.parse(homedataObj.val);
+			homedata = JSON.parse(homedataObj.val?.toString() || "{}");
 		}
 		else {
 			// Log in.
@@ -275,7 +275,7 @@ class Roborock extends utils.Adapter {
 			const interfaces = os.networkInterfaces();
 			let localIp = "";
 			Object.values(interfaces).forEach((addresses) => {
-				addresses.forEach((address) => {
+				addresses?.forEach((address) => {
 					if (address.family === "IPv4" && !address.internal) {
 						localIp = address.address;
 						return;
@@ -303,7 +303,7 @@ class Roborock extends utils.Adapter {
 			this.log.debug("Websocket client connected");
 
 			socket.on("message", async (message) => {
-				const data = JSON.parse(message);
+				const data = JSON.parse(message.toString());
 				const command = data["command"];
 				const sendValue = {};
 				sendValue.parameters = [];
@@ -328,7 +328,13 @@ class Roborock extends utils.Adapter {
 					case "getMap":
 						sendValue.command = "map";
 						sendValue.base64 = await this.getStateAsync("Devices." + data["duid"] + ".map.mapBase64");
-						sendValue.map = await this.getStateAsync("Devices." + data["duid"] + ".map.mapData");
+						await this.getStateAsync("Devices." + data["duid"] + ".map.mapData")
+							.then((state) => {
+								sendValue.map = JSON.parse(state?.val?.toString() ?? "");
+							})
+							.catch((err) => {
+								// handle error
+							});
 						sendValue.scale = this.config.map_scale;
 						socket.send(JSON.stringify(sendValue));
 						break;
@@ -400,7 +406,7 @@ class Roborock extends utils.Adapter {
 		const in_cleaning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_cleaning");
 		const is_locating = await this.getStateAsync("roborock.0.Devices." + duid + ".deviceStatus.is_locating");
 
-		if (((in_cleaning.val == 1) || (in_returning.val == 1)) && (is_locating.val == 0)) {
+		if (((in_cleaning?.val == 1) || (in_returning?.val == 1)) && (is_locating?.val == 0)) {
 			this.startMapUpdater(duid);
 		}
 	}
