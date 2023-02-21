@@ -3,5 +3,6 @@
     "Password": "密码",
     "Enable Map Creation": "启用地图创建",
     "Map Creation Interval": "地图创建间隔",
-    "Update interval": "更新间隔"
+    "Update interval": "更新间隔",
+    "webserverPort": "网络服务器端口"
 }

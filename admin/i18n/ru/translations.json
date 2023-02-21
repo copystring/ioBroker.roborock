@@ -3,5 +3,6 @@
     "Password": "Пароль",
     "Enable Map Creation": "Включить создание карты",
     "Map Creation Interval": "Интервал создания карты",
-    "Update interval": "Интервал обновления"
+    "Update interval": "Интервал обновления",
+    "webserverPort": "Порт веб-сервера"
 }

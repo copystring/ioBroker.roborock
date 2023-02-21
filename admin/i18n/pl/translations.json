@@ -3,5 +3,6 @@
     "Password": "Hasło",
     "Enable Map Creation": "Włącz tworzenie mapy",
     "Map Creation Interval": "Interwał tworzenia mapy",
-    "Update interval": "Interwał aktualizacji"
+    "Update interval": "Interwał aktualizacji",
+    "webserverPort": "Port serwera WWW"
 }
