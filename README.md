@@ -42,7 +42,7 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.0.9-alpha.0 (2023-02-21)
 * (copystring) Added zone cleaning
 
 ### 0.0.8-alpha.0 (2023-02-08)
