@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.0.9-alpha.0",
+    "version": "0.0.10-alpha.0",
     "news": {
+      "0.0.10-alpha.0": {
+        "en": "Fix a few lint errors and fix bugs regarding zone cleaning (JSON conversion to string and back to JSON)",
+        "de": "Behoben Sie ein paar lint Fehler und beheben Fehler in Bezug auf die Zonenreinigung (JSON Konvertierung in String und zurück zu JSON)",
+        "ru": "Исправление нескольких ошибок мазь и исправление ошибок относительно очистки зоны (Конверсия JSON в строку и обратно в JSON)",
+        "pt": "Corrigir alguns erros de lint e corrigir bugs sobre limpeza de zona (conversão JSON para string e volta para JSON)",
+        "nl": "Maak een paar lint fouten en maak insecten met betrekking tot het schoonmaken van de zone",
+        "fr": "Correction de quelques erreurs lint et correction de bugs concernant le nettoyage des zones (conversion JSON à chaîne et retour à JSON)",
+        "it": "Risolvi alcuni errori lint e correggi i bug relativi alla pulizia della zona (conversione JSON alla stringa e ritorno a JSON)",
+        "es": "Arregla algunos errores de lint y corrige fallos relativos a la limpieza de zonas (conversión de JSON a cadena y regreso a JSON)",
+        "pl": "Fix kilka błędów lintowych i naprawia błędy dotyczące oczyszczania strefy (JSON) na smycz i z powrotem do JSON)",
+        "uk": "Виправлення декількох помилок і виправлення помилок щодо очищення зони (перетворення JSON на рядок і назад в JSON)",
+        "zh-cn": "在清理区(JSON转成特区和后回合)方面,有几处错误和固定装置。"
+      },
       "0.0.9-alpha.0": {
         "en": "Added zone cleaning",
         "de": "Reinigung der Zone",
@@ -80,19 +93,6 @@
         "pl": "brakujące polecenia",
         "uk": "додавати відсутні моп і килимові команди",
         "zh-cn": "增加失踪的汽车和汽车行长指挥"
-      },
-      "0.0.3-alpha.0": {
-        "en": "randomize the client ID",
-        "de": "die Client-ID randomisieren",
-        "ru": "рандомизируйте ID клиента",
-        "pt": "randomizar o ID do cliente",
-        "nl": "vertaling:",
-        "fr": "randomiser l'ID du client",
-        "it": "casualizzare l'ID client",
-        "es": "aleatorizar el ID del cliente",
-        "pl": "z randomizował ID klienta",
-        "uk": "випадання ідентифікатора клієнта",
-        "zh-cn": "随机将客户开发协会"
       }
     },
     "titleLang": {
