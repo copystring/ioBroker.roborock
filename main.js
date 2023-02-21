@@ -331,9 +331,6 @@ class Roborock extends utils.Adapter {
 						await this.getStateAsync("Devices." + data["duid"] + ".map.mapData")
 							.then((state) => {
 								sendValue.map = JSON.parse(state?.val?.toString() ?? "");
-							})
-							.catch((err) => {
-								// handle error
 							});
 						sendValue.scale = this.config.map_scale;
 						socket.send(JSON.stringify(sendValue));
