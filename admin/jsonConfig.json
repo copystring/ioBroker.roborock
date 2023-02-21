@@ -27,6 +27,11 @@
 			"label": "Update interval",
 			"newLine": true
 		},
+		"map_scale": {
+			"type": "number",
+			"label": "Quality of map (higher = better)",
+			"newLine": true
+		},
 		"webserverPort": {
 			"type": "number",
 			"label": "Webserver Port",

@@ -32,12 +32,16 @@ class Roborock extends utils.Adapter {
 		// this.on("message", this.onMessage.bind(this));
 		this.on("unload", this.onUnload.bind(this));
 		this.roomIDs = {};
+		this.socket = null;
 	}
 
 	/**
 	 * Is called when databases are connected and adapter received configuration.
 	 */
 	async onReady() {
+		this.startWebserver();
+		this.startWebsocketServer();
+
 		const username = this.config.username;
 		const password = this.config.password;
 
@@ -208,6 +212,8 @@ class Roborock extends utils.Adapter {
 			vacuums[duid] = new vacuum_class(this, rr, robotModel);
 			vacuums[duid].name = name;
 
+			vacuums[duid].getMap(duid);
+
 			await vacuums[duid].setUpObjects(duid);
 
 			// sub to all commands of this robot
@@ -241,15 +247,12 @@ class Roborock extends utils.Adapter {
 				}
 			}
 		});
-
-		this.startWebserver();
-		this.startWebsocketServer();
 	}
 
 	async startMapUpdater(duid) {
 		if (vacuums[duid].mapUpdater == null) {
 			this.log.debug("Started map updater on robot: " + duid);
-			// get map x seconds. Maybe I find a way later on to only update every second if the robot is running.
+			// get map every x seconds. Maybe I find a way later on to only update every second if the robot is running.
 			vacuums[duid].mapUpdater = setInterval(function () {
 				vacuums[duid].getMap(duid);
 			}, this.config.map_creation_interval*1000);
@@ -292,18 +295,16 @@ class Roborock extends utils.Adapter {
 	}
 
 	async startWebsocketServer() {
-		const server = new websocket.Server({ port: 7906 });
-		let parameters;
-		let robot;
-		let image;
+		const socketServer = new websocket.Server({ port: 7906 });
+		let parameters, robot;
 
-		server.on("connection", (socket) => {
+		socketServer.on("connection", async (socket) => {
+			this.socket = socket;
 			this.log.debug("Websocket client connected");
 
 			socket.on("message", async (message) => {
 				const data = JSON.parse(message);
 				const command = data["command"];
-				let left, top;
 				const sendValue = {};
 				sendValue.parameters = [];
 
@@ -324,20 +325,11 @@ class Roborock extends utils.Adapter {
 						socket.send(JSON.stringify(sendValue));
 						break;
 
-					case "getMapCoordinates":
-						sendValue.command = "mapCoordinates";
-						left = await this.getStateAsync("Devices." + data["duid"] + ".map.left");
-						top = await this.getStateAsync("Devices." + data["duid"] + ".map.top");
-
-						sendValue.parameters.push(left.val);
-						sendValue.parameters.push(top.val);
-						socket.send(JSON.stringify(sendValue));
-						break;
-
-					case "getbase64Image":
-						sendValue.command = "base64Image";
-						image = await this.getStateAsync("Devices." + data["duid"] + ".map.mapBase64");
-						sendValue.parameters.push(image.val);
+					case "getMap":
+						sendValue.command = "map";
+						sendValue.base64 = await this.getStateAsync("Devices." + data["duid"] + ".map.mapBase64");
+						sendValue.map = await this.getStateAsync("Devices." + data["duid"] + ".map.mapData");
+						sendValue.scale = this.config.map_scale;
 						socket.send(JSON.stringify(sendValue));
 						break;
 				}
@@ -345,6 +337,7 @@ class Roborock extends utils.Adapter {
 
 			socket.on("close", () => {
 				this.log.debug("Client disconnected");
+				this.socket = null;
 			});
 		});
 	}
@@ -367,6 +360,9 @@ class Roborock extends utils.Adapter {
 		vacuum.getParameter(duid, "get_consumable");
 
 		vacuum.getParameter(duid, "get_network_info");
+
+		this.log.debug("Update map");
+		vacuum.getMap(duid);
 
 		vacuum.getCleanSummary(duid);
 

@@ -161,6 +161,7 @@
       "password": "",
       "enable_map_creation": false,
       "map_creation_interval": 2,
+      "map_scale": 2,
       "updateInterval": 60,
       "webserverPort": 6824
   },
