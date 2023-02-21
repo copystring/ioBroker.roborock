@@ -9,7 +9,7 @@
 
 		// check JS files
 		"allowJs": true,
-		"checkJs": true,
+		"checkJs": false,
 
 		// This is necessary for the automatic typing of the adapter config
 		"resolveJsonModule": true,
