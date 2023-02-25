@@ -385,9 +385,8 @@ class Roborock extends utils.Adapter {
 
 		const in_returning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_returning");
 		const in_cleaning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_cleaning");
-		const is_locating = await this.getStateAsync("roborock.0.Devices." + duid + ".deviceStatus.is_locating");
 
-		if (((in_cleaning?.val == 1) || (in_returning?.val == 1)) && (is_locating?.val == 0)) {
+		if ((in_cleaning?.val == 1) || (in_returning?.val == 1)) {
 			this.startMapUpdater(duid);
 		}
 	}
