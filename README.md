@@ -53,6 +53,8 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Automatically send current map to webinterface when updating map
 * (copystring) Update clean summary only after once after cleaning and once at start
 * (copystring) Implement charger and robot angle on map
+* (copystring) Fix zone positions
+* (copystring) Locating should not be an error. Make this an info instead
 
 
 ### 0.0.10-alpha.0 (2023-02-21)
