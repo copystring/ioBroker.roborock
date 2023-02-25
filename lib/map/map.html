@@ -34,6 +34,13 @@
         background-color: #47A9DC;
       }
 
+      button:disabled {
+        color: gray;
+        background-color: lightgray;
+        cursor: not-allowed;
+      }
+
+
       .hovered-option {
         background-color: #47A9DC !important;
       }
@@ -54,8 +61,8 @@
       </div>
   
       <button id="addButton">+ Add Zone</button>
-      <button id="deleteButton">- Delete Zone</button>
-      <button id="startButton">Start</button>
+      <button disabled id="deleteButton">- Delete Zone</button>
+      <button disabled id="startButton">Start</button>
     </div>
   </body>
 </html>

@@ -42,6 +42,17 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Fix a lot of my seriously shitty robot coords and pixel XY code
+* (copystring) Fix connecting to websocket for hosts with more than one network card
+* (copystring) Disable buttons on webinterface when they can't be used
+* (copystring) Improve deleting/addin zones in webinterface
+* (copystring) map_status the currently selected map when bitwise shifted by 2 to the right
+* (copystring) use currently selected map to get floor rooms of selected map
+* (copystring) Update map only once on start of adapter
+* (copystring) Automatically send current map to webinterface when updating map
+
+
 ### 0.0.10-alpha.0 (2023-02-21)
 * (copystring) Fix a few lint errors and fix bugs regarding zone cleaning (JSON conversion to string and back to JSON)
 

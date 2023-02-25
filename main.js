@@ -6,7 +6,6 @@ const axios = require("axios").default;
 const crypto = require("crypto");
 const EventEmitter = require("node:events");
 const websocket = require("ws");
-const os = require("os");
 const express = require("express");
 
 const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roborock_mqtt_connector;
@@ -220,7 +219,9 @@ class Roborock extends utils.Adapter {
 			this.subscribeStates("Devices." + duid + ".commands.*");
 
 			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, vacuums[duid], robotModel);
-			this.updateDataExtraData(duid, vacuums[duid], robotModel);
+			this.updateDataExtraData(duid, vacuums[duid]);
+			// Update map once on start of adapter
+			vacuums[duid].getMap(duid);
 		}
 
 		// rr.on("response.raw", (duid, result) => {
@@ -271,24 +272,6 @@ class Roborock extends utils.Adapter {
 
 	startWebserver() {
 		const app = express();
-
-		app.get("/ip", (req, res) => {
-			const interfaces = os.networkInterfaces();
-			let localIp = "";
-			Object.values(interfaces).forEach((addresses) => {
-				addresses?.forEach((address) => {
-					if (address.family === "IPv4" && !address.internal) {
-						localIp = address.address;
-						return;
-					}
-				});
-				if (localIp) {
-					return;
-				}
-			});
-			res.send({ ip: localIp });
-		});
-
 		app.use(express.static("lib/map"));
 		app.listen(this.config.webserverPort);
 	}
@@ -326,7 +309,10 @@ class Roborock extends utils.Adapter {
 
 					case "getMap":
 						sendValue.command = "map";
-						sendValue.base64 = await this.getStateAsync("Devices." + data["duid"] + ".map.mapBase64");
+						await this.getStateAsync("Devices." + data["duid"] + ".map.mapBase64")
+							.then((state) => {
+								sendValue.base64 = state?.val?.toString() ?? "";
+							});
 						await this.getStateAsync("Devices." + data["duid"] + ".map.mapData")
 							.then((state) => {
 								sendValue.map = JSON.parse(state?.val?.toString() ?? "");
@@ -363,9 +349,6 @@ class Roborock extends utils.Adapter {
 
 		vacuum.getParameter(duid, "get_network_info");
 
-		this.log.debug("Update map");
-		vacuum.getMap(duid);
-
 		vacuum.getCleanSummary(duid);
 
 		switch (robotModel) {
@@ -386,14 +369,15 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
-	async updateDataExtraData(duid, vacuum, robotModel) {
+	async updateDataExtraData(duid, vacuum) {
 		vacuum.getParameter(duid, "get_fw_features");
 
 		vacuum.getParameter(duid, "get_multi_maps_list");
 
-		vacuum.getParameter(duid, "get_room_mapping");
-
 		vacuum.getMap(duid);
+
+		// get_room_mapping needs to AFTER getMap();
+		vacuum.getParameter(duid, "get_room_mapping");
 
 		const in_returning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_returning");
 		const in_cleaning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_cleaning");
@@ -464,6 +448,7 @@ class Roborock extends utils.Adapter {
 			}
 			else if (command == "load_multi_map") {
 				await vacuums[duid].command(duid, "load_multi_map", state.val);
+				vacuums[duid].getMap(duid);
 			}
 			else if (typeof (state.val) != "boolean") {
 				vacuums[duid].command(duid, command, state.val);
