@@ -211,9 +211,10 @@ class Roborock extends utils.Adapter {
 			vacuums[duid] = new vacuum_class(this, rr, robotModel);
 			vacuums[duid].name = name;
 
+			await vacuums[duid].setUpObjects(duid);
+
 			vacuums[duid].getMap(duid);
 
-			await vacuums[duid].setUpObjects(duid);
 
 			// sub to all commands of this robot
 			this.subscribeStates("Devices." + duid + ".commands.*");
