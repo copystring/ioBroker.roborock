@@ -221,8 +221,11 @@ class Roborock extends utils.Adapter {
 
 			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, vacuums[duid], robotModel);
 			this.updateDataExtraData(duid, vacuums[duid]);
+
 			// Update map once on start of adapter
 			vacuums[duid].getMap(duid);
+
+			vacuums[duid].getCleanSummary(duid);
 		}
 
 		// rr.on("response.raw", (duid, result) => {
@@ -269,6 +272,8 @@ class Roborock extends utils.Adapter {
 		this.log.debug("Stopped map updater on robot: " + duid);
 		this.clearInterval(vacuums[duid].mapUpdater);
 		vacuums[duid].mapUpdater = null;
+
+		vacuums[duid].getCleanSummary(duid);
 	}
 
 	startWebserver() {
@@ -349,8 +354,6 @@ class Roborock extends utils.Adapter {
 		vacuum.getParameter(duid, "get_consumable");
 
 		vacuum.getParameter(duid, "get_network_info");
-
-		vacuum.getCleanSummary(duid);
 
 		switch (robotModel) {
 			case "roborock.vacuum.s4":
