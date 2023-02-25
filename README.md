@@ -55,6 +55,7 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Implement charger and robot angle on map
 * (copystring) Fix zone positions
 * (copystring) Locating should not be an error. Make this an info instead
+* (copystring) Fix robot position and rotation
 
 
 ### 0.0.10-alpha.0 (2023-02-21)
