@@ -62,6 +62,8 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Make the actual path slightly transparent
 * (copystring) New robot image on map
 * (copystring) Add pause, stop, dock buttons to webinterface
+* (copystring) Reconnect websocket after 10 seconds of disconnection
+* (copystring) Remove unnecessary getMap() calls
 
 
 ### 0.0.10-alpha.0 (2023-02-21)

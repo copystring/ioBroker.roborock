@@ -213,8 +213,8 @@ class Roborock extends utils.Adapter {
 
 			await vacuums[duid].setUpObjects(duid);
 
+			// Update map once on start of adapter
 			vacuums[duid].getMap(duid);
-
 
 			// sub to all commands of this robot
 			this.subscribeStates("Devices." + duid + ".commands.*");
@@ -223,8 +223,6 @@ class Roborock extends utils.Adapter {
 			this.updateDataMinimumData(duid, vacuums[duid]);
 			this.updateDataExtraData(duid, vacuums[duid]);
 
-			// Update map once on start of adapter
-			vacuums[duid].getMap(duid);
 
 			vacuums[duid].getCleanSummary(duid);
 		}
@@ -384,8 +382,6 @@ class Roborock extends utils.Adapter {
 
 		vacuum.getParameter(duid, "get_multi_maps_list");
 
-		vacuum.getMap(duid);
-
 		const in_returning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_returning");
 		const in_cleaning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_cleaning");
 
@@ -454,7 +450,6 @@ class Roborock extends utils.Adapter {
 			}
 			else if (command == "load_multi_map") {
 				await vacuums[duid].command(duid, "load_multi_map", state.val);
-				vacuums[duid].getMap(duid);
 			}
 			else if (typeof (state.val) != "boolean") {
 				vacuums[duid].command(duid, command, state.val);
