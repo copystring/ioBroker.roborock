@@ -61,6 +61,7 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Add go to and go to predicted path feature in webinterface
 * (copystring) Make the actual path slightly transparent
 * (copystring) New robot image on map
+* (copystring) Add pause, stop, dock buttons to webinterface
 
 
 ### 0.0.10-alpha.0 (2023-02-21)
