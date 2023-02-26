@@ -326,6 +326,11 @@ class Roborock extends utils.Adapter {
 						sendValue.scale = this.config.map_scale;
 						socket.send(JSON.stringify(sendValue));
 						break;
+
+					case "app_goto_target":
+						parameters = data["parameters"];
+						vacuums[data["duid"]].command(data["duid"], command, parameters);
+						break;
 				}
 			});
 
