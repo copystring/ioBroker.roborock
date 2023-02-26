@@ -299,6 +299,11 @@ class Roborock extends utils.Adapter {
 				switch (command)
 				{
 					case "app_zoned_clean":
+					case "app_goto_target":
+					case "app_start":
+					case "app_stop":
+					case "app_pause":
+					case "app_charge":
 						parameters = data["parameters"];
 						vacuums[data["duid"]].command(data["duid"], command, parameters);
 						break;
@@ -325,11 +330,6 @@ class Roborock extends utils.Adapter {
 							});
 						sendValue.scale = this.config.map_scale;
 						socket.send(JSON.stringify(sendValue));
-						break;
-
-					case "app_goto_target":
-						parameters = data["parameters"];
-						vacuums[data["duid"]].command(data["duid"], command, parameters);
 						break;
 				}
 			});
