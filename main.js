@@ -220,6 +220,7 @@ class Roborock extends utils.Adapter {
 			this.subscribeStates("Devices." + duid + ".commands.*");
 
 			setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, vacuums[duid], robotModel);
+			this.updateDataMinimumData(duid, vacuums[duid]);
 			this.updateDataExtraData(duid, vacuums[duid]);
 
 			// Update map once on start of adapter
@@ -384,9 +385,6 @@ class Roborock extends utils.Adapter {
 		vacuum.getParameter(duid, "get_multi_maps_list");
 
 		vacuum.getMap(duid);
-
-		// get_room_mapping needs to AFTER getMap();
-		vacuum.getParameter(duid, "get_room_mapping");
 
 		const in_returning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_returning");
 		const in_cleaning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_cleaning");
