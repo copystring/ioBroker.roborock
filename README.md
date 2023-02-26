@@ -58,6 +58,9 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Fix robot position and rotation
 * (copystring) Fix mop path detection at start of robot
 * (copystring) Don't process is_Locating for starting the map updater
+* (copystring) Add go to and go to predicted path feature in webinterface
+* (copystring) Make the actual path slightly transparent
+* (copystring) New robot image on map
 
 
 ### 0.0.10-alpha.0 (2023-02-21)
