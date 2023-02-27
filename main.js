@@ -7,6 +7,8 @@ const crypto = require("crypto");
 const EventEmitter = require("node:events");
 const websocket = require("ws");
 const express = require("express");
+const Sentry = require("@sentry/node");
+
 
 const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roborock_mqtt_connector;
 const vacuum_class = require("./lib/vacuum").vacuum;
@@ -14,6 +16,15 @@ const rr = new EventEmitter();
 const vacuums = {};
 
 let rr_mqtt_connector, socketServer, webserver;
+
+Sentry.init({
+	dsn: "https://40474f3cac0c421c85afce616de6ec2d@o4504748727664640.ingest.sentry.io/4504748727664640",
+
+	// Set tracesSampleRate to 1.0 to capture 100%
+	// of transactions for performance monitoring.
+	// We recommend adjusting this value in production
+	tracesSampleRate: 1.0,
+});
 
 class Roborock extends utils.Adapter {
 
@@ -121,6 +132,7 @@ class Roborock extends utils.Adapter {
 		}
 		catch (error) {
 			this.log.error("Failed to login. Most likely wrong token! Deleting HomeData and UserData. Try again! " + error);
+			Sentry.captureException("Failed to login. Most likely wrong token! Deleting HomeData and UserData. Try again! " + error);
 			this.deleteStateAsync("HomeData");
 			this.deleteStateAsync("UserData");
 		}
@@ -143,6 +155,7 @@ class Roborock extends utils.Adapter {
 			}
 			catch (error) {
 				this.log.error("Failed to initialize API. Error: " + error);
+				Sentry.captureException("Failed to initialize API. Error: " + error);
 			}
 			return config;
 		});
