@@ -13,7 +13,7 @@ const vacuum_class = require("./lib/vacuum").vacuum;
 const rr = new EventEmitter();
 const vacuums = {};
 
-let rr_mqtt_connector;
+let rr_mqtt_connector, socketServer, webserver;
 
 class Roborock extends utils.Adapter {
 
@@ -162,17 +162,9 @@ class Roborock extends utils.Adapter {
 			},
 			native: {},
 		});
-		// Try to load existing HomeData.
-		const homedataObj = await this.getStateAsync("HomeData");
-		let homedata;
-		if (homedataObj) {
-			homedata = JSON.parse(homedataObj.val?.toString() || "{}");
-		}
-		else {
-			// Log in.
-			homedata = await api.get(`user/homes/${homeId}`).then(res => res.data.result);
-			await this.setStateAsync("HomeData", { val: JSON.stringify(homedata), ack: true });
-		}
+
+		const homedata = await api.get(`user/homes/${homeId}`).then(res => res.data.result);
+		await this.setStateAsync("HomeData", { val: JSON.stringify(homedata), ack: true });
 
 		// store name of each room via ID
 		const rooms = homedata.rooms;
@@ -280,11 +272,14 @@ class Roborock extends utils.Adapter {
 	startWebserver() {
 		const app = express();
 		app.use(express.static("lib/map"));
-		app.listen(this.config.webserverPort);
+		webserver = app.listen(this.config.webserverPort);
+	}
+	async stopWebserver() {
+		webserver.close();
 	}
 
 	async startWebsocketServer() {
-		const socketServer = new websocket.Server({ port: 7906 });
+		socketServer = new websocket.Server({ port: 7906 });
 		let parameters, robot;
 
 		socketServer.on("connection", async (socket) => {
@@ -340,6 +335,9 @@ class Roborock extends utils.Adapter {
 				this.socket = null;
 			});
 		});
+	}
+	async stopWebsocketServer() {
+		socketServer.close();
 	}
 
 	getRobotModel(products, productID) {

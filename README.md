@@ -64,6 +64,7 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Add pause, stop, dock buttons to webinterface
 * (copystring) Reconnect websocket after 10 seconds of disconnection
 * (copystring) Remove unnecessary getMap() calls
+* (copystring) Improve reconnect logic
 
 
 ### 0.0.10-alpha.0 (2023-02-21)
