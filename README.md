@@ -66,6 +66,7 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Remove unnecessary getMap() calls
 * (copystring) Improve reconnect logic
 * (copystring) Add Sentry
+* (copystring) Correct mop_mode state
 
 
 ### 0.0.10-alpha.0 (2023-02-21)
