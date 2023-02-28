@@ -42,7 +42,7 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.1.0 (2023-02-28)
 * (copystring) Fix a lot of my seriously shitty robot coords and pixel XY code
 * (copystring) Fix connecting to websocket for hosts with more than one network card
 * (copystring) Disable buttons on webinterface when they can't be used
@@ -68,7 +68,6 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Add Sentry
 * (copystring) Correct mop_mode state
 * (copystring) Add consumables life in percent
-
 
 ### 0.0.10-alpha.0 (2023-02-21)
 * (copystring) Fix a few lint errors and fix bugs regarding zone cleaning (JSON conversion to string and back to JSON)
