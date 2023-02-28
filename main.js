@@ -203,7 +203,7 @@ class Roborock extends utils.Adapter {
 		});
 
 
-		// create devices
+		// create devices and set states
 		const devices = homedata.devices;
 		const products = homedata.products;
 		for (const device in devices) {
@@ -217,6 +217,10 @@ class Roborock extends utils.Adapter {
 			vacuums[duid].name = name;
 
 			await vacuums[duid].setUpObjects(duid);
+
+			this.setStateAsync("Devices." + duid + ".consumables.125", { val: devices[device].deviceStatus["125"] - 1, ack: true });
+			this.setStateAsync("Devices." + duid + ".consumables.126", { val: devices[device].deviceStatus["126"] - 1, ack: true });
+			this.setStateAsync("Devices." + duid + ".consumables.127", { val: devices[device].deviceStatus["127"] - 1, ack: true });
 
 			// Update map once on start of adapter
 			vacuums[duid].getMap(duid);

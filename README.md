@@ -67,6 +67,7 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Improve reconnect logic
 * (copystring) Add Sentry
 * (copystring) Correct mop_mode state
+* (copystring) Add consumables life in percent
 
 
 ### 0.0.10-alpha.0 (2023-02-21)
