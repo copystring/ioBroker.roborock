@@ -42,6 +42,34 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Fix a lot of my seriously shitty robot coords and pixel XY code
+* (copystring) Fix connecting to websocket for hosts with more than one network card
+* (copystring) Disable buttons on webinterface when they can't be used
+* (copystring) Improve deleting/addin zones in webinterface
+* (copystring) map_status the currently selected map when bitwise shifted by 2 to the right
+* (copystring) use currently selected map to get floor rooms of selected map
+* (copystring) Update map only once on start of adapter
+* (copystring) Automatically send current map to webinterface when updating map
+* (copystring) Update clean summary only after once after cleaning and once at start
+* (copystring) Implement charger and robot angle on map
+* (copystring) Fix zone positions
+* (copystring) Locating should not be an error. Make this an info instead
+* (copystring) Fix robot position and rotation
+* (copystring) Fix mop path detection at start of robot
+* (copystring) Don't process is_Locating for starting the map updater
+* (copystring) Add go to and go to predicted path feature in webinterface
+* (copystring) Make the actual path slightly transparent
+* (copystring) New robot image on map
+* (copystring) Add pause, stop, dock buttons to webinterface
+* (copystring) Reconnect websocket after 10 seconds of disconnection
+* (copystring) Remove unnecessary getMap() calls
+* (copystring) Improve reconnect logic
+* (copystring) Add Sentry
+* (copystring) Correct mop_mode state
+* (copystring) Add consumables life in percent
+
+
 ### 0.0.10-alpha.0 (2023-02-21)
 * (copystring) Fix a few lint errors and fix bugs regarding zone cleaning (JSON conversion to string and back to JSON)
 

@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <script type="module" src="mapCreator.js"></script>
     <script src="zones.js"></script>
     <style>
       body {
@@ -15,6 +14,28 @@
         box-shadow: 0px 0px 10px #333;
         border-radius: 15px;
         /* image-rendering: pixelated; */
+      }
+ 
+      #addButton, #deleteButton {
+        display: inline-block;
+        width: 100px;
+      }
+      #addButton {
+        margin-right: 0px;
+      }
+      #deleteButton {
+        margin-left: 0px;
+      }
+ 
+      #startButton, #stopButton, #pauseButton {
+        display: inline-block;
+        width: 100px;
+      }
+      #startButton, #pauseButton {
+        margin-right: 0px;
+      }
+      #stopButton {
+        margin-left: 0px;
       }
 
       button, select {
@@ -35,6 +56,13 @@
         background-color: #47A9DC;
       }
 
+      button:disabled {
+        color: gray;
+        background-color: lightgray;
+        cursor: not-allowed;
+      }
+
+
       .hovered-option {
         background-color: #47A9DC !important;
       }
@@ -54,9 +82,17 @@
         </select>
       </div>
   
-      <button id="addButton">+ Add Zone</button>
-      <button id="deleteButton">- Delete Zone</button>
-      <button id="startButton">Start</button>
+      <div style="display: flex;" id="zoneButtons">
+        <button id="addButton">+ Zone</button>
+        <button disabled id="deleteButton">- Zone</button>
+      </div>
+      <div style="display: flex;" id="robotButtons">
+        <button id="pauseButton" style="display: none;">Pause</button>
+        <button id="startButton">Start</button>
+        <button id="stopButton">Stop</button>
+      </div>
+      <button id="dockButton">Dock</button>
+      <button id="goToButton">Go to</button>
     </div>
   </body>
 </html>
