@@ -154,11 +154,22 @@
       {
         "admin": ">=5.1.13"
       }
-    ]
+    ],
+    "plugins": {
+        "sentry": {
+            "dsn": "https://40474f3cac0c421c85afce616de6ec2d@o4504748727664640.ingest.sentry.io/4504748727664640"
+        }
+    }
   },
+  "encryptedNative": [
+    "username",
+    "password"
+  ],
+  "protectedNative": [
+    "username",
+    "password"
+  ],
   "native": {
-    "username": "",
-    "password": "",
     "enable_map_creation": false,
     "map_creation_interval": 2,
     "map_scale": 2,

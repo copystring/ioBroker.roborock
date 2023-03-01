@@ -16,6 +16,8 @@
 
 This adapter allows you the control, get states, cleaning history and view the map of a Roborock vacuum cleaner which is set up in the Roborock app.
 
+**This adapter uses Sentry libraries to automatically report exceptions and code errors to the developers.** For more details and for information how to disable the error reporting see [Sentry-Plugin Documentation](https://github.com/ioBroker/plugin-sentry#plugin-sentry)! Sentry reporting is used starting with js-controller 3.0.
+
 ## The supported robots are:
 
 - Roborock S4
@@ -42,6 +44,12 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Encrypt username & password. This means you need to re-enter username and password in the options
+* (copystring) Use Sentry Plugin instead native sentry
+* (copystring) Convert setInterval()/setTimeout() to this.setInterval()/this.setTimeout()
+
+
 ### 0.1.0 (2023-02-28)
 * (copystring) Fix a lot of my seriously shitty robot coords and pixel XY code
 * (copystring) Fix connecting to websocket for hosts with more than one network card
