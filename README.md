@@ -44,6 +44,9 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Fix ignoring get_carpet_clean_mode and get_water_box_custom_mode for S6 and older vacuums
+
 ### 0.1.1 (2023-03-01)
 * (copystring) Encrypt username & password. This means you need to re-enter username and password in the options
 * (copystring) Use Sentry Plugin instead native sentry
