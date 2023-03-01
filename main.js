@@ -233,7 +233,7 @@ class Roborock extends utils.Adapter {
 
 					this.mainUpdateInterval = this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
 					this.updateDataExtraData(duid, this.vacuums[duid]); // extra data needs to be called first!!!
-					this.updateDataMinimumData(duid, this.vacuums[duid]);
+					this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
 
 
 					this.vacuums[duid].getCleanSummary(duid);
