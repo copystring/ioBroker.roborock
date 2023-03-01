@@ -229,10 +229,10 @@ class Roborock extends utils.Adapter {
 								case "roborock.vacuum.a08":
 								case "roborock.vacuum.a10":
 								case "roborock.vacuum.s6":
-									this.setStateAsync("Devices." + duid + ".consumables." + attribute, { val: Math.max(0, Math.min(devices[device].deviceStatus[attribute], 100)), ack: true });
+									this.setStateAsync("Devices." + duid + ".consumables." + attribute, { val: Math.min(Math.max(devices[device].deviceStatus[attribute], 0), 100), ack: true });
 									break;
 								default:
-									this.setStateAsync("Devices." + duid + ".consumables." + attribute, { val: Math.max(0, Math.min(devices[device].deviceStatus[attribute], 100)) - 1, ack: true });
+									this.setStateAsync("Devices." + duid + ".consumables." + attribute, { val: Math.min(Math.max(devices[device].deviceStatus[attribute], 0), 100) - 1, ack: true });
 							}
 						}
 					}
