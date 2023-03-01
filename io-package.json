@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "news": {
+      "0.1.2": {
+        "en": "Fix ignoring get_carpet_clean_mode and get_water_box_custom_mode for S6 and older vacuums",
+        "de": "Unwissenheit beheben get_carpet_clean_mode und get_water_box_custom_mode für S6 und ältere Vakuume",
+        "ru": "Fix игнорирование get_carpet_clean_mode и get_water_box_custom_mode для S6 и старых вакуумов",
+        "pt": "Ignoração fixa get_carpet_clean_mode e get_water_box_custom_mode para S6 e aspiradores mais antigos",
+        "nl": "Fix negeren _",
+        "fr": "En ignorant get_carpet_clean_mode and get_water_box_custom_mode for S6 and older vacuums",
+        "it": "Fissare ignorando get_carpet_clean_mode e get_water_box_custom_mode per S6 e vecchi vuoto",
+        "es": "Corrección ignorante get_carpet_clean_mode y get_water_box_custom_mode para S6 y vacíos antiguos",
+        "pl": "Fix ignorowanie. Get_carpet_clean_mode i get_water_box_custom_mode dla S6 i starszej próżni",
+        "uk": "Виправлення ігнорування get_carpet_clean_mode і get_water_box_custom_mode для S6 і старших вакуумів",
+        "zh-cn": "不知 获得_carpet_clean_mode and access_water_箱_custom_mode for S6 and Long真空"
+      },
       "0.1.1": {
         "en": "Encrypt username & password. This means you need to re-enter username and password in the options\nUse Sentry Plugin instead native sentry\nConvert setInterval()/setTimeout() to this.setInterval()/this.setTimeout()\nCorrectly clear intervals and timeouts on unload and reconnect\nUpdate consumables code",
         "de": "Verschlüsseln Sie Benutzername & Passwort. Dies bedeutet, dass Sie Benutzername und Passwort in den Optionen neu eingeben müssen\nVerwenden Sie Sentry Plugin anstelle nativer Sendry\nSetInterval()/setTimeout in this.setInterval()/this.setTimeout umrechnen\nKorrekt klare Intervalle und Timeouts beim Entladen und Reconnect\nVerbrauchscode aktualisieren",
@@ -80,19 +93,6 @@
         "pl": "Czyszczenie Info\nOpcjonalna mapa z dodatkiem aktualizacji\nPrepare for FM releases\nFix rozbił się na inicjacji\nTyp m3 do m2\nJęzyk ukranowski\nMapa",
         "uk": "Фіксація Інформація для Roborock S4 до S6\nДодати додаткову карту з вибраним інтервалом оновлення\nПідготовка до релізів npm\nВиправлення аварійних ситуацій на ініціалізації\nФіксований тип м3 до м2\nДодати мову\nПеревірка створення карт",
         "zh-cn": "固定清洁 Roborock S4至S6的信息\n增加可选择的最新间隔图\n排放准备\nB. 初始化事故\nFix型 m3至m2\n增加ukranian语\n固定地图"
-      },
-      "0.0.6-alpha.0": {
-        "en": "report unknown attributes",
-        "de": "unbekannte attribute melden",
-        "ru": "сообщить неизвестные атрибуты",
-        "pt": "relatar atributos desconhecidos",
-        "nl": "onbekend verslag",
-        "fr": "des attributs inconnus",
-        "it": "report attributi sconosciuti",
-        "es": "reportar atributos desconocidos",
-        "pl": "raport nieznany",
-        "uk": "звіт невідомого атрибуту",
-        "zh-cn": "未报告的属性"
       }
     },
     "titleLang": {
