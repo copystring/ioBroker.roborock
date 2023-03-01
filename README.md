@@ -45,6 +45,7 @@ This feature only works when map creation is enabled in the adapter options!
 	### **WORK IN PROGRESS**
 -->
 ### **WORK IN PROGRESS**
+* (copystring) "retry" on getMap() is not an error
 * (copystring) Fix *_life calculation
 
 ### 0.1.2 (2023-03-01)
