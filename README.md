@@ -44,13 +44,12 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.1.1 (2023-03-01)
 * (copystring) Encrypt username & password. This means you need to re-enter username and password in the options
 * (copystring) Use Sentry Plugin instead native sentry
 * (copystring) Convert setInterval()/setTimeout() to this.setInterval()/this.setTimeout()
 * (copystring) Correctly clear intervals and timeouts on unload and reconnect
 * (copystring) Update consumables code
-
 
 ### 0.1.0 (2023-02-28)
 * (copystring) Fix a lot of my seriously shitty robot coords and pixel XY code
