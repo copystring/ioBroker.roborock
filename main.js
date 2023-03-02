@@ -174,7 +174,6 @@ class Roborock extends utils.Adapter {
 				native: {},
 			});
 
-			this.log.debug("homeId: " + JSON.stringify(homeId));
 			api.get(`user/homes/${homeId}`).then(async res => {
 				const homedata = res.data.result;
 				await this.setStateAsync("HomeData", { val: JSON.stringify(homedata), ack: true });
@@ -259,6 +258,8 @@ class Roborock extends utils.Adapter {
 			this.log.debug("Reconnecting after 3 hours!");
 			this.stopWebsocketServer();
 			this.stopWebserver();
+
+			rr_mqtt_connector.disconnectClient();
 
 			this.clearTimersAndIntervals();
 
