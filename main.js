@@ -221,6 +221,7 @@ class Roborock extends utils.Adapter {
 
 					for (const attribute in devices[device].deviceStatus) {
 						if (this.vacuums[duid].setup.consumables[attribute]) {
+							const val = (this.vacuums[duid].setup.consumables[attribute] >= 0 && this.vacuums[duid].setup.consumables[attribute] <= 100) ? this.vacuums[duid].setup.consumables[attribute] : 0;
 
 							switch (robotModel) {
 								case "roborock.vacuum.s4":
@@ -229,10 +230,10 @@ class Roborock extends utils.Adapter {
 								case "roborock.vacuum.a08":
 								case "roborock.vacuum.a10":
 								case "roborock.vacuum.s6":
-									this.setStateAsync("Devices." + duid + ".consumables." + attribute, { val: Math.min(Math.max(devices[device].deviceStatus[attribute], 0), 100), ack: true });
+									this.setStateAsync("Devices." + duid + ".consumables." + attribute, { val: val, ack: true });
 									break;
 								default:
-									this.setStateAsync("Devices." + duid + ".consumables." + attribute, { val: Math.min(Math.max(devices[device].deviceStatus[attribute], 0), 100) - 1, ack: true });
+									this.setStateAsync("Devices." + duid + ".consumables." + attribute, { val: val - 1, ack: true });
 							}
 						}
 					}
