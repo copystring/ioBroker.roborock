@@ -221,7 +221,7 @@ class Roborock extends utils.Adapter {
 
 					for (const attribute in devices[device].deviceStatus) {
 						if (this.vacuums[duid].setup.consumables[attribute]) {
-							const val = (this.vacuums[duid].setup.consumables[attribute] >= 0 && this.vacuums[duid].setup.consumables[attribute] <= 100) ? this.vacuums[duid].setup.consumables[attribute] : 0;
+							const val = (devices[device].deviceStatus[attribute] >= 0 && devices[device].deviceStatus[attribute] <= 100) ? parseInt(devices[device].deviceStatus[attribute]) : 0;
 
 							switch (robotModel) {
 								case "roborock.vacuum.s4":
