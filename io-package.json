@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "news": {
+      "0.1.3": {
+        "en": "\"retry\" on getMap() is not an error\nFix *_life calculation\nFix reconnect",
+        "de": "retry on getMap() ist kein Fehler\n*_Lebensberechnung\nReconnect aktivieren",
+        "ru": "retry on getMap() не ошибка\nFix *_расчёт жизни\nИсправление reconnect",
+        "pt": "retry on getMap() não é um erro\nCorrigir cálculo *_life\nCorrigir a conexão",
+        "nl": "is geen fout\nVertaling:\nVertaling:",
+        "fr": "retry on getMap() n'est pas une erreur\nCalcul *_vie\nReconnexion fixe",
+        "it": "retry on getMap() non è un errore\nFissare il calcolo *_life\nRisolvere la connessione",
+        "es": "retry on getMap() no es un error\nCorrección *_Cálculo de vida\nReconectar",
+        "pl": "Retrygacja na temat getMap() nie jest błędem\nFix *_life calculation (ang.)\nFix reconnect",
+        "uk": "птиця на getMap() не є помилкою\nФіксація *_розрахунок\nВиправлення відключення",
+        "zh-cn": "对Map(Map)的重新定性并非错误。\n页: 1\nFix 重新连接"
+      },
       "0.1.2": {
         "en": "Fix ignoring get_carpet_clean_mode and get_water_box_custom_mode for S6 and older vacuums",
         "de": "Unwissenheit beheben get_carpet_clean_mode und get_water_box_custom_mode für S6 und ältere Vakuume",
@@ -80,19 +93,6 @@
         "pl": "Tłumaczenie aktualne\nTłumaczenie na stronie internetowej\nFix robot command\nPowierzchnia mapy (wysokość i szerokość)\nAdd all the mqtt (ang.)",
         "uk": "Оновлення перекладів\nУвімкнути переклади через веблат\nВиправлення команд роботи\nВиправлено розмір карти (висока і ширина була завантажена)\nДодати всі події клієнтів mqtt",
         "zh-cn": "最新翻译\n可通过网上传送翻译\n九名汽车指挥\n固定规模图(黑暗和烧伤)\n增加所有小型客户活动"
-      },
-      "0.0.7-alpha.0": {
-        "en": "Fix cleaningInfo for Roborock S4 to S6\nAdd optional map with selectable update intervall\nPrepare for npm releases\nFix crashes on initialisation\nFix type m³ to m²\nAdd ukranian language\nFix map creation check",
-        "de": "Reinigung Infos fÃ1⁄4r Roborock S4 zu S6\nOptionale Karte mit wählbarem Update Intervall hinzufügen\nBereiten Sie sich auf npm Releases vor\nAbsturz bei der Initialisierung beheben\nFix Typ m3 bis m2\nUkranianische Sprache hinzufügen\nErstellung der Karte",
-        "ru": "Fix чистка Информация для Roborock S4 до S6\nДобавить необязательную карту с отборным интервалом обновления\nПодготовьтесь к выпуску npm\nИсправление аварий на инициализации\nТип фиксации m3 до m2\nДобавить украинский язык\nFix проверка создания карты",
-        "pt": "Limpeza fixa Info para Roborock S4 a S6\nAdicionar mapa opcional com intervalo de atualização selecionável\nPreparar para versões npm\nCorrigir falhas na inicialização\nFix tipo m3 para m2\nAdicionar idioma ukranian\nVerificação da criação do mapa",
-        "nl": "Reinigen. Info over Roborock S4 aan S6\nVoeg een optie kaart met geselecteerde update\nBereid je voor op NPM vrijlating\nVertaling:\nFix type M3\nVertaling:\nFix kaart creatie controle",
-        "fr": "Nettoyage fixe Info pour Roborock S4 à S6\nAjouter une carte optionnelle avec intervalles de mise à jour sélectionnables\nPréparer les rejets de npm\nFix crashes on initialisation\nType fixe m3 à m2\nAjouter la langue ukranienne\nCorrection de la création de carte",
-        "it": "Fissare la pulizia Info per Roborock S4 a S6\nAggiungi la mappa opzionale con l'intervallo di aggiornamento selezionabile\nPreparare per npm releases\nFissare i crash sull'inizializzazione\nTipo di fissaggio m3 a m2\nAggiungere la lingua ucraina\nControllare la creazione della mappa",
-        "es": "Limpieza fija Info para Roborock S4 a S6\nAñadir mapa opcional con intervalo de actualización seleccionable\nPrepararse para las versiones npm\nEstrecho en la inicialización\nTipo de fijación m3 a m2\nAgregar idioma ukraniano\nVerificación de la creación del mapa",
-        "pl": "Czyszczenie Info\nOpcjonalna mapa z dodatkiem aktualizacji\nPrepare for FM releases\nFix rozbił się na inicjacji\nTyp m3 do m2\nJęzyk ukranowski\nMapa",
-        "uk": "Фіксація Інформація для Roborock S4 до S6\nДодати додаткову карту з вибраним інтервалом оновлення\nПідготовка до релізів npm\nВиправлення аварійних ситуацій на ініціалізації\nФіксований тип м3 до м2\nДодати мову\nПеревірка створення карт",
-        "zh-cn": "固定清洁 Roborock S4至S6的信息\n增加可选择的最新间隔图\n排放准备\nB. 初始化事故\nFix型 m3至m2\n增加ukranian语\n固定地图"
       }
     },
     "titleLang": {
