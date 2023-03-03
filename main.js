@@ -174,7 +174,6 @@ class Roborock extends utils.Adapter {
 				native: {},
 			});
 
-			this.log.debug("homeId: " + JSON.stringify(homeId));
 			api.get(`user/homes/${homeId}`).then(async res => {
 				const homedata = res.data.result;
 				await this.setStateAsync("HomeData", { val: JSON.stringify(homedata), ack: true });
@@ -221,7 +220,20 @@ class Roborock extends utils.Adapter {
 
 					for (const attribute in devices[device].deviceStatus) {
 						if (this.vacuums[duid].setup.consumables[attribute]) {
-							this.setStateAsync("Devices." + duid + ".consumables." + attribute, { val: devices[device].deviceStatus[attribute] - 1, ack: true });
+							const val = (devices[device].deviceStatus[attribute] >= 0 && devices[device].deviceStatus[attribute] <= 100) ? parseInt(devices[device].deviceStatus[attribute]) : 0;
+
+							switch (robotModel) {
+								case "roborock.vacuum.s4":
+								case "roborock.vacuum.s5":
+								case "roborock.vacuum.s5e":
+								case "roborock.vacuum.a08":
+								case "roborock.vacuum.a10":
+								case "roborock.vacuum.s6":
+									this.setStateAsync("Devices." + duid + ".consumables." + attribute, { val: val, ack: true });
+									break;
+								default:
+									this.setStateAsync("Devices." + duid + ".consumables." + attribute, { val: val - 1, ack: true });
+							}
 						}
 					}
 
@@ -246,6 +258,8 @@ class Roborock extends utils.Adapter {
 			this.log.debug("Reconnecting after 3 hours!");
 			this.stopWebsocketServer();
 			this.stopWebserver();
+
+			rr_mqtt_connector.disconnectClient();
 
 			this.clearTimersAndIntervals();
 
