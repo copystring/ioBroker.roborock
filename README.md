@@ -47,6 +47,7 @@ This feature only works when map creation is enabled in the adapter options!
 ### **WORK IN PROGRESS**
 * (copystring) "retry" on getMap() is not an error
 * (copystring) Fix *_life calculation
+* (copystring) Fix reconnect
 
 ### 0.1.2 (2023-03-01)
 * (copystring) Fix ignoring get_carpet_clean_mode and get_water_box_custom_mode for S6 and older vacuums
