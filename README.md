@@ -48,6 +48,7 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Create and clear update interval for each vacuum correctly
 * (copystring) Fix consumables for S6 MaxV
 * (copystring) Start webserver and websocket server only when map creation is enabled
+* (copystring) Update homedata without fully reinitializing the adapter
 
 ### 0.1.3 (2023-03-03)
 * (copystring) "retry" on getMap() is not an error
