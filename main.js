@@ -267,9 +267,11 @@ class Roborock extends utils.Adapter {
 		}, 10800 * 1000);
 
 		// These need to start only after all states have been set
-		this.startWebserver();
-		this.startWebsocketServer();
 
+		if (this.config.enable_map_creation == true) {
+			this.startWebserver();
+			this.startWebsocketServer();
+		}
 		// rr.on("response.raw", (duid, result) => {
 		// 	this.log.debug("raw: " + JSON.stringify(result));
 		// });
