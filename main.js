@@ -243,7 +243,7 @@ class Roborock extends utils.Adapter {
 					// sub to all commands of this robot
 					this.subscribeStates("Devices." + duid + ".commands.*");
 
-					this.mainUpdateInterval = this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
+					this.vacuums[duid].mainUpdateInterval = this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
 					this.updateDataExtraData(duid, this.vacuums[duid]); // extra data needs to be called first!!!
 					this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
 
@@ -442,12 +442,6 @@ class Roborock extends utils.Adapter {
 	}
 
 	clearTimersAndIntervals() {
-		if (this.mainUpdateInterval) {
-			this.clearInterval(this.mainUpdateInterval);
-		}
-		if (this.mainUpdateInterval) {
-			this.clearInterval(this.mainUpdateInterval);
-		}
 		if (this.reconnectTimeout) {
 			this.clearTimeout(this.reconnectTimeout);
 		}
@@ -456,6 +450,7 @@ class Roborock extends utils.Adapter {
 		}
 
 		for (const duid in this.vacuums) {
+			this.clearInterval(this.vacuums[duid].mainUpdateInterval);
 			this.clearInterval(this.vacuums[duid].mapUpdater);
 		}
 	}
