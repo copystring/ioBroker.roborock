@@ -533,7 +533,6 @@ class Roborock extends utils.Adapter {
 				else {
 					this.vacuums[duid].command(duid, command);
 
-					this.log.debug("Command to test: " + command);
 					// set back command to false after 1 second
 					if ((command != "set_carpet_mode") && (command != "set_carpet_cleaning_mode")) {
 						this.commandTimeout = this.setTimeout(() => {
