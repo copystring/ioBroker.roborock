@@ -262,7 +262,7 @@ class Roborock extends utils.Adapter {
 						this.reconnectIntervall = this.setInterval(() => {
 							this.log.debug("Reconnecting after 3 hours!");
 
-							rr_mqtt_connector.reconnect();
+							rr_mqtt_connector.reconnectClient();
 						}, 10800 * 1000);
 
 						this.vacuums[duid].getCleanSummary(duid);
