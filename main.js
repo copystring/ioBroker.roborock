@@ -178,10 +178,6 @@ class Roborock extends utils.Adapter {
 			});
 
 			if (this.api) {
-
-				this.homedataInterval = this.setInterval(this.updateHomeData.bind(this), this.config.updateInterval * 1000, homeId);
-				this.updateHomeData(homeId);
-
 				this.api.get(`user/homes/${homeId}`).then(async res => {
 					const homedata = res.data.result;
 					await this.setStateAsync("HomeData", { val: JSON.stringify(homedata), ack: true });
@@ -226,25 +222,6 @@ class Roborock extends utils.Adapter {
 
 						await this.vacuums[duid].setUpObjects(duid);
 
-						for (const attribute in devices[device].deviceStatus) {
-							if (this.vacuums[duid].setup.consumables[attribute]) {
-								const val = (devices[device].deviceStatus[attribute] >= 0 && devices[device].deviceStatus[attribute] <= 100) ? parseInt(devices[device].deviceStatus[attribute]) : 0;
-
-								switch (robotModel) {
-									case "roborock.vacuum.s4":
-									case "roborock.vacuum.s5":
-									case "roborock.vacuum.s5e":
-									case "roborock.vacuum.a08":
-									case "roborock.vacuum.a10":
-									case "roborock.vacuum.s6":
-										this.setStateAsync("Devices." + duid + ".consumables." + attribute, { val: val, ack: true });
-										break;
-									default:
-										this.setStateAsync("Devices." + duid + ".consumables." + attribute, { val: val - 1, ack: true });
-								}
-							}
-						}
-
 						// Update map once on start of adapter
 						this.vacuums[duid].getMap(duid);
 
@@ -257,7 +234,6 @@ class Roborock extends utils.Adapter {
 						this.updateDataExtraData(duid, this.vacuums[duid]); // extra data needs to be called first!!!
 						this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
 
-
 						// reconnect every 3 hours (10800 seconds)
 						this.reconnectIntervall = this.setInterval(() => {
 							this.log.debug("Reconnecting after 3 hours!");
@@ -267,6 +243,9 @@ class Roborock extends utils.Adapter {
 
 						this.vacuums[duid].getCleanSummary(duid);
 					}
+
+					this.homedataInterval = this.setInterval(this.updateHomeData.bind(this), this.config.updateInterval * 1000, homeId);
+					this.updateHomeData(homeId);
 				});
 			}
 		});
@@ -474,7 +453,23 @@ class Roborock extends utils.Adapter {
 				const homedata = res.data.result;
 				await this.setStateAsync("HomeData", { val: JSON.stringify(homedata), ack: true });
 				this.log.debug("homedata successfully updated");
+
+				this.updateConsumablesPercent(homedata.devices);
 			});
+		}
+	}
+	updateConsumablesPercent(devices) {
+		for (const device in devices) {
+			this.log.debug("Update consumables");
+			const duid = devices[device].duid;
+
+			for (const deviceAttribute in devices[device].deviceStatus) {
+				if (this.vacuums[duid].setup.consumables[deviceAttribute]) {
+					const val = (devices[device].deviceStatus[deviceAttribute] >= 0 && devices[device].deviceStatus[deviceAttribute] <= 100) ? parseInt(devices[device].deviceStatus[deviceAttribute]) : 0;
+
+					this.setStateAsync("Devices." + duid + ".consumables." + deviceAttribute, { val: val, ack: true });
+				}
+			}
 		}
 	}
 
