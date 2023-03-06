@@ -41,6 +41,8 @@ class Roborock extends utils.Adapter {
 	async onReady() {
 		this.sentryInstance = this.getPluginInstance("sentry");
 
+		await this.setupBasicObjects();
+
 		const username = this.config.username;
 		const password = this.config.password;
 
@@ -51,25 +53,15 @@ class Roborock extends utils.Adapter {
 
 		// create new clientID if it doesn't exist yet
 		let clientID = "";
-		const storedClientID = await this.getStateAsync("clientID");
-		if (storedClientID && typeof (storedClientID) != "undefined") {
-			clientID = storedClientID.val?.toString() ?? "";
-		}
-		else {
-			await this.setObjectNotExistsAsync("clientID", {
-				type: "state",
-				common: {
-					name: "Client ID",
-					type: "string",
-					role: "value",
-					read: true,
-					write: false,
-				},
-				native: {},
-			});
-			clientID = crypto.randomUUID();
-			await this.setStateAsync("clientID", { val: clientID, ack: true });
-		}
+		await this.getStateAsync("clientID").then(async storedClientID => {
+			if (storedClientID && typeof (storedClientID) != "undefined") {
+				clientID = storedClientID.val?.toString() ?? "";
+			}
+			else {
+				clientID = crypto.randomUUID();
+				await this.setStateAsync("clientID", { val: clientID, ack: true });
+			}
+		});
 
 		// Initialize the login API (which is needed to get access to the real API).
 		const loginApi = axios.create({
@@ -100,19 +92,6 @@ class Roborock extends utils.Adapter {
 				this.log.error("Error! Failed to login. Maybe wrong username or password?");
 				return;
 			}
-
-			// UserData
-			await this.setObjectNotExistsAsync("UserData", {
-				type: "state",
-				common: {
-					name: "UserData string",
-					type: "string",
-					role: "value",
-					read: true,
-					write: false,
-				},
-				native: {},
-			});
 			await this.setStateAsync("UserData", { val: JSON.stringify(userdata), ack: true });
 		}
 
@@ -133,18 +112,21 @@ class Roborock extends utils.Adapter {
 		const rriot = userdata.rriot;
 
 		// Initialize the real API.
-		const api = axios.create({
+		this.api = axios.create({
 			baseURL: rriot.r.a,
 		});
-		api.interceptors.request.use(config => {
+		this.api.interceptors.request.use(config => {
 			try {
 				const timestamp = Math.floor(Date.now() / 1000);
 				const nonce = crypto.randomBytes(6).toString("base64").substring(0, 6).replace("+", "X").replace("/", "Y");
-				const url = new URL(api.getUri(config));
-				const prestr = [rriot.u, rriot.s, nonce, timestamp, md5hex(url.pathname), /*queryparams*/ "", /*body*/ ""].join(":");
-				const mac = crypto.createHmac("sha256", rriot.h).update(prestr).digest("base64");
+				let url;
+				if (this.api) {
+					url = new URL(this.api.getUri(config));
+					const prestr = [rriot.u, rriot.s, nonce, timestamp, md5hex(url.pathname), /*queryparams*/ "", /*body*/ ""].join(":");
+					const mac = crypto.createHmac("sha256", rriot.h).update(prestr).digest("base64");
 
-				config.headers["Authorization"] = `Hawk id="${rriot.u}", s="${rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
+					config.headers["Authorization"] = `Hawk id="${rriot.u}", s="${rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
+				}
 			}
 			catch (error) {
 				this.log.error("Failed to initialize API. Error: " + error);
@@ -161,115 +143,71 @@ class Roborock extends utils.Adapter {
 		// Get home details.
 		loginApi.get("api/v1/getHomeDetail").then(async res => {
 			const homeId = res.data.data.rrHomeId;
-			// HomeData
-			await this.setObjectNotExistsAsync("HomeData", {
-				type: "state",
-				common: {
-					name: "HomeData string",
-					type: "string",
-					role: "value",
-					read: true,
-					write: false,
-				},
-				native: {},
-			});
 
-			api.get(`user/homes/${homeId}`).then(async res => {
-				const homedata = res.data.result;
-				await this.setStateAsync("HomeData", { val: JSON.stringify(homedata), ack: true });
+			if (this.api) {
+				this.api.get(`user/homes/${homeId}`).then(async res => {
+					const homedata = res.data.result;
+					await this.setStateAsync("HomeData", { val: JSON.stringify(homedata), ack: true });
 
-				rr_mqtt_connector = new roborock_mqtt_connector(this);
-				rr_mqtt_connector.initUser(userdata, homedata);
-				rr_mqtt_connector.initMQTT_Subscribe();
-				rr_mqtt_connector.initMQTT_Message(rr);
+					rr_mqtt_connector = new roborock_mqtt_connector(this);
+					rr_mqtt_connector.initUser(userdata, homedata);
+					rr_mqtt_connector.initMQTT_Subscribe();
+					rr_mqtt_connector.initMQTT_Message(rr);
 
-				// store name of each room via ID
-				const rooms = homedata.rooms;
-				for (const room in rooms) {
-					const roomID = rooms[room].id;
-					const roomName = rooms[room].name;
+					// store name of each room via ID
+					const rooms = homedata.rooms;
+					for (const room in rooms) {
+						const roomID = rooms[room].id;
+						const roomName = rooms[room].name;
 
-					this.roomIDs[roomID] = roomName;
-				}
-				this.log.debug("RoomIDs debug: " + JSON.stringify(this.roomIDs));
-
-
-				await this.setObjectNotExistsAsync("Devices", {
-					type: "folder",
-					common: {
-						name: "Devices",
-					},
-					native: {},
-				});
-
-
-				// create devices and set states
-				const devices = homedata.devices;
-				const products = homedata.products;
-				for (const device in devices) {
-					const productID = devices[device]["productId"];
-					// const robotModel = products[device]["model"];
-					const robotModel = this.getRobotModel(products, productID);
-					const duid = devices[device].duid;
-					const name = devices[device].name;
-
-					this.vacuums[duid] = new vacuum_class(this, rr, robotModel);
-					this.vacuums[duid].name = name;
-
-					await this.vacuums[duid].setUpObjects(duid);
-
-					for (const attribute in devices[device].deviceStatus) {
-						if (this.vacuums[duid].setup.consumables[attribute]) {
-							const val = (devices[device].deviceStatus[attribute] >= 0 && devices[device].deviceStatus[attribute] <= 100) ? parseInt(devices[device].deviceStatus[attribute]) : 0;
-
-							switch (robotModel) {
-								case "roborock.vacuum.s4":
-								case "roborock.vacuum.s5":
-								case "roborock.vacuum.s5e":
-								case "roborock.vacuum.a08":
-								case "roborock.vacuum.a10":
-								case "roborock.vacuum.s6":
-									this.setStateAsync("Devices." + duid + ".consumables." + attribute, { val: val, ack: true });
-									break;
-								default:
-									this.setStateAsync("Devices." + duid + ".consumables." + attribute, { val: val - 1, ack: true });
-							}
-						}
+						this.roomIDs[roomID] = roomName;
 					}
+					this.log.debug("RoomIDs debug: " + JSON.stringify(this.roomIDs));
 
-					// Update map once on start of adapter
-					this.vacuums[duid].getMap(duid);
+					// create devices and set states
+					const devices = homedata.devices;
+					const products = homedata.products;
+					for (const device in devices) {
+						const productID = devices[device]["productId"];
+						// const robotModel = products[device]["model"];
+						const robotModel = this.getRobotModel(products, productID);
+						const duid = devices[device].duid;
+						const name = devices[device].name;
 
-					// sub to all commands of this robot
-					this.subscribeStates("Devices." + duid + ".commands.*");
+						this.vacuums[duid] = new vacuum_class(this, rr, robotModel);
+						this.vacuums[duid].name = name;
 
-					this.mainUpdateInterval = this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
-					this.updateDataExtraData(duid, this.vacuums[duid]); // extra data needs to be called first!!!
-					this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
+						await this.vacuums[duid].setUpObjects(duid);
 
+						// sub to all commands of this robot
+						this.subscribeStates("Devices." + duid + ".commands.*");
+						this.subscribeStates("Devices." + duid + ".reset_consumables.*");
 
-					this.vacuums[duid].getCleanSummary(duid);
-				}
-			});
+						this.vacuums[duid].mainUpdateInterval = this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
+
+						this.updateDataExtraData(duid, this.vacuums[duid]); // extra data needs to be called first!!!
+						this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
+
+						this.vacuums[duid].getCleanSummary(duid);
+
+						// reconnect every 3 hours (10800 seconds)
+						this.reconnectIntervall = this.setInterval(() => {
+							this.log.debug("Reconnecting after 3 hours!");
+
+							rr_mqtt_connector.reconnectClient();
+						}, 10800 * 1000);
+					}
+					this.homedataInterval = this.setInterval(this.updateHomeData.bind(this), this.config.updateInterval * 1000, homeId);
+					await this.updateHomeData(homeId);
+
+					// These need to start only after all states have been set
+					if (this.config.enable_map_creation == true) {
+						this.startWebserver();
+						this.startWebsocketServer();
+					}
+				});
+			}
 		});
-
-		// reconnect every 3 hours (10800 seconds)
-		this.reconnectTimeout = this.setTimeout(() => {
-			this.log.debug("Reconnecting after 3 hours!");
-			this.stopWebsocketServer();
-			this.stopWebserver();
-
-			rr_mqtt_connector.disconnectClient();
-
-			this.clearTimersAndIntervals();
-
-			this.onReady();
-		}, 10800 * 1000);
-
-		// These need to start only after all states have been set
-		this.startWebserver();
-		this.startWebsocketServer();
-
 		// rr.on("response.raw", (duid, result) => {
 		// 	this.log.debug("raw: " + JSON.stringify(result));
 		// });
@@ -373,7 +311,7 @@ class Roborock extends utils.Adapter {
 							});
 						await this.getStateAsync("Devices." + data["duid"] + ".map.mapData")
 							.then((state) => {
-								sendValue.map = JSON.parse(state?.val?.toString() ?? "");
+								sendValue.map = JSON.parse(state?.val?.toString() ?? "[]");
 							});
 						sendValue.scale = this.config.map_scale;
 						socket.send(JSON.stringify(sendValue));
@@ -442,22 +380,95 @@ class Roborock extends utils.Adapter {
 	}
 
 	clearTimersAndIntervals() {
-		if (this.mainUpdateInterval) {
-			this.clearInterval(this.mainUpdateInterval);
+		if (this.reconnectIntervall) {
+			this.clearInterval(this.reconnectIntervall);
 		}
-		if (this.mainUpdateInterval) {
-			this.clearInterval(this.mainUpdateInterval);
-		}
-		if (this.reconnectTimeout) {
-			this.clearTimeout(this.reconnectTimeout);
+		if (this.homedataInterval) {
+			this.clearInterval(this.homedataInterval);
 		}
 		if (this.commandTimeout) {
 			this.clearTimeout(this.commandTimeout);
 		}
+		if (this.resetTimeout) {
+			this.clearTimeout(this.resetTimeout);
+		}
 
 		for (const duid in this.vacuums) {
+			this.clearInterval(this.vacuums[duid].mainUpdateInterval);
 			this.clearInterval(this.vacuums[duid].mapUpdater);
 		}
+	}
+
+	updateHomeData(homeId) {
+		if (this.api) {
+			this.api.get(`user/homes/${homeId}`).then(async res => {
+				const homedata = res.data.result;
+				await this.setStateAsync("HomeData", { val: JSON.stringify(homedata), ack: true });
+				this.log.debug("homedata successfully updated");
+
+				this.updateConsumablesPercent(homedata.devices);
+			});
+		}
+	}
+	updateConsumablesPercent(devices) {
+		for (const device in devices) {
+			this.log.debug("Update consumables");
+			const duid = devices[device].duid;
+
+			for (const deviceAttribute in devices[device].deviceStatus) {
+				if (this.vacuums[duid].setup.consumables[deviceAttribute]) {
+					const val = (devices[device].deviceStatus[deviceAttribute] >= 0 && devices[device].deviceStatus[deviceAttribute] <= 100) ? parseInt(devices[device].deviceStatus[deviceAttribute]) : 0;
+
+					this.setStateAsync("Devices." + duid + ".consumables." + deviceAttribute, { val: val, ack: true });
+				}
+			}
+		}
+	}
+
+	async setupBasicObjects() {
+		await this.setObjectNotExistsAsync("Devices", {
+			type: "folder",
+			common: {
+				name: "Devices",
+			},
+			native: {},
+		});
+
+		await this.setObjectNotExistsAsync("UserData", {
+			type: "state",
+			common: {
+				name: "UserData string",
+				type: "string",
+				role: "value",
+				read: true,
+				write: false,
+			},
+			native: {},
+		});
+
+		await this.setObjectNotExistsAsync("HomeData", {
+			type: "state",
+			common: {
+				name: "HomeData string",
+				type: "string",
+				role: "value",
+				read: true,
+				write: false,
+			},
+			native: {},
+		});
+
+		await this.setObjectNotExistsAsync("clientID", {
+			type: "state",
+			common: {
+				name: "Client ID",
+				type: "string",
+				role: "value",
+				read: true,
+				write: false,
+			},
+			native: {},
+		});
 	}
 
 	/**
@@ -500,22 +511,31 @@ class Roborock extends utils.Adapter {
 		if (state) {
 			const idParts = id.split(".");
 			const duid = idParts[3];
+			const folder = idParts[4];
 			const command = idParts[5];
 
 			this.log.debug("onStateChange: " + command + " with value: " + state.val);
 			if ((state.val == true) && (typeof (state.val) == "boolean")) {
-				this.vacuums[duid].command(duid, command);
+				if (folder == "reset_consumables") {
+					await this.vacuums[duid].command(duid, "reset_consumable", command);
 
-				this.log.debug("Command to test: " + command);
-				// set back command to false after 1 second
-				if ((command != "set_carpet_mode") && (command != "set_carpet_cleaning_mode")) {
-					this.commandTimeout = this.setTimeout(() => {
+					this.resetTimeout = this.setTimeout(() => {
 						this.setStateAsync(id, false);
 					}, 1000);
 				}
+				else {
+					this.vacuums[duid].command(duid, command);
+
+					// set back command to false after 1 second
+					if ((command != "set_carpet_mode") && (command != "set_carpet_cleaning_mode")) {
+						this.commandTimeout = this.setTimeout(() => {
+							this.setStateAsync(id, false);
+						}, 1000);
+					}
+				}
 			}
 			else if (command == "load_multi_map") {
-				await this.vacuums[duid].command(duid, "load_multi_map", state.val);
+				await this.vacuums[duid].command(duid, command, [state.val]);
 			}
 			else if (typeof (state.val) != "boolean") {
 				this.vacuums[duid].command(duid, command, state.val);

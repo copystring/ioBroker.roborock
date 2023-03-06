@@ -44,6 +44,16 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Create and clear update interval for each vacuum correctly
+* (copystring) Fix consumables for S6 MaxV
+* (copystring) Start webserver and websocket server only when map creation is enabled
+* (copystring) Update homedata without fully reinitializing the adapter
+* (copystring) Add clean count for room cleaning
+* (copystring) Ability to reset consumables
+* (copystring) Add clean count for room cleaning
+* (copystring) Add resume_segment_clean and resume_zoned_clean
+
 ### 0.1.3 (2023-03-03)
 * (copystring) "retry" on getMap() is not an error
 * (copystring) Fix *_life calculation
