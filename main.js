@@ -535,7 +535,7 @@ class Roborock extends utils.Adapter {
 				}
 			}
 			else if (command == "load_multi_map") {
-				await this.vacuums[duid].command(duid, command, state.val);
+				await this.vacuums[duid].command(duid, command, [state.val]);
 			}
 			else if (typeof (state.val) != "boolean") {
 				this.vacuums[duid].command(duid, command, state.val);
