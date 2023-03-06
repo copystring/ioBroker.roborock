@@ -44,7 +44,7 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### 0.1.4-alpha.0 (2023-03-06)
+### **WORK IN PROGRESS**
 * (copystring) Create and clear update interval for each vacuum correctly
 * (copystring) Fix consumables for S6 MaxV
 * (copystring) Start webserver and websocket server only when map creation is enabled
