@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.1.3",
+    "version": "0.1.4-alpha.0",
     "news": {
+      "0.1.4-alpha.0": {
+        "en": "Create and clear update interval for each vacuum correctly\nFix consumables for S6 MaxV\nStart webserver and websocket server only when map creation is enabled\nUpdate homedata without fully reinitializing the adapter\nAdd clean count for room cleaning\nAbility to reset consumables\nAdd clean count for room cleaning\nAdd resume_segment_clean and resume_zoned_clean",
+        "de": "Erstellen und klares Update-Intervall für jedes Vakuum korrekt\nVerbrauchsmaterialien für S6 MaxV festsetzen\nStarten Sie Webserver und Websocket Server nur, wenn die Kartenerstellung aktiviert ist\nHomedata aktualisieren, ohne den Adapter vollständig neu zu installieren\nReine Anzahl der Zimmerreinigung hinzufügen\nFähigkeit, Verbrauchsmaterialien zurückzusetzen\nReine Anzahl der Zimmerreinigung hinzufügen\nLebenslauf hinzufügen_segment_clean und Lebenslauf_zoned_clean",
+        "ru": "Создавайте и понятный интервал обновления для каждого вакуума правильно\nИсправление расходных материалов для S6 MaxV\nНачните webserver и websocket сервер только тогда, когда создание карты разрешено\nОбновить домашние данные без полностью переинициирования адаптера\nДобавить чистый счет для уборки номеров\nВозможность сброса расходных материалов\nДобавить чистый счет для уборки номеров\nДобавить резюме_сегмент_чисто и резюме_zoned_clean",
+        "pt": "Criar e limpar intervalo de atualização para cada vácuo corretamente\nConsumíveis de fixação para S6 MaxV\nIniciar servidor web e servidor websocket somente quando a criação de mapas está ativada\nAtualize os dados de casa sem reiniciar totalmente o adaptador\nAdicionar contagem limpa para limpeza de quartos\nCapacidade de redefinir consumíveis\nAdicionar contagem limpa para limpeza de quartos\nAdicionar currículo_segment_clean e retomar_zoned_clean",
+        "nl": "Creëer en duidelijke interval voor elk vacuüm correct\nVertaling:\nBegin met webserver en websocket server alleen als de kaart creatie in staat is\nUpdate homedata zonder de adapter te herstarten\nVoeg schoonmaakmiddel toe\nVermogen om te resetten\nVoeg schoonmaakmiddel toe\nVertaling:",
+        "fr": "Créer et préciser l'intervalle de mise à jour pour chaque vide correctement\nConsommables fixes pour S6 MaxV\nDémarrer webserver et serveur websocket seulement lorsque la création de carte est activée\nMettre à jour les homedata sans réinitialiser entièrement l'adaptateur\nAjouter le compte propre pour le nettoyage de la chambre\nCapacité à réinitialiser les consommables\nAjouter le compte propre pour le nettoyage de la chambre\nAjouter resume_segment_clean and resume_zoned_clean",
+        "it": "Creare e cancellare l'intervallo di aggiornamento per ogni vuoto correttamente\nRisolvere i materiali di consumo per S6 MaxV\nAvviare webserver e websocket server solo quando la creazione della mappa è abilitata\nAggiornare i dati di casa senza riavviare completamente l'adattatore\nAggiungere il conteggio pulito per la pulizia della camera\nCapacità di ripristinare i materiali di consumo\nAggiungere il conteggio pulito per la pulizia della camera\nAggiungi curriculum_segment_clean e riprendere_zoned_clean",
+        "es": "Crear y limpiar el intervalo de actualización para cada vacío correctamente\nConsumibles fijos para S6 MaxV\nInicio servidor web y servidor websocket sólo cuando la creación de mapa está habilitada\nActualizar homedata sin reinicializar completamente el adaptador\nAñadir cuenta limpia para la limpieza de la habitación\nCapacidad para restablecer los bienes fungibles\nAñadir cuenta limpia para la limpieza de la habitación\nAñadir curriculum vitae_segment_clean y curriculum vitae_zoned_clean",
+        "pl": "Rozszerzenie i rozdzielenie każdej próżni poprawnie poprawnie\nS6 MaxVable (ang.)\nPoczątkowy serwer internetowy i internetowy tylko wtedy, gdy tworzenie map jest możliwe\nData bez w pełni zainicjowania adaptera\nCzyste konto\nMożliwość resetowania konsumable\nCzyste konto\nAdd wznowił formaty_segment_clean and re_zoned_clean",
+        "uk": "Створення та прозорий інтервал оновлення для кожного вакууму правильно\nВиправлення витратних матеріалів для S6 MaxV\nПочати сервер вебсервера і websocket тільки при створенні карт\nОновлення домашньої інформації без повного перевстановлення адаптера\nДодавання чистої кількості для прибирання приміщення\nМожливість скидання витратних матеріалів\nДодавання чистої кількості для прибирання приміщення\nДодати резюме_segment_clean and резюме_zoned_clean",
+        "zh-cn": "为每一真空建立明确的最新间隔\nS6 MaxV的固定配量\n只有当地图制作时才能够启动网站维护者和网络服务器\n更新的家政数据没有完全重新启动适应者\n增加清洁房\nA. 重新组合消耗的可能性\n增加清洁房\n增 编"
+      },
       "0.1.3": {
         "en": "\"retry\" on getMap() is not an error\nFix *_life calculation\nFix reconnect",
         "de": "retry on getMap() ist kein Fehler\n*_Lebensberechnung\nReconnect aktivieren",
@@ -80,19 +93,6 @@
         "pl": "Strefa sprzątania",
         "uk": "Додана зона очищення",
         "zh-cn": "增加清理区"
-      },
-      "0.0.8-alpha.0": {
-        "en": "Update translations\nEnable translations via weblate\nFix robot commands\nFix map size (height and width were swapped)\nAdd all mqtt client events",
-        "de": "Übersetzungen aktualisieren\nÜbersetzungen per Weblate aktivieren\nRoboterbefehle fixieren\nGröße der Karte (Höhe und Breite wurden vertauscht)\nAlle mqtt Client Events hinzufügen",
-        "ru": "Обновление переводов\nВключить переводы через weblate\nFix команды робота\nFix размер карты (высота и ширина были своппед)\nДобавить все события клиентов mqtt",
-        "pt": "Atualizar traduções\nHabilitar traduções via weblate\nCorrigir comandos de robô\nFix tamanho do mapa (altura e largura foram trocados)\nAdicionar todos os eventos do cliente mqtt",
-        "nl": "Vertaling:\nVertaling:\nFix robot commando's\nFix kaart grootte (gewicht en breedte werden verwisseld)\nVoeg alle mqt cliënt evenementen toe",
-        "fr": "Mise à jour des traductions\nActiver les traductions via weblate\nCommandes de robots fixes\nTaille de la carte fixe (hauteur et largeur ont été échangées)\nAjouter tous les évènements clients mqt",
-        "it": "Aggiornare le traduzioni\nAttiva le traduzioni tramite weblate\nFissare i comandi robot\nFissare la dimensione della mappa (altezza e larghezza sono stati scambiati)\nAggiungi tutti gli eventi del cliente",
-        "es": "Traducción actualizada\nPermitir traducciones a través de weblate\nArreglar comandos robot\nFijar tamaño del mapa (altura y ancho fueron intercambiados)\nAgregar todos los eventos de clientes mqtt",
-        "pl": "Tłumaczenie aktualne\nTłumaczenie na stronie internetowej\nFix robot command\nPowierzchnia mapy (wysokość i szerokość)\nAdd all the mqtt (ang.)",
-        "uk": "Оновлення перекладів\nУвімкнути переклади через веблат\nВиправлення команд роботи\nВиправлено розмір карти (висока і ширина була завантажена)\nДодати всі події клієнтів mqtt",
-        "zh-cn": "最新翻译\n可通过网上传送翻译\n九名汽车指挥\n固定规模图(黑暗和烧伤)\n增加所有小型客户活动"
       }
     },
     "titleLang": {
