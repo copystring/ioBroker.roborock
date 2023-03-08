@@ -4,14 +4,12 @@ const utils = require("@iobroker/adapter-core");
 
 const axios = require("axios").default;
 const crypto = require("crypto");
-const EventEmitter = require("node:events");
 const websocket = require("ws");
 const express = require("express");
 
 
 const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roborock_mqtt_connector;
 const vacuum_class = require("./lib/vacuum").vacuum;
-const rr = new EventEmitter();
 
 let rr_mqtt_connector, socketServer, webserver;
 
@@ -152,7 +150,7 @@ class Roborock extends utils.Adapter {
 					rr_mqtt_connector = new roborock_mqtt_connector(this);
 					rr_mqtt_connector.initUser(userdata, homedata);
 					rr_mqtt_connector.initMQTT_Subscribe();
-					rr_mqtt_connector.initMQTT_Message(rr);
+					rr_mqtt_connector.initMQTT_Message();
 
 					// store name of each room via ID
 					const rooms = homedata.rooms;
@@ -174,7 +172,7 @@ class Roborock extends utils.Adapter {
 						const duid = devices[device].duid;
 						const name = devices[device].name;
 
-						this.vacuums[duid] = new vacuum_class(this, rr, robotModel);
+						this.vacuums[duid] = new vacuum_class(this, robotModel);
 						this.vacuums[duid].name = name;
 
 						await this.vacuums[duid].setUpObjects(duid);
@@ -208,37 +206,11 @@ class Roborock extends utils.Adapter {
 				});
 			}
 		});
-		// rr.on("response.raw", (duid, result) => {
-		// 	this.log.debug("raw: " + JSON.stringify(result));
-		// });
-
-		rr.on("foreign.message", (duid, result) => {
-			let value;
-
-			this.log.debug("foreign.message duid: " + duid);
-
-			for (const attribute in result) {
-				this.log.debug("foreign.message attribute: " + attribute);
-				switch(attribute) {
-					case "121":
-						value = result[attribute];
-						if ((value == 4) || (value == 5) || (value == 6) || (value == 7) || (value == 11) || (value == 15) || (value == 16) || (value == 17) || (value == 18)) {
-							this.startMapUpdater(duid);
-						}
-						else {
-							this.stopMapUpdater(duid);
-						}
-						break;
-					default:
-				}
-			}
-		});
 	}
 
 	async startMapUpdater(duid) {
 		if (this.vacuums[duid].mapUpdater == null) {
 			this.log.debug("Started map updater on robot: " + duid);
-			// get map every x seconds. Maybe I find a way later on to only update every second if the robot is running.
 			this.vacuums[duid].mapUpdater = this.setInterval(() => {
 				this.vacuums[duid].getMap(duid);
 			}, this.config.map_creation_interval*1000);
@@ -370,13 +342,6 @@ class Roborock extends utils.Adapter {
 		vacuum.getParameter(duid, "get_fw_features");
 
 		vacuum.getParameter(duid, "get_multi_maps_list");
-
-		const in_returning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_returning");
-		const in_cleaning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_cleaning");
-
-		if ((in_cleaning?.val == 1) || (in_returning?.val == 1)) {
-			this.startMapUpdater(duid);
-		}
 	}
 
 	clearTimersAndIntervals() {
