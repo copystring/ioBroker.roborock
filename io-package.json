@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.1.4-beta.1",
+    "version": "0.1.4-beta.2",
     "news": {
+      "0.1.4-beta.2": {
+        "en": "Temporarily disable sendRequest timeout",
+        "de": "Temporär disable sendRequest Timeout",
+        "ru": "Временно отключить отправкуЗаказать timeout",
+        "pt": "Desativar temporariamente enviarRequest timeout",
+        "nl": "Tijdelijk gehandicapte uitzending",
+        "fr": "Désactiver temporairement envoyerDemande timeout",
+        "it": "Temporaneamente disabilitare sendRichiesta timeout",
+        "es": "Temporalmente deshabilitado enviar",
+        "pl": "Temporaryjnie nieuczciwość",
+        "uk": "Тимчасово відключити відправка",
+        "zh-cn": "临时无误的发送"
+      },
       "0.1.4-beta.1": {
         "en": "Fix huge memory leak when creating maps",
         "de": "Fix riesige Speicherleck bei der Erstellung von Karten",
@@ -80,19 +93,6 @@
         "pl": "* (copystring) Napraw wiele moich naprawdę gównianych współrzędnych robota i kodu XY pikseli\n* (copystring) Naprawiono łączenie się z websocket dla hostów z więcej niż jedną kartą sieciową\n* (copystring) Wyłącz przyciski na interfejsie internetowym, gdy nie można ich użyć\n* (copystring) Usprawniono usuwanie/dodawanie stref w interfejsie WWW\n* (copystring) map_status aktualnie wybrana mapa po przesunięciu bitowym o 2 w prawo\n* (copystring) użyj aktualnie wybranej mapy, aby uzyskać pokoje na piętrze wybranej mapy\n* (copystring) Aktualizuj mapę tylko raz podczas uruchamiania adaptera\n\n* (copystring) Automatycznie wysyłaj bieżącą mapę do interfejsu sieciowego podczas aktualizacji mapy* (copystring) Aktualizuj czyste podsumowanie tylko raz po czyszczeniu i raz na początku\n\n* (copystring) Ładowarka narzędzia i kąt robota na mapie\n* (copystring) Napraw pozycje stref\n* (copystring) Lokalizacja nie powinna być błędem. Zamiast tego ustaw to jako informację\n* (copystring) Napraw pozycję i obrót robota\n* (copystring) Naprawiono wykrywanie ścieżki mopa na starcie robota\n* (copystring) Nie przetwarzaj is_Locating w celu uruchomienia aktualizatora map\n* (copystring) Dodaj funkcję przejścia do i przejścia do przewidywanej ścieżki w interfejsie internetowym\n* (copystring) Spraw, aby rzeczywista ścieżka była nieco przezroczysta\n* (copystring) Nowy obraz robota na mapie\n* (copystring) Dodaj przyciski pauzy, stopu i stacji dokującej do interfejsu internetowego\n* (copystring) Ponownie podłącz websocket po 10 sekundach rozłączenia\n* (copystring) Usuń niepotrzebne wywołania funkcji getMap().\n* (copystring) Popraw logikę ponownego łączenia\n* (copystring) Dodaj Sentry\n* (copystring) Poprawny stan mop_mode\n* (copystring) Dodaj żywotność materiałów eksploatacyjnych w procentach",
         "uk": "* (копіювальний рядок) Виправити багато моїх серйозно поганих координат робота та піксельного коду XY\n* (copystring) Виправлено підключення до websocket для хостів з більш ніж однією мережевою картою\n* (копіювальний рядок) Вимкніть кнопки у веб-інтерфейсі, якщо ними не можна скористатися\n* (копіювальний рядок) Покращено зони видалення/додавання у веб-інтерфейсі\n* (копіювальний рядок) map_status поточна вибрана карта при побітовому зсуві на 2 вправо\n* (рядок копіювання) використовувати поточну вибрану карту, щоб отримати поверхи вибраної карти\n* (copystring) Оновлювати карту лише один раз під час запуску адаптера\n\n* (copystring) Автоматично надсилати поточну карту до веб-інтерфейсу під час оновлення карти* (copystring) Оновлювати чистий підсумок лише один раз після очищення та один раз на початку\n\n* (копіювальний рядок) Кут зарядного пристрою та робота на карті\n* (copystring) Виправити позиції зон\n* (copystring) Пошук не має бути помилкою. Натомість зробіть це інформацією\n* (копіювальний рядок) Виправлення положення та обертання робота\n* (копіювальний рядок) Виправлено виявлення швабри під час запуску робота\n* (копіювальний рядок) Не обробляти is_Locating для запуску програми оновлення карти\n* (копіювальний рядок) Додайте функцію переходу до передбаченого шляху та переходу до нього у веб-інтерфейсі\n* (копіювальний рядок) Зробіть фактичний шлях трохи прозорим\n* (копіювальний рядок) Нове зображення робота на карті\n* (копіювальний рядок) Додайте кнопки паузи, зупинки та закріплення до веб-інтерфейсу\n* (копіювальний рядок) Повторно підключіть веб-сокет через 10 секунд після відключення\n* (copystring) Видаліть непотрібні виклики getMap().\n* (копіювальний рядок) Покращено логіку повторного підключення\n* (копіювальний рядок) Додати Sentry\n* (копіювальний рядок) Правильний стан mop_mode\n* (рядок копіювання) Додати ресурс витратних матеріалів у відсотках",
         "zh-cn": "* (copystring) 修复了很多我严重糟糕的机器人坐标和像素 XY 代码\n* (copystring) 修复连接到具有多个网卡的主机的 websocket\n* (copystring) 无法使用时禁用 web 界面上的按钮\n* (copystring) 改进网络界面中的删除/添加区域\n* (copystring) map_status 按位向右移动 2 时当前选择的地图\n* (copystring) 使用当前选中的地图获取选中地图的楼层房间\n* (copystring) 仅在适配器启动时更新地图一次\n\n*（copystring）更新地图时自动将当前地图发送到网络界面*（copystring）仅在清洁后和开始时更新清洁摘要\n\n* (copystring) 在地图上实现充电器和机器人角度\n*（复制字符串）固定区域位置\n* (copystring) 定位应该不会出错。改为将其设为信息\n* (copystring) 固定机器人位置和旋转\n* (copystring) 修复机器人启动时的拖把路径检测\n* (copystring) 不要处理 is_Locating 以启动地图更新程序\n* (copystring) 在 web 界面中添加 go to 和 go to predicted path 功能\n* (copystring) 使实际路径稍微透明\n*（复制字符串）地图上的新机器人图像\n* (copystring) 添加暂停、停止、停靠按钮到 web 界面\n* (copystring) 断开连接 10 秒后重新连接 websocket\n* (copystring) 删除不必要的 getMap() 调用\n* (copystring) 改进重连逻辑\n* (copystring) 添加哨兵\n* (copystring) 正确的 mop_mode 状态\n* (copystring) 添加耗材寿命百分比"
-      },
-      "0.0.10-alpha.0": {
-        "en": "Fix a few lint errors and fix bugs regarding zone cleaning (JSON conversion to string and back to JSON)",
-        "de": "Behoben Sie ein paar lint Fehler und beheben Fehler in Bezug auf die Zonenreinigung (JSON Konvertierung in String und zurück zu JSON)",
-        "ru": "Исправление нескольких ошибок мазь и исправление ошибок относительно очистки зоны (Конверсия JSON в строку и обратно в JSON)",
-        "pt": "Corrigir alguns erros de lint e corrigir bugs sobre limpeza de zona (conversão JSON para string e volta para JSON)",
-        "nl": "Maak een paar lint fouten en maak insecten met betrekking tot het schoonmaken van de zone",
-        "fr": "Correction de quelques erreurs lint et correction de bugs concernant le nettoyage des zones (conversion JSON à chaîne et retour à JSON)",
-        "it": "Risolvi alcuni errori lint e correggi i bug relativi alla pulizia della zona (conversione JSON alla stringa e ritorno a JSON)",
-        "es": "Arregla algunos errores de lint y corrige fallos relativos a la limpieza de zonas (conversión de JSON a cadena y regreso a JSON)",
-        "pl": "Fix kilka błędów lintowych i naprawia błędy dotyczące oczyszczania strefy (JSON) na smycz i z powrotem do JSON)",
-        "uk": "Виправлення декількох помилок і виправлення помилок щодо очищення зони (перетворення JSON на рядок і назад в JSON)",
-        "zh-cn": "在清理区(JSON转成特区和后回合)方面,有几处错误和固定装置。"
       }
     },
     "titleLang": {
