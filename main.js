@@ -369,13 +369,6 @@ class Roborock extends utils.Adapter {
 		vacuum.getParameter(duid, "get_fw_features");
 
 		vacuum.getParameter(duid, "get_multi_maps_list");
-
-		const in_returning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_returning");
-		const in_cleaning = await this.getStateAsync("Devices." + duid + ".deviceStatus.in_cleaning");
-
-		if ((in_cleaning?.val == 1) || (in_returning?.val == 1)) {
-			this.startMapUpdater(duid);
-		}
 	}
 
 	clearTimersAndIntervals() {
