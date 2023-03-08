@@ -53,6 +53,7 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Ability to reset consumables
 * (copystring) Add clean count for room cleaning
 * (copystring) Add resume_segment_clean and resume_zoned_clean
+* (copystring) Fix huge memory leak when creating maps
 
 ### 0.1.3 (2023-03-03)
 * (copystring) "retry" on getMap() is not an error
