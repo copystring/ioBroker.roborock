@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.1.4-beta.0",
+    "version": "0.1.4-beta.1",
     "news": {
+      "0.1.4-beta.1": {
+        "en": "Fix huge memory leak when creating maps",
+        "de": "Fix riesige Speicherleck bei der Erstellung von Karten",
+        "ru": "Исправление огромной утечки памяти при создании карт",
+        "pt": "Corrigir enorme vazamento de memória ao criar mapas",
+        "nl": "Een enorme geheugenlek als je kaarten creëert",
+        "fr": "Fixer une énorme fuite de mémoire lors de la création de cartes",
+        "it": "Fissare la perdita di memoria enorme quando si crea mappe",
+        "es": "Fijar una enorme fuga de memoria al crear mapas",
+        "pl": "Przebieg pamięci w czasie tworzenia map",
+        "uk": "Виправлення величезної пам'яті при створенні карт",
+        "zh-cn": "制作地图"
+      },
       "0.1.4-beta.0": {
         "en": "Create and clear update interval for each vacuum correctly\nFix consumables for S6 MaxV\nStart webserver and websocket server only when map creation is enabled\nUpdate homedata without fully reinitializing the adapter\nAdd clean count for room cleaning\nAbility to reset consumables\nAdd clean count for room cleaning\nAdd resume_segment_clean and resume_zoned_clean",
         "de": "Erstellen und klares Update-Intervall für jedes Vakuum korrekt\nVerbrauchsmaterialien für S6 MaxV festsetzen\nStarten Sie Webserver und Websocket Server nur, wenn die Kartenerstellung aktiviert ist\nHomedata aktualisieren, ohne den Adapter vollständig neu zu installieren\nReine Anzahl der Zimmerreinigung hinzufügen\nFähigkeit, Verbrauchsmaterialien zurückzusetzen\nReine Anzahl der Zimmerreinigung hinzufügen\nLebenslauf hinzufügen_segment_clean und Lebenslauf_zoned_clean",
@@ -80,19 +93,6 @@
         "pl": "Fix kilka błędów lintowych i naprawia błędy dotyczące oczyszczania strefy (JSON) na smycz i z powrotem do JSON)",
         "uk": "Виправлення декількох помилок і виправлення помилок щодо очищення зони (перетворення JSON на рядок і назад в JSON)",
         "zh-cn": "在清理区(JSON转成特区和后回合)方面,有几处错误和固定装置。"
-      },
-      "0.0.9-alpha.0": {
-        "en": "Added zone cleaning",
-        "de": "Reinigung der Zone",
-        "ru": "Добавлена уборка зоны",
-        "pt": "Limpeza de zona adicionada",
-        "nl": "Gevoegd zone schoonmaken",
-        "fr": "Nettoyage des zones",
-        "it": "Pulizia zona aggiuntiva",
-        "es": "Limpieza de zona",
-        "pl": "Strefa sprzątania",
-        "uk": "Додана зона очищення",
-        "zh-cn": "增加清理区"
       }
     },
     "titleLang": {
