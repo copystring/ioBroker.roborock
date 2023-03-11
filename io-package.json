@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.1.4-beta.3",
+    "version": "0.1.4-beta.4",
     "news": {
+      "0.1.4-beta.4": {
+        "en": "Fix robot running detection to start map updater correctly\nFix robot list duplicate entries on map update\nBetter error handling for map creation",
+        "de": "Fix Roboter-Lauferkennung, um Karten-Updater richtig zu starten\nFix Roboterliste doppelte Einträge auf Kartenupdate\nBessere Fehlerbehebung für die Kartenerstellung",
+        "ru": "Исправление обнаружения робота для запуска обновления карты правильно\nFix список роботов дублировать записи на обновлении карты\nУлучшенная обработка ошибок для создания карты",
+        "pt": "Corrigir a detecção de execução do robô para iniciar o atualizador do mapa corretamente\nCorrigir entradas duplicadas da lista de robôs na atualização do mapa\nMelhor manipulação de erros para criação de mapas",
+        "nl": "Fix robot die de kaart updater correct start\nVertaling:\nBeter fout om te gaan met kaart creatie",
+        "fr": "Correction de la détection de fonctionnement du robot pour démarrer correctement la mise à jour de la carte\nListe de robots fixes doubles entrées sur la mise à jour de la carte\nMeilleure manipulation d'erreur pour la création de carte",
+        "it": "Fissare il rilevamento dell'esecuzione del robot per avviare correttamente l'aggiornamento della mappa\nFissare le voci duplicate dell'elenco dei robot sull'aggiornamento della mappa\nMigliore gestione degli errori per la creazione di mappe",
+        "es": "Arreglar detección de funcionamiento de robot para iniciar el actualización de mapa correctamente\nCorregir lista robot duplicar entradas en la actualización del mapa\nMejor manejo de errores para la creación de mapas",
+        "pl": "Fix Robot uruchamia aktualizację map\nLista robotów\nLepsze błędy w tworzeniu mapy",
+        "uk": "Виправлення виявлення роботи роботів для запуску оновлення карт правильно\nВиправлення списку користувачів дублікати записів на оновлення карт\nКраще використання помилок для створення карт",
+        "zh-cn": "B. 发现开图的固定汽车\nB. 固定汽车名单重复图表\nB. 绘制地图的更好错误处理"
+      },
       "0.1.4-beta.3": {
         "en": "Fix charger position",
         "de": "Ladeposition festsetzen",
@@ -80,19 +93,6 @@
         "pl": "Fix ignorowanie. Get_carpet_clean_mode i get_water_box_custom_mode dla S6 i starszej próżni",
         "uk": "Виправлення ігнорування get_carpet_clean_mode і get_water_box_custom_mode для S6 і старших вакуумів",
         "zh-cn": "不知 获得_carpet_clean_mode and access_water_箱_custom_mode for S6 and Long真空"
-      },
-      "0.1.1": {
-        "en": "Encrypt username & password. This means you need to re-enter username and password in the options\nUse Sentry Plugin instead native sentry\nConvert setInterval()/setTimeout() to this.setInterval()/this.setTimeout()\nCorrectly clear intervals and timeouts on unload and reconnect\nUpdate consumables code",
-        "de": "Verschlüsseln Sie Benutzername & Passwort. Dies bedeutet, dass Sie Benutzername und Passwort in den Optionen neu eingeben müssen\nVerwenden Sie Sentry Plugin anstelle nativer Sendry\nSetInterval()/setTimeout in this.setInterval()/this.setTimeout umrechnen\nKorrekt klare Intervalle und Timeouts beim Entladen und Reconnect\nVerbrauchscode aktualisieren",
-        "ru": "Зашифровать имя пользователя и пароль. Это означает, что вам нужно повторно ввести имя пользователя и пароль в опциях\nИспользуйте Sentry Plugin вместо родного судоходства\nКонвертировать setInterval()/setTimeout to this.setInterval()/this.setTimeout\nПравильно понятные интервалы и тайм-ауты на разгрузке и повторном подключении\nОбновление расходных материалов код",
-        "pt": "Criptografar nome de usuário e senha. Isso significa que você precisa digitar nome de usuário e senha nas opções\nUse Sentry Plugin em vez de sentinela nativa\nConverta setInterval()/setTimeout para this.setInterval()/this.setTimeout\nIntervalos e timeouts corretamente claros sobre descarga e reconectar\nCódigo de consumíveis de atualização",
-        "nl": "Encrypt gebruikersnaam wachtwoord. Dit betekent dat je gebruikersnaam en wachtwoord moet herstellen op de opties\nGebruik Sentry Plugin in plaats van inheemse sentiment\nConvert setInterval (setTimeout naar dit\nCorrect duidelijke intervals en time-outs op ontlading en verbinding\nUpdate consumables code",
-        "fr": "Décrypter le nom d'utilisateur et mot de passe. Cela signifie que vous devez réentrer le nom d'utilisateur et le mot de passe dans les options\nUtilisez Sentry Plugin au lieu de envoyé native\nConvertir setInterval()/setTimeout en ce.setInterval()/this.setTimeout\nIntervalles et timeouts corrects sur le déchargement et le reconnectement\nMettre à jour le code des consommables",
-        "it": "Crittografia nome utente e password. Ciò significa che è necessario inserire nuovamente nome utente e password nelle opzioni\nUtilizzare Sentry Plugin invece inviati nativi\nConvertire setInterval()/setTimeout in questo.setInterval()/this.setTimeout\nIntervalli e timeout correttamente chiari su scarico e ricollegamento\nAggiornare il codice dei materiali di consumo",
-        "es": "Encrypt username & password. Esto significa que necesita volver a introducir el nombre de usuario y la contraseña en las opciones\nUse Centry Plugin en su lugar centinela nativa\nConvertir setInterval()/setTimeout en this.setInterval()/this.setTimeout\nIntervalos y timeouts correctos en descarga y reconexión\nActualizar códigos fungibles",
-        "pl": "Wszystko o nazwie i hasło. Oznacza to, że potrzebujesz ponownego dostępu do nazwy użytkownika i hasła w opcji\nWykorzystywanie Sentry Plugin zamiast nazw\nZmiany setInterval()/setTimeout na to.setInterval()/thissetTimeout\nOczywiście jasne odstępy i czasy wyładowują i ponownie łączą się\nKod aktualny",
-        "uk": "Зашифрувати ім'я користувача та пароль. Це означає, що вам потрібно перереєструвати ім'я користувача та пароль в опції\nВикористовуйте Sentry плагін замість рідного відправника\nПеретворення setInterval()/setTimeout в this.setInterval()/this.setTimeout\nПравильно зрозумілі інтервали і часові маршрути на розвантаження і відключення\nОновлення код витратних матеріалів",
-        "zh-cn": "加密用户和密码。 这意味着,你需要在选择中重新命名用户和密码。\n使用Sentry Plugin,而不是土著寄托\n规 律\n适时的间隔时间和时间安排\nA. 最新消耗代码"
       }
     },
     "titleLang": {
