@@ -390,6 +390,24 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
+	isCleaning(state) {
+		switch (state) {
+			case 4: // Remote Control
+			case 5: // Cleaning
+			case 6: // Returning Dock
+			case 7: // Manual Mode
+			case 11: // Spot Cleaning
+			case 15: // Docking
+			case 16: // Go To
+			case 17: // Zone Clean
+			case 18: // Room Clean
+			case 26: // Going to wash the mop
+				return true;
+			default:
+				return false;
+		}
+	}
+
 	async setupBasicObjects() {
 		await this.setObjectNotExistsAsync("Devices", {
 			type: "folder",
