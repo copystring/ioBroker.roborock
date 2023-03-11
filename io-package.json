@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.1.4-beta.4",
+    "version": "0.1.4-beta.5",
     "news": {
+      "0.1.4-beta.5": {
+        "en": "Fix bug when getting isCleaning state outside of vacuum.js",
+        "de": "Fehler beheben, wenn Sie isCleaning Zustand außerhalb von Vakuum. j)",
+        "ru": "Исправление ошибки при получении isCleaning состояние вне вакуума. Джс",
+        "pt": "Corrigir o erro ao obter isCleaning estado fora do vácuo. Js",
+        "nl": "Een insect als je buiten stofzuigt. Js",
+        "fr": "Correction de bug lors de l'obtention estCleaning état en dehors du vide. js",
+        "it": "Fissare il bug quando ottenere isCleaning stato al di fuori del vuoto. j",
+        "es": "Arregla el fallo cuando se consigue esCleaning estado fuera del vacío. js",
+        "pl": "Fix bug kiedy dostaje się stan klasyfikacji poza próżnią. js",
+        "uk": "Виправлення помилок при отриманні очищення стану поза вакуумом. свінгери",
+        "zh-cn": "当在真空以外进入采掘国时,先行。 j"
+      },
       "0.1.4-beta.4": {
         "en": "Fix robot running detection to start map updater correctly\nFix robot list duplicate entries on map update\nBetter error handling for map creation",
         "de": "Fix Roboter-Lauferkennung, um Karten-Updater richtig zu starten\nFix Roboterliste doppelte Einträge auf Kartenupdate\nBessere Fehlerbehebung für die Kartenerstellung",
@@ -80,19 +93,6 @@
         "pl": "Retrygacja na temat getMap() nie jest błędem\nFix *_life calculation (ang.)\nFix reconnect",
         "uk": "птиця на getMap() не є помилкою\nФіксація *_розрахунок\nВиправлення відключення",
         "zh-cn": "对Map(Map)的重新定性并非错误。\n页: 1\nFix 重新连接"
-      },
-      "0.1.2": {
-        "en": "Fix ignoring get_carpet_clean_mode and get_water_box_custom_mode for S6 and older vacuums",
-        "de": "Unwissenheit beheben get_carpet_clean_mode und get_water_box_custom_mode für S6 und ältere Vakuume",
-        "ru": "Fix игнорирование get_carpet_clean_mode и get_water_box_custom_mode для S6 и старых вакуумов",
-        "pt": "Ignoração fixa get_carpet_clean_mode e get_water_box_custom_mode para S6 e aspiradores mais antigos",
-        "nl": "Fix negeren _",
-        "fr": "En ignorant get_carpet_clean_mode and get_water_box_custom_mode for S6 and older vacuums",
-        "it": "Fissare ignorando get_carpet_clean_mode e get_water_box_custom_mode per S6 e vecchi vuoto",
-        "es": "Corrección ignorante get_carpet_clean_mode y get_water_box_custom_mode para S6 y vacíos antiguos",
-        "pl": "Fix ignorowanie. Get_carpet_clean_mode i get_water_box_custom_mode dla S6 i starszej próżni",
-        "uk": "Виправлення ігнорування get_carpet_clean_mode і get_water_box_custom_mode для S6 і старших вакуумів",
-        "zh-cn": "不知 获得_carpet_clean_mode and access_water_箱_custom_mode for S6 and Long真空"
       }
     },
     "titleLang": {
