@@ -47,6 +47,11 @@ This feature only works when map creation is enabled in the adapter options!
 ### 0.1.4-beta.3 (2023-03-10)
 * (copystring) Fix charger position
 
+### **WORK IN PROGRESS**
+* (copystring) Fix robot running detection to start map updater correctly
+* (copystring) Fix robot list duplicate entries on map update
+* (copystring) Better error handling for map creation
+
 ### 0.1.4-beta.2 (2023-03-08)
 * (copystring) Temporarily disable sendRequest timeout
 
