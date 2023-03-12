@@ -44,6 +44,9 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Add touch support for zones in web interface
+
 ### 0.1.5 (2023-03-13)
 * (copystring) Fix bug with sendRequest
 
