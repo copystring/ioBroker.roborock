@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.1.4-beta.5",
+    "version": "0.1.4-beta.6",
     "news": {
+      "0.1.4-beta.6": {
+        "en": "Correctly process map on web interface with multiple robots",
+        "de": "Prozessieren Sie die Karte auf der Web-Schnittstelle mit mehreren Robotern richtig",
+        "ru": "Правильно обрабатывать карту на веб-интерфейсе с несколькими роботами",
+        "pt": "Processe corretamente o mapa na interface web com vários robôs",
+        "nl": "Verwerk de kaart op web interface met meerdere robots",
+        "fr": "Effacer la carte sur l'interface web avec plusieurs robots",
+        "it": "Elaborare correttamente la mappa sull'interfaccia web con più robot",
+        "es": "Mapa de proceso correcto en la interfaz web con múltiples robots",
+        "pl": "Poprawny proces na interfejsie internetowym z wieloma robotami",
+        "uk": "Правильно обробляти карту на веб-інтерфейс з декількома роботами",
+        "zh-cn": "网站界线与多种汽车的网站连接图"
+      },
       "0.1.4-beta.5": {
         "en": "Fix bug when getting isCleaning state outside of vacuum.js",
         "de": "Fehler beheben, wenn Sie isCleaning Zustand außerhalb von Vakuum. j)",
@@ -80,19 +93,6 @@
         "pl": "Rozszerzenie i rozdzielenie każdej próżni poprawnie poprawnie\nS6 MaxVable (ang.)\nPoczątkowy serwer internetowy i internetowy tylko wtedy, gdy tworzenie map jest możliwe\nData bez w pełni zainicjowania adaptera\nCzyste konto\nMożliwość resetowania konsumable\nCzyste konto\nAdd wznowił formaty_segment_clean and re_zoned_clean",
         "uk": "Створення та прозорий інтервал оновлення для кожного вакууму правильно\nВиправлення витратних матеріалів для S6 MaxV\nПочати сервер вебсервера і websocket тільки при створенні карт\nОновлення домашньої інформації без повного перевстановлення адаптера\nДодавання чистої кількості для прибирання приміщення\nМожливість скидання витратних матеріалів\nДодавання чистої кількості для прибирання приміщення\nДодати резюме_segment_clean and резюме_zoned_clean",
         "zh-cn": "为每一真空建立明确的最新间隔\nS6 MaxV的固定配量\n只有当地图制作时才能够启动网站维护者和网络服务器\n更新的家政数据没有完全重新启动适应者\n增加清洁房\nA. 重新组合消耗的可能性\n增加清洁房\n增 编"
-      },
-      "0.1.3": {
-        "en": "\"retry\" on getMap() is not an error\nFix *_life calculation\nFix reconnect",
-        "de": "retry on getMap() ist kein Fehler\n*_Lebensberechnung\nReconnect aktivieren",
-        "ru": "retry on getMap() не ошибка\nFix *_расчёт жизни\nИсправление reconnect",
-        "pt": "retry on getMap() não é um erro\nCorrigir cálculo *_life\nCorrigir a conexão",
-        "nl": "is geen fout\nVertaling:\nVertaling:",
-        "fr": "retry on getMap() n'est pas une erreur\nCalcul *_vie\nReconnexion fixe",
-        "it": "retry on getMap() non è un errore\nFissare il calcolo *_life\nRisolvere la connessione",
-        "es": "retry on getMap() no es un error\nCorrección *_Cálculo de vida\nReconectar",
-        "pl": "Retrygacja na temat getMap() nie jest błędem\nFix *_life calculation (ang.)\nFix reconnect",
-        "uk": "птиця на getMap() не є помилкою\nФіксація *_розрахунок\nВиправлення відключення",
-        "zh-cn": "对Map(Map)的重新定性并非错误。\n页: 1\nFix 重新连接"
       }
     },
     "titleLang": {
