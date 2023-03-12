@@ -44,6 +44,9 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Correctly process map on web interface with multiple robots
+
 ### 0.1.4-beta.5 (2023-03-11)
 * (copystring) Fix bug when getting isCleaning state outside of vacuum.js
 
