@@ -44,6 +44,17 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Correctly process map on web interface with multiple robots
+* (copystring) Fix robot running detection to start map updater correctly
+* (copystring) Fix huge memory leak when creating maps
+* (copystring) Fix consumables for S6 MaxV
+* (copystring) Start webserver and websocket server only when map creation is enabled
+* (copystring) Update homedata without fully reinitializing the adapter
+* (copystring) Add ability to reset consumables
+* (copystring) Add clean count for room cleaning
+* (copystring) Add resume_segment_clean and resume_zoned_clean
+
 ### 0.1.4-beta.6 (2023-03-12)
 * (copystring) Correctly process map on web interface with multiple robots
 
