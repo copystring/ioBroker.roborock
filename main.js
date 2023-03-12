@@ -276,17 +276,7 @@ class Roborock extends utils.Adapter {
 						break;
 
 					case "getMap":
-						sendValue.command = "map";
-						await this.getStateAsync("Devices." + data["duid"] + ".map.mapBase64")
-							.then((state) => {
-								sendValue.base64 = state?.val?.toString() ?? "";
-							});
-						await this.getStateAsync("Devices." + data["duid"] + ".map.mapData")
-							.then((state) => {
-								sendValue.map = JSON.parse(state?.val?.toString() ?? "[]");
-							});
-						sendValue.scale = this.config.map_scale;
-						socket.send(JSON.stringify(sendValue));
+						this.vacuums[data["duid"]].getMap(data["duid"]);
 						break;
 				}
 			});
