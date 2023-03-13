@@ -46,6 +46,11 @@ This feature only works when map creation is enabled in the adapter options!
 -->
 ### **WORK IN PROGRESS**
 * (copystring) Add touch support for zones in web interface
+* (copystring) Refactor map creation code
+* (copystring) Fix robot rotation when parked
+* (copystring) Display obstacles of Roborock S6 MaxV (and maybe others) on map
+* (copystring) Add support for virtual walls
+* (copystring) Add support for no mop zones
 
 ### 0.1.5 (2023-03-13)
 * (copystring) Fix bug with sendRequest
