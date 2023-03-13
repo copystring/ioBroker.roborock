@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.1.4",
+    "version": "0.1.5",
     "news": {
+      "0.1.5": {
+        "en": "Fix bug with sendRequest",
+        "de": "Fehler beheben mit sendRequest",
+        "ru": "Исправлена ошибка с sendRequest",
+        "pt": "Corrigir erro com o sendRequest",
+        "nl": "Vertaling:",
+        "fr": "Correction de bug avec sendRequest",
+        "it": "Correggere bug con sendRequest",
+        "es": "Corregir error con sendRequest",
+        "pl": "Fix bug",
+        "uk": "Виправлення помилок з sendRequest",
+        "zh-cn": "发出的请求"
+      },
       "0.1.4": {
         "en": "Correctly process map on web interface with multiple robots\nFix robot running detection to start map updater correctly\nFix huge memory leak when creating maps\nFix consumables for S6 MaxV\nStart webserver and websocket server only when map creation is enabled\nUpdate homedata without fully reinitializing the adapter\nAdd ability to reset consumables\nAdd clean count for room cleaning\nAdd resume_segment_clean and resume_zoned_clean",
         "de": "Prozessieren Sie die Karte auf der Web-Schnittstelle mit mehreren Robotern richtig\nFix Roboter-Lauferkennung, um Karten-Updater richtig zu starten\nFix riesige Speicherleck bei der Erstellung von Karten\nVerbrauchsmaterialien für S6 MaxV festsetzen\nStarten Sie Webserver und Websocket Server nur, wenn die Kartenerstellung aktiviert ist\nHomedata aktualisieren, ohne den Adapter vollständig neu zu installieren\nHinzufügen der Möglichkeit, Verbrauchsmaterialien zurückzusetzen\nReine Anzahl der Zimmerreinigung hinzufügen\nLebenslauf hinzufügen_segment_clean und Lebenslauf_zoned_clean",
@@ -80,19 +93,6 @@
         "pl": "Temporaryjnie nieuczciwość",
         "uk": "Тимчасово відключити відправка",
         "zh-cn": "临时无误的发送"
-      },
-      "0.1.4-beta.1": {
-        "en": "Fix huge memory leak when creating maps",
-        "de": "Fix riesige Speicherleck bei der Erstellung von Karten",
-        "ru": "Исправление огромной утечки памяти при создании карт",
-        "pt": "Corrigir enorme vazamento de memória ao criar mapas",
-        "nl": "Een enorme geheugenlek als je kaarten creëert",
-        "fr": "Fixer une énorme fuite de mémoire lors de la création de cartes",
-        "it": "Fissare la perdita di memoria enorme quando si crea mappe",
-        "es": "Fijar una enorme fuga de memoria al crear mapas",
-        "pl": "Przebieg pamięci w czasie tworzenia map",
-        "uk": "Виправлення величезної пам'яті при створенні карт",
-        "zh-cn": "制作地图"
       }
     },
     "titleLang": {
