@@ -48,6 +48,7 @@ class Roborock extends utils.Adapter {
 			this.log.error("Username or password missing!");
 			return;
 		}
+		await this.setStateAsync("info.connection", { val: true, ack: true });
 
 		// create new clientID if it doesn't exist yet
 		let clientID = "";
