@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.1.5",
+    "version": "0.1.6",
     "news": {
+      "0.1.6": {
+        "en": "Add touch support for zones in web interface\nFix room mapping\nRefactor map creation code\nFix robot rotation when parked\nDisplay obstacles of Roborock S6 MaxV (and maybe others) on map\nAdd support for virtual walls\nAdd support for no mop zones",
+        "de": "Fügen Sie Touch-Support für Zonen in Web-Schnittstelle hinzu\nZimmer Mapping reparieren\nRefactor Map Erstellungscode\nRoboterrotation beim Parken festhalten\nHindernisse von Roborock S6 MaxV (und vielleicht andere) auf der Karte anzeigen\nUnterstützung für virtuelle Wände hinzufügen\nUnterstützung für keine Mop-Zonen hinzufügen",
+        "ru": "Добавьте поддержку касания зон в веб-интерфейсе\nFix карта комнаты\nКод создания карты Refactor\nИсправление вращения робота припаркованном\nОтображение препятствий Roborock S6 MaxV (и, возможно, другие) на карте\nДобавить поддержку виртуальных стен\nДобавьте поддержку без зон mop",
+        "pt": "Adicionar suporte de toque para zonas na interface web\nCorrigir mapeamento de quarto\nCódigo de criação do mapa de refator\nCorrigir rotação do robô quando estacionado\nExibir obstáculos de Roborock S6 MaxV (e talvez outros) no mapa\nAdicionar suporte para paredes virtuais\nAdicionar suporte para zonas sem esfregões",
+        "nl": "Aanraking voor zones in het web interface\nQuality over Quantity (QoQ) Releases Vertaling:\nRefactor kaart creatie code\nFix robot rotatie toen hij geparkeerd werd\nVertaling:\nSteun voor virtuele muren\nAdvies ondersteuning",
+        "fr": "Ajouter le support tactile pour les zones dans l'interface web\nCartographie fixe\nFacteur de création de carte\nTour de robot fixe quand stationné\nAfficher les obstacles de Roborock S6 MaxV (et peut-être d'autres) sur la carte\nAjouter le support pour les murs virtuels\nAjouter le support pour aucune zone mop",
+        "it": "Aggiungi supporto touch per zone in interfaccia web\nRisolvere la mappatura della stanza\nCodice di creazione della mappa refactor\nFissare rotazione robot quando parcheggiato\nVisualizza gli ostacoli di Roborock S6 MaxV (e forse altri) sulla mappa\nAggiungi supporto per pareti virtuali\nAggiungi supporto per nessuna zona mop",
+        "es": "Agregar soporte táctil para zonas en interfaz web\nCartografía de espacio fijo\nCódigo de creación de mapas de refactor\nCorregir rotación robot cuando estacionado\nMostrar obstáculos de Roborock S6 MaxV (y tal vez otros) en el mapa\nAñadir soporte para paredes virtuales\nAñadir soporte para no zonas mop",
+        "pl": "Addd touch support for zones in web interface\nFix\nKod źródłowy\nFix robot rotacyjny kiedy parkował\nRozgrywki Roborocka S6 MaxVa (i mogą być inne)\nPomoc dla wirtualnych murów\nWspierać się bez strefy mokrajowej",
+        "uk": "Додавання сенсорної підтримки зон в веб-інтерфейсі\nФіксація карти приміщення\nКод створення рефактора\nВиправлення обертання роботів при парковій\nПоказати перешкоди Roborock S6 MaxV (і можливо, інші) на карті\nДодавання підтримки віртуальних стін\nДодайте підтримку без зон",
+        "zh-cn": "增加网站接口区的支助\n固定会议室制图\n成果地图制作守则\n当停车场时,汽车轮换\n关于地图的Roborock S6 MaxV(及其他人)面临的障碍\n增加对虚拟墙壁的支持\n增加对未种植区的支持"
+      },
       "0.1.5": {
         "en": "Fix bug with sendRequest",
         "de": "Fehler beheben mit sendRequest",
@@ -80,19 +93,6 @@
         "pl": "Fix charger",
         "uk": "Фіксована позиція зарядного пристрою",
         "zh-cn": "固定收费职位"
-      },
-      "0.1.4-beta.2": {
-        "en": "Temporarily disable sendRequest timeout",
-        "de": "Temporär disable sendRequest Timeout",
-        "ru": "Временно отключить отправкуЗаказать timeout",
-        "pt": "Desativar temporariamente enviarRequest timeout",
-        "nl": "Tijdelijk gehandicapte uitzending",
-        "fr": "Désactiver temporairement envoyerDemande timeout",
-        "it": "Temporaneamente disabilitare sendRichiesta timeout",
-        "es": "Temporalmente deshabilitado enviar",
-        "pl": "Temporaryjnie nieuczciwość",
-        "uk": "Тимчасово відключити відправка",
-        "zh-cn": "临时无误的发送"
       }
     },
     "titleLang": {

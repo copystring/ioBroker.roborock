@@ -44,7 +44,7 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.1.6 (2023-03-13)
 * (copystring) Add touch support for zones in web interface
 * (copystring) Fix room mapping
 * (copystring) Refactor map creation code
