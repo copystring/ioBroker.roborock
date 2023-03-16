@@ -395,7 +395,7 @@ class Roborock extends utils.Adapter {
 						type: "state",
 						common: {
 							name: deviceAttribute,
-							type: "string",
+							type: this.getType(devices[device][deviceAttribute]),
 							unit: unit,
 							role: "value",
 							read: true,
@@ -407,6 +407,13 @@ class Roborock extends utils.Adapter {
 				}
 			}
 		}
+	}
+	getType(attribute)
+	{
+		if(typeof attribute === "string") return "string";
+		else if(typeof attribute === "boolean") return "boolean";
+		else if(typeof attribute === "number") return "number";
+		else return "unknown";
 	}
 
 	isCleaning(state) {
