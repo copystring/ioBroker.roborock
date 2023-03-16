@@ -363,12 +363,12 @@ class Roborock extends utils.Adapter {
 				this.log.debug("homedata successfully updated");
 
 				this.updateConsumablesPercent(homedata.devices);
+				this.updateDeviceInfo(homedata.devices);
 			});
 		}
 	}
 	updateConsumablesPercent(devices) {
 		for (const device in devices) {
-			this.log.debug("Update consumables");
 			const duid = devices[device].duid;
 
 			for (const deviceAttribute in devices[device].deviceStatus) {
@@ -376,6 +376,34 @@ class Roborock extends utils.Adapter {
 					const val = (devices[device].deviceStatus[deviceAttribute] >= 0 && devices[device].deviceStatus[deviceAttribute] <= 100) ? parseInt(devices[device].deviceStatus[deviceAttribute]) : 0;
 
 					this.setStateAsync("Devices." + duid + ".consumables." + deviceAttribute, { val: val, ack: true });
+				}
+			}
+		}
+	}
+	async updateDeviceInfo(devices) {
+		for (const device in devices) {
+			const duid = devices[device].duid;
+
+			for (const deviceAttribute in devices[device]) {
+				if (typeof(devices[device][deviceAttribute]) != "object") {
+					let unit;
+					if (deviceAttribute == "activeTime") {
+						unit = "h";
+						devices[device][deviceAttribute] = Math.round(devices[device][deviceAttribute] / 1000/60/60);
+					}
+					await this.setObjectNotExistsAsync("Devices." + duid + ".deviceInfo." + deviceAttribute, {
+						type: "state",
+						common: {
+							name: deviceAttribute,
+							type: "string",
+							unit: unit,
+							role: "value",
+							read: true,
+							write: false,
+						},
+						native: {},
+					});
+					this.setStateAsync("Devices." + duid + ".deviceInfo." + deviceAttribute, { val: devices[device][deviceAttribute], ack: true });
 				}
 			}
 		}
