@@ -410,10 +410,9 @@ class Roborock extends utils.Adapter {
 	}
 	getType(attribute)
 	{
-		if(typeof attribute === "string") return "string";
-		else if(typeof attribute === "boolean") return "boolean";
+		if(typeof attribute === "boolean") return "boolean";
 		else if(typeof attribute === "number") return "number";
-		else return "unknown";
+		else return "string";
 	}
 
 	isCleaning(state) {
