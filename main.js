@@ -31,6 +31,8 @@ class Roborock extends utils.Adapter {
 		this.roomIDs = {};
 		this.vacuums = {};
 		this.socket = null;
+
+		this.messageQueue = new Map();
 	}
 
 	/**
@@ -353,6 +355,16 @@ class Roborock extends utils.Adapter {
 			this.clearInterval(this.vacuums[duid].mainUpdateInterval);
 			this.clearInterval(this.vacuums[duid].mapUpdater);
 		}
+
+		this.messageQueue.forEach(({ timeout102, timeout301 }) => {
+			this.clearTimeout(timeout102);
+			if (timeout301) {
+				this.clearTimeout(timeout301);
+			}
+		});
+
+		// Clear the messageQueue map
+		this.messageQueue.clear();
 	}
 
 	updateHomeData(homeId) {
