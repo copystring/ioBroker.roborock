@@ -568,7 +568,7 @@ class Roborock extends utils.Adapter {
 			const k = userdata.rriot.k;
 
 			if (robots[robot].setup.camera) {
-				go2rtcConfig += duid + ": " + encodeURIComponent("roborock://mqtt-eu-3.roborock.com:8883?u=" + u + "&s=" + s + "&k=" + k + "&did=" + duid + "&key=" + localKey + "&pin=" + this.config.cameraPin) + "},";
+				go2rtcConfig += duid + ": " + "'roborock://mqtt-eu-3.roborock.com:8883?u=" + u + "&s=" + s + "&k=" + k + "&did=" + duid + "&key=" + localKey + "&pin=" + this.config.cameraPin + "'},";
 			}
 		}
 		go2rtcConfig += "}";
