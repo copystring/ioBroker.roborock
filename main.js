@@ -6,12 +6,30 @@ const axios = require("axios").default;
 const crypto = require("crypto");
 const websocket = require("ws");
 const express = require("express");
+const os = require("os");
+const fs = require("fs");
+const path = require("path");
+const { execFile } = require("child_process");
+const findProcess = require("find-process");
 
+
+const { downloadRelease } = require("@terascope/fetch-github-release");
 
 const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roborock_mqtt_connector;
 const vacuum_class = require("./lib/vacuum").vacuum;
 
 let rr_mqtt_connector, socketServer, webserver;
+
+const systems = {
+	"win32": {"x64": "go2rtc_win64.zip"},
+	"linux": {
+		"arm": "go2rtc_linux_arm",
+		"arm64": "go2rtc_linux_arm64",
+		"ia32": "go2rtc_linux_amd64",
+		"x64": "go2rtc_linux_amd64"
+	}
+};
+let go2rtc;
 
 class Roborock extends utils.Adapter {
 
@@ -188,6 +206,7 @@ class Roborock extends utils.Adapter {
 
 						this.updateDataExtraData(duid, this.vacuums[duid]); // extra data needs to be called first!!!
 						this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
+						this.vacuums[duid].getCameraStreams(duid);
 
 						this.vacuums[duid].getCleanSummary(duid);
 
@@ -198,6 +217,10 @@ class Roborock extends utils.Adapter {
 							rr_mqtt_connector.reconnectClient();
 						}, 10800 * 1000);
 					}
+
+					await this.download_go2rtc();
+					this.start_go2rtc(this.vacuums, homedata, userdata);
+
 					this.homedataInterval = this.setInterval(this.updateHomeData.bind(this), this.config.updateInterval * 1000, homeId);
 					await this.updateHomeData(homeId);
 
@@ -489,6 +512,96 @@ class Roborock extends utils.Adapter {
 			},
 			native: {},
 		});
+	}
+
+
+	async download_go2rtc()
+	{
+		const arch = os.arch();
+		const platform = os.platform();
+		const filename = systems[platform][arch];
+		const unzippedFilePath = "./lib/go2rtc/" + filename;
+		const version = "v1.3.0";
+		this.log.debug("arch: " + arch);
+		this.log.debug("platform: " + platform);
+		this.log.debug("System type: " + filename);
+
+		const downloadURL = "https://github.com/AlexxIT/go2rtc/releases/download/" + version + "/" + filename;
+		this.log.debug("downloadURL: " + downloadURL);
+
+		const user = "AlexxIT";
+		const repo = "go2rtc";
+		const outputdir = "./lib/go2rtc";
+		const filterRelease = (release) => release.prerelease === false;
+		const filterAsset = (asset) => asset.name.includes(filename);
+		const leaveZipped = false;
+
+		await downloadRelease(user, repo, outputdir, filterRelease, filterAsset, leaveZipped)
+			// .then((downloadedAssets) => {
+			// 	this.log.debug("Downloaded assets:" + downloadedAssets);
+			// })
+			.catch((err) => {
+				this.log.error("Error: " + err.message);
+			}).finally(() => {
+				if (platform != "win32") {
+					fs.chmod(unzippedFilePath, 0o755, (err) => {
+						if (err) {
+							this.log.error("Error making " + unzippedFilePath + " executable: " + err);
+						} else {
+							this.log.debug("Made " + unzippedFilePath + " executable");
+						}
+					});
+					go2rtc = "go2rtc";
+				}
+				else go2rtc = "go2rtc.exe";
+			});
+	}
+
+	start_go2rtc(robots, homedata, userdata)
+	{
+		let go2rtcConfig = "{streams: {";
+		for (const robot in robots) {
+			const duid = robot;
+			const localKey = homedata.devices[0].localKey;
+			const u = userdata.rriot.u;
+			const s = userdata.rriot.s;
+			const k = userdata.rriot.k;
+
+			if (robots[robot].setup.camera) {
+				go2rtcConfig += duid + ": " + encodeURIComponent("roborock://mqtt-eu-3.roborock.com:8883?u=" + u + "&s=" + s + "&k=" + k + "&did=" + duid + "&key=" + localKey + "&pin=" + this.config.cameraPin) + "},";
+			}
+		}
+		go2rtcConfig += "}";
+		// this.log.debug("go2rtcConfig: " + go2rtcConfig);
+
+		if (go2rtc) {
+			const exePath = path.join(__dirname, "./lib/go2rtc/") + go2rtc;
+			this.log.debug("exePath: " + exePath);
+
+			findProcess("name", go2rtc)
+				.then((processList) => {
+					processList.forEach((proc) => {
+						this.log.debug("Killing process with pid " + proc.pid);
+						process.kill(proc.pid, "SIGTERM");
+					});
+				})
+				.catch((err) => {
+					this.log.error("Error: " +  err.message);
+				}).finally(() => {
+					execFile(exePath, ["-config", go2rtcConfig], (error, stdout, stderr) => {
+						if (error) {
+							this.log.error("Error executing file" + error);
+							return;
+						}
+						if (stdout) {
+							this.log.debug("Output from go2rtc: " + stdout);
+						}
+						if (stderr) {
+							this.log.error("Error output from: " + stderr);
+						}
+					});
+				});
+		}
 	}
 
 	/**

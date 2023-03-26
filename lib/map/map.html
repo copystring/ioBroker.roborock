@@ -15,7 +15,7 @@
         border-radius: 15px;
         /* image-rendering: pixelated; */
       }
- 
+
       #addButton, #deleteButton {
         display: inline-block;
         width: 100px;
@@ -26,7 +26,7 @@
       #deleteButton {
         margin-left: 0px;
       }
- 
+
       #startButton, #stopButton, #pauseButton {
         display: inline-block;
         width: 100px;
@@ -70,10 +70,10 @@
   </head>
   <body>
     <canvas id="myCanvas" width="450" height="450"></canvas>
-    <div style="display: flex; flex-direction: column; align-items: center;"> 
+    <div style="display: flex; flex-direction: column; align-items: center;">
       <div style="margin-left: auto;">
         <select id="robotSelect"></select>
-      </div> 
+      </div>
       <div style="margin-left: auto;">
         <select id="cleanCount">
           <option value="1">1 Time</option>
@@ -81,7 +81,7 @@
           <option value="3">3 Times</option>
         </select>
       </div>
-  
+
       <div style="display: flex;" id="zoneButtons">
         <button id="addButton">+ Zone</button>
         <button disabled id="deleteButton">- Zone</button>
@@ -93,6 +93,7 @@
       </div>
       <button id="dockButton">Dock</button>
       <button id="goToButton">Go to</button>
+      <button id="resetZoomButton">Reset zoom</button>
     </div>
   </body>
 </html>

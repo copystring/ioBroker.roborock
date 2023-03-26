@@ -36,6 +36,16 @@
 			"type": "number",
 			"label": "Webserver Port",
 			"newLine": true
+		},
+		"hostname_ip": {
+			"type": "text",
+			"label": "Hostname or IP for camera stream",
+			"newLine": true
+		},
+		"cameraPin": {
+			"type": "number",
+			"label": "PIN for streaming the camera",
+			"newLine": true
 		}
 	}
 }
