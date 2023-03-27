@@ -18,3 +18,4 @@ admin/i18n/*/flat.txt
 *.rrmap
 test.rrmap
 lib/go2rtc/go2rtc.exe
+lib/go2rtc/go2rtc_win64.zip
