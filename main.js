@@ -559,7 +559,7 @@ class Roborock extends utils.Adapter {
 
 	start_go2rtc(robots, homedata, userdata)
 	{
-		let go2rtcConfig = "{streams: {";
+		const go2rtcConfig = {"streams": {}};
 		for (const robot in robots) {
 			const duid = robot;
 			const localKey = homedata.devices[0].localKey;
@@ -568,11 +568,9 @@ class Roborock extends utils.Adapter {
 			const k = userdata.rriot.k;
 
 			if (robots[robot].setup.camera) {
-				go2rtcConfig += duid + ": " + "'roborock://mqtt-eu-3.roborock.com:8883?u=" + u + "&s=" + s + "&k=" + k + "&did=" + duid + "&key=" + localKey + "&pin=" + this.config.cameraPin + "'},";
+				go2rtcConfig.streams[duid] = "roborock://mqtt-eu-3.roborock.com:8883?u=" + u + "&s=" + s + "&k=" + k + "&did=" + duid + "&key=" + localKey + "&pin=" + this.config.cameraPin;
 			}
 		}
-		go2rtcConfig += "}";
-		// this.log.debug("go2rtcConfig: " + go2rtcConfig);
 
 		if (go2rtc) {
 			const exePath = path.join(__dirname, "./lib/go2rtc/") + go2rtc;
@@ -588,7 +586,7 @@ class Roborock extends utils.Adapter {
 				.catch((err) => {
 					this.log.error("Error: " +  err.message);
 				}).finally(() => {
-					execFile(exePath, ["-config", go2rtcConfig], (error, stdout, stderr) => {
+					execFile(exePath, ["-config", JSON.stringify(go2rtcConfig)], (error, stdout, stderr) => {
 						if (error) {
 							this.log.error("Error executing file" + error);
 							return;
