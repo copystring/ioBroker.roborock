@@ -564,6 +564,8 @@ class Roborock extends utils.Adapter {
 
 	start_go2rtc(robots, homedata, userdata)
 	{
+		let cameraCount = 0;
+
 		const go2rtcConfig = {"streams": {}};
 		for (const robot in robots) {
 			const duid = robot;
@@ -573,11 +575,12 @@ class Roborock extends utils.Adapter {
 			const k = userdata.rriot.k;
 
 			if (robots[robot].setup.camera) {
+				cameraCount++;
 				go2rtcConfig.streams[duid] = "roborock://mqtt-eu-3.roborock.com:8883?u=" + u + "&s=" + s + "&k=" + k + "&did=" + duid + "&key=" + localKey + "&pin=" + this.config.cameraPin;
 			}
 		}
 
-		if (go2rtc) {
+		if (go2rtc && cameraCount > 0) {
 			const exePath = path.join(__dirname, "./lib/go2rtc/") + go2rtc;
 			this.log.debug("exePath: " + exePath);
 
