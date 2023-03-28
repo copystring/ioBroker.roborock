@@ -556,7 +556,7 @@ class Roborock extends utils.Adapter {
 							this.log.debug("Made " + unzippedFilePath + " executable");
 						}
 					});
-					go2rtc = "go2rtc";
+					go2rtc = filename;
 				}
 				else go2rtc = "go2rtc.exe";
 			});
