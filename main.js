@@ -25,7 +25,7 @@ const systems = {
 	"linux": {
 		"arm": "go2rtc_linux_arm",
 		"arm64": "go2rtc_linux_arm64",
-		"ia32": "go2rtc_linux_amd64",
+		"ia32": "go2rtc_linux_i386",
 		"x64": "go2rtc_linux_amd64"
 	}
 };
