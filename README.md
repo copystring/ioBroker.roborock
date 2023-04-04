@@ -47,6 +47,8 @@ This feature only works when map creation is enabled in the adapter options!
 ### **WORK IN PROGRESS**
 * (copystring) Make adapter turn green only when username & password are correct
 * (copystring) Add vacuum online status and deviceInfo
+* (copystring) Add support for Camera of MaxV models
+* (copystring) Add support for titles of obstacles
 
 ### 0.1.6 (2023-03-13)
 * (copystring) Add touch support for zones in web interface
