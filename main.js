@@ -337,6 +337,8 @@ class Roborock extends utils.Adapter {
 
 		vacuum.getParameter(duid, "get_status");
 
+		vacuum.getParameter(duid, "get_room_mapping");
+
 		vacuum.getParameter(duid, "get_consumable");
 
 		vacuum.getParameter(duid, "get_network_info");
