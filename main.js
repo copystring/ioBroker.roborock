@@ -12,7 +12,6 @@ const path = require("path");
 const { execFile } = require("child_process");
 const findProcess = require("find-process");
 
-
 const { downloadRelease } = require("@terascope/fetch-github-release");
 
 const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roborock_mqtt_connector;
@@ -216,7 +215,9 @@ class Roborock extends utils.Adapter {
 								this.log.debug("Reconnecting after 3 hours!");
 
 								rr_mqtt_connector.reconnectClient();
+								this.checkForNewFirmware(duid);
 							}, 10800 * 1000);
+							this.checkForNewFirmware(duid);
 						}
 
 						await this.download_go2rtc();
@@ -450,6 +451,42 @@ class Roborock extends utils.Adapter {
 			}
 		}
 	}
+
+	checkForNewFirmware(duid) {
+		if (this.api) {
+			try {
+				this.api.get(`ota/firmware/${duid}/updatev2`).then(async update => {
+					await this.setObjectNotExistsAsync("Devices." + duid + ".updateStatus", {
+						type: "folder",
+						common: {
+							name: "Update status",
+						},
+						native: {},
+					});
+
+					for (const state in update.data.result) {
+
+						await this.setObjectNotExistsAsync("Devices." + duid + ".updateStatus." + state, {
+							type: "state",
+							common: {
+								name: state,
+								type: this.getType(state),
+								role: "value",
+								read: true,
+								write: false
+							},
+							native: {},
+						});
+						this.setStateAsync("Devices." + duid + ".updateStatus." + state, { val: update.data.result[state], ack: true });
+					}
+				});
+			}
+			catch (e) {
+				this.log.error("Failed to check for new firmware. Error: " + e);
+			}
+		}
+	}
+
 	getType(attribute)
 	{
 		if(typeof attribute === "boolean") return "boolean";
