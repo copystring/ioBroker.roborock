@@ -9,7 +9,11 @@
 		},
 		"password": {
 			"type": "password",
-			"label": "Password",
+			"label": "Password"
+		},
+		"updateInterval": {
+			"type": "number",
+			"label": "Update interval",
 			"newLine": true
 		},
 		"enable_map_creation": {
@@ -19,18 +23,11 @@
 		},
 		"map_creation_interval": {
 			"type": "number",
-			"label": "Map Creation Interval",
-			"newLine": true
-		},
-		"updateInterval": {
-			"type": "number",
-			"label": "Update interval",
-			"newLine": true
+			"label": "Map Creation Interval"
 		},
 		"map_scale": {
 			"type": "number",
 			"label": "Quality of map (higher = better)",
-			"newLine": true
 		},
 		"webserverPort": {
 			"type": "number",
@@ -39,13 +36,12 @@
 		},
 		"hostname_ip": {
 			"type": "text",
-			"label": "Hostname or IP for camera stream",
+			"label": "Hostname/IP for camera stream",
 			"newLine": true
 		},
 		"cameraPin": {
 			"type": "number",
-			"label": "PIN for streaming the camera",
-			"newLine": true
+			"label": "PIN for streaming the camera"
 		}
 	}
 }
