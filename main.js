@@ -316,6 +316,10 @@ class Roborock extends utils.Adapter {
 					case "getMap":
 						this.vacuums[data["duid"]].getMap(data["duid"]);
 						break;
+
+					case "get_photo":
+						this.vacuums[data["duid"]].getParameter(data["duid"], "get_photo", data["attribute"]);
+						break;
 				}
 			});
 
