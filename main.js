@@ -470,7 +470,7 @@ class Roborock extends utils.Adapter {
 							type: "state",
 							common: {
 								name: state,
-								type: this.getType(state),
+								type: this.getType(update.data.result[state]),
 								role: "value",
 								read: true,
 								write: false
