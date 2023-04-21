@@ -434,7 +434,7 @@ class Roborock extends utils.Adapter {
 						unit = "h";
 						devices[device][deviceAttribute] = Math.round(devices[device][deviceAttribute] / 1000/60/60);
 					}
-					await this.setObjectNotExistsAsync("Devices." + duid + ".deviceInfo." + deviceAttribute, {
+					await this.setExistsAsync("Devices." + duid + ".deviceInfo." + deviceAttribute, {
 						type: "state",
 						common: {
 							name: deviceAttribute,
@@ -456,7 +456,7 @@ class Roborock extends utils.Adapter {
 		if (this.api) {
 			try {
 				this.api.get(`ota/firmware/${duid}/updatev2`).then(async update => {
-					await this.setObjectNotExistsAsync("Devices." + duid + ".updateStatus", {
+					await this.setExistsAsync("Devices." + duid + ".updateStatus", {
 						type: "folder",
 						common: {
 							name: "Update status",
@@ -466,7 +466,7 @@ class Roborock extends utils.Adapter {
 
 					for (const state in update.data.result) {
 
-						await this.setObjectNotExistsAsync("Devices." + duid + ".updateStatus." + state, {
+						await this.setExistsAsync("Devices." + duid + ".updateStatus." + state, {
 							type: "state",
 							common: {
 								name: state,
@@ -513,7 +513,7 @@ class Roborock extends utils.Adapter {
 	}
 
 	async setupBasicObjects() {
-		await this.setObjectNotExistsAsync("Devices", {
+		await this.setExistsAsync("Devices", {
 			type: "folder",
 			common: {
 				name: "Devices",
@@ -521,7 +521,7 @@ class Roborock extends utils.Adapter {
 			native: {},
 		});
 
-		await this.setObjectNotExistsAsync("UserData", {
+		await this.setExistsAsync("UserData", {
 			type: "state",
 			common: {
 				name: "UserData string",
@@ -533,7 +533,7 @@ class Roborock extends utils.Adapter {
 			native: {},
 		});
 
-		await this.setObjectNotExistsAsync("HomeData", {
+		await this.setExistsAsync("HomeData", {
 			type: "state",
 			common: {
 				name: "HomeData string",
@@ -545,7 +545,7 @@ class Roborock extends utils.Adapter {
 			native: {},
 		});
 
-		await this.setObjectNotExistsAsync("clientID", {
+		await this.setExistsAsync("clientID", {
 			type: "state",
 			common: {
 				name: "Client ID",
