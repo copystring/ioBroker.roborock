@@ -434,7 +434,7 @@ class Roborock extends utils.Adapter {
 						unit = "h";
 						devices[device][deviceAttribute] = Math.round(devices[device][deviceAttribute] / 1000/60/60);
 					}
-					await this.setExistsAsync("Devices." + duid + ".deviceInfo." + deviceAttribute, {
+					await this.setObjectAsync("Devices." + duid + ".deviceInfo." + deviceAttribute, {
 						type: "state",
 						common: {
 							name: deviceAttribute,
@@ -456,7 +456,7 @@ class Roborock extends utils.Adapter {
 		if (this.api) {
 			try {
 				this.api.get(`ota/firmware/${duid}/updatev2`).then(async update => {
-					await this.setExistsAsync("Devices." + duid + ".updateStatus", {
+					await this.setObjectAsync("Devices." + duid + ".updateStatus", {
 						type: "folder",
 						common: {
 							name: "Update status",
@@ -466,7 +466,7 @@ class Roborock extends utils.Adapter {
 
 					for (const state in update.data.result) {
 
-						await this.setExistsAsync("Devices." + duid + ".updateStatus." + state, {
+						await this.setObjectAsync("Devices." + duid + ".updateStatus." + state, {
 							type: "state",
 							common: {
 								name: state,
@@ -513,7 +513,7 @@ class Roborock extends utils.Adapter {
 	}
 
 	async setupBasicObjects() {
-		await this.setExistsAsync("Devices", {
+		await this.setObjectAsync("Devices", {
 			type: "folder",
 			common: {
 				name: "Devices",
@@ -521,7 +521,7 @@ class Roborock extends utils.Adapter {
 			native: {},
 		});
 
-		await this.setExistsAsync("UserData", {
+		await this.setObjectAsync("UserData", {
 			type: "state",
 			common: {
 				name: "UserData string",
@@ -533,7 +533,7 @@ class Roborock extends utils.Adapter {
 			native: {},
 		});
 
-		await this.setExistsAsync("HomeData", {
+		await this.setObjectAsync("HomeData", {
 			type: "state",
 			common: {
 				name: "HomeData string",
@@ -545,7 +545,7 @@ class Roborock extends utils.Adapter {
 			native: {},
 		});
 
-		await this.setExistsAsync("clientID", {
+		await this.setObjectAsync("clientID", {
 			type: "state",
 			common: {
 				name: "Client ID",
