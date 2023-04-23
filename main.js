@@ -158,86 +158,83 @@ class Roborock extends utils.Adapter {
 			return config;
 		});
 
-		try {
-			// Get home details.
-			loginApi.get("api/v1/getHomeDetail").then(async res => {
-				const homeId = res.data.data.rrHomeId;
+		// Get home details.
+		loginApi.get("api/v1/getHomeDetail").then(async res => {
+			const homeId = res.data.data.rrHomeId;
 
-				if (this.api) {
-					this.api.get(`user/homes/${homeId}`).then(async res => {
-						const homedata = res.data.result;
-						await this.setStateAsync("HomeData", { val: JSON.stringify(homedata), ack: true });
+			if (this.api) {
+				this.api.get(`user/homes/${homeId}`).then(async res => {
+					const homedata = res.data.result;
+					await this.setStateAsync("HomeData", { val: JSON.stringify(homedata), ack: true });
 
-						rr_mqtt_connector = new roborock_mqtt_connector(this);
-						rr_mqtt_connector.initUser(userdata, homedata);
-						rr_mqtt_connector.initMQTT_Subscribe();
-						rr_mqtt_connector.initMQTT_Message();
+					rr_mqtt_connector = new roborock_mqtt_connector(this);
+					rr_mqtt_connector.initUser(userdata, homedata);
+					rr_mqtt_connector.initMQTT_Subscribe();
+					rr_mqtt_connector.initMQTT_Message();
 
-						// store name of each room via ID
-						const rooms = homedata.rooms;
-						for (const room in rooms) {
-							const roomID = rooms[room].id;
-							const roomName = rooms[room].name;
+					// store name of each room via ID
+					const rooms = homedata.rooms;
+					for (const room in rooms) {
+						const roomID = rooms[room].id;
+						const roomName = rooms[room].name;
 
-							this.roomIDs[roomID] = roomName;
-						}
-						this.log.debug("RoomIDs debug: " + JSON.stringify(this.roomIDs));
+						this.roomIDs[roomID] = roomName;
+					}
+					this.log.debug("RoomIDs debug: " + JSON.stringify(this.roomIDs));
 
-						// create devices and set states
-						const devices = homedata.devices;
-						const products = homedata.products;
-						for (const device in devices) {
-							const productID = devices[device]["productId"];
-							// const robotModel = products[device]["model"];
-							const robotModel = this.getRobotModel(products, productID);
-							const duid = devices[device].duid;
-							const name = devices[device].name;
+					// create devices and set states
+					const devices = homedata.devices;
+					const products = homedata.products;
+					for (const device in devices) {
+						const productID = devices[device]["productId"];
+						// const robotModel = products[device]["model"];
+						const robotModel = this.getRobotModel(products, productID);
+						const duid = devices[device].duid;
+						const name = devices[device].name;
 
-							this.vacuums[duid] = new vacuum_class(this, robotModel);
-							this.vacuums[duid].name = name;
+						this.vacuums[duid] = new vacuum_class(this, robotModel);
+						this.vacuums[duid].name = name;
 
-							await this.vacuums[duid].setUpObjects(duid);
+						await this.vacuums[duid].setUpObjects(duid);
 
-							// sub to all commands of this robot
-							this.subscribeStates("Devices." + duid + ".commands.*");
-							this.subscribeStates("Devices." + duid + ".reset_consumables.*");
+						// sub to all commands of this robot
+						this.subscribeStates("Devices." + duid + ".commands.*");
+						this.subscribeStates("Devices." + duid + ".reset_consumables.*");
 
-							this.vacuums[duid].mainUpdateInterval = this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
+						this.vacuums[duid].mainUpdateInterval = this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
 
-							this.updateDataExtraData(duid, this.vacuums[duid]); // extra data needs to be called first!!!
-							this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
-							this.vacuums[duid].getCameraStreams(duid);
+						this.updateDataExtraData(duid, this.vacuums[duid]); // extra data needs to be called first!!!
+						this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
+						this.vacuums[duid].getCameraStreams(duid);
 
-							this.vacuums[duid].getCleanSummary(duid);
+						this.vacuums[duid].getCleanSummary(duid);
 
-							// reconnect every 3 hours (10800 seconds)
-							this.reconnectIntervall = this.setInterval(() => {
-								this.log.debug("Reconnecting after 3 hours!");
+						// reconnect every 3 hours (10800 seconds)
+						this.reconnectIntervall = this.setInterval(() => {
+							this.log.debug("Reconnecting after 3 hours!");
 
-								rr_mqtt_connector.reconnectClient();
-								this.checkForNewFirmware(duid);
-							}, 10800 * 1000);
+							rr_mqtt_connector.reconnectClient();
 							this.checkForNewFirmware(duid);
-						}
+						}, 10800 * 1000);
+						this.checkForNewFirmware(duid);
+					}
 
-						await this.download_go2rtc();
-						this.start_go2rtc(this.vacuums, homedata, userdata);
+					await this.download_go2rtc();
+					this.start_go2rtc(this.vacuums, homedata, userdata);
 
-						this.homedataInterval = this.setInterval(this.updateHomeData.bind(this), this.config.updateInterval * 1000, homeId);
-						await this.updateHomeData(homeId);
+					this.homedataInterval = this.setInterval(this.updateHomeData.bind(this), this.config.updateInterval * 1000, homeId);
+					await this.updateHomeData(homeId);
 
-						// These need to start only after all states have been set
-						if (this.config.enable_map_creation == true) {
-							this.startWebserver();
-							this.startWebsocketServer();
-						}
-					});
-				}
-			});
-		}
-		catch (e) {
+					// These need to start only after all states have been set
+					if (this.config.enable_map_creation == true) {
+						this.startWebserver();
+						this.startWebsocketServer();
+					}
+				});
+			}
+		}).catch(e => {
 			this.log.error("Failed to get home details: " + e);
-		}
+		});
 	}
 
 	async startMapUpdater(duid) {
@@ -407,6 +404,8 @@ class Roborock extends utils.Adapter {
 
 				this.updateConsumablesPercent(homedata.devices);
 				this.updateDeviceInfo(homedata.devices);
+			}).catch (e => {
+				this.log.error("Failed to update updateHomeData with error: " + e);
 			});
 		}
 	}
