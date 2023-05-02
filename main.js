@@ -263,6 +263,11 @@ class Roborock extends utils.Adapter {
 		const app = express();
 		app.use(express.static("lib/map"));
 		webserver = app.listen(this.config.webserverPort);
+
+		webserver.on("error", (error) => {
+			// This code will run if there was an error starting the server
+			this.log.error("Error occurred: " + error);
+		});
 	}
 	async stopWebserver() {
 		webserver.close();
@@ -313,6 +318,10 @@ class Roborock extends utils.Adapter {
 			socket.on("close", () => {
 				this.log.debug("Client disconnected");
 				this.socket = null;
+			});
+
+			socketServer.on("error", (error) => {
+				this.log.error("WebSocket Server error: " + error);
 			});
 		});
 	}
