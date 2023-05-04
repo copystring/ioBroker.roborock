@@ -209,6 +209,9 @@ class Roborock extends utils.Adapter {
 
 						this.vacuums[duid].getCleanSummary(duid);
 
+						// get map once at start of adapter
+						this.vacuums[duid].getMap(duid);
+
 						// reconnect every 3 hours (10800 seconds)
 						this.reconnectIntervall = this.setInterval(() => {
 							this.log.debug("Reconnecting after 3 hours!");
