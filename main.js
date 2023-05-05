@@ -203,8 +203,8 @@ class Roborock extends utils.Adapter {
 
 						this.vacuums[duid].mainUpdateInterval = this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
 
-						this.updateDataExtraData(duid, this.vacuums[duid]); // extra data needs to be called first!!!
-						this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
+						await this.updateDataExtraData(duid, this.vacuums[duid]); // extra data needs to be called first!!!
+						await this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
 						this.vacuums[duid].getCameraStreams(duid);
 
 						this.vacuums[duid].getCleanSummary(duid);
@@ -342,16 +342,16 @@ class Roborock extends utils.Adapter {
 
 	}
 
-	updateDataMinimumData(duid, vacuum, robotModel) {
+	async updateDataMinimumData(duid, vacuum, robotModel) {
 		this.log.debug("Latest data requested");
 
-		vacuum.getParameter(duid, "get_status");
+		await vacuum.getParameter(duid, "get_status");
 
-		vacuum.getParameter(duid, "get_room_mapping");
+		await vacuum.getParameter(duid, "get_room_mapping");
 
-		vacuum.getParameter(duid, "get_consumable");
+		await vacuum.getParameter(duid, "get_consumable");
 
-		vacuum.getParameter(duid, "get_network_info");
+		await vacuum.getParameter(duid, "get_network_info");
 
 		switch (robotModel) {
 			case "roborock.vacuum.s4":
@@ -362,19 +362,19 @@ class Roborock extends utils.Adapter {
 				//do nothing
 				break;
 			case "roborock.vacuum.s6":
-				vacuum.getParameter(duid, "get_carpet_mode");
+				await vacuum.getParameter(duid, "get_carpet_mode");
 				break;
 			default:
-				vacuum.getParameter(duid, "get_carpet_mode");
-				vacuum.getParameter(duid, "get_carpet_clean_mode");
-				vacuum.getParameter(duid, "get_water_box_custom_mode");
+				await vacuum.getParameter(duid, "get_carpet_mode");
+				await vacuum.getParameter(duid, "get_carpet_clean_mode");
+				await vacuum.getParameter(duid, "get_water_box_custom_mode");
 		}
 	}
 
 	async updateDataExtraData(duid, vacuum) {
-		vacuum.getParameter(duid, "get_fw_features");
+		await vacuum.getParameter(duid, "get_fw_features");
 
-		vacuum.getParameter(duid, "get_multi_maps_list");
+		await vacuum.getParameter(duid, "get_multi_maps_list");
 	}
 
 	clearTimersAndIntervals() {
