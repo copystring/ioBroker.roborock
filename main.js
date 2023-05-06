@@ -353,6 +353,8 @@ class Roborock extends utils.Adapter {
 
 		await vacuum.getParameter(duid, "get_network_info");
 
+		vacuum.getParameter(duid, "get_server_timer");
+
 		switch (robotModel) {
 			case "roborock.vacuum.s4":
 			case "roborock.vacuum.s5":
