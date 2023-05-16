@@ -296,6 +296,7 @@ class Roborock extends utils.Adapter {
 					case "app_goto_target":
 					case "app_start":
 					case "app_stop":
+					case "stop_zoned_clean":
 					case "app_pause":
 					case "app_charge":
 						parameters = data["parameters"];
@@ -730,18 +731,16 @@ class Roborock extends utils.Adapter {
 			else if (command == "load_multi_map") {
 				await this.vacuums[duid].command(duid, command, [state.val]);
 			}
-			else if (typeof (state.val) != "boolean") {
-				this.vacuums[duid].command(duid, command, state.val);
-			}
 			else if ((command == "app_start") || (command == "app_segment_clean") || (command == "app_charge") || (command == "app_spot") || (command == "app_zoned_clean"))
 			{
 				this.startMapUpdater(duid);
 
-				if (command == "app_zoned_clean") {
-					// vacuums[duid].command(duid, command, [[ 24575,28050,25225,28500,1 ]]);
-					// vacuums[duid].command(duid, command, [[ 24450,27800,25125,28450,1 ]]); // known good
-					this.vacuums[duid].command(duid, command, [[23875,27850,25125,29100,1]]);
+				if (command == "app_zoned_clean" && typeof(state.val) == "string") {
+					this.vacuums[duid].command(duid, command, [JSON.parse(state.val)]);
 				}
+			}
+			else if (typeof (state.val) != "boolean") {
+				this.vacuums[duid].command(duid, command, state.val);
 			}
 		} else {
 			this.log.error("Error! Missing state onChangeState!");
