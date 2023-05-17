@@ -731,12 +731,24 @@ class Roborock extends utils.Adapter {
 			else if (command == "load_multi_map") {
 				await this.vacuums[duid].command(duid, command, [state.val]);
 			}
-			else if ((command == "app_start") || (command == "app_segment_clean") || (command == "app_charge") || (command == "app_spot") || (command == "app_zoned_clean"))
+			else if (
+				(command == "app_start") ||
+				(command == "app_segment_clean") ||
+				(command == "app_charge") ||
+				(command == "app_spot") ||
+				(command == "app_zoned_clean") ||
+				(command == "app_goto_target")
+			)
 			{
 				this.startMapUpdater(duid);
 
-				if (command == "app_zoned_clean" && typeof(state.val) == "string") {
-					this.vacuums[duid].command(duid, command, [JSON.parse(state.val)]);
+				switch (command) {
+					case "app_zoned_clean":
+					case "app_goto_target":
+						if (typeof(state.val) == "string") {
+							this.vacuums[duid].command(duid, command, JSON.parse(state.val));
+						}
+						break;
 				}
 			}
 			else if (typeof (state.val) != "boolean") {
