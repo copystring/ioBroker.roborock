@@ -34,6 +34,7 @@
     "express": "^4.18.2",
     "fetch-github-release": "^1.0.0",
     "find-process": "^1.4.7",
+    "jwk-to-pem": "^2.0.5",
     "mqtt": "^4.3.7",
     "ws": "^8.12.1"
   },
