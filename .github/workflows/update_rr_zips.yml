@@ -64,7 +64,7 @@ jobs:
             for (const product in list) {
               const vacuum = list[product];
               console.log('vacuum ' + vacuum.name + ' id: ' + vacuum.id);
-                appPluginRequest.productids.push(id);
+                appPluginRequest.productids.push(vacuum.id);
             }
             console.log('appPluginRequest: ' + JSON.stringify(appPluginRequest));
           })
