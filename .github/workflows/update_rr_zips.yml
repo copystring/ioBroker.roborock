@@ -54,7 +54,7 @@ jobs:
             // console.log('Product data: ' + JSON.stringify(res.data.data.categoryDetailList));
             for (const product in res.data.data.categoryDetailList[1]) {
               if (res.data.data.categoryDetailList[1]['productList'][0]) {
-                const robot = res.data.data.categoryDetailList[1]['productList'][0];
+                const vacuum = res.data.data.categoryDetailList[1]['productList'][0];
                 console.log('vacuum ' + vacuum.name + ' id: ' + vacuum.id);
               }
             }
