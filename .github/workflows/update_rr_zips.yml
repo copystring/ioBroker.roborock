@@ -51,7 +51,7 @@ jobs:
           loginApi.get('api/v3/product')
           .then(res => {
             // Handle the response here. Note that console.log output will be visible in the GitHub Actions log.
-            console.log(res.data);
+            console.log("Product data: " + JSON.stringify(res.data));
           })
           .catch(err => console.error(err));
         })
