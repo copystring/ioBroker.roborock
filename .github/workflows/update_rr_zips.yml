@@ -54,9 +54,8 @@ jobs:
             // console.log('Product data: ' + JSON.stringify(res.data.data.categoryDetailList));
             const list = res.data.data.categoryDetailList[1]['productList'][0];
             for (const product in list) {
-                const vacuum = list[product];
-                console.log('vacuum ' + vacuum.name + ' id: ' + vacuum.id);
-              }
+              const vacuum = list[product];
+              console.log('vacuum ' + vacuum.name + ' id: ' + vacuum.id);
             }
           })
           .catch(err => console.error(err));
