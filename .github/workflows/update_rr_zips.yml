@@ -53,11 +53,20 @@ jobs:
             // Handle the response here. Note that console.log output will be visible in the GitHub Actions log.
             // console.log('Product data: ' + JSON.stringify(res.data.data.categoryDetailList));
             const list = res.data.data.categoryDetailList[1]['productList'];
-            console.log('Product data: ' + JSON.stringify(list));
+            //console.log('Product data: ' + JSON.stringify(list));
+            
+            const appPluginRequest = {
+              "apilevel": 10016,
+              "productids": [],
+              "type": 2
+            };
+            
             for (const product in list) {
               const vacuum = list[product];
               console.log('vacuum ' + vacuum.name + ' id: ' + vacuum.id);
+                appPluginRequest.productids.push(id);
             }
+            console.log('appPluginRequest: ' + JSON.stringify(appPluginRequest));
           })
           .catch(err => console.error(err));
         })
