@@ -66,7 +66,11 @@ jobs:
               console.log('vacuum ' + vacuum.name + ' id: ' + vacuum.id);
                 appPluginRequest.productids.push(vacuum.id);
             }
+            
             console.log('appPluginRequest: ' + JSON.stringify(appPluginRequest));
+            loginApi.post('api/v1/appplugin', appPluginRequest)
+              .then(res => {
+                console.log('appplugin data: ' + JSON.stringify(res.data));
           })
           .catch(err => console.error(err));
         })
