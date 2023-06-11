@@ -52,8 +52,10 @@ jobs:
           .then(res => {
             // Handle the response here. Note that console.log output will be visible in the GitHub Actions log.
             console.log('Product data: ' + JSON.stringify(res.data.data.categoryDetailList));
-            for (const product in res.data.data.categoryDetailList) {
-              console.log('Robot ' + res.data.data.categoryDetailList[product].name + ' id: ' + res.data.data.categoryDetailList[product].id);
+            for (const product in res.data.data.categoryDetailList[0]) {
+              if (res.data.data.categoryDetailList[product]) {
+                console.log('Robot ' + res.data.data.categoryDetailList[0][product].name + ' id: ' + res.data.data.categoryDetailList[0][product].id);
+              }
             }
           })
           .catch(err => console.error(err));
