@@ -52,7 +52,7 @@ jobs:
           .then(res => {
             // Handle the response here. Note that console.log output will be visible in the GitHub Actions log.
             // console.log('Product data: ' + JSON.stringify(res.data.data.categoryDetailList));
-            const list = res.data.data.categoryDetailList[1]['productList'][0];
+            const list = res.data.data.categoryDetailList[1]['productList'];
             console.log('Product data: ' + JSON.stringify(list));
             for (const product in list) {
               const vacuum = list[product];
