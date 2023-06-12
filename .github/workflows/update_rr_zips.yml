@@ -22,8 +22,8 @@ jobs:
 
     - name: Login and fetch data
       env:
-        USERNAME: ${{ secrets.ROBOROCK_USERNAME }}
-        PASSWORD: ${{ secrets.ROBOROCK_PASSWORD }}
+        RR_USERNAME: ${{ secrets.ROBOROCK_USERNAME }}
+        RR_PASSWORD: ${{ secrets.ROBOROCK_PASSWORD }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: node fetchAndProcessRobrockPackage.js
 
