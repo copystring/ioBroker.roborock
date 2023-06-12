@@ -64,6 +64,7 @@ loginApi.post("api/v1/login", new URLSearchParams({
 							console.log("version: " + version);
 							console.log(zipUrl);
 
+							if (!fs.existsSync("./lib/roborockPackage/")) fs.mkdirSync("./lib/roborockPackage/");
 							const path = "./lib/roborockPackage/" + vacuum;
 							try {
 								// Create missing vacuum folder
@@ -79,7 +80,6 @@ loginApi.post("api/v1/login", new URLSearchParams({
 								}
 								else if (packages[rr_package].version > currentVersion) {
 									console.log("New version found");
-									const newBranchName = "update-" + vacuum + "-" + version;
 
 									const response = await loginApi.get(zipUrl, { responseType: "arraybuffer" });
 									const zip = await JSZip.loadAsync(response.data);
