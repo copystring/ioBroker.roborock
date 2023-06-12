@@ -71,14 +71,15 @@ loginApi.post("api/v1/login", new URLSearchParams({
 								if (!fs.existsSync(path)) fs.mkdirSync(path);
 
 								const versionFilePath = path + "/version";
-								const currentVersion = fs.readFileSync(versionFilePath, "utf8");
 
 								if (!fs.existsSync(versionFilePath)) {
 									const versionContent = packages[rr_package].version.toString();
-									fs.writeFileSync(versionFilePath, versionContent);
+									fs.writeFileSync(versionFilePath, "0");
 									console.log("Version file created successfully!");
 								}
-								else if (packages[rr_package].version > currentVersion) {
+
+								const currentVersion = fs.readFileSync(versionFilePath, "utf8");
+								if (packages[rr_package].version > currentVersion) {
 									console.log("New version found");
 
 									const response = await loginApi.get(zipUrl, { responseType: "arraybuffer" });
