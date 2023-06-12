@@ -29,9 +29,12 @@
     "binary-parser": "^2.2.1",
     "canvas": "^2.11.2",
     "crc-32": "^1.2.2",
+    "dotenv": "^16.1.4",
     "eventemitter2": "^6.4.9",
     "express": "^4.18.2",
+    "jszip": "^3.10.1",
     "mqtt": "^4.3.7",
+    "react-native-decompiler": "^0.2.4",
     "ws": "^8.13.0"
   },
   "devDependencies": {
