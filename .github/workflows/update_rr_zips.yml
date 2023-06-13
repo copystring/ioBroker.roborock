@@ -20,7 +20,10 @@ jobs:
         node-version: '16'
 
     - name: Install dependencies
-      run: npm install axios crypto @octokit/rest react-native-decompiler unzipper dotenv
+      run: npm install axios crypto @octokit/rest unzipper dotenv
+
+    - name: Install dependencies
+      run: npm install -g react-native-decompiler
 
     - name: Login and fetch data
       env:
