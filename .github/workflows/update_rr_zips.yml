@@ -42,13 +42,13 @@ jobs:
     - name: Branch and commit changes
       if: steps.changes.outputs.changed == 'true'
       run: |
-        git checkout -b new-updates
+        git checkout -b new-updates-${{ github.run_id }}
         git add .
         git commit -m "New updates"
 
     - name: Push changes
       if: steps.changes.outputs.changed == 'true'
-      run: git push origin new-updates
+      run: git push origin new-updates-${{ github.run_id }}
 
     - name: Create Pull Request
       if: steps.changes.outputs.changed == 'true'
