@@ -24,8 +24,6 @@ loginApi.post("api/v1/login", new URLSearchParams({
 	needtwostepauth: "false"
 }).toString())
 	.then(res => {
-		console.log("username: " + username);
-		console.log("Test token: " + JSON.stringify(res.data));
 		loginApi.defaults.headers.common["Authorization"] = res.data.data.token;
 
 		loginApi.get("api/v3/product")
@@ -93,7 +91,7 @@ loginApi.post("api/v1/login", new URLSearchParams({
 										fs.writeFileSync(tempPath, data);
 
 										// Run the CLI tool
-										child_process.execSync(`npx react-native-decompiler -i ${tempPath} -o ${path}`);
+										child_process.execSync(`react-native-decompiler -i ${tempPath} -o ${path}`);
 
 										// Delete the temp file
 										fs.unlinkSync(tempPath);
