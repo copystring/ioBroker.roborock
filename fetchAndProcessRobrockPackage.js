@@ -93,7 +93,7 @@ loginApi.post("api/v1/login", new URLSearchParams({
 										fs.writeFileSync(tempPath, data);
 
 										// Run the CLI tool
-										child_process.execSync(`react-native-decompiler -i ${tempPath} -o ${path}`);
+										child_process.execSync(`npx react-native-decompiler -i ${tempPath} -o ${path}`);
 
 										// Delete the temp file
 										fs.unlinkSync(tempPath);
