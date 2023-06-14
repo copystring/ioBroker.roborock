@@ -59,4 +59,5 @@ jobs:
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         title: "New updates"
+        base: "main"
         branch: "new-updates-${{ github.run_id }}"
