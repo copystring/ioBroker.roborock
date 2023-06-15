@@ -42,13 +42,6 @@ jobs:
         git config user.name "GitHub Actions Bot"
         git config user.email "<>"
 
-    - name: Branch and commit changes
-      if: steps.changes.outputs.changed == 'true'
-      run: |
-        git checkout -b new-updates-${{ github.run_id }}
-        git add .
-        git commit -m "New updates"
-
     - name: Push changes
       if: steps.changes.outputs.changed == 'true'
       run: git push origin new-updates-${{ github.run_id }}
