@@ -368,6 +368,7 @@ class Roborock extends utils.Adapter {
 			case "roborock.vacuum.s5e":
 			case "roborock.vacuum.a08":
 			case "roborock.vacuum.a10":
+			case "roborock.vacuum.a40":
 				//do nothing
 				break;
 			case "roborock.vacuum.s6":
