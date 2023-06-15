@@ -42,10 +42,6 @@ jobs:
         git config user.name "GitHub Actions Bot"
         git config user.email "<>"
 
-    - name: Push changes
-      if: steps.changes.outputs.changed == 'true'
-      run: git push origin new-updates-${{ github.run_id }}
-
     - name: Create Pull Request
       if: steps.changes.outputs.changed == 'true'
       uses: peter-evans/create-pull-request@v5
