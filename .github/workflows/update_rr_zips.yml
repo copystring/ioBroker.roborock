@@ -1,4 +1,4 @@
-name: Login, fetch, process and create PR
+name: Get updates from roborock packages for each robot
 
 on:
   schedule:
@@ -17,10 +17,10 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v2
       with:
-        node-version: '16'
+        node-version: '20'
 
     - name: Install dependencies
-      run: npm install axios crypto @octokit/rest unzipper dotenv
+      run: npm install axios @octokit/rest unzipper dotenv
 
     - name: Install dependencies
       run: npm install -g react-native-decompiler
@@ -47,6 +47,6 @@ jobs:
       uses: peter-evans/create-pull-request@v5
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-        title: "New updates"
+        title: "Updates for packages from roborock server"
         base: "main"
-        branch: "new-updates-${{ github.run_id }}"
+        branch: "RoborockPackageUpdate"
