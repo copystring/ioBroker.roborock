@@ -23,18 +23,21 @@
   },
   "dependencies": {
     "@iobroker/adapter-core": "^2.6.8",
+    "@octokit/rest": "^19.0.11",
     "@sentry/node": "^7.53.1",
     "@sentry/tracing": "^7.53.1",
     "axios": "^1.4.0",
     "binary-parser": "^2.2.1",
     "canvas": "^2.11.2",
     "crc-32": "^1.2.2",
+    "crypto": "^1.0.1",
     "dotenv": "^16.1.4",
     "eventemitter2": "^6.4.9",
     "express": "^4.18.2",
     "jszip": "^3.10.1",
     "mqtt": "^4.3.7",
     "react-native-decompiler": "^0.2.4",
+    "unzipper": "^0.10.14",
     "ws": "^8.13.0"
   },
   "devDependencies": {
