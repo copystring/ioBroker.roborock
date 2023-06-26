@@ -6,7 +6,60 @@ on:
   workflow_dispatch:
 
 jobs:
+  determine_version:
+    runs-on: ubuntu-latest
+    outputs:
+        new_release: ${{ steps.compare_releases.outputs.new_release  }},
+        installed_version: ${{ steps.compare_releases.outputs.installed_version  }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+
+    - name: Clone mitmproxy repository
+      run: git clone https://github.com/mitmproxy/mitmproxy.git
+
+    - name: Install dependencies
+      run: |
+        cd mitmproxy
+        python -m venv venv
+        source venv/bin/activate
+        pip install pycryptodome
+        deactivate
+        venv/bin/pip install -e ".[dev]"
+
+    - name: Determine currently installed version
+      id: determine_version
+      run: |
+        cd mitmproxy
+        source venv/bin/activate
+        installed_version=$(mitmproxy --version | awk '{print $2}')
+        echo "::set-output name=installed_version::${installed_version}"
+
+    - name: Read previous release
+      id: read_previous_release
+      run: |
+        previous_release=$(cat mitmproxy_release.txt 2>/dev/null || echo "")
+        echo "::set-output name=previous_release::${previous_release}"
+
+    - name: Compare releases
+      id: compare_releases
+      run: |
+        if [ "${{ steps.determine_version.outputs.installed_version }}" != "${{ steps.read_previous_release.outputs.previous_release }}" ]; then
+          echo "New release detected: ${{ steps.determine_version.outputs.installed_version }}"
+          echo "${{ steps.determine_version.outputs.installed_version }}" > mitmproxy_release.txt
+          echo "::set-output name=new_release::true"
+        else
+          echo "No new release detected"
+          echo "::set-output name=new_release::false"
+        }
+
   build:
+    needs: determine_version
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -61,46 +114,11 @@ jobs:
         mkdir -p ../lib/mitmproxy/macos
         cp -r ./venv/* ../lib/mitmproxy/macos
 
-    - name: Determine currently installed version
-      if: runner.os == 'Linux'
-      id: determine_version
-      run: |
-        cd mitmproxy
-        source venv/bin/activate
-        installed_version=$(mitmproxy --version | awk '{print $2}')
-        echo "::set-output name=installed_version::${installed_version}"
-
-    - name: Read previous release
-      if: runner.os == 'Linux'
-      id: read_previous_release
-      run: |
-        previous_release=$(cat mitmproxy_release.txt 2>/dev/null || echo "")
-        echo "::set-output name=previous_release::${previous_release}"
-
-    - name: Compare releases
-      if: runner.os == 'Linux'
-      id: compare_releases
-      run: |
-        if [ "${{ steps.determine_version.outputs.installed_version }}" != "${{ steps.read_previous_release.outputs.previous_release }}" ]; then
-          echo "New release detected: ${{ steps.determine_version.outputs.installed_version }}"
-          echo "${{ steps.determine_version.outputs.installed_version }}" > mitmproxy_release.txt
-          echo "::set-output name=new_release::true"
-        else
-          echo "No new release detected"
-          echo "::set-output name=new_release::false"
-        fi
-
-    - name: Setup git
-      if: steps.compare_releases.outputs.new_release == 'true'
-      run: |
-            git config user.name "GitHub Actions Bot"
-            git config user.email "<>"
-
     - name: Create Pull Request
-      if: steps.compare_releases.outputs.new_release == 'true'
+      if: needs.determine_version.outputs.new_release == 'true'
       uses: peter-evans/create-pull-request@v5
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-        title: "Update mitmproxy to ${{ steps.determine_version.outputs.installed_version }}"
+        title: "Update mitmproxy to ${{ needs.determine_version.outputs.installed_version }}"
         base: "main"
-        branch: "mitmproxy_${{ steps.determine_version.outputs.installed_version }}"
+        branch: "mitmproxy_${{ needs.determine_version.outputs.installed_version }}"
