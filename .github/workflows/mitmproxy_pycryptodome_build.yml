@@ -9,7 +9,7 @@ jobs:
   determine_version:
     runs-on: ubuntu-latest
     outputs:
-        new_release: ${{ steps.compare_releases.outputs.new_release  }},
+        new_release: ${{ steps.compare_releases.outputs.new_release  }}
         installed_version: ${{ steps.compare_releases.outputs.installed_version  }}
     steps:
     - name: Checkout code
