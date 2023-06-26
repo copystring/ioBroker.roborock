@@ -70,12 +70,14 @@ jobs:
         echo "::set-output name=installed_version::${installed_version}"
 
     - name: Read previous release
+      if: runner.os == 'Linux'
       id: read_previous_release
       run: |
         previous_release=$(cat mitmproxy_release.txt 2>/dev/null || echo "")
         echo "::set-output name=previous_release::${previous_release}"
 
     - name: Compare releases
+      if: runner.os == 'Linux'
       id: compare_releases
       run: |
         if [ "${{ steps.determine_version.outputs.installed_version }}" != "${{ steps.read_previous_release.outputs.previous_release }}" ]; then
@@ -98,6 +100,6 @@ jobs:
       uses: peter-evans/create-pull-request@v5
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-        title: "Updates for packages from roborock server"
+        title: "Update mitmproxy to ${{ steps.determine_version.outputs.installed_version }}"
         base: "main"
         branch: "mitmproxy_${{ steps.determine_version.outputs.installed_version }}"
