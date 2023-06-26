@@ -87,12 +87,17 @@ jobs:
           echo "::set-output name=new_release::false"
         fi
 
-    - name: Create pull request
+    - name: Setup git
       if: steps.compare_releases.outputs.new_release == 'true'
       run: |
-        git config user.name "copystring"
-        git config user.email "copystring@gmail.com"
-        cd mitmproxy
-        git checkout -b update-dependencies-${{ steps.determine_version.outputs.installed_version }}
-        git commit -am "Update dependencies to mitmproxy version ${{ steps.determine_version.outputs.installed_version }}"
-        git push --set-upstream origin update-dependencies-${{ steps.determine_version.outputs.installed_version }}
+            git config user.name "GitHub Actions Bot"
+            git config user.email "<>"
+
+    - name: Create Pull Request
+      if: steps.compare_releases.outputs.new_release == 'true'
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        title: "Updates for packages from roborock server"
+        base: "main"
+        branch: "mitmproxy ${{ steps.determine_version.outputs.installed_version }}"
