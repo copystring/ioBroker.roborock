@@ -1,8 +1,8 @@
 name: Build mitmproxy with pycryptodome
 
 on:
-  push:
-    branches: [ main ]
+  pull_request:
+    types: [ synchronize ]
 
 jobs:
   build:
@@ -10,52 +10,48 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.x']
 
     steps:
-    - name: Checkout code
+    - name: Check if PR is from Dependabot and updates mitmproxy
+      id: check_pr
+      run: |
+        pr_author=$(jq -r .pull_request.user.login "$GITHUB_EVENT_PATH")
+        pr_title=$(jq -r .pull_request.title "$GITHUB_EVENT_PATH")
+        if [[ "$pr_author" == "dependabot[bot]" ]] && [[ "$pr_title" == *"mitmproxy"* ]]; then
+          echo "::set-output name=update_mitmproxy::true"
+        fi
+
+    - name: Build mitmproxy with pycryptodome
+      if: steps.check_pr.outputs.update_mitmproxy == 'true'
+      run: |
+        git clone https://github.com/mitmproxy/mitmproxy.git
+        cd mitmproxy
+        python -m venv venv
+        source venv/bin/activate
+        pip install pycryptodome
+        deactivate
+        venv/bin/pip install -e ".[dev]"
+        if [[ "$RUNNER_OS" == "Linux" ]]; then
+          mkdir -p ../lib/mitmproxy/linux
+          cp -r ./venv/* ../lib/mitmproxy/linux
+        elif [[ "$RUNNER_OS" == "Windows" ]]; then
+          New-Item -Path ..\lib\mitmproxy\windows -ItemType Directory -Force
+          Copy-Item -Path .\venv\* -Destination ..\lib\mitmproxy\windows -Recurse
+        elif [[ "$RUNNER_OS" == "macOS" ]]; then
+          mkdir -p ../lib/mitmproxy/macos
+          cp -r ./venv/* ../lib/mitmproxy/macos
+        fi
+
+    - name: Checkout repository
       uses: actions/checkout@v2
 
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
-
-    - name: Clone mitmproxy repository
-      run: git clone https://github.com/mitmproxy/mitmproxy.git
-
-    - name: Install dependencies (Linux)
-      if: runner.os == 'Linux'
+    - name: Configure Git
       run: |
-        cd mitmproxy
-        python -m venv venv
-        source venv/bin/activate
-        pip install pycryptodome
-        deactivate
-        venv/bin/pip install -e ".[dev]"
-        mkdir -p ../lib/mitmproxy/linux
-        cp -r ./venv/* ../lib/mitmproxy/linux
+        git config user.name "GitHub Actions Bot"
+        git config user.email "<>"
 
-    - name: Install dependencies (Windows)
-      if: runner.os == 'Windows'
+    - name: Commit changes to Dependabot branch
       run: |
-        cd mitmproxy
-        python -m venv venv
-        .\venv\Scripts\activate
-        pip install pycryptodome
-        .\venv\Scripts\deactivate
-        .\venv\Scripts\pip install -e ".[dev]"
-        New-Item -Path ..\lib\mitmproxy\windows -ItemType Directory -Force
-        Copy-Item -Path .\venv\* -Destination ..\lib\mitmproxy\windows -Recurse
-
-    - name: Install dependencies (macOS)
-      if: runner.os == 'macOS'
-      run: |
-        cd mitmproxy
-        python3 -m venv venv
-        source venv/bin/activate
-        pip install pycryptodome
-        deactivate
-        venv/bin/pip install -e ".[dev]"
-        mkdir -p ../lib/mitmproxy/macos
-        cp -r ./venv/* ../lib/mitmproxy/macos
+        git add .
+        git commit -m "Updated mitmproxy with pycryptodome"
+        git push origin ${{ github.head_ref }}
