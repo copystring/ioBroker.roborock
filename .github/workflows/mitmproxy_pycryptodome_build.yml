@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
         new_release: ${{ steps.compare_releases.outputs.new_release  }}
-        installed_version: ${{ steps.compare_releases.outputs.installed_version  }}
+        installed_version: ${{ steps.determine_version.outputs.installed_version  }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
