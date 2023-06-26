@@ -100,4 +100,4 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         title: "Updates for packages from roborock server"
         base: "main"
-        branch: "mitmproxy ${{ steps.determine_version.outputs.installed_version }}"
+        branch: "mitmproxy_${{ steps.determine_version.outputs.installed_version }}"
