@@ -62,6 +62,7 @@ jobs:
         cp -r ./venv/* ../lib/mitmproxy/macos
 
     - name: Determine currently installed version
+      if: runner.os == 'Linux'
       id: determine_version
       run: |
         cd mitmproxy
