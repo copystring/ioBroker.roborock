@@ -1,0 +1,57 @@
+name: Build mitmproxy with pycryptodome
+
+on:
+  pull_request:
+    types: [ synchronize ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+    - name: Check if PR is from Dependabot and updates mitmproxy
+      id: check_pr
+      run: |
+        pr_author=$(jq -r .pull_request.user.login "$GITHUB_EVENT_PATH")
+        pr_title=$(jq -r .pull_request.title "$GITHUB_EVENT_PATH")
+        if [[ "$pr_author" == "dependabot[bot]" ]] && [[ "$pr_title" == *"mitmproxy"* ]]; then
+          echo "::set-output name=update_mitmproxy::true"
+        fi
+
+    - name: Build mitmproxy with pycryptodome
+      if: steps.check_pr.outputs.update_mitmproxy == 'true'
+      run: |
+        git clone https://github.com/mitmproxy/mitmproxy.git
+        cd mitmproxy
+        python -m venv venv
+        source venv/bin/activate
+        pip install pycryptodome
+        deactivate
+        venv/bin/pip install -e ".[dev]"
+        if [[ "$RUNNER_OS" == "Linux" ]]; then
+          mkdir -p ../lib/mitmproxy/linux
+          cp -r ./venv/* ../lib/mitmproxy/linux
+        elif [[ "$RUNNER_OS" == "Windows" ]]; then
+          New-Item -Path ..\lib\mitmproxy\windows -ItemType Directory -Force
+          Copy-Item -Path .\venv\* -Destination ..\lib\mitmproxy\windows -Recurse
+        elif [[ "$RUNNER_OS" == "macOS" ]]; then
+          mkdir -p ../lib/mitmproxy/macos
+          cp -r ./venv/* ../lib/mitmproxy/macos
+        fi
+
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Configure Git
+      run: |
+        git config user.name "GitHub Actions Bot"
+        git config user.email "<>"
+
+    - name: Commit changes to Dependabot branch
+      run: |
+        git add .
+        git commit -m "Updated mitmproxy with pycryptodome"
+        git push origin ${{ github.head_ref }}
