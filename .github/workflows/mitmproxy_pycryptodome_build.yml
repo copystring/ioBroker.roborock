@@ -1,8 +1,9 @@
 name: Build mitmproxy with pycryptodome
 
 on:
-  push:
-    branches: [ main ]
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -59,3 +60,39 @@ jobs:
         venv/bin/pip install -e ".[dev]"
         mkdir -p ../lib/mitmproxy/macos
         cp -r ./venv/* ../lib/mitmproxy/macos
+
+    - name: Determine currently installed version
+      id: determine_version
+      run: |
+        cd mitmproxy
+        source venv/bin/activate
+        installed_version=$(mitmproxy --version | awk '{print $2}')
+        echo "::set-output name=installed_version::${installed_version}"
+
+    - name: Read previous release
+      id: read_previous_release
+      run: |
+        previous_release=$(cat mitmproxy_release.txt 2>/dev/null || echo "")
+        echo "::set-output name=previous_release::${previous_release}"
+
+    - name: Compare releases
+      id: compare_releases
+      run: |
+        if [ "${{ steps.determine_version.outputs.installed_version }}" != "${{ steps.read_previous_release.outputs.previous_release }}" ]; then
+          echo "New release detected: ${{ steps.determine_version.outputs.installed_version }}"
+          echo "${{ steps.determine_version.outputs.installed_version }}" > mitmproxy_release.txt
+          echo "::set-output name=new_release::true"
+        else
+          echo "No new release detected"
+          echo "::set-output name=new_release::false"
+        fi
+
+    - name: Create pull request
+      if: steps.compare_releases.outputs.new_release == 'true'
+      run: |
+        git config user.name "copystring"
+        git config user.email "copystring@gmail.com"
+        cd mitmproxy
+        git checkout -b update-dependencies-${{ steps.determine_version.outputs.installed_version }}
+        git commit -am "Update dependencies to mitmproxy version ${{ steps.determine_version.outputs.installed_version }}"
+        git push --set-upstream origin update-dependencies-${{ steps.determine_version.outputs.installed_version }}
