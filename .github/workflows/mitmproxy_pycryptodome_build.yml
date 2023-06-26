@@ -56,7 +56,7 @@ jobs:
         else
           echo "No new release detected"
           echo "::set-output name=new_release::false"
-        }
+        fi
 
   build:
     needs: determine_version
