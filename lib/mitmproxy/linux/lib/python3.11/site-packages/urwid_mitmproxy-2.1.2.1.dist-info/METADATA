@@ -1,0 +1,35 @@
+Metadata-Version: 2.1
+Name: urwid-mitmproxy
+Version: 2.1.2.1
+Summary: A full-featured console (xterm et al.) user interface library
+Home-page: https://github.com/mitmproxy/urwid-mitmproxy
+Author: Ian Ward
+Author-email: ian@excess.org
+Maintainer: Maximilian Hils
+Maintainer-email: pypi@maximilianhils.com
+License: LGPL
+Keywords: curses ui widget scroll listbox user interface text layout console ncurses
+Platform: unix-like
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Environment :: Console :: Curses
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)
+Classifier: Operating System :: POSIX
+Classifier: Operating System :: Unix
+Classifier: Operating System :: MacOS :: MacOS X
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Software Development :: Widget Sets
+Classifier: Programming Language :: Python :: 2
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+License-File: COPYING
+
+
+This is an `urwid <https://pypi.org/project/urwid/>`_ fork with specific patches for
+`mitmproxy <https://mitmproxy.org>`_.
