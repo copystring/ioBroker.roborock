@@ -21,7 +21,13 @@ jobs:
         python-version: '3.x'
 
     - name: Clone mitmproxy repository
-      run: git clone https://github.com/mitmproxy/mitmproxy.git
+      run: |
+        git clone https://github.com/mitmproxy/mitmproxy.git
+        cd mitmproxy
+        git fetch --tags
+        latest_tag=$(git describe --tags $(git rev-list --tags --max-count=1))
+        git checkout $latest_tag
+
 
     - name: Install dependencies
       run: |
@@ -76,7 +82,13 @@ jobs:
         python-version: ${{ matrix.python-version }}
 
     - name: Clone mitmproxy repository
-      run: git clone https://github.com/mitmproxy/mitmproxy.git
+      run: |
+        git clone https://github.com/mitmproxy/mitmproxy.git
+        cd mitmproxy
+        git fetch --tags
+        latest_tag=$(git describe --tags $(git rev-list --tags --max-count=1))
+        git checkout $latest_tag
+
 
     - name: Install dependencies (Linux)
       if: runner.os == 'Linux'
