@@ -34,8 +34,8 @@ jobs:
       id: compare_releases
       run: |
         if [ "${{ steps.determine_installed_version.outputs.installed_version }}" != "${{ steps.determine_new_version.outputs.new_version }}" ]; then
-          echo "New release detected: ${{ steps.determine_installed_version.outputs.installed_version }}"
-          echo "${{ steps.determine_installed_version.outputs.installed_version }}" > mitmproxy_release.txt
+          echo "New release detected: ${{ steps.determine_new_version.outputs.new_version }}"
+          echo "${{ steps.determine_new_version.outputs.new_version }}" > mitmproxy_release.txt
           echo "::set-output name=new_release::true"
         else
           echo "No new release detected"
