@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
         new_release: ${{ steps.compare_releases.outputs.new_release  }}
-        installed_version: ${{ steps.determine_version.outputs.installed_version  }}
+        new_version: ${{ steps.determine_installed_version.outputs.new_version  }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -20,44 +20,27 @@ jobs:
       with:
         python-version: '3.x'
 
-    - name: Clone mitmproxy repository
+    - name: Determine new version
+      id: determine_new_version
       run: |
         git clone https://github.com/mitmproxy/mitmproxy.git
         cd mitmproxy
         git fetch --tags
         latest_tag=$(git describe --tags $(git rev-list --tags --max-count=1))
-        git checkout $latest_tag
-
-
-    - name: Install dependencies
-      run: |
-        cd mitmproxy
-        python -m venv venv
-        source venv/bin/activate
-        pip install pycryptodome
-        deactivate
-        venv/bin/pip install -e ".[dev]"
+        echo "::set-output name=new_version::${latest_tag}"
 
     - name: Determine currently installed version
-      id: determine_version
+      id: determine_installed_version
       run: |
-        cd mitmproxy
-        source venv/bin/activate
-        installed_version=$(mitmproxy --version | awk '{print $2}')
+        installed_version=$(cat mitmproxy_release.txt 2>/dev/null || echo "")
         echo "::set-output name=installed_version::${installed_version}"
-
-    - name: Read previous release
-      id: read_previous_release
-      run: |
-        previous_release=$(cat mitmproxy_release.txt 2>/dev/null || echo "")
-        echo "::set-output name=previous_release::${previous_release}"
 
     - name: Compare releases
       id: compare_releases
       run: |
-        if [ "${{ steps.determine_version.outputs.installed_version }}" != "${{ steps.read_previous_release.outputs.previous_release }}" ]; then
-          echo "New release detected: ${{ steps.determine_version.outputs.installed_version }}"
-          echo "${{ steps.determine_version.outputs.installed_version }}" > mitmproxy_release.txt
+        if [ "${{ steps.determine_installed_version.outputs.installed_version }}" != "${{ steps.determine_new_version.outputs.new_version }}" ]; then
+          echo "New release detected: ${{ steps.determine_installed_version.outputs.installed_version }}"
+          echo "${{ steps.determine_installed_version.outputs.installed_version }}" > mitmproxy_release.txt
           echo "::set-output name=new_release::true"
         else
           echo "No new release detected"
@@ -85,9 +68,8 @@ jobs:
       run: |
         git clone https://github.com/mitmproxy/mitmproxy.git
         cd mitmproxy
-        git fetch --tags
-        latest_tag=$(git describe --tags $(git rev-list --tags --max-count=1))
-        git checkout $latest_tag
+        git checkout ${{ needs.determine_version.outputs.new_version }}
+
 
 
     - name: Install dependencies (Linux)
@@ -131,6 +113,6 @@ jobs:
       uses: peter-evans/create-pull-request@v5
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-        title: "Update mitmproxy to ${{ needs.determine_version.outputs.installed_version }}"
+        title: "Update mitmproxy to ${{ needs.determine_version.outputs.new_version }}"
         base: "main"
-        branch: "mitmproxy_${{ needs.determine_version.outputs.installed_version }}"
+        branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
