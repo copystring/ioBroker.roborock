@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
         new_release: ${{ steps.compare_releases.outputs.new_release  }}
-        new_version: ${{ steps.determine_installed_version.outputs.new_version  }}
+        new_version: ${{ steps.determine_new_version.outputs.new_version  }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -37,7 +37,6 @@ jobs:
           echo "New release detected: ${{ steps.determine_new_version.outputs.new_version }}"
           echo "${{ steps.determine_new_version.outputs.new_version }}" > mitmproxy_release.txt
           echo "::set-output name=new_release::true"
-          echo "::set-output name=new_version::${{ steps.determine_new_version.outputs.new_version }}"
         else
           echo "No new release detected"
           echo "::set-output name=new_release::false"
