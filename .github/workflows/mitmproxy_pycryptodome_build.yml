@@ -37,6 +37,7 @@ jobs:
           echo "New release detected: ${{ steps.determine_new_version.outputs.new_version }}"
           echo "${{ steps.determine_new_version.outputs.new_version }}" > mitmproxy_release.txt
           echo "::set-output name=new_release::true"
+          echo "::set-output name=new_version::${{ steps.determine_new_version.outputs.new_version }}"
         else
           echo "No new release detected"
           echo "::set-output name=new_release::false"
