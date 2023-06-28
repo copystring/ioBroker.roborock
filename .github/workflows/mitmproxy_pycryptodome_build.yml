@@ -15,11 +15,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.x'
-
     - name: Determine new version
       id: determine_new_version
       run: |
@@ -71,8 +66,7 @@ jobs:
         git checkout ${{ needs.determine_version.outputs.new_version }}
 
 
-
-    - name: Install dependencies (Linux)
+    - name: Create mitmproxy binaries for Linux
       if: runner.os == 'Linux'
       run: |
         cd mitmproxy
@@ -84,7 +78,7 @@ jobs:
         mkdir -p ../lib/mitmproxy/linux
         cp -r ./venv/* ../lib/mitmproxy/linux
 
-    - name: Install dependencies (Windows)
+    - name: Create mitmproxy binaries for Windows
       if: runner.os == 'Windows'
       run: |
         cd mitmproxy
@@ -96,7 +90,7 @@ jobs:
         New-Item -Path ..\lib\mitmproxy\windows -ItemType Directory -Force
         Copy-Item -Path .\venv\* -Destination ..\lib\mitmproxy\windows -Recurse
 
-    - name: Install dependencies (macOS)
+    - name: Create mitmproxy binaries for macOS
       if: runner.os == 'macOS'
       run: |
         cd mitmproxy
