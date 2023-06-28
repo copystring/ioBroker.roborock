@@ -1,0 +1,53 @@
+Metadata-Version: 2.1
+Name: pylsqpack
+Version: 0.3.17
+Summary: Python wrapper for the ls-qpack QPACK library
+Author-email: Jeremy Lainé <jeremy.laine@m4x.org>
+License: BSD-3-Clause
+Project-URL: homepage, https://github.com/aiortc/pylsqpack
+Project-URL: documentation, https://pylsqpack.readthedocs.io/
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Web Environment
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Internet :: WWW/HTTP
+Requires-Python: >=3.7
+Description-Content-Type: text/x-rst
+License-File: LICENSE
+
+pylsqpack
+=========
+
+|rtd| |pypi-v| |pypi-pyversions| |pypi-l| |tests|
+
+.. |rtd| image:: https://readthedocs.org/projects/pylsqpack/badge/?version=latest
+    :target: https://pylsqpack.readthedocs.io/
+
+.. |pypi-v| image:: https://img.shields.io/pypi/v/pylsqpack.svg
+    :target: https://pypi.python.org/pypi/pylsqpack
+
+.. |pypi-pyversions| image:: https://img.shields.io/pypi/pyversions/pylsqpack.svg
+    :target: https://pypi.python.org/pypi/pylsqpack
+
+.. |pypi-l| image:: https://img.shields.io/pypi/l/pylsqpack.svg
+    :target: https://pypi.python.org/pypi/pylsqpack
+
+.. |tests| image:: https://github.com/aiortc/pylsqpack/workflows/tests/badge.svg
+    :target: https://github.com/aiortc/pylsqpack/actions
+
+``pylsqpack`` is a wrapper around the `ls-qpack`_ library. It provides Python
+`Decoder` and `Encoder` objects to read or write HTTP/3 headers compressed
+with QPACK.
+
+To learn more about ``pylsqpack`` please `read the documentation`_.
+
+.. _ls-qpack: https://github.com/litespeedtech/ls-qpack/
+.. _read the documentation: https://pylsqpack.readthedocs.io/en/latest/
