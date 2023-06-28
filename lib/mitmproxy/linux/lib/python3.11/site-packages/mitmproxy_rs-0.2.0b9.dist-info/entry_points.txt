@@ -1,0 +1,2 @@
+[pyinstaller40]
+hook-dirs=mitmproxy_rs._pyinstaller:hook_dirs
