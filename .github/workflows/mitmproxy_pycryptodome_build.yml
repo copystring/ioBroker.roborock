@@ -14,8 +14,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-        with:
-          repository: mitmproxy/mitmproxy
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -66,7 +64,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
         with:
-          repository: mitmproxy/mitmproxy
           ref: ${{ needs.determine_version.outputs.installed_version }}
 
       - name: Set up Python
