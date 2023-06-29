@@ -147,6 +147,11 @@ jobs:
     if: needs.determine_version.outputs.new_release == 'true'
 
     steps:
+      - name: Setup git
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "<>"
+
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
         with:
