@@ -75,6 +75,14 @@ jobs:
           mkdir -p ../lib/mitmproxy/linux
           cp -r ./venv/* ../lib/mitmproxy/linux
 
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "Add Linux binaries" -a
+          git push
+
   build_windows:
     needs: determine_version
     runs-on: windows-latest
@@ -108,6 +116,14 @@ jobs:
           New-Item -Path ..\lib\mitmproxy\windows -ItemType Directory -Force
           Copy-Item -Path .\venv\* -Destination ..\lib\mitmproxy\windows -Recurse -Force
 
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "Add Windows binaries" -a
+          git push
+
   build_macos:
     needs: determine_version
     runs-on: macos-latest
@@ -140,6 +156,14 @@ jobs:
           venv/bin/pip install -e ".[dev]"
           mkdir -p ../lib/mitmproxy/macos
           cp -r ./venv/* ../lib/mitmproxy/macos
+
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "Add macOS binaries" -a
+          git push
 
   create_pull_request:
     needs: [build_linux, build_windows, build_macos, determine_version]
