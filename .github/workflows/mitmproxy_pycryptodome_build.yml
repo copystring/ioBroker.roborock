@@ -122,6 +122,7 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git checkout -b mitmproxy_${{ needs.determine_version.outputs.new_version }}
+          git pull --rebase origin mitmproxy_${{ needs.determine_version.outputs.new_version }}
           git add .
           git commit -m "Add Windows binaries"
           git push origin mitmproxy_${{ needs.determine_version.outputs.new_version }}
@@ -164,6 +165,7 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git checkout -b mitmproxy_${{ needs.determine_version.outputs.new_version }}
+          git pull --rebase origin mitmproxy_${{ needs.determine_version.outputs.new_version }}
           git add .
           git commit -m "Add macOS binaries"
           git push origin mitmproxy_${{ needs.determine_version.outputs.new_version }}
