@@ -147,6 +147,9 @@ jobs:
     if: needs.determine_version.outputs.new_release == 'true'
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
         with:
