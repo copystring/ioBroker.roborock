@@ -9,104 +9,155 @@ jobs:
   determine_version:
     runs-on: ubuntu-latest
     outputs:
-        new_release: ${{ steps.compare_releases.outputs.new_release  }}
-        new_version: ${{ steps.determine_new_version.outputs.new_version  }}
+      new_release: ${{ steps.compare_releases.outputs.new_release }}
+      new_version: ${{ steps.determine_new_version.outputs.new_version }}
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-    - name: Determine new version
-      id: determine_new_version
-      run: |
-        git clone https://github.com/mitmproxy/mitmproxy.git
-        cd mitmproxy
-        git fetch --tags
-        latest_tag=$(git describe --tags $(git rev-list --tags --max-count=1))
-        echo "::set-output name=new_version::${latest_tag}"
+      - name: Determine new version
+        id: determine_new_version
+        run: |
+          git clone https://github.com/mitmproxy/mitmproxy.git
+          cd mitmproxy
+          git fetch --tags
+          latest_tag=$(git describe --tags $(git rev-list --tags --max-count=1))
+          echo "::set-output name=new_version::${latest_tag}"
 
-    - name: Determine currently installed version
-      id: determine_installed_version
-      run: |
-        installed_version=$(cat mitmproxy_release.txt 2>/dev/null || echo "")
-        echo "::set-output name=installed_version::${installed_version}"
+      - name: Determine currently installed version
+        id: determine_installed_version
+        run: |
+          installed_version=$(cat mitmproxy_release.txt 2>/dev/null || echo "")
+          echo "::set-output name=installed_version::${installed_version}"
 
-    - name: Compare releases
-      id: compare_releases
-      run: |
-        if [ "${{ steps.determine_installed_version.outputs.installed_version }}" != "${{ steps.determine_new_version.outputs.new_version }}" ]; then
-          echo "New release detected: ${{ steps.determine_new_version.outputs.new_version }}"
-          echo "${{ steps.determine_new_version.outputs.new_version }}" > mitmproxy_release.txt
-          echo "::set-output name=new_release::true"
-        else
-          echo "No new release detected"
-          echo "::set-output name=new_release::false"
-        fi
+      - name: Compare releases
+        id: compare_releases
+        run: |
+          if [ "${{ steps.determine_installed_version.outputs.installed_version }}" != "${{ steps.determine_new_version.outputs.new_version }}" ]; then
+            echo "New release detected: ${{ steps.determine_new_version.outputs.new_version }}"
+            echo "${{ steps.determine_new_version.outputs.new_version }}" > mitmproxy_release.txt
+            echo "::set-output name=new_release::true"
+          else
+            echo "No new release detected"
+            echo "::set-output name=new_release::false"
+          fi
 
-  build:
+  build_linux:
     needs: determine_version
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ['3.x']
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
 
-    - name: Clone mitmproxy repository
-      run: |
-        git clone https://github.com/mitmproxy/mitmproxy.git
-        cd mitmproxy
-        git checkout ${{ needs.determine_version.outputs.new_version }}
+      - name: Clone mitmproxy repository
+        run: |
+          git clone https://github.com/mitmproxy/mitmproxy.git
+          cd mitmproxy
+          git checkout ${{ needs.determine_version.outputs.new_version }}
 
+      - name: Create mitmproxy binaries for Linux
+        run: |
+          cd mitmproxy
+          python -m venv venv
+          source venv/bin/activate
+          pip install pycryptodome
+          deactivate
+          venv/bin/pip install -e ".[dev]"
+          mkdir -p ../lib/mitmproxy/linux
+          cp -r ./venv/* ../lib/mitmproxy/linux
 
-    - name: Create mitmproxy binaries for Linux
-      if: runner.os == 'Linux'
-      run: |
-        cd mitmproxy
-        python -m venv venv
-        source venv/bin/activate
-        pip install pycryptodome
-        deactivate
-        venv/bin/pip install -e ".[dev]"
-        mkdir -p ../lib/mitmproxy/linux
-        cp -r ./venv/* ../lib/mitmproxy/linux
+  build_windows:
+    needs: determine_version
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ['3.x']
 
-    - name: Create mitmproxy binaries for Windows
-      if: runner.os == 'Windows'
-      run: |
-        cd mitmproxy
-        python -m venv venv
-        .\venv\Scripts\activate
-        pip install pycryptodome
-        .\venv\Scripts\deactivate
-        .\venv\Scripts\pip install -e ".[dev]"
-        New-Item -Path ..\lib\mitmproxy\windows -ItemType Directory -Force
-        Copy-Item -Path .\venv\* -Destination ..\lib\mitmproxy\windows -Recurse
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-    - name: Create mitmproxy binaries for macOS
-      if: runner.os == 'macOS'
-      run: |
-        cd mitmproxy
-        python3 -m venv venv
-        source venv/bin/activate
-        pip install pycryptodome
-        deactivate
-        venv/bin/pip install -e ".[dev]"
-        mkdir -p ../lib/mitmproxy/macos
-        cp -r ./venv/* ../lib/mitmproxy/macos
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
 
-    - name: Create Pull Request
-      if: needs.determine_version.outputs.new_release == 'true'
-      uses: peter-evans/create-pull-request@v5
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        title: "Update mitmproxy to ${{ needs.determine_version.outputs.new_version }}"
-        base: "main"
-        branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
+      - name: Clone mitmproxy repository
+        run: |
+          git clone https://github.com/mitmproxy/mitmproxy.git
+          cd mitmproxy
+          git checkout ${{ needs.determine_version.outputs.new_version }}
+
+      - name: Create mitmproxy binaries for Windows
+        run: |
+          cd mitmproxy
+          python -m venv venv
+          .\venv\Scripts\activate
+          pip install pycryptodome
+          .\venv\Scripts\deactivate
+          .\venv\Scripts\pip install -e ".[dev]"
+          New-Item -Path ..\lib\mitmproxy\windows -ItemType Directory -Force
+          Copy-Item -Path .\venv\* -Destination ..\lib\mitmproxy\windows -Recurse -Force
+
+  build_macos:
+    needs: determine_version
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        python-version: ['3.x']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Clone mitmproxy repository
+        run: |
+          git clone https://github.com/mitmproxy/mitmproxy.git
+          cd mitmproxy
+          git checkout ${{ needs.determine_version.outputs.new_version }}
+
+      - name: Create mitmproxy binaries for macOS
+        run: |
+          cd mitmproxy
+          python3 -m venv venv
+          source venv/bin/activate
+          pip install pycryptodome
+          deactivate
+          venv/bin/pip install -e ".[dev]"
+          mkdir -p ../lib/mitmproxy/macos
+          cp -r ./venv/* ../lib/mitmproxy/macos
+
+  create_pull_request:
+    needs: [build_linux, build_windows, build_macos]
+    runs-on: ubuntu-latest
+    if: needs.determine_version.outputs.new_release == true
+    env:
+      NEW_RELEASE: ${{ needs.determine_version.outputs.new_release }}
+      NEW_VERSION: ${{ needs.determine_version.outputs.new_version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "Update mitmproxy to ${{ env.NEW_VERSION }}"
+          base: "main"
+          branch: "mitmproxy_${{ env.NEW_VERSION }}"
+
