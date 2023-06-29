@@ -142,12 +142,9 @@ jobs:
           cp -r ./venv/* ../lib/mitmproxy/macos
 
   create_pull_request:
-    needs: [build_linux, build_windows, build_macos]
+    needs: [build_linux, build_windows, build_macos, determine_version]
     runs-on: ubuntu-latest
     if: needs.determine_version.outputs.new_release == true
-    env:
-      NEW_RELEASE: ${{ needs.determine_version.outputs.new_release }}
-      NEW_VERSION: ${{ needs.determine_version.outputs.new_version }}
 
     steps:
       - name: Checkout code
@@ -157,7 +154,7 @@ jobs:
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          title: "Update mitmproxy to ${{ env.NEW_VERSION }}"
+          title: "Update mitmproxy to ${{ needs.determine_version.outputs.new_version }}"
           base: "main"
-          branch: "mitmproxy_${{ env.NEW_VERSION }}"
+          branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
 
