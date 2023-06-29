@@ -85,7 +85,7 @@ jobs:
           git push origin mitmproxy_${{ needs.determine_version.outputs.new_version }}
 
   build_windows:
-    needs: determine_version
+    needs: [determine_version, build_linux]
     runs-on: windows-latest
     strategy:
       matrix:
@@ -127,7 +127,7 @@ jobs:
           git push origin mitmproxy_${{ needs.determine_version.outputs.new_version }}
 
   build_macos:
-    needs: determine_version
+    needs: [determine_version, build_windows]
     runs-on: macos-latest
     strategy:
       matrix:
