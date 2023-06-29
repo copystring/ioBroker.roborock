@@ -79,9 +79,10 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          git checkout -b mitmproxy_${{ needs.determine_version.outputs.new_version }}
           git add .
-          git commit -m "Add Linux binaries" -a
-          git push
+          git commit -m "Add Linux binaries"
+          git push origin mitmproxy_${{ needs.determine_version.outputs.new_version }}
 
   build_windows:
     needs: determine_version
@@ -120,9 +121,10 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          git checkout -b mitmproxy_${{ needs.determine_version.outputs.new_version }}
           git add .
-          git commit -m "Add Windows binaries" -a
-          git push
+          git commit -m "Add Windows binaries"
+          git push origin mitmproxy_${{ needs.determine_version.outputs.new_version }}
 
   build_macos:
     needs: determine_version
@@ -161,9 +163,10 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          git checkout -b mitmproxy_${{ needs.determine_version.outputs.new_version }}
           git add .
-          git commit -m "Add macOS binaries" -a
-          git push
+          git commit -m "Add macOS binaries"
+          git push origin mitmproxy_${{ needs.determine_version.outputs.new_version }}
 
   create_pull_request:
     needs: [build_linux, build_windows, build_macos, determine_version]
