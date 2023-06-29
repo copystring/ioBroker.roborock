@@ -144,7 +144,7 @@ jobs:
   create_pull_request:
     needs: [build_linux, build_windows, build_macos, determine_version]
     runs-on: ubuntu-latest
-    if: needs.determine_version.outputs.new_release == true
+    if: needs.determine_version.outputs.new_release == 'true'
 
     steps:
       - name: Checkout code
