@@ -51,7 +51,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -82,7 +82,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: "Update mitmproxy to ${{ needs.determine_version.outputs.new_version }}"
-          base: "main"
+          branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
           commit-message: "Add Linux binaries"
           labels: "linux"
 
@@ -95,9 +95,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
-        with:
-          ref: mitmproxy_${{ needs.determine_version.outputs.new_version }}
+        uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -128,7 +126,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: "Update mitmproxy to ${{ needs.determine_version.outputs.new_version }}"
-          base: "main"
+          branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
           commit-message: "Add Windows binaries"
           labels: "windows"
 
@@ -141,9 +139,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
-        with:
-          ref: mitmproxy_${{ needs.determine_version.outputs.new_version }}
+        uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -174,6 +170,5 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: "Update mitmproxy to ${{ needs.determine_version.outputs.new_version }}"
-          base: "main"
           commit-message: "Add macOS binaries"
           labels: "macos"
