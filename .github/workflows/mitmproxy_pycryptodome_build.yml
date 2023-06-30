@@ -73,7 +73,7 @@ jobs:
           deactivate
           venv/bin/pip install -e ".[dev]"
           mkdir -p ../lib/mitmproxy/linux
-          cp -r ./venv/Scripts/* ../lib/mitmproxy/linux
+          cp -r ./venv/* ../lib/mitmproxy/linux
           cd ..
           rm -rf mitmproxy
 
@@ -94,6 +94,11 @@ jobs:
         python-version: ['3.x']
 
     steps:
+      - name: Discard uncommitted changes
+        run: |
+          git reset --hard
+          git clean -fd
+
       - name: Checkout code
         uses: actions/checkout@v3
 
@@ -117,7 +122,7 @@ jobs:
           .\venv\Scripts\deactivate
           .\venv\Scripts\pip install -e ".[dev]"
           New-Item -Path ..\lib\mitmproxy\windows -ItemType Directory -Force
-          Copy-Item -Path .\venv\Scripts\* -Destination ..\lib\mitmproxy\windows -Recurse -Force
+          Copy-Item -Path .\venv\* -Destination ..\lib\mitmproxy\windows -Recurse -Force
           cd ..
           Remove-Item -Recurse -Force mitmproxy
 
@@ -138,6 +143,11 @@ jobs:
         python-version: ['3.x']
 
     steps:
+      - name: Discard uncommitted changes
+        run: |
+          git reset --hard
+          git clean -fd
+
       - name: Checkout code
         uses: actions/checkout@v3
 
@@ -161,7 +171,7 @@ jobs:
           deactivate
           venv/bin/pip install -e ".[dev]"
           mkdir -p ../lib/mitmproxy/macos
-          cp -r ./venv/Scripts/* ../lib/mitmproxy/macos
+          cp -r ./venv/* ../lib/mitmproxy/macos
           cd ..
           rm -rf mitmproxy
 
