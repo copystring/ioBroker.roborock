@@ -74,6 +74,7 @@ jobs:
           venv/bin/pip install -e ".[dev]"
           mkdir -p ../lib/mitmproxy/linux
           cp -r ./venv/* ../lib/mitmproxy/linux
+          rm -rf mitmproxy
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
@@ -113,6 +114,7 @@ jobs:
           .\venv\Scripts\pip install -e ".[dev]"
           New-Item -Path ..\lib\mitmproxy\windows -ItemType Directory -Force
           Copy-Item -Path .\venv\* -Destination ..\lib\mitmproxy\windows -Recurse -Force
+          Remove-Item -Recurse -Force mitmproxy
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
@@ -152,6 +154,7 @@ jobs:
           venv/bin/pip install -e ".[dev]"
           mkdir -p ../lib/mitmproxy/macos
           cp -r ./venv/* ../lib/mitmproxy/macos
+          rm -rf mitmproxy
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
