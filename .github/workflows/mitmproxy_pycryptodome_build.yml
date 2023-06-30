@@ -75,6 +75,16 @@ jobs:
           mkdir -p ../lib/mitmproxy/linux
           cp -r ./venv/* ../lib/mitmproxy/linux
 
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "Update mitmproxy to ${{ needs.determine_version.outputs.new_version }}"
+          base: "main"
+          branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
+          commit-message: "Add Linux binaries"
+          labels: "linux"
+
   build_windows:
     needs: [determine_version, build_linux]
     runs-on: windows-latest
@@ -107,6 +117,16 @@ jobs:
           .\venv\Scripts\pip install -e ".[dev]"
           New-Item -Path ..\lib\mitmproxy\windows -ItemType Directory -Force
           Copy-Item -Path .\venv\* -Destination ..\lib\mitmproxy\windows -Recurse -Force
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "Update mitmproxy to ${{ needs.determine_version.outputs.new_version }}"
+          base: "main"
+          branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
+          commit-message: "Add Windows binaries"
+          labels: "windows"
 
   build_macos:
     needs: [determine_version, build_windows]
@@ -141,15 +161,6 @@ jobs:
           mkdir -p ../lib/mitmproxy/macos
           cp -r ./venv/* ../lib/mitmproxy/macos
 
-  create_pull_request:
-    needs: [build_linux, build_windows, build_macos, determine_version]
-    runs-on: ubuntu-latest
-    if: needs.determine_version.outputs.new_release == 'true'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
         with:
@@ -157,4 +168,5 @@ jobs:
           title: "Update mitmproxy to ${{ needs.determine_version.outputs.new_version }}"
           base: "main"
           branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
-
+          commit-message: "Add macOS binaries"
+          labels: "macos"
