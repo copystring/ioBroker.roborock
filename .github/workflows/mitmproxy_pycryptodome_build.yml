@@ -44,7 +44,7 @@ jobs:
 
   build_linux:
     needs: determine_version
-    runs-on: ubuntu-latest
+    runs-on: [ubuntu-latest, windows-latest]
     strategy:
       matrix:
         python-version: ['3.x']
@@ -65,6 +65,7 @@ jobs:
           git checkout ${{ needs.determine_version.outputs.new_version }}
 
       - name: Create mitmproxy binaries for Linux
+        if: runner.os == 'Linux'
         run: |
           cd mitmproxy
           python -m venv venv
@@ -77,41 +78,8 @@ jobs:
           cd ..
           rm -rf mitmproxy
 
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          title: "Update mitmproxy to ${{ needs.determine_version.outputs.new_version }}"
-          base: "main"
-          branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
-          commit-message: "Add Linux binaries"
-          labels: "linux"
-
-  build_windows:
-    needs: [determine_version, build_linux]
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        python-version: ['3.x']
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          ref: mitmproxy_${{ needs.determine_version.outputs.new_version }}
-
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Clone mitmproxy repository
-        run: |
-          git clone https://github.com/mitmproxy/mitmproxy.git
-          cd mitmproxy
-          git checkout ${{ needs.determine_version.outputs.new_version }}
-
       - name: Create mitmproxy binaries for Windows
+        if: runner.os == 'Windows'
         run: |
           cd mitmproxy
           python -m venv venv
@@ -129,7 +97,5 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: "Update mitmproxy to ${{ needs.determine_version.outputs.new_version }}"
-          base: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
+          base: "main"
           branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
-          commit-message: "Add Windows binaries"
-          labels: "windows"
