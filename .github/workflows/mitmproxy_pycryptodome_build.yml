@@ -94,13 +94,13 @@ jobs:
         python-version: ['3.x']
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Discard uncommitted changes
         run: |
           git reset --hard
           git clean -fd
-
-      - name: Checkout code
-        uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -143,13 +143,13 @@ jobs:
         python-version: ['3.x']
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Discard uncommitted changes
         run: |
           git reset --hard
           git clean -fd
-
-      - name: Checkout code
-        uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v2
