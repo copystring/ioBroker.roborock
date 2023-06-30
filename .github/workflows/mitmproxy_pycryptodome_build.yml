@@ -106,8 +106,7 @@ jobs:
       - name: Debug directory structure
         run: |
           pwd
-          Get-ChildItem
-
+          ls -al
 
       - name: Create mitmproxy binaries for Windows
         run: |
