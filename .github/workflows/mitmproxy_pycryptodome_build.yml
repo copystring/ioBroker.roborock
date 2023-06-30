@@ -73,7 +73,7 @@ jobs:
           deactivate
           venv/bin/pip install -e ".[dev]"
           mkdir -p ../lib/mitmproxy/linux
-          cp -r ./venv/* ../lib/mitmproxy/linux
+          cp -rL ./venv/* ../lib/mitmproxy/linux
           cd ..
           rm -rf mitmproxy
 
