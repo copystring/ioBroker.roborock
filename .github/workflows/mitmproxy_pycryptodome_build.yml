@@ -82,15 +82,10 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: "Update mitmproxy to ${{ needs.determine_version.outputs.new_version }}"
+          base: "main"
           branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
           commit-message: "Add Linux binaries"
           labels: "linux"
-
-
-      - name: Discard uncommitted changes
-        run: |
-          git reset --hard
-          git clean -fd
 
   build_windows:
     needs: [determine_version, build_linux]
@@ -102,11 +97,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-
-      - name: Discard uncommitted changes
-        run: |
-          git reset --hard
-          git clean -fd
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -137,6 +127,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: "Update mitmproxy to ${{ needs.determine_version.outputs.new_version }}"
+          base: "main"
           branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
           commit-message: "Add Windows binaries"
           labels: "windows"
@@ -151,11 +142,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-
-      - name: Discard uncommitted changes
-        run: |
-          git reset --hard
-          git clean -fd
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -186,5 +172,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: "Update mitmproxy to ${{ needs.determine_version.outputs.new_version }}"
+          base: "main"
+          branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
           commit-message: "Add macOS binaries"
           labels: "macos"
