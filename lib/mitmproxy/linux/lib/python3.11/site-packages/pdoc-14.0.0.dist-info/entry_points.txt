@@ -1,0 +1,2 @@
+[console_scripts]
+pdoc = pdoc.__main__:cli
