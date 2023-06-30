@@ -104,6 +104,12 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Clone mitmproxy repository
+        run: |
+          git clone https://github.com/mitmproxy/mitmproxy.git
+          cd mitmproxy
+          git checkout ${{ needs.determine_version.outputs.new_version }}
+
       - name: Create mitmproxy binaries for Windows
         run: |
           cd mitmproxy
@@ -143,6 +149,12 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
+
+      - name: Clone mitmproxy repository
+        run: |
+          git clone https://github.com/mitmproxy/mitmproxy.git
+          cd mitmproxy
+          git checkout ${{ needs.determine_version.outputs.new_version }}
 
       - name: Create mitmproxy binaries for macOS
         run: |
