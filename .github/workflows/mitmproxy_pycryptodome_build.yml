@@ -83,7 +83,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: "Update mitmproxy to ${{ needs.determine_version.outputs.new_version }}"
           base: "main"
-          branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
           commit-message: "Add Linux binaries"
           labels: "linux"
 
@@ -130,7 +129,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: "Update mitmproxy to ${{ needs.determine_version.outputs.new_version }}"
           base: "main"
-          branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
           commit-message: "Add Windows binaries"
           labels: "windows"
 
@@ -177,6 +175,5 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: "Update mitmproxy to ${{ needs.determine_version.outputs.new_version }}"
           base: "main"
-          branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
           commit-message: "Add macOS binaries"
           labels: "macos"
