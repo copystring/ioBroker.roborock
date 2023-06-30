@@ -74,6 +74,7 @@ jobs:
           venv/bin/pip install -e ".[dev]"
           mkdir -p ../lib/mitmproxy/linux
           cp -r ./venv/* ../lib/mitmproxy/linux
+          cd ..
           rm -rf mitmproxy
 
       - name: Create Pull Request
@@ -120,6 +121,7 @@ jobs:
           .\venv\Scripts\pip install -e ".[dev]"
           New-Item -Path ..\lib\mitmproxy\windows -ItemType Directory -Force
           Copy-Item -Path .\venv\* -Destination ..\lib\mitmproxy\windows -Recurse -Force
+          cd ..
           Remove-Item -Recurse -Force mitmproxy
 
       - name: Create Pull Request
@@ -127,7 +129,8 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: "Update mitmproxy to ${{ needs.determine_version.outputs.new_version }}"
-          base: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
+          base: "main"
+          branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
           commit-message: "Add Windows binaries"
           labels: "windows"
 
@@ -165,6 +168,7 @@ jobs:
           venv/bin/pip install -e ".[dev]"
           mkdir -p ../lib/mitmproxy/macos
           cp -r ./venv/* ../lib/mitmproxy/macos
+          cd ..
           rm -rf mitmproxy
 
       - name: Create Pull Request
@@ -172,6 +176,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: "Update mitmproxy to ${{ needs.determine_version.outputs.new_version }}"
-          base: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
+          base: "main"
+          branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
           commit-message: "Add macOS binaries"
           labels: "macos"
