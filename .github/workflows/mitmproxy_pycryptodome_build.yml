@@ -75,15 +75,6 @@ jobs:
           mkdir -p ../lib/mitmproxy/linux
           cp -r ./venv/* ../lib/mitmproxy/linux
 
-      - name: Commit and push changes
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git checkout -b mitmproxy_${{ needs.determine_version.outputs.new_version }}
-          git add .
-          git commit -m "Add Linux binaries"
-          git push origin mitmproxy_${{ needs.determine_version.outputs.new_version }}
-
   build_windows:
     needs: [determine_version, build_linux]
     runs-on: windows-latest
@@ -117,16 +108,6 @@ jobs:
           New-Item -Path ..\lib\mitmproxy\windows -ItemType Directory -Force
           Copy-Item -Path .\venv\* -Destination ..\lib\mitmproxy\windows -Recurse -Force
 
-      - name: Commit and push changes
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git checkout -b mitmproxy_${{ needs.determine_version.outputs.new_version }}
-          git pull --rebase origin mitmproxy_${{ needs.determine_version.outputs.new_version }}
-          git add .
-          git commit -m "Add Windows binaries"
-          git push origin mitmproxy_${{ needs.determine_version.outputs.new_version }}
-
   build_macos:
     needs: [determine_version, build_windows]
     runs-on: macos-latest
@@ -159,16 +140,6 @@ jobs:
           venv/bin/pip install -e ".[dev]"
           mkdir -p ../lib/mitmproxy/macos
           cp -r ./venv/* ../lib/mitmproxy/macos
-
-      - name: Commit and push changes
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git checkout -b mitmproxy_${{ needs.determine_version.outputs.new_version }}
-          git pull --rebase origin mitmproxy_${{ needs.determine_version.outputs.new_version }}
-          git add .
-          git commit -m "Add macOS binaries"
-          git push origin mitmproxy_${{ needs.determine_version.outputs.new_version }}
 
   create_pull_request:
     needs: [build_linux, build_windows, build_macos, determine_version]
