@@ -97,6 +97,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          ref: mitmproxy_${{ needs.determine_version.outputs.new_version }}
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -131,48 +133,3 @@ jobs:
           branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
           commit-message: "Add Windows binaries"
           labels: "windows"
-
-  build_macos:
-    needs: [determine_version, build_windows]
-    runs-on: macos-latest
-    strategy:
-      matrix:
-        python-version: ['3.x']
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Clone mitmproxy repository
-        run: |
-          git clone https://github.com/mitmproxy/mitmproxy.git
-          cd mitmproxy
-          git checkout ${{ needs.determine_version.outputs.new_version }}
-
-      - name: Create mitmproxy binaries for macOS
-        run: |
-          cd mitmproxy
-          python3 -m venv venv
-          source venv/bin/activate
-          pip install pycryptodome
-          deactivate
-          venv/bin/pip install -e ".[dev]"
-          mkdir -p ../lib/mitmproxy/macos
-          cp -r ./venv/* ../lib/mitmproxy/macos
-          cd ..
-          rm -rf mitmproxy
-
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          title: "Update mitmproxy to ${{ needs.determine_version.outputs.new_version }}"
-          base: "main"
-          branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
-          commit-message: "Add macOS binaries"
-          labels: "macos"
