@@ -86,6 +86,12 @@ jobs:
           commit-message: "Add Linux binaries"
           labels: "linux"
 
+
+      - name: Discard uncommitted changes
+        run: |
+          git reset --hard
+          git clean -fd
+
   build_windows:
     needs: [determine_version, build_linux]
     runs-on: windows-latest
