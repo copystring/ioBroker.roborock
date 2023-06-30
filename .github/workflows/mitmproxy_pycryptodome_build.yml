@@ -103,11 +103,6 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Debug directory structure
-        run: |
-          pwd
-          ls -al
-
       - name: Create mitmproxy binaries for Windows
         run: |
           cd mitmproxy
