@@ -23,6 +23,8 @@ jobs:
           git fetch --tags
           latest_tag=$(git describe --tags $(git rev-list --tags --max-count=1))
           echo "::set-output name=new_version::${latest_tag}"
+          cd ..
+          rm -rf mitmproxy
 
       - name: Determine currently installed version
         id: determine_installed_version
@@ -37,8 +39,6 @@ jobs:
             echo "New release detected: ${{ steps.determine_new_version.outputs.new_version }}"
             echo "${{ steps.determine_new_version.outputs.new_version }}" > mitmproxy_release.txt
             echo "::set-output name=new_release::true"
-            cd ..
-            rm -rf mitmproxy
           else
             echo "No new release detected"
             echo "::set-output name=new_release::false"
