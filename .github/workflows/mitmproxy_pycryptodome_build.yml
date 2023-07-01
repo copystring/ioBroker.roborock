@@ -85,7 +85,6 @@ jobs:
           base: "main"
           branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
           commit-message: "Add Linux binaries"
-          labels: "linux"
 
   build_windows:
     needs: [determine_version, build_linux]
@@ -132,4 +131,3 @@ jobs:
           base: "main"
           branch: "mitmproxy_${{ needs.determine_version.outputs.new_version }}"
           commit-message: "Add Windows binaries"
-          labels: "windows"
