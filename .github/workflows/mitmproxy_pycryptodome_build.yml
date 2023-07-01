@@ -97,6 +97,7 @@ jobs:
           git config --local user.name "GitHub Action"
           git add .
           git commit -m "Add Linux binaries" -a
+          git push origin HEAD:${{ needs.determine_version.outputs.new_version }}
 
   build_windows:
     needs: [determine_version, build_linux]
@@ -142,3 +143,4 @@ jobs:
           git config --local user.name "GitHub Action"
           git add .
           git commit -m "Add Windows binaries" -a
+          git push origin HEAD:${{ needs.determine_version.outputs.new_version }}
