@@ -95,6 +95,7 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          git add .
           git commit -m "Add Linux binaries" -a
 
   build_windows:
@@ -139,4 +140,5 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          git add .
           git commit -m "Add Windows binaries" -a
