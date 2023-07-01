@@ -42,11 +42,12 @@ jobs:
             echo "::set-output name=new_release::false"
           fi
 
-  build_linux:
+  build_binaries:
     needs: determine_version
-    runs-on: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os: [ubuntu-latest, windows-latest]
         python-version: ['3.x']
 
     steps:
