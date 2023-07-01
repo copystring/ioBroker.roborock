@@ -70,7 +70,8 @@ loginApi.post("api/v1/login", new URLSearchParams({
 								const versionFilePath = path + "/version";
 
 								if (!fs.existsSync(versionFilePath)) {
-									const versionContent = packages[rr_package].version.toString();
+									// maybe i need this later
+									//const versionContent = packages[rr_package].version.toString();
 									fs.writeFileSync(versionFilePath, "0");
 									console.log("Version file created successfully!");
 								}
