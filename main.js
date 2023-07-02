@@ -320,6 +320,52 @@ class Roborock extends utils.Adapter {
 					case "get_photo":
 						this.vacuums[data["duid"]].getParameter(data["duid"], "get_photo", data["attribute"]);
 						break;
+					case "sniffing_decrypt":
+						await this.getStateAsync("HomeData").then(homedata => {
+							if (homedata) {
+								const homedataVal = homedata.val;
+								if (typeof(homedataVal) == "string") {
+									// this.log.debug("Sniffing message received!");
+									const homedataParsed = JSON.parse(homedataVal);
+
+									homedataParsed.devices.forEach(device => {
+										const data_string = JSON.stringify(data);
+
+										const parts = data_string.split("/");
+										const duid_sniffed = parts[parts.length - 1].slice(0, -3);
+
+										if (duid_sniffed == device.duid) {
+											const localKey = JSON.stringify(device.localKey).slice(1, -1);
+											// this.log.debug("duid_sniffed: " + duid_sniffed);
+											// this.log.debug("Device duid: " + JSON.stringify(device.duid).slice(1, -1));
+											// this.log.debug("Device localKey: " + localKey);
+
+
+											const startIndex = data_string.indexOf("'") + 1;
+											const endIndex = data_string.lastIndexOf("'");
+											const hex_payload = data_string.substring(startIndex, endIndex);
+											const msg = Buffer.from(hex_payload, "hex");
+											// this.log.debug("Sniffing msg: " + msg);
+
+
+											const decodedMessage = rr_mqtt_connector._decodeMsg(msg, localKey);
+											// this.log.debug("decodedMessage: " + JSON.stringify(decodedMessage));
+											this.log.debug("Decoded sniffing message: " + JSON.stringify(JSON.parse(decodedMessage.payload)));
+										}
+									});
+								}
+							}
+						}).catch(error => {
+							this.log.error("Failed to decode/decrypt sniffing message. " + error);
+
+							if (this.supportsFeature && this.supportsFeature("PLUGINS")) {
+								if (this.sentryInstance) {
+									this.sentryInstance.getSentryObject().captureException("Failed to initialize API. Error: " + error);
+								}
+							}
+						});
+
+						break;
 				}
 			});
 
