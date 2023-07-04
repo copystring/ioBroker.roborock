@@ -51,6 +51,8 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Add support for titles of obstacles
 * (copystring) Make options a little prettier
 * (copystring) Add support to check for new firmware
+* (copystring) Add Support for Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra
+* (copystring) Loads of bug fixes
 
 ### 0.1.6 (2023-03-13)
 * (copystring) Add touch support for zones in web interface
