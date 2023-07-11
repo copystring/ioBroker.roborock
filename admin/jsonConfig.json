@@ -23,11 +23,24 @@
 		},
 		"map_creation_interval": {
 			"type": "number",
-			"label": "Map Creation Interval"
+			"label": "Map Creation Interval",
+			"newLine": true,
+			"min": 1,
+			"max": 240
+		},
+		"updateInterval": {
+			"type": "number",
+			"label": "Update interval",
+			"newLine": true,
+			"min": 1,
+			"max": 240
 		},
 		"map_scale": {
 			"type": "number",
 			"label": "Quality of map (higher = better)",
+			"newLine": true,
+			"min": 1,
+			"max": 32
 		},
 		"webserverPort": {
 			"type": "number",
@@ -42,6 +55,9 @@
 		"cameraPin": {
 			"type": "number",
 			"label": "PIN for streaming the camera"
+			"newLine": true,
+			"min": 1,
+			"max": 65535
 		}
 	}
 }
