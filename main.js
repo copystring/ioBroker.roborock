@@ -6,12 +6,29 @@ const axios = require("axios").default;
 const crypto = require("crypto");
 const websocket = require("ws");
 const express = require("express");
+const os = require("os");
+const fs = require("fs");
+const path = require("path");
+const { execFile } = require("child_process");
+const findProcess = require("find-process");
 
+const { downloadRelease } = require("@terascope/fetch-github-release");
 
 const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roborock_mqtt_connector;
 const vacuum_class = require("./lib/vacuum").vacuum;
 
 let rr_mqtt_connector, socketServer, webserver;
+
+const systems = {
+	"win32": {"x64": "go2rtc_win64.zip"},
+	"linux": {
+		"arm": "go2rtc_linux_arm",
+		"arm64": "go2rtc_linux_arm64",
+		"ia32": "go2rtc_linux_i386",
+		"x64": "go2rtc_linux_amd64"
+	}
+};
+let go2rtc;
 
 class Roborock extends utils.Adapter {
 
@@ -31,6 +48,8 @@ class Roborock extends utils.Adapter {
 		this.roomIDs = {};
 		this.vacuums = {};
 		this.socket = null;
+
+		this.messageQueue = new Map();
 	}
 
 	/**
@@ -184,18 +203,28 @@ class Roborock extends utils.Adapter {
 
 						this.vacuums[duid].mainUpdateInterval = this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
 
-						this.updateDataExtraData(duid, this.vacuums[duid]); // extra data needs to be called first!!!
-						this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
+						await this.updateDataExtraData(duid, this.vacuums[duid]); // extra data needs to be called first!!!
+						await this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
+						this.vacuums[duid].getCameraStreams(duid);
 
 						this.vacuums[duid].getCleanSummary(duid);
+
+						// get map once at start of adapter
+						this.vacuums[duid].getMap(duid);
 
 						// reconnect every 3 hours (10800 seconds)
 						this.reconnectIntervall = this.setInterval(() => {
 							this.log.debug("Reconnecting after 3 hours!");
 
 							rr_mqtt_connector.reconnectClient();
+							this.checkForNewFirmware(duid);
 						}, 10800 * 1000);
+						this.checkForNewFirmware(duid);
 					}
+
+					await this.download_go2rtc();
+					this.start_go2rtc(this.vacuums, homedata, userdata);
+
 					this.homedataInterval = this.setInterval(this.updateHomeData.bind(this), this.config.updateInterval * 1000, homeId);
 					await this.updateHomeData(homeId);
 
@@ -206,6 +235,8 @@ class Roborock extends utils.Adapter {
 					}
 				});
 			}
+		}).catch(e => {
+			this.log.error("Failed to get home details: " + e);
 		});
 	}
 
@@ -235,6 +266,11 @@ class Roborock extends utils.Adapter {
 		const app = express();
 		app.use(express.static("lib/map"));
 		webserver = app.listen(this.config.webserverPort);
+
+		webserver.on("error", (error) => {
+			// This code will run if there was an error starting the server
+			this.log.error("Error occurred: " + error);
+		});
 	}
 	async stopWebserver() {
 		webserver.close();
@@ -260,6 +296,7 @@ class Roborock extends utils.Adapter {
 					case "app_goto_target":
 					case "app_start":
 					case "app_stop":
+					case "stop_zoned_clean":
 					case "app_pause":
 					case "app_charge":
 						parameters = data["parameters"];
@@ -279,12 +316,66 @@ class Roborock extends utils.Adapter {
 					case "getMap":
 						this.vacuums[data["duid"]].getMap(data["duid"]);
 						break;
+
+					case "get_photo":
+						this.vacuums[data["duid"]].getParameter(data["duid"], "get_photo", data["attribute"]);
+						break;
+					case "sniffing_decrypt":
+						await this.getStateAsync("HomeData").then(homedata => {
+							if (homedata) {
+								const homedataVal = homedata.val;
+								if (typeof(homedataVal) == "string") {
+									// this.log.debug("Sniffing message received!");
+									const homedataParsed = JSON.parse(homedataVal);
+
+									homedataParsed.devices.forEach(device => {
+										const data_string = JSON.stringify(data);
+
+										const parts = data_string.split("/");
+										const duid_sniffed = parts[parts.length - 1].slice(0, -3);
+
+										if (duid_sniffed == device.duid) {
+											const localKey = JSON.stringify(device.localKey).slice(1, -1);
+											// this.log.debug("duid_sniffed: " + duid_sniffed);
+											// this.log.debug("Device duid: " + JSON.stringify(device.duid).slice(1, -1));
+											// this.log.debug("Device localKey: " + localKey);
+
+
+											const startIndex = data_string.indexOf("'") + 1;
+											const endIndex = data_string.lastIndexOf("'");
+											const hex_payload = data_string.substring(startIndex, endIndex);
+											const msg = Buffer.from(hex_payload, "hex");
+											// this.log.debug("Sniffing msg: " + msg);
+
+
+											const decodedMessage = rr_mqtt_connector._decodeMsg(msg, localKey);
+											// this.log.debug("decodedMessage: " + JSON.stringify(decodedMessage));
+											this.log.debug("Decoded sniffing message: " + JSON.stringify(JSON.parse(decodedMessage.payload)));
+										}
+									});
+								}
+							}
+						}).catch(error => {
+							this.log.error("Failed to decode/decrypt sniffing message. " + error);
+
+							if (this.supportsFeature && this.supportsFeature("PLUGINS")) {
+								if (this.sentryInstance) {
+									this.sentryInstance.getSentryObject().captureException("Failed to initialize API. Error: " + error);
+								}
+							}
+						});
+
+						break;
 				}
 			});
 
 			socket.on("close", () => {
 				this.log.debug("Client disconnected");
 				this.socket = null;
+			});
+
+			socketServer.on("error", (error) => {
+				this.log.error("WebSocket Server error: " + error);
 			});
 		});
 	}
@@ -302,14 +393,20 @@ class Roborock extends utils.Adapter {
 
 	}
 
-	updateDataMinimumData(duid, vacuum, robotModel) {
+	async updateDataMinimumData(duid, vacuum, robotModel) {
 		this.log.debug("Latest data requested");
 
-		vacuum.getParameter(duid, "get_status");
+		await vacuum.getParameter(duid, "get_status");
 
-		vacuum.getParameter(duid, "get_consumable");
+		await vacuum.getParameter(duid, "get_room_mapping");
 
-		vacuum.getParameter(duid, "get_network_info");
+		await vacuum.getParameter(duid, "get_consumable");
+
+		await vacuum.getParameter(duid, "get_network_info");
+
+		await vacuum.getParameter(duid, "get_server_timer");
+
+		await vacuum.getParameter(duid, "get_timer");
 
 		switch (robotModel) {
 			case "roborock.vacuum.s4":
@@ -317,22 +414,23 @@ class Roborock extends utils.Adapter {
 			case "roborock.vacuum.s5e":
 			case "roborock.vacuum.a08":
 			case "roborock.vacuum.a10":
+			case "roborock.vacuum.a40":
 				//do nothing
 				break;
 			case "roborock.vacuum.s6":
-				vacuum.getParameter(duid, "get_carpet_mode");
+				await vacuum.getParameter(duid, "get_carpet_mode");
 				break;
 			default:
-				vacuum.getParameter(duid, "get_carpet_mode");
-				vacuum.getParameter(duid, "get_carpet_clean_mode");
-				vacuum.getParameter(duid, "get_water_box_custom_mode");
+				await vacuum.getParameter(duid, "get_carpet_mode");
+				await vacuum.getParameter(duid, "get_carpet_clean_mode");
+				await vacuum.getParameter(duid, "get_water_box_custom_mode");
 		}
 	}
 
 	async updateDataExtraData(duid, vacuum) {
-		vacuum.getParameter(duid, "get_fw_features");
+		await vacuum.getParameter(duid, "get_fw_features");
 
-		vacuum.getParameter(duid, "get_multi_maps_list");
+		await vacuum.getParameter(duid, "get_multi_maps_list");
 	}
 
 	clearTimersAndIntervals() {
@@ -353,6 +451,16 @@ class Roborock extends utils.Adapter {
 			this.clearInterval(this.vacuums[duid].mainUpdateInterval);
 			this.clearInterval(this.vacuums[duid].mapUpdater);
 		}
+
+		this.messageQueue.forEach(({ timeout102, timeout301 }) => {
+			this.clearTimeout(timeout102);
+			if (timeout301) {
+				this.clearTimeout(timeout301);
+			}
+		});
+
+		// Clear the messageQueue map
+		this.messageQueue.clear();
 	}
 
 	updateHomeData(homeId) {
@@ -363,12 +471,14 @@ class Roborock extends utils.Adapter {
 				this.log.debug("homedata successfully updated");
 
 				this.updateConsumablesPercent(homedata.devices);
+				this.updateDeviceInfo(homedata.devices);
+			}).catch (e => {
+				this.log.error("Failed to update updateHomeData with error: " + e);
 			});
 		}
 	}
 	updateConsumablesPercent(devices) {
 		for (const device in devices) {
-			this.log.debug("Update consumables");
 			const duid = devices[device].duid;
 
 			for (const deviceAttribute in devices[device].deviceStatus) {
@@ -379,6 +489,76 @@ class Roborock extends utils.Adapter {
 				}
 			}
 		}
+	}
+	async updateDeviceInfo(devices) {
+		for (const device in devices) {
+			const duid = devices[device].duid;
+
+			for (const deviceAttribute in devices[device]) {
+				if (typeof(devices[device][deviceAttribute]) != "object") {
+					let unit;
+					if (deviceAttribute == "activeTime") {
+						unit = "h";
+						devices[device][deviceAttribute] = Math.round(devices[device][deviceAttribute] / 1000/60/60);
+					}
+					await this.setObjectAsync("Devices." + duid + ".deviceInfo." + deviceAttribute, {
+						type: "state",
+						common: {
+							name: deviceAttribute,
+							type: this.getType(devices[device][deviceAttribute]),
+							unit: unit,
+							role: "value",
+							read: true,
+							write: false,
+						},
+						native: {},
+					});
+					this.setStateAsync("Devices." + duid + ".deviceInfo." + deviceAttribute, { val: devices[device][deviceAttribute], ack: true });
+				}
+			}
+		}
+	}
+
+	checkForNewFirmware(duid) {
+		if (this.api) {
+			try {
+				this.api.get(`ota/firmware/${duid}/updatev2`).then(async update => {
+					await this.setObjectAsync("Devices." + duid + ".updateStatus", {
+						type: "folder",
+						common: {
+							name: "Update status",
+						},
+						native: {},
+					});
+
+					for (const state in update.data.result) {
+
+						await this.setObjectAsync("Devices." + duid + ".updateStatus." + state, {
+							type: "state",
+							common: {
+								name: state,
+								type: this.getType(update.data.result[state]),
+								role: "value",
+								read: true,
+								write: false
+							},
+							native: {},
+						});
+						this.setStateAsync("Devices." + duid + ".updateStatus." + state, { val: update.data.result[state], ack: true });
+					}
+				});
+			}
+			catch (e) {
+				this.log.error("Failed to check for new firmware. Error: " + e);
+			}
+		}
+	}
+
+	getType(attribute)
+	{
+		if(typeof attribute === "boolean") return "boolean";
+		else if(typeof attribute === "number") return "number";
+		else return "string";
 	}
 
 	isCleaning(state) {
@@ -400,7 +580,7 @@ class Roborock extends utils.Adapter {
 	}
 
 	async setupBasicObjects() {
-		await this.setObjectNotExistsAsync("Devices", {
+		await this.setObjectAsync("Devices", {
 			type: "folder",
 			common: {
 				name: "Devices",
@@ -408,7 +588,7 @@ class Roborock extends utils.Adapter {
 			native: {},
 		});
 
-		await this.setObjectNotExistsAsync("UserData", {
+		await this.setObjectAsync("UserData", {
 			type: "state",
 			common: {
 				name: "UserData string",
@@ -420,7 +600,7 @@ class Roborock extends utils.Adapter {
 			native: {},
 		});
 
-		await this.setObjectNotExistsAsync("HomeData", {
+		await this.setObjectAsync("HomeData", {
 			type: "state",
 			common: {
 				name: "HomeData string",
@@ -432,7 +612,7 @@ class Roborock extends utils.Adapter {
 			native: {},
 		});
 
-		await this.setObjectNotExistsAsync("clientID", {
+		await this.setObjectAsync("clientID", {
 			type: "state",
 			common: {
 				name: "Client ID",
@@ -443,6 +623,97 @@ class Roborock extends utils.Adapter {
 			},
 			native: {},
 		});
+	}
+
+
+	async download_go2rtc()
+	{
+		const arch = os.arch();
+		const platform = os.platform();
+		const filename = systems[platform][arch];
+		const unzippedFilePath = "./lib/go2rtc/" + filename;
+		const version = "v1.3.0";
+		this.log.debug("arch: " + arch);
+		this.log.debug("platform: " + platform);
+		this.log.debug("System type: " + filename);
+
+		const downloadURL = "https://github.com/AlexxIT/go2rtc/releases/download/" + version + "/" + filename;
+		this.log.debug("downloadURL: " + downloadURL);
+
+		const user = "AlexxIT";
+		const repo = "go2rtc";
+		const outputdir = "./lib/go2rtc";
+		const filterRelease = (release) => release.prerelease === false;
+		const filterAsset = (asset) => asset.name.includes(filename);
+		const leaveZipped = false;
+
+		await downloadRelease(user, repo, outputdir, filterRelease, filterAsset, leaveZipped)
+			// .then((downloadedAssets) => {
+			// 	this.log.debug("Downloaded assets:" + downloadedAssets);
+			// })
+			.catch((err) => {
+				this.log.error("Error: " + err.message);
+			}).finally(() => {
+				if (platform != "win32") {
+					fs.chmod(unzippedFilePath, 0o755, (err) => {
+						if (err) {
+							this.log.error("Error making " + unzippedFilePath + " executable: " + err);
+						} else {
+							this.log.debug("Made " + unzippedFilePath + " executable");
+						}
+					});
+					go2rtc = filename;
+				}
+				else go2rtc = "go2rtc.exe";
+			});
+	}
+
+	start_go2rtc(robots, homedata, userdata)
+	{
+		let cameraCount = 0;
+
+		const go2rtcConfig = {"streams": {}};
+		for (const robot in robots) {
+			const duid = robot;
+			const localKey = homedata.devices[0].localKey;
+			const u = userdata.rriot.u;
+			const s = userdata.rriot.s;
+			const k = userdata.rriot.k;
+
+			if (robots[robot].setup.camera) {
+				cameraCount++;
+				go2rtcConfig.streams[duid] = "roborock://mqtt-eu-3.roborock.com:8883?u=" + u + "&s=" + s + "&k=" + k + "&did=" + duid + "&key=" + localKey + "&pin=" + this.config.cameraPin;
+			}
+		}
+
+		if (go2rtc && cameraCount > 0) {
+			const exePath = path.join(__dirname, "./lib/go2rtc/") + go2rtc;
+			this.log.debug("exePath: " + exePath);
+
+			findProcess("name", go2rtc)
+				.then((processList) => {
+					processList.forEach((proc) => {
+						this.log.debug("Killing process with pid " + proc.pid);
+						process.kill(proc.pid, "SIGTERM");
+					});
+				})
+				.catch((err) => {
+					this.log.error("Error: " +  err.message);
+				}).finally(() => {
+					execFile(exePath, ["-config", JSON.stringify(go2rtcConfig)], (error, stdout, stderr) => {
+						if (error) {
+							this.log.error("Error executing file" + error);
+							return;
+						}
+						if (stdout) {
+							this.log.debug("Output from go2rtc: " + stdout);
+						}
+						if (stderr) {
+							this.log.error("Error output from: " + stderr);
+						}
+					});
+				});
+		}
 	}
 
 	/**
@@ -511,18 +782,28 @@ class Roborock extends utils.Adapter {
 			else if (command == "load_multi_map") {
 				await this.vacuums[duid].command(duid, command, [state.val]);
 			}
-			else if (typeof (state.val) != "boolean") {
-				this.vacuums[duid].command(duid, command, state.val);
-			}
-			else if ((command == "app_start") || (command == "app_segment_clean") || (command == "app_charge") || (command == "app_spot") || (command == "app_zoned_clean"))
+			else if (
+				(command == "app_start") ||
+				(command == "app_segment_clean") ||
+				(command == "app_charge") ||
+				(command == "app_spot") ||
+				(command == "app_zoned_clean") ||
+				(command == "app_goto_target")
+			)
 			{
 				this.startMapUpdater(duid);
 
-				if (command == "app_zoned_clean") {
-					// vacuums[duid].command(duid, command, [[ 24575,28050,25225,28500,1 ]]);
-					// vacuums[duid].command(duid, command, [[ 24450,27800,25125,28450,1 ]]); // known good
-					this.vacuums[duid].command(duid, command, [[23875,27850,25125,29100,1]]);
+				switch (command) {
+					case "app_zoned_clean":
+					case "app_goto_target":
+						if (typeof(state.val) == "string") {
+							this.vacuums[duid].command(duid, command, JSON.parse(state.val));
+						}
+						break;
 				}
+			}
+			else if (typeof (state.val) != "boolean") {
+				this.vacuums[duid].command(duid, command, state.val);
 			}
 		} else {
 			this.log.error("Error! Missing state onChangeState!");
