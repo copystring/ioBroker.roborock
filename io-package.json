@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "news": {
+      "0.2.1": {
+        "en": "Fix adapter options",
+        "de": "Adapteroptionen festlegen",
+        "ru": "Fix варианты адаптера",
+        "pt": "Opções do adaptador de fixação",
+        "nl": "Fix adapter opties",
+        "fr": "Options d ' adaptation",
+        "it": "Opzioni di fissaggio dell'adattatore",
+        "es": "Opciones de ajuste",
+        "pl": "Adaptacja Fix",
+        "uk": "Параметри адаптера",
+        "zh-cn": "Fix 适应办法"
+      },
       "0.2.0": {
         "en": "Make adapter turn green only when username & password are correct\nAdd vacuum online status and deviceInfo\nAdd support for Camera of MaxV models\nAdd support for titles of obstacles\nMake options a little prettier\nAdd support to check for new firmware\nAdd Support for Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nLoads of bug fixes\nAdd option to sniff traffic via mitmproxy",
         "de": "Stellen Sie Adapter grün nur, wenn Benutzername & Passwort korrekt sind\nHinzufügen von Vakuum Online-Status und Gerät Info\nUnterstützung für Kamera von MaxV-Modellen hinzufügen\nUnterstützung für Titel von Hindernissen\nOptionen ein wenig schöner machen\nUnterstützung hinzufügen, um neue Firmware zu überprüfen\nUnterstützung für Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nFehlerbehebungen\nOption zum Schnüffeln des Verkehrs über Mitmproxy hinzufügen",
@@ -80,19 +93,6 @@
         "pl": "Fix bug kiedy dostaje się stan klasyfikacji poza próżnią. js",
         "uk": "Виправлення помилок при отриманні очищення стану поза вакуумом. свінгери",
         "zh-cn": "当在真空以外进入采掘国时,先行。 j"
-      },
-      "0.1.4-beta.4": {
-        "en": "Fix robot running detection to start map updater correctly\nFix robot list duplicate entries on map update\nBetter error handling for map creation",
-        "de": "Fix Roboter-Lauferkennung, um Karten-Updater richtig zu starten\nFix Roboterliste doppelte Einträge auf Kartenupdate\nBessere Fehlerbehebung für die Kartenerstellung",
-        "ru": "Исправление обнаружения робота для запуска обновления карты правильно\nFix список роботов дублировать записи на обновлении карты\nУлучшенная обработка ошибок для создания карты",
-        "pt": "Corrigir a detecção de execução do robô para iniciar o atualizador do mapa corretamente\nCorrigir entradas duplicadas da lista de robôs na atualização do mapa\nMelhor manipulação de erros para criação de mapas",
-        "nl": "Fix robot die de kaart updater correct start\nVertaling:\nBeter fout om te gaan met kaart creatie",
-        "fr": "Correction de la détection de fonctionnement du robot pour démarrer correctement la mise à jour de la carte\nListe de robots fixes doubles entrées sur la mise à jour de la carte\nMeilleure manipulation d'erreur pour la création de carte",
-        "it": "Fissare il rilevamento dell'esecuzione del robot per avviare correttamente l'aggiornamento della mappa\nFissare le voci duplicate dell'elenco dei robot sull'aggiornamento della mappa\nMigliore gestione degli errori per la creazione di mappe",
-        "es": "Arreglar detección de funcionamiento de robot para iniciar el actualización de mapa correctamente\nCorregir lista robot duplicar entradas en la actualización del mapa\nMejor manejo de errores para la creación de mapas",
-        "pl": "Fix Robot uruchamia aktualizację map\nLista robotów\nLepsze błędy w tworzeniu mapy",
-        "uk": "Виправлення виявлення роботи роботів для запуску оновлення карт правильно\nВиправлення списку користувачів дублікати записів на оновлення карт\nКраще використання помилок для створення карт",
-        "zh-cn": "B. 发现开图的固定汽车\nB. 固定汽车名单重复图表\nB. 绘制地图的更好错误处理"
       }
     },
     "titleLang": {
