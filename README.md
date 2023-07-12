@@ -44,6 +44,9 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Fix adapter options
+
 ### 0.2.0 (2023-07-11)
 * (copystring) Make adapter turn green only when username & password are correct
 * (copystring) Add vacuum online status and deviceInfo
