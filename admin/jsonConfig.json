@@ -40,7 +40,9 @@
 		"webserverPort": {
 			"type": "number",
 			"label": "Webserver Port",
-			"newLine": true
+			"newLine": true,
+			"min": 1,
+			"max": 65535
 		},
 		"hostname_ip": {
 			"type": "text",
@@ -50,9 +52,7 @@
 		"cameraPin": {
 			"type": "number",
 			"label": "PIN for streaming the camera",
-			"newLine": true,
-			"min": 1,
-			"max": 65535
+			"newLine": true
 		}
 	}
 }
