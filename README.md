@@ -21,6 +21,7 @@ This adapter allows you the control, get states, cleaning history and view the m
 ## The supported robots are:
 
 - Roborock S4
+- Roborock S4 Max
 - Roborock S5
 - Roborock S5 Max
 - Roborock S6
@@ -28,8 +29,13 @@ This adapter allows you the control, get states, cleaning history and view the m
 - Roborock S6 MaxV
 - Roborock S7
 - Roborock S7 MaxV (Ultra)
+- Roborock Q7
 - Roborock Q7 Max
 - Roborock S7 Pro Ultra
+- Roborock S7 Max Ultra
+- Roborock S8
+- Roborock S8 Pro Ultra
+- Roborock Q Revo
 
 ## Zone cleaning
 This feature only works when map creation is enabled in the adapter options!
