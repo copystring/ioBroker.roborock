@@ -19,7 +19,7 @@ jobs:
       run: npm install -g jsdoc
 
     - name: Generate documentation
-      run: jsdoc -c path/to/jsdoc/config -d docs/
+      run: jsdoc -c /docs/jsdoc.json -d docs/
 
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3

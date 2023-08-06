@@ -1,0 +1,15 @@
+{
+    "source": {
+      "include": ["/lib/**/*.js"]
+    },
+    "plugins": [],
+    "templates": {
+      "cleverLinks": false,
+      "monospaceLinks": false
+    },
+    "opts": {
+      "destination": "/docs/",
+      "recurse": true
+    }
+  }
+  
