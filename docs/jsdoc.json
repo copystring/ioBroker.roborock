@@ -1,6 +1,6 @@
 {
     "source": {
-      "include": ["/lib/**/*.js"]
+      "include": ["/lib/genSpecs/gen1/*.js"]
     },
     "plugins": [],
     "templates": {
