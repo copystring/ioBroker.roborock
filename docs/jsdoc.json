@@ -1,6 +1,6 @@
 {
     "source": {
-      "include": ["/lib/genSpecs/gen1/base.js"]
+      "include": ["./lib/genSpecs/gen1/base.js"]
     },
     "plugins": [],
     "templates": {
@@ -8,7 +8,7 @@
       "monospaceLinks": false
     },
     "opts": {
-      "destination": "/docs/",
+      "destination": "./docs/",
       "recurse": true
     }
   }
