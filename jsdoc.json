@@ -1,0 +1,16 @@
+{
+  "source": {
+      "include": ["lib/genSpecs/gen1/"], 
+      "includePattern": ".+\\.js(doc|x)?$",
+      "excludePattern": "(^|\\/|\\\\)_"
+  },
+  "opts": {
+      "recurse": true,
+      "destination": "docs/"
+  },
+  "plugins": ["plugins/markdown"],
+  "templates": {
+      "cleverLinks": false,
+      "monospaceLinks": false
+  }
+}
