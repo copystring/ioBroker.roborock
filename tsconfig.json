@@ -30,6 +30,7 @@
 	"include": [
 		"**/*.js",
 		"**/*.d.ts",
+        "lib/genSpecs/gen1/*.js",
         "lib/genSpecs/**/*.js"
 	],
 	"exclude": [
