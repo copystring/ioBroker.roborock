@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Home</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Home</h1>
+
+    
+
+
+
+    
+
+
+    <h3> </h3>
+
+
+
+
+
+
+
+
+
+
+    
+
+
+
+
+    <section>
+        <article><p><img src="admin/roborock.png" alt="Logo"></p>
+<h1>ioBroker.roborock</h1>
+<p><a href="https://www.npmjs.com/package/iobroker.roborock"><img src="https://img.shields.io/npm/v/iobroker.roborock.svg" alt="NPM version"></a>
+<a href="https://www.npmjs.com/package/iobroker.roborock"><img src="https://img.shields.io/npm/dm/iobroker.roborock.svg" alt="Downloads"></a>
+<img src="https://iobroker.live/badges/roborock-installed.svg" alt="Number of Installations">
+<img src="https://iobroker.live/badges/roborock-stable.svg" alt="Current version in stable repository"></p>
+<p><a href="https://nodei.co/npm/iobroker.roborock/"><img src="https://nodei.co/npm/iobroker.roborock.png?downloads=true" alt="NPM"></a></p>
+<p><strong>Tests:</strong> <img src="https://github.com/copystring/ioBroker.roborock/workflows/Test%20and%20Release/badge.svg" alt="Test and Release"></p>
+<p><strong>Translation:</strong> <a href="https://weblate.iobroker.net/engage/adapters/?utm_source=widget"><img src="https://weblate.iobroker.net/widgets/adapters/-/roborock/svg-badge.svg" alt="Translation status"></a></p>
+<h2>Roborock adapter for ioBroker</h2>
+<p>This adapter allows you the control, get states, cleaning history and view the map of a Roborock vacuum cleaner which is set up in the Roborock app.</p>
+<p><strong>This adapter uses Sentry libraries to automatically report exceptions and code errors to the developers.</strong> For more details and for information how to disable the error reporting see <a href="https://github.com/ioBroker/plugin-sentry#plugin-sentry">Sentry-Plugin Documentation</a>! Sentry reporting is used starting with js-controller 3.0.</p>
+<h2>The supported robots are:</h2>
+<ul>
+<li>Roborock S4</li>
+<li>Roborock S5</li>
+<li>Roborock S5 Max</li>
+<li>Roborock S6</li>
+<li>Roborock S6 Pure</li>
+<li>Roborock S6 MaxV</li>
+<li>Roborock S7</li>
+<li>Roborock S7 MaxV (Ultra)</li>
+<li>Roborock Q7 Max</li>
+<li>Roborock S7 Pro Ultra</li>
+</ul>
+<h2>Zone cleaning</h2>
+<p>This feature only works when map creation is enabled in the adapter options!</p>
+<ul>
+<li>There is a webserver running. Default port is 6824</li>
+<li>Open http://iobroker:6824/map.html in your browser (change http://iobroker your ioBroker hostname or ip!!!)</li>
+<li>Draw your square meant for cleaning. Roborock supports up to 4 cleaning zones at once.</li>
+</ul>
+<p><img src="https://github.com/copystring/ioBroker.roborock/blob/main/images/Rockrock_zone_cleaning.gif" alt=""></p>
+<h2>Changelog</h2>
+<!--
+	Placeholder for the next version (at the beginning of the line):
+	### **WORK IN PROGRESS**
+-->
+<h3>0.2.1 (2023-07-12)</h3>
+<ul>
+<li>(copystring) Fix adapter options</li>
+</ul>
+<h3>0.2.0 (2023-07-11)</h3>
+<ul>
+<li>(copystring) Make adapter turn green only when username &amp; password are correct</li>
+<li>(copystring) Add vacuum online status and deviceInfo</li>
+<li>(copystring) Add support for Camera of MaxV models</li>
+<li>(copystring) Add support for titles of obstacles</li>
+<li>(copystring) Make options a little prettier</li>
+<li>(copystring) Add support to check for new firmware</li>
+<li>(copystring) Add Support for Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra</li>
+<li>(copystring) Loads of bug fixes</li>
+<li>(copystring) Add option to sniff traffic via mitmproxy</li>
+</ul>
+<h3>0.1.6 (2023-03-13)</h3>
+<ul>
+<li>(copystring) Add touch support for zones in web interface</li>
+<li>(copystring) Fix room mapping</li>
+<li>(copystring) Refactor map creation code</li>
+<li>(copystring) Fix robot rotation when parked</li>
+<li>(copystring) Display obstacles of Roborock S6 MaxV (and maybe others) on map</li>
+<li>(copystring) Add support for virtual walls</li>
+<li>(copystring) Add support for no mop zones</li>
+</ul>
+<h3>0.1.5 (2023-03-13)</h3>
+<ul>
+<li>(copystring) Fix bug with sendRequest</li>
+</ul>
+<h3>0.1.4 (2023-03-12)</h3>
+<ul>
+<li>(copystring) Correctly process map on web interface with multiple robots</li>
+<li>(copystring) Fix robot running detection to start map updater correctly</li>
+<li>(copystring) Fix huge memory leak when creating maps</li>
+<li>(copystring) Fix consumables for S6 MaxV</li>
+<li>(copystring) Start webserver and websocket server only when map creation is enabled</li>
+<li>(copystring) Update homedata without fully reinitializing the adapter</li>
+<li>(copystring) Add ability to reset consumables</li>
+<li>(copystring) Add clean count for room cleaning</li>
+<li>(copystring) Add resume_segment_clean and resume_zoned_clean</li>
+</ul>
+<h3>0.1.4-beta.6 (2023-03-12)</h3>
+<ul>
+<li>(copystring) Correctly process map on web interface with multiple robots</li>
+</ul>
+<h3>0.1.4-beta.5 (2023-03-11)</h3>
+<ul>
+<li>(copystring) Fix bug when getting isCleaning state outside of vacuum.js</li>
+</ul>
+<h3>0.1.4-beta.4 (2023-03-11)</h3>
+<ul>
+<li>(copystring) Fix robot running detection to start map updater correctly</li>
+<li>(copystring) Fix robot list duplicate entries on map update</li>
+<li>(copystring) Better error handling for map creation</li>
+</ul>
+<h3>0.1.4-beta.3 (2023-03-10)</h3>
+<ul>
+<li>(copystring) Fix charger position</li>
+</ul>
+<h3>0.1.4-beta.2 (2023-03-08)</h3>
+<ul>
+<li>(copystring) Temporarily disable sendRequest timeout</li>
+</ul>
+<h3>0.1.4-beta.1 (2023-03-08)</h3>
+<ul>
+<li>(copystring) Fix huge memory leak when creating maps</li>
+</ul>
+<h3>0.1.4-beta.0 (2023-03-06)</h3>
+<ul>
+<li>(copystring) Create and clear update interval for each vacuum correctly</li>
+<li>(copystring) Fix consumables for S6 MaxV</li>
+<li>(copystring) Start webserver and websocket server only when map creation is enabled</li>
+<li>(copystring) Update homedata without fully reinitializing the adapter</li>
+<li>(copystring) Add clean count for room cleaning</li>
+<li>(copystring) Ability to reset consumables</li>
+<li>(copystring) Add clean count for room cleaning</li>
+<li>(copystring) Add resume_segment_clean and resume_zoned_clean</li>
+</ul>
+<h3>0.1.3 (2023-03-03)</h3>
+<ul>
+<li>(copystring) &quot;retry&quot; on getMap() is not an error</li>
+<li>(copystring) Fix *_life calculation</li>
+<li>(copystring) Fix reconnect</li>
+</ul>
+<h3>0.1.2 (2023-03-01)</h3>
+<ul>
+<li>(copystring) Fix ignoring get_carpet_clean_mode and get_water_box_custom_mode for S6 and older vacuums</li>
+</ul>
+<h3>0.1.1 (2023-03-01)</h3>
+<ul>
+<li>(copystring) Encrypt username &amp; password. This means you need to re-enter username and password in the options</li>
+<li>(copystring) Use Sentry Plugin instead native sentry</li>
+<li>(copystring) Convert setInterval()/setTimeout() to this.setInterval()/this.setTimeout()</li>
+<li>(copystring) Correctly clear intervals and timeouts on unload and reconnect</li>
+<li>(copystring) Update consumables code</li>
+</ul>
+<h3>0.1.0 (2023-02-28)</h3>
+<ul>
+<li>(copystring) Fix a lot of my seriously shitty robot coords and pixel XY code</li>
+<li>(copystring) Fix connecting to websocket for hosts with more than one network card</li>
+<li>(copystring) Disable buttons on webinterface when they can't be used</li>
+<li>(copystring) Improve deleting/addin zones in webinterface</li>
+<li>(copystring) map_status the currently selected map when bitwise shifted by 2 to the right</li>
+<li>(copystring) use currently selected map to get floor rooms of selected map</li>
+<li>(copystring) Update map only once on start of adapter</li>
+<li>(copystring) Automatically send current map to webinterface when updating map</li>
+<li>(copystring) Update clean summary only after once after cleaning and once at start</li>
+<li>(copystring) Implement charger and robot angle on map</li>
+<li>(copystring) Fix zone positions</li>
+<li>(copystring) Locating should not be an error. Make this an info instead</li>
+<li>(copystring) Fix robot position and rotation</li>
+<li>(copystring) Fix mop path detection at start of robot</li>
+<li>(copystring) Don't process is_Locating for starting the map updater</li>
+<li>(copystring) Add go to and go to predicted path feature in webinterface</li>
+<li>(copystring) Make the actual path slightly transparent</li>
+<li>(copystring) New robot image on map</li>
+<li>(copystring) Add pause, stop, dock buttons to webinterface</li>
+<li>(copystring) Reconnect websocket after 10 seconds of disconnection</li>
+<li>(copystring) Remove unnecessary getMap() calls</li>
+<li>(copystring) Improve reconnect logic</li>
+<li>(copystring) Add Sentry</li>
+<li>(copystring) Correct mop_mode state</li>
+<li>(copystring) Add consumables life in percent</li>
+</ul>
+<h3>0.0.10-alpha.0 (2023-02-21)</h3>
+<ul>
+<li>(copystring) Fix a few lint errors and fix bugs regarding zone cleaning (JSON conversion to string and back to JSON)</li>
+</ul>
+<h3>0.0.9-alpha.0 (2023-02-21)</h3>
+<ul>
+<li>(copystring) Added zone cleaning</li>
+</ul>
+<h3>0.0.8-alpha.0 (2023-02-08)</h3>
+<ul>
+<li>(copystring) Update translations</li>
+<li>(copystring) Enable translations via weblate</li>
+<li>(copystring) Fix robot commands</li>
+<li>(copystring) Fix map size (height and width were swapped)</li>
+<li>(copystring) Add all mqtt client events</li>
+</ul>
+<h3>0.0.7-alpha.0 (2023-02-06)</h3>
+<ul>
+<li>(copystring) Fix cleaningInfo for Roborock S4 to S6</li>
+<li>(copystring) Add optional map with selectable update intervall</li>
+<li>(copystring) Prepare for npm releases</li>
+<li>(copystring) Fix crashes on initialisation</li>
+<li>(copystring) Fix type m³ to m²</li>
+<li>(copystring) Add ukranian language</li>
+<li>(copystring) Fix map creation check</li>
+</ul>
+<h3>0.0.6-alpha.0 (2023-01-29)</h3>
+<ul>
+<li>(copystring) report unknown attributes</li>
+</ul>
+<h3>0.0.5-alpha.0 (2023-01-28)</h3>
+<ul>
+<li>(copystring) remove old and unused deviceInfo code</li>
+</ul>
+<h3>0.0.4-alpha.0 (2023-01-28)</h3>
+<ul>
+<li>(copystring) add missing mop and carpet commands</li>
+</ul>
+<h3>0.0.3-alpha.0 (2023-01-28)</h3>
+<ul>
+<li>(copystring) randomize the client ID</li>
+</ul>
+<h3>0.0.2-alpha.0 (2023-01-28)</h3>
+<ul>
+<li>(copystring) initial release</li>
+</ul>
+<h2>License</h2>
+<p>MIT License</p>
+<p>Copyright (c) 2023 copystring <a href="mailto:copystring@gmail.com">copystring@gmail.com</a></p>
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the &quot;Software&quot;), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:</p>
+<p>The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.</p>
+<p>THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.</p></article>
+    </section>
+
+
+
+
+
+
+
+
+
+<section>
+
+<header>
+    
+        <h2>base.js</h2>
+        
+    
+</header>
+
+<article>
+    <div class="container-overview">
+    
+        
+            <div class="description"><p>This file contains the features for the Gen1 Roborock vacuum cleaners.</p></div>
+        
+
+        
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="base.js.html">base.js</a>, <a href="base.js.html#line1">line 1</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+        
+    
+    </div>
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</article>
+
+</section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#cleaningRecords">cleaningRecords</a></li><li><a href="global.html#commands">commands</a></li><li><a href="global.html#consumables">consumables</a></li><li><a href="global.html#deviceStatus">deviceStatus</a></li><li><a href="global.html#states">states</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.2</a> on Mon Aug 07 2023 17:18:55 GMT+0000 (Coordinated Universal Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
