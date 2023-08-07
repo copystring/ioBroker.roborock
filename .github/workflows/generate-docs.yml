@@ -9,6 +9,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
+      with:
+        ref: 'main'  # Ensure we're always on the 'main' branch
 
     - name: Setup Node.js
       uses: actions/setup-node@v2
@@ -19,10 +21,13 @@ jobs:
       run: npm install -g jsdoc
 
     - name: Generate documentation
-      run: jsdoc -c ./docs/jsdoc.json -d docs/
+      run: jsdoc -c jsdoc.json -d docs/
 
-    - name: Deploy to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v3
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v3
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: docs/
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: 'Update JSDoc documentation'
+        title: 'Update JSDoc documentation'
+        body: 'This PR updates the JSDoc documentation.'
+        branch: 'update-jsdoc'  # The branch for the PR
