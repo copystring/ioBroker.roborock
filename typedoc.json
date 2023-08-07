@@ -3,7 +3,7 @@
     "out": "docs",
     "exclude": [
         "**/node_modules/**/*",
-        "admin"
+        "**/admin/**/*"
     ],
     "includes": "lib/genSpecs/**/*.js"
 }
