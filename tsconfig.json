@@ -29,7 +29,8 @@
 	},
 	"include": [
 		"**/*.js",
-		"**/*.d.ts"
+		"**/*.d.ts",
+        "lib/genSpecs/**/*.js"
 	],
 	"exclude": [
 		"node_modules/**",
