@@ -24,9 +24,6 @@ jobs:
     - name: Generate documentation
       run: npx typedoc --entryPointStrategy resolve --out docs
 
-    - name: Generate documentation
-      run: typedoc --out docs --target ES6 --mode file ${{ github.workspace }}/lib/genSpecs/
-
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v3
       with:
