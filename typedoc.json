@@ -1,0 +1,5 @@
+{
+    "entryPoints": ["lib/genSpecs/"],
+    "out": "docs",
+    "exclude": ["**/node_modules/**/*"]
+}

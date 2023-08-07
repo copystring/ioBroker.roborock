@@ -22,7 +22,7 @@ jobs:
       run: npm install --save-dev typescript typedoc
       
     - name: Generate documentation
-      run: npx typedoc --entryPointStrategy expand --out docs lib/genSpecs
+      run: npx typedoc
 
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v3
