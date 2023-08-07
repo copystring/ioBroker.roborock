@@ -1,9 +1,10 @@
 {
-    "entryPoints": ["lib/genSpecs/"],
-    "out": "docs",
-    "exclude": [
-        "**/node_modules/**/*",
-        "**/admin/**/*"
-    ],
-    "includes": "lib/genSpecs/**/*.js"
+    "compilerOptions": {
+        "module": "commonjs",
+        "target": "es5",
+        "outDir": "docs",
+        "allowJs": true
+    },
+    "include": ["lib/genSpecs/**/*.js"],
+    "exclude": ["node_modules", "admin"]
 }
