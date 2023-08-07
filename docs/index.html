@@ -1,0 +1,273 @@
+<!DOCTYPE html><html class="default" lang="en"><head><meta charSet="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>iobroker.roborock</title><meta name="description" content="Documentation for iobroker.roborock"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="assets/style.css"/><link rel="stylesheet" href="assets/highlight.css"/><script defer src="assets/main.js"></script><script async src="assets/search.js" id="tsd-search-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os"</script><header class="tsd-page-toolbar">
+<div class="tsd-toolbar-contents container">
+<div class="table-cell" id="tsd-search" data-base=".">
+<div class="field"><label for="tsd-search-field" class="tsd-widget tsd-toolbar-icon search no-caption"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M15.7824 13.833L12.6666 10.7177C12.5259 10.5771 12.3353 10.499 12.1353 10.499H11.6259C12.4884 9.39596 13.001 8.00859 13.001 6.49937C13.001 2.90909 10.0914 0 6.50048 0C2.90959 0 0 2.90909 0 6.49937C0 10.0896 2.90959 12.9987 6.50048 12.9987C8.00996 12.9987 9.39756 12.4863 10.5008 11.6239V12.1332C10.5008 12.3332 10.5789 12.5238 10.7195 12.6644L13.8354 15.7797C14.1292 16.0734 14.6042 16.0734 14.8948 15.7797L15.7793 14.8954C16.0731 14.6017 16.0731 14.1267 15.7824 13.833ZM6.50048 10.499C4.29094 10.499 2.50018 8.71165 2.50018 6.49937C2.50018 4.29021 4.28781 2.49976 6.50048 2.49976C8.71001 2.49976 10.5008 4.28708 10.5008 6.49937C10.5008 8.70852 8.71314 10.499 6.50048 10.499Z" fill="var(--color-text)"></path></svg></label><input type="text" id="tsd-search-field" aria-label="Search"/></div>
+<div class="field">
+<div id="tsd-toolbar-links"></div></div>
+<ul class="results">
+<li class="state loading">Preparing search index...</li>
+<li class="state failure">The search index is not available</li></ul><a href="index.html" class="title">iobroker.roborock</a></div>
+<div class="table-cell" id="tsd-widgets"><a href="#" class="tsd-widget tsd-toolbar-icon menu no-caption" data-toggle="menu" aria-label="Menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="2" fill="var(--color-text)"></rect><rect x="1" y="7" width="14" height="2" fill="var(--color-text)"></rect><rect x="1" y="11" width="14" height="2" fill="var(--color-text)"></rect></svg></a></div></div></header>
+<div class="container container-main">
+<div class="col-content">
+<div class="tsd-page-title">
+<h2>iobroker.roborock</h2></div>
+<div class="tsd-panel tsd-typography"><p><img src="admin/roborock.png" alt="Logo"></p>
+<a id="md:iobrokerroborock" class="tsd-anchor"></a><h1><a href="#md:iobrokerroborock">ioBroker.roborock</a></h1><p><a href="https://www.npmjs.com/package/iobroker.roborock"><img src="https://img.shields.io/npm/v/iobroker.roborock.svg" alt="NPM version"></a>
+<a href="https://www.npmjs.com/package/iobroker.roborock"><img src="https://img.shields.io/npm/dm/iobroker.roborock.svg" alt="Downloads"></a>
+<img src="https://iobroker.live/badges/roborock-installed.svg" alt="Number of Installations">
+<img src="https://iobroker.live/badges/roborock-stable.svg" alt="Current version in stable repository"></p>
+<p><a href="https://nodei.co/npm/iobroker.roborock/"><img src="https://nodei.co/npm/iobroker.roborock.png?downloads=true" alt="NPM"></a></p>
+<p><strong>Tests:</strong> <img src="https://github.com/copystring/ioBroker.roborock/workflows/Test%20and%20Release/badge.svg" alt="Test and Release"></p>
+<p><strong>Translation:</strong> <a href="https://weblate.iobroker.net/engage/adapters/?utm_source=widget"><img src="https://weblate.iobroker.net/widgets/adapters/-/roborock/svg-badge.svg" alt="Translation status"></a></p>
+<a id="md:roborock-adapter-for-iobroker" class="tsd-anchor"></a><h2><a href="#md:roborock-adapter-for-iobroker">Roborock adapter for ioBroker</a></h2><p>This adapter allows you the control, get states, cleaning history and view the map of a Roborock vacuum cleaner which is set up in the Roborock app.</p>
+<p><strong>This adapter uses Sentry libraries to automatically report exceptions and code errors to the developers.</strong> For more details and for information how to disable the error reporting see <a href="https://github.com/ioBroker/plugin-sentry#plugin-sentry">Sentry-Plugin Documentation</a>! Sentry reporting is used starting with js-controller 3.0.</p>
+<a id="md:the-supported-robots-are" class="tsd-anchor"></a><h2><a href="#md:the-supported-robots-are">The supported robots are:</a></h2><ul>
+<li>Roborock S4</li>
+<li>Roborock S5</li>
+<li>Roborock S5 Max</li>
+<li>Roborock S6</li>
+<li>Roborock S6 Pure</li>
+<li>Roborock S6 MaxV</li>
+<li>Roborock S7</li>
+<li>Roborock S7 MaxV (Ultra)</li>
+<li>Roborock Q7 Max</li>
+<li>Roborock S7 Pro Ultra</li>
+</ul>
+<a id="md:zone-cleaning" class="tsd-anchor"></a><h2><a href="#md:zone-cleaning">Zone cleaning</a></h2><p>This feature only works when map creation is enabled in the adapter options!</p>
+<ul>
+<li>There is a webserver running. Default port is 6824</li>
+<li>Open <a href="http://iobroker:6824/map.html">http://iobroker:6824/map.html</a> in your browser (change <a href="http://iobroker">http://iobroker</a> your ioBroker hostname or ip!!!)</li>
+<li>Draw your square meant for cleaning. Roborock supports up to 4 cleaning zones at once.</li>
+</ul>
+<p> <img src="https://github.com/copystring/ioBroker.roborock/blob/main/images/Rockrock_zone_cleaning.gif" alt=""></p>
+<a id="md:changelog" class="tsd-anchor"></a><h2><a href="#md:changelog">Changelog</a></h2><!--
+    Placeholder for the next version (at the beginning of the line):
+    ### **WORK IN PROGRESS**
+-->
+<a id="md:021-2023-07-12" class="tsd-anchor"></a><h3><a href="#md:021-2023-07-12">0.2.1 (2023-07-12)</a></h3><ul>
+<li>(copystring) Fix adapter options</li>
+</ul>
+<a id="md:020-2023-07-11" class="tsd-anchor"></a><h3><a href="#md:020-2023-07-11">0.2.0 (2023-07-11)</a></h3><ul>
+<li>(copystring) Make adapter turn green only when username &amp; password are correct</li>
+<li>(copystring) Add vacuum online status and deviceInfo</li>
+<li>(copystring) Add support for Camera of MaxV models</li>
+<li>(copystring) Add support for titles of obstacles</li>
+<li>(copystring) Make options a little prettier</li>
+<li>(copystring) Add support to check for new firmware</li>
+<li>(copystring) Add Support for Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra</li>
+<li>(copystring) Loads of bug fixes</li>
+<li>(copystring) Add option to sniff traffic via mitmproxy</li>
+</ul>
+<a id="md:016-2023-03-13" class="tsd-anchor"></a><h3><a href="#md:016-2023-03-13">0.1.6 (2023-03-13)</a></h3><ul>
+<li>(copystring) Add touch support for zones in web interface</li>
+<li>(copystring) Fix room mapping</li>
+<li>(copystring) Refactor map creation code</li>
+<li>(copystring) Fix robot rotation when parked</li>
+<li>(copystring) Display obstacles of Roborock S6 MaxV (and maybe others) on map</li>
+<li>(copystring) Add support for virtual walls</li>
+<li>(copystring) Add support for no mop zones</li>
+</ul>
+<a id="md:015-2023-03-13" class="tsd-anchor"></a><h3><a href="#md:015-2023-03-13">0.1.5 (2023-03-13)</a></h3><ul>
+<li>(copystring) Fix bug with sendRequest</li>
+</ul>
+<a id="md:014-2023-03-12" class="tsd-anchor"></a><h3><a href="#md:014-2023-03-12">0.1.4 (2023-03-12)</a></h3><ul>
+<li>(copystring) Correctly process map on web interface with multiple robots</li>
+<li>(copystring) Fix robot running detection to start map updater correctly</li>
+<li>(copystring) Fix huge memory leak when creating maps</li>
+<li>(copystring) Fix consumables for S6 MaxV</li>
+<li>(copystring) Start webserver and websocket server only when map creation is enabled</li>
+<li>(copystring) Update homedata without fully reinitializing the adapter</li>
+<li>(copystring) Add ability to reset consumables</li>
+<li>(copystring) Add clean count for room cleaning</li>
+<li>(copystring) Add resume_segment_clean and resume_zoned_clean</li>
+</ul>
+<a id="md:014-beta6-2023-03-12" class="tsd-anchor"></a><h3><a href="#md:014-beta6-2023-03-12">0.1.4-beta.6 (2023-03-12)</a></h3><ul>
+<li>(copystring) Correctly process map on web interface with multiple robots</li>
+</ul>
+<a id="md:014-beta5-2023-03-11" class="tsd-anchor"></a><h3><a href="#md:014-beta5-2023-03-11">0.1.4-beta.5 (2023-03-11)</a></h3><ul>
+<li>(copystring) Fix bug when getting isCleaning state outside of vacuum.js</li>
+</ul>
+<a id="md:014-beta4-2023-03-11" class="tsd-anchor"></a><h3><a href="#md:014-beta4-2023-03-11">0.1.4-beta.4 (2023-03-11)</a></h3><ul>
+<li>(copystring) Fix robot running detection to start map updater correctly</li>
+<li>(copystring) Fix robot list duplicate entries on map update</li>
+<li>(copystring) Better error handling for map creation</li>
+</ul>
+<a id="md:014-beta3-2023-03-10" class="tsd-anchor"></a><h3><a href="#md:014-beta3-2023-03-10">0.1.4-beta.3 (2023-03-10)</a></h3><ul>
+<li>(copystring) Fix charger position</li>
+</ul>
+<a id="md:014-beta2-2023-03-08" class="tsd-anchor"></a><h3><a href="#md:014-beta2-2023-03-08">0.1.4-beta.2 (2023-03-08)</a></h3><ul>
+<li>(copystring) Temporarily disable sendRequest timeout</li>
+</ul>
+<a id="md:014-beta1-2023-03-08" class="tsd-anchor"></a><h3><a href="#md:014-beta1-2023-03-08">0.1.4-beta.1 (2023-03-08)</a></h3><ul>
+<li>(copystring) Fix huge memory leak when creating maps</li>
+</ul>
+<a id="md:014-beta0-2023-03-06" class="tsd-anchor"></a><h3><a href="#md:014-beta0-2023-03-06">0.1.4-beta.0 (2023-03-06)</a></h3><ul>
+<li>(copystring) Create and clear update interval for each vacuum correctly</li>
+<li>(copystring) Fix consumables for S6 MaxV</li>
+<li>(copystring) Start webserver and websocket server only when map creation is enabled</li>
+<li>(copystring) Update homedata without fully reinitializing the adapter</li>
+<li>(copystring) Add clean count for room cleaning</li>
+<li>(copystring) Ability to reset consumables</li>
+<li>(copystring) Add clean count for room cleaning</li>
+<li>(copystring) Add resume_segment_clean and resume_zoned_clean</li>
+</ul>
+<a id="md:013-2023-03-03" class="tsd-anchor"></a><h3><a href="#md:013-2023-03-03">0.1.3 (2023-03-03)</a></h3><ul>
+<li>(copystring) &quot;retry&quot; on getMap() is not an error</li>
+<li>(copystring) Fix *_life calculation</li>
+<li>(copystring) Fix reconnect</li>
+</ul>
+<a id="md:012-2023-03-01" class="tsd-anchor"></a><h3><a href="#md:012-2023-03-01">0.1.2 (2023-03-01)</a></h3><ul>
+<li>(copystring) Fix ignoring get_carpet_clean_mode and get_water_box_custom_mode for S6 and older vacuums</li>
+</ul>
+<a id="md:011-2023-03-01" class="tsd-anchor"></a><h3><a href="#md:011-2023-03-01">0.1.1 (2023-03-01)</a></h3><ul>
+<li>(copystring) Encrypt username &amp; password. This means you need to re-enter username and password in the options</li>
+<li>(copystring) Use Sentry Plugin instead native sentry</li>
+<li>(copystring) Convert setInterval()/setTimeout() to this.setInterval()/this.setTimeout()</li>
+<li>(copystring) Correctly clear intervals and timeouts on unload and reconnect</li>
+<li>(copystring) Update consumables code</li>
+</ul>
+<a id="md:010-2023-02-28" class="tsd-anchor"></a><h3><a href="#md:010-2023-02-28">0.1.0 (2023-02-28)</a></h3><ul>
+<li>(copystring) Fix a lot of my seriously shitty robot coords and pixel XY code</li>
+<li>(copystring) Fix connecting to websocket for hosts with more than one network card</li>
+<li>(copystring) Disable buttons on webinterface when they can&#39;t be used</li>
+<li>(copystring) Improve deleting/addin zones in webinterface</li>
+<li>(copystring) map_status the currently selected map when bitwise shifted by 2 to the right</li>
+<li>(copystring) use currently selected map to get floor rooms of selected map</li>
+<li>(copystring) Update map only once on start of adapter</li>
+<li>(copystring) Automatically send current map to webinterface when updating map</li>
+<li>(copystring) Update clean summary only after once after cleaning and once at start</li>
+<li>(copystring) Implement charger and robot angle on map</li>
+<li>(copystring) Fix zone positions</li>
+<li>(copystring) Locating should not be an error. Make this an info instead</li>
+<li>(copystring) Fix robot position and rotation</li>
+<li>(copystring) Fix mop path detection at start of robot</li>
+<li>(copystring) Don&#39;t process is_Locating for starting the map updater</li>
+<li>(copystring) Add go to and go to predicted path feature in webinterface</li>
+<li>(copystring) Make the actual path slightly transparent</li>
+<li>(copystring) New robot image on map</li>
+<li>(copystring) Add pause, stop, dock buttons to webinterface</li>
+<li>(copystring) Reconnect websocket after 10 seconds of disconnection</li>
+<li>(copystring) Remove unnecessary getMap() calls</li>
+<li>(copystring) Improve reconnect logic</li>
+<li>(copystring) Add Sentry</li>
+<li>(copystring) Correct mop_mode state</li>
+<li>(copystring) Add consumables life in percent</li>
+</ul>
+<a id="md:0010-alpha0-2023-02-21" class="tsd-anchor"></a><h3><a href="#md:0010-alpha0-2023-02-21">0.0.10-alpha.0 (2023-02-21)</a></h3><ul>
+<li>(copystring) Fix a few lint errors and fix bugs regarding zone cleaning (JSON conversion to string and back to JSON)</li>
+</ul>
+<a id="md:009-alpha0-2023-02-21" class="tsd-anchor"></a><h3><a href="#md:009-alpha0-2023-02-21">0.0.9-alpha.0 (2023-02-21)</a></h3><ul>
+<li>(copystring) Added zone cleaning</li>
+</ul>
+<a id="md:008-alpha0-2023-02-08" class="tsd-anchor"></a><h3><a href="#md:008-alpha0-2023-02-08">0.0.8-alpha.0 (2023-02-08)</a></h3><ul>
+<li>(copystring) Update translations</li>
+<li>(copystring) Enable translations via weblate</li>
+<li>(copystring) Fix robot commands</li>
+<li>(copystring) Fix map size (height and width were swapped)</li>
+<li>(copystring) Add all mqtt client events</li>
+</ul>
+<a id="md:007-alpha0-2023-02-06" class="tsd-anchor"></a><h3><a href="#md:007-alpha0-2023-02-06">0.0.7-alpha.0 (2023-02-06)</a></h3><ul>
+<li>(copystring) Fix cleaningInfo for Roborock S4 to S6</li>
+<li>(copystring) Add optional map with selectable update intervall</li>
+<li>(copystring) Prepare for npm releases</li>
+<li>(copystring) Fix crashes on initialisation</li>
+<li>(copystring) Fix type m³ to m²</li>
+<li>(copystring) Add ukranian language</li>
+<li>(copystring) Fix map creation check</li>
+</ul>
+<a id="md:006-alpha0-2023-01-29" class="tsd-anchor"></a><h3><a href="#md:006-alpha0-2023-01-29">0.0.6-alpha.0 (2023-01-29)</a></h3><ul>
+<li>(copystring) report unknown attributes</li>
+</ul>
+<a id="md:005-alpha0-2023-01-28" class="tsd-anchor"></a><h3><a href="#md:005-alpha0-2023-01-28">0.0.5-alpha.0 (2023-01-28)</a></h3><ul>
+<li>(copystring) remove old and unused deviceInfo code</li>
+</ul>
+<a id="md:004-alpha0-2023-01-28" class="tsd-anchor"></a><h3><a href="#md:004-alpha0-2023-01-28">0.0.4-alpha.0 (2023-01-28)</a></h3><ul>
+<li>(copystring) add missing mop and carpet commands</li>
+</ul>
+<a id="md:003-alpha0-2023-01-28" class="tsd-anchor"></a><h3><a href="#md:003-alpha0-2023-01-28">0.0.3-alpha.0 (2023-01-28)</a></h3><ul>
+<li>(copystring) randomize the client ID</li>
+</ul>
+<a id="md:002-alpha0-2023-01-28" class="tsd-anchor"></a><h3><a href="#md:002-alpha0-2023-01-28">0.0.2-alpha.0 (2023-01-28)</a></h3><ul>
+<li>(copystring) initial release</li>
+</ul>
+<a id="md:license" class="tsd-anchor"></a><h2><a href="#md:license">License</a></h2><p>MIT License</p>
+<p>Copyright (c) 2023 copystring <a href="mailto:copystring@gmail.com">copystring@gmail.com</a></p>
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the &quot;Software&quot;), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:</p>
+<p>The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.</p>
+<p>THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.</p>
+</div></div>
+<div class="col-sidebar">
+<div class="page-menu">
+<div class="tsd-navigation settings">
+<details class="tsd-index-accordion"><summary class="tsd-accordion-summary">
+<h3><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4.93896 8.531L12 15.591L19.061 8.531L16.939 6.409L12 11.349L7.06098 6.409L4.93896 8.531Z" fill="var(--color-text)" id="icon-chevronDown"></path></svg>Settings</h3></summary>
+<div class="tsd-accordion-details">
+<div class="tsd-filter-visibility">
+<h4 class="uppercase">Member Visibility</h4><form>
+<ul id="tsd-filter-options">
+<li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-protected" name="protected"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Protected</span></label></li>
+<li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-private" name="private"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Private</span></label></li>
+<li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-inherited" name="inherited" checked/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Inherited</span></label></li>
+<li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-external" name="external"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>External</span></label></li></ul></form></div>
+<div class="tsd-theme-toggle">
+<h4 class="uppercase">Theme</h4><select id="tsd-theme"><option value="os">OS</option><option value="light">Light</option><option value="dark">Dark</option></select></div></div></details></div>
+<details open class="tsd-index-accordion tsd-page-navigation"><summary class="tsd-accordion-summary">
+<h3><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><use href="#icon-chevronDown"></use></svg>On This Page</h3></summary>
+<div class="tsd-accordion-details">
+<ul>
+<li>
+<ul>
+<li><a href="#md:iobrokerroborock"><span>io<wbr/>Broker.roborock</span></a></li>
+<li>
+<ul>
+<li><a href="#md:roborock-adapter-for-iobroker"><span>Roborock adapter for io<wbr/>Broker</span></a></li>
+<li><a href="#md:the-supported-robots-are"><span>The supported robots are:</span></a></li>
+<li><a href="#md:zone-cleaning"><span>Zone cleaning</span></a></li>
+<li><a href="#md:changelog"><span>Changelog</span></a></li>
+<li>
+<ul>
+<li><a href="#md:021-2023-07-12"><span>0.2.1 (2023-<wbr/>07-<wbr/>12)</span></a></li>
+<li><a href="#md:020-2023-07-11"><span>0.2.0 (2023-<wbr/>07-<wbr/>11)</span></a></li>
+<li><a href="#md:016-2023-03-13"><span>0.1.6 (2023-<wbr/>03-<wbr/>13)</span></a></li>
+<li><a href="#md:015-2023-03-13"><span>0.1.5 (2023-<wbr/>03-<wbr/>13)</span></a></li>
+<li><a href="#md:014-2023-03-12"><span>0.1.4 (2023-<wbr/>03-<wbr/>12)</span></a></li>
+<li><a href="#md:014-beta6-2023-03-12"><span>0.1.4-<wbr/>beta.6 (2023-<wbr/>03-<wbr/>12)</span></a></li>
+<li><a href="#md:014-beta5-2023-03-11"><span>0.1.4-<wbr/>beta.5 (2023-<wbr/>03-<wbr/>11)</span></a></li>
+<li><a href="#md:014-beta4-2023-03-11"><span>0.1.4-<wbr/>beta.4 (2023-<wbr/>03-<wbr/>11)</span></a></li>
+<li><a href="#md:014-beta3-2023-03-10"><span>0.1.4-<wbr/>beta.3 (2023-<wbr/>03-<wbr/>10)</span></a></li>
+<li><a href="#md:014-beta2-2023-03-08"><span>0.1.4-<wbr/>beta.2 (2023-<wbr/>03-<wbr/>08)</span></a></li>
+<li><a href="#md:014-beta1-2023-03-08"><span>0.1.4-<wbr/>beta.1 (2023-<wbr/>03-<wbr/>08)</span></a></li>
+<li><a href="#md:014-beta0-2023-03-06"><span>0.1.4-<wbr/>beta.0 (2023-<wbr/>03-<wbr/>06)</span></a></li>
+<li><a href="#md:013-2023-03-03"><span>0.1.3 (2023-<wbr/>03-<wbr/>03)</span></a></li>
+<li><a href="#md:012-2023-03-01"><span>0.1.2 (2023-<wbr/>03-<wbr/>01)</span></a></li>
+<li><a href="#md:011-2023-03-01"><span>0.1.1 (2023-<wbr/>03-<wbr/>01)</span></a></li>
+<li><a href="#md:010-2023-02-28"><span>0.1.0 (2023-<wbr/>02-<wbr/>28)</span></a></li>
+<li><a href="#md:0010-alpha0-2023-02-21"><span>0.0.10-<wbr/>alpha.0 (2023-<wbr/>02-<wbr/>21)</span></a></li>
+<li><a href="#md:009-alpha0-2023-02-21"><span>0.0.9-<wbr/>alpha.0 (2023-<wbr/>02-<wbr/>21)</span></a></li>
+<li><a href="#md:008-alpha0-2023-02-08"><span>0.0.8-<wbr/>alpha.0 (2023-<wbr/>02-<wbr/>08)</span></a></li>
+<li><a href="#md:007-alpha0-2023-02-06"><span>0.0.7-<wbr/>alpha.0 (2023-<wbr/>02-<wbr/>06)</span></a></li>
+<li><a href="#md:006-alpha0-2023-01-29"><span>0.0.6-<wbr/>alpha.0 (2023-<wbr/>01-<wbr/>29)</span></a></li>
+<li><a href="#md:005-alpha0-2023-01-28"><span>0.0.5-<wbr/>alpha.0 (2023-<wbr/>01-<wbr/>28)</span></a></li>
+<li><a href="#md:004-alpha0-2023-01-28"><span>0.0.4-<wbr/>alpha.0 (2023-<wbr/>01-<wbr/>28)</span></a></li>
+<li><a href="#md:003-alpha0-2023-01-28"><span>0.0.3-<wbr/>alpha.0 (2023-<wbr/>01-<wbr/>28)</span></a></li>
+<li><a href="#md:002-alpha0-2023-01-28"><span>0.0.2-<wbr/>alpha.0 (2023-<wbr/>01-<wbr/>28)</span></a></li></ul></li>
+<li><a href="#md:license"><span>License</span></a></li></ul></li></ul></li></ul></div></details></div>
+<div class="site-menu">
+<nav class="tsd-navigation"><a href="modules.html" class="current"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><g id="icon-4"><rect fill="var(--color-icon-background)" stroke="var(--color-ts-namespace)" stroke-width="1.5" x="1" y="1" width="22" height="22" rx="6"></rect><path d="M9.33 16V7.24H10.77L13.446 14.74C13.43 14.54 13.41 14.296 13.386 14.008C13.37 13.712 13.354 13.404 13.338 13.084C13.33 12.756 13.326 12.448 13.326 12.16V7.24H14.37V16H12.93L10.266 8.5C10.282 8.692 10.298 8.936 10.314 9.232C10.33 9.52 10.342 9.828 10.35 10.156C10.366 10.476 10.374 10.784 10.374 11.08V16H9.33Z" fill="var(--color-text)"></path></g></svg><span>iobroker.roborock</span></a>
+<ul class="tsd-small-nested-navigation"></ul></nav></div></div></div>
+<div class="tsd-generator">
+<p>Generated using <a href="https://typedoc.org/" target="_blank">TypeDoc</a></p></div>
+<div class="overlay"></div></body></html>
