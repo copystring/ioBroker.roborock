@@ -9,8 +9,6 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-      with:
-        ref: 'main'  # Ensure we're always on the 'main' branch
 
     - name: Setup Node.js
       uses: actions/setup-node@v2
