@@ -21,7 +21,7 @@ jobs:
       run: npm install -g jsdoc
 
     - name: Generate documentation
-      run: jsdoc -c jsdoc.json -d docs/
+      run: jsdoc -c ./jsdoc.json -d docs/
 
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v3
