@@ -5,6 +5,6 @@
         "outDir": "docs",
         "allowJs": true
     },
-    "include": ["lib/genSpecs/**/*.js"],
+    "includes": "lib/genSpecs/**/*.js",
     "exclude": ["node_modules", "admin"]
 }
