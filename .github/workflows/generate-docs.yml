@@ -17,10 +17,6 @@ jobs:
 
     - name: Install JSDoc
       run: npm install -g jsdoc
-      
-    - name: List directory contents
-      run: ls -R
-
 
     - name: Generate documentation
       run: jsdoc -c ${{ github.workspace }}/jsdoc.json -d docs/
