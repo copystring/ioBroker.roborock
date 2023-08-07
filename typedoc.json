@@ -1,5 +1,9 @@
 {
     "entryPoints": ["lib/genSpecs/"],
     "out": "docs",
-    "include": ["lib/genSpecs/**/*.js"]
+    "exclude": [
+        "**/node_modules/**/*",
+        "admin"
+    ],
+    "includes": "lib/genSpecs/**/*.js"
 }
