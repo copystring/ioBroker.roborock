@@ -1,4 +1,4 @@
-name: Generate JSDoc
+name: Generate TypeDoc
 
 on: push
 
@@ -15,17 +15,17 @@ jobs:
       with:
         node-version: '14'
 
-    - name: Install JSDoc
-      run: npm install -g jsdoc
+    - name: Install TypeDoc
+      run: npm install -g typedoc
 
     - name: Generate documentation
-      run: jsdoc -c ${{ github.workspace }}/jsdoc.json -d docs/
+      run: typedoc --out docs --target ES6 --mode file ${{ github.workspace }}/lib/genSpecs/
 
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v3
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-        commit-message: 'Update JSDoc documentation'
-        title: 'Update JSDoc documentation'
-        body: 'This PR updates the JSDoc documentation.'
-        branch: 'update-jsdoc'  # The branch for the PR
+        commit-message: 'Update TypeDoc documentation'
+        title: 'Update TypeDoc documentation'
+        body: 'This PR updates the TypeDoc documentation.'
+        branch: 'update-docs'
