@@ -31,7 +31,8 @@
 		"**/*.js",
 		"**/*.d.ts",
         "lib/genSpecs/gen1/*.js",
-        "lib/genSpecs/**/*.js"
+        "lib/genSpecs/**/*.js",
+		"lib/genSpecs/"
 	],
 	"exclude": [
 		"node_modules/**",
