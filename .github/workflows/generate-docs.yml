@@ -15,9 +15,12 @@ jobs:
       with:
         node-version: '14'
 
+    - name: Install TypeScript
+      run: npm install --save-dev typescript
+
     - name: Install TypeDoc
       run: npm install -g typedoc
-
+      
     - name: Generate documentation
       run: typedoc --out docs --target ES6 --mode file ${{ github.workspace }}/lib/genSpecs/
 
