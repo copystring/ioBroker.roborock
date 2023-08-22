@@ -15,7 +15,7 @@ jobs:
       with:
         node-version: '14'
 
-    - name: Install JSDoc
+    - name: Install jsdoc2md
       run: npm install -g jsdoc-to-markdown
 
     - name: Generate gen1 documentation
@@ -42,5 +42,5 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         commit-message: 'Update JSDoc documentation'
         title: 'Update JSDoc documentation'
-        body: 'This PR updates the JSDoc documentation.'
+        body: 'This PR updates the documentation.'
         branch: 'update-docs'  # The branch for the PR
