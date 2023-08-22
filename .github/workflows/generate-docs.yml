@@ -16,10 +16,25 @@ jobs:
         node-version: '14'
 
     - name: Install JSDoc
-      run: npm install -g jsdoc
+      run: npm install -g jsdoc-to-markdown
 
-    - name: Generate documentation
-      run: jsdoc -c ${{ github.workspace }}/jsdoc.json -d docs/
+    - name: Generate gen1 documentation
+      run: jsdoc2md -c ${{ github.workspace }}/lib/genSpecs/gen1/base.js -d docs/gen1/base.md
+
+    - name: Generate gen2 documentation
+      run: jsdoc2md -c ${{ github.workspace }}/lib/genSpecs/gen2/base.js -d docs/gen2/base.md
+
+    - name: Generate gen3 documentation
+      run: jsdoc2md -c ${{ github.workspace }}/lib/genSpecs/gen3/base.js -d docs/gen3/base.md
+
+    - name: Generate gen4 documentation
+      run: jsdoc2md -c ${{ github.workspace }}/lib/genSpecs/gen4/base.js -d docs/gen4/base.md
+
+    - name: Generate gen5 documentation
+      run: jsdoc2md -c ${{ github.workspace }}/lib/genSpecs/gen5/base.js -d docs/gen5/base.md
+
+    - name: Generate gen6 documentation
+      run: jsdoc2md -c ${{ github.workspace }}/lib/genSpecs/gen6/base.js -d docs/gen6/base.md
 
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v3
@@ -28,4 +43,4 @@ jobs:
         commit-message: 'Update JSDoc documentation'
         title: 'Update JSDoc documentation'
         body: 'This PR updates the JSDoc documentation.'
-        branch: 'update-jsdoc'  # The branch for the PR
+        branch: 'update-docs'  # The branch for the PR
