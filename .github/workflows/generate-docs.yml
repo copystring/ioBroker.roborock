@@ -25,7 +25,7 @@ jobs:
         jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen2/base.js > docs/gen2/base.md
 
         jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen3/base.js > docs/gen3/base.md
-        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen3/base.js > docs/gen3/camera.md
+        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen3/camera.js > docs/gen3/camera.md
 
         jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen4/base.js > docs/gen4/base.md
 
