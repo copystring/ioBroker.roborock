@@ -20,18 +20,18 @@ jobs:
 
     - name: Generate documentation
       run: |
-        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen1/base.js > docs/gen1/base.md;
+        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen1/base.js > docs/gen1/base.md
 
-        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen2/base.js > docs/gen2/base.md;
+        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen2/base.js > docs/gen2/base.md
 
-        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen3/base.js > docs/gen3/base.md;
+        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen3/base.js > docs/gen3/base.md
 
-        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen4/base.js > docs/gen4/base.md;
+        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen4/base.js > docs/gen4/base.md
 
-        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen5/base.js > docs/gen5/base.md;
+        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen5/base.js > docs/gen5/base.md
 
-        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen6/base.js > docs/gen6/base.md;
-        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen6/station.js > docs/gen6/station.md;
+        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen6/base.js > docs/gen6/base.md
+        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen6/station.js > docs/gen6/station.md
 
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v3
