@@ -31,6 +31,7 @@ jobs:
         jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen5/base.js > docs/gen5/base.md;
 
         jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen6/base.js > docs/gen6/base.md;
+        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen6/station.js > docs/gen6/station.md;
 
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v3
