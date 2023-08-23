@@ -20,17 +20,17 @@ jobs:
 
     - name: Generate documentation
       run: |
-        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen1/base.js > docs/gen1/base.md
+        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen1/base.hbs ${{ github.workspace }}/lib/genSpecs/gen1/base.js > docs/gen1/base.md
 
-        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen2/base.js > docs/gen2/base.md
+        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen2/base.hbs ${{ github.workspace }}/lib/genSpecs/gen2/base.js > docs/gen2/base.md
 
-        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen3/base.js > docs/gen3/base.md
-        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen3/camera.js > docs/gen3/camera.md
+        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen3/base.hbs ${{ github.workspace }}/lib/genSpecs/gen3/base.js > docs/gen3/base.md
+        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen3/camera.hbs ${{ github.workspace }}/lib/genSpecs/gen3/camera.js > docs/gen3/camera.md
 
         jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen4/base.hbs ${{ github.workspace }}/lib/genSpecs/gen4/base.js > docs/gen4/base.md
 
-        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen5/base.js > docs/gen5/base.md
-        jsdoc2md ${{ github.workspace }}/lib/genSpecs/gen5/station.js > docs/gen5/station.md
+        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen5/base.hbs ${{ github.workspace }}/lib/genSpecs/gen5/base.js > docs/gen5/base.md
+        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen5/station.hbs ${{ github.workspace }}/lib/genSpecs/gen5/station.js > docs/gen5/station.md
 
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v3
