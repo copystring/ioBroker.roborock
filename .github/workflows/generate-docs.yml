@@ -15,26 +15,28 @@ jobs:
       with:
         node-version: '14'
 
+    - name: Install dependencies
+      run: npm install
+
+    - name: Translate JS files
+      run: node translate_js_files.js
+
     - name: Install jsdoc2md
       run: npm install -g jsdoc-to-markdown
 
     - name: Generate documentation
       run: |
-        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen1/base.hbs ${{ github.workspace }}/lib/genSpecs/gen1/base.js > docs/gen1/base.md
-
-        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen2/base.hbs ${{ github.workspace }}/lib/genSpecs/gen2/base.js > docs/gen2/base.md
-
-        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen3/base.hbs ${{ github.workspace }}/lib/genSpecs/gen3/base.js > docs/gen3/base.md
-        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen3/camera.hbs ${{ github.workspace }}/lib/genSpecs/gen3/camera.js > docs/gen3/camera.md
-
-        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen4/standard/base.hbs ${{ github.workspace }}/lib/genSpecs/gen4/standard/base.js > docs/gen4/standard/base.md
-        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen4/q7/base.hbs ${{ github.workspace }}/lib/genSpecs/gen4/q7/base.js > docs/gen4/q7/base.md
-        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen4/q7_max/base.hbs ${{ github.workspace }}/lib/genSpecs/gen4/q7_max/base.js > docs/gen4/q7_max/base.md
-        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen4/s7_max_ultra/base.hbs ${{ github.workspace }}/lib/genSpecs/gen4/s7_max_ultra/base.js > docs/gen4/s7_max_ultra/base.md
-        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen4/s7_maxv_ultra/base.hbs ${{ github.workspace }}/lib/genSpecs/gen4/s7_maxv_ultra/base.js > docs/gen4/s7_maxv_ultra/base.md
-
-        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen5/base.hbs ${{ github.workspace }}/lib/genSpecs/gen5/base.js > docs/gen5/base.md
-        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen5/station.hbs ${{ github.workspace }}/lib/genSpecs/gen5/station.js > docs/gen5/station.md
+        for gen in $(cat ./genDirs.txt); do
+          for lang in $(cat ./languages.txt); do
+            for jsFile in $(ls ./lib/genSpecs/$gen/*.js); do
+              fileName=$(basename -- $jsFile)
+              baseName="${fileName%.*}"
+              outputPath="./docs/$gen/$lang/${baseName}.md"
+              mkdir -p $(dirname $outputPath)
+              jsdoc2md --template ./lib/genSpecs/$gen/${baseName}.hbs ./tempTranslated/$gen/${baseName}_${lang}.js > $outputPath
+            done
+          done
+        done
 
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v3
@@ -43,4 +45,4 @@ jobs:
         commit-message: 'Update JSDoc documentation'
         title: 'Update JSDoc documentation'
         body: 'This PR updates the documentation.'
-        branch: 'update-docs'  # The branch for the PR
+        branch: 'update-docs'

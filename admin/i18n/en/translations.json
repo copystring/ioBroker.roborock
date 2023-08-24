@@ -4,5 +4,12 @@
     "Enable Map Creation": "Enable Map Creation",
     "Map Creation Interval": "Map Creation Interval",
     "Update interval": "Update Interval",
-    "webserverPort": "Webserver Port"
+    "webserverPort": "Webserver Port",
+
+    "fan_power_description": "Mapping of fan power states.",
+    "fan_power_101": "Quiet",
+    "fan_power_102": "Balanced",
+    "fan_power_103": "Turbo",
+    "fan_power_104": "Max",
+    "fan_power_105": "Off"
 }
