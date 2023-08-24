@@ -31,12 +31,15 @@ jobs:
             for jsFile in $(ls ./lib/genSpecs/$gen/*.js); do
               fileName=$(basename -- $jsFile)
               baseName="${fileName%.*}"
-              outputPath="./docs/$gen/$lang/${baseName}.md"
+              outputPath="./docs/$lang/$gen/${baseName}.md"
               mkdir -p $(dirname $outputPath)
               jsdoc2md --template ./lib/genSpecs/$gen/${baseName}.hbs ./tempTranslated/$gen/${baseName}_${lang}.js > $outputPath
             done
           done
         done
+
+    - name: Cleanup
+      run: rm -r tempTranslated genDirs.txt languages.txt
 
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v3
