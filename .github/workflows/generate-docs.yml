@@ -27,7 +27,11 @@ jobs:
         jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen3/base.hbs ${{ github.workspace }}/lib/genSpecs/gen3/base.js > docs/gen3/base.md
         jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen3/camera.hbs ${{ github.workspace }}/lib/genSpecs/gen3/camera.js > docs/gen3/camera.md
 
-        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen4/base.hbs ${{ github.workspace }}/lib/genSpecs/gen4/base.js > docs/gen4/base.md
+        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen4/standard/base.hbs ${{ github.workspace }}/lib/genSpecs/gen4/standard/base.js > docs/gen4/standard/base.md
+        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen4/q7/base.hbs ${{ github.workspace }}/lib/genSpecs/gen4/q7/base.js > docs/gen4/q7/base.md
+        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen4/q7_max/base.hbs ${{ github.workspace }}/lib/genSpecs/gen4/q7_max/base.js > docs/gen4/q7_max/base.md
+        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen4/s7_max_ultra/base.hbs ${{ github.workspace }}/lib/genSpecs/gen4/s7_max_ultra/base.js > docs/gen4/s7_max_ultra/base.md
+        jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen4/s7_maxv_ultra/base.hbs ${{ github.workspace }}/lib/genSpecs/gen4/s7_maxv_ultra/base.js > docs/gen4/s7_maxv_ultra/base.md
 
         jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen5/base.hbs ${{ github.workspace }}/lib/genSpecs/gen5/base.js > docs/gen5/base.md
         jsdoc2md --template ${{ github.workspace }}/lib/genSpecs/gen5/station.hbs ${{ github.workspace }}/lib/genSpecs/gen5/station.js > docs/gen5/station.md
