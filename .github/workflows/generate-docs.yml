@@ -29,26 +29,31 @@ jobs:
         for genBase in $(cat ./genDirs.txt); do
           for lang in $(cat ./languages.txt); do
 
-            # Erweitert den Pfad, um auch Unterordner zu erfassen
-            genPath="./lib/genSpecs/$genBase"
-            if [[ -d "$genPath" && "$genBase" == "gen4" ]]; then
-              subDirs=$(ls -d $genPath/*/)
+            if [[ "$genBase" == "gen4" ]]; then
+              subDirs=$(ls -d ./lib/genSpecs/$genBase/*/)
               for subDir in $subDirs; do
                 gen="$genBase/$(basename $subDir)"
+                for jsFile in $(find ./lib/genSpecs/$gen -name "*.js"); do
+                  fileName=$(basename -- $jsFile)
+                  baseName="${fileName%.*}"
+                  outputPath="./docs/$lang/$gen/${baseName}.md"
+                  mkdir -p $(dirname $outputPath)
+                  jsdoc2md --template ./lib/genSpecs/$gen/${baseName}.hbs ./tempTranslated/$gen/${baseName}_${lang}.js > $outputPath
+                done
               done
             else
               gen=$genBase
+              for jsFile in $(find ./lib/genSpecs/$gen -name "*.js"); do
+                fileName=$(basename -- $jsFile)
+                baseName="${fileName%.*}"
+                outputPath="./docs/$lang/$gen/${baseName}.md"
+                mkdir -p $(dirname $outputPath)
+                jsdoc2md --template ./lib/genSpecs/$gen/${baseName}.hbs ./tempTranslated/$gen/${baseName}_${lang}.js > $outputPath
+              done
             fi
-
-            for jsFile in $(find ./lib/genSpecs/$gen -name "*.js"); do
-              fileName=$(basename -- $jsFile)
-              baseName="${fileName%.*}"
-              outputPath="./docs/$lang/$gen/${baseName}.md"
-              mkdir -p $(dirname $outputPath)
-              jsdoc2md --template ./lib/genSpecs/$gen/${baseName}.hbs ./tempTranslated/$gen/${baseName}_${lang}.js > $outputPath
-            done
           done
         done
+
 
 
 
