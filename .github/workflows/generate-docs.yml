@@ -49,8 +49,8 @@ jobs:
         done
 
 
-    - name: Cleanup
-      run: rm -r tempTranslated genDirs.txt languages.txt
+    # - name: Cleanup
+    #   run: rm -r tempTranslated genDirs.txt languages.txt
 
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v3
