@@ -28,7 +28,17 @@ jobs:
       run: |
         for gen in $(cat ./genDirs.txt); do
           for lang in $(cat ./languages.txt); do
-            for jsFile in $(ls ./lib/genSpecs/$gen/*.js); do
+
+            # Erweitert den Pfad, um auch Unterordner zu erfassen
+            genPath="./lib/genSpecs/$gen"
+            if [[ -d "$genPath" && "$gen" == "gen4" ]]; then
+              subDirs=$(ls -d $genPath/*/)
+              for subDir in $subDirs; do
+                gen="$gen/$(basename $subDir)"
+              done
+            fi
+
+            for jsFile in $(find ./lib/genSpecs/$gen -name "*.js"); do
               fileName=$(basename -- $jsFile)
               baseName="${fileName%.*}"
               outputPath="./docs/$lang/$gen/${baseName}.md"
@@ -37,6 +47,7 @@ jobs:
             done
           done
         done
+
 
     - name: Cleanup
       run: rm -r tempTranslated genDirs.txt languages.txt

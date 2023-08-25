@@ -9,25 +9,37 @@ fs.writeFileSync('./languages.txt', languages.join('\n'));
 
 languages.forEach((lang) => {
     genDirs.forEach((genDir) => {
-        const dirPath = `./lib/genSpecs/${genDir}`;
-        const files = fs.readdirSync(dirPath).filter((file) => file.endsWith('.js'));
+        let dirsToProcess = [genDir];
 
-        files.forEach((jsFile) => {
-            const originalFilePath = `${dirPath}/${jsFile}`;
-            const outputDir = `./tempTranslated/${genDir}`;
-            fs.mkdirSync(outputDir, { recursive: true });
+        // Überprüfung für den speziellen 'gen4'-Ordner
+        if (genDir === 'gen4') {
+            const subDirs = fs.readdirSync(`./lib/genSpecs/${genDir}`).filter((file) =>
+                fs.statSync(path.join(`./lib/genSpecs/${genDir}`, file)).isDirectory()
+            );
+            dirsToProcess = subDirs.map(subDir => `${genDir}/${subDir}`);
+        }
 
-            const translationFilePath = `./admin/i18n/${lang}/translations.json`;
-            const translationData = require(path.resolve(translationFilePath));
+        dirsToProcess.forEach((dirToProcess) => {
+            const dirPath = `./lib/genSpecs/${dirToProcess}`;
+            const files = fs.readdirSync(dirPath).filter((file) => file.endsWith('.js'));
 
-            let fileContent = fs.readFileSync(originalFilePath, 'utf8');
+            files.forEach((jsFile) => {
+                const originalFilePath = `${dirPath}/${jsFile}`;
+                const outputDir = `./tempTranslated/${dirToProcess}`;
+                fs.mkdirSync(outputDir, { recursive: true });
 
-            for (const [key, value] of Object.entries(translationData)) {
-                const regex = new RegExp(`@${key}@`, 'g');
-                fileContent = fileContent.replace(regex, value);
-            }
+                const translationFilePath = `./admin/i18n/${lang}/translations.json`;
+                const translationData = require(path.resolve(translationFilePath));
 
-            fs.writeFileSync(`${outputDir}/${jsFile.split('.js')[0]}_${lang}.js`, fileContent);
+                let fileContent = fs.readFileSync(originalFilePath, 'utf8');
+
+                for (const [key, value] of Object.entries(translationData)) {
+                    const regex = new RegExp(`@${key}@`, 'g');
+                    fileContent = fileContent.replace(regex, value);
+                }
+
+                fs.writeFileSync(`${outputDir}/${jsFile.split('.js')[0]}_${lang}.js`, fileContent);
+            });
         });
     });
 });
