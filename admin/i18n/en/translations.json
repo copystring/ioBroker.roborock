@@ -168,6 +168,9 @@
 
     "set_carpet_mode": "Carpet Boost",
 
+    "carpet_mode_off": "off",
+    "carpet_mode_on": "on",
+
     "set_carpet_clean_mode": "Carpet Avoidance Mode",
     "carpet_clean_mode_0": "Avoid",
     "carpet_clean_mode_1": "Rise",
@@ -192,5 +195,8 @@
     "camera_description": "Information related to different camera stream formats.",
     "stream_html": "html stream",
     "rtsp": "rtsp stream",
-    "stream_mp4": "mp4 stream"
+    "stream_mp4": "mp4 stream",
+
+    "home_sec_status": "Home Security Status",
+    "home_sec_enable_password": "Home Security Enable Password"
 }
