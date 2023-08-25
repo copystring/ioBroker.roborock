@@ -72,6 +72,11 @@
     "error_255": "Internal error",
     "error_m1": "Unknown Error",
 
+    "mop_mode_description": "Description of mop modes.",
+    "mop_mode_300": "Standard",
+    "mop_mode_301": "Deep",
+    "mop_mode_303": "Deep+",
+
     "deviceStatus_description": "Mapping of robot states.",
     "unsave_map_flag": "Unsave Map Flag",
     "unsave_map_reason": "Unsave Map Reason",
