@@ -165,8 +165,13 @@
     "app_goto_target": "Go to target",
     "set_mop_mode": "Mop Route",
     "set_water_box_custom_mode": "Scrub Intensity",
+
     "set_carpet_mode": "Carpet Boost",
+
     "set_carpet_clean_mode": "Carpet Avoidance Mode",
+    "carpet_clean_mode_0": "Avoid",
+    "carpet_clean_mode_1": "Rise",
+    "carpet_clean_mode_2": "Ignore",
 
     "cleaningInfo_description": "Description of cleaning information.",
     "clean_count": "Total cleaning cycles",
