@@ -26,16 +26,18 @@ jobs:
 
     - name: Generate documentation
       run: |
-        for gen in $(cat ./genDirs.txt); do
+        for genBase in $(cat ./genDirs.txt); do
           for lang in $(cat ./languages.txt); do
 
             # Erweitert den Pfad, um auch Unterordner zu erfassen
-            genPath="./lib/genSpecs/$gen"
-            if [[ -d "$genPath" && "$gen" == "gen4" ]]; then
+            genPath="./lib/genSpecs/$genBase"
+            if [[ -d "$genPath" && "$genBase" == "gen4" ]]; then
               subDirs=$(ls -d $genPath/*/)
               for subDir in $subDirs; do
-                gen="$gen/$(basename $subDir)"
+                gen="$genBase/$(basename $subDir)"
               done
+            else
+              gen=$genBase
             fi
 
             for jsFile in $(find ./lib/genSpecs/$gen -name "*.js"); do
@@ -47,6 +49,7 @@ jobs:
             done
           done
         done
+
 
 
     # - name: Cleanup
