@@ -1,205 +1,205 @@
 {
-  "common": {
-    "name": "roborock",
-    "version": "0.2.1",
-    "news": {
-      "0.2.1": {
-        "en": "Fix adapter options",
-        "de": "Adapteroptionen festlegen",
-        "ru": "Fix варианты адаптера",
-        "pt": "Opções do adaptador de fixação",
-        "nl": "Fix adapter opties",
-        "fr": "Options d ' adaptation",
-        "it": "Opzioni di fissaggio dell'adattatore",
-        "es": "Opciones de ajuste",
-        "pl": "Adaptacja Fix",
-        "uk": "Параметри адаптера",
-        "zh-cn": "Fix 适应办法"
-      },
-      "0.2.0": {
-        "en": "Make adapter turn green only when username & password are correct\nAdd vacuum online status and deviceInfo\nAdd support for Camera of MaxV models\nAdd support for titles of obstacles\nMake options a little prettier\nAdd support to check for new firmware\nAdd Support for Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nLoads of bug fixes\nAdd option to sniff traffic via mitmproxy",
-        "de": "Stellen Sie Adapter grün nur, wenn Benutzername & Passwort korrekt sind\nHinzufügen von Vakuum Online-Status und Gerät Info\nUnterstützung für Kamera von MaxV-Modellen hinzufügen\nUnterstützung für Titel von Hindernissen\nOptionen ein wenig schöner machen\nUnterstützung hinzufügen, um neue Firmware zu überprüfen\nUnterstützung für Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nFehlerbehebungen\nOption zum Schnüffeln des Verkehrs über Mitmproxy hinzufügen",
-        "ru": "Сделайте адаптер поворот зеленым только тогда, когда имя пользователя и пароль правильный\nДобавить статус вакуума и устройство Информация\nДобавьте поддержку для модели Camera of MaxV\nДобавить поддержку заголовков препятствий\nСделайте варианты немного красивее\nДобавить поддержку для проверки новой прошивки\nДобавить поддержку Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nЗагрузки исправлений ошибок\nДобавьте опцию в снежный трафик через mitmproxy",
-        "pt": "Faça o adaptador girar verde somente quando o nome de usuário e senha estão corretos\nAdicionar status e dispositivo on-line de vácuo Info\nAdicionar suporte para câmera de modelos MaxV\nAdicionar suporte para títulos de obstáculos\nFaça opções um pouco mais bonitas\nAdicionar suporte para verificar novo firmware\nAdicionar suporte para Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nCargas de correções de bugs\nAdicionar opção para farejar tráfego via mitmproxy",
-        "nl": "Zorg dat adapter groen wordt alleen als gebruikernaam wachtwoord klopt\nVoeg vacuüm online status toe. Info\nSteun voor Camera van MaxV modellen\nVoeg steun aan de titels van obstakels\nMaak opties wat mooier\nOndersteuning voor nieuwe firmaware\nVersterking voor Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nVeel insecten fixes\nEen optie om verkeer te ruiken via mitmproxy",
-        "fr": "Faire tourner l'adaptateur vert seulement lorsque le nom d'utilisateur & mot de passe sont corrects\nAjouter l'état en ligne sous vide et appareil Info\nAjouter le support pour les modèles Camera of MaxV\nAjouter le soutien aux titres des obstacles\nFaire des options un peu plus jolie\nAjouter le support pour vérifier le nouveau firmware\nAjouter le support pour Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nCharges de corrections de bugs\nAjouter l'option de trafic sniff via mitmproxy",
-        "it": "Fare l'adattatore diventare verde solo quando nome utente e password sono corrette\nAggiungi stato e dispositivo online vuoto Info\nAggiungi supporto per Fotocamera di modelli MaxV\nAggiungi supporto per titoli di ostacoli\nFare opzioni un po' più belle\nAggiungi supporto per controllare il nuovo firmware\nAggiungi supporto per Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nCaricamenti di correzioni di bug\nAggiungi l'opzione per sniffare il traffico tramite mitmproxy",
-        "es": "Hacer que el adaptador se vuelva verde sólo cuando el nombre de usuario & contraseña es correcto\nAgregar estado de vacío en línea y dispositivo Info\nAñadir soporte para los modelos Cámara de MaxV\nAñadir apoyo a títulos de obstáculos\nHacer opciones un poco más bonitas\nAñadir soporte para comprobar nuevo firmware\nAñadir soporte para Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nCarga de correcciones de errores\nAñadir opción para el tráfico de olores a través de mitmproxy",
-        "pl": "Make-up turn green, gdy użytkownikname & password są poprawne\nStrona internetowa statusu i urządzenia Info\nWsparcie dla modeli Camera MaxV\nPoparcie dla tytułów przeszkód\nMa trochę opcję prettiera\nWspierać się na zakup nowego oprogramowania\nAddd Support for Roborock S8, S8 Pro Ultra, S4 Max, Q7 Max Ultra (ang.)\nLoad of bug fixing (ang.)\nPoszukiwanie ruchu poprzez mimeproxy",
-        "uk": "Зробіть перехідник зеленим тільки при правильній корекції імені користувача та пароля\nДодати вакуум онлайн статус і пристрій Новини\nДодати підтримку для камери моделей MaxV\nДодати підтримку заголовків перешкод\nЗробіть варіанти маленького претенця\nДодати підтримку для перевірки нової прошивки\nПідтримка Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nНавантаження виправлення помилок\nДодати опцію до жорсткого трафіку через mitmproxy",
-        "zh-cn": "只有当用户名称和密码正确时,才能使适应者变得绿色。\n增加网上身份和装置 信息\nD. 增加对MaxV模型 Camera的支助\n增加对障碍的标题的支持\n采用很少的预制办法\n增加对新警觉检查的支助\n增加Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nB. 制药的丧失\n增加通过米特里夏·甘蔗贩运的备选办法"
-      },
-      "0.1.6": {
-        "en": "Add touch support for zones in web interface\nFix room mapping\nRefactor map creation code\nFix robot rotation when parked\nDisplay obstacles of Roborock S6 MaxV (and maybe others) on map\nAdd support for virtual walls\nAdd support for no mop zones",
-        "de": "Fügen Sie Touch-Support für Zonen in Web-Schnittstelle hinzu\nZimmer Mapping reparieren\nRefactor Map Erstellungscode\nRoboterrotation beim Parken festhalten\nHindernisse von Roborock S6 MaxV (und vielleicht andere) auf der Karte anzeigen\nUnterstützung für virtuelle Wände hinzufügen\nUnterstützung für keine Mop-Zonen hinzufügen",
-        "ru": "Добавьте поддержку касания зон в веб-интерфейсе\nFix карта комнаты\nКод создания карты Refactor\nИсправление вращения робота припаркованном\nОтображение препятствий Roborock S6 MaxV (и, возможно, другие) на карте\nДобавить поддержку виртуальных стен\nДобавьте поддержку без зон mop",
-        "pt": "Adicionar suporte de toque para zonas na interface web\nCorrigir mapeamento de quarto\nCódigo de criação do mapa de refator\nCorrigir rotação do robô quando estacionado\nExibir obstáculos de Roborock S6 MaxV (e talvez outros) no mapa\nAdicionar suporte para paredes virtuais\nAdicionar suporte para zonas sem esfregões",
-        "nl": "Aanraking voor zones in het web interface\nQuality over Quantity (QoQ) Releases Vertaling:\nRefactor kaart creatie code\nFix robot rotatie toen hij geparkeerd werd\nVertaling:\nSteun voor virtuele muren\nAdvies ondersteuning",
-        "fr": "Ajouter le support tactile pour les zones dans l'interface web\nCartographie fixe\nFacteur de création de carte\nTour de robot fixe quand stationné\nAfficher les obstacles de Roborock S6 MaxV (et peut-être d'autres) sur la carte\nAjouter le support pour les murs virtuels\nAjouter le support pour aucune zone mop",
-        "it": "Aggiungi supporto touch per zone in interfaccia web\nRisolvere la mappatura della stanza\nCodice di creazione della mappa refactor\nFissare rotazione robot quando parcheggiato\nVisualizza gli ostacoli di Roborock S6 MaxV (e forse altri) sulla mappa\nAggiungi supporto per pareti virtuali\nAggiungi supporto per nessuna zona mop",
-        "es": "Agregar soporte táctil para zonas en interfaz web\nCartografía de espacio fijo\nCódigo de creación de mapas de refactor\nCorregir rotación robot cuando estacionado\nMostrar obstáculos de Roborock S6 MaxV (y tal vez otros) en el mapa\nAñadir soporte para paredes virtuales\nAñadir soporte para no zonas mop",
-        "pl": "Addd touch support for zones in web interface\nFix\nKod źródłowy\nFix robot rotacyjny kiedy parkował\nRozgrywki Roborocka S6 MaxVa (i mogą być inne)\nPomoc dla wirtualnych murów\nWspierać się bez strefy mokrajowej",
-        "uk": "Додавання сенсорної підтримки зон в веб-інтерфейсі\nФіксація карти приміщення\nКод створення рефактора\nВиправлення обертання роботів при парковій\nПоказати перешкоди Roborock S6 MaxV (і можливо, інші) на карті\nДодавання підтримки віртуальних стін\nДодайте підтримку без зон",
-        "zh-cn": "增加网站接口区的支助\n固定会议室制图\n成果地图制作守则\n当停车场时,汽车轮换\n关于地图的Roborock S6 MaxV(及其他人)面临的障碍\n增加对虚拟墙壁的支持\n增加对未种植区的支持"
-      },
-      "0.1.5": {
-        "en": "Fix bug with sendRequest",
-        "de": "Fehler beheben mit sendRequest",
-        "ru": "Исправлена ошибка с sendRequest",
-        "pt": "Corrigir erro com o sendRequest",
-        "nl": "Vertaling:",
-        "fr": "Correction de bug avec sendRequest",
-        "it": "Correggere bug con sendRequest",
-        "es": "Corregir error con sendRequest",
-        "pl": "Fix bug",
-        "uk": "Виправлення помилок з sendRequest",
-        "zh-cn": "发出的请求"
-      },
-      "0.1.4": {
-        "en": "Correctly process map on web interface with multiple robots\nFix robot running detection to start map updater correctly\nFix huge memory leak when creating maps\nFix consumables for S6 MaxV\nStart webserver and websocket server only when map creation is enabled\nUpdate homedata without fully reinitializing the adapter\nAdd ability to reset consumables\nAdd clean count for room cleaning\nAdd resume_segment_clean and resume_zoned_clean",
-        "de": "Prozessieren Sie die Karte auf der Web-Schnittstelle mit mehreren Robotern richtig\nFix Roboter-Lauferkennung, um Karten-Updater richtig zu starten\nFix riesige Speicherleck bei der Erstellung von Karten\nVerbrauchsmaterialien für S6 MaxV festsetzen\nStarten Sie Webserver und Websocket Server nur, wenn die Kartenerstellung aktiviert ist\nHomedata aktualisieren, ohne den Adapter vollständig neu zu installieren\nHinzufügen der Möglichkeit, Verbrauchsmaterialien zurückzusetzen\nReine Anzahl der Zimmerreinigung hinzufügen\nLebenslauf hinzufügen_segment_clean und Lebenslauf_zoned_clean",
-        "ru": "Правильно обрабатывать карту на веб-интерфейсе с несколькими роботами\nИсправление обнаружения робота для запуска обновления карты правильно\nИсправление огромной утечки памяти при создании карт\nИсправление расходных материалов для S6 MaxV\nНачните webserver и websocket сервер только тогда, когда создание карты разрешено\nОбновить домашние данные без полностью переинициирования адаптера\nДобавить возможность сброса расходных материалов\nДобавить чистый счет для уборки номеров\nДобавить резюме_сегмент_чисто и резюме_zoned_clean",
-        "pt": "Processe corretamente o mapa na interface web com vários robôs\nCorrigir a detecção de execução do robô para iniciar o atualizador do mapa corretamente\nCorrigir enorme vazamento de memória ao criar mapas\nConsumíveis de fixação para S6 MaxV\nIniciar servidor web e servidor websocket somente quando a criação de mapas está ativada\nAtualize os dados de casa sem reiniciar totalmente o adaptador\nAdicionar capacidade de redefinir consumíveis\nAdicionar contagem limpa para limpeza de quartos\nAdicionar currículo_segment_clean e retomar_zoned_clean",
-        "nl": "Verwerk de kaart op web interface met meerdere robots\nFix robot die de kaart updater correct start\nEen enorme geheugenlek als je kaarten creëert\nVertaling:\nBegin met webserver en websocket server alleen als de kaart creatie in staat is\nUpdate homedata zonder de adapter te herstarten\nVermogen om te resetten\nVoeg schoonmaakmiddel toe\nVertaling:",
-        "fr": "Effacer la carte sur l'interface web avec plusieurs robots\nCorrection de la détection de fonctionnement du robot pour démarrer correctement la mise à jour de la carte\nFixer une énorme fuite de mémoire lors de la création de cartes\nConsommables fixes pour S6 MaxV\nDémarrer webserver et serveur websocket seulement lorsque la création de carte est activée\nMettre à jour les homedata sans réinitialiser entièrement l'adaptateur\nAjouter la capacité de réinitialiser les consommables\nAjouter le compte propre pour le nettoyage de la chambre\nAjouter resume_segment_clean and resume_zoned_clean",
-        "it": "Elaborare correttamente la mappa sull'interfaccia web con più robot\nFissare il rilevamento dell'esecuzione del robot per avviare correttamente l'aggiornamento della mappa\nFissare la perdita di memoria enorme quando si crea mappe\nRisolvere i materiali di consumo per S6 MaxV\nAvviare webserver e websocket server solo quando la creazione della mappa è abilitata\nAggiornare i dati di casa senza riavviare completamente l'adattatore\nAggiungere la capacità di reset dei materiali di consumo\nAggiungere il conteggio pulito per la pulizia della camera\nAggiungi curriculum_segment_clean e riprendere_zoned_clean",
-        "es": "Mapa de proceso correcto en la interfaz web con múltiples robots\nArreglar detección de funcionamiento de robot para iniciar el actualización de mapa correctamente\nFijar una enorme fuga de memoria al crear mapas\nConsumibles fijos para S6 MaxV\nInicio servidor web y servidor websocket sólo cuando la creación de mapa está habilitada\nActualizar homedata sin reinicializar completamente el adaptador\nAñadir capacidad para reiniciar los consumibles\nAñadir cuenta limpia para la limpieza de la habitación\nAñadir curriculum vitae_segment_clean y curriculum vitae_zoned_clean",
-        "pl": "Poprawny proces na interfejsie internetowym z wieloma robotami\nFix Robot uruchamia aktualizację map\nPrzebieg pamięci w czasie tworzenia map\nS6 MaxVable (ang.)\nPoczątkowy serwer internetowy i internetowy tylko wtedy, gdy tworzenie map jest możliwe\nData bez w pełni zainicjowania adaptera\nUmiejętność resetowania\nCzyste konto\nAdd wznowił formaty_segment_clean and re_zoned_clean",
-        "uk": "Правильно обробляти карту на веб-інтерфейс з декількома роботами\nВиправлення виявлення роботи роботів для запуску оновлення карт правильно\nВиправлення величезної пам'яті при створенні карт\nВиправлення витратних матеріалів для S6 MaxV\nПочати сервер вебсервера і websocket тільки при створенні карт\nОновлення домашньої інформації без повного перевстановлення адаптера\nДодати можливість скидати витратні матеріали\nДодавання чистої кількості для прибирання приміщення\nДодати резюме_segment_clean and резюме_zoned_clean",
-        "zh-cn": "网站界线与多种汽车的网站连接图\nB. 发现开图的固定汽车\n制作地图\nS6 MaxV的固定配量\n只有当地图制作时才能够启动网站维护者和网络服务器\n更新的家政数据没有完全重新启动适应者\n增加重新组合的能力\n增加清洁房\n增 编"
-      },
-      "0.1.4-beta.6": {
-        "en": "Correctly process map on web interface with multiple robots",
-        "de": "Prozessieren Sie die Karte auf der Web-Schnittstelle mit mehreren Robotern richtig",
-        "ru": "Правильно обрабатывать карту на веб-интерфейсе с несколькими роботами",
-        "pt": "Processe corretamente o mapa na interface web com vários robôs",
-        "nl": "Verwerk de kaart op web interface met meerdere robots",
-        "fr": "Effacer la carte sur l'interface web avec plusieurs robots",
-        "it": "Elaborare correttamente la mappa sull'interfaccia web con più robot",
-        "es": "Mapa de proceso correcto en la interfaz web con múltiples robots",
-        "pl": "Poprawny proces na interfejsie internetowym z wieloma robotami",
-        "uk": "Правильно обробляти карту на веб-інтерфейс з декількома роботами",
-        "zh-cn": "网站界线与多种汽车的网站连接图"
-      },
-      "0.1.4-beta.5": {
-        "en": "Fix bug when getting isCleaning state outside of vacuum.js",
-        "de": "Fehler beheben, wenn Sie isCleaning Zustand außerhalb von Vakuum. j)",
-        "ru": "Исправление ошибки при получении isCleaning состояние вне вакуума. Джс",
-        "pt": "Corrigir o erro ao obter isCleaning estado fora do vácuo. Js",
-        "nl": "Een insect als je buiten stofzuigt. Js",
-        "fr": "Correction de bug lors de l'obtention estCleaning état en dehors du vide. js",
-        "it": "Fissare il bug quando ottenere isCleaning stato al di fuori del vuoto. j",
-        "es": "Arregla el fallo cuando se consigue esCleaning estado fuera del vacío. js",
-        "pl": "Fix bug kiedy dostaje się stan klasyfikacji poza próżnią. js",
-        "uk": "Виправлення помилок при отриманні очищення стану поза вакуумом. свінгери",
-        "zh-cn": "当在真空以外进入采掘国时,先行。 j"
-      }
+    "common": {
+        "name": "roborock",
+        "version": "0.2.1",
+        "news": {
+            "0.2.1": {
+                "en": "Fix adapter options",
+                "de": "Adapteroptionen festlegen",
+                "ru": "Fix варианты адаптера",
+                "pt": "Opções do adaptador de fixação",
+                "nl": "Fix adapter opties",
+                "fr": "Options d ' adaptation",
+                "it": "Opzioni di fissaggio dell'adattatore",
+                "es": "Opciones de ajuste",
+                "pl": "Adaptacja Fix",
+                "uk": "Параметри адаптера",
+                "zh-cn": "Fix 适应办法"
+            },
+            "0.2.0": {
+                "en": "Make adapter turn green only when username & password are correct\nAdd vacuum online status and deviceInfo\nAdd support for Camera of MaxV models\nAdd support for titles of obstacles\nMake options a little prettier\nAdd support to check for new firmware\nAdd Support for Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nLoads of bug fixes\nAdd option to sniff traffic via mitmproxy",
+                "de": "Stellen Sie Adapter grün nur, wenn Benutzername & Passwort korrekt sind\nHinzufügen von Vakuum Online-Status und Gerät Info\nUnterstützung für Kamera von MaxV-Modellen hinzufügen\nUnterstützung für Titel von Hindernissen\nOptionen ein wenig schöner machen\nUnterstützung hinzufügen, um neue Firmware zu überprüfen\nUnterstützung für Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nFehlerbehebungen\nOption zum Schnüffeln des Verkehrs über Mitmproxy hinzufügen",
+                "ru": "Сделайте адаптер поворот зеленым только тогда, когда имя пользователя и пароль правильный\nДобавить статус вакуума и устройство Информация\nДобавьте поддержку для модели Camera of MaxV\nДобавить поддержку заголовков препятствий\nСделайте варианты немного красивее\nДобавить поддержку для проверки новой прошивки\nДобавить поддержку Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nЗагрузки исправлений ошибок\nДобавьте опцию в снежный трафик через mitmproxy",
+                "pt": "Faça o adaptador girar verde somente quando o nome de usuário e senha estão corretos\nAdicionar status e dispositivo on-line de vácuo Info\nAdicionar suporte para câmera de modelos MaxV\nAdicionar suporte para títulos de obstáculos\nFaça opções um pouco mais bonitas\nAdicionar suporte para verificar novo firmware\nAdicionar suporte para Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nCargas de correções de bugs\nAdicionar opção para farejar tráfego via mitmproxy",
+                "nl": "Zorg dat adapter groen wordt alleen als gebruikernaam wachtwoord klopt\nVoeg vacuüm online status toe. Info\nSteun voor Camera van MaxV modellen\nVoeg steun aan de titels van obstakels\nMaak opties wat mooier\nOndersteuning voor nieuwe firmaware\nVersterking voor Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nVeel insecten fixes\nEen optie om verkeer te ruiken via mitmproxy",
+                "fr": "Faire tourner l'adaptateur vert seulement lorsque le nom d'utilisateur & mot de passe sont corrects\nAjouter l'état en ligne sous vide et appareil Info\nAjouter le support pour les modèles Camera of MaxV\nAjouter le soutien aux titres des obstacles\nFaire des options un peu plus jolie\nAjouter le support pour vérifier le nouveau firmware\nAjouter le support pour Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nCharges de corrections de bugs\nAjouter l'option de trafic sniff via mitmproxy",
+                "it": "Fare l'adattatore diventare verde solo quando nome utente e password sono corrette\nAggiungi stato e dispositivo online vuoto Info\nAggiungi supporto per Fotocamera di modelli MaxV\nAggiungi supporto per titoli di ostacoli\nFare opzioni un po' più belle\nAggiungi supporto per controllare il nuovo firmware\nAggiungi supporto per Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nCaricamenti di correzioni di bug\nAggiungi l'opzione per sniffare il traffico tramite mitmproxy",
+                "es": "Hacer que el adaptador se vuelva verde sólo cuando el nombre de usuario & contraseña es correcto\nAgregar estado de vacío en línea y dispositivo Info\nAñadir soporte para los modelos Cámara de MaxV\nAñadir apoyo a títulos de obstáculos\nHacer opciones un poco más bonitas\nAñadir soporte para comprobar nuevo firmware\nAñadir soporte para Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nCarga de correcciones de errores\nAñadir opción para el tráfico de olores a través de mitmproxy",
+                "pl": "Make-up turn green, gdy użytkownikname & password są poprawne\nStrona internetowa statusu i urządzenia Info\nWsparcie dla modeli Camera MaxV\nPoparcie dla tytułów przeszkód\nMa trochę opcję prettiera\nWspierać się na zakup nowego oprogramowania\nAddd Support for Roborock S8, S8 Pro Ultra, S4 Max, Q7 Max Ultra (ang.)\nLoad of bug fixing (ang.)\nPoszukiwanie ruchu poprzez mimeproxy",
+                "uk": "Зробіть перехідник зеленим тільки при правильній корекції імені користувача та пароля\nДодати вакуум онлайн статус і пристрій Новини\nДодати підтримку для камери моделей MaxV\nДодати підтримку заголовків перешкод\nЗробіть варіанти маленького претенця\nДодати підтримку для перевірки нової прошивки\nПідтримка Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nНавантаження виправлення помилок\nДодати опцію до жорсткого трафіку через mitmproxy",
+                "zh-cn": "只有当用户名称和密码正确时,才能使适应者变得绿色。\n增加网上身份和装置 信息\nD. 增加对MaxV模型 Camera的支助\n增加对障碍的标题的支持\n采用很少的预制办法\n增加对新警觉检查的支助\n增加Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nB. 制药的丧失\n增加通过米特里夏·甘蔗贩运的备选办法"
+            },
+            "0.1.6": {
+                "en": "Add touch support for zones in web interface\nFix room mapping\nRefactor map creation code\nFix robot rotation when parked\nDisplay obstacles of Roborock S6 MaxV (and maybe others) on map\nAdd support for virtual walls\nAdd support for no mop zones",
+                "de": "Fügen Sie Touch-Support für Zonen in Web-Schnittstelle hinzu\nZimmer Mapping reparieren\nRefactor Map Erstellungscode\nRoboterrotation beim Parken festhalten\nHindernisse von Roborock S6 MaxV (und vielleicht andere) auf der Karte anzeigen\nUnterstützung für virtuelle Wände hinzufügen\nUnterstützung für keine Mop-Zonen hinzufügen",
+                "ru": "Добавьте поддержку касания зон в веб-интерфейсе\nFix карта комнаты\nКод создания карты Refactor\nИсправление вращения робота припаркованном\nОтображение препятствий Roborock S6 MaxV (и, возможно, другие) на карте\nДобавить поддержку виртуальных стен\nДобавьте поддержку без зон mop",
+                "pt": "Adicionar suporte de toque para zonas na interface web\nCorrigir mapeamento de quarto\nCódigo de criação do mapa de refator\nCorrigir rotação do robô quando estacionado\nExibir obstáculos de Roborock S6 MaxV (e talvez outros) no mapa\nAdicionar suporte para paredes virtuais\nAdicionar suporte para zonas sem esfregões",
+                "nl": "Aanraking voor zones in het web interface\nQuality over Quantity (QoQ) Releases Vertaling:\nRefactor kaart creatie code\nFix robot rotatie toen hij geparkeerd werd\nVertaling:\nSteun voor virtuele muren\nAdvies ondersteuning",
+                "fr": "Ajouter le support tactile pour les zones dans l'interface web\nCartographie fixe\nFacteur de création de carte\nTour de robot fixe quand stationné\nAfficher les obstacles de Roborock S6 MaxV (et peut-être d'autres) sur la carte\nAjouter le support pour les murs virtuels\nAjouter le support pour aucune zone mop",
+                "it": "Aggiungi supporto touch per zone in interfaccia web\nRisolvere la mappatura della stanza\nCodice di creazione della mappa refactor\nFissare rotazione robot quando parcheggiato\nVisualizza gli ostacoli di Roborock S6 MaxV (e forse altri) sulla mappa\nAggiungi supporto per pareti virtuali\nAggiungi supporto per nessuna zona mop",
+                "es": "Agregar soporte táctil para zonas en interfaz web\nCartografía de espacio fijo\nCódigo de creación de mapas de refactor\nCorregir rotación robot cuando estacionado\nMostrar obstáculos de Roborock S6 MaxV (y tal vez otros) en el mapa\nAñadir soporte para paredes virtuales\nAñadir soporte para no zonas mop",
+                "pl": "Addd touch support for zones in web interface\nFix\nKod źródłowy\nFix robot rotacyjny kiedy parkował\nRozgrywki Roborocka S6 MaxVa (i mogą być inne)\nPomoc dla wirtualnych murów\nWspierać się bez strefy mokrajowej",
+                "uk": "Додавання сенсорної підтримки зон в веб-інтерфейсі\nФіксація карти приміщення\nКод створення рефактора\nВиправлення обертання роботів при парковій\nПоказати перешкоди Roborock S6 MaxV (і можливо, інші) на карті\nДодавання підтримки віртуальних стін\nДодайте підтримку без зон",
+                "zh-cn": "增加网站接口区的支助\n固定会议室制图\n成果地图制作守则\n当停车场时,汽车轮换\n关于地图的Roborock S6 MaxV(及其他人)面临的障碍\n增加对虚拟墙壁的支持\n增加对未种植区的支持"
+            },
+            "0.1.5": {
+                "en": "Fix bug with sendRequest",
+                "de": "Fehler beheben mit sendRequest",
+                "ru": "Исправлена ошибка с sendRequest",
+                "pt": "Corrigir erro com o sendRequest",
+                "nl": "Vertaling:",
+                "fr": "Correction de bug avec sendRequest",
+                "it": "Correggere bug con sendRequest",
+                "es": "Corregir error con sendRequest",
+                "pl": "Fix bug",
+                "uk": "Виправлення помилок з sendRequest",
+                "zh-cn": "发出的请求"
+            },
+            "0.1.4": {
+                "en": "Correctly process map on web interface with multiple robots\nFix robot running detection to start map updater correctly\nFix huge memory leak when creating maps\nFix consumables for S6 MaxV\nStart webserver and websocket server only when map creation is enabled\nUpdate homedata without fully reinitializing the adapter\nAdd ability to reset consumables\nAdd clean count for room cleaning\nAdd resume_segment_clean and resume_zoned_clean",
+                "de": "Prozessieren Sie die Karte auf der Web-Schnittstelle mit mehreren Robotern richtig\nFix Roboter-Lauferkennung, um Karten-Updater richtig zu starten\nFix riesige Speicherleck bei der Erstellung von Karten\nVerbrauchsmaterialien für S6 MaxV festsetzen\nStarten Sie Webserver und Websocket Server nur, wenn die Kartenerstellung aktiviert ist\nHomedata aktualisieren, ohne den Adapter vollständig neu zu installieren\nHinzufügen der Möglichkeit, Verbrauchsmaterialien zurückzusetzen\nReine Anzahl der Zimmerreinigung hinzufügen\nLebenslauf hinzufügen_segment_clean und Lebenslauf_zoned_clean",
+                "ru": "Правильно обрабатывать карту на веб-интерфейсе с несколькими роботами\nИсправление обнаружения робота для запуска обновления карты правильно\nИсправление огромной утечки памяти при создании карт\nИсправление расходных материалов для S6 MaxV\nНачните webserver и websocket сервер только тогда, когда создание карты разрешено\nОбновить домашние данные без полностью переинициирования адаптера\nДобавить возможность сброса расходных материалов\nДобавить чистый счет для уборки номеров\nДобавить резюме_сегмент_чисто и резюме_zoned_clean",
+                "pt": "Processe corretamente o mapa na interface web com vários robôs\nCorrigir a detecção de execução do robô para iniciar o atualizador do mapa corretamente\nCorrigir enorme vazamento de memória ao criar mapas\nConsumíveis de fixação para S6 MaxV\nIniciar servidor web e servidor websocket somente quando a criação de mapas está ativada\nAtualize os dados de casa sem reiniciar totalmente o adaptador\nAdicionar capacidade de redefinir consumíveis\nAdicionar contagem limpa para limpeza de quartos\nAdicionar currículo_segment_clean e retomar_zoned_clean",
+                "nl": "Verwerk de kaart op web interface met meerdere robots\nFix robot die de kaart updater correct start\nEen enorme geheugenlek als je kaarten creëert\nVertaling:\nBegin met webserver en websocket server alleen als de kaart creatie in staat is\nUpdate homedata zonder de adapter te herstarten\nVermogen om te resetten\nVoeg schoonmaakmiddel toe\nVertaling:",
+                "fr": "Effacer la carte sur l'interface web avec plusieurs robots\nCorrection de la détection de fonctionnement du robot pour démarrer correctement la mise à jour de la carte\nFixer une énorme fuite de mémoire lors de la création de cartes\nConsommables fixes pour S6 MaxV\nDémarrer webserver et serveur websocket seulement lorsque la création de carte est activée\nMettre à jour les homedata sans réinitialiser entièrement l'adaptateur\nAjouter la capacité de réinitialiser les consommables\nAjouter le compte propre pour le nettoyage de la chambre\nAjouter resume_segment_clean and resume_zoned_clean",
+                "it": "Elaborare correttamente la mappa sull'interfaccia web con più robot\nFissare il rilevamento dell'esecuzione del robot per avviare correttamente l'aggiornamento della mappa\nFissare la perdita di memoria enorme quando si crea mappe\nRisolvere i materiali di consumo per S6 MaxV\nAvviare webserver e websocket server solo quando la creazione della mappa è abilitata\nAggiornare i dati di casa senza riavviare completamente l'adattatore\nAggiungere la capacità di reset dei materiali di consumo\nAggiungere il conteggio pulito per la pulizia della camera\nAggiungi curriculum_segment_clean e riprendere_zoned_clean",
+                "es": "Mapa de proceso correcto en la interfaz web con múltiples robots\nArreglar detección de funcionamiento de robot para iniciar el actualización de mapa correctamente\nFijar una enorme fuga de memoria al crear mapas\nConsumibles fijos para S6 MaxV\nInicio servidor web y servidor websocket sólo cuando la creación de mapa está habilitada\nActualizar homedata sin reinicializar completamente el adaptador\nAñadir capacidad para reiniciar los consumibles\nAñadir cuenta limpia para la limpieza de la habitación\nAñadir curriculum vitae_segment_clean y curriculum vitae_zoned_clean",
+                "pl": "Poprawny proces na interfejsie internetowym z wieloma robotami\nFix Robot uruchamia aktualizację map\nPrzebieg pamięci w czasie tworzenia map\nS6 MaxVable (ang.)\nPoczątkowy serwer internetowy i internetowy tylko wtedy, gdy tworzenie map jest możliwe\nData bez w pełni zainicjowania adaptera\nUmiejętność resetowania\nCzyste konto\nAdd wznowił formaty_segment_clean and re_zoned_clean",
+                "uk": "Правильно обробляти карту на веб-інтерфейс з декількома роботами\nВиправлення виявлення роботи роботів для запуску оновлення карт правильно\nВиправлення величезної пам'яті при створенні карт\nВиправлення витратних матеріалів для S6 MaxV\nПочати сервер вебсервера і websocket тільки при створенні карт\nОновлення домашньої інформації без повного перевстановлення адаптера\nДодати можливість скидати витратні матеріали\nДодавання чистої кількості для прибирання приміщення\nДодати резюме_segment_clean and резюме_zoned_clean",
+                "zh-cn": "网站界线与多种汽车的网站连接图\nB. 发现开图的固定汽车\n制作地图\nS6 MaxV的固定配量\n只有当地图制作时才能够启动网站维护者和网络服务器\n更新的家政数据没有完全重新启动适应者\n增加重新组合的能力\n增加清洁房\n增 编"
+            },
+            "0.1.4-beta.6": {
+                "en": "Correctly process map on web interface with multiple robots",
+                "de": "Prozessieren Sie die Karte auf der Web-Schnittstelle mit mehreren Robotern richtig",
+                "ru": "Правильно обрабатывать карту на веб-интерфейсе с несколькими роботами",
+                "pt": "Processe corretamente o mapa na interface web com vários robôs",
+                "nl": "Verwerk de kaart op web interface met meerdere robots",
+                "fr": "Effacer la carte sur l'interface web avec plusieurs robots",
+                "it": "Elaborare correttamente la mappa sull'interfaccia web con più robot",
+                "es": "Mapa de proceso correcto en la interfaz web con múltiples robots",
+                "pl": "Poprawny proces na interfejsie internetowym z wieloma robotami",
+                "uk": "Правильно обробляти карту на веб-інтерфейс з декількома роботами",
+                "zh-cn": "网站界线与多种汽车的网站连接图"
+            },
+            "0.1.4-beta.5": {
+                "en": "Fix bug when getting isCleaning state outside of vacuum.js",
+                "de": "Fehler beheben, wenn Sie isCleaning Zustand außerhalb von Vakuum. j)",
+                "ru": "Исправление ошибки при получении isCleaning состояние вне вакуума. Джс",
+                "pt": "Corrigir o erro ao obter isCleaning estado fora do vácuo. Js",
+                "nl": "Een insect als je buiten stofzuigt. Js",
+                "fr": "Correction de bug lors de l'obtention estCleaning état en dehors du vide. js",
+                "it": "Fissare il bug quando ottenere isCleaning stato al di fuori del vuoto. j",
+                "es": "Arregla el fallo cuando se consigue esCleaning estado fuera del vacío. js",
+                "pl": "Fix bug kiedy dostaje się stan klasyfikacji poza próżnią. js",
+                "uk": "Виправлення помилок при отриманні очищення стану поза вакуумом. свінгери",
+                "zh-cn": "当在真空以外进入采掘国时,先行。 j"
+            }
+        },
+        "titleLang": {
+            "en": "Roborock",
+            "de": "Roborock",
+            "ru": "Роборок",
+            "pt": "Roborock",
+            "nl": "Roborock",
+            "fr": "Roborock",
+            "it": "Roborock",
+            "es": "roborock",
+            "pl": "Roborock",
+            "uk": "Роборок",
+            "zh-cn": "石头"
+        },
+        "desc": {
+            "en": "roborock",
+            "de": "Roborock",
+            "ru": "роборок",
+            "pt": "roborock",
+            "nl": "roborock",
+            "fr": "roborock",
+            "it": "Roborock",
+            "es": "roborock",
+            "pl": "roborock",
+            "uk": "Роборок",
+            "zh-cn": "机器人摇滚"
+        },
+        "authors": [
+            "copystring <copystring@gmail.com>"
+        ],
+        "keywords": [
+            "roborock",
+            "template",
+            "home automation"
+        ],
+        "license": "MIT",
+        "platform": "Javascript/Node.js",
+        "main": "main.js",
+        "icon": "roborock.png",
+        "enabled": true,
+        "extIcon": "https://raw.githubusercontent.com/copystring/ioBroker.roborock/main/admin/roborock.png",
+        "readme": "https://github.com/copystring/ioBroker.roborock/blob/main/README.md",
+        "loglevel": "info",
+        "mode": "daemon",
+        "type": "household",
+        "compact": true,
+        "connectionType": "cloud",
+        "dataSource": "poll",
+        "adminUI": {
+            "config": "json"
+        },
+        "dependencies": [
+            {
+                "js-controller": ">=3.3.22"
+            }
+        ],
+        "globalDependencies": [
+            {
+                "admin": ">=5.1.13"
+            }
+        ],
+        "plugins": {
+            "sentry": {
+                "dsn": "https://40474f3cac0c421c85afce616de6ec2d@o4504748727664640.ingest.sentry.io/4504748727664640"
+            }
+        }
     },
-    "titleLang": {
-      "en": "Roborock",
-      "de": "Roborock",
-      "ru": "Роборок",
-      "pt": "Roborock",
-      "nl": "Roborock",
-      "fr": "Roborock",
-      "it": "Roborock",
-      "es": "roborock",
-      "pl": "Roborock",
-      "uk": "Роборок",
-      "zh-cn": "石头"
-    },
-    "desc": {
-      "en": "roborock",
-      "de": "Roborock",
-      "ru": "роборок",
-      "pt": "roborock",
-      "nl": "roborock",
-      "fr": "roborock",
-      "it": "Roborock",
-      "es": "roborock",
-      "pl": "roborock",
-      "uk": "Роборок",
-      "zh-cn": "机器人摇滚"
-    },
-    "authors": [
-      "copystring <copystring@gmail.com>"
+    "encryptedNative": [
+        "username",
+        "password"
     ],
-    "keywords": [
-      "roborock",
-      "template",
-      "home automation"
+    "protectedNative": [
+        "username",
+        "password"
     ],
-    "license": "MIT",
-    "platform": "Javascript/Node.js",
-    "main": "main.js",
-    "icon": "roborock.png",
-    "enabled": true,
-    "extIcon": "https://raw.githubusercontent.com/copystring/ioBroker.roborock/main/admin/roborock.png",
-    "readme": "https://github.com/copystring/ioBroker.roborock/blob/main/README.md",
-    "loglevel": "info",
-    "mode": "daemon",
-    "type": "household",
-    "compact": true,
-    "connectionType": "cloud",
-    "dataSource": "poll",
-    "adminUI": {
-      "config": "json"
+    "native": {
+        "enable_map_creation": false,
+        "map_creation_interval": 2,
+        "map_scale": 2,
+        "updateInterval": 60,
+        "webserverPort": 6824,
+        "hostname_ip": "iobroker",
+        "cameraPin": 1234
     },
-    "dependencies": [
-      {
-        "js-controller": ">=3.3.22"
-      }
-    ],
-    "globalDependencies": [
-      {
-        "admin": ">=5.1.13"
-      }
-    ],
-    "plugins": {
-      "sentry": {
-        "dsn": "https://40474f3cac0c421c85afce616de6ec2d@o4504748727664640.ingest.sentry.io/4504748727664640"
-      }
-    }
-  },
-  "encryptedNative": [
-    "username",
-    "password"
-  ],
-  "protectedNative": [
-    "username",
-    "password"
-  ],
-  "native": {
-    "enable_map_creation": false,
-    "map_creation_interval": 2,
-    "map_scale": 2,
-    "updateInterval": 60,
-    "webserverPort": 6824,
-    "hostname_ip": "iobroker",
-    "cameraPin": 1234
-  },
-  "objects": [],
-  "instanceObjects": [
-    {
-      "_id": "info",
-      "type": "channel",
-      "common": {
-        "name": "Information"
-      },
-      "native": {}
-    },
-    {
-      "_id": "info.connection",
-      "type": "state",
-      "common": {
-        "role": "indicator.connected",
-        "name": "Device or service connected",
-        "type": "boolean",
-        "read": true,
-        "write": false,
-        "def": false
-      },
-      "native": {}
-    }
-  ]
+    "objects": [],
+    "instanceObjects": [
+        {
+            "_id": "info",
+            "type": "channel",
+            "common": {
+                "name": "Information"
+            },
+            "native": {}
+        },
+        {
+            "_id": "info.connection",
+            "type": "state",
+            "common": {
+                "role": "indicator.connected",
+                "name": "Device or service connected",
+                "type": "boolean",
+                "read": true,
+                "write": false,
+                "def": false
+            },
+            "native": {}
+        }
+    ]
 }
