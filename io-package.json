@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.2.1",
+    "version": "0.3.0",
     "news": {
+      "0.3.0": {
+        "en": "Add support for clean_percent of Roborock S7 MaxV (Ultra)\nBasic Revo Q support\nFix consumables for S6",
+        "de": "Unterstützung für clean_percent von Roborock S7 MaxV (Ultra) hinzufügen\nGrundrevo Q Unterstützung\nVerbrauchsmaterialien für S6 festsetzen",
+        "ru": "Добавить поддержку для clean_percent of Roborock S7 MaxV (Ultra)\nОсновное Revo Поддержка Q\nFix расходные материалы для S6",
+        "pt": "Adicionar suporte para clean_percent de Roborock S7 MaxV (Ultra)\nRevo básico Suporte Q\nConsumíveis de fixação para S6",
+        "nl": "Advies steun voor schoonheid van Roborock S7 MaxV (Ultra)\nBasis Revo Qua steun\nVertaling:",
+        "fr": "Ajouter le support pour clean_percent de Roborock S7 MaxV (Ultra)\nBasic Revo Appui Q\nConsommables fixes pour S6",
+        "it": "Aggiungi supporto per clean_percent di Roborock S7 MaxV (Ultra)\nRischio di base Supporto Q\nRisolvere i materiali di consumo per S6",
+        "es": "Añadir soporte para clean_percent of Roborock S7 MaxV (Ultra)\nBasic Revo Apoyo Q\nConsumibles fijos para S6",
+        "pl": "Wsparcie dla Roborock S7 MaxV (Ultra)\nBasic Revo Q wsparcia\nWskaźnik S6",
+        "uk": "Додати підтримку для очищення_відсоток Roborock S7 MaxV (Ультра)\nГоловна Підтримка Q\nВиправлення витратних матеріалів для S6",
+        "zh-cn": "增加对清洁的支持:Roborock S7 MaxV(Ultra)\n基本法 支助\nS6ix 固定配量"
+      },
       "0.2.1": {
         "en": "Fix adapter options",
         "de": "Adapteroptionen festlegen",
@@ -80,19 +93,6 @@
         "pl": "Poprawny proces na interfejsie internetowym z wieloma robotami",
         "uk": "Правильно обробляти карту на веб-інтерфейс з декількома роботами",
         "zh-cn": "网站界线与多种汽车的网站连接图"
-      },
-      "0.1.4-beta.5": {
-        "en": "Fix bug when getting isCleaning state outside of vacuum.js",
-        "de": "Fehler beheben, wenn Sie isCleaning Zustand außerhalb von Vakuum. j)",
-        "ru": "Исправление ошибки при получении isCleaning состояние вне вакуума. Джс",
-        "pt": "Corrigir o erro ao obter isCleaning estado fora do vácuo. Js",
-        "nl": "Een insect als je buiten stofzuigt. Js",
-        "fr": "Correction de bug lors de l'obtention estCleaning état en dehors du vide. js",
-        "it": "Fissare il bug quando ottenere isCleaning stato al di fuori del vuoto. j",
-        "es": "Arregla el fallo cuando se consigue esCleaning estado fuera del vacío. js",
-        "pl": "Fix bug kiedy dostaje się stan klasyfikacji poza próżnią. js",
-        "uk": "Виправлення помилок при отриманні очищення стану поза вакуумом. свінгери",
-        "zh-cn": "当在真空以外进入采掘国时,先行。 j"
       }
     },
     "titleLang": {
