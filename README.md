@@ -50,6 +50,9 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Add support for clean_percent of Roborock S7 MaxV (Ultra)
+
 ### 0.2.1 (2023-07-12)
 * (copystring) Fix adapter options
 
