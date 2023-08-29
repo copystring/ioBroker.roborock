@@ -52,6 +52,8 @@ This feature only works when map creation is enabled in the adapter options!
 -->
 ### **WORK IN PROGRESS**
 * (copystring) Add support for clean_percent of Roborock S7 MaxV (Ultra)
+* (copystring) Basic Revo Q support
+* (copystring) Fix consumables for S6
 
 ### 0.2.1 (2023-07-12)
 * (copystring) Fix adapter options
