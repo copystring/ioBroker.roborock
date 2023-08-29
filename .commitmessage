@@ -1,0 +1,5 @@
+chore: release v0.3.0
+
+* (copystring) Add support for clean_percent of Roborock S7 MaxV (Ultra)
+* (copystring) Basic Revo Q support
+* (copystring) Fix consumables for S6
