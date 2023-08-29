@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "news": {
+      "0.3.1": {
+        "en": "Fix water_box_custom_mode for S4 Max",
+        "de": "Wasser_box_custom_mode für S4 Max reparieren",
+        "ru": "Fix water_box_custom_mode для S4 Max",
+        "pt": "Fix water_box_custom_mode para S4 Max",
+        "nl": "Maak waterdoos klaar voor S4 Max",
+        "fr": "Fixer water_box_custom_mode pour S4 Max",
+        "it": "Fissare acqua_box_custom_mode per S4 Max",
+        "es": "Fijar el agua_box_custom_mode para S4 Max",
+        "pl": "Fix water_box_custom_mode",
+        "uk": "Фіксація води_box_custom_mode для S4 Max",
+        "zh-cn": "Fix水_箱_custom_mode for S4 Max"
+      },
       "0.3.0": {
         "en": "Add support for clean_percent of Roborock S7 MaxV (Ultra)\nBasic Revo Q support\nFix consumables for S6",
         "de": "Unterstützung für clean_percent von Roborock S7 MaxV (Ultra) hinzufügen\nGrundrevo Q Unterstützung\nVerbrauchsmaterialien für S6 festsetzen",
@@ -80,19 +93,6 @@
         "pl": "Poprawny proces na interfejsie internetowym z wieloma robotami\nFix Robot uruchamia aktualizację map\nPrzebieg pamięci w czasie tworzenia map\nS6 MaxVable (ang.)\nPoczątkowy serwer internetowy i internetowy tylko wtedy, gdy tworzenie map jest możliwe\nData bez w pełni zainicjowania adaptera\nUmiejętność resetowania\nCzyste konto\nAdd wznowił formaty_segment_clean and re_zoned_clean",
         "uk": "Правильно обробляти карту на веб-інтерфейс з декількома роботами\nВиправлення виявлення роботи роботів для запуску оновлення карт правильно\nВиправлення величезної пам'яті при створенні карт\nВиправлення витратних матеріалів для S6 MaxV\nПочати сервер вебсервера і websocket тільки при створенні карт\nОновлення домашньої інформації без повного перевстановлення адаптера\nДодати можливість скидати витратні матеріали\nДодавання чистої кількості для прибирання приміщення\nДодати резюме_segment_clean and резюме_zoned_clean",
         "zh-cn": "网站界线与多种汽车的网站连接图\nB. 发现开图的固定汽车\n制作地图\nS6 MaxV的固定配量\n只有当地图制作时才能够启动网站维护者和网络服务器\n更新的家政数据没有完全重新启动适应者\n增加重新组合的能力\n增加清洁房\n增 编"
-      },
-      "0.1.4-beta.6": {
-        "en": "Correctly process map on web interface with multiple robots",
-        "de": "Prozessieren Sie die Karte auf der Web-Schnittstelle mit mehreren Robotern richtig",
-        "ru": "Правильно обрабатывать карту на веб-интерфейсе с несколькими роботами",
-        "pt": "Processe corretamente o mapa na interface web com vários robôs",
-        "nl": "Verwerk de kaart op web interface met meerdere robots",
-        "fr": "Effacer la carte sur l'interface web avec plusieurs robots",
-        "it": "Elaborare correttamente la mappa sull'interfaccia web con più robot",
-        "es": "Mapa de proceso correcto en la interfaz web con múltiples robots",
-        "pl": "Poprawny proces na interfejsie internetowym z wieloma robotami",
-        "uk": "Правильно обробляти карту на веб-інтерфейс з декількома роботами",
-        "zh-cn": "网站界线与多种汽车的网站连接图"
       }
     },
     "titleLang": {
