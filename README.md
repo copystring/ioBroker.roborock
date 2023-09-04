@@ -50,6 +50,9 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Fix some S8 Pro Ultra object types
+
 ### 0.3.1 (2023-08-29)
 * (copystring) Fix water_box_custom_mode for S4 Max
 
