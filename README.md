@@ -52,6 +52,7 @@ This feature only works when map creation is enabled in the adapter options!
 -->
 ### **WORK IN PROGRESS**
 	* (copystring) When a robot goes offline after error during cleaning then clear all intervals and start them when it robot comes back online
+	* (copystring) When it fails to receive the map output a warning instead of error since most of them are timeouts
 
 ### 0.3.2 (2023-09-04)
 * (copystring) Fix some S8 Pro Ultra object types
