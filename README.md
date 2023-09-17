@@ -51,6 +51,9 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Fix typos in definitions docs generation
+
 ### 0.4.0 (2023-09-17)
 * (copystring) When a robot goes offline after error during cleaning then clear all intervals and start them when it robot comes back online
 * (copystring) When it fails to receive the map output a warning instead of error since most of them are timeouts
