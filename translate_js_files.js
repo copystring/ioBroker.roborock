@@ -11,9 +11,9 @@ languages.forEach((lang) => {
 	genDirs.forEach((genDir) => {
 		let dirsToProcess = [genDir];
 
-		// Überprüfung für den speziellen 'gen4'-Ordner
-		if (genDir === "gen4") {
-			const subDirs = fs.readdirSync(`./lib/genSpecs/${genDir}`).filter((file) => fs.statSync(path.join(`./lib/genSpecs/${genDir}`, file)).isDirectory());
+		// Überprüfung für alle genX Ordner, ob sie Unterordner haben
+		const subDirs = fs.readdirSync(`./lib/genSpecs/${genDir}`).filter((file) => fs.statSync(path.join(`./lib/genSpecs/${genDir}`, file)).isDirectory());
+		if (subDirs.length > 0) {
 			dirsToProcess = subDirs.map((subDir) => `${genDir}/${subDir}`);
 		}
 
