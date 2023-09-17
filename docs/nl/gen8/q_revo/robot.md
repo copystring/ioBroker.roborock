@@ -245,7 +245,7 @@ In kaart brengen van robottoestanden.
 | avoid_count | <code>number</code> | Vermijd tellen |
 | last_clean_t | <code>number</code> | Laatste schoonmaaktijd |
 | rdt | <code>number</code> | ??? |
-| in_warmup | <code>number</code> | @in_warmip@ |
+| in_warmup | <code>number</code> | @in_warmup@ |
 | common_status | <code>number</code> | @common_status@ |
 | corner_clean_mode | <code>number</code> | @corner_clean_mode@ |
 

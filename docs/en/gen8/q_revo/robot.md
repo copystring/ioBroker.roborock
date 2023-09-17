@@ -245,7 +245,7 @@ Mapping of robot states.
 | avoid_count | <code>number</code> | Avoid count |
 | last_clean_t | <code>number</code> | Last clean time |
 | rdt | <code>number</code> | ??? |
-| in_warmup | <code>number</code> | @in_warmup@ |
+| in_warmup | <code>number</code> | Warming up |
 | common_status | <code>number</code> | Common status |
 | corner_clean_mode | <code>number</code> | Corner Cleaning Mode |
 
