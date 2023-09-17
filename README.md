@@ -39,6 +39,7 @@ This adapter allows you the control, get states, cleaning history and view the m
 
 ## Zone cleaning
 This feature only works when map creation is enabled in the adapter options!
+### Map creation does not work on raspberry pi
  - There is a webserver running. Default port is 6824
  - Open http://iobroker:6824/map.html in your browser (change http://iobroker your ioBroker hostname or ip!!!)
  - Draw your square meant for cleaning. Roborock supports up to 4 cleaning zones at once.
@@ -55,7 +56,7 @@ This feature only works when map creation is enabled in the adapter options!
 	* (copystring) When it fails to receive the map output a warning instead of error since most of them are timeouts
 	* (copystring) Migrate definitions for each robot to new system
 	* (copystring) Use the system to automatically generate documentation for each robot and it's parameters, attributes, commands, etc
-	* (copystring) Basic S7 Pro Ultra support
+	* (copystring) S7 Pro Ultra support
 
 ### 0.3.2 (2023-09-04)
 * (copystring) Fix some S8 Pro Ultra object types
