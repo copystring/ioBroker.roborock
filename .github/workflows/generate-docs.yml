@@ -31,8 +31,9 @@ jobs:
       run: |
         for genBase in $(cat ./genDirs.txt); do
           for lang in $(cat ./languages.txt); do
+            subDirsCount=$(find ./lib/genSpecs/$genBase/* -maxdepth 0 -type d | wc -l)
 
-            if [[ "$genBase" == "gen4" ]]; then
+            if [ "$subDirsCount" -gt "0" ]; then
               subDirs=$(ls -d ./lib/genSpecs/$genBase/*/)
               for subDir in $subDirs; do
                 gen="$genBase/$(basename $subDir)"
