@@ -245,7 +245,7 @@ Cartographie des états du robot.
 | avoid_count | <code>number</code> | Évitez de compter |
 | last_clean_t | <code>number</code> | Dernière heure de nettoyage |
 | rdt | <code>number</code> | ??? |
-| in_warmup | <code>number</code> | @in_warmip@ |
+| in_warmup | <code>number</code> | @in_warmup@ |
 | common_status | <code>number</code> | @common_status@ |
 | corner_clean_mode | <code>number</code> | @corner_clean_mode@ |
 

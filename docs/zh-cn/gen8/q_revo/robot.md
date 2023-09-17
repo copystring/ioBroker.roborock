@@ -245,7 +245,7 @@
 | avoid_count | <code>number</code> | 避免计数 |
 | last_clean_t | <code>number</code> | 最后清洁时间 |
 | rdt | <code>number</code> | ??? |
-| in_warmup | <code>number</code> | @in_warmip@ |
+| in_warmup | <code>number</code> | @in_warmup@ |
 | common_status | <code>number</code> | @common_status@ |
 | corner_clean_mode | <code>number</code> | @corner_clean_mode@ |
 

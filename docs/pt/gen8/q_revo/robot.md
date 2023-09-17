@@ -245,7 +245,7 @@ Mapeamento de estados do robô.
 | avoid_count | <code>number</code> | Evite contar |
 | last_clean_t | <code>number</code> | Última hora limpa |
 | rdt | <code>number</code> | ??? |
-| in_warmup | <code>number</code> | @in_warmip@ |
+| in_warmup | <code>number</code> | @in_warmup@ |
 | common_status | <code>number</code> | @common_status@ |
 | corner_clean_mode | <code>number</code> | @corner_clean_mode@ |
 
