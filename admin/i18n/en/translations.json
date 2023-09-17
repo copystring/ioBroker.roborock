@@ -203,5 +203,8 @@
     "water_box_mode": "Amount of water to use",
     "water_box_status": "Water Box Status",
     "water_shortage_status": "Water Shortage Status",
-    "webserverPort": "Webserver Port"
+    "webserverPort": "Webserver Port",
+    "in_warmup": "Warming up",
+    "common_status": "Common status",
+    "corner_clean_mode": "Corner Cleaning Mode"
 }
