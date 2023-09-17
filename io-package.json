@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.3.2",
+    "version": "0.4.0",
     "news": {
+      "0.4.0": {
+        "en": "When a robot goes offline after error during cleaning then clear all intervals and start them when it robot comes back online\nWhen it fails to receive the map output a warning instead of error since most of them are timeouts\nMigrate definitions for each robot to new system\nUse the system to automatically generate documentation for each robot and it's parameters, attributes, commands, etc\nS7 Pro Ultra support",
+        "de": "Wenn ein Roboter nach dem Fehler bei der Reinigung offline geht, dann alle Intervalle löschen und starten Sie sie, wenn es Roboter online zurückkommt\nWenn es nicht gelingt, die Kartenausgabe eine Warnung anstelle von Fehlern zu erhalten, da die meisten von ihnen Timeouts sind\nDefinitionen für jeden Roboter zu neuem System migrieren\nVerwenden Sie das System, um automatisch die Dokumentation für jeden Roboter zu erstellen und es sind Parameter, Attribute, Befehle, etc\nS7 Pro Ultra-Unterstützung",
+        "ru": "Когда робот уходит в оффлайне после ошибки во время уборки, затем очистить все интервалы и начать их, когда робот возвращается онлайн\nКогда он не получает, чтобы получить карту вывести предупреждение вместо ошибки, так как большинство из них таймеры\nMigrate определения для каждого робота к новой системе\nИспользуйте систему, чтобы автоматически генерировать документацию для каждого робота и его параметры, атрибуты, команды и т.д\nС7 Про Ультра поддержка",
+        "pt": "Quando um robô vai off-line após o erro durante a limpeza, em seguida, limpar todos os intervalos e iniciá-los quando o robô voltar on-line\nQuando ele não recebe a saída do mapa um aviso em vez de erro, uma vez que a maioria deles são timeouts\nMigrar definições para cada robô para o novo sistema\nUse o sistema para gerar automaticamente documentação para cada robô e são parâmetros, atributos, comandos, etc\nS7 Pro Suporte ultra",
+        "nl": "Als een robot offline gaat na de fout tijdens het schoonmaken, dan alle intervals en start ze als het robot weer online komt\nAls het niet lukt om de kaart een waarschuwing te krijgen in plaats van fouten, omdat de meeste van hen time-outs zijn\nMigrate definities voor elke robot naar nieuw systeem\nGebruik het systeem om automatisch documentatie te genereren voor elke robot en het is parameters, beschikkingen, commando's, etc\nS07 Ultra steun",
+        "fr": "Quand un robot s'éteint après l'erreur pendant le nettoyage, puis effacez tous les intervalles et commencez-les quand le robot revient en ligne\nQuand il ne reçoit pas la sortie de la carte un avertissement au lieu d'erreur puisque la plupart d'entre eux sont des timeouts\nMigrer les définitions pour chaque robot à un nouveau système\nUtilisez le système pour générer automatiquement la documentation de chaque robot et ses paramètres, attributs, commandes, etc\nS7 Pro Support ultra",
+        "it": "Quando un robot va offline dopo l'errore durante la pulizia poi pulire tutti gli intervalli e avviarli quando il robot torna online\nQuando non riesce a ricevere l'output della mappa un avviso invece di errore poiché la maggior parte di loro sono timeouts\nMigrare le definizioni per ogni robot al nuovo sistema\nUtilizzare il sistema per generare automaticamente la documentazione per ogni robot ed è parametri, attributi, comandi, ecc\nS7 Pro Supporto ultra",
+        "es": "Cuando un robot va fuera de línea después del error durante la limpieza entonces despejar todos los intervalos y empezar cuando el robot vuelve en línea\nCuando no recibe la salida del mapa una advertencia en lugar de error ya que la mayoría de ellos son timeouts\nMigrar definiciones para cada robot a nuevo sistema\nUtilice el sistema para generar automáticamente documentación para cada robot y sus parámetros, atributos, comandos, etc\nS7 Pro Apoyo ultra",
+        "pl": "Kiedy robot wychodzi na jaw po błędzie w czyszczeniu, wyczyściwszy wszystkie odstępy i zaczyna je, gdy robot wraca do Internetu\nGdy nie otrzymuje mapy ostrzeżenia zamiast błędu, ponieważ większość z nich to czasy\nDefinicja każdego robota do nowego systemu\nUżycie systemu automatycznie generowania dokumentacji dla każdego robota i parametrów, atrybutów, komend, itd\n7 pkt Ultra wsparcie",
+        "uk": "Коли робота йде в автономному режимі після похибки, то очистити всі інтервали і почати їх, коли він працює назад онлайн\nКоли ви не зможете отримувати повідомлення на карті, замість помилки, оскільки більшість з них є таймерами\nМигрейтні визначення для кожного робота в новій системі\nВикористовуйте систему, щоб автоматично генерувати документацію для кожного робота, і це параметри, атрибути, команди тощо\nС7 Про Підтримка",
+        "zh-cn": "当一个汽车在清洁过程中遭到错误的侵犯时,每隔时间都清清晰,一旦汽车在网上回到网上时开始。\n当无法收到地图时,警告而不是错误,因为其中大多数是时间的。\nB. 对新制度的每一种抢劫行为的定义\n利用系统自动生成每一批汽车的证件及其参数、特征、指挥等\nS7 军事支助"
+      },
       "0.3.2": {
         "en": "Fix some S8 Pro Ultra object types",
         "de": "Einige S8 Pro Ultra Objekttypen",
@@ -80,19 +93,6 @@
         "pl": "Addd touch support for zones in web interface\nFix\nKod źródłowy\nFix robot rotacyjny kiedy parkował\nRozgrywki Roborocka S6 MaxVa (i mogą być inne)\nPomoc dla wirtualnych murów\nWspierać się bez strefy mokrajowej",
         "uk": "Додавання сенсорної підтримки зон в веб-інтерфейсі\nФіксація карти приміщення\nКод створення рефактора\nВиправлення обертання роботів при парковій\nПоказати перешкоди Roborock S6 MaxV (і можливо, інші) на карті\nДодавання підтримки віртуальних стін\nДодайте підтримку без зон",
         "zh-cn": "增加网站接口区的支助\n固定会议室制图\n成果地图制作守则\n当停车场时,汽车轮换\n关于地图的Roborock S6 MaxV(及其他人)面临的障碍\n增加对虚拟墙壁的支持\n增加对未种植区的支持"
-      },
-      "0.1.5": {
-        "en": "Fix bug with sendRequest",
-        "de": "Fehler beheben mit sendRequest",
-        "ru": "Исправлена ошибка с sendRequest",
-        "pt": "Corrigir erro com o sendRequest",
-        "nl": "Vertaling:",
-        "fr": "Correction de bug avec sendRequest",
-        "it": "Correggere bug con sendRequest",
-        "es": "Corregir error con sendRequest",
-        "pl": "Fix bug",
-        "uk": "Виправлення помилок з sendRequest",
-        "zh-cn": "发出的请求"
       }
     },
     "titleLang": {
