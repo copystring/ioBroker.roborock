@@ -31,13 +31,13 @@
 <dd><p>Mapping of consumables.</p>
 </dd>
 <dt><a href="#resetConsumables">resetConsumables</a> : <code>object</code></dt>
-<dd><p>Description of resettable consumables.</p>
+<dd><p>Consumables available for reset</p>
 </dd>
 <dt><a href="#commands">commands</a> : <code>object</code></dt>
 <dd><p>Description of each robot command.</p>
 </dd>
 <dt><a href="#cleaningInfo">cleaningInfo</a> : <code>object</code></dt>
-<dd><p>Description of cleaning information.</p>
+<dd><p>@cleaningInfo_description@</p>
 </dd>
 <dt><a href="#cleaningRecords">cleaningRecords</a> : <code>object</code></dt>
 <dd><p>Description of the cleaning records.</p>
@@ -269,19 +269,19 @@ Mapping of consumables.
 <a name="resetConsumables"></a>
 
 ## resetConsumables : <code>object</code>
-Description of resettable consumables.
+Consumables available for reset
 
 **Kind**: global namespace  
 **Properties**
 
 | Name | Type | Description |
 | --- | --- | --- |
-| main_brush_work_time | <code>Object</code> | @reset_main_brush_work_time@ |
-| side_brush_work_time | <code>Object</code> | @reset_side_brush_work_time@ |
-| filter_work_time | <code>Object</code> | @reset_filter_work_time@ |
-| filter_element_work_time | <code>Object</code> | @reset_filter_element_work_time@ |
-| sensor_dirty_time | <code>Object</code> | @reset_sensor_dirty_time@ |
-| dust_collection_work_times | <code>Object</code> | @reset_dust_collection_work_times@ |
+| main_brush_work_time | <code>Object</code> | Main brush |
+| side_brush_work_time | <code>Object</code> | Side brush |
+| filter_work_time | <code>Object</code> | Filter |
+| filter_element_work_time | <code>Object</code> | Filter element |
+| sensor_dirty_time | <code>Object</code> | Sensors |
+| dust_collection_work_times | <code>Object</code> | Dust collection |
 
 <a name="commands"></a>
 
@@ -314,7 +314,7 @@ Description of each robot command.
 <a name="cleaningInfo"></a>
 
 ## cleaningInfo : <code>object</code>
-Description of cleaning information.
+@cleaningInfo_description@
 
 **Kind**: global namespace  
 **Properties**
@@ -336,14 +336,14 @@ Description of the cleaning records.
 
 | Name | Type | Description |
 | --- | --- | --- |
-| begin | <code>Object</code> | @start_cleaning_time@ |
-| end | <code>Object</code> | @end_cleaning_time@ |
-| duration | <code>Object</code> | @duration_cleaning_time@ |
-| area | <code>Object</code> | @cleaning_area@ |
-| error | <code>Object</code> | @error_type@ |
-| complete | <code>Object</code> | @completion_type@ |
-| start_type | <code>Object</code> | @start_type@ |
-| clean_type | <code>Object</code> | @clean_type@ |
-| finish_reason | <code>Object</code> | @clean_finish_reason@ |
+| begin | <code>Object</code> | Start cleaning time |
+| end | <code>Object</code> | End cleaning time |
+| duration | <code>Object</code> | Duration cleaning time |
+| area | <code>Object</code> | Cleaning Area |
+| error | <code>Object</code> | Error Type |
+| complete | <code>Object</code> | Completion Type |
+| start_type | <code>Object</code> | Start Type |
+| clean_type | <code>Object</code> | Clean Type |
+| finish_reason | <code>Object</code> | Clean Finish Reason |
 | dust_collection_status | <code>Object</code> | Dust Collection Status |
 
