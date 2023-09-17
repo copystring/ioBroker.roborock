@@ -10,7 +10,7 @@
 <dd><p>Mapeamento de consumíveis.</p>
 </dd>
 <dt><a href="#reset_consumables">reset_consumables</a> : <code>object</code></dt>
-<dd><p>Consumíveis disponíveis para redefinição</p>
+<dd><p>Descrição dos consumíveis reinicializáveis.</p>
 </dd>
 <dt><a href="#commands">commands</a> : <code>object</code></dt>
 <dd><p>Descrição de cada comando do robô.</p>
@@ -48,7 +48,7 @@ Mapeamento de consumíveis.
 <a name="reset_consumables"></a>
 
 ## reset\_consumables : <code>object</code>
-Consumíveis disponíveis para redefinição
+Descrição dos consumíveis reinicializáveis.
 
 **Kind**: global namespace  
 **Properties**

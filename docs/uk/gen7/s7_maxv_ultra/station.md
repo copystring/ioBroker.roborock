@@ -10,7 +10,7 @@
 <dd><p>Картографування витратних матеріалів.</p>
 </dd>
 <dt><a href="#reset_consumables">reset_consumables</a> : <code>object</code></dt>
-<dd><p>В наявності витратні матеріали для скидання</p>
+<dd><p>Опис відновлюваних витратних матеріалів.</p>
 </dd>
 <dt><a href="#commands">commands</a> : <code>object</code></dt>
 <dd><p>Опис кожної команди робота.</p>
@@ -48,7 +48,7 @@
 <a name="reset_consumables"></a>
 
 ## reset\_consumables : <code>object</code>
-В наявності витратні матеріали для скидання
+Опис відновлюваних витратних матеріалів.
 
 **Kind**: global namespace  
 **Properties**

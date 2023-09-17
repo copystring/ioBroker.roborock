@@ -10,7 +10,7 @@
 <dd><p>Kartierung von Verbrauchsmaterialien.</p>
 </dd>
 <dt><a href="#reset_consumables">reset_consumables</a> : <code>object</code></dt>
-<dd><p>Verbrauchsmaterialien zum Zurücksetzen verfügbar</p>
+<dd><p>Beschreibung der rücksetzbaren Verbrauchsmaterialien.</p>
 </dd>
 <dt><a href="#commands">commands</a> : <code>object</code></dt>
 <dd><p>Beschreibung jedes Roboterbefehls.</p>
@@ -48,7 +48,7 @@ Kartierung von Verbrauchsmaterialien.
 <a name="reset_consumables"></a>
 
 ## reset\_consumables : <code>object</code>
-Verbrauchsmaterialien zum Zurücksetzen verfügbar
+Beschreibung der rücksetzbaren Verbrauchsmaterialien.
 
 **Kind**: global namespace  
 **Properties**
