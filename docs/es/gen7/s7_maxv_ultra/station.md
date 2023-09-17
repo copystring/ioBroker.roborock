@@ -10,7 +10,7 @@
 <dd><p>Mapeo de consumibles.</p>
 </dd>
 <dt><a href="#reset_consumables">reset_consumables</a> : <code>object</code></dt>
-<dd><p>Consumibles disponibles para restablecer</p>
+<dd><p>Descripción de consumibles reajustables.</p>
 </dd>
 <dt><a href="#commands">commands</a> : <code>object</code></dt>
 <dd><p>Descripción de cada comando del robot.</p>
@@ -48,7 +48,7 @@ Mapeo de consumibles.
 <a name="reset_consumables"></a>
 
 ## reset\_consumables : <code>object</code>
-Consumibles disponibles para restablecer
+Descripción de consumibles reajustables.
 
 **Kind**: global namespace  
 **Properties**

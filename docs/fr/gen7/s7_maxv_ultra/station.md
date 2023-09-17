@@ -10,7 +10,7 @@
 <dd><p>Cartographie des consommables.</p>
 </dd>
 <dt><a href="#reset_consumables">reset_consumables</a> : <code>object</code></dt>
-<dd><p>Consommables disponibles pour la réinitialisation</p>
+<dd><p>Description des consommables réinitialisables.</p>
 </dd>
 <dt><a href="#commands">commands</a> : <code>object</code></dt>
 <dd><p>Description de chaque commande du robot.</p>
@@ -48,7 +48,7 @@ Cartographie des consommables.
 <a name="reset_consumables"></a>
 
 ## reset\_consumables : <code>object</code>
-Consommables disponibles pour la réinitialisation
+Description des consommables réinitialisables.
 
 **Kind**: global namespace  
 **Properties**
