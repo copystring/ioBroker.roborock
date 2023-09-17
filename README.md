@@ -54,7 +54,7 @@ This feature only works when map creation is enabled in the adapter options!
 	* (copystring) When a robot goes offline after error during cleaning then clear all intervals and start them when it robot comes back online
 	* (copystring) When it fails to receive the map output a warning instead of error since most of them are timeouts
 	* (copystring) Migrate definitions for each robot to new system
-	* (copystring) Use the system to automatically generate documentation for each robot and it's parameters, attributes, commands etc
+	* (copystring) Use the system to automatically generate documentation for each robot and it's parameters, attributes, commands, etc
 	* (copystring) Basic S7 Pro Ultra support
 
 ### 0.3.2 (2023-09-04)
