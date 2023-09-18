@@ -37,7 +37,7 @@
 <dd><p>Descripción de cada comando del robot.</p>
 </dd>
 <dt><a href="#cleaningInfo">cleaningInfo</a> : <code>object</code></dt>
-<dd><p>Descripción de la información de limpieza.</p>
+<dd><p>@cleaningInfo_description@</p>
 </dd>
 <dt><a href="#cleaningRecords">cleaningRecords</a> : <code>object</code></dt>
 <dd><p>Descripción de los registros de limpieza.</p>
@@ -316,7 +316,7 @@ Descripción de cada comando del robot.
 <a name="cleaningInfo"></a>
 
 ## cleaningInfo : <code>object</code>
-Descripción de la información de limpieza.
+@cleaningInfo_description@
 
 **Kind**: global namespace  
 **Properties**
