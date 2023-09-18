@@ -51,6 +51,10 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Fix S6 gen path
+* (copystring) Add missing types library
+
 ### 0.4.1 (2023-09-17)
 * (copystring) Fix typos in definitions docs generation
 * (copystring) Add missing types library
