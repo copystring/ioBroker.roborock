@@ -31,7 +31,7 @@
 <dd><p>Опис кожної команди робота.</p>
 </dd>
 <dt><a href="#cleaningInfo">cleaningInfo</a> : <code>object</code></dt>
-<dd><p>Опис інформації про очищення.</p>
+<dd><p>@cleaningInfo_description@</p>
 </dd>
 <dt><a href="#cleaningRecords">cleaningRecords</a> : <code>object</code></dt>
 <dd><p>Опис протоколів прибирання.</p>
@@ -260,7 +260,7 @@ Carpet Boost
 <a name="cleaningInfo"></a>
 
 ## cleaningInfo : <code>object</code>
-Опис інформації про очищення.
+@cleaningInfo_description@
 
 **Kind**: global namespace  
 **Properties**

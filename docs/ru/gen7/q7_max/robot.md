@@ -37,7 +37,7 @@
 <dd><p>Описание каждой команды робота.</p>
 </dd>
 <dt><a href="#cleaningInfo">cleaningInfo</a> : <code>object</code></dt>
-<dd><p>Описание информации по очистке.</p>
+<dd><p>@cleaningInfo_description@</p>
 </dd>
 <dt><a href="#cleaningRecords">cleaningRecords</a> : <code>object</code></dt>
 <dd><p>Описание протоколов уборки.</p>
@@ -308,7 +308,7 @@
 <a name="cleaningInfo"></a>
 
 ## cleaningInfo : <code>object</code>
-Описание информации по очистке.
+@cleaningInfo_description@
 
 **Kind**: global namespace  
 **Properties**

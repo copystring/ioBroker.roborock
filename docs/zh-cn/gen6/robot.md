@@ -34,7 +34,7 @@
 <dd><p>每个机器人命令的描述。</p>
 </dd>
 <dt><a href="#cleaningInfo">cleaningInfo</a> : <code>object</code></dt>
-<dd><p>清洁信息的描述。</p>
+<dd><p>@cleaningInfo_description@</p>
 </dd>
 <dt><a href="#cleaningRecords">cleaningRecords</a> : <code>object</code></dt>
 <dd><p>清洁记录的描述。</p>
@@ -279,7 +279,7 @@
 <a name="cleaningInfo"></a>
 
 ## cleaningInfo : <code>object</code>
-清洁信息的描述。
+@cleaningInfo_description@
 
 **Kind**: global namespace  
 **Properties**

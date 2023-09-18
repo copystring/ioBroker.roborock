@@ -25,7 +25,7 @@
 <dd><p>Beschrijving van elk robotcommando.</p>
 </dd>
 <dt><a href="#cleaningInfo">cleaningInfo</a> : <code>object</code></dt>
-<dd><p>Beschrijving van schoonmaakinformatie.</p>
+<dd><p>@cleaningInfo_description@</p>
 </dd>
 <dt><a href="#cleaningRecords">cleaningRecords</a> : <code>object</code></dt>
 <dd><p>Beschrijving van de schoonmaakregistratie.</p>
@@ -223,7 +223,7 @@ Beschrijving van elk robotcommando.
 <a name="cleaningInfo"></a>
 
 ## cleaningInfo : <code>object</code>
-Beschrijving van schoonmaakinformatie.
+@cleaningInfo_description@
 
 **Kind**: global namespace  
 **Properties**
