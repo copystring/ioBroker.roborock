@@ -245,7 +245,7 @@ Kartierung von Roboterzuständen.
 | avoid_count | <code>number</code> | Vermeiden Sie das Zählen |
 | last_clean_t | <code>number</code> | Letztes sauberes Mal |
 | rdt | <code>number</code> | ??? |
-| in_warmup | <code>number</code> | @in_warmip@ |
+| in_warmup | <code>number</code> | @in_warmup@ |
 | common_status | <code>number</code> | @common_status@ |
 | corner_clean_mode | <code>number</code> | @corner_clean_mode@ |
 

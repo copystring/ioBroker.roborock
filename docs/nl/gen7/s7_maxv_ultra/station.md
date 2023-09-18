@@ -10,7 +10,7 @@
 <dd><p>In kaart brengen van verbruiksartikelen.</p>
 </dd>
 <dt><a href="#reset_consumables">reset_consumables</a> : <code>object</code></dt>
-<dd><p>Verbruiksartikelen beschikbaar voor reset</p>
+<dd><p>Beschrijving van resetbare verbruiksartikelen.</p>
 </dd>
 <dt><a href="#commands">commands</a> : <code>object</code></dt>
 <dd><p>Beschrijving van elk robotcommando.</p>
@@ -48,7 +48,7 @@ In kaart brengen van verbruiksartikelen.
 <a name="reset_consumables"></a>
 
 ## reset\_consumables : <code>object</code>
-Verbruiksartikelen beschikbaar voor reset
+Beschrijving van resetbare verbruiksartikelen.
 
 **Kind**: global namespace  
 **Properties**

@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.4.0",
+    "version": "0.4.1",
     "news": {
+      "0.4.1": {
+        "en": "Fix typos in definitions docs generation",
+        "de": "Fix typos in Definitionen docs generation",
+        "ru": "Исправление опечаток в генерации докс",
+        "pt": "Fix typos em definições docs geração",
+        "nl": "Vertaling:",
+        "fr": "Fixer les typos dans les définitions docs génération",
+        "it": "Fissare i tipi in definizioni generazione di docs",
+        "es": "Arreglar los tipos en la generación de los docs",
+        "pl": "Fix typos w definicji docs generation",
+        "uk": "Фіксувати типограми в визначеннях доксів",
+        "zh-cn": "评 注"
+      },
       "0.4.0": {
         "en": "When a robot goes offline after error during cleaning then clear all intervals and start them when it robot comes back online\nWhen it fails to receive the map output a warning instead of error since most of them are timeouts\nMigrate definitions for each robot to new system\nUse the system to automatically generate documentation for each robot and it's parameters, attributes, commands, etc\nS7 Pro Ultra support",
         "de": "Wenn ein Roboter nach dem Fehler bei der Reinigung offline geht, dann alle Intervalle löschen und starten Sie sie, wenn es Roboter online zurückkommt\nWenn es nicht gelingt, die Kartenausgabe eine Warnung anstelle von Fehlern zu erhalten, da die meisten von ihnen Timeouts sind\nDefinitionen für jeden Roboter zu neuem System migrieren\nVerwenden Sie das System, um automatisch die Dokumentation für jeden Roboter zu erstellen und es sind Parameter, Attribute, Befehle, etc\nS7 Pro Ultra-Unterstützung",
@@ -80,19 +93,6 @@
         "pl": "Make-up turn green, gdy użytkownikname & password są poprawne\nStrona internetowa statusu i urządzenia Info\nWsparcie dla modeli Camera MaxV\nPoparcie dla tytułów przeszkód\nMa trochę opcję prettiera\nWspierać się na zakup nowego oprogramowania\nAddd Support for Roborock S8, S8 Pro Ultra, S4 Max, Q7 Max Ultra (ang.)\nLoad of bug fixing (ang.)\nPoszukiwanie ruchu poprzez mimeproxy",
         "uk": "Зробіть перехідник зеленим тільки при правильній корекції імені користувача та пароля\nДодати вакуум онлайн статус і пристрій Новини\nДодати підтримку для камери моделей MaxV\nДодати підтримку заголовків перешкод\nЗробіть варіанти маленького претенця\nДодати підтримку для перевірки нової прошивки\nПідтримка Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nНавантаження виправлення помилок\nДодати опцію до жорсткого трафіку через mitmproxy",
         "zh-cn": "只有当用户名称和密码正确时,才能使适应者变得绿色。\n增加网上身份和装置 信息\nD. 增加对MaxV模型 Camera的支助\n增加对障碍的标题的支持\n采用很少的预制办法\n增加对新警觉检查的支助\n增加Roborock S8, S8 Pro Ultra, S4 Max, Q7, S7 Max Ultra\nB. 制药的丧失\n增加通过米特里夏·甘蔗贩运的备选办法"
-      },
-      "0.1.6": {
-        "en": "Add touch support for zones in web interface\nFix room mapping\nRefactor map creation code\nFix robot rotation when parked\nDisplay obstacles of Roborock S6 MaxV (and maybe others) on map\nAdd support for virtual walls\nAdd support for no mop zones",
-        "de": "Fügen Sie Touch-Support für Zonen in Web-Schnittstelle hinzu\nZimmer Mapping reparieren\nRefactor Map Erstellungscode\nRoboterrotation beim Parken festhalten\nHindernisse von Roborock S6 MaxV (und vielleicht andere) auf der Karte anzeigen\nUnterstützung für virtuelle Wände hinzufügen\nUnterstützung für keine Mop-Zonen hinzufügen",
-        "ru": "Добавьте поддержку касания зон в веб-интерфейсе\nFix карта комнаты\nКод создания карты Refactor\nИсправление вращения робота припаркованном\nОтображение препятствий Roborock S6 MaxV (и, возможно, другие) на карте\nДобавить поддержку виртуальных стен\nДобавьте поддержку без зон mop",
-        "pt": "Adicionar suporte de toque para zonas na interface web\nCorrigir mapeamento de quarto\nCódigo de criação do mapa de refator\nCorrigir rotação do robô quando estacionado\nExibir obstáculos de Roborock S6 MaxV (e talvez outros) no mapa\nAdicionar suporte para paredes virtuais\nAdicionar suporte para zonas sem esfregões",
-        "nl": "Aanraking voor zones in het web interface\nQuality over Quantity (QoQ) Releases Vertaling:\nRefactor kaart creatie code\nFix robot rotatie toen hij geparkeerd werd\nVertaling:\nSteun voor virtuele muren\nAdvies ondersteuning",
-        "fr": "Ajouter le support tactile pour les zones dans l'interface web\nCartographie fixe\nFacteur de création de carte\nTour de robot fixe quand stationné\nAfficher les obstacles de Roborock S6 MaxV (et peut-être d'autres) sur la carte\nAjouter le support pour les murs virtuels\nAjouter le support pour aucune zone mop",
-        "it": "Aggiungi supporto touch per zone in interfaccia web\nRisolvere la mappatura della stanza\nCodice di creazione della mappa refactor\nFissare rotazione robot quando parcheggiato\nVisualizza gli ostacoli di Roborock S6 MaxV (e forse altri) sulla mappa\nAggiungi supporto per pareti virtuali\nAggiungi supporto per nessuna zona mop",
-        "es": "Agregar soporte táctil para zonas en interfaz web\nCartografía de espacio fijo\nCódigo de creación de mapas de refactor\nCorregir rotación robot cuando estacionado\nMostrar obstáculos de Roborock S6 MaxV (y tal vez otros) en el mapa\nAñadir soporte para paredes virtuales\nAñadir soporte para no zonas mop",
-        "pl": "Addd touch support for zones in web interface\nFix\nKod źródłowy\nFix robot rotacyjny kiedy parkował\nRozgrywki Roborocka S6 MaxVa (i mogą być inne)\nPomoc dla wirtualnych murów\nWspierać się bez strefy mokrajowej",
-        "uk": "Додавання сенсорної підтримки зон в веб-інтерфейсі\nФіксація карти приміщення\nКод створення рефактора\nВиправлення обертання роботів при парковій\nПоказати перешкоди Roborock S6 MaxV (і можливо, інші) на карті\nДодавання підтримки віртуальних стін\nДодайте підтримку без зон",
-        "zh-cn": "增加网站接口区的支助\n固定会议室制图\n成果地图制作守则\n当停车场时,汽车轮换\n关于地图的Roborock S6 MaxV(及其他人)面临的障碍\n增加对虚拟墙壁的支持\n增加对未种植区的支持"
       }
     },
     "titleLang": {

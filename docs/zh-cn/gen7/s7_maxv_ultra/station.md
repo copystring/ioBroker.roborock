@@ -10,7 +10,7 @@
 <dd><p>耗材映射。</p>
 </dd>
 <dt><a href="#reset_consumables">reset_consumables</a> : <code>object</code></dt>
-<dd><p>可用于重置的消耗品</p>
+<dd><p>可重置消耗品的说明。</p>
 </dd>
 <dt><a href="#commands">commands</a> : <code>object</code></dt>
 <dd><p>每个机器人命令的描述。</p>
@@ -48,7 +48,7 @@
 <a name="reset_consumables"></a>
 
 ## reset\_consumables : <code>object</code>
-可用于重置的消耗品
+可重置消耗品的说明。
 
 **Kind**: global namespace  
 **Properties**

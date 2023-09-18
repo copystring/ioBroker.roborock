@@ -10,7 +10,7 @@
 <dd><p>Mapowanie materiałów eksploatacyjnych.</p>
 </dd>
 <dt><a href="#reset_consumables">reset_consumables</a> : <code>object</code></dt>
-<dd><p>Materiały eksploatacyjne dostępne do resetowania</p>
+<dd><p>Opis resetowalnych materiałów eksploatacyjnych.</p>
 </dd>
 <dt><a href="#commands">commands</a> : <code>object</code></dt>
 <dd><p>Opis każdego polecenia robota.</p>
@@ -48,7 +48,7 @@ Mapowanie materiałów eksploatacyjnych.
 <a name="reset_consumables"></a>
 
 ## reset\_consumables : <code>object</code>
-Materiały eksploatacyjne dostępne do resetowania
+Opis resetowalnych materiałów eksploatacyjnych.
 
 **Kind**: global namespace  
 **Properties**

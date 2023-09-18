@@ -245,7 +245,7 @@ Mapowanie stanów robotów.
 | avoid_count | <code>number</code> | Unikaj liczenia |
 | last_clean_t | <code>number</code> | Ostatni czysty czas |
 | rdt | <code>number</code> | ??? |
-| in_warmup | <code>number</code> | @in_warmip@ |
+| in_warmup | <code>number</code> | @in_warmup@ |
 | common_status | <code>number</code> | @common_status@ |
 | corner_clean_mode | <code>number</code> | @corner_clean_mode@ |
 

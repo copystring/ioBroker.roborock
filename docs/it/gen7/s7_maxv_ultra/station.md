@@ -10,7 +10,7 @@
 <dd><p>Mappatura dei materiali di consumo.</p>
 </dd>
 <dt><a href="#reset_consumables">reset_consumables</a> : <code>object</code></dt>
-<dd><p>Materiali di consumo disponibili per il ripristino</p>
+<dd><p>Descrizione dei materiali di consumo ripristinabili.</p>
 </dd>
 <dt><a href="#commands">commands</a> : <code>object</code></dt>
 <dd><p>Descrizione di ciascun comando del robot.</p>
@@ -48,7 +48,7 @@ Mappatura dei materiali di consumo.
 <a name="reset_consumables"></a>
 
 ## reset\_consumables : <code>object</code>
-Materiali di consumo disponibili per il ripristino
+Descrizione dei materiali di consumo ripristinabili.
 
 **Kind**: global namespace  
 **Properties**
