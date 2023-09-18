@@ -53,6 +53,7 @@ This feature only works when map creation is enabled in the adapter options!
 -->
 ### 0.4.1 (2023-09-17)
 * (copystring) Fix typos in definitions docs generation
+* (copystring) Add missing types library
 
 ### 0.4.0 (2023-09-17)
 * (copystring) When a robot goes offline after error during cleaning then clear all intervals and start them when it robot comes back online
