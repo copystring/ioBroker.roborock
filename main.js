@@ -643,6 +643,21 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
+	createStateObjectHelper(path, name, type, def, role, read, write, native = {}) {
+		this.setObjectAsync(path, {
+			type: "state",
+			common: {
+				name: name,
+				type: type,
+				def: def,
+				role: role,
+				read: read,
+				write: write,
+			},
+			native: native,
+		});
+	}
+
 	isCleaning(state) {
 		switch (state) {
 			case 4: // Remote Control
