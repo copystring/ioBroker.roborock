@@ -415,26 +415,22 @@ class Roborock extends utils.Adapter {
 	}
 
 	async onlineChecker(duid) {
-		return await this.getStateAsync("HomeData").then((homedata) => {
-			if (homedata) {
-				const homedataVal = homedata.val;
-				if (typeof homedataVal == "string") {
-					const homedataJSON = JSON.parse(homedataVal);
+		const homedata = await this.getStateAsync("HomeData");
 
-					const devices = homedataJSON.devices;
-
-					for (const device in devices) {
-						const duidHomeData = devices[device].duid;
-
-						if (duid == duidHomeData) {
-							return devices[device].online;
-						}
-					}
-				}
-			}
-			// Make device appear offline if not found or homedata missing
+		// If the home data is not found or if its value is not a string, return false.
+		if (!homedata || typeof homedata.val != "string") {
 			return false;
-		});
+		}
+
+		const homedataJSON = JSON.parse(homedata.val);
+		const device = homedataJSON.devices.find((device) => device.duid == duid);
+
+		// If the device is not found, return false.
+		if (!device) {
+			return false;
+		}
+
+		return device.online;
 	}
 
 	async manageDeviceIntervals(duid) {
