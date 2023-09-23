@@ -405,12 +405,13 @@ class Roborock extends utils.Adapter {
 	}
 
 	getRobotModel(products, productID) {
-		for (const product in products) {
-			if (products[product].id == productID) {
-				const model = products[product].model;
-				return model;
+		for (const product of products) {
+			if (product.id == productID) {
+				return product.model;
 			}
 		}
+
+		return null;
 	}
 
 	async onlineChecker(duid) {
