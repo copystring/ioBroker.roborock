@@ -274,12 +274,14 @@ class Roborock extends utils.Adapter {
 	}
 
 	stopMapUpdater(duid) {
-		this.log.debug("Stopped map updater on robot: " + duid);
-		if (this.vacuums[duid].mapUpdater != null) {
-			this.clearInterval(this.vacuums[duid].mapUpdater);
-			this.vacuums[duid].mapUpdater = null;
+		const vacuum = this.vacuums[duid];
 
-			this.vacuums[duid].getCleanSummary(duid);
+		this.log.debug(`Stopped map updater on robot: ${duid}`);
+		if (vacuum.mapUpdater != null) {
+			this.clearInterval(vacuum.mapUpdater);
+			vacuum.mapUpdater = null;
+
+			vacuum.getCleanSummary(duid);
 		}
 	}
 
