@@ -214,7 +214,8 @@ class Roborock extends utils.Adapter {
 							this.subscribeStates("Devices." + duid + ".commands.*");
 							this.subscribeStates("Devices." + duid + ".reset_consumables.*");
 
-							this.vacuums[duid].mainUpdateInterval = () => this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
+							this.vacuums[duid].mainUpdateInterval = () =>
+								this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
 							if (devices[device].online) {
 								this.log.debug(duid + " online. Starting mainUpdateInterval.");
 								this.vacuums[duid].mainUpdateInterval(); // actually start mainUpdateInterval()
@@ -260,14 +261,15 @@ class Roborock extends utils.Adapter {
 			});
 	}
 
-	async startMapUpdater(duid) {
-		if (this.vacuums[duid].mapUpdater == null) {
-			this.log.debug("Started map updater on robot: " + duid);
-			this.vacuums[duid].mapUpdater = this.setInterval(() => {
-				this.vacuums[duid].getMap(duid);
-			}, this.config.map_creation_interval * 1000);
+	startMapUpdater(duid) {
+		const vacuum = this.vacuums[duid];
+
+		if (!vacuum.mapUpdater) {
+			const intervalTime = this.config.map_creation_interval * 1000;
+			vacuum.mapUpdater = this.setInterval(() => vacuum.getMap(duid), intervalTime);
+			this.log.debug(`Started map updater on robot: ${duid}`);
 		} else {
-			this.log.debug("Map updater on robot: " + duid + " already running!");
+			this.log.debug(`Map updater on robot: ${duid} already running!`);
 		}
 	}
 
@@ -433,13 +435,11 @@ class Roborock extends utils.Adapter {
 	}
 
 	async manageDeviceIntervals(duid) {
-		return this
-			.onlineChecker(duid)
+		return this.onlineChecker(duid)
 			.then((onlineState) => {
 				if (!this.vacuums[duid].mainUpdateInterval) {
-					if (this.vacuums[duid].mainUpdateInterval == null)
-						this.vacuums[duid].mainUpdateInterval();
-						// Map updater gets startet automatically via getParameter with get_status
+					if (this.vacuums[duid].mainUpdateInterval == null) this.vacuums[duid].mainUpdateInterval();
+					// Map updater gets startet automatically via getParameter with get_status
 				} else {
 					this.clearInterval(this.vacuums[duid].mainUpdateInterval);
 					this.clearInterval(this.vacuums[duid].mapUpdater);
