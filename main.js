@@ -214,10 +214,11 @@ class Roborock extends utils.Adapter {
 							this.subscribeStates("Devices." + duid + ".commands.*");
 							this.subscribeStates("Devices." + duid + ".reset_consumables.*");
 
-							this.vacuums[duid].mainUpdateFunction = () =>
-								this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
+							this.vacuums[duid].mainUpdateInterval = () => this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
 							if (devices[device].online) {
-								this.vacuums[duid].mainUpdateInterval = this.vacuums[duid].mainUpdateFunction();
+								this.log.debug(duid + " online. Starting mainUpdateInterval.");
+								this.vacuums[duid].mainUpdateInterval(); // actually start mainUpdateInterval()
+								// Map updater gets startet automatically via getParameter with get_status
 							}
 
 							await this.updateDataExtraData(duid, this.vacuums[duid]); // extra data needs to be called first!!!
@@ -436,8 +437,9 @@ class Roborock extends utils.Adapter {
 			.onlineChecker(duid)
 			.then((onlineState) => {
 				if (!this.vacuums[duid].mainUpdateInterval) {
-					this.vacuums[duid].mainUpdateInterval = this.vacuums[duid].mainUpdateFunction();
-					// Map updater gets startet automatically via getParameter with get_status
+					if (this.vacuums[duid].mainUpdateInterval == null)
+						this.vacuums[duid].mainUpdateInterval();
+						// Map updater gets startet automatically via getParameter with get_status
 				} else {
 					this.clearInterval(this.vacuums[duid].mainUpdateInterval);
 					this.clearInterval(this.vacuums[duid].mapUpdater);
