@@ -629,9 +629,18 @@ class Roborock extends utils.Adapter {
 	}
 
 	getType(attribute) {
-		if (typeof attribute === "boolean") return "boolean";
-		else if (typeof attribute === "number") return "number";
-		else return "string";
+		// Get the type of the attribute.
+		const type = typeof attribute;
+
+		// Return the appropriate string representation of the type.
+		switch (type) {
+			case "boolean":
+				return "boolean";
+			case "number":
+				return "number";
+			default:
+				return "string";
+		}
 	}
 
 	isCleaning(state) {
