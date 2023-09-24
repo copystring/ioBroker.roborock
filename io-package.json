@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.4.2",
+    "version": "0.4.3",
     "news": {
+      "0.4.3": {
+        "en": "Refactor code\nFix mainUpdateInterval not working",
+        "de": "Erzeugniscode\nHauptUpdateInterval nicht funktionieren",
+        "ru": "Рефакторный код\nFix mainUpdateИнтервал не работает",
+        "pt": "Código do fator\nFix mainUpdateInterval não funciona",
+        "nl": "Refactor code\nFix mainUpdate",
+        "fr": "Code de calcul\nRéparez mainmiseInterval ne fonctionne pas",
+        "it": "Codice di fabbrica\nFissare mainUpdateInterval non funziona",
+        "es": "Código de referencia\nCorrección principalActualizaciónInterval no funciona",
+        "pl": "Kod źródłowy\nFix-UpdateInterval nie działać",
+        "uk": "Код рефактора\nВиправлення mainUpdateInterval не працює",
+        "zh-cn": "复制守则\n未工作的主要用途"
+      },
       "0.4.2": {
         "en": "Fix S6 gen path\nAdd missing types library",
         "de": "S6 gen path\nBibliothek für fehlende Typen hinzufügen",
@@ -80,19 +93,6 @@
         "pl": "Wsparcie dla Roborock S7 MaxV (Ultra)\nBasic Revo Q wsparcia\nWskaźnik S6",
         "uk": "Додати підтримку для очищення_відсоток Roborock S7 MaxV (Ультра)\nГоловна Підтримка Q\nВиправлення витратних матеріалів для S6",
         "zh-cn": "增加对清洁的支持:Roborock S7 MaxV(Ultra)\n基本法 支助\nS6ix 固定配量"
-      },
-      "0.2.1": {
-        "en": "Fix adapter options",
-        "de": "Adapteroptionen festlegen",
-        "ru": "Fix варианты адаптера",
-        "pt": "Opções do adaptador de fixação",
-        "nl": "Fix adapter opties",
-        "fr": "Options d ' adaptation",
-        "it": "Opzioni di fissaggio dell'adattatore",
-        "es": "Opciones de ajuste",
-        "pl": "Adaptacja Fix",
-        "uk": "Параметри адаптера",
-        "zh-cn": "Fix 适应办法"
       }
     },
     "titleLang": {
