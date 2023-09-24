@@ -643,17 +643,24 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
-	createStateObjectHelper(path, name, type, def, role, read, write, native = {}) {
+	createStateObjectHelper(path, name, type, unit, def, role, read, write, states, native = {}) {
+		const common = {
+			name: name,
+			type: type,
+			unit: unit,
+			role: role,
+			read: read,
+			write: write,
+			states: states,
+		};
+
+		if (def !== undefined && def !== null && def !== "") {
+			common.def = def;
+		}
+
 		this.setObjectAsync(path, {
 			type: "state",
-			common: {
-				name: name,
-				type: type,
-				def: def,
-				role: role,
-				read: read,
-				write: write,
-			},
+			common: common,
 			native: native,
 		});
 	}
