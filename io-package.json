@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.4.3",
+    "version": "0.4.4",
     "news": {
+      "0.4.4": {
+        "en": "Fix for getting the map for each cleaning record",
+        "de": "Fix, um die Karte für jeden Reinigungsrekord zu bekommen",
+        "ru": "Исправление для получения карты для каждой записи очистки",
+        "pt": "Fix para obter o mapa para cada registro de limpeza",
+        "nl": "Vertaling:",
+        "fr": "Fix pour obtenir la carte pour chaque enregistrement de nettoyage",
+        "it": "Fissare per ottenere la mappa per ogni record di pulizia",
+        "es": "Fijación para obtener el mapa para cada registro de limpieza",
+        "pl": "Fix ma na celu uzyskanie mapy dla każdego zapisu czyszczonego",
+        "uk": "Виправлення для отримання карти для кожного запису очищення",
+        "zh-cn": "每个清洁记录地图的ix"
+      },
       "0.4.3": {
         "en": "Refactor code\nFix mainUpdateInterval not working",
         "de": "Erzeugniscode\nHauptUpdateInterval nicht funktionieren",
@@ -80,19 +93,6 @@
         "pl": "Fix water_box_custom_mode",
         "uk": "Фіксація води_box_custom_mode для S4 Max",
         "zh-cn": "Fix水_箱_custom_mode for S4 Max"
-      },
-      "0.3.0": {
-        "en": "Add support for clean_percent of Roborock S7 MaxV (Ultra)\nBasic Revo Q support\nFix consumables for S6",
-        "de": "Unterstützung für clean_percent von Roborock S7 MaxV (Ultra) hinzufügen\nGrundrevo Q Unterstützung\nVerbrauchsmaterialien für S6 festsetzen",
-        "ru": "Добавить поддержку для clean_percent of Roborock S7 MaxV (Ultra)\nОсновное Revo Поддержка Q\nFix расходные материалы для S6",
-        "pt": "Adicionar suporte para clean_percent de Roborock S7 MaxV (Ultra)\nRevo básico Suporte Q\nConsumíveis de fixação para S6",
-        "nl": "Advies steun voor schoonheid van Roborock S7 MaxV (Ultra)\nBasis Revo Qua steun\nVertaling:",
-        "fr": "Ajouter le support pour clean_percent de Roborock S7 MaxV (Ultra)\nBasic Revo Appui Q\nConsommables fixes pour S6",
-        "it": "Aggiungi supporto per clean_percent di Roborock S7 MaxV (Ultra)\nRischio di base Supporto Q\nRisolvere i materiali di consumo per S6",
-        "es": "Añadir soporte para clean_percent of Roborock S7 MaxV (Ultra)\nBasic Revo Apoyo Q\nConsumibles fijos para S6",
-        "pl": "Wsparcie dla Roborock S7 MaxV (Ultra)\nBasic Revo Q wsparcia\nWskaźnik S6",
-        "uk": "Додати підтримку для очищення_відсоток Roborock S7 MaxV (Ультра)\nГоловна Підтримка Q\nВиправлення витратних матеріалів для S6",
-        "zh-cn": "增加对清洁的支持:Roborock S7 MaxV(Ultra)\n基本法 支助\nS6ix 固定配量"
       }
     },
     "titleLang": {
