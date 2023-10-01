@@ -262,26 +262,24 @@ class Roborock extends utils.Adapter {
 	}
 
 	startMapUpdater(duid) {
-		const vacuum = this.vacuums[duid];
-
-		if (!vacuum.mapUpdater) {
+		if (!this.vacuums[duid].mapUpdater) {
 			const intervalTime = this.config.map_creation_interval * 1000;
-			vacuum.mapUpdater = this.setInterval(() => vacuum.getMap(duid), intervalTime);
-			this.log.debug(`Started map updater on robot: ${duid}`);
+
+			this.log.debug(`Starting map updater on robot: ${duid}`);
+			this.vacuums[duid].mapUpdater = this.setInterval(() => this.vacuums[duid].getMap(duid), intervalTime);
 		} else {
 			this.log.debug(`Map updater on robot: ${duid} already running!`);
 		}
 	}
 
 	stopMapUpdater(duid) {
-		const vacuum = this.vacuums[duid];
+		this.log.debug(`Stopping map updater on robot: ${duid}`);
 
-		this.log.debug(`Stopped map updater on robot: ${duid}`);
-		if (vacuum.mapUpdater != null) {
-			this.clearInterval(vacuum.mapUpdater);
-			vacuum.mapUpdater = null;
+		if (this.vacuums[duid].mapUpdater) {
+			this.clearInterval(this.vacuums[duid].mapUpdater);
+			this.vacuums[duid].mapUpdater = null;
 
-			vacuum.getCleanSummary(duid);
+			this.vacuums[duid].getCleanSummary(duid);
 		}
 	}
 
@@ -735,12 +733,12 @@ class Roborock extends utils.Adapter {
 		const filename = systems[platform][arch];
 		const unzippedFilePath = "./lib/go2rtc/" + filename;
 		const version = "v1.3.0";
-		this.log.debug("arch: " + arch);
-		this.log.debug("platform: " + platform);
-		this.log.debug("System type: " + filename);
+		this.log.debug(`arch:  ${arch}`);
+		this.log.debug(`platform: ${platform}`);
+		this.log.debug(`System type: ${filename}`);
 
-		const downloadURL = "https://github.com/AlexxIT/go2rtc/releases/download/" + version + "/" + filename;
-		this.log.debug("downloadURL: " + downloadURL);
+		const downloadURL = `https://github.com/AlexxIT/go2rtc/releases/download/${version}/${filename}`;
+		this.log.debug(`downloadURL: ${downloadURL}`);
 
 		const user = "AlexxIT";
 		const repo = "go2rtc";
@@ -749,28 +747,37 @@ class Roborock extends utils.Adapter {
 		const filterAsset = (asset) => asset.name.includes(filename);
 		const leaveZipped = false;
 
-		await downloadRelease(user, repo, outputdir, filterRelease, filterAsset, leaveZipped)
-			// .then((downloadedAssets) => {
+		const outputFilePath = path.join(outputdir, filename);
+
+		if (fs.existsSync(outputFilePath)) { // delete old file. Sometimes the adapter crashes and the file is not deleted.
+			try {
+				fs.unlinkSync(outputFilePath);
+				this.log.debug(`Old file ${outputFilePath} has been deleted.`);
+			} catch (error) {
+				this.log.error(`Error deleting old file ${outputFilePath}: ${error.message}`);
+			}
+		}
+
+		try {
+			const downloadedAssets = await downloadRelease(user, repo, outputdir, filterRelease, filterAsset, leaveZipped);
 			// 	this.log.debug("Downloaded assets:" + downloadedAssets);
-			// })
-			.catch((err) => {
-				this.log.error("Error: " + err.message);
-			})
-			.finally(() => {
-				if (platform != "win32") {
-					fs.chmod(unzippedFilePath, 0o755, (err) => {
-						if (err) {
-							this.log.error("Error making " + unzippedFilePath + " executable: " + err);
-						} else {
-							this.log.debug("Made " + unzippedFilePath + " executable");
-						}
-					});
-					go2rtc = filename;
-				} else go2rtc = "go2rtc.exe";
+		} catch(error) {
+			this.log.error("Error: " + error.message);
+		}
+
+		if (platform != "win32") {
+			fs.chmod(unzippedFilePath, 0o755, (err) => {
+				if (err) {
+					this.log.error(`Error making ${unzippedFilePath} executable: ${err}`);
+				} else {
+					this.log.debug(`Made ${unzippedFilePath} executable`);
+				}
 			});
+			go2rtc = filename;
+		} else go2rtc = "go2rtc.exe";
 	}
 
-	start_go2rtc(robots, homedata, userdata) {
+	async start_go2rtc(robots, homedata, userdata) {
 		let cameraCount = 0;
 
 		const go2rtcConfig = { streams: {} };
@@ -784,38 +791,40 @@ class Roborock extends utils.Adapter {
 			if (robots[robot].setup.camera) {
 				cameraCount++;
 				go2rtcConfig.streams[duid] =
-					"roborock://mqtt-eu-3.roborock.com:8883?u=" + u + "&s=" + s + "&k=" + k + "&did=" + duid + "&key=" + localKey + "&pin=" + this.config.cameraPin;
+				`roborock://mqtt-eu-3.roborock.com:8883?u=${u}&s=${s}&k=${k}&did=${duid}&key=${localKey}&pin=${this.config.cameraPin}`;
 			}
 		}
 
 		if (go2rtc && cameraCount > 0) {
 			const exePath = path.join(__dirname, "./lib/go2rtc/") + go2rtc;
-			this.log.debug("exePath: " + exePath);
+			this.log.debug(`exePath: ${exePath}`);
 
-			findProcess("name", go2rtc)
-				.then((processList) => {
-					processList.forEach((proc) => {
-						this.log.debug("Killing process with pid " + proc.pid);
-						process.kill(proc.pid, "SIGTERM");
-					});
-				})
-				.catch((err) => {
-					this.log.error("Error: " + err.message);
-				})
-				.finally(() => {
-					execFile(exePath, ["-config", JSON.stringify(go2rtcConfig)], (error, stdout, stderr) => {
-						if (error) {
-							this.log.error("Error executing file" + error);
-							return;
-						}
-						if (stdout) {
-							this.log.debug("Output from go2rtc: " + stdout);
-						}
-						if (stderr) {
-							this.log.error("Error output from: " + stderr);
-						}
-					});
+			const processList = await findProcess("name", go2rtc);
+
+			if (processList) {
+				processList.forEach((proc) => {
+					this.log.debug(`Killing process with pid ${proc.pid}`);
+					process.kill(proc.pid, "SIGTERM");
 				});
+			}
+
+			try {
+				execFile(exePath, ["-config", JSON.stringify(go2rtcConfig)], (error, stdout, stderr) => {
+					if (error) {
+						this.log.error(`Error executing file ${error}`);
+						return;
+					}
+					if (stdout) {
+						this.log.debug(`Output from go2rtc: ${stdout}`);
+					}
+					if (stderr) {
+						this.log.error(`Error output from: ${stderr}`);
+					}
+				});
+			}
+			catch (error) {
+				this.log.error(`Failed to launch go2rtc: ${error}`);
+			}
 		}
 	}
 
@@ -862,7 +871,7 @@ class Roborock extends utils.Adapter {
 			const folder = idParts[4];
 			const command = idParts[5];
 
-			this.log.debug("onStateChange: " + command + " with value: " + state.val);
+			this.log.debug(`onStateChange: ${command} with value: ${state.val}`);
 			if (state.val == true && typeof state.val == "boolean") {
 				if (folder == "reset_consumables") {
 					await this.vacuums[duid].command(duid, "reset_consumable", command);
@@ -904,7 +913,7 @@ class Roborock extends utils.Adapter {
 				this.vacuums[duid].command(duid, command, state.val);
 			}
 		} else {
-			this.log.error("Error! Missing state onChangeState!");
+			this.log.error(`Error! Missing state onChangeState!`);
 		}
 	}
 
