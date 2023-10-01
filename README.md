@@ -51,6 +51,9 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Rework map parser and map creator
+
 ### 0.4.4 (2023-09-24)
 * (copystring) Fix for getting the map for each cleaning record
 
