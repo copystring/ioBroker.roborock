@@ -53,6 +53,11 @@
 			"type": "number",
 			"label": "PIN for streaming the camera",
 			"newLine": true
+		},
+		"downloadRoborockImages": {
+			"type": "checkbox",
+			"label": "Download Roborock Images",
+			"newLine": true
 		}
 	}
 }

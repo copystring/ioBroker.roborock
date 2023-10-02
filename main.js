@@ -16,6 +16,7 @@ const { downloadRelease } = require("@terascope/fetch-github-release");
 
 const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roborock_mqtt_connector;
 const vacuum_class = require("./lib/vacuum").vacuum;
+const roborockPackageHelper = require("./lib/roborockPackageHelper").roborockPackageHelper;
 
 let rr_mqtt_connector, socketServer, webserver;
 
@@ -49,6 +50,8 @@ class Roborock extends utils.Adapter {
 		this.socket = null;
 
 		this.messageQueue = new Map();
+
+		this.roborockPackageHelper = new roborockPackageHelper(this);
 	}
 
 	/**
@@ -207,6 +210,10 @@ class Roborock extends utils.Adapter {
 
 							this.vacuums[duid] = new vacuum_class(this, robotModel);
 							this.vacuums[duid].name = name;
+
+							if (this.config.downloadRoborockImages) {
+								this.roborockPackageHelper.updateProduct(loginApi, robotModel, duid);
+							}
 
 							await this.vacuums[duid].setUpObjects(duid);
 
@@ -425,14 +432,11 @@ class Roborock extends utils.Adapter {
 				return false;
 			}
 
-			this.log.debug("onlineChecker: " + device.online);
 			return device.online;
 		}
 		else {
 			return false;
 		}
-
-		return device.online;
 	}
 
 	async manageDeviceIntervals(duid) {
