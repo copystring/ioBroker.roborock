@@ -55,6 +55,7 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Rework map parser and map creator
 * (copystring) Convert a lof of strings to template literals
 * (copystring) Improve go2rtc download logic
+* (copystring) Improve error logging
 
 ### 0.4.4 (2023-09-24)
 * (copystring) Fix for getting the map for each cleaning record

@@ -416,15 +416,19 @@ class Roborock extends utils.Adapter {
 		const homedata = await this.getStateAsync("HomeData");
 
 		// If the home data is not found or if its value is not a string, return false.
-		if (!homedata || typeof homedata.val != "string") {
-			return false;
+		if (homedata && typeof homedata.val == "string") {
+			const homedataJSON = JSON.parse(homedata.val);
+			const device = homedataJSON.devices.find((device) => device.duid == duid);
+
+			// If the device is not found, return false.
+			if (!device) {
+				return false;
+			}
+
+			this.log.debug("onlineChecker: " + device.online);
+			return device.online;
 		}
-
-		const homedataJSON = JSON.parse(homedata.val);
-		const device = homedataJSON.devices.find((device) => device.duid == duid);
-
-		// If the device is not found, return false.
-		if (!device) {
+		else {
 			return false;
 		}
 
@@ -824,6 +828,25 @@ class Roborock extends utils.Adapter {
 			}
 			catch (error) {
 				this.log.error(`Failed to launch go2rtc: ${error}`);
+			}
+		}
+	}
+
+	async catchError(error, attribute, duid) {
+		const onlineState = await this.manageDeviceIntervals(duid);
+
+		if (onlineState) {
+			if (error.message == "retry" || error.message == "locating" || error.toString().includes("timed out after 10 seconds")) {
+				this.log.warn(`Failed to execute ${attribute} on robot ${duid} error`);
+			}
+			else {
+				this.log.error(`Failed to execute ${attribute} on robot ${duid} ${error}`);
+
+				if (this.supportsFeature && this.supportsFeature("PLUGINS")) {
+					if (this.sentryInstance) {
+						this.sentryInstance.getSentryObject().captureException(`get_status error: ${error}`);
+					}
+				}
 			}
 		}
 	}
