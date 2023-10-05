@@ -841,14 +841,14 @@ class Roborock extends utils.Adapter {
 
 		if (onlineState) {
 			if (error.message == "retry" || error.message == "locating" || error.toString().includes("timed out after 10 seconds")) {
-				this.log.warn(`Failed to execute ${attribute} on robot ${duid} error`);
+				this.log.warn(`Failed to execute ${attribute} on robot ${duid} ${error}`);
 			}
 			else {
 				this.log.error(`Failed to execute ${attribute} on robot ${duid} ${error}`);
 
 				if (this.supportsFeature && this.supportsFeature("PLUGINS")) {
 					if (this.sentryInstance) {
-						this.sentryInstance.getSentryObject().captureException(`get_status error: ${error}`);
+						this.sentryInstance.getSentryObject().captureException(`error: ${error}`);
 					}
 				}
 			}
