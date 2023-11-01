@@ -22,7 +22,7 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@iobroker/adapter-core": "^3.0.3",
+    "@iobroker/adapter-core": "^3.0.4",
     "@sentry/node": "^7.72.0",
     "@sentry/tracing": "^7.61.1",
     "@terascope/fetch-github-release": "^0.8.7",
