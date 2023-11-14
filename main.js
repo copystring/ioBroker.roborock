@@ -200,16 +200,12 @@ class Roborock extends utils.Adapter {
 
 						// create devices and set states
 						const devices = homedata.devices;
-						const products = homedata.products;
 						for (const device in devices) {
-							const productID = devices[device]["productId"];
-							// const robotModel = products[device]["model"];
-							const robotModel = this.getRobotModel(products, productID);
 							const duid = devices[device].duid;
-							const name = devices[device].name;
+							const robotModel = await this.getRobotModel(duid);
 
 							this.vacuums[duid] = new vacuum_class(this, robotModel);
-							this.vacuums[duid].name = name;
+							this.vacuums[duid].name = devices[device].name;
 
 							if (this.config.downloadRoborockImages) {
 								this.roborockPackageHelper.updateProduct(loginApi, robotModel, duid);
@@ -221,16 +217,10 @@ class Roborock extends utils.Adapter {
 							this.subscribeStates("Devices." + duid + ".commands.*");
 							this.subscribeStates("Devices." + duid + ".reset_consumables.*");
 
-							this.vacuums[duid].mainUpdateInterval = () =>
-								this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
-							if (devices[device].online) {
-								this.log.debug(duid + " online. Starting mainUpdateInterval.");
-								this.vacuums[duid].mainUpdateInterval(); // actually start mainUpdateInterval()
-								// Map updater gets startet automatically via getParameter with get_status
-							}
-
 							await this.updateDataExtraData(duid, this.vacuums[duid]); // extra data needs to be called first!!!
 							await this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
+
+							this.startMainUpdateInterval(duid, devices[device].online);
 
 							this.vacuums[duid].getCameraStreams(duid);
 
@@ -409,14 +399,35 @@ class Roborock extends utils.Adapter {
 		socketServer.close();
 	}
 
-	getRobotModel(products, productID) {
-		for (const product of products) {
-			if (product.id == productID) {
-				return product.model;
+	async getRobotModel(duid) {
+		const homedata = await this.getStateAsync("HomeData");
+
+		if (homedata && typeof homedata.val == "string") {
+			const homedataJSON = JSON.parse(homedata.val);
+			const productID = homedataJSON.devices.find((device) => device.duid == duid).productId;
+			const model = homedataJSON.products.find((product) => product.id == productID).model;
+
+			// If the device is not found, return false.
+			if (!productID) {
+				return false;
 			}
+
+			return model;
 		}
 
 		return null;
+	}
+
+	startMainUpdateInterval(duid, online) {
+		const robotModel = this.getRobotModel(duid);
+
+		this.vacuums[duid].mainUpdateInterval = () =>
+			this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
+		if (online) {
+			this.log.debug(duid + " online. Starting mainUpdateInterval.");
+			this.vacuums[duid].mainUpdateInterval(); // actually start mainUpdateInterval()
+			// Map updater gets startet automatically via getParameter with get_status
+		}
 	}
 
 	async onlineChecker(duid) {
@@ -442,12 +453,12 @@ class Roborock extends utils.Adapter {
 	async manageDeviceIntervals(duid) {
 		return this.onlineChecker(duid)
 			.then((onlineState) => {
-				if (!this.vacuums[duid].mainUpdateInterval) {
-					if (this.vacuums[duid].mainUpdateInterval == null) this.vacuums[duid].mainUpdateInterval();
-					// Map updater gets startet automatically via getParameter with get_status
-				} else {
+				if (!onlineState && this.vacuums[duid].mainUpdateInterval) {
 					this.clearInterval(this.vacuums[duid].mainUpdateInterval);
 					this.clearInterval(this.vacuums[duid].mapUpdater);
+				}
+				else if (!this.vacuums[duid].mainUpdateInterval) {
+					this.startMainUpdateInterval(duid, onlineState);
 				}
 				return onlineState;
 			})
@@ -837,14 +848,14 @@ class Roborock extends utils.Adapter {
 	}
 
 	async catchError(error, attribute, duid) {
-		const onlineState = await this.manageDeviceIntervals(duid);
+		const onlineState = await this.onlineChecker(duid);
 
 		if (onlineState) {
-			if (error.message == "retry" || error.message == "locating" || error.toString().includes("timed out after 10 seconds")) {
+			if (error.toString().includes("retry") || error.toString().includes("locating") || error.toString().includes("timed out after 10 seconds")) {
 				this.log.warn(`Failed to execute ${attribute} on robot ${duid} ${error}`);
 			}
 			else {
-				this.log.error(`Failed to execute ${attribute} on robot ${duid} ${error}`);
+				this.log.error(`Failed to execute ${attribute} on robot ${duid} ${error.stack}`);
 
 				if (this.supportsFeature && this.supportsFeature("PLUGINS")) {
 					if (this.sentryInstance) {

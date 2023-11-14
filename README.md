@@ -57,6 +57,8 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Improve go2rtc download logic
 * (copystring) Improve error logging
 * (copystring) Download roborock images from roborock server and make them available as base64 png (needs to be enabled in options, uses quite a lot of resources)
+* (copystring) Use some clever logic so adjacent rooms are never the same color 🎉
+* (copystring) The name for each room is now displayed on the map
 * (copystring) Fix photo popup position on map
 
 ### 0.4.4 (2023-09-24)
