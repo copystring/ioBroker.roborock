@@ -176,20 +176,26 @@ class Roborock extends utils.Adapter {
 				const homeId = res.data.data.rrHomeId;
 
 				if (this.api) {
-					this.api.get(`user/homes/${homeId}`).then(async (res) => {
-						const homedata = res.data.result;
+					try {
+						const homedata = await this.api.get(`user/homes/${homeId}`);
+						const homedataResult = homedata.data.result;
+
+						const sharedData = await this.api.get(`user/deviceshare/query/receiveddevices`);
+						const sharedDataDevices = sharedData.data.result;
+
 						await this.setStateAsync("HomeData", {
-							val: JSON.stringify(homedata),
+							val: JSON.stringify(homedataResult),
 							ack: true,
 						});
 
 						rr_mqtt_connector = new roborock_mqtt_connector(this);
-						rr_mqtt_connector.initUser(userdata, homedata);
+						rr_mqtt_connector.initUser(userdata, homedataResult);
+						rr_mqtt_connector.initSharedDevices(sharedDataDevices);
 						rr_mqtt_connector.initMQTT_Subscribe();
 						rr_mqtt_connector.initMQTT_Message();
 
 						// store name of each room via ID
-						const rooms = homedata.rooms;
+						const rooms = homedataResult.rooms;
 						for (const room in rooms) {
 							const roomID = rooms[room].id;
 							const roomName = rooms[room].name;
@@ -199,48 +205,14 @@ class Roborock extends utils.Adapter {
 						this.log.debug("RoomIDs debug: " + JSON.stringify(this.roomIDs));
 
 						// create devices and set states
-						const devices = homedata.devices;
-						for (const device in devices) {
-							const duid = devices[device].duid;
-							const robotModel = await this.getRobotModel(duid);
+						const devices = homedataResult.devices;
+						const products = homedataResult.products;
 
-							this.vacuums[duid] = new vacuum_class(this, robotModel);
-							this.vacuums[duid].name = devices[device].name;
-
-							if (this.config.downloadRoborockImages) {
-								this.roborockPackageHelper.updateProduct(loginApi, robotModel, duid);
-							}
-
-							await this.vacuums[duid].setUpObjects(duid);
-
-							// sub to all commands of this robot
-							this.subscribeStates("Devices." + duid + ".commands.*");
-							this.subscribeStates("Devices." + duid + ".reset_consumables.*");
-
-							await this.updateDataExtraData(duid, this.vacuums[duid]); // extra data needs to be called first!!!
-							await this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
-
-							this.startMainUpdateInterval(duid, devices[device].online);
-
-							this.vacuums[duid].getCameraStreams(duid);
-
-							this.vacuums[duid].getCleanSummary(duid);
-
-							// get map once at start of adapter
-							this.vacuums[duid].getMap(duid);
-
-							// reconnect every 3 hours (10800 seconds)
-							this.reconnectIntervall = this.setInterval(() => {
-								this.log.debug("Reconnecting after 3 hours!");
-
-								rr_mqtt_connector.reconnectClient();
-								this.checkForNewFirmware(duid);
-							}, 10800 * 1000);
-							this.checkForNewFirmware(duid);
-						}
+						this.createDevices(products, devices);
+						this.createDevices(products, sharedDataDevices);
 
 						await this.download_go2rtc();
-						this.start_go2rtc(this.vacuums, homedata, userdata);
+						this.start_go2rtc(this.vacuums, homedataResult, userdata);
 
 						this.homedataInterval = this.setInterval(this.updateHomeData.bind(this), this.config.updateInterval * 1000, homeId);
 						await this.updateHomeData(homeId);
@@ -250,7 +222,10 @@ class Roborock extends utils.Adapter {
 							this.startWebserver();
 							this.startWebsocketServer();
 						}
-					});
+					}
+					catch (error) {
+						this.log.error(error.stack);
+					}
 				}
 			})
 			.catch((e) => {
@@ -258,12 +233,57 @@ class Roborock extends utils.Adapter {
 			});
 	}
 
-	startMapUpdater(duid) {
-		if (!this.vacuums[duid].mapUpdater) {
-			const intervalTime = this.config.map_creation_interval * 1000;
+	async createDevices(products, devices) {
+		for (const device in devices) {
+			const productID = devices[device]["productId"];
+			// const robotModel = products[device]["model"];
+			const robotModel = this.getRobotModel(products, productID);
+			const duid = devices[device].duid;
+			const name = devices[device].name;
 
-			this.log.debug(`Starting map updater on robot: ${duid}`);
-			this.vacuums[duid].mapUpdater = this.setInterval(() => this.vacuums[duid].getMap(duid), intervalTime);
+			this.vacuums[duid] = new vacuum_class(this, robotModel);
+			this.vacuums[duid].name = name;
+
+			await this.vacuums[duid].setUpObjects(duid);
+
+			// sub to all commands of this robot
+			this.subscribeStates("Devices." + duid + ".commands.*");
+			this.subscribeStates("Devices." + duid + ".reset_consumables.*");
+
+			this.vacuums[duid].mainUpdateInterval = () => this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
+			if (devices[device].online) {
+				this.log.debug(duid + " online. Starting mainUpdateInterval.");
+				this.vacuums[duid].mainUpdateInterval(); // actually start mainUpdateInterval()
+				// Map updater gets startet automatically via getParameter with get_status
+			}
+
+			await this.updateDataExtraData(duid, this.vacuums[duid]); // extra data needs to be called first!!!
+			await this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
+
+			this.vacuums[duid].getCameraStreams(duid);
+
+			this.vacuums[duid].getCleanSummary(duid);
+
+			// get map once at start of adapter
+			this.vacuums[duid].getMap(duid);
+
+			// reconnect every 3 hours (10800 seconds)
+			this.reconnectIntervall = this.setInterval(() => {
+				this.log.debug("Reconnecting after 3 hours!");
+
+				rr_mqtt_connector.reconnectClient();
+				// this.checkForNewFirmware(duid);
+			}, 10800 * 1000);
+			// this.checkForNewFirmware(duid);
+		}
+	}
+
+	async startMapUpdater(duid) {
+		if (this.vacuums[duid].mapUpdater == null) {
+			this.log.debug("Started map updater on robot: " + duid);
+			this.vacuums[duid].mapUpdater = this.setInterval(() => {
+				this.vacuums[duid].getMap(duid);
+			}, this.config.map_creation_interval * 1000);
 		} else {
 			this.log.debug(`Map updater on robot: ${duid} already running!`);
 		}
@@ -399,23 +419,13 @@ class Roborock extends utils.Adapter {
 		socketServer.close();
 	}
 
-	async getRobotModel(duid) {
-		const homedata = await this.getStateAsync("HomeData");
-
-		if (homedata && typeof homedata.val == "string") {
-			const homedataJSON = JSON.parse(homedata.val);
-			const productID = homedataJSON.devices.find((device) => device.duid == duid).productId;
-			const model = homedataJSON.products.find((product) => product.id == productID).model;
-
-			// If the device is not found, return false.
-			if (!productID) {
-				return false;
+	getRobotModel(products, productID) {
+		for (const product in products) {
+			if (products[product].id == productID) {
+				const model = products[product].model;
+				return model;
 			}
-
-			return model;
 		}
-
-		return null;
 	}
 
 	startMainUpdateInterval(duid, online) {
