@@ -177,7 +177,7 @@ class Roborock extends utils.Adapter {
 
 				if (this.api) {
 					try {
-						const homedata = await this.api.get(`user/homes/${homeId}`);
+						const homedata = await this.api.get(`v2/user/homes/${homeId}`);
 						const homedataResult = homedata.data.result;
 
 						const sharedData = await this.api.get(`user/deviceshare/query/receiveddevices`);
@@ -365,29 +365,8 @@ class Roborock extends utils.Adapter {
 										// this.log.debug("Sniffing message received!");
 										const homedataParsed = JSON.parse(homedataVal);
 
-										homedataParsed.devices.forEach((device) => {
-											const data_string = JSON.stringify(data);
-
-											const parts = data_string.split("/");
-											const duid_sniffed = parts[parts.length - 1].slice(0, -3);
-
-											if (duid_sniffed == device.duid) {
-												const localKey = JSON.stringify(device.localKey).slice(1, -1);
-												// this.log.debug("duid_sniffed: " + duid_sniffed);
-												// this.log.debug("Device duid: " + JSON.stringify(device.duid).slice(1, -1));
-												// this.log.debug("Device localKey: " + localKey);
-
-												const startIndex = data_string.indexOf("'") + 1;
-												const endIndex = data_string.lastIndexOf("'");
-												const hex_payload = data_string.substring(startIndex, endIndex);
-												const msg = Buffer.from(hex_payload, "hex");
-												// this.log.debug("Sniffing msg: " + msg);
-
-												const decodedMessage = rr_mqtt_connector._decodeMsg(msg, localKey);
-												// this.log.debug("decodedMessage: " + JSON.stringify(decodedMessage));
-												this.log.debug("Decoded sniffing message: " + JSON.stringify(JSON.parse(decodedMessage.payload)));
-											}
-										});
+										this.decodeSniffedMessage(data, homedataParsed.devices);
+										this.decodeSniffedMessage(data, homedataParsed.receivedDevices);
 									}
 								}
 							})
@@ -438,6 +417,32 @@ class Roborock extends utils.Adapter {
 			this.vacuums[duid].mainUpdateInterval(); // actually start mainUpdateInterval()
 			// Map updater gets startet automatically via getParameter with get_status
 		}
+	}
+
+	decodeSniffedMessage(data, devices) {
+		devices.forEach((device) => {
+			const data_string = JSON.stringify(data);
+
+			const parts = data_string.split("/");
+			const duid_sniffed = parts[parts.length - 1].slice(0, -3);
+
+			if (duid_sniffed == device.duid) {
+				const localKey = JSON.stringify(device.localKey).slice(1, -1);
+				// this.log.debug("duid_sniffed: " + duid_sniffed);
+				// this.log.debug("Device duid: " + JSON.stringify(device.duid).slice(1, -1));
+				// this.log.debug("Device localKey: " + localKey);
+
+				const startIndex = data_string.indexOf("'") + 1;
+				const endIndex = data_string.lastIndexOf("'");
+				const hex_payload = data_string.substring(startIndex, endIndex);
+				const msg = Buffer.from(hex_payload, "hex");
+				// this.log.debug("Sniffing msg: " + msg);
+
+				const decodedMessage = rr_mqtt_connector._decodeMsg(msg, localKey);
+				// this.log.debug("decodedMessage: " + JSON.stringify(decodedMessage));
+				this.log.debug("Decoded sniffing message: " + JSON.stringify(JSON.parse(decodedMessage.payload)));
+			}
+		});
 	}
 
 	async onlineChecker(duid) {
