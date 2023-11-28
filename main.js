@@ -190,7 +190,6 @@ class Roborock extends utils.Adapter {
 
 						rr_mqtt_connector = new roborock_mqtt_connector(this);
 						rr_mqtt_connector.initUser(userdata, homedataResult);
-						rr_mqtt_connector.initSharedDevices(sharedDataDevices);
 						rr_mqtt_connector.initMQTT_Subscribe();
 						rr_mqtt_connector.initMQTT_Message();
 
@@ -573,6 +572,7 @@ class Roborock extends utils.Adapter {
 
 					this.updateConsumablesPercent(homedata.devices);
 					this.updateDeviceInfo(homedata.devices);
+					this.updateDeviceInfo(homedata.receivedDevices);
 				})
 				.catch((e) => {
 					this.log.error("Failed to update updateHomeData with error: " + e);
