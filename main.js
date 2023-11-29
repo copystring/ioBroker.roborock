@@ -45,6 +45,7 @@ class Roborock extends utils.Adapter {
 		// this.on("objectChange", this.onObjectChange.bind(this));
 		// this.on("message", this.onMessage.bind(this));
 		this.on("unload", this.onUnload.bind(this));
+		this.localKeys = null;
 		this.roomIDs = {};
 		this.vacuums = {};
 		this.socket = null;
@@ -817,7 +818,8 @@ class Roborock extends utils.Adapter {
 		const go2rtcConfig = { streams: {} };
 		for (const robot in robots) {
 			const duid = robot;
-			const localKey = homedata.devices[0].localKey;
+			const localKey = this.localKeys.get(duid);
+
 			const u = userdata.rriot.u;
 			const s = userdata.rriot.s;
 			const k = userdata.rriot.k;
