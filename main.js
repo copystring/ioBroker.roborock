@@ -878,7 +878,7 @@ class Roborock extends utils.Adapter {
 				this.log.warn(`Failed to execute ${attribute} on robot ${duid} ${error}`);
 			}
 			else {
-				this.log.error(`Failed to execute ${attribute} on robot ${duid} ${error.stack}`);
+				this.log.error(`Failed to execute ${attribute} on robot ${duid} ${error.stack || error}`);
 
 				if (this.supportsFeature && this.supportsFeature("PLUGINS")) {
 					if (this.sentryInstance) {
