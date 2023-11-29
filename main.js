@@ -520,6 +520,7 @@ class Roborock extends utils.Adapter {
 				await vacuum.getParameter(duid, "get_dust_collection_switch_status");
 				await vacuum.getParameter(duid, "get_wash_towel_mode");
 				await vacuum.getParameter(duid, "get_smart_wash_params");
+				await vacuum.getParameter(duid, "app_set_dryer_setting");
 				break;
 			default:
 				await vacuum.getParameter(duid, "get_carpet_mode");
