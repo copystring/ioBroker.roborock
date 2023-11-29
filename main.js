@@ -926,51 +926,53 @@ class Roborock extends utils.Adapter {
 	 */
 	async onStateChange(id, state) {
 		if (state) {
-			const idParts = id.split(".");
-			const duid = idParts[3];
-			const folder = idParts[4];
-			const command = idParts[5];
+			if (state.ack) {
+				const idParts = id.split(".");
+				const duid = idParts[3];
+				const folder = idParts[4];
+				const command = idParts[5];
 
-			this.log.debug(`onStateChange: ${command} with value: ${state.val}`);
-			if (state.val == true && typeof state.val == "boolean") {
-				if (folder == "reset_consumables") {
-					await this.vacuums[duid].command(duid, "reset_consumable", command);
+				this.log.debug(`onStateChange: ${command} with value: ${state.val}`);
+				if (state.val == true && typeof state.val == "boolean") {
+					if (folder == "reset_consumables") {
+						await this.vacuums[duid].command(duid, "reset_consumable", command);
 
-					this.resetTimeout = this.setTimeout(() => {
-						this.setStateAsync(id, false);
-					}, 1000);
-				} else {
-					this.vacuums[duid].command(duid, command);
-
-					// set back command to false after 1 second
-					if (command != "set_carpet_mode" && command != "set_carpet_cleaning_mode") {
-						this.commandTimeout = this.setTimeout(() => {
+						this.resetTimeout = this.setTimeout(() => {
 							this.setStateAsync(id, false);
 						}, 1000);
-					}
-				}
-			} else if (command == "load_multi_map") {
-				await this.vacuums[duid].command(duid, command, [state.val]);
-			} else if (
-				command == "app_start" ||
-				command == "app_segment_clean" ||
-				command == "app_charge" ||
-				command == "app_spot" ||
-				command == "app_zoned_clean" ||
-				command == "app_goto_target"
-			) {
-				this.startMapUpdater(duid);
+					} else {
+						this.vacuums[duid].command(duid, command);
 
-				switch (command) {
-					case "app_zoned_clean":
-					case "app_goto_target":
-						if (typeof state.val == "string") {
-							this.vacuums[duid].command(duid, command, JSON.parse(state.val));
+						// set back command to false after 1 second
+						if (command != "set_carpet_mode" && command != "set_carpet_cleaning_mode") {
+							this.commandTimeout = this.setTimeout(() => {
+								this.setStateAsync(id, false);
+							}, 1000);
 						}
-						break;
+					}
+				} else if (command == "load_multi_map") {
+					await this.vacuums[duid].command(duid, command, [state.val]);
+				} else if (
+					command == "app_start" ||
+					command == "app_segment_clean" ||
+					command == "app_charge" ||
+					command == "app_spot" ||
+					command == "app_zoned_clean" ||
+					command == "app_goto_target"
+				) {
+					this.startMapUpdater(duid);
+
+					switch (command) {
+						case "app_zoned_clean":
+						case "app_goto_target":
+							if (typeof state.val == "string") {
+								this.vacuums[duid].command(duid, command, JSON.parse(state.val));
+							}
+							break;
+					}
+				} else if (typeof state.val != "boolean") {
+					this.vacuums[duid].command(duid, command, state.val);
 				}
-			} else if (typeof state.val != "boolean") {
-				this.vacuums[duid].command(duid, command, state.val);
 			}
 		} else {
 			this.log.error(`Error! Missing state onChangeState!`);
