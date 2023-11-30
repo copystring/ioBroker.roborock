@@ -588,7 +588,7 @@ class Roborock extends utils.Adapter {
 			const duid = devices[device].duid;
 
 			for (const deviceAttribute in devices[device].deviceStatus) {
-				if (this.vacuums[duid].setup.consumables[deviceAttribute]) {
+				if (this.vacuums[duid]?.setup?.consumables[deviceAttribute]) {
 					const val =
 						devices[device].deviceStatus[deviceAttribute] >= 0 && devices[device].deviceStatus[deviceAttribute] <= 100
 							? parseInt(devices[device].deviceStatus[deviceAttribute])
