@@ -36,6 +36,8 @@ This adapter allows you the control, get states, cleaning history and view the m
 - Roborock S8
 - Roborock S8 Pro Ultra
 - Roborock Q Revo
+- Roborock Q8 Max
+- Roborock Q5 Pro
 
 ## Zone cleaning
 This feature only works when map creation is enabled in the adapter options!
@@ -61,6 +63,13 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) The name for each room is now displayed on the map
 * (copystring) Fix photo popup position on map
 * (copystring) Seriously speed up drawing of carpet map
+* (copystring) Add basic Q8 Max support
+* (copystring) Basic Q5 Pro support
+* (copystring) Support new block types on the map
+* (copystring) Don't crash when Roborock Zeo One is in the account
+* (copystring) New commands for Roborock S7 MaxV
+* (copystring) Many bug fixes
+* (copystring) BREAKING: Commands are now only processed with ack: true
 
 ### 0.4.4 (2023-09-24)
 * (copystring) Fix for getting the map for each cleaning record
