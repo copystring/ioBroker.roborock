@@ -545,9 +545,6 @@ class Roborock extends utils.Adapter {
 		if (this.commandTimeout) {
 			this.clearTimeout(this.commandTimeout);
 		}
-		if (this.resetTimeout) {
-			this.clearTimeout(this.resetTimeout);
-		}
 
 		for (const duid in this.vacuums) {
 			this.clearInterval(this.vacuums[duid].mainUpdateInterval);
@@ -937,19 +934,8 @@ class Roborock extends utils.Adapter {
 				if (state.val == true && typeof state.val == "boolean") {
 					if (folder == "reset_consumables") {
 						await this.vacuums[duid].command(duid, "reset_consumable", command);
-
-						this.resetTimeout = this.setTimeout(() => {
-							this.setStateAsync(id, false);
-						}, 1000);
 					} else {
 						this.vacuums[duid].command(duid, command);
-
-						// set back command to false after 1 second
-						if (command != "set_carpet_mode" && command != "set_carpet_cleaning_mode") {
-							this.commandTimeout = this.setTimeout(() => {
-								this.setStateAsync(id, false);
-							}, 1000);
-						}
 					}
 				} else if (command == "load_multi_map") {
 					await this.vacuums[duid].command(duid, command, [state.val]);
@@ -974,6 +960,12 @@ class Roborock extends utils.Adapter {
 				} else if (typeof state.val != "boolean") {
 					this.vacuums[duid].command(duid, command, state.val);
 				}
+			}
+
+			if (typeof state.val == "boolean") {
+				this.commandTimeout = this.setTimeout(() => {
+					this.setStateAsync(id, false);
+				}, 1000);
 			}
 		} else {
 			this.log.error(`Error! Missing state onChangeState!`);
