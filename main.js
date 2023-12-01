@@ -452,13 +452,14 @@ class Roborock extends utils.Adapter {
 		if (homedata && typeof homedata.val == "string") {
 			const homedataJSON = JSON.parse(homedata.val);
 			const device = homedataJSON.devices.find((device) => device.duid == duid);
+			const receivedDevice = homedataJSON.receivedDevices.find((device) => device.duid == duid);
 
 			// If the device is not found, return false.
-			if (!device) {
+			if (!device && !receivedDevice) {
 				return false;
 			}
 
-			return device.online;
+			return device.online || receivedDevice.online;
 		}
 		else {
 			return false;
