@@ -493,40 +493,44 @@ class Roborock extends utils.Adapter {
 	async updateDataMinimumData(duid, vacuum, robotModel) {
 		this.log.debug("Latest data requested");
 
-		await vacuum.getParameter(duid, "get_status");
+		if (robotModel == "roborock.wm.a102") {
+			// nothing for now
+		} else {
+			await vacuum.getParameter(duid, "get_status");
 
-		await vacuum.getParameter(duid, "get_room_mapping");
+			await vacuum.getParameter(duid, "get_room_mapping");
 
-		await vacuum.getParameter(duid, "get_consumable");
+			await vacuum.getParameter(duid, "get_consumable");
 
-		await vacuum.getParameter(duid, "get_network_info");
+			await vacuum.getParameter(duid, "get_network_info");
 
-		await vacuum.getParameter(duid, "get_server_timer");
+			await vacuum.getParameter(duid, "get_server_timer");
 
-		await vacuum.getParameter(duid, "get_timer");
+			await vacuum.getParameter(duid, "get_timer");
 
-		switch (robotModel) {
-			case "roborock.vacuum.s4":
-			case "roborock.vacuum.s5":
-			case "roborock.vacuum.s5e":
-			case "roborock.vacuum.a08":
-			case "roborock.vacuum.a10":
-			case "roborock.vacuum.a40":
-				//do nothing
-				break;
-			case "roborock.vacuum.s6":
-				await vacuum.getParameter(duid, "get_carpet_mode");
-				break;
-			case "roborock.vacuum.a27":
-				await vacuum.getParameter(duid, "get_dust_collection_switch_status");
-				await vacuum.getParameter(duid, "get_wash_towel_mode");
-				await vacuum.getParameter(duid, "get_smart_wash_params");
-				await vacuum.getParameter(duid, "app_get_dryer_setting");
-				break;
-			default:
-				await vacuum.getParameter(duid, "get_carpet_mode");
-				await vacuum.getParameter(duid, "get_carpet_clean_mode");
-				await vacuum.getParameter(duid, "get_water_box_custom_mode");
+			switch (robotModel) {
+				case "roborock.vacuum.s4":
+				case "roborock.vacuum.s5":
+				case "roborock.vacuum.s5e":
+				case "roborock.vacuum.a08":
+				case "roborock.vacuum.a10":
+				case "roborock.vacuum.a40":
+					//do nothing
+					break;
+				case "roborock.vacuum.s6":
+					await vacuum.getParameter(duid, "get_carpet_mode");
+					break;
+				case "roborock.vacuum.a27":
+					await vacuum.getParameter(duid, "get_dust_collection_switch_status");
+					await vacuum.getParameter(duid, "get_wash_towel_mode");
+					await vacuum.getParameter(duid, "get_smart_wash_params");
+					await vacuum.getParameter(duid, "app_get_dryer_setting");
+					break;
+				default:
+					await vacuum.getParameter(duid, "get_carpet_mode");
+					await vacuum.getParameter(duid, "get_carpet_clean_mode");
+					await vacuum.getParameter(duid, "get_water_box_custom_mode");
+			}
 		}
 	}
 
