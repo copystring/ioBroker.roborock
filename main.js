@@ -576,6 +576,7 @@ class Roborock extends utils.Adapter {
 					this.log.debug("homedata successfully updated");
 
 					this.updateConsumablesPercent(homedata.devices);
+					this.updateConsumablesPercent(homedata.receivedDevices);
 					this.updateDeviceInfo(homedata.devices);
 					this.updateDeviceInfo(homedata.receivedDevices);
 				})
