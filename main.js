@@ -233,7 +233,7 @@ class Roborock extends utils.Adapter {
 			});
 	}
 
-	async createDevices(products, devices) {
+	createDevices(products, devices) {
 		for (const device in devices) {
 			const productID = devices[device]["productId"];
 			// const robotModel = products[device]["model"];
@@ -244,7 +244,7 @@ class Roborock extends utils.Adapter {
 			this.vacuums[duid] = new vacuum_class(this, robotModel);
 			this.vacuums[duid].name = name;
 
-			await this.vacuums[duid].setUpObjects(duid);
+			this.vacuums[duid].setUpObjects(duid);
 
 			// sub to all commands of this robot
 			this.subscribeStates("Devices." + duid + ".commands.*");
@@ -257,8 +257,8 @@ class Roborock extends utils.Adapter {
 				// Map updater gets startet automatically via getParameter with get_status
 			}
 
-			await this.updateDataExtraData(duid, this.vacuums[duid]); // extra data needs to be called first!!!
-			await this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
+			this.updateDataExtraData(duid, this.vacuums[duid]);
+			this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
 
 			this.vacuums[duid].getCameraStreams(duid);
 
