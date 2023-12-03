@@ -459,7 +459,7 @@ class Roborock extends utils.Adapter {
 				return false;
 			}
 
-			return device.online || receivedDevice.online;
+			return device?.online || receivedDevice?.online;
 		}
 		else {
 			return false;
