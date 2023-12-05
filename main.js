@@ -184,6 +184,8 @@ class Roborock extends utils.Adapter {
 						const sharedData = await this.api.get(`user/deviceshare/query/receiveddevices`);
 						const sharedDataDevices = sharedData.data.result;
 
+						const scene = await this.api.get(`user/scene/home/${homeId}`);
+
 						await this.setStateAsync("HomeData", {
 							val: JSON.stringify(homedataResult),
 							ack: true,
@@ -210,6 +212,8 @@ class Roborock extends utils.Adapter {
 
 						this.createDevices(products, devices);
 						this.createDevices(products, sharedDataDevices);
+
+						this.processScene(scene);
 
 						await this.download_go2rtc();
 						this.start_go2rtc(this.vacuums, homedataResult, userdata);
@@ -249,6 +253,7 @@ class Roborock extends utils.Adapter {
 			// sub to all commands of this robot
 			this.subscribeStates("Devices." + duid + ".commands.*");
 			this.subscribeStates("Devices." + duid + ".reset_consumables.*");
+			this.subscribeStates("Devices." + duid + "programs.startProgram");
 
 			this.vacuums[duid].mainUpdateInterval = () => this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
 			if (devices[device].online) {
@@ -275,6 +280,78 @@ class Roborock extends utils.Adapter {
 				// this.checkForNewFirmware(duid);
 			}, 10800 * 1000);
 			// this.checkForNewFirmware(duid);
+		}
+	}
+
+	async processScene(scene) {
+		if (scene && scene.data.result)
+		{
+			this.log.debug(`Processing scene ${scene.data.result}`);
+
+			const programs = {};
+			for (const program in scene.data.result) {
+				const enabled = scene.data.result[program].enabled;
+				const programID = scene.data.result[program].id;
+				const programName = scene.data.result[program].name;
+				const param = scene.data.result[program].param;
+
+				this.log.debug(`Processing scene param ${param}`);
+				const duid = JSON.parse(param).action.items[0].entityId;
+
+				if(!programs[duid])
+				{
+					programs[duid] = {};
+				}
+				programs[duid][programID] = programName;
+
+				await this.setObjectNotExistsAsync(`Devices.${duid}.programs`, {
+					type: "folder",
+					common: {
+						name: "Programs",
+					},
+					native: {},
+				});
+
+				await this.setObjectAsync(`Devices.${duid}.programs.${programID}`, {
+					type: "folder",
+					common: {
+						name: programName,
+					},
+					native: {},
+				});
+
+				const enabledPath = `Devices.${duid}.programs.${programID}.enabled`;
+				this.createStateObjectHelper(enabledPath, "enabled", "boolean", null, null, "value");
+				this.setStateAsync(enabledPath, enabled, false);
+
+				const items = JSON.parse(param).action.items;
+				for (const item in items) {
+					for (const attribute in items[item])
+					{
+						const objectPath = `Devices.${duid}.programs.${programID}.items.${item}.${attribute}`;
+						this.createStateObjectHelper(objectPath, attribute, "string", null, null, "value");
+
+						this.setStateAsync(objectPath, items[item][attribute], false);
+					}
+				}
+			}
+
+			for (const duid in programs)
+			{
+				const objectPath = `Devices.${duid}.programs.startProgram`;
+				this.createStateObjectHelper(objectPath, "Start saved program", "number", null, Object.keys(programs[duid])[0], "value", true, true, programs[duid]);
+			}
+		}
+	}
+
+	async executeScene(sceneID) {
+		if (this.api) {
+			try {
+				this.api.post(`user/scene/${sceneID}/execute`);
+			}
+			catch (error) {
+				this.catchError(error.stack, "executeScene");
+			}
 		}
 	}
 
@@ -963,6 +1040,8 @@ class Roborock extends utils.Adapter {
 							}
 							break;
 					}
+				} else if (command == "startProgram") {
+					this.executeScene(state);
 				} else if (typeof state.val != "boolean") {
 					this.vacuums[duid].command(duid, command, state.val);
 				}
