@@ -254,6 +254,7 @@ class Roborock extends utils.Adapter {
 			this.subscribeStates("Devices." + duid + ".commands.*");
 			this.subscribeStates("Devices." + duid + ".reset_consumables.*");
 			this.subscribeStates("Devices." + duid + "programs.startProgram");
+			this.subscribeStates("Devices." + duid + ".camera.pin");
 
 			this.vacuums[duid].mainUpdateInterval = () => this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
 			if (devices[device].online) {
@@ -264,6 +265,11 @@ class Roborock extends utils.Adapter {
 
 			this.updateDataExtraData(duid, this.vacuums[duid]);
 			this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
+
+
+			if (this.vacuums[duid].setup.camera) {
+				this.createStateObjectHelper(`Devices.${duid}.camera.pin`, "Camera PIN", "json", null, null, "value", true, true);
+			}
 
 			this.vacuums[duid].getCameraStreams(duid);
 
@@ -1041,6 +1047,31 @@ class Roborock extends utils.Adapter {
 					}
 				} else if (command == "startProgram") {
 					this.executeScene(state);
+				} else if (command == "pin") {
+					this.log.debug(`Setting camera PIN ${(state.val)}`);
+					if (state.val) {
+						const stateJSON = JSON.parse(state.val.toString());
+						let oldMD5PIN = "";
+						let newMD5PIN = "";
+						let params;
+
+						if (stateJSON[0] && stateJSON[0] != "") {
+							oldMD5PIN = md5hex(stateJSON[0].toString());
+						}
+
+						if (stateJSON[1] == "") {
+							params = {"enable_password":0,"new_password":"","old_password":oldMD5PIN};
+						}
+						else {
+							newMD5PIN = md5hex(stateJSON[1].toString());
+							params = {"enable_password":1,"new_password":newMD5PIN,"old_password":oldMD5PIN};
+						}
+
+						this.log.debug(`Setting camera PIN stateJSON[1] ${stateJSON[1]} stateJSON[0] ${stateJSON[0]}`);
+						this.log.debug(`Setting camera PIN newMD5PIN ${newMD5PIN} oldMD5PIN ${oldMD5PIN}`);
+
+						this.vacuums[duid].command(duid, "set_homesec_password", params);
+					}
 				} else if (typeof state.val != "boolean") {
 					this.vacuums[duid].command(duid, command, state.val);
 				}
