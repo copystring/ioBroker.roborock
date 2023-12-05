@@ -880,8 +880,7 @@ class Roborock extends utils.Adapter {
 		}
 
 		try {
-			const downloadedAssets = await downloadRelease(user, repo, outputdir, filterRelease, filterAsset, leaveZipped);
-			// 	this.log.debug("Downloaded assets:" + downloadedAssets);
+			await downloadRelease(user, repo, outputdir, filterRelease, filterAsset, leaveZipped);
 		} catch(error) {
 			this.log.error("Error: " + error.message);
 		}
