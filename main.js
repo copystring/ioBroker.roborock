@@ -253,7 +253,7 @@ class Roborock extends utils.Adapter {
 			// sub to all commands of this robot
 			this.subscribeStates("Devices." + duid + ".commands.*");
 			this.subscribeStates("Devices." + duid + ".reset_consumables.*");
-			this.subscribeStates("Devices." + duid + "programs.startProgram");
+			this.subscribeStates("Devices." + duid + ".programs.startProgram");
 
 			this.vacuums[duid].mainUpdateInterval = () => this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
 			if (devices[device].online) {
