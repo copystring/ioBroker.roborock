@@ -339,7 +339,7 @@ class Roborock extends utils.Adapter {
 			for (const duid in programs)
 			{
 				const objectPath = `Devices.${duid}.programs.startProgram`;
-				this.createStateObjectHelper(objectPath, "Start saved program", "number", null, Object.keys(programs[duid])[0], "value", true, true, programs[duid]);
+				this.createStateObjectHelper(objectPath, "Start saved program", "string", null, Object.keys(programs[duid])[0], "value", true, true, programs[duid]);
 			}
 		}
 	}
