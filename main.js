@@ -347,7 +347,7 @@ class Roborock extends utils.Adapter {
 	async executeScene(sceneID) {
 		if (this.api) {
 			try {
-				this.api.post(`user/scene/${sceneID}/execute`);
+				this.api.post(`user/scene/${sceneID.val}/execute`);
 			}
 			catch (error) {
 				this.catchError(error.stack, "executeScene");
