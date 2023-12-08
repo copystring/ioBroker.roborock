@@ -213,6 +213,14 @@ class Roborock extends utils.Adapter {
 						this.createDevices(products, devices);
 						this.createDevices(products, sharedDataDevices);
 
+						// reconnect every 3 hours (10800 seconds)
+						this.reconnectIntervall = this.setInterval(() => {
+							this.log.debug("Reconnecting after 3 hours!");
+
+							rr_mqtt_connector.reconnectClient();
+							// this.checkForNewFirmware(duid);
+						}, 10800 * 1000);
+
 						this.processScene(scene);
 
 						await this.download_go2rtc();
@@ -271,14 +279,6 @@ class Roborock extends utils.Adapter {
 
 			// get map once at start of adapter
 			this.vacuums[duid].getMap(duid);
-
-			// reconnect every 3 hours (10800 seconds)
-			this.reconnectIntervall = this.setInterval(() => {
-				this.log.debug("Reconnecting after 3 hours!");
-
-				rr_mqtt_connector.reconnectClient();
-				// this.checkForNewFirmware(duid);
-			}, 10800 * 1000);
 			// this.checkForNewFirmware(duid);
 		}
 	}
