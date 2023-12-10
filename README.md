@@ -71,7 +71,6 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Many bug fixes
 * (copystring) Add support for station for Q7 Max
 * (copystring) Add basic scene/program support
-* (copystring) BREAKING: Commands are now only processed with ack: true
 
 ### 0.4.4 (2023-09-24)
 * (copystring) Fix for getting the map for each cleaning record

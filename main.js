@@ -322,7 +322,7 @@ class Roborock extends utils.Adapter {
 
 				const enabledPath = `Devices.${duid}.programs.${programID}.enabled`;
 				this.createStateObjectHelper(enabledPath, "enabled", "boolean", null, null, "value");
-				this.setStateAsync(enabledPath, enabled, false);
+				this.setStateAsync(enabledPath, enabled, true);
 
 				const items = JSON.parse(param).action.items;
 				for (const item in items) {
@@ -1006,7 +1006,7 @@ class Roborock extends utils.Adapter {
 	 */
 	async onStateChange(id, state) {
 		if (state) {
-			if (state.ack) {
+			if (!state.ack) {
 				const idParts = id.split(".");
 				const duid = idParts[3];
 				const folder = idParts[4];
