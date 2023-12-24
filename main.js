@@ -14,11 +14,12 @@ const findProcess = require("find-process");
 
 const { downloadRelease } = require("@terascope/fetch-github-release");
 
+const rrLocalConnector = require("./lib/localConnector").localConnector;
 const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roborock_mqtt_connector;
+const rrMessage = require("./lib/message").message;
 const vacuum_class = require("./lib/vacuum").vacuum;
 const roborockPackageHelper = require("./lib/roborockPackageHelper").roborockPackageHelper;
-
-let rr_mqtt_connector, socketServer, webserver;
+let socketServer, webserver;
 
 const systems = {
 	win32: { x64: "go2rtc_win64.zip" },
@@ -50,9 +51,14 @@ class Roborock extends utils.Adapter {
 		this.vacuums = {};
 		this.socket = null;
 
+		this.idCounter = 0;
 		this.messageQueue = new Map();
 
 		this.roborockPackageHelper = new roborockPackageHelper(this);
+
+		this.localConnector = new rrLocalConnector(this);
+		this.rr_mqtt_connector = new roborock_mqtt_connector(this);
+		this.message = new rrMessage(this);
 	}
 
 	/**
@@ -171,83 +177,90 @@ class Roborock extends utils.Adapter {
 		});
 
 		// Get home details.
-		loginApi
-			.get("api/v1/getHomeDetail")
-			.then(async (res) => {
-				const homeId = res.data.data.rrHomeId;
+		try {
+			const homeDetail = await loginApi.get("api/v1/getHomeDetail");
+			if (homeDetail) {
+				const homeId = homeDetail.data.data.rrHomeId;
 
 				if (this.api) {
-					try {
-						const homedata = await this.api.get(`v2/user/homes/${homeId}`);
-						const homedataResult = homedata.data.result;
+					const homedata = await this.api.get(`v2/user/homes/${homeId}`);
+					const homedataResult = homedata.data.result;
 
-						const sharedData = await this.api.get(`user/deviceshare/query/receiveddevices`);
-						const sharedDataDevices = sharedData.data.result;
+					const sharedData = await this.api.get(`user/deviceshare/query/receiveddevices`);
+					const sharedDataDevices = sharedData.data.result;
 
-						const scene = await this.api.get(`user/scene/home/${homeId}`);
+					const scene = await this.api.get(`user/scene/home/${homeId}`);
 
-						await this.setStateAsync("HomeData", {
-							val: JSON.stringify(homedataResult),
-							ack: true,
-						});
+					await this.setStateAsync("HomeData", {
+						val: JSON.stringify(homedataResult),
+						ack: true,
+					});
 
-						rr_mqtt_connector = new roborock_mqtt_connector(this);
-						rr_mqtt_connector.initUser(userdata, homedataResult);
-						rr_mqtt_connector.initMQTT_Subscribe();
-						rr_mqtt_connector.initMQTT_Message();
+					this.localDevices = await this.localConnector.getLocalDevices();
+					this.log.debug(`localDevices: ${JSON.stringify(this.localDevices)}`);
 
-						// store name of each room via ID
-						const rooms = homedataResult.rooms;
-						for (const room in rooms) {
-							const roomID = rooms[room].id;
-							const roomName = rooms[room].name;
+					for (const device in this.localDevices) {
+						const duid = device;
+						const ip = this.localDevices[device];
 
-							this.roomIDs[roomID] = roomName;
-						}
-						this.log.debug("RoomIDs debug: " + JSON.stringify(this.roomIDs));
-
-						// create devices and set states
-						const devices = homedataResult.devices;
-						const products = homedataResult.products;
-
-						this.createDevices(products, devices);
-						this.createDevices(products, sharedDataDevices);
-
-						// reconnect every 3 hours (10800 seconds)
-						// reconnect every 1 hours (3600 seconds)
-						this.reconnectIntervall = this.setInterval(() => {
-							this.log.debug("Reconnecting after 3 hours!");
-
-							rr_mqtt_connector.reconnectClient();
-							// this.checkForNewFirmware(duid);
-						// }, 10800 * 1000);
-						}, 3600 * 1000);
-
-						this.processScene(scene);
-
-						await this.download_go2rtc();
-						this.start_go2rtc(this.vacuums, homedataResult, userdata);
-
-						this.homedataInterval = this.setInterval(this.updateHomeData.bind(this), this.config.updateInterval * 1000, homeId);
-						await this.updateHomeData(homeId);
-
-						// These need to start only after all states have been set
-						if (this.config.enable_map_creation == true) {
-							this.startWebserver();
-							this.startWebsocketServer();
-						}
+						this.localConnector.createClient(duid, ip);
 					}
-					catch (error) {
-						this.log.error(error.stack);
+
+					await this.rr_mqtt_connector.initUser(userdata, homedataResult);
+					await this.rr_mqtt_connector.initMQTT_Subscribe();
+					await this.rr_mqtt_connector.initMQTT_Message();
+
+					// store name of each room via ID
+					const rooms = homedataResult.rooms;
+					for (const room in rooms) {
+						const roomID = rooms[room].id;
+						const roomName = rooms[room].name;
+
+						this.roomIDs[roomID] = roomName;
+					}
+					this.log.debug("RoomIDs debug: " + JSON.stringify(this.roomIDs));
+
+					// create devices and set states
+					const devices = homedataResult.devices;
+					const products = homedataResult.products;
+
+					await this.createDevices(products, devices);
+					await this.createDevices(products, sharedDataDevices);
+
+					// reconnect every 3 hours (10800 seconds)
+					// reconnect every 1 hours (3600 seconds)
+					this.reconnectIntervall = this.setInterval(() => {
+						this.log.debug("Reconnecting after 3 hours!");
+
+						this.rr_mqtt_connector.reconnectClient();
+						// this.checkForNewFirmware(duid);
+					// }, 10800 * 1000);
+					}, 3600 * 1000);
+
+					this.processScene(scene);
+
+					await this.download_go2rtc();
+					this.start_go2rtc(this.vacuums, homedataResult, userdata);
+
+					this.homedataInterval = this.setInterval(this.updateHomeData.bind(this), this.config.updateInterval * 1000, homeId);
+					await this.updateHomeData(homeId);
+
+					// These need to start only after all states have been set
+					if (this.config.enable_map_creation == true) {
+						this.startWebserver();
+						this.startWebsocketServer();
 					}
 				}
-			})
-			.catch((e) => {
-				this.log.error("Failed to get home details: " + e);
-			});
+				else {
+					// asdasd
+				}
+			}
+		} catch(error) {
+			this.log.error("Failed to get home details: " + error.stack);
+		}
 	}
 
-	createDevices(products, devices) {
+	async createDevices(products, devices) {
 		for (const device in devices) {
 			const productID = devices[device]["productId"];
 			// const robotModel = products[device]["model"];
@@ -258,7 +271,7 @@ class Roborock extends utils.Adapter {
 			this.vacuums[duid] = new vacuum_class(this, robotModel);
 			this.vacuums[duid].name = name;
 
-			this.vacuums[duid].setUpObjects(duid);
+			await this.vacuums[duid].setUpObjects(duid);
 
 			// sub to all commands of this robot
 			this.subscribeStates("Devices." + duid + ".commands.*");
@@ -517,7 +530,7 @@ class Roborock extends utils.Adapter {
 				const msg = Buffer.from(hex_payload, "hex");
 				// this.log.debug("Sniffing msg: " + msg);
 
-				const decodedMessage = rr_mqtt_connector._decodeMsg(msg, localKey);
+				const decodedMessage = this.message._decodeMsg(msg, localKey);
 				// this.log.debug("decodedMessage: " + JSON.stringify(decodedMessage));
 				this.log.debug("Decoded sniffing message: " + JSON.stringify(JSON.parse(decodedMessage.payload)));
 			}
@@ -542,6 +555,35 @@ class Roborock extends utils.Adapter {
 		}
 		else {
 			return false;
+		}
+	}
+
+	async isRemoteDevice(duid) {
+		const homedata = await this.getStateAsync("HomeData");
+
+		if (homedata && typeof homedata.val == "string") {
+			const homedataJSON = JSON.parse(homedata.val);
+			const receivedDevice = homedataJSON.receivedDevices.find((device) => device.duid == duid);
+
+			if (receivedDevice) {
+				return true;
+			}
+
+			return false;
+		}
+		else {
+			return false;
+		}
+	}
+
+	async getConnector(duid) {
+		const isRemote = await this.isRemoteDevice(duid);
+
+		if (isRemote) {
+			return this.rr_mqtt_connector;
+		}
+		else {
+			return this.localConnector;
 		}
 	}
 
@@ -630,6 +672,8 @@ class Roborock extends utils.Adapter {
 			this.clearTimeout(this.commandTimeout);
 		}
 
+		this.localConnector.clearLocalDevicedTimeout();
+
 		for (const duid in this.vacuums) {
 			this.clearInterval(this.vacuums[duid].mainUpdateInterval);
 			this.clearInterval(this.vacuums[duid].mapUpdater);
@@ -644,6 +688,18 @@ class Roborock extends utils.Adapter {
 
 		// Clear the messageQueue map
 		this.messageQueue.clear();
+	}
+
+
+	checkAndClearRequest(requestId) {
+		const request = this.messageQueue.get(requestId);
+		if (!request?.timeout102 && !request?.timeout301) {
+			this.messageQueue.delete(requestId);
+			// this.log.debug("Cleared messageQueue");
+		} else {
+			this.log.debug(`Not clearing messageQueue. ${request.timeout102}  - ${request.timeout301}`);
+		}
+		this.log.debug(`Length of message queue: ${this.messageQueue.size}`);
 	}
 
 	updateHomeData(homeId) {
