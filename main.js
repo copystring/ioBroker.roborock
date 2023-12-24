@@ -1008,7 +1008,7 @@ class Roborock extends utils.Adapter {
 	 */
 	async onStateChange(id, state) {
 		if (state) {
-			if (!state.ack) {
+			if (state.ack == false) {
 				const idParts = id.split(".");
 				const duid = idParts[3];
 				const folder = idParts[4];
@@ -1050,7 +1050,7 @@ class Roborock extends utils.Adapter {
 
 			if (typeof state.val == "boolean") {
 				this.commandTimeout = this.setTimeout(() => {
-					this.setStateAsync(id, false);
+					this.setStateAsync(id, false, true);
 				}, 1000);
 			}
 		} else {
