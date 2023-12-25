@@ -250,7 +250,8 @@ class Roborock extends utils.Adapter {
 					}
 				}
 				else {
-					// asdasd
+					this.log.info(`Most likely failed to login. Deleting UserData to force new login!`);
+					await this.deleteStateAsync(`UserData`);
 				}
 			}
 		} catch(error) {
