@@ -71,6 +71,8 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Many bug fixes
 * (copystring) Add support for station for Q7 Max
 * (copystring) Add basic scene/program support
+* (copystring) Connect to devices via TCP instead of MQTT whereever possible
+* (copystring) Refactor web interface to fix popup position for good
 
 ### 0.4.4 (2023-09-24)
 * (copystring) Fix for getting the map for each cleaning record
