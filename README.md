@@ -73,6 +73,7 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Add basic scene/program support
 * (copystring) Connect to devices via TCP instead of MQTT whereever possible
 * (copystring) Refactor web interface to fix popup position for good
+* (copystring) Add support for A01 encoding/decoding (With this devices like Zeo One, Dyad Pro etc would be supported)
 
 ### 0.4.4 (2023-09-24)
 * (copystring) Fix for getting the map for each cleaning record

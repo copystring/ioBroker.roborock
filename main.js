@@ -248,13 +248,12 @@ class Roborock extends utils.Adapter {
 						this.startWebserver();
 						this.startWebsocketServer();
 					}
-				}
-				else {
+				} else {
 					this.log.info(`Most likely failed to login. Deleting UserData to force new login!`);
 					await this.deleteStateAsync(`UserData`);
 				}
 			}
-		} catch(error) {
+		} catch (error) {
 			this.log.error("Failed to get home details: " + error.stack);
 		}
 	}
@@ -277,7 +276,8 @@ class Roborock extends utils.Adapter {
 			this.subscribeStates("Devices." + duid + ".reset_consumables.*");
 			this.subscribeStates("Devices." + duid + ".programs.startProgram");
 
-			this.vacuums[duid].mainUpdateInterval = () => this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
+			this.vacuums[duid].mainUpdateInterval = () =>
+				this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
 			if (devices[device].online) {
 				this.log.debug(duid + " online. Starting mainUpdateInterval.");
 				this.vacuums[duid].mainUpdateInterval(); // actually start mainUpdateInterval()
@@ -298,8 +298,7 @@ class Roborock extends utils.Adapter {
 	}
 
 	async processScene(scene) {
-		if (scene && scene.data.result)
-		{
+		if (scene && scene.data.result) {
 			this.log.debug(`Processing scene ${scene.data.result}`);
 
 			const programs = {};
@@ -312,8 +311,7 @@ class Roborock extends utils.Adapter {
 				this.log.debug(`Processing scene param ${param}`);
 				const duid = JSON.parse(param).action.items[0].entityId;
 
-				if(!programs[duid])
-				{
+				if (!programs[duid]) {
 					programs[duid] = {};
 				}
 				programs[duid][programID] = programName;
@@ -340,8 +338,7 @@ class Roborock extends utils.Adapter {
 
 				const items = JSON.parse(param).action.items;
 				for (const item in items) {
-					for (const attribute in items[item])
-					{
+					for (const attribute in items[item]) {
 						const objectPath = `Devices.${duid}.programs.${programID}.items.${item}.${attribute}`;
 						this.createStateObjectHelper(objectPath, attribute, "string", null, null, "value", true, false);
 
@@ -350,8 +347,7 @@ class Roborock extends utils.Adapter {
 				}
 			}
 
-			for (const duid in programs)
-			{
+			for (const duid in programs) {
 				const objectPath = `Devices.${duid}.programs.startProgram`;
 				this.createStateObjectHelper(objectPath, "Start saved program", "string", null, Object.keys(programs[duid])[0], "value", true, true, programs[duid]);
 			}
@@ -362,8 +358,7 @@ class Roborock extends utils.Adapter {
 		if (this.api) {
 			try {
 				await this.api.post(`user/scene/${sceneID.val}/execute`);
-			}
-			catch (error) {
+			} catch (error) {
 				this.catchError(error.stack, "executeScene");
 			}
 		}
@@ -551,8 +546,7 @@ class Roborock extends utils.Adapter {
 			}
 
 			return device?.online || receivedDevice?.online;
-		}
-		else {
+		} else {
 			return false;
 		}
 	}
@@ -569,8 +563,7 @@ class Roborock extends utils.Adapter {
 			}
 
 			return false;
-		}
-		else {
+		} else {
 			return false;
 		}
 	}
@@ -580,8 +573,7 @@ class Roborock extends utils.Adapter {
 
 		if (isRemote) {
 			return this.rr_mqtt_connector;
-		}
-		else {
+		} else {
 			return this.localConnector;
 		}
 	}
@@ -592,8 +584,7 @@ class Roborock extends utils.Adapter {
 				if (!onlineState && this.vacuums[duid].mainUpdateInterval) {
 					this.clearInterval(this.vacuums[duid].mainUpdateInterval);
 					this.clearInterval(this.vacuums[duid].mapUpdater);
-				}
-				else if (!this.vacuums[duid].mainUpdateInterval) {
+				} else if (!this.vacuums[duid].mainUpdateInterval) {
 					this.startMainUpdateInterval(duid, onlineState);
 				}
 				return onlineState;
@@ -615,6 +606,10 @@ class Roborock extends utils.Adapter {
 
 		if (robotModel == "roborock.wm.a102") {
 			// nothing for now
+		} else if (robotModel == "roborock.wetdryvac.a56") {
+			await vacuum.getParameter(duid, "get_status");
+
+			await vacuum.getParameter(duid, "get_network_info");
 		} else {
 			await vacuum.getParameter(duid, "get_status");
 
@@ -688,7 +683,6 @@ class Roborock extends utils.Adapter {
 		// Clear the messageQueue map
 		this.messageQueue.clear();
 	}
-
 
 	checkAndClearRequest(requestId) {
 		const request = this.messageQueue.get(requestId);
@@ -859,6 +853,19 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
+	async getRobotVersion(duid) {
+		const homedata = await this.getStateAsync("HomeData");
+		if (homedata && homedata.val) {
+			const devices = JSON.parse(homedata.val.toString()).devices.concat(JSON.parse(homedata.val.toString()).receivedDevices);
+
+			for (const device in devices) {
+				if (devices[device].duid == duid) return devices[device].duid.version;
+			}
+		}
+
+		return "Error in getRobotVersion. Version not found.";
+	}
+
 	async setupBasicObjects() {
 		await this.setObjectAsync("Devices", {
 			type: "folder",
@@ -927,7 +934,8 @@ class Roborock extends utils.Adapter {
 
 		const outputFilePath = path.join(outputdir, filename);
 
-		if (fs.existsSync(outputFilePath)) { // delete old file. Sometimes the adapter crashes and the file is not deleted.
+		if (fs.existsSync(outputFilePath)) {
+			// delete old file. Sometimes the adapter crashes and the file is not deleted.
 			try {
 				fs.unlinkSync(outputFilePath);
 				this.log.debug(`Old file ${outputFilePath} has been deleted.`);
@@ -938,7 +946,7 @@ class Roborock extends utils.Adapter {
 
 		try {
 			await downloadRelease(user, repo, outputdir, filterRelease, filterAsset, leaveZipped);
-		} catch(error) {
+		} catch (error) {
 			this.log.error("Error: " + error.message);
 		}
 
@@ -968,8 +976,7 @@ class Roborock extends utils.Adapter {
 
 			if (robots[robot].setup.camera) {
 				cameraCount++;
-				go2rtcConfig.streams[duid] =
-				`roborock://mqtt-eu-3.roborock.com:8883?u=${u}&s=${s}&k=${k}&did=${duid}&key=${localKey}&pin=${this.config.cameraPin}`;
+				go2rtcConfig.streams[duid] = `roborock://mqtt-eu-3.roborock.com:8883?u=${u}&s=${s}&k=${k}&did=${duid}&key=${localKey}&pin=${this.config.cameraPin}`;
 			}
 		}
 
@@ -999,8 +1006,7 @@ class Roborock extends utils.Adapter {
 						this.log.error(`Error output from: ${stderr}`);
 					}
 				});
-			}
-			catch (error) {
+			} catch (error) {
 				this.log.error(`Failed to launch go2rtc: ${error}`);
 			}
 		}
@@ -1012,8 +1018,7 @@ class Roborock extends utils.Adapter {
 		if (onlineState) {
 			if (error.toString().includes("retry") || error.toString().includes("locating") || error.toString().includes("timed out after 10 seconds")) {
 				this.log.warn(`Failed to execute ${attribute} on robot ${duid} ${error}`);
-			}
-			else {
+			} else {
 				this.log.error(`Failed to execute ${attribute} on robot ${duid} ${error.stack || error}`);
 
 				if (this.supportsFeature && this.supportsFeature("PLUGINS")) {
