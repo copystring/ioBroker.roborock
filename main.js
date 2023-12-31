@@ -859,7 +859,7 @@ class Roborock extends utils.Adapter {
 			const devices = JSON.parse(homedata.val.toString()).devices.concat(JSON.parse(homedata.val.toString()).receivedDevices);
 
 			for (const device in devices) {
-				if (devices[device].duid == duid) return devices[device].duid.version;
+				if (devices[device].duid == duid) return devices[device].pv;
 			}
 		}
 
