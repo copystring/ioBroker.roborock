@@ -972,21 +972,23 @@ class Roborock extends utils.Adapter {
 		} else go2rtc = "go2rtc.exe";
 	}
 
-	async start_go2rtc(robots, homedata, userdata) {
+	async start_go2rtc(robots, userdata) {
 		let cameraCount = 0;
 
 		const go2rtcConfig = { streams: {} };
 		for (const robot in robots) {
 			const duid = robot;
-			const localKey = this.localKeys.get(duid);
+			if (this.localKeys) {
+				const localKey = this.localKeys.get(duid);
 
-			const u = userdata.rriot.u;
-			const s = userdata.rriot.s;
-			const k = userdata.rriot.k;
+				const u = userdata.rriot.u;
+				const s = userdata.rriot.s;
+				const k = userdata.rriot.k;
 
-			if (robots[robot].setup.camera) {
-				cameraCount++;
-				go2rtcConfig.streams[duid] = `roborock://mqtt-eu-3.roborock.com:8883?u=${u}&s=${s}&k=${k}&did=${duid}&key=${localKey}&pin=${this.config.cameraPin}`;
+				if (robots[robot].setup.camera) {
+					cameraCount++;
+					go2rtcConfig.streams[duid] = `roborock://mqtt-eu-3.roborock.com:8883?u=${u}&s=${s}&k=${k}&did=${duid}&key=${localKey}&pin=${this.config.cameraPin}`;
+				}
 			}
 		}
 
