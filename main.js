@@ -211,7 +211,7 @@ class Roborock extends utils.Adapter {
 						const duid = device;
 						const ip = this.localDevices[device];
 
-						this.localConnector.createClient(duid, ip);
+						await this.localConnector.createClient(duid, ip);
 					}
 
 					await this.rr_mqtt_connector.initUser(userdata);
