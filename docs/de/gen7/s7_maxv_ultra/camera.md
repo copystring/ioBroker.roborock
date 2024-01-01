@@ -24,7 +24,7 @@ Kartierung von Roboterzuständen.
 | distance_off | <code>object</code> | Distanz aus |
 | camera_status | <code>object</code> | Kamera |
 | home_sec_status | <code>object</code> | Home-Security-Status |
-| home_sec_enable_password | <code>object</code> | Home Security-Aktivierungskennwort |
+| home_sec_enable_password | <code>object</code> | Home Security-Aktivierungspasswort |
 
 <a name="camera"></a>
 
