@@ -197,6 +197,13 @@ class Roborock extends utils.Adapter {
 						ack: true,
 					});
 
+
+					// create devices and set states
+					const products = homedataResult.products;
+					const devices = homedataResult.devices.concat(homedataResult.receivedDevices);
+					this.localKeys = new Map(devices.map((device) => [device.duid, device.localKey]));
+					// this.adapter.log.debug(`initUser test: ${JSON.stringify(Array.from(this.adapter.localKeys.entries()))}`);
+
 					this.localDevices = await this.localConnector.getLocalDevices();
 					this.log.debug(`localDevices: ${JSON.stringify(this.localDevices)}`);
 
@@ -207,7 +214,7 @@ class Roborock extends utils.Adapter {
 						this.localConnector.createClient(duid, ip);
 					}
 
-					await this.rr_mqtt_connector.initUser(userdata, homedataResult);
+					await this.rr_mqtt_connector.initUser(userdata);
 					await this.rr_mqtt_connector.initMQTT_Subscribe();
 					await this.rr_mqtt_connector.initMQTT_Message();
 
@@ -220,10 +227,6 @@ class Roborock extends utils.Adapter {
 						this.roomIDs[roomID] = roomName;
 					}
 					this.log.debug("RoomIDs debug: " + JSON.stringify(this.roomIDs));
-
-					// create devices and set states
-					const devices = homedataResult.devices;
-					const products = homedataResult.products;
 
 					await this.createDevices(products, devices);
 					await this.createDevices(products, sharedDataDevices);
