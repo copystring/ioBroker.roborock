@@ -927,13 +927,9 @@ class Roborock extends utils.Adapter {
 		const platform = os.platform();
 		const filename = systems[platform][arch];
 		const unzippedFilePath = "./lib/go2rtc/" + filename;
-		const version = "v1.3.0";
 		this.log.debug(`arch:  ${arch}`);
 		this.log.debug(`platform: ${platform}`);
 		this.log.debug(`System type: ${filename}`);
-
-		const downloadURL = `https://github.com/AlexxIT/go2rtc/releases/download/${version}/${filename}`;
-		this.log.debug(`downloadURL: ${downloadURL}`);
 
 		const user = "AlexxIT";
 		const repo = "go2rtc";
