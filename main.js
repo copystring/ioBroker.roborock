@@ -241,8 +241,14 @@ class Roborock extends utils.Adapter {
 
 					this.processScene(scene);
 
-					await this.download_go2rtc();
-					this.start_go2rtc(this.vacuums, homedataResult, userdata);
+					try {
+						await this.download_go2rtc();
+					}
+					catch (error) {
+						this.catchError(`Failed to download go2rtc. ${error.stack}`);
+					}
+
+					this.start_go2rtc(this.vacuums, userdata);
 
 					this.homedataInterval = this.setInterval(this.updateHomeData.bind(this), this.config.updateInterval * 1000, homeId);
 					await this.updateHomeData(homeId);
