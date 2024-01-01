@@ -52,6 +52,7 @@ class Roborock extends utils.Adapter {
 		this.socket = null;
 
 		this.idCounter = 0;
+		this.nonce = crypto.randomBytes(16);
 		this.messageQueue = new Map();
 
 		this.roborockPackageHelper = new roborockPackageHelper(this);
