@@ -1,218 +1,205 @@
 {
-    "common": {
-        "name": "roborock",
-        "version": "0.4.4",
-        "news": {
-            "NEXT": {
-                "en": "Rework map parser and map creator\nConvert a lof of strings to template literals\nImprove go2rtc download logic\nImprove error logging\nDownload roborock images from roborock server and make them available as base64 png (needs to be enabled in options, uses quite a lot of resources)\nUse some clever logic so adjacent rooms are never the same color 🎉\nThe name for each room is now displayed on the map\nFix photo popup position on map\nSeriously speed up drawing of carpet map\nAdd basic Q8 Max support\nBasic Q5 Pro support\nSupport new block types on the map\nDon't crash when Roborock Zeo One is in the account\nNew commands for Roborock S7 MaxV\nMany bug fixes\nAdd support for station for Q7 Max\nAdd basic scene/program support\nConnect to devices via TCP instead of MQTT whereever possible\nRefactor web interface to fix popup position for good\nAdd support for A01 encoding/decoding (With this devices like Zeo One, Dyad Pro etc would be supported). Huge thanks to rovo89!!!",
-                "de": "Überarbeiten Sie den Kartenparser und Kartenersteller\nKonvertieren Sie viele Zeichenfolgen in Vorlagenliterale\nVerbessern Sie die Download-Logik von go2rtc\nVerbessern Sie die Fehlerprotokollierung\nLaden Sie Roborock-Bilder vom Roborock-Server herunter und stellen Sie sie als Base64-PNG zur Verfügung (muss in den Optionen aktiviert werden, verbraucht ziemlich viele Ressourcen)\nVerwenden Sie eine clevere Logik, damit benachbarte Räume niemals die gleiche Farbe haben 🎉\nDer Name für jeden Raum wird nun auf der Karte angezeigt\nKorrigieren Sie die Position des Foto-Popups auf der Karte\nBeschleunigen Sie das Zeichnen einer Teppichkarte erheblich\nFügen Sie grundlegende Q8 Max-Unterstützung hinzu\nGrundlegende Q5 Pro-Unterstützung\nUnterstützen Sie neue Blocktypen auf der Karte\nKein Absturz, wenn Roborock Zeo One im Konto ist\nNeue Befehle für Roborock S7 MaxV\nViele Fehlerbehebungen\nUnterstützung für Station für Q7 Max hinzufügen\nFügen Sie grundlegende Szenen-/Programmunterstützung hinzu\nStellen Sie nach Möglichkeit eine Verbindung zu Geräten über TCP statt über MQTT her\nRefactoring der Weboberfläche, um die Popup-Position endgültig zu korrigieren\nUnterstützung für A01-Kodierung/Dekodierung hinzufügen (Damit würden Geräte wie Zeo One, Dyad Pro usw. unterstützt). Vielen Dank an rovo89!!!",
-                "ru": "Переработан парсер карт и создатель карт.\nПреобразование множества строк в литералы шаблона\nУлучшение логики загрузки go2rtc.\nУлучшение регистрации ошибок\nЗагрузите изображения Roborock с сервера Roborock и сделайте их доступными в формате PNG Base64 (необходимо включить в настройках, использует довольно много ресурсов)\nИспользуйте умную логику, чтобы соседние комнаты никогда не были одинакового цвета 🎉\nНазвание каждой комнаты теперь отображается на карте.\nИсправить положение всплывающего окна с фотографией на карте.\nСерьезно ускорить отрисовку карты ковра.\nДобавьте базовую поддержку Q8 Max.\nБазовая поддержка Q5 Pro\nПоддержка новых типов блоков на карте.\nНе вылетает, когда Roborock Zeo One находится в аккаунте\nНовые команды для Roborock S7 MaxV\nМножество исправлений ошибок\nДобавить поддержку станции для Q7 Max\nДобавить базовую поддержку сцен/программ.\nПодключайтесь к устройствам через TCP вместо MQTT, где это возможно.\nРефакторинг веб-интерфейса, чтобы навсегда исправить положение всплывающего окна\nДобавить поддержку кодирования/декодирования A01 (с этим будут поддерживаться такие устройства, как Zeo One, Dyad Pro и т. д.). Огромное спасибо rovo89!!!",
-                "pt": "Retrabalhar o analisador e criador de mapas\nConverta muitas strings em literais de modelo\nMelhore a lógica de download do go2rtc\nMelhorar o registro de erros\nBaixe imagens roborock do servidor roborock e disponibilize-as como png base64 (precisa ser habilitado nas opções, usa muitos recursos)\nUse alguma lógica inteligente para que salas adjacentes nunca sejam da mesma cor 🎉\nO nome de cada sala agora é exibido no mapa\nCorrigir a posição do pop-up da foto no mapa\nAcelere seriamente o desenho do mapa do carpete\nAdicione suporte básico ao Q8 Max\nSuporte básico ao Q5 Pro\nSuporta novos tipos de blocos no mapa\nNão trave quando Roborock Zeo One estiver na conta\nNovos comandos para Roborock S7 MaxV\nMuitas correções de bugs\nAdicione suporte para estação para Q7 Max\nAdicione suporte básico de cena/programa\nConecte-se a dispositivos via TCP em vez de MQTT sempre que possível\nRefatore a interface da web para corrigir a posição do pop-up para sempre\nAdicione suporte para codificação/decodificação A01 (com este dispositivos como Zeo One, Dyad Pro etc seriam suportados). Muito obrigado a rovo89!!!",
-                "nl": "Herwerk kaartparser en kaartmaker\nConverteer een groot aantal tekenreeksen naar sjabloonletterlijke waarden\nVerbeter de go2rtc-downloadlogica\nVerbeter de foutregistratie\nDownload roborock-afbeeldingen van de roborock-server en maak ze beschikbaar als base64 png (moet worden ingeschakeld in de opties, gebruikt behoorlijk wat bronnen)\nGebruik slimme logica, zodat aangrenzende kamers nooit dezelfde kleur hebben 🎉\nDe naam van elke kamer wordt nu op de kaart weergegeven\nFix fotopop-uppositie op kaart\nVersnel het tekenen van de tapijtkaart serieus\nVoeg basisondersteuning voor Q8 Max toe\nBasis Q5 Pro-ondersteuning\nOndersteun nieuwe bloktypen op de kaart\nCrash niet wanneer Roborock Zeo One in het account staat\nNieuwe opdrachten voor Roborock S7 MaxV\nVeel bugfixes\nVoeg ondersteuning toe voor station voor Q7 Max\nVoeg basisondersteuning voor scènes/programma's toe\nMaak waar mogelijk verbinding met apparaten via TCP in plaats van MQTT\nRefactoreer de webinterface om de pop-uppositie voorgoed te corrigeren\nOndersteuning toegevoegd voor A01-codering/decodering (hiermee zouden apparaten zoals Zeo One, Dyad Pro enz. worden ondersteund). Enorm bedankt aan rovo89!!!",
-                "fr": "Retravailler l'analyseur de carte et le créateur de carte\nConvertir un grand nombre de chaînes en littéraux de modèle\nAméliorer la logique de téléchargement go2rtc\nAméliorer la journalisation des erreurs\nTéléchargez les images Roborock à partir du serveur Roborock et rendez-les disponibles au format png base64 (doit être activé dans les options, utilise beaucoup de ressources)\nUtilisez une logique astucieuse pour que les pièces adjacentes ne soient jamais de la même couleur 🎉\nLe nom de chaque pièce est désormais affiché sur la carte\nCorrection de la position du popup photo sur la carte\nAccélérez sérieusement le dessin de la carte du tapis\nAjouter la prise en charge de base du Q8 Max\nPrise en charge de base de Q5 Pro\nPrise en charge de nouveaux types de blocs sur la carte\nNe plantez pas lorsque Roborock Zeo One est dans le compte\nNouvelles commandes pour Roborock S7 MaxV\nNombreuses corrections de bugs\nAjouter la prise en charge de la station pour Q7 Max\nAjouter un support de scène/programme de base\nConnectez-vous aux appareils via TCP au lieu de MQTT dans la mesure du possible\nRefactoriser l'interface Web pour corriger définitivement la position des popups\nAjoutez la prise en charge de l'encodage/décodage A01 (avec cela, des appareils comme Zeo One, Dyad Pro, etc. seraient pris en charge). Un grand merci à rovo89 !!!",
-                "it": "Rielabora il parser e il creatore della mappa\nConverti molte stringhe in valori letterali modello\nMigliora la logica di download di go2rtc\nMigliora la registrazione degli errori\nScarica le immagini roborock dal server roborock e rendile disponibili come png base64 (deve essere abilitato nelle opzioni, utilizza molte risorse)\nUsa una logica intelligente in modo che le stanze adiacenti non siano mai dello stesso colore 🎉\nIl nome di ciascuna stanza viene ora visualizzato sulla mappa\nCorreggi la posizione del popup delle foto sulla mappa\nAccelera seriamente il disegno della mappa del tappeto\nAggiungi il supporto Q8 Max di base\nSupporto base Q5 Pro\nSupporta nuovi tipi di blocchi sulla mappa\nNon crashare quando Roborock Zeo One è nell'account\nNuovi comandi per Roborock S7 MaxV\nMolte correzioni di bug\nAggiunto il supporto per la stazione per Q7 Max\nAggiungi il supporto di base per scene/programmi\nConnettiti ai dispositivi tramite TCP anziché MQTT, ove possibile\nRefactoring dell'interfaccia web per correggere definitivamente la posizione dei popup\nAggiunto il supporto per la codifica/decodifica A01 (con questo sarebbero supportati dispositivi come Zeo One, Dyad Pro ecc.). Un enorme grazie a rovo89!!!",
-                "es": "Reelaborar el analizador y creador de mapas\nConvierta una gran cantidad de cadenas en literales de plantilla\nMejorar la lógica de descarga de go2rtc\nMejorar el registro de errores\nDescargue imágenes de roborock desde el servidor de roborock y póngalas disponibles como png base64 (debe habilitarse en las opciones, utiliza bastantes recursos)\nUtilice una lógica inteligente para que las habitaciones adyacentes nunca sean del mismo color 🎉\nEl nombre de cada habitación ahora se muestra en el mapa.\nCorregir la posición de la foto emergente en el mapa\nAcelere seriamente el dibujo del mapa de la alfombra\nAgregue soporte básico para Q8 Max\nSoporte básico Q5 Pro\nAdmite nuevos tipos de bloques en el mapa.\nNo te bloquees cuando Roborock Zeo One esté en la cuenta\nNuevos comandos para Roborock S7 MaxV\nMuchas correcciones de errores\nAgregar soporte para estación para Q7 Max\nAgregar soporte básico de escena/programa\nConéctese a dispositivos a través de TCP en lugar de MQTT siempre que sea posible\nRefactorice la interfaz web para arreglar la posición de la ventana emergente para siempre\nAgregue soporte para codificación/decodificación A01 (con esto se admitirían dispositivos como Zeo One, Dyad Pro, etc.). ¡¡¡Muchísimas gracias a rovo89!!!",
-                "pl": "Przerób parser map i kreator map\nKonwertuj wiele ciągów znaków na literały szablonowe\nPopraw logikę pobierania go2rtc\nPopraw rejestrowanie błędów\nPobierz obrazy roborock z serwera roborock i udostępnij je w formacie base64 png (należy włączyć w opcjach, zużywa sporo zasobów)\nUżyj sprytnej logiki, aby sąsiednie pokoje nigdy nie były tego samego koloru 🎉\nNazwa każdego pokoju jest teraz wyświetlana na mapie\nNapraw pozycję wyskakującego zdjęcia na mapie\nPoważnie przyspiesz rysowanie mapy dywanu\nDodaj podstawową obsługę Q8 Max\nPodstawowe wsparcie dla Q5 Pro\nObsługuj nowe typy bloków na mapie\nNie zawieszaj się, gdy na koncie znajduje się Roborock Zeo One\nNowe polecenia dla Roborock S7 MaxV\nWiele poprawek\nDodaj obsługę stacji dla Q7 Max\nDodaj podstawową obsługę scen/programów\nJeśli to możliwe, łącz się z urządzeniami za pośrednictwem protokołu TCP zamiast MQTT\nZrefaktoryzuj interfejs sieciowy, aby na dobre naprawić pozycję wyskakujących okienek\nDodaj obsługę kodowania/dekodowania A01 (w tym przypadku obsługiwane będą urządzenia takie jak Zeo One, Dyad Pro itp.). Ogromne podziękowania dla rovo89!!!",
-                "uk": "Переробити синтаксичний аналізатор карт і творець карт\nПеретворіть lof рядків на шаблонні літерали\nПокращення логіки завантаження go2rtc\nПокращити журнал помилок\nЗавантажте зображення roborock із сервера roborock і зробіть їх доступними як base64 png (потрібно ввімкнути в параметрах, використовує досить багато ресурсів)\nВикористовуйте розумну логіку, щоб суміжні кімнати ніколи не були одного кольору 🎉\nНазва кожної кімнати тепер відображається на карті\nВиправте положення спливаючого фото на карті\nСерйозно прискорити малювання карти килима\nДодайте базову підтримку Q8 Max\nБазова підтримка Q5 Pro\nПідтримка нових типів блоків на карті\nНе вилітайте, коли Roborock Zeo One є в обліковому записі\nНові команди для Roborock S7 MaxV\nБагато виправлень помилок\nДодати підтримку станції для Q7 Max\nДодати базову підтримку сцени/програми\nПідключайтеся до пристроїв через TCP замість MQTT, де це можливо\nРефакторинг веб-інтерфейсу, щоб назавжди виправити положення спливаючого вікна\nДодайте підтримку кодування/декодування A01 (з цим підтримуватимуться такі пристрої, як Zeo One, Dyad Pro тощо). Величезне спасибі rovo89!!!",
-                "zh-cn": "返工地图解析器和地图创建器\n将大量字符串转换为模板文字\n改进go2rtc下载逻辑\n改进错误记录\n从roborock服务器下载roborock图像并将其作为base64 png提供（需要在选项中启用，使用相当多的资源）\n使用一些聪明的逻辑，让相邻的房间永远不会是相同的颜色🎉\n每个房间的名称现在显示在地图上\n修复地图上照片弹出位置\n大幅加快地毯图绘制速度\n添加基本​​的 Q8 Max 支持\nQ5 Pro 基本支持\n支持地图上新的区块类型\n当 Roborock Zeo One 在帐户中时不要崩溃\nRoborock S7 MaxV 的新命令\n许多错误修复\n添加对 Q7 Max 电台的支持\n添加基本​​场景/节目支持\n尽可能通过 TCP 而不是 MQTT 连接到设备\n重构 Web 界面以永久修复弹出位置\n添加对 A01 编码/解码的支持（使用此设备将支持 Zeo One、Dyad Pro 等）。非常感谢 rovo89！"
-            },
-            "0.4.4": {
-                "en": "Fix for getting the map for each cleaning record",
-                "de": "Fix, um die Karte für jeden Reinigungsrekord zu bekommen",
-                "ru": "Исправление для получения карты для каждой записи очистки",
-                "pt": "Fix para obter o mapa para cada registro de limpeza",
-                "nl": "Vertaling:",
-                "fr": "Fix pour obtenir la carte pour chaque enregistrement de nettoyage",
-                "it": "Fissare per ottenere la mappa per ogni record di pulizia",
-                "es": "Fijación para obtener el mapa para cada registro de limpieza",
-                "pl": "Fix ma na celu uzyskanie mapy dla każdego zapisu czyszczonego",
-                "uk": "Виправлення для отримання карти для кожного запису очищення",
-                "zh-cn": "每个清洁记录地图的ix"
-            },
-            "0.4.3": {
-                "en": "Refactor code\nFix mainUpdateInterval not working",
-                "de": "Erzeugniscode\nHauptUpdateInterval nicht funktionieren",
-                "ru": "Рефакторный код\nFix mainUpdateИнтервал не работает",
-                "pt": "Código do fator\nFix mainUpdateInterval não funciona",
-                "nl": "Refactor code\nFix mainUpdate",
-                "fr": "Code de calcul\nRéparez mainmiseInterval ne fonctionne pas",
-                "it": "Codice di fabbrica\nFissare mainUpdateInterval non funziona",
-                "es": "Código de referencia\nCorrección principalActualizaciónInterval no funciona",
-                "pl": "Kod źródłowy\nFix-UpdateInterval nie działać",
-                "uk": "Код рефактора\nВиправлення mainUpdateInterval не працює",
-                "zh-cn": "复制守则\n未工作的主要用途"
-            },
-            "0.4.2": {
-                "en": "Fix S6 gen path\nAdd missing types library",
-                "de": "S6 gen path\nBibliothek für fehlende Typen hinzufügen",
-                "ru": "Fix S6 ген путь\nДобавить недостающие типы библиотеки",
-                "pt": "Fix S6 gen path\nAdicionar biblioteca de tipos ausentes",
-                "nl": "Vertaling:\nVermiste types bibliotheek",
-                "fr": "Fix S6 gen path\nAjouter les types manquants bibliothèque",
-                "it": "Fissare il percorso S6 gen\nAggiungi la libreria dei tipi mancanti",
-                "es": "Fijar el camino S6 gen\nAñadir biblioteca de tipos desaparecidos",
-                "pl": "Fix6 Gen\nStrona internetowa",
-                "uk": "Фіксація S6 генного шляху\nБібліотека відсутніх типів",
-                "zh-cn": "Fix S6genways\n增加缺失的图书馆"
-            },
-            "0.4.1": {
-                "en": "Fix typos in definitions docs generation",
-                "de": "Fix typos in Definitionen docs generation",
-                "ru": "Исправление опечаток в генерации докс",
-                "pt": "Fix typos em definições docs geração",
-                "nl": "Vertaling:",
-                "fr": "Fixer les typos dans les définitions docs génération",
-                "it": "Fissare i tipi in definizioni generazione di docs",
-                "es": "Arreglar los tipos en la generación de los docs",
-                "pl": "Fix typos w definicji docs generation",
-                "uk": "Фіксувати типограми в визначеннях доксів",
-                "zh-cn": "评 注"
-            },
-            "0.4.0": {
-                "en": "When a robot goes offline after error during cleaning then clear all intervals and start them when it robot comes back online\nWhen it fails to receive the map output a warning instead of error since most of them are timeouts\nMigrate definitions for each robot to new system\nUse the system to automatically generate documentation for each robot and it's parameters, attributes, commands, etc\nS7 Pro Ultra support",
-                "de": "Wenn ein Roboter nach dem Fehler bei der Reinigung offline geht, dann alle Intervalle löschen und starten Sie sie, wenn es Roboter online zurückkommt\nWenn es nicht gelingt, die Kartenausgabe eine Warnung anstelle von Fehlern zu erhalten, da die meisten von ihnen Timeouts sind\nDefinitionen für jeden Roboter zu neuem System migrieren\nVerwenden Sie das System, um automatisch die Dokumentation für jeden Roboter zu erstellen und es sind Parameter, Attribute, Befehle, etc\nS7 Pro Ultra-Unterstützung",
-                "ru": "Когда робот уходит в оффлайне после ошибки во время уборки, затем очистить все интервалы и начать их, когда робот возвращается онлайн\nКогда он не получает, чтобы получить карту вывести предупреждение вместо ошибки, так как большинство из них таймеры\nMigrate определения для каждого робота к новой системе\nИспользуйте систему, чтобы автоматически генерировать документацию для каждого робота и его параметры, атрибуты, команды и т.д\nС7 Про Ультра поддержка",
-                "pt": "Quando um robô vai off-line após o erro durante a limpeza, em seguida, limpar todos os intervalos e iniciá-los quando o robô voltar on-line\nQuando ele não recebe a saída do mapa um aviso em vez de erro, uma vez que a maioria deles são timeouts\nMigrar definições para cada robô para o novo sistema\nUse o sistema para gerar automaticamente documentação para cada robô e são parâmetros, atributos, comandos, etc\nS7 Pro Suporte ultra",
-                "nl": "Als een robot offline gaat na de fout tijdens het schoonmaken, dan alle intervals en start ze als het robot weer online komt\nAls het niet lukt om de kaart een waarschuwing te krijgen in plaats van fouten, omdat de meeste van hen time-outs zijn\nMigrate definities voor elke robot naar nieuw systeem\nGebruik het systeem om automatisch documentatie te genereren voor elke robot en het is parameters, beschikkingen, commando's, etc\nS07 Ultra steun",
-                "fr": "Quand un robot s'éteint après l'erreur pendant le nettoyage, puis effacez tous les intervalles et commencez-les quand le robot revient en ligne\nQuand il ne reçoit pas la sortie de la carte un avertissement au lieu d'erreur puisque la plupart d'entre eux sont des timeouts\nMigrer les définitions pour chaque robot à un nouveau système\nUtilisez le système pour générer automatiquement la documentation de chaque robot et ses paramètres, attributs, commandes, etc\nS7 Pro Support ultra",
-                "it": "Quando un robot va offline dopo l'errore durante la pulizia poi pulire tutti gli intervalli e avviarli quando il robot torna online\nQuando non riesce a ricevere l'output della mappa un avviso invece di errore poiché la maggior parte di loro sono timeouts\nMigrare le definizioni per ogni robot al nuovo sistema\nUtilizzare il sistema per generare automaticamente la documentazione per ogni robot ed è parametri, attributi, comandi, ecc\nS7 Pro Supporto ultra",
-                "es": "Cuando un robot va fuera de línea después del error durante la limpieza entonces despejar todos los intervalos y empezar cuando el robot vuelve en línea\nCuando no recibe la salida del mapa una advertencia en lugar de error ya que la mayoría de ellos son timeouts\nMigrar definiciones para cada robot a nuevo sistema\nUtilice el sistema para generar automáticamente documentación para cada robot y sus parámetros, atributos, comandos, etc\nS7 Pro Apoyo ultra",
-                "pl": "Kiedy robot wychodzi na jaw po błędzie w czyszczeniu, wyczyściwszy wszystkie odstępy i zaczyna je, gdy robot wraca do Internetu\nGdy nie otrzymuje mapy ostrzeżenia zamiast błędu, ponieważ większość z nich to czasy\nDefinicja każdego robota do nowego systemu\nUżycie systemu automatycznie generowania dokumentacji dla każdego robota i parametrów, atrybutów, komend, itd\n7 pkt Ultra wsparcie",
-                "uk": "Коли робота йде в автономному режимі після похибки, то очистити всі інтервали і почати їх, коли він працює назад онлайн\nКоли ви не зможете отримувати повідомлення на карті, замість помилки, оскільки більшість з них є таймерами\nМигрейтні визначення для кожного робота в новій системі\nВикористовуйте систему, щоб автоматично генерувати документацію для кожного робота, і це параметри, атрибути, команди тощо\nС7 Про Підтримка",
-                "zh-cn": "当一个汽车在清洁过程中遭到错误的侵犯时,每隔时间都清清晰,一旦汽车在网上回到网上时开始。\n当无法收到地图时,警告而不是错误,因为其中大多数是时间的。\nB. 对新制度的每一种抢劫行为的定义\n利用系统自动生成每一批汽车的证件及其参数、特征、指挥等\nS7 军事支助"
-            },
-            "0.3.2": {
-                "en": "Fix some S8 Pro Ultra object types",
-                "de": "Einige S8 Pro Ultra Objekttypen",
-                "ru": "Исправьте некоторые S8 Pro Ultra типы объектов",
-                "pt": "Corrigir alguns S8 Pro Tipos de objeto ultra",
-                "nl": "Vertaling: Ultra objecttypes",
-                "fr": "Fixer un S8 Pro Types d ' objets Ultra",
-                "it": "Fissare alcuni S8 Pro Tipo di oggetto ultra",
-                "es": "Arregla un poco de S8 Pro Tipos de objeto ultra",
-                "pl": "S8 Pro Ultratype typeface",
-                "uk": "Виправлення деяких S8 Pro Типи об'єктів",
-                "zh-cn": "九 九 某些项目 1. tra物体类型"
-            },
-            "0.3.1": {
-                "en": "Fix water_box_custom_mode for S4 Max",
-                "de": "Wasser_box_custom_mode für S4 Max reparieren",
-                "ru": "Fix water_box_custom_mode для S4 Max",
-                "pt": "Fix water_box_custom_mode para S4 Max",
-                "nl": "Maak waterdoos klaar voor S4 Max",
-                "fr": "Fixer water_box_custom_mode pour S4 Max",
-                "it": "Fissare acqua_box_custom_mode per S4 Max",
-                "es": "Fijar el agua_box_custom_mode para S4 Max",
-                "pl": "Fix water_box_custom_mode",
-                "uk": "Фіксація води_box_custom_mode для S4 Max",
-                "zh-cn": "Fix水_箱_custom_mode for S4 Max"
-            }
-        },
-        "titleLang": {
-            "en": "Roborock",
-            "de": "Roborock",
-            "ru": "Роборок",
-            "pt": "Roborock",
-            "nl": "Roborock",
-            "fr": "Roborock",
-            "it": "Roborock",
-            "es": "roborock",
-            "pl": "Roborock",
-            "uk": "Роборок",
-            "zh-cn": "石头"
-        },
-        "desc": {
-            "en": "roborock",
-            "de": "Roborock",
-            "ru": "роборок",
-            "pt": "roborock",
-            "nl": "roborock",
-            "fr": "roborock",
-            "it": "Roborock",
-            "es": "roborock",
-            "pl": "roborock",
-            "uk": "Роборок",
-            "zh-cn": "机器人摇滚"
-        },
-        "authors": [
-            "copystring <copystring@gmail.com>"
-        ],
-        "keywords": [
-            "roborock",
-            "template",
-            "home automation"
-        ],
-        "license": "MIT",
-        "platform": "Javascript/Node.js",
-        "main": "main.js",
-        "icon": "roborock.png",
-        "enabled": true,
-        "extIcon": "https://raw.githubusercontent.com/copystring/ioBroker.roborock/main/admin/roborock.png",
-        "readme": "https://github.com/copystring/ioBroker.roborock/blob/main/README.md",
-        "loglevel": "info",
-        "mode": "daemon",
-        "type": "household",
-        "compact": true,
-        "connectionType": "cloud",
-        "dataSource": "poll",
-        "adminUI": {
-            "config": "json"
-        },
-        "dependencies": [
-            {
-                "js-controller": ">=3.3.22"
-            }
-        ],
-        "globalDependencies": [
-            {
-                "admin": ">=5.1.13"
-            }
-        ],
-        "plugins": {
-            "sentry": {
-                "dsn": "https://40474f3cac0c421c85afce616de6ec2d@o4504748727664640.ingest.sentry.io/4504748727664640"
-            }
-        }
+  "common": {
+    "name": "roborock",
+    "version": "0.5.0",
+    "news": {
+      "0.5.0": {
+        "en": "Rework map parser and map creator\nConvert a lof of strings to template literals\nImprove go2rtc download logic\nImprove error logging\nDownload roborock images from roborock server and make them available as base64 png (needs to be enabled in options, uses quite a lot of resources)\nUse some clever logic so adjacent rooms are never the same color 🎉\nThe name for each room is now displayed on the map\nFix photo popup position on map\nSeriously speed up drawing of carpet map\nAdd basic Q8 Max support\nBasic Q5 Pro support\nSupport new block types on the map\nDon't crash when Roborock Zeo One is in the account\nNew commands for Roborock S7 MaxV\nMany bug fixes\nAdd support for station for Q7 Max\nAdd basic scene/program support\nConnect to devices via TCP instead of MQTT whereever possible\nRefactor web interface to fix popup position for good\nAdd support for A01 encoding/decoding (With this devices like Zeo One, Dyad Pro etc would be supported). Huge thanks to rovo89!!!",
+        "de": "Überarbeiten Sie den Kartenparser und Kartenersteller\nKonvertieren Sie viele Zeichenfolgen in Vorlagenliterale\nVerbessern Sie die Download-Logik von go2rtc\nVerbessern Sie die Fehlerprotokollierung\nLaden Sie Roborock-Bilder vom Roborock-Server herunter und stellen Sie sie als Base64-PNG zur Verfügung (muss in den Optionen aktiviert werden, verbraucht ziemlich viele Ressourcen)\nVerwenden Sie eine clevere Logik, damit benachbarte Räume niemals die gleiche Farbe haben 🎉\nDer Name für jeden Raum wird nun auf der Karte angezeigt\nKorrigieren Sie die Position des Foto-Popups auf der Karte\nBeschleunigen Sie das Zeichnen einer Teppichkarte erheblich\nFügen Sie grundlegende Q8 Max-Unterstützung hinzu\nGrundlegende Q5 Pro-Unterstützung\nUnterstützen Sie neue Blocktypen auf der Karte\nKein Absturz, wenn Roborock Zeo One im Konto ist\nNeue Befehle für Roborock S7 MaxV\nViele Fehlerbehebungen\nUnterstützung für Station für Q7 Max hinzufügen\nFügen Sie grundlegende Szenen-/Programmunterstützung hinzu\nStellen Sie nach Möglichkeit eine Verbindung zu Geräten über TCP statt über MQTT her\nRefactoring der Weboberfläche, um die Popup-Position endgültig zu korrigieren\nUnterstützung für A01-Kodierung/Dekodierung hinzufügen (Damit würden Geräte wie Zeo One, Dyad Pro usw. unterstützt). Vielen Dank an rovo89!!!",
+        "ru": "Переработан парсер карт и создатель карт.\nПреобразование множества строк в литералы шаблона\nУлучшение логики загрузки go2rtc.\nУлучшение регистрации ошибок\nЗагрузите изображения Roborock с сервера Roborock и сделайте их доступными в формате PNG Base64 (необходимо включить в настройках, использует довольно много ресурсов)\nИспользуйте умную логику, чтобы соседние комнаты никогда не были одинакового цвета 🎉\nНазвание каждой комнаты теперь отображается на карте.\nИсправить положение всплывающего окна с фотографией на карте.\nСерьезно ускорить отрисовку карты ковра.\nДобавьте базовую поддержку Q8 Max.\nБазовая поддержка Q5 Pro\nПоддержка новых типов блоков на карте.\nНе вылетает, когда Roborock Zeo One находится в аккаунте\nНовые команды для Roborock S7 MaxV\nМножество исправлений ошибок\nДобавить поддержку станции для Q7 Max\nДобавить базовую поддержку сцен/программ.\nПодключайтесь к устройствам через TCP вместо MQTT, где это возможно.\nРефакторинг веб-интерфейса, чтобы навсегда исправить положение всплывающего окна\nДобавить поддержку кодирования/декодирования A01 (с этим будут поддерживаться такие устройства, как Zeo One, Dyad Pro и т. д.). Огромное спасибо rovo89!!!",
+        "pt": "Retrabalhar o analisador e criador de mapas\nConverta muitas strings em literais de modelo\nMelhore a lógica de download do go2rtc\nMelhorar o registro de erros\nBaixe imagens roborock do servidor roborock e disponibilize-as como png base64 (precisa ser habilitado nas opções, usa muitos recursos)\nUse alguma lógica inteligente para que salas adjacentes nunca sejam da mesma cor 🎉\nO nome de cada sala agora é exibido no mapa\nCorrigir a posição do pop-up da foto no mapa\nAcelere seriamente o desenho do mapa do carpete\nAdicione suporte básico ao Q8 Max\nSuporte básico ao Q5 Pro\nSuporta novos tipos de blocos no mapa\nNão trave quando Roborock Zeo One estiver na conta\nNovos comandos para Roborock S7 MaxV\nMuitas correções de bugs\nAdicione suporte para estação para Q7 Max\nAdicione suporte básico de cena/programa\nConecte-se a dispositivos via TCP em vez de MQTT sempre que possível\nRefatore a interface da web para corrigir a posição do pop-up para sempre\nAdicione suporte para codificação/decodificação A01 (com este dispositivos como Zeo One, Dyad Pro etc seriam suportados). Muito obrigado a rovo89!!!",
+        "nl": "Herwerk kaartparser en kaartmaker\nConverteer een groot aantal tekenreeksen naar sjabloonletterlijke waarden\nVerbeter de go2rtc-downloadlogica\nVerbeter de foutregistratie\nDownload roborock-afbeeldingen van de roborock-server en maak ze beschikbaar als base64 png (moet worden ingeschakeld in de opties, gebruikt behoorlijk wat bronnen)\nGebruik slimme logica, zodat aangrenzende kamers nooit dezelfde kleur hebben 🎉\nDe naam van elke kamer wordt nu op de kaart weergegeven\nFix fotopop-uppositie op kaart\nVersnel het tekenen van de tapijtkaart serieus\nVoeg basisondersteuning voor Q8 Max toe\nBasis Q5 Pro-ondersteuning\nOndersteun nieuwe bloktypen op de kaart\nCrash niet wanneer Roborock Zeo One in het account staat\nNieuwe opdrachten voor Roborock S7 MaxV\nVeel bugfixes\nVoeg ondersteuning toe voor station voor Q7 Max\nVoeg basisondersteuning voor scènes/programma's toe\nMaak waar mogelijk verbinding met apparaten via TCP in plaats van MQTT\nRefactoreer de webinterface om de pop-uppositie voorgoed te corrigeren\nOndersteuning toegevoegd voor A01-codering/decodering (hiermee zouden apparaten zoals Zeo One, Dyad Pro enz. worden ondersteund). Enorm bedankt aan rovo89!!!",
+        "fr": "Retravailler l'analyseur de carte et le créateur de carte\nConvertir un grand nombre de chaînes en littéraux de modèle\nAméliorer la logique de téléchargement go2rtc\nAméliorer la journalisation des erreurs\nTéléchargez les images Roborock à partir du serveur Roborock et rendez-les disponibles au format png base64 (doit être activé dans les options, utilise beaucoup de ressources)\nUtilisez une logique astucieuse pour que les pièces adjacentes ne soient jamais de la même couleur 🎉\nLe nom de chaque pièce est désormais affiché sur la carte\nCorrection de la position du popup photo sur la carte\nAccélérez sérieusement le dessin de la carte du tapis\nAjouter la prise en charge de base du Q8 Max\nPrise en charge de base de Q5 Pro\nPrise en charge de nouveaux types de blocs sur la carte\nNe plantez pas lorsque Roborock Zeo One est dans le compte\nNouvelles commandes pour Roborock S7 MaxV\nNombreuses corrections de bugs\nAjouter la prise en charge de la station pour Q7 Max\nAjouter un support de scène/programme de base\nConnectez-vous aux appareils via TCP au lieu de MQTT dans la mesure du possible\nRefactoriser l'interface Web pour corriger définitivement la position des popups\nAjoutez la prise en charge de l'encodage/décodage A01 (avec cela, des appareils comme Zeo One, Dyad Pro, etc. seraient pris en charge). Un grand merci à rovo89 !!!",
+        "it": "Rielabora il parser e il creatore della mappa\nConverti molte stringhe in valori letterali modello\nMigliora la logica di download di go2rtc\nMigliora la registrazione degli errori\nScarica le immagini roborock dal server roborock e rendile disponibili come png base64 (deve essere abilitato nelle opzioni, utilizza molte risorse)\nUsa una logica intelligente in modo che le stanze adiacenti non siano mai dello stesso colore 🎉\nIl nome di ciascuna stanza viene ora visualizzato sulla mappa\nCorreggi la posizione del popup delle foto sulla mappa\nAccelera seriamente il disegno della mappa del tappeto\nAggiungi il supporto Q8 Max di base\nSupporto base Q5 Pro\nSupporta nuovi tipi di blocchi sulla mappa\nNon crashare quando Roborock Zeo One è nell'account\nNuovi comandi per Roborock S7 MaxV\nMolte correzioni di bug\nAggiunto il supporto per la stazione per Q7 Max\nAggiungi il supporto di base per scene/programmi\nConnettiti ai dispositivi tramite TCP anziché MQTT, ove possibile\nRefactoring dell'interfaccia web per correggere definitivamente la posizione dei popup\nAggiunto il supporto per la codifica/decodifica A01 (con questo sarebbero supportati dispositivi come Zeo One, Dyad Pro ecc.). Un enorme grazie a rovo89!!!",
+        "es": "Reelaborar el analizador y creador de mapas\nConvierta una gran cantidad de cadenas en literales de plantilla\nMejorar la lógica de descarga de go2rtc\nMejorar el registro de errores\nDescargue imágenes de roborock desde el servidor de roborock y póngalas disponibles como png base64 (debe habilitarse en las opciones, utiliza bastantes recursos)\nUtilice una lógica inteligente para que las habitaciones adyacentes nunca sean del mismo color 🎉\nEl nombre de cada habitación ahora se muestra en el mapa.\nCorregir la posición de la foto emergente en el mapa\nAcelere seriamente el dibujo del mapa de la alfombra\nAgregue soporte básico para Q8 Max\nSoporte básico Q5 Pro\nAdmite nuevos tipos de bloques en el mapa.\nNo te bloquees cuando Roborock Zeo One esté en la cuenta\nNuevos comandos para Roborock S7 MaxV\nMuchas correcciones de errores\nAgregar soporte para estación para Q7 Max\nAgregar soporte básico de escena/programa\nConéctese a dispositivos a través de TCP en lugar de MQTT siempre que sea posible\nRefactorice la interfaz web para arreglar la posición de la ventana emergente para siempre\nAgregue soporte para codificación/decodificación A01 (con esto se admitirían dispositivos como Zeo One, Dyad Pro, etc.). ¡¡¡Muchísimas gracias a rovo89!!!",
+        "pl": "Przerób parser map i kreator map\nKonwertuj wiele ciągów znaków na literały szablonowe\nPopraw logikę pobierania go2rtc\nPopraw rejestrowanie błędów\nPobierz obrazy roborock z serwera roborock i udostępnij je w formacie base64 png (należy włączyć w opcjach, zużywa sporo zasobów)\nUżyj sprytnej logiki, aby sąsiednie pokoje nigdy nie były tego samego koloru 🎉\nNazwa każdego pokoju jest teraz wyświetlana na mapie\nNapraw pozycję wyskakującego zdjęcia na mapie\nPoważnie przyspiesz rysowanie mapy dywanu\nDodaj podstawową obsługę Q8 Max\nPodstawowe wsparcie dla Q5 Pro\nObsługuj nowe typy bloków na mapie\nNie zawieszaj się, gdy na koncie znajduje się Roborock Zeo One\nNowe polecenia dla Roborock S7 MaxV\nWiele poprawek\nDodaj obsługę stacji dla Q7 Max\nDodaj podstawową obsługę scen/programów\nJeśli to możliwe, łącz się z urządzeniami za pośrednictwem protokołu TCP zamiast MQTT\nZrefaktoryzuj interfejs sieciowy, aby na dobre naprawić pozycję wyskakujących okienek\nDodaj obsługę kodowania/dekodowania A01 (w tym przypadku obsługiwane będą urządzenia takie jak Zeo One, Dyad Pro itp.). Ogromne podziękowania dla rovo89!!!",
+        "uk": "Переробити синтаксичний аналізатор карт і творець карт\nПеретворіть lof рядків на шаблонні літерали\nПокращення логіки завантаження go2rtc\nПокращити журнал помилок\nЗавантажте зображення roborock із сервера roborock і зробіть їх доступними як base64 png (потрібно ввімкнути в параметрах, використовує досить багато ресурсів)\nВикористовуйте розумну логіку, щоб суміжні кімнати ніколи не були одного кольору 🎉\nНазва кожної кімнати тепер відображається на карті\nВиправте положення спливаючого фото на карті\nСерйозно прискорити малювання карти килима\nДодайте базову підтримку Q8 Max\nБазова підтримка Q5 Pro\nПідтримка нових типів блоків на карті\nНе вилітайте, коли Roborock Zeo One є в обліковому записі\nНові команди для Roborock S7 MaxV\nБагато виправлень помилок\nДодати підтримку станції для Q7 Max\nДодати базову підтримку сцени/програми\nПідключайтеся до пристроїв через TCP замість MQTT, де це можливо\nРефакторинг веб-інтерфейсу, щоб назавжди виправити положення спливаючого вікна\nДодайте підтримку кодування/декодування A01 (з цим підтримуватимуться такі пристрої, як Zeo One, Dyad Pro тощо). Величезне спасибі rovo89!!!",
+        "zh-cn": "返工地图解析器和地图创建器\n将大量字符串转换为模板文字\n改进go2rtc下载逻辑\n改进错误记录\n从roborock服务器下载roborock图像并将其作为base64 png提供（需要在选项中启用，使用相当多的资源）\n使用一些聪明的逻辑，让相邻的房间永远不会是相同的颜色🎉\n每个房间的名称现在显示在地图上\n修复地图上照片弹出位置\n大幅加快地毯图绘制速度\n添加基本​​的 Q8 Max 支持\nQ5 Pro 基本支持\n支持地图上新的区块类型\n当 Roborock Zeo One 在帐户中时不要崩溃\nRoborock S7 MaxV 的新命令\n许多错误修复\n添加对 Q7 Max 电台的支持\n添加基本​​场景/节目支持\n尽可能通过 TCP 而不是 MQTT 连接到设备\n重构 Web 界面以永久修复弹出位置\n添加对 A01 编码/解码的支持（使用此设备将支持 Zeo One、Dyad Pro 等）。非常感谢 rovo89！"
+      },
+      "0.4.4": {
+        "en": "Fix for getting the map for each cleaning record",
+        "de": "Fix, um die Karte für jeden Reinigungsrekord zu bekommen",
+        "ru": "Исправление для получения карты для каждой записи очистки",
+        "pt": "Fix para obter o mapa para cada registro de limpeza",
+        "nl": "Vertaling:",
+        "fr": "Fix pour obtenir la carte pour chaque enregistrement de nettoyage",
+        "it": "Fissare per ottenere la mappa per ogni record di pulizia",
+        "es": "Fijación para obtener el mapa para cada registro de limpieza",
+        "pl": "Fix ma na celu uzyskanie mapy dla każdego zapisu czyszczonego",
+        "uk": "Виправлення для отримання карти для кожного запису очищення",
+        "zh-cn": "每个清洁记录地图的ix"
+      },
+      "0.4.3": {
+        "en": "Refactor code\nFix mainUpdateInterval not working",
+        "de": "Erzeugniscode\nHauptUpdateInterval nicht funktionieren",
+        "ru": "Рефакторный код\nFix mainUpdateИнтервал не работает",
+        "pt": "Código do fator\nFix mainUpdateInterval não funciona",
+        "nl": "Refactor code\nFix mainUpdate",
+        "fr": "Code de calcul\nRéparez mainmiseInterval ne fonctionne pas",
+        "it": "Codice di fabbrica\nFissare mainUpdateInterval non funziona",
+        "es": "Código de referencia\nCorrección principalActualizaciónInterval no funciona",
+        "pl": "Kod źródłowy\nFix-UpdateInterval nie działać",
+        "uk": "Код рефактора\nВиправлення mainUpdateInterval не працює",
+        "zh-cn": "复制守则\n未工作的主要用途"
+      },
+      "0.4.2": {
+        "en": "Fix S6 gen path\nAdd missing types library",
+        "de": "S6 gen path\nBibliothek für fehlende Typen hinzufügen",
+        "ru": "Fix S6 ген путь\nДобавить недостающие типы библиотеки",
+        "pt": "Fix S6 gen path\nAdicionar biblioteca de tipos ausentes",
+        "nl": "Vertaling:\nVermiste types bibliotheek",
+        "fr": "Fix S6 gen path\nAjouter les types manquants bibliothèque",
+        "it": "Fissare il percorso S6 gen\nAggiungi la libreria dei tipi mancanti",
+        "es": "Fijar el camino S6 gen\nAñadir biblioteca de tipos desaparecidos",
+        "pl": "Fix6 Gen\nStrona internetowa",
+        "uk": "Фіксація S6 генного шляху\nБібліотека відсутніх типів",
+        "zh-cn": "Fix S6genways\n增加缺失的图书馆"
+      },
+      "0.4.1": {
+        "en": "Fix typos in definitions docs generation",
+        "de": "Fix typos in Definitionen docs generation",
+        "ru": "Исправление опечаток в генерации докс",
+        "pt": "Fix typos em definições docs geração",
+        "nl": "Vertaling:",
+        "fr": "Fixer les typos dans les définitions docs génération",
+        "it": "Fissare i tipi in definizioni generazione di docs",
+        "es": "Arreglar los tipos en la generación de los docs",
+        "pl": "Fix typos w definicji docs generation",
+        "uk": "Фіксувати типограми в визначеннях доксів",
+        "zh-cn": "评 注"
+      },
+      "0.4.0": {
+        "en": "When a robot goes offline after error during cleaning then clear all intervals and start them when it robot comes back online\nWhen it fails to receive the map output a warning instead of error since most of them are timeouts\nMigrate definitions for each robot to new system\nUse the system to automatically generate documentation for each robot and it's parameters, attributes, commands, etc\nS7 Pro Ultra support",
+        "de": "Wenn ein Roboter nach dem Fehler bei der Reinigung offline geht, dann alle Intervalle löschen und starten Sie sie, wenn es Roboter online zurückkommt\nWenn es nicht gelingt, die Kartenausgabe eine Warnung anstelle von Fehlern zu erhalten, da die meisten von ihnen Timeouts sind\nDefinitionen für jeden Roboter zu neuem System migrieren\nVerwenden Sie das System, um automatisch die Dokumentation für jeden Roboter zu erstellen und es sind Parameter, Attribute, Befehle, etc\nS7 Pro Ultra-Unterstützung",
+        "ru": "Когда робот уходит в оффлайне после ошибки во время уборки, затем очистить все интервалы и начать их, когда робот возвращается онлайн\nКогда он не получает, чтобы получить карту вывести предупреждение вместо ошибки, так как большинство из них таймеры\nMigrate определения для каждого робота к новой системе\nИспользуйте систему, чтобы автоматически генерировать документацию для каждого робота и его параметры, атрибуты, команды и т.д\nС7 Про Ультра поддержка",
+        "pt": "Quando um robô vai off-line após o erro durante a limpeza, em seguida, limpar todos os intervalos e iniciá-los quando o robô voltar on-line\nQuando ele não recebe a saída do mapa um aviso em vez de erro, uma vez que a maioria deles são timeouts\nMigrar definições para cada robô para o novo sistema\nUse o sistema para gerar automaticamente documentação para cada robô e são parâmetros, atributos, comandos, etc\nS7 Pro Suporte ultra",
+        "nl": "Als een robot offline gaat na de fout tijdens het schoonmaken, dan alle intervals en start ze als het robot weer online komt\nAls het niet lukt om de kaart een waarschuwing te krijgen in plaats van fouten, omdat de meeste van hen time-outs zijn\nMigrate definities voor elke robot naar nieuw systeem\nGebruik het systeem om automatisch documentatie te genereren voor elke robot en het is parameters, beschikkingen, commando's, etc\nS07 Ultra steun",
+        "fr": "Quand un robot s'éteint après l'erreur pendant le nettoyage, puis effacez tous les intervalles et commencez-les quand le robot revient en ligne\nQuand il ne reçoit pas la sortie de la carte un avertissement au lieu d'erreur puisque la plupart d'entre eux sont des timeouts\nMigrer les définitions pour chaque robot à un nouveau système\nUtilisez le système pour générer automatiquement la documentation de chaque robot et ses paramètres, attributs, commandes, etc\nS7 Pro Support ultra",
+        "it": "Quando un robot va offline dopo l'errore durante la pulizia poi pulire tutti gli intervalli e avviarli quando il robot torna online\nQuando non riesce a ricevere l'output della mappa un avviso invece di errore poiché la maggior parte di loro sono timeouts\nMigrare le definizioni per ogni robot al nuovo sistema\nUtilizzare il sistema per generare automaticamente la documentazione per ogni robot ed è parametri, attributi, comandi, ecc\nS7 Pro Supporto ultra",
+        "es": "Cuando un robot va fuera de línea después del error durante la limpieza entonces despejar todos los intervalos y empezar cuando el robot vuelve en línea\nCuando no recibe la salida del mapa una advertencia en lugar de error ya que la mayoría de ellos son timeouts\nMigrar definiciones para cada robot a nuevo sistema\nUtilice el sistema para generar automáticamente documentación para cada robot y sus parámetros, atributos, comandos, etc\nS7 Pro Apoyo ultra",
+        "pl": "Kiedy robot wychodzi na jaw po błędzie w czyszczeniu, wyczyściwszy wszystkie odstępy i zaczyna je, gdy robot wraca do Internetu\nGdy nie otrzymuje mapy ostrzeżenia zamiast błędu, ponieważ większość z nich to czasy\nDefinicja każdego robota do nowego systemu\nUżycie systemu automatycznie generowania dokumentacji dla każdego robota i parametrów, atrybutów, komend, itd\n7 pkt Ultra wsparcie",
+        "uk": "Коли робота йде в автономному режимі після похибки, то очистити всі інтервали і почати їх, коли він працює назад онлайн\nКоли ви не зможете отримувати повідомлення на карті, замість помилки, оскільки більшість з них є таймерами\nМигрейтні визначення для кожного робота в новій системі\nВикористовуйте систему, щоб автоматично генерувати документацію для кожного робота, і це параметри, атрибути, команди тощо\nС7 Про Підтримка",
+        "zh-cn": "当一个汽车在清洁过程中遭到错误的侵犯时,每隔时间都清清晰,一旦汽车在网上回到网上时开始。\n当无法收到地图时,警告而不是错误,因为其中大多数是时间的。\nB. 对新制度的每一种抢劫行为的定义\n利用系统自动生成每一批汽车的证件及其参数、特征、指挥等\nS7 军事支助"
+      },
+      "0.3.2": {
+        "en": "Fix some S8 Pro Ultra object types",
+        "de": "Einige S8 Pro Ultra Objekttypen",
+        "ru": "Исправьте некоторые S8 Pro Ultra типы объектов",
+        "pt": "Corrigir alguns S8 Pro Tipos de objeto ultra",
+        "nl": "Vertaling: Ultra objecttypes",
+        "fr": "Fixer un S8 Pro Types d ' objets Ultra",
+        "it": "Fissare alcuni S8 Pro Tipo di oggetto ultra",
+        "es": "Arregla un poco de S8 Pro Tipos de objeto ultra",
+        "pl": "S8 Pro Ultratype typeface",
+        "uk": "Виправлення деяких S8 Pro Типи об'єктів",
+        "zh-cn": "九 九 某些项目 1. tra物体类型"
+      }
     },
-    "encryptedNative": [
-        "username",
-        "password"
-    ],
-    "protectedNative": [
-        "username",
-        "password"
-    ],
-    "native": {
-        "enable_map_creation": false,
-        "map_creation_interval": 2,
-        "map_scale": 2,
-        "updateInterval": 60,
-        "webserverPort": 6824,
-        "hostname_ip": "iobroker",
-        "cameraPin": 1234
+    "titleLang": {
+      "en": "Roborock",
+      "de": "Roborock",
+      "ru": "Роборок",
+      "pt": "Roborock",
+      "nl": "Roborock",
+      "fr": "Roborock",
+      "it": "Roborock",
+      "es": "roborock",
+      "pl": "Roborock",
+      "uk": "Роборок",
+      "zh-cn": "石头"
     },
-    "objects": [],
-    "instanceObjects": [
-        {
-            "_id": "info",
-            "type": "channel",
-            "common": {
-                "name": "Information"
-            },
-            "native": {}
-        },
-        {
-            "_id": "info.connection",
-            "type": "state",
-            "common": {
-                "role": "indicator.connected",
-                "name": "Device or service connected",
-                "type": "boolean",
-                "read": true,
-                "write": false,
-                "def": false
-            },
-            "native": {}
-        }
-    ]
+    "desc": {
+      "en": "roborock",
+      "de": "Roborock",
+      "ru": "роборок",
+      "pt": "roborock",
+      "nl": "roborock",
+      "fr": "roborock",
+      "it": "Roborock",
+      "es": "roborock",
+      "pl": "roborock",
+      "uk": "Роборок",
+      "zh-cn": "机器人摇滚"
+    },
+    "authors": [
+      "copystring <copystring@gmail.com>"
+    ],
+    "keywords": [
+      "roborock",
+      "template",
+      "home automation"
+    ],
+    "license": "MIT",
+    "platform": "Javascript/Node.js",
+    "main": "main.js",
+    "icon": "roborock.png",
+    "enabled": true,
+    "extIcon": "https://raw.githubusercontent.com/copystring/ioBroker.roborock/main/admin/roborock.png",
+    "readme": "https://github.com/copystring/ioBroker.roborock/blob/main/README.md",
+    "loglevel": "info",
+    "mode": "daemon",
+    "type": "household",
+    "compact": true,
+    "connectionType": "cloud",
+    "dataSource": "poll",
+    "adminUI": {
+      "config": "json"
+    },
+    "dependencies": [
+      {
+        "js-controller": ">=3.3.22"
+      }
+    ],
+    "globalDependencies": [
+      {
+        "admin": ">=5.1.13"
+      }
+    ],
+    "plugins": {
+      "sentry": {
+        "dsn": "https://40474f3cac0c421c85afce616de6ec2d@o4504748727664640.ingest.sentry.io/4504748727664640"
+      }
+    }
+  },
+  "encryptedNative": [
+    "username",
+    "password"
+  ],
+  "protectedNative": [
+    "username",
+    "password"
+  ],
+  "native": {
+    "enable_map_creation": false,
+    "map_creation_interval": 2,
+    "map_scale": 2,
+    "updateInterval": 60,
+    "webserverPort": 6824,
+    "hostname_ip": "iobroker",
+    "cameraPin": 1234
+  },
+  "objects": [],
+  "instanceObjects": [
+    {
+      "_id": "info",
+      "type": "channel",
+      "common": {
+        "name": "Information"
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.connection",
+      "type": "state",
+      "common": {
+        "role": "indicator.connected",
+        "name": "Device or service connected",
+        "type": "boolean",
+        "read": true,
+        "write": false,
+        "def": false
+      },
+      "native": {}
+    }
+  ]
 }
