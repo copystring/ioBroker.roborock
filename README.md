@@ -53,7 +53,7 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.5.0 (2024-01-03)
 * (copystring) Rework map parser and map creator
 * (copystring) Convert a lof of strings to template literals
 * (copystring) Improve go2rtc download logic
