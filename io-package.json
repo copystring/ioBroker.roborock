@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "news": {
+      "0.5.1": {
+        "en": "Fix lint",
+        "de": "Fix lint",
+        "ru": "Фиксация lint",
+        "pt": "Fix lint",
+        "nl": "_",
+        "fr": "Fix lint",
+        "it": "Fissare l'intuizione",
+        "es": "Lino fijo",
+        "pl": "Fix lint",
+        "uk": "Фіксований відтінок",
+        "zh-cn": "Fix Lint"
+      },
       "0.5.0": {
         "en": "Rework map parser and map creator\nConvert a lof of strings to template literals\nImprove go2rtc download logic\nImprove error logging\nDownload roborock images from roborock server and make them available as base64 png (needs to be enabled in options, uses quite a lot of resources)\nUse some clever logic so adjacent rooms are never the same color 🎉\nThe name for each room is now displayed on the map\nFix photo popup position on map\nSeriously speed up drawing of carpet map\nAdd basic Q8 Max support\nBasic Q5 Pro support\nSupport new block types on the map\nDon't crash when Roborock Zeo One is in the account\nNew commands for Roborock S7 MaxV\nMany bug fixes\nAdd support for station for Q7 Max\nAdd basic scene/program support\nConnect to devices via TCP instead of MQTT whereever possible\nRefactor web interface to fix popup position for good\nAdd support for A01 encoding/decoding (With this devices like Zeo One, Dyad Pro etc would be supported). Huge thanks to rovo89!!!",
         "de": "Überarbeiten Sie den Kartenparser und Kartenersteller\nKonvertieren Sie viele Zeichenfolgen in Vorlagenliterale\nVerbessern Sie die Download-Logik von go2rtc\nVerbessern Sie die Fehlerprotokollierung\nLaden Sie Roborock-Bilder vom Roborock-Server herunter und stellen Sie sie als Base64-PNG zur Verfügung (muss in den Optionen aktiviert werden, verbraucht ziemlich viele Ressourcen)\nVerwenden Sie eine clevere Logik, damit benachbarte Räume niemals die gleiche Farbe haben 🎉\nDer Name für jeden Raum wird nun auf der Karte angezeigt\nKorrigieren Sie die Position des Foto-Popups auf der Karte\nBeschleunigen Sie das Zeichnen einer Teppichkarte erheblich\nFügen Sie grundlegende Q8 Max-Unterstützung hinzu\nGrundlegende Q5 Pro-Unterstützung\nUnterstützen Sie neue Blocktypen auf der Karte\nKein Absturz, wenn Roborock Zeo One im Konto ist\nNeue Befehle für Roborock S7 MaxV\nViele Fehlerbehebungen\nUnterstützung für Station für Q7 Max hinzufügen\nFügen Sie grundlegende Szenen-/Programmunterstützung hinzu\nStellen Sie nach Möglichkeit eine Verbindung zu Geräten über TCP statt über MQTT her\nRefactoring der Weboberfläche, um die Popup-Position endgültig zu korrigieren\nUnterstützung für A01-Kodierung/Dekodierung hinzufügen (Damit würden Geräte wie Zeo One, Dyad Pro usw. unterstützt). Vielen Dank an rovo89!!!",
@@ -80,19 +93,6 @@
         "pl": "Kiedy robot wychodzi na jaw po błędzie w czyszczeniu, wyczyściwszy wszystkie odstępy i zaczyna je, gdy robot wraca do Internetu\nGdy nie otrzymuje mapy ostrzeżenia zamiast błędu, ponieważ większość z nich to czasy\nDefinicja każdego robota do nowego systemu\nUżycie systemu automatycznie generowania dokumentacji dla każdego robota i parametrów, atrybutów, komend, itd\n7 pkt Ultra wsparcie",
         "uk": "Коли робота йде в автономному режимі після похибки, то очистити всі інтервали і почати їх, коли він працює назад онлайн\nКоли ви не зможете отримувати повідомлення на карті, замість помилки, оскільки більшість з них є таймерами\nМигрейтні визначення для кожного робота в новій системі\nВикористовуйте систему, щоб автоматично генерувати документацію для кожного робота, і це параметри, атрибути, команди тощо\nС7 Про Підтримка",
         "zh-cn": "当一个汽车在清洁过程中遭到错误的侵犯时,每隔时间都清清晰,一旦汽车在网上回到网上时开始。\n当无法收到地图时,警告而不是错误,因为其中大多数是时间的。\nB. 对新制度的每一种抢劫行为的定义\n利用系统自动生成每一批汽车的证件及其参数、特征、指挥等\nS7 军事支助"
-      },
-      "0.3.2": {
-        "en": "Fix some S8 Pro Ultra object types",
-        "de": "Einige S8 Pro Ultra Objekttypen",
-        "ru": "Исправьте некоторые S8 Pro Ultra типы объектов",
-        "pt": "Corrigir alguns S8 Pro Tipos de objeto ultra",
-        "nl": "Vertaling: Ultra objecttypes",
-        "fr": "Fixer un S8 Pro Types d ' objets Ultra",
-        "it": "Fissare alcuni S8 Pro Tipo di oggetto ultra",
-        "es": "Arregla un poco de S8 Pro Tipos de objeto ultra",
-        "pl": "S8 Pro Ultratype typeface",
-        "uk": "Виправлення деяких S8 Pro Типи об'єктів",
-        "zh-cn": "九 九 某些项目 1. tra物体类型"
       }
     },
     "titleLang": {

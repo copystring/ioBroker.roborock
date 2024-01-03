@@ -53,7 +53,7 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.5.1 (2024-01-03)
 * (copystring) Fix lint
 
 ### 0.5.0 (2024-01-03)
