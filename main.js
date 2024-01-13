@@ -66,6 +66,8 @@ class Roborock extends utils.Adapter {
 	 * Is called when databases are connected and adapter received configuration.
 	 */
 	async onReady() {
+		this.log.info(`Starting adapter. This might take a few minutes depending on your setup. Please wait.`);
+
 		this.sentryInstance = this.getPluginInstance("sentry");
 
 		await this.setupBasicObjects();
@@ -263,6 +265,7 @@ class Roborock extends utils.Adapter {
 					await this.deleteStateAsync(`UserData`);
 				}
 			}
+			this.log.info(`Starting adapter finished. Lets go!!!!!!!`);
 		} catch (error) {
 			this.log.error("Failed to get home details: " + error.stack);
 		}
