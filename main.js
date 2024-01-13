@@ -199,7 +199,6 @@ class Roborock extends utils.Adapter {
 						ack: true,
 					});
 
-
 					// create devices and set states
 					const products = homedataResult.products;
 					const devices = homedataResult.devices.concat(homedataResult.receivedDevices);
@@ -245,8 +244,7 @@ class Roborock extends utils.Adapter {
 
 					try {
 						await this.download_go2rtc();
-					}
-					catch (error) {
+					} catch (error) {
 						this.catchError(`Failed to download go2rtc. ${error.stack}`);
 					}
 
@@ -354,7 +352,7 @@ class Roborock extends utils.Adapter {
 					for (const attribute in items[item]) {
 						const objectPath = `Devices.${duid}.programs.${programID}.items.${item}.${attribute}`;
 						let value = items[item][attribute];
-						const typeOfValue = typeof(value)
+						const typeOfValue = typeof value;
 
 						await this.createStateObjectHelper(objectPath, attribute, typeOfValue, null, null, "value", true, false);
 
