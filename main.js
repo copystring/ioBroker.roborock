@@ -346,7 +346,7 @@ class Roborock extends utils.Adapter {
 				});
 
 				const enabledPath = `Devices.${duid}.programs.${programID}.enabled`;
-				this.createStateObjectHelper(enabledPath, "enabled", "boolean", null, null, "value");
+				await this.createStateObjectHelper(enabledPath, "enabled", "boolean", null, null, "value");
 				this.setStateAsync(enabledPath, enabled, true);
 
 				const items = JSON.parse(param).action.items;
@@ -368,7 +368,7 @@ class Roborock extends utils.Adapter {
 
 			for (const duid in programs) {
 				const objectPath = `Devices.${duid}.programs.startProgram`;
-				this.createStateObjectHelper(objectPath, "Start saved program", "string", null, Object.keys(programs[duid])[0], "value", true, true, programs[duid]);
+				await this.createStateObjectHelper(objectPath, "Start saved program", "string", null, Object.keys(programs[duid])[0], "value", true, true, programs[duid]);
 			}
 		}
 	}
@@ -832,7 +832,7 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
-	createStateObjectHelper(path, name, type, unit, def, role, read, write, states, native = {}) {
+	async createStateObjectHelper(path, name, type, unit, def, role, read, write, states, native = {}) {
 		const common = {
 			name: name,
 			type: type,
