@@ -353,9 +353,15 @@ class Roborock extends utils.Adapter {
 				for (const item in items) {
 					for (const attribute in items[item]) {
 						const objectPath = `Devices.${duid}.programs.${programID}.items.${item}.${attribute}`;
-						this.createStateObjectHelper(objectPath, attribute, "string", null, null, "value", true, false);
+						let value = items[item][attribute];
+						const typeOfValue = typeof(value)
 
-						this.setStateAsync(objectPath, items[item][attribute], true);
+						await this.createStateObjectHelper(objectPath, attribute, typeOfValue, null, null, "value", true, false);
+
+						if (typeOfValue == "object") {
+							value = value.toString();
+						}
+						this.setStateAsync(objectPath, value, true);
 					}
 				}
 			}
