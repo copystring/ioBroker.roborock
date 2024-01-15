@@ -99,14 +99,7 @@ class Roborock extends utils.Adapter {
 		await this.setStateAsync("info.connection", { val: true, ack: true });
 		// api/v1/getUrlByEmail(email = ...)
 
-		// Try to load existing userdata.
-		const userdataObj = await this.getStateAsync("UserData");
-		let userdata;
-		if (userdataObj) {
-			userdata = JSON.parse(userdataObj.val?.toString() || "{}");
-		} else {
-			userdata = await this.getUserData(this.loginApi);
-		}
+		const userdata = await this.getUserData(this.loginApi);
 
 		try {
 			this.loginApi.defaults.headers.common["Authorization"] = userdata.token;
