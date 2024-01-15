@@ -22,7 +22,6 @@ This adapter allows you the control, get states, cleaning history and view the m
 
 - Roborock S4
 - Roborock S4 Max
-- Roborock S5
 - Roborock S5 Max
 - Roborock S6
 - Roborock S6 Pure
