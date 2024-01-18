@@ -201,7 +201,6 @@ class Roborock extends utils.Adapter {
 					this.reconnectIntervall = this.setInterval(async () => {
 						this.log.debug("Reconnecting after 1 hour!");
 
-						await this.getUserData(this.loginApi);
 						await this.rr_mqtt_connector.reconnectClient();
 						// this.checkForNewFirmware(duid);
 					}, 3600 * 1000);
