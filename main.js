@@ -199,11 +199,11 @@ class Roborock extends utils.Adapter {
 
 					// reconnect every 3 hours (10800 seconds)
 					this.reconnectIntervall = this.setInterval(async () => {
-						this.log.debug("Reconnecting after 1 hour!");
+						this.log.debug("Reconnecting after 3 hours!");
 
 						await this.rr_mqtt_connector.reconnectClient();
 						// this.checkForNewFirmware(duid);
-					}, 3600 * 1000);
+					}, 10800 * 1000);
 
 					this.processScene(scene);
 
