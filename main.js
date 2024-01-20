@@ -711,6 +711,7 @@ class Roborock extends utils.Adapter {
 	}
 
 	updateHomeData(homeId) {
+		this.log.debug(`Updating HomeData with homeId: ${homeId}`);
 		if (this.api) {
 			this.api
 				.get(`user/homes/${homeId}`)
