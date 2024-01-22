@@ -717,16 +717,23 @@ class Roborock extends utils.Adapter {
 				.get(`user/homes/${homeId}`)
 				.then(async (res) => {
 					const homedata = res.data.result;
-					await this.setStateAsync("HomeData", {
-						val: JSON.stringify(homedata),
-						ack: true,
-					});
-					this.log.debug("homedata successfully updated");
 
-					this.updateConsumablesPercent(homedata.devices);
-					this.updateConsumablesPercent(homedata.receivedDevices);
-					this.updateDeviceInfo(homedata.devices);
-					this.updateDeviceInfo(homedata.receivedDevices);
+					if (homedata)
+					{
+						await this.setStateAsync("HomeData", {
+							val: JSON.stringify(homedata),
+							ack: true,
+						});
+						this.log.debug("homedata successfully updated");
+
+						this.updateConsumablesPercent(homedata.devices);
+						this.updateConsumablesPercent(homedata.receivedDevices);
+						this.updateDeviceInfo(homedata.devices);
+						this.updateDeviceInfo(homedata.receivedDevices);
+					}
+					else {
+						this.log.warn("homedata failed to download");
+					}
 				})
 				.catch((e) => {
 					this.log.error("Failed to update updateHomeData with error: " + e);
