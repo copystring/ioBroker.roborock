@@ -215,7 +215,7 @@ class Roborock extends utils.Adapter {
 
 					this.start_go2rtc(this.vacuums, userdata);
 
-					this.homedataInterval = this.setInterval(this.updateHomeData.bind(this), this.config.updateInterval * 1000, homeId);
+					this.homedataInterval = this.setInterval(this.updateHomeData.bind(this), this.config.updateInterval * 2 * 1000, homeId);
 					await this.updateHomeData(homeId);
 
 					// These need to start only after all states have been set
