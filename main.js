@@ -889,6 +889,14 @@ class Roborock extends utils.Adapter {
 		return "Error in getRobotVersion. Version not found.";
 	}
 
+	getRequestId() {
+		if (this.idCounter >= 9999) {
+			this.idCounter = 0;
+			return this.idCounter;
+		}
+		return this.idCounter++;
+	}
+
 	async setupBasicObjects() {
 		await this.setObjectAsync("Devices", {
 			type: "folder",
