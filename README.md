@@ -52,6 +52,11 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Little bug fixes
+* (copystring) Remove Roborock S5. There is no such device
+* (copystring) Limit HomeData requests to prevent rate limit
+
 ### 0.5.1 (2024-01-03)
 * (copystring) Fix lint
 
