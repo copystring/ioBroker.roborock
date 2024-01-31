@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.5.2",
+    "version": "0.5.3",
     "news": {
+      "0.5.3": {
+        "en": "Restore original UserData creation",
+        "de": "Wiederherstellen der ursprünglichen UserData-Erstellung",
+        "ru": "Восстановление оригинального создания UserData",
+        "pt": "Restaurar a criação original do UserData",
+        "nl": "Originele UserData-aanmaak herstellen",
+        "fr": "Restaurer la création originale de userData",
+        "it": "Ripristina la creazione originale UserData",
+        "es": "Restaurar la creación original de UserData",
+        "pl": "Przywróć oryginalne tworzenie UserData",
+        "uk": "Відновити створення оригінального користувача",
+        "zh-cn": "恢复原始用户数据创建"
+      },
       "0.5.2": {
         "en": "Little bug fixes\nRemove Roborock S5. There is no such device\nLimit HomeData requests to prevent rate limit",
         "de": "Kleine Fehlerbehebungen\nEntfernen Roborock S5. Es gibt kein solches Gerät\nBegrenzt nach Hause Datenanforderungen zur Verhinderung von Ratengrenzen",
@@ -80,19 +93,6 @@
         "pl": "Fix6 Gen\nStrona internetowa",
         "uk": "Фіксація S6 генного шляху\nБібліотека відсутніх типів",
         "zh-cn": "Fix S6genways\n增加缺失的图书馆"
-      },
-      "0.4.1": {
-        "en": "Fix typos in definitions docs generation",
-        "de": "Fix typos in Definitionen docs generation",
-        "ru": "Исправление опечаток в генерации докс",
-        "pt": "Fix typos em definições docs geração",
-        "nl": "Vertaling:",
-        "fr": "Fixer les typos dans les définitions docs génération",
-        "it": "Fissare i tipi in definizioni generazione di docs",
-        "es": "Arreglar los tipos en la generación de los docs",
-        "pl": "Fix typos w definicji docs generation",
-        "uk": "Фіксувати типограми в визначеннях доксів",
-        "zh-cn": "评 注"
       }
     },
     "titleLang": {

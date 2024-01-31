@@ -52,7 +52,7 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.5.3 (2024-01-31)
 * (copystring) Restore original UserData creation
 
 ### 0.5.2 (2024-01-31)
