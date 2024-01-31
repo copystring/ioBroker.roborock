@@ -52,6 +52,9 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Restore original UserData creation
+
 ### 0.5.2 (2024-01-31)
 * (copystring) Little bug fixes
 * (copystring) Remove Roborock S5. There is no such device

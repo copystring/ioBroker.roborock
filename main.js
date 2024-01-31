@@ -72,11 +72,19 @@ class Roborock extends utils.Adapter {
 
 		await this.setupBasicObjects();
 
+		const username = this.config.username;
+		const password = this.config.password;
+
+		if (!username || !password) {
+			this.log.error("Username or password missing!");
+			return;
+		}
+		await this.setStateAsync("info.connection", { val: true, ack: true });
 
 		// create new clientID if it doesn't exist yet
 		let clientID = "";
-		this.getStateAsync("clientID").then(async (storedClientID) => {
-			if (storedClientID) {
+		await this.getStateAsync("clientID").then(async (storedClientID) => {
+			if (storedClientID && typeof storedClientID != "undefined") {
 				clientID = storedClientID.val?.toString() ?? "";
 			} else {
 				clientID = crypto.randomUUID();
@@ -85,24 +93,51 @@ class Roborock extends utils.Adapter {
 		});
 
 		// Initialize the login API (which is needed to get access to the real API).
-		this.loginApi = axios.create({
+		const loginApi = axios.create({
 			baseURL: "https://euiot.roborock.com",
 			headers: {
-				header_clientid: crypto.createHash("md5").update(this.config.username).update(clientID).digest().toString("base64"),
+				header_clientid: crypto.createHash("md5").update(username).update(clientID).digest().toString("base64"),
 			},
 		});
-
-		if (!this.config.username || !this.config.password) {
-			this.log.error("Username or password missing!");
-			return;
-		}
-		await this.setStateAsync("info.connection", { val: true, ack: true });
 		// api/v1/getUrlByEmail(email = ...)
 
-		const userdata = await this.getUserData(this.loginApi);
+		// Try to load existing userdata.
+		const userdataObj = await this.getStateAsync("UserData");
+		let userdata;
+		if (userdataObj && typeof userdataObj != "undefined") {
+			userdata = JSON.parse(userdataObj.val?.toString() || "{}");
+		} else {
+			// try log in.
+			userdata = await loginApi
+				.post(
+					"api/v1/login",
+					new URLSearchParams({
+						username: username,
+						password: password,
+						needtwostepauth: "false",
+					}).toString()
+				)
+				.then((res) => res.data.data);
+
+			// Alternative without password:
+			// await loginApi.post("api/v1/sendEmailCode", new url.URLSearchParams({username: username, type: "auth"}).toString()).then(res => res.data);
+			// // ... get code from user ...
+			// userdata = await loginApi.post("api/v1/loginWithCode", new url.URLSearchParams({username: username, verifycode: code, verifycodetype: "AUTH_EMAIL_CODE"}).toString()).then(res => res.data.data);
+
+			if (userdata == null) {
+				this.deleteStateAsync("HomeData");
+				this.deleteStateAsync("UserData");
+				this.log.error("Error! Failed to login. Maybe wrong username or password?");
+				return;
+			}
+			await this.setStateAsync("UserData", {
+				val: JSON.stringify(userdata),
+				ack: true,
+			});
+		}
 
 		try {
-			this.loginApi.defaults.headers.common["Authorization"] = userdata.token;
+			loginApi.defaults.headers.common["Authorization"] = userdata.token;
 		} catch (error) {
 			this.log.error("Failed to login. Most likely wrong token! Deleting HomeData and UserData. Try again! " + error);
 
@@ -146,7 +181,7 @@ class Roborock extends utils.Adapter {
 
 		// Get home details.
 		try {
-			const homeDetail = await this.loginApi.get("api/v1/getHomeDetail");
+			const homeDetail = await loginApi.get("api/v1/getHomeDetail");
 			if (homeDetail) {
 				const homeId = homeDetail.data.data.rrHomeId;
 
@@ -232,39 +267,6 @@ class Roborock extends utils.Adapter {
 		} catch (error) {
 			this.log.error("Failed to get home details: " + error.stack);
 		}
-	}
-
-	async getUserData(loginApi)
-	{
-		// try log in.
-		const userdata = await loginApi
-			.post(
-				"api/v1/login",
-				new URLSearchParams({
-					username: this.config.username,
-					password: this.config.password,
-					needtwostepauth: "false",
-				}).toString()
-			)
-			.then((res) => res.data.data);
-
-		// Alternative without password:
-		// await loginApi.post("api/v1/sendEmailCode", new url.URLSearchParams({username: username, type: "auth"}).toString()).then(res => res.data);
-		// // ... get code from user ...
-		// userdata = await loginApi.post("api/v1/loginWithCode", new url.URLSearchParams({username: username, verifycode: code, verifycodetype: "AUTH_EMAIL_CODE"}).toString()).then(res => res.data.data);
-
-		if (userdata == null) {
-			this.deleteStateAsync("HomeData");
-			this.deleteStateAsync("UserData");
-			this.log.error("Error! Failed to login. Maybe wrong username or password?");
-			return;
-		}
-		await this.setStateAsync("UserData", {
-			val: JSON.stringify(userdata),
-			ack: true,
-		});
-
-		return userdata;
 	}
 
 	async createDevices(products, devices) {
