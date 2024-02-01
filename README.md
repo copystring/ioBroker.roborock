@@ -22,7 +22,6 @@ This adapter allows you the control, get states, cleaning history and view the m
 
 - Roborock S4
 - Roborock S4 Max
-- Roborock S5
 - Roborock S5 Max
 - Roborock S6
 - Roborock S6 Pure
@@ -36,6 +35,8 @@ This adapter allows you the control, get states, cleaning history and view the m
 - Roborock S8
 - Roborock S8 Pro Ultra
 - Roborock Q Revo
+- Roborock Q8 Max
+- Roborock Q5 Pro
 
 ## Zone cleaning
 This feature only works when map creation is enabled in the adapter options!
@@ -51,6 +52,42 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Fix mqtt disconnect/reconnect bug on start of adapter
+
+### 0.5.3 (2024-01-31)
+* (copystring) Restore original UserData creation
+
+### 0.5.2 (2024-01-31)
+* (copystring) Little bug fixes
+* (copystring) Remove Roborock S5. There is no such device
+* (copystring) Limit HomeData requests to prevent rate limit
+
+### 0.5.1 (2024-01-03)
+* (copystring) Fix lint
+
+### 0.5.0 (2024-01-03)
+* (copystring) Rework map parser and map creator
+* (copystring) Convert a lof of strings to template literals
+* (copystring) Improve go2rtc download logic
+* (copystring) Improve error logging
+* (copystring) Download roborock images from roborock server and make them available as base64 png (needs to be enabled in options, uses quite a lot of resources)
+* (copystring) Use some clever logic so adjacent rooms are never the same color 🎉
+* (copystring) The name for each room is now displayed on the map
+* (copystring) Fix photo popup position on map
+* (copystring) Seriously speed up drawing of carpet map
+* (copystring) Add basic Q8 Max support
+* (copystring) Basic Q5 Pro support
+* (copystring) Support new block types on the map
+* (copystring) Don't crash when Roborock Zeo One is in the account
+* (copystring) New commands for Roborock S7 MaxV
+* (copystring) Many bug fixes
+* (copystring) Add support for station for Q7 Max
+* (copystring) Add basic scene/program support
+* (copystring) Connect to devices via TCP instead of MQTT whereever possible
+* (copystring) Refactor web interface to fix popup position for good
+* (copystring) Add support for A01 encoding/decoding (With this devices like Zeo One, Dyad Pro etc would be supported). Huge thanks to rovo89!!!
+
 ### 0.4.4 (2023-09-24)
 * (copystring) Fix for getting the map for each cleaning record
 
@@ -233,7 +270,7 @@ This feature only works when map creation is enabled in the adapter options!
 ## License
 MIT License
 
-Copyright (c) 2023 copystring <copystring@gmail.com>
+Copyright (c) 2024 copystring <copystring@gmail.com>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
