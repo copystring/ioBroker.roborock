@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.5.3",
+    "version": "0.5.4",
     "news": {
+      "0.5.4": {
+        "en": "Fix mqtt disconnect/reconnect bug on start of adapter",
+        "de": "Behebt mqtt den Fehler beim Start des Adapters",
+        "ru": "Fix mqtt отключения/подключения клопа в начале адаптера",
+        "pt": "Corrigir mqtt desconectar/reconectar o erro no início do adaptador",
+        "nl": "Fix mqtt loskoppelen/reconnect bug bij het starten van de adapter",
+        "fr": "Correction du bug de déconnexion/reconnect de mqtt au début de l'adaptateur",
+        "it": "Fissare mqtt scollegare/ricollegare bug all'inizio dell'adattatore",
+        "es": "Fijar el fallo de desconexión/reconexión en el inicio del adaptador",
+        "pl": "Napraw błąd odłączenia / ponownego podłączenia mqtt na początku adaptera",
+        "uk": "Виправлення mqtt відключення / відключення помилок на запуску адаптера",
+        "zh-cn": "在适配器启动时修复 mqtt 断开/ 重连接错误"
+      },
       "0.5.3": {
         "en": "Restore original UserData creation",
         "de": "Wiederherstellen der ursprünglichen UserData-Erstellung",
@@ -80,19 +93,6 @@
         "pl": "Kod źródłowy\nFix-UpdateInterval nie działać",
         "uk": "Код рефактора\nВиправлення mainUpdateInterval не працює",
         "zh-cn": "复制守则\n未工作的主要用途"
-      },
-      "0.4.2": {
-        "en": "Fix S6 gen path\nAdd missing types library",
-        "de": "S6 gen path\nBibliothek für fehlende Typen hinzufügen",
-        "ru": "Fix S6 ген путь\nДобавить недостающие типы библиотеки",
-        "pt": "Fix S6 gen path\nAdicionar biblioteca de tipos ausentes",
-        "nl": "Vertaling:\nVermiste types bibliotheek",
-        "fr": "Fix S6 gen path\nAjouter les types manquants bibliothèque",
-        "it": "Fissare il percorso S6 gen\nAggiungi la libreria dei tipi mancanti",
-        "es": "Fijar el camino S6 gen\nAñadir biblioteca de tipos desaparecidos",
-        "pl": "Fix6 Gen\nStrona internetowa",
-        "uk": "Фіксація S6 генного шляху\nБібліотека відсутніх типів",
-        "zh-cn": "Fix S6genways\n增加缺失的图书馆"
       }
     },
     "titleLang": {

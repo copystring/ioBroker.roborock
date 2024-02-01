@@ -52,7 +52,7 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.5.4 (2024-02-01)
 * (copystring) Fix mqtt disconnect/reconnect bug on start of adapter
 
 ### 0.5.3 (2024-01-31)
