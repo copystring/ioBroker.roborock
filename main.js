@@ -84,6 +84,12 @@ class Roborock extends utils.Adapter {
 			}
 		});
 
+
+		if (!this.config.username || !this.config.password) {
+			this.log.error("Username or password missing!");
+			return;
+		}
+
 		// Initialize the login API (which is needed to get access to the real API).
 		this.loginApi = axios.create({
 			baseURL: "https://euiot.roborock.com",
@@ -91,11 +97,6 @@ class Roborock extends utils.Adapter {
 				header_clientid: crypto.createHash("md5").update(this.config.username).update(clientID).digest().toString("base64"),
 			},
 		});
-
-		if (!this.config.username || !this.config.password) {
-			this.log.error("Username or password missing!");
-			return;
-		}
 		await this.setStateAsync("info.connection", { val: true, ack: true });
 		// api/v1/getUrlByEmail(email = ...)
 
