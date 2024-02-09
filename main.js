@@ -19,6 +19,7 @@ const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roboroc
 const rrMessage = require("./lib/message").message;
 const vacuum_class = require("./lib/vacuum").vacuum;
 const roborockPackageHelper = require("./lib/roborockPackageHelper").roborockPackageHelper;
+const deviceFeatures = require("./lib/deviceFeatures").deviceFeatures;
 let socketServer, webserver;
 
 const systems = {
@@ -278,6 +279,9 @@ class Roborock extends utils.Adapter {
 
 			this.vacuums[duid] = new vacuum_class(this, robotModel);
 			this.vacuums[duid].name = name;
+			this.vacuums[duid].features = new deviceFeatures(this, devices[device].featureSet, duid);
+
+			this.vacuums[duid].features.processSupportedFeatures();
 
 			await this.vacuums[duid].setUpObjects(duid);
 
