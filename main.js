@@ -882,6 +882,27 @@ class Roborock extends utils.Adapter {
 		});
 	}
 
+	async createDeviceStatus(duid, state, type, states, unit, divider) {
+		const path = `Devices.${duid}.deviceStatus.${state}`;
+		const name = this.translations[state];
+
+		const common = {
+			name: name,
+			type: type,
+			role: "value",
+			unit: unit,
+			read: true,
+			write: false,
+			states: states,
+		};
+
+		this.setObjectAsync(path, {
+			type: "state",
+			common: common,
+			native: {},
+		});
+	}
+
 	isCleaning(state) {
 		switch (state) {
 			case 4: // Remote Control
