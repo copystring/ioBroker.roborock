@@ -41,6 +41,7 @@ class Roborock extends utils.Adapter {
 		super({
 			...options,
 			name: "roborock",
+			useFormatDate: true,
 		});
 		this.on("ready", this.onReady.bind(this));
 		this.on("stateChange", this.onStateChange.bind(this));
@@ -71,8 +72,9 @@ class Roborock extends utils.Adapter {
 
 		this.sentryInstance = this.getPluginInstance("sentry");
 
-		await this.setupBasicObjects();
+		this.translations = require(`./admin/i18n/${this.language}/translations.json`);
 
+		await this.setupBasicObjects();
 
 		// create new clientID if it doesn't exist yet
 		let clientID = "";
@@ -84,7 +86,6 @@ class Roborock extends utils.Adapter {
 				await this.setStateAsync("clientID", { val: clientID, ack: true });
 			}
 		});
-
 
 		if (!this.config.username || !this.config.password) {
 			this.log.error("Username or password missing!");
@@ -236,8 +237,7 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
-	async getUserData(loginApi)
-	{
+	async getUserData(loginApi) {
 		// try log in.
 		const userdata = await loginApi
 			.post(
@@ -723,8 +723,7 @@ class Roborock extends utils.Adapter {
 				.then(async (res) => {
 					const homedata = res.data.result;
 
-					if (homedata)
-					{
+					if (homedata) {
 						await this.setStateAsync("HomeData", {
 							val: JSON.stringify(homedata),
 							ack: true,
@@ -735,8 +734,7 @@ class Roborock extends utils.Adapter {
 						this.updateConsumablesPercent(homedata.receivedDevices);
 						this.updateDeviceInfo(homedata.devices);
 						this.updateDeviceInfo(homedata.receivedDevices);
-					}
-					else {
+					} else {
 						this.log.warn("homedata failed to download");
 					}
 				})
@@ -860,6 +858,27 @@ class Roborock extends utils.Adapter {
 			type: "state",
 			common: common,
 			native: native,
+		});
+	}
+
+	async createCommand(duid, command, type, defaultState, states) {
+		const path = `Devices.${duid}.commands.${command}`;
+		const name = this.translations[command];
+
+		const common = {
+			name: name,
+			type: type,
+			role: "value",
+			read: true,
+			write: true,
+			def: defaultState,
+			states: states,
+		};
+
+		this.setObjectAsync(path, {
+			type: "state",
+			common: common,
+			native: {},
 		});
 	}
 
