@@ -157,9 +157,6 @@ class Roborock extends utils.Adapter {
 					const homedata = await this.api.get(`v2/user/homes/${homeId}`);
 					const homedataResult = homedata.data.result;
 
-					const sharedData = await this.api.get(`user/deviceshare/query/receiveddevices`);
-					const sharedDataDevices = sharedData.data.result;
-
 					const scene = await this.api.get(`user/scene/home/${homeId}`);
 
 					await this.setStateAsync("HomeData", {
@@ -198,7 +195,6 @@ class Roborock extends utils.Adapter {
 					this.log.debug("RoomIDs debug: " + JSON.stringify(this.roomIDs));
 
 					await this.createDevices(products, devices);
-					await this.createDevices(products, sharedDataDevices);
 
 					// reconnect every 3 hours (10800 seconds)
 					this.reconnectIntervall = this.setInterval(async () => {
