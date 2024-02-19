@@ -275,7 +275,7 @@ class Roborock extends utils.Adapter {
 
 			this.vacuums[duid] = new vacuum_class(this, robotModel);
 			this.vacuums[duid].name = name;
-			this.vacuums[duid].features = new deviceFeatures(this, devices[device].featureSet, duid);
+			this.vacuums[duid].features = new deviceFeatures(this, devices[device].featureSet, devices[device].newFeatureSet, duid, robotModel);
 
 			this.vacuums[duid].features.processSupportedFeatures();
 
