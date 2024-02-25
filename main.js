@@ -270,14 +270,15 @@ class Roborock extends utils.Adapter {
 			const productID = devices[device]["productId"];
 			// const robotModel = products[device]["model"];
 			const robotModel = this.getRobotModel(products, productID);
+			const productCategory = this.getProductCategory(products, productID);
 			const duid = devices[device].duid;
 			const name = devices[device].name;
 
 			this.vacuums[duid] = new vacuum_class(this, robotModel);
 			this.vacuums[duid].name = name;
-			this.vacuums[duid].features = new deviceFeatures(this, devices[device].featureSet, devices[device].newFeatureSet, duid, robotModel);
+			this.vacuums[duid].features = new deviceFeatures(this, devices[device].featureSet, devices[device].newFeatureSet, duid, robotModel, productCategory);
 
-			this.vacuums[duid].features.processSupportedFeatures();
+			await this.vacuums[duid].features.processSupportedFeatures();
 
 			await this.vacuums[duid].setUpObjects(duid);
 
@@ -297,8 +298,6 @@ class Roborock extends utils.Adapter {
 			this.updateDataExtraData(duid, this.vacuums[duid]);
 			this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
 
-			this.vacuums[duid].getCameraStreams(duid);
-
 			this.vacuums[duid].getCleanSummary(duid);
 
 			// get map once at start of adapter
@@ -309,7 +308,7 @@ class Roborock extends utils.Adapter {
 
 	async processScene(scene) {
 		if (scene && scene.data.result) {
-			this.log.debug(`Processing scene ${scene.data.result}`);
+			this.log.debug(`Processing scene ${JSON.stringify(scene.data.result)}`);
 
 			const programs = {};
 			for (const program in scene.data.result) {
@@ -503,8 +502,15 @@ class Roborock extends utils.Adapter {
 	getRobotModel(products, productID) {
 		for (const product in products) {
 			if (products[product].id == productID) {
-				const model = products[product].model;
-				return model;
+				return products[product].model;
+			}
+		}
+	}
+
+	getProductCategory(products, productID) {
+		for (const product in products) {
+			if (products[product].id == productID) {
+				return products[product].category;
 			}
 		}
 	}
@@ -878,7 +884,7 @@ class Roborock extends utils.Adapter {
 		});
 	}
 
-	async createDeviceStatus(duid, state, type, states, unit, divider) {
+	async createDeviceStatus(duid, state, type, states, unit) {
 		const path = `Devices.${duid}.deviceStatus.${state}`;
 		const name = this.translations[state];
 
@@ -897,6 +903,158 @@ class Roborock extends utils.Adapter {
 			common: common,
 			native: {},
 		});
+	}
+
+	async createConsumable(duid, state, type, states, unit) {
+		const path = `Devices.${duid}.consumables.${state}`;
+		const name = this.translations[state];
+
+		const common = {
+			name: name,
+			type: type,
+			role: "value",
+			unit: unit,
+			read: true,
+			write: false,
+			states: states,
+		};
+
+		this.setObjectAsync(path, {
+			type: "state",
+			common: common,
+			native: {},
+		});
+	}
+
+	async createResetConsumables(duid, state) {
+		const path = `Devices.${duid}.resetConsumables.${state}`;
+		const name = this.translations[state];
+
+		this.setObjectAsync(path, {
+			type: "state",
+			common: {
+				name: name,
+				type: "boolean",
+				role: "value",
+				read: true,
+				write: true,
+			},
+			native: {},
+		});
+	}
+
+	async createCleaningRecord(duid, state, type, states, unit) {
+		for (let i = 0; i < 20; i++) {
+			await this.setObjectAsync(`Devices.${duid}.cleaningInfo.records.${i}`, {
+				type: "folder",
+				common: {
+					name: `Cleaning record ${i}`,
+				},
+				native: {},
+			});
+
+			this.setObjectAsync(`Devices.${duid}.cleaningInfo.records.${i}.${state}`, {
+				type: "state",
+				common: {
+					name: this.translations[state],
+					type: type,
+					role: "value",
+					unit: unit,
+					read: true,
+					write: false,
+					states: states,
+				},
+				native: {},
+			});
+
+			await this.setObjectAsync(`Devices.${duid}.cleaningInfo.records.${i}.map`, {
+				type: "folder",
+				common: {
+					name: "Map",
+				},
+				native: {},
+			});
+			for (const name of ["mapBase64", "mapBase64Truncated", "mapData"]) {
+				const objectString = `Devices.${duid}.cleaningInfo.records.${i}.map.${name}`;
+				await this.createStateObjectHelper(objectString, name, "string", null, null, "value", true, false);
+			}
+		}
+	}
+
+	async createCleaningInfo(duid, key, object) {
+		const path = `Devices.${duid}.cleaningInfo.${key}`;
+		const name = this.translations[object.name];
+
+		this.setObjectAsync(path, {
+			type: "state",
+			common: {
+				name: name,
+				type: "number",
+				role: "value",
+				unit: object.unit,
+				read: true,
+				write: false,
+			},
+			native: {},
+		});
+	}
+
+	createCameraStreams(duid) {
+		const streamTypes = ["stream_html", "webrtc_html", "stream_mp4", "rtsp"];
+
+		for (const stream_type in streamTypes) {
+			switch (stream_type) {
+				case "stream_html":
+					this.setStateAsync("Devices." + duid + ".camera." + stream_type, {
+						val: `http://${this.config.hostname_ip}:1984/${stream_type.replace(/_/g, ".")}?src=${duid}`,
+						ack: true,
+					});
+					break;
+				case "webrtc_html":
+					this.setStateAsync("Devices." + duid + ".camera." + stream_type, {
+						val: `http://${this.config.hostname_ip}:1984/${stream_type.replace(/_/g, ".")}?src=${duid}&media=video`,
+						ack: true,
+					});
+					break;
+				case "stream_mp4":
+					this.setStateAsync("Devices." + duid + ".camera." + stream_type, {
+						val: `http://${this.config.hostname_ip}:1984/api/${stream_type.replace(/_/g, ".")}?src=${duid}`,
+						ack: true,
+					});
+					break;
+				case "rtsp":
+					this.setStateAsync("Devices." + duid + ".camera." + stream_type, {
+						val: `rtsp://${this.config.hostname_ip}:8554/${duid}?video`,
+						ack: true,
+					});
+			}
+		}
+	}
+
+	async createBaseRobotObjects(duid) {
+		for (const name of ["mapBase64", "mapBase64Truncated", "mapData"]) {
+			const objectString = `Devices.${duid}.map.${name}`;
+			await this.createStateObjectHelper(objectString, name, "string", null, null, "value", true, false);
+		}
+
+		for (const name of ["ssid", "ip", "mac", "bssid", "rssi"]) {
+			const objectString = `Devices.${duid}.networkInfo.${name}`;
+			await this.createStateObjectHelper(objectString, name, "string", null, null, "value", true, false);
+		}
+	}
+
+	async createBasicVacuumObjects(duid) {
+		for (const name of ["ssid", "ip", "mac", "bssid", "rssi"]) {
+			const objectString = `Devices.${duid}.networkInfo.${name}`;
+			await this.createStateObjectHelper(objectString, name, "string", null, null, "value", true, false);
+		}
+	}
+
+	async createBasicWashingMachineObjects(duid) {
+		for (const name of ["ssid", "ip", "mac", "bssid", "rssi"]) {
+			const objectString = `Devices.${duid}.networkInfo.${name}`;
+			await this.createStateObjectHelper(objectString, name, "string", null, null, "value", true, false);
+		}
 	}
 
 	isCleaning(state) {
@@ -1043,7 +1201,8 @@ class Roborock extends utils.Adapter {
 				const s = userdata.rriot.s;
 				const k = userdata.rriot.k;
 
-				if (robots[robot].setup.camera) {
+				// if (robots[robot].setup.camera) {
+				if(this.vacuums[duid].features.isCameraSupported()) {
 					cameraCount++;
 					go2rtcConfig.streams[duid] = `roborock://mqtt-eu-3.roborock.com:8883?u=${u}&s=${s}&k=${k}&did=${duid}&key=${localKey}&pin=${this.config.cameraPin}`;
 				}
