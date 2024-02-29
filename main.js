@@ -202,7 +202,7 @@ class Roborock extends utils.Adapter {
 
 						await this.rr_mqtt_connector.reconnectClient();
 						// this.checkForNewFirmware(duid);
-					}, 10800 * 1000);
+					}, 3600 * 1000);
 
 					this.processScene(scene);
 
