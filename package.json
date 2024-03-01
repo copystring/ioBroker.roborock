@@ -35,7 +35,7 @@
     "fetch-github-release": "^1.0.0",
     "find-process": "^1.4.7",
     "jwk-to-pem": "^2.0.5",
-    "mqtt": "^5.3.1",
+    "mqtt": "^5.3.6",
     "ws": "^8.12.1"
   },
   "devDependencies": {
