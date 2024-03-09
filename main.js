@@ -199,7 +199,6 @@ class Roborock extends utils.Adapter {
 					}
 					this.log.debug("RoomIDs debug: " + JSON.stringify(this.roomIDs));
 
-					await this.createDevices(products, devices);
 
 					// reconnect every 3 hours (10800 seconds)
 					this.reconnectIntervall = this.setInterval(async () => {
@@ -227,12 +226,13 @@ class Roborock extends utils.Adapter {
 						this.startWebserver();
 						this.startWebsocketServer();
 					}
+					this.log.info(`Starting adapter finished. Lets go!!!!!!!`);
+					await this.createDevices(products, devices);
 				} else {
 					this.log.info(`Most likely failed to login. Deleting UserData to force new login!`);
 					await this.deleteStateAsync(`UserData`);
 				}
 			}
-			this.log.info(`Starting adapter finished. Lets go!!!!!!!`);
 		} catch (error) {
 			this.log.error("Failed to get home details: " + error.stack);
 		}
@@ -722,35 +722,33 @@ class Roborock extends utils.Adapter {
 		this.log.debug(`Length of message queue: ${this.messageQueue.size}`);
 	}
 
-	updateHomeData(homeId) {
+	async updateHomeData(homeId) {
 		this.log.debug(`Updating HomeData with homeId: ${homeId}`);
 		if (this.api) {
-			this.api
-				.get(`user/homes/${homeId}`)
-				.then(async (res) => {
-					const homedata = res.data.result;
+			try {
+				const home = await this.api.get(`user/homes/${homeId}`);
+				const homedata = home.data.result;
 
-					if (homedata) {
-						await this.setStateAsync("HomeData", {
-							val: JSON.stringify(homedata),
-							ack: true,
-						});
-						this.log.debug("homedata successfully updated");
+				if (homedata) {
+					await this.setStateAsync("HomeData", {
+						val: JSON.stringify(homedata),
+						ack: true,
+					});
+					this.log.debug("homedata successfully updated");
 
-						this.updateConsumablesPercent(homedata.devices);
-						this.updateConsumablesPercent(homedata.receivedDevices);
-						this.updateDeviceInfo(homedata.devices);
-						this.updateDeviceInfo(homedata.receivedDevices);
-					} else {
-						this.log.warn("homedata failed to download");
-					}
-				})
-				.catch((e) => {
-					this.log.error("Failed to update updateHomeData with error: " + e);
-				});
+					await this.updateConsumablesPercent(homedata.devices);
+					await this.updateConsumablesPercent(homedata.receivedDevices);
+					await this.updateDeviceInfo(homedata.devices);
+					await this.updateDeviceInfo(homedata.receivedDevices);
+				} else {
+					this.log.warn("homedata failed to download");
+				}
+			} catch (error) {
+				this.log.error("Failed to update updateHomeData with error: " + error);
+			}
 		}
 	}
-	updateConsumablesPercent(devices) {
+	async updateConsumablesPercent(devices) {
 		for (const device in devices) {
 			const duid = devices[device].duid;
 
