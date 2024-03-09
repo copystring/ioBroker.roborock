@@ -52,6 +52,12 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+
+### **WORK IN PROGRESS**
+* (copystring) New and improved message queue handler
+* (copystring) Convert robot features to new much more modular system
+* (copystring) Many bug fixes I can't remember :D
+
 ### 0.5.4 (2024-02-01)
 * (copystring) Fix mqtt disconnect/reconnect bug on start of adapter
 
