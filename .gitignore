@@ -16,8 +16,7 @@ Thumbs.db
 admin/i18n/flat.txt
 admin/i18n/*/flat.txt
 
-*.rrmap
-test.rrmap
+*.rrmap.gz
 lib/go2rtc/go2rtc.exe
 lib/go2rtc/go2rtc_win64.zip
 .env
