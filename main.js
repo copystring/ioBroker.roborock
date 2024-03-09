@@ -20,6 +20,7 @@ const rrMessage = require("./lib/message").message;
 const vacuum_class = require("./lib/vacuum").vacuum;
 const roborockPackageHelper = require("./lib/roborockPackageHelper").roborockPackageHelper;
 const deviceFeatures = require("./lib/deviceFeatures").deviceFeatures;
+const messageQueueHandler = require("./lib/messageQueueHandler").messageQueueHandler;
 let socketServer, webserver;
 
 const systems = {
@@ -62,6 +63,10 @@ class Roborock extends utils.Adapter {
 		this.localConnector = new rrLocalConnector(this);
 		this.rr_mqtt_connector = new roborock_mqtt_connector(this);
 		this.message = new rrMessage(this);
+
+		this.messageQueueHandler = new messageQueueHandler(this);
+
+		this.pendingRequests = new Map();
 	}
 
 	/**
