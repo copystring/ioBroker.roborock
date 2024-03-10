@@ -1008,23 +1008,22 @@ class Roborock extends utils.Adapter {
 			await this.createStateObjectHelper(objectString, name, "string", null, null, "value", true, false);
 		}
 
-		for (const name of ["ssid", "ip", "mac", "bssid", "rssi"]) {
-			const objectString = `Devices.${duid}.networkInfo.${name}`;
-			await this.createStateObjectHelper(objectString, name, "string", null, null, "value", true, false);
-		}
+		this.createNetworkInfoObjects(duid);
 	}
 
 	async createBasicVacuumObjects(duid) {
-		for (const name of ["ssid", "ip", "mac", "bssid", "rssi"]) {
-			const objectString = `Devices.${duid}.networkInfo.${name}`;
-			await this.createStateObjectHelper(objectString, name, "string", null, null, "value", true, false);
-		}
+		this.createNetworkInfoObjects(duid);
 	}
 
 	async createBasicWashingMachineObjects(duid) {
+		this.createNetworkInfoObjects(duid);
+	}
+
+	async createNetworkInfoObjects(duid) {
 		for (const name of ["ssid", "ip", "mac", "bssid", "rssi"]) {
 			const objectString = `Devices.${duid}.networkInfo.${name}`;
-			await this.createStateObjectHelper(objectString, name, "string", null, null, "value", true, false);
+			const objectType = name == "rssi" ? "number":"string";
+			await this.createStateObjectHelper(objectString, name, objectType, null, null, "value", true, false);
 		}
 	}
 
