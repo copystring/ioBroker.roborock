@@ -1002,38 +1002,6 @@ class Roborock extends utils.Adapter {
 		});
 	}
 
-	createCameraStreams(duid) {
-		const streamTypes = ["stream_html", "webrtc_html", "stream_mp4", "rtsp"];
-
-		for (const stream_type in streamTypes) {
-			switch (stream_type) {
-				case "stream_html":
-					this.setStateAsync("Devices." + duid + ".camera." + stream_type, {
-						val: `http://${this.config.hostname_ip}:1984/${stream_type.replace(/_/g, ".")}?src=${duid}`,
-						ack: true,
-					});
-					break;
-				case "webrtc_html":
-					this.setStateAsync("Devices." + duid + ".camera." + stream_type, {
-						val: `http://${this.config.hostname_ip}:1984/${stream_type.replace(/_/g, ".")}?src=${duid}&media=video`,
-						ack: true,
-					});
-					break;
-				case "stream_mp4":
-					this.setStateAsync("Devices." + duid + ".camera." + stream_type, {
-						val: `http://${this.config.hostname_ip}:1984/api/${stream_type.replace(/_/g, ".")}?src=${duid}`,
-						ack: true,
-					});
-					break;
-				case "rtsp":
-					this.setStateAsync("Devices." + duid + ".camera." + stream_type, {
-						val: `rtsp://${this.config.hostname_ip}:8554/${duid}?video`,
-						ack: true,
-					});
-			}
-		}
-	}
-
 	async createBaseRobotObjects(duid) {
 		for (const name of ["mapBase64", "mapBase64Truncated", "mapData"]) {
 			const objectString = `Devices.${duid}.map.${name}`;
