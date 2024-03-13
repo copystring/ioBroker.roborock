@@ -56,6 +56,7 @@ This feature only works when map creation is enabled in the adapter options!
 ### **WORK IN PROGRESS**
 * (copystring) New and improved message queue handler
 * (copystring) Convert robot features to new much more modular system
+* (copystring) Add support for large photos of obstacles
 * (copystring) Many bug fixes I can't remember :D
 
 ### 0.5.4 (2024-02-01)
