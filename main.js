@@ -224,7 +224,7 @@ class Roborock extends utils.Adapter {
 					// These need to start only after all states have been set
 					if (this.config.enable_map_creation == true) {
 						this.startWebserver();
-						this.startWebsocketServer();
+						await this.startWebsocketServer();
 					}
 					this.log.info(`Starting adapter finished. Lets go!!!!!!!`);
 					await this.createDevices(products, devices);
