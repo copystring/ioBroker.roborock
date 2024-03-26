@@ -937,7 +937,7 @@ class Roborock extends utils.Adapter {
 		const path = `Devices.${duid}.resetConsumables.${state}`;
 		const name = this.translations[state];
 
-		this.setObjectAsync(path, {
+		this.setObjectNotExistsAsync(path, {
 			type: "state",
 			common: {
 				name: name,
@@ -945,6 +945,7 @@ class Roborock extends utils.Adapter {
 				role: "value",
 				read: true,
 				write: true,
+				def: false
 			},
 			native: {},
 		});
