@@ -1023,7 +1023,7 @@ class Roborock extends utils.Adapter {
 	async createNetworkInfoObjects(duid) {
 		for (const name of ["ssid", "ip", "mac", "bssid", "rssi"]) {
 			const objectString = `Devices.${duid}.networkInfo.${name}`;
-			const objectType = name == "rssi" ? "number":"string";
+			const objectType = name == "rssi" ? "number" : "string";
 			await this.createStateObjectHelper(objectString, name, objectType, null, null, "value", true, false);
 		}
 	}
@@ -1173,7 +1173,7 @@ class Roborock extends utils.Adapter {
 				const k = userdata.rriot.k;
 
 				// if (robots[robot].setup.camera) {
-				if(this.vacuums[duid].features.isCameraSupported()) {
+				if (this.vacuums[duid].features.isCameraSupported()) {
 					cameraCount++;
 					go2rtcConfig.streams[duid] = `roborock://mqtt-eu-3.roborock.com:8883?u=${u}&s=${s}&k=${k}&did=${duid}&key=${localKey}&pin=${this.config.cameraPin}`;
 				}
