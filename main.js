@@ -199,7 +199,6 @@ class Roborock extends utils.Adapter {
 					}
 					this.log.debug("RoomIDs debug: " + JSON.stringify(this.roomIDs));
 
-
 					// reconnect every 3 hours (10800 seconds)
 					this.reconnectIntervall = this.setInterval(async () => {
 						this.log.debug("Reconnecting after 3 hours!");
@@ -306,7 +305,6 @@ class Roborock extends utils.Adapter {
 
 			// get map once at start of adapter
 			this.vacuums[duid].getMap(duid);
-			this.checkForNewFirmware(duid);
 		}
 	}
 
@@ -649,7 +647,7 @@ class Roborock extends utils.Adapter {
 
 			await vacuum.getParameter(duid, "get_timer");
 
-			this.checkForNewFirmware(duid);
+			await this.checkForNewFirmware(duid);
 
 			switch (robotModel) {
 				case "roborock.vacuum.s4":
@@ -794,11 +792,16 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
-	checkForNewFirmware(duid) {
-		if (this.api) {
-			try {
-				this.api.get(`ota/firmware/${duid}/updatev2`).then(async (update) => {
-					await this.setObjectAsync("Devices." + duid + ".updateStatus", {
+	async checkForNewFirmware(duid) {
+		const isLocalDevice = !this.isRemoteDevice(duid);
+
+		if (isLocalDevice) {
+			this.log.debug(`getting firmware status`);
+			if (this.api) {
+				try {
+					const update = await this.api.get(`ota/firmware/${duid}/updatev2`);
+
+					await this.setObjectNotExistsAsync("Devices." + duid + ".updateStatus", {
 						type: "folder",
 						common: {
 							name: "Update status",
@@ -807,7 +810,7 @@ class Roborock extends utils.Adapter {
 					});
 
 					for (const state in update.data.result) {
-						await this.setObjectAsync("Devices." + duid + ".updateStatus." + state, {
+						await this.setObjectNotExistsAsync("Devices." + duid + ".updateStatus." + state, {
 							type: "state",
 							common: {
 								name: state,
@@ -823,9 +826,9 @@ class Roborock extends utils.Adapter {
 							ack: true,
 						});
 					}
-				});
-			} catch (e) {
-				this.log.error("Failed to check for new firmware. Error: " + e);
+				} catch (error) {
+					this.catchError(error, "checkForNewFirmware()", duid);
+				}
 			}
 		}
 	}
