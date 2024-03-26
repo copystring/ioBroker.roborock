@@ -205,7 +205,6 @@ class Roborock extends utils.Adapter {
 						this.log.debug("Reconnecting after 3 hours!");
 
 						await this.rr_mqtt_connector.reconnectClient();
-						// this.checkForNewFirmware(duid);
 					}, 3600 * 1000);
 
 					this.processScene(scene);
@@ -307,7 +306,7 @@ class Roborock extends utils.Adapter {
 
 			// get map once at start of adapter
 			this.vacuums[duid].getMap(duid);
-			// this.checkForNewFirmware(duid);
+			this.checkForNewFirmware(duid);
 		}
 	}
 
@@ -649,6 +648,8 @@ class Roborock extends utils.Adapter {
 			await vacuum.getParameter(duid, "get_server_timer");
 
 			await vacuum.getParameter(duid, "get_timer");
+
+			this.checkForNewFirmware(duid);
 
 			switch (robotModel) {
 				case "roborock.vacuum.s4":
