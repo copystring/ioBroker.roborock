@@ -752,14 +752,12 @@ class Roborock extends utils.Adapter {
 			const duid = devices[device].duid;
 
 			for (const deviceAttribute in devices[device].deviceStatus) {
-				if (this.vacuums[duid]?.setup?.consumables[deviceAttribute]) {
-					const val =
-						devices[device].deviceStatus[deviceAttribute] >= 0 && devices[device].deviceStatus[deviceAttribute] <= 100
-							? parseInt(devices[device].deviceStatus[deviceAttribute])
-							: 0;
+				const val =
+					devices[device].deviceStatus[deviceAttribute] >= 0 && devices[device].deviceStatus[deviceAttribute] <= 100
+						? parseInt(devices[device].deviceStatus[deviceAttribute])
+						: 0;
 
-					this.setStateAsync("Devices." + duid + ".consumables." + deviceAttribute, { val: val, ack: true });
-				}
+				this.setStateAsync("Devices." + duid + ".consumables." + deviceAttribute, { val: val, ack: true });
 			}
 		}
 	}
@@ -1176,7 +1174,6 @@ class Roborock extends utils.Adapter {
 				const s = userdata.rriot.s;
 				const k = userdata.rriot.k;
 
-				// if (robots[robot].setup.camera) {
 				if (this.vacuums[duid].features.isCameraSupported()) {
 					cameraCount++;
 					go2rtcConfig.streams[duid] = `roborock://mqtt-eu-3.roborock.com:8883?u=${u}&s=${s}&k=${k}&did=${duid}&key=${localKey}&pin=${this.config.cameraPin}`;
