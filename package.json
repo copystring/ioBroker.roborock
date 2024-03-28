@@ -31,7 +31,7 @@
     "canvas": "^2.11.0",
     "crc-32": "^1.2.2",
     "eventemitter2": "^6.4.9",
-    "express": "^4.18.2",
+    "express": "^4.19.2",
     "fetch-github-release": "^1.0.0",
     "find-process": "^1.4.7",
     "jwk-to-pem": "^2.0.5",
