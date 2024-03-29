@@ -752,12 +752,17 @@ class Roborock extends utils.Adapter {
 			const duid = devices[device].duid;
 
 			for (const deviceAttribute in devices[device].deviceStatus) {
-				const val =
-					devices[device].deviceStatus[deviceAttribute] >= 0 && devices[device].deviceStatus[deviceAttribute] <= 100
-						? parseInt(devices[device].deviceStatus[deviceAttribute])
-						: 0;
+				const targetConsumable = await this.getObjectAsync(`Devices.${duid}.consumables.${deviceAttribute}`);
 
-				this.setStateAsync("Devices." + duid + ".consumables." + deviceAttribute, { val: val, ack: true });
+				if (targetConsumable) {
+
+					const val =
+						devices[device].deviceStatus[deviceAttribute] >= 0 && devices[device].deviceStatus[deviceAttribute] <= 100
+							? parseInt(devices[device].deviceStatus[deviceAttribute])
+							: 0;
+;
+					this.setStateAsync("Devices." + duid + ".consumables." + deviceAttribute, { val: val, ack: true });
+				}
 			}
 		}
 	}
