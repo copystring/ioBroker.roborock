@@ -1312,12 +1312,12 @@ class Roborock extends utils.Adapter {
 				} else if (typeof state.val != "boolean") {
 					this.vacuums[duid].command(duid, command, state.val);
 				}
-			}
 
-			if (typeof state.val == "boolean") {
-				this.commandTimeout = this.setTimeout(() => {
-					this.setStateAsync(id, false, true);
-				}, 1000);
+				if (typeof state.val == "boolean") {
+					this.commandTimeout = this.setTimeout(() => {
+						this.setStateAsync(id, false, true);
+					}, 1000);
+				}
 			}
 		} else {
 			this.log.error(`Error! Missing state onChangeState!`);
