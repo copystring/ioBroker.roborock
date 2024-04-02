@@ -52,6 +52,9 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Fix lint
+
 ### 0.6.0 (2024-04-02)
 * (copystring) New and improved message queue handler
 * (copystring) Convert robot features to new much more modular system
