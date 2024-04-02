@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.5.4",
+    "version": "0.6.0",
     "news": {
+      "0.6.0": {
+        "en": "New and improved message queue handler\nConvert robot features to new much more modular system\nAdd support for large photos of obstacles\nMany bug fixes I can't remember :D",
+        "de": "Neuer und verbesserter Nachrichtenwartegriff\nRoboter-Features in neues viel mehr modulares System umwandeln\nUnterstützung für große Fotos von Hindernissen\nViele Fehlerbehebungen kann ich mich nicht erinnern :D",
+        "ru": "Новый и улучшенный обработчик очереди сообщений\nПеревести функции роботов в новые гораздо более модульные системы\nДобавить поддержку для больших фотографий препятствий\nМногие исправления ошибок, которые я не могу вспомнить:D",
+        "pt": "Manipulador de fila de mensagem novo e melhorado\nConverter recursos de robô para novo sistema muito mais modular\nAdicionar suporte para grandes fotos de obstáculos\nMuitas correções de bugs que não me lembro :D",
+        "nl": "Nieuwe en verbeterde bericht wachtrij-afhandeling\nConverteer robot functies naar nieuwe veel meer modulair systeem\nOndersteuning toevoegen voor grote foto's van obstakels\nVeel bug fixes die ik me niet kan herinneren:D",
+        "fr": "Nouveau gestionnaire de files d'attente de messages amélioré\nConvertir les fonctionnalités du robot en un nouveau système beaucoup plus modulaire\nAjouter un support pour les grandes photos des obstacles\nBeaucoup de corrections de bugs dont je ne me souviens pas :D",
+        "it": "Nuovo e migliorato gestore della coda dei messaggi\nConvertire funzioni robot in un nuovo sistema molto più modulare\nAggiungi supporto per grandi foto di ostacoli\nMolte correzioni di bug non ricordo:D",
+        "es": "Manejador de cola de mensaje nuevo y mejorado\nConvertir características de robot en nuevo sistema mucho más modular\nAñadir soporte para grandes fotos de obstáculos\nMuchas correcciones de errores que no puedo recordar :D",
+        "pl": "Nowy i ulepszony menedżer kolejki wiadomości\nPrzelicz funkcje robota do nowego znacznie bardziej modułowego systemu\nDodaj wsparcie dla dużych zdjęć przeszkód\nWiele poprawek, których nie pamiętam: D",
+        "uk": "Новий та покращений обробник черги повідомлення\nПеретворення функцій роботи на новий модуль\nДодати підтримку для великих фото перешкод\nБагато виправлень помилок я не можу пам'ятати :D",
+        "zh-cn": "新建和改进的消息队列处理器\n将机器人特性转换为新的更多模块化系统\n添加障碍的大照片支持\n许多错误修正我不记得: D"
+      },
       "0.5.4": {
         "en": "Fix mqtt disconnect/reconnect bug on start of adapter",
         "de": "Behebt mqtt den Fehler beim Start des Adapters",
@@ -80,19 +93,6 @@
         "pl": "Fix ma na celu uzyskanie mapy dla każdego zapisu czyszczonego",
         "uk": "Виправлення для отримання карти для кожного запису очищення",
         "zh-cn": "每个清洁记录地图的ix"
-      },
-      "0.4.3": {
-        "en": "Refactor code\nFix mainUpdateInterval not working",
-        "de": "Erzeugniscode\nHauptUpdateInterval nicht funktionieren",
-        "ru": "Рефакторный код\nFix mainUpdateИнтервал не работает",
-        "pt": "Código do fator\nFix mainUpdateInterval não funciona",
-        "nl": "Refactor code\nFix mainUpdate",
-        "fr": "Code de calcul\nRéparez mainmiseInterval ne fonctionne pas",
-        "it": "Codice di fabbrica\nFissare mainUpdateInterval non funziona",
-        "es": "Código de referencia\nCorrección principalActualizaciónInterval no funciona",
-        "pl": "Kod źródłowy\nFix-UpdateInterval nie działać",
-        "uk": "Код рефактора\nВиправлення mainUpdateInterval не працює",
-        "zh-cn": "复制守则\n未工作的主要用途"
       }
     },
     "titleLang": {
