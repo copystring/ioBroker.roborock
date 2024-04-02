@@ -52,6 +52,15 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Fix lint
+
+### 0.6.0 (2024-04-02)
+* (copystring) New and improved message queue handler
+* (copystring) Convert robot features to new much more modular system
+* (copystring) Add support for large photos of obstacles
+* (copystring) Many bug fixes I can't remember :D
+
 ### 0.5.4 (2024-02-01)
 * (copystring) Fix mqtt disconnect/reconnect bug on start of adapter
 

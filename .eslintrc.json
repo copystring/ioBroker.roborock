@@ -43,5 +43,19 @@
 	},
 	"parserOptions": {
 		"ecmaVersion": 2020
-	}
+	},
+	"overrides": [
+		{
+			"files": ["lib/map/zones.js"],
+			"env": {
+				"browser": true,
+				"node": false
+			},
+			"rules": {
+				// Spezifische Regeln für zones.js
+				// Beispiel: Deaktiviere die Regel "no-undef"
+			}
+		}
+	]
+
 }

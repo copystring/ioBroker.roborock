@@ -19,6 +19,8 @@ const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roboroc
 const rrMessage = require("./lib/message").message;
 const vacuum_class = require("./lib/vacuum").vacuum;
 const roborockPackageHelper = require("./lib/roborockPackageHelper").roborockPackageHelper;
+const deviceFeatures = require("./lib/deviceFeatures").deviceFeatures;
+const messageQueueHandler = require("./lib/messageQueueHandler").messageQueueHandler;
 let socketServer, webserver;
 
 const systems = {
@@ -40,6 +42,7 @@ class Roborock extends utils.Adapter {
 		super({
 			...options,
 			name: "roborock",
+			useFormatDate: true,
 		});
 		this.on("ready", this.onReady.bind(this));
 		this.on("stateChange", this.onStateChange.bind(this));
@@ -60,6 +63,10 @@ class Roborock extends utils.Adapter {
 		this.localConnector = new rrLocalConnector(this);
 		this.rr_mqtt_connector = new roborock_mqtt_connector(this);
 		this.message = new rrMessage(this);
+
+		this.messageQueueHandler = new messageQueueHandler(this);
+
+		this.pendingRequests = new Map();
 	}
 
 	/**
@@ -70,8 +77,9 @@ class Roborock extends utils.Adapter {
 
 		this.sentryInstance = this.getPluginInstance("sentry");
 
-		await this.setupBasicObjects();
+		this.translations = require(`./admin/i18n/${this.language || "en"}/translations.json`); // fall back to en for test-and-release.yml
 
+		await this.setupBasicObjects();
 
 		// create new clientID if it doesn't exist yet
 		let clientID = "";
@@ -83,7 +91,6 @@ class Roborock extends utils.Adapter {
 				await this.setStateAsync("clientID", { val: clientID, ack: true });
 			}
 		});
-
 
 		if (!this.config.username || !this.config.password) {
 			this.log.error("Username or password missing!");
@@ -155,9 +162,6 @@ class Roborock extends utils.Adapter {
 					const homedata = await this.api.get(`v2/user/homes/${homeId}`);
 					const homedataResult = homedata.data.result;
 
-					const sharedData = await this.api.get(`user/deviceshare/query/receiveddevices`);
-					const sharedDataDevices = sharedData.data.result;
-
 					const scene = await this.api.get(`user/scene/home/${homeId}`);
 
 					await this.setStateAsync("HomeData", {
@@ -195,16 +199,12 @@ class Roborock extends utils.Adapter {
 					}
 					this.log.debug("RoomIDs debug: " + JSON.stringify(this.roomIDs));
 
-					await this.createDevices(products, devices);
-					await this.createDevices(products, sharedDataDevices);
-
 					// reconnect every 3 hours (10800 seconds)
 					this.reconnectIntervall = this.setInterval(async () => {
 						this.log.debug("Reconnecting after 3 hours!");
 
 						await this.rr_mqtt_connector.reconnectClient();
-						// this.checkForNewFirmware(duid);
-					}, 10800 * 1000);
+					}, 3600 * 1000);
 
 					this.processScene(scene);
 
@@ -222,21 +222,21 @@ class Roborock extends utils.Adapter {
 					// These need to start only after all states have been set
 					if (this.config.enable_map_creation == true) {
 						this.startWebserver();
-						this.startWebsocketServer();
+						await this.startWebsocketServer();
 					}
+					this.log.info(`Starting adapter finished. Lets go!!!!!!!`);
+					await this.createDevices(products, devices);
 				} else {
 					this.log.info(`Most likely failed to login. Deleting UserData to force new login!`);
 					await this.deleteStateAsync(`UserData`);
 				}
 			}
-			this.log.info(`Starting adapter finished. Lets go!!!!!!!`);
 		} catch (error) {
 			this.log.error("Failed to get home details: " + error.stack);
 		}
 	}
 
-	async getUserData(loginApi)
-	{
+	async getUserData(loginApi) {
 		// try log in.
 		const userdata = await loginApi
 			.post(
@@ -273,11 +273,15 @@ class Roborock extends utils.Adapter {
 			const productID = devices[device]["productId"];
 			// const robotModel = products[device]["model"];
 			const robotModel = this.getRobotModel(products, productID);
+			const productCategory = this.getProductCategory(products, productID);
 			const duid = devices[device].duid;
 			const name = devices[device].name;
 
 			this.vacuums[duid] = new vacuum_class(this, robotModel);
 			this.vacuums[duid].name = name;
+			this.vacuums[duid].features = new deviceFeatures(this, devices[device].featureSet, devices[device].newFeatureSet, duid, robotModel, productCategory);
+
+			await this.vacuums[duid].features.processSupportedFeatures();
 
 			await this.vacuums[duid].setUpObjects(duid);
 
@@ -297,19 +301,16 @@ class Roborock extends utils.Adapter {
 			this.updateDataExtraData(duid, this.vacuums[duid]);
 			this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
 
-			this.vacuums[duid].getCameraStreams(duid);
-
 			this.vacuums[duid].getCleanSummary(duid);
 
 			// get map once at start of adapter
 			this.vacuums[duid].getMap(duid);
-			// this.checkForNewFirmware(duid);
 		}
 	}
 
 	async processScene(scene) {
 		if (scene && scene.data.result) {
-			this.log.debug(`Processing scene ${scene.data.result}`);
+			this.log.debug(`Processing scene ${JSON.stringify(scene.data.result)}`);
 
 			const programs = {};
 			for (const program in scene.data.result) {
@@ -503,8 +504,15 @@ class Roborock extends utils.Adapter {
 	getRobotModel(products, productID) {
 		for (const product in products) {
 			if (products[product].id == productID) {
-				const model = products[product].model;
-				return model;
+				return products[product].model;
+			}
+		}
+	}
+
+	getProductCategory(products, productID) {
+		for (const product in products) {
+			if (products[product].id == productID) {
+				return products[product].category;
 			}
 		}
 	}
@@ -639,6 +647,8 @@ class Roborock extends utils.Adapter {
 
 			await vacuum.getParameter(duid, "get_timer");
 
+			await this.checkForNewFirmware(duid);
+
 			switch (robotModel) {
 				case "roborock.vacuum.s4":
 				case "roborock.vacuum.s5":
@@ -711,47 +721,45 @@ class Roborock extends utils.Adapter {
 		this.log.debug(`Length of message queue: ${this.messageQueue.size}`);
 	}
 
-	updateHomeData(homeId) {
+	async updateHomeData(homeId) {
 		this.log.debug(`Updating HomeData with homeId: ${homeId}`);
 		if (this.api) {
-			this.api
-				.get(`user/homes/${homeId}`)
-				.then(async (res) => {
-					const homedata = res.data.result;
+			try {
+				const home = await this.api.get(`user/homes/${homeId}`);
+				const homedata = home.data.result;
 
-					if (homedata)
-					{
-						await this.setStateAsync("HomeData", {
-							val: JSON.stringify(homedata),
-							ack: true,
-						});
-						this.log.debug("homedata successfully updated");
+				if (homedata) {
+					await this.setStateAsync("HomeData", {
+						val: JSON.stringify(homedata),
+						ack: true,
+					});
+					this.log.debug("homedata successfully updated");
 
-						this.updateConsumablesPercent(homedata.devices);
-						this.updateConsumablesPercent(homedata.receivedDevices);
-						this.updateDeviceInfo(homedata.devices);
-						this.updateDeviceInfo(homedata.receivedDevices);
-					}
-					else {
-						this.log.warn("homedata failed to download");
-					}
-				})
-				.catch((e) => {
-					this.log.error("Failed to update updateHomeData with error: " + e);
-				});
+					await this.updateConsumablesPercent(homedata.devices);
+					await this.updateConsumablesPercent(homedata.receivedDevices);
+					await this.updateDeviceInfo(homedata.devices);
+					await this.updateDeviceInfo(homedata.receivedDevices);
+				} else {
+					this.log.warn("homedata failed to download");
+				}
+			} catch (error) {
+				this.log.error("Failed to update updateHomeData with error: " + error);
+			}
 		}
 	}
-	updateConsumablesPercent(devices) {
+	async updateConsumablesPercent(devices) {
 		for (const device in devices) {
 			const duid = devices[device].duid;
 
 			for (const deviceAttribute in devices[device].deviceStatus) {
-				if (this.vacuums[duid]?.setup?.consumables[deviceAttribute]) {
+				const targetConsumable = await this.getObjectAsync(`Devices.${duid}.consumables.${deviceAttribute}`);
+
+				if (targetConsumable) {
+
 					const val =
 						devices[device].deviceStatus[deviceAttribute] >= 0 && devices[device].deviceStatus[deviceAttribute] <= 100
 							? parseInt(devices[device].deviceStatus[deviceAttribute])
 							: 0;
-
 					this.setStateAsync("Devices." + duid + ".consumables." + deviceAttribute, { val: val, ack: true });
 				}
 			}
@@ -786,11 +794,16 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
-	checkForNewFirmware(duid) {
-		if (this.api) {
-			try {
-				this.api.get(`ota/firmware/${duid}/updatev2`).then(async (update) => {
-					await this.setObjectAsync("Devices." + duid + ".updateStatus", {
+	async checkForNewFirmware(duid) {
+		const isLocalDevice = !this.isRemoteDevice(duid);
+
+		if (isLocalDevice) {
+			this.log.debug(`getting firmware status`);
+			if (this.api) {
+				try {
+					const update = await this.api.get(`ota/firmware/${duid}/updatev2`);
+
+					await this.setObjectNotExistsAsync("Devices." + duid + ".updateStatus", {
 						type: "folder",
 						common: {
 							name: "Update status",
@@ -799,7 +812,7 @@ class Roborock extends utils.Adapter {
 					});
 
 					for (const state in update.data.result) {
-						await this.setObjectAsync("Devices." + duid + ".updateStatus." + state, {
+						await this.setObjectNotExistsAsync("Devices." + duid + ".updateStatus." + state, {
 							type: "state",
 							common: {
 								name: state,
@@ -815,9 +828,9 @@ class Roborock extends utils.Adapter {
 							ack: true,
 						});
 					}
-				});
-			} catch (e) {
-				this.log.error("Failed to check for new firmware. Error: " + e);
+				} catch (error) {
+					this.catchError(error, "checkForNewFirmware()", duid);
+				}
 			}
 		}
 	}
@@ -857,6 +870,168 @@ class Roborock extends utils.Adapter {
 			common: common,
 			native: native,
 		});
+	}
+
+	async createCommand(duid, command, type, defaultState, states) {
+		const path = `Devices.${duid}.commands.${command}`;
+		const name = this.translations[command];
+
+		const common = {
+			name: name,
+			type: type,
+			role: "value",
+			read: true,
+			write: true,
+			def: defaultState,
+			states: states,
+		};
+
+		this.setObjectAsync(path, {
+			type: "state",
+			common: common,
+			native: {},
+		});
+	}
+
+	async createDeviceStatus(duid, state, type, states, unit) {
+		const path = `Devices.${duid}.deviceStatus.${state}`;
+		const name = this.translations[state];
+
+		const common = {
+			name: name,
+			type: type,
+			role: "value",
+			unit: unit,
+			read: true,
+			write: false,
+			states: states,
+		};
+
+		this.setObjectAsync(path, {
+			type: "state",
+			common: common,
+			native: {},
+		});
+	}
+
+	async createConsumable(duid, state, type, states, unit) {
+		const path = `Devices.${duid}.consumables.${state}`;
+		const name = this.translations[state];
+
+		const common = {
+			name: name,
+			type: type,
+			role: "value",
+			unit: unit,
+			read: true,
+			write: false,
+			states: states,
+		};
+
+		this.setObjectAsync(path, {
+			type: "state",
+			common: common,
+			native: {},
+		});
+	}
+
+	async createResetConsumables(duid, state) {
+		const path = `Devices.${duid}.resetConsumables.${state}`;
+		const name = this.translations[state];
+
+		this.setObjectNotExistsAsync(path, {
+			type: "state",
+			common: {
+				name: name,
+				type: "boolean",
+				role: "value",
+				read: true,
+				write: true,
+				def: false
+			},
+			native: {},
+		});
+	}
+
+	async createCleaningRecord(duid, state, type, states, unit) {
+		for (let i = 0; i < 20; i++) {
+			await this.setObjectAsync(`Devices.${duid}.cleaningInfo.records.${i}`, {
+				type: "folder",
+				common: {
+					name: `Cleaning record ${i}`,
+				},
+				native: {},
+			});
+
+			this.setObjectAsync(`Devices.${duid}.cleaningInfo.records.${i}.${state}`, {
+				type: "state",
+				common: {
+					name: this.translations[state],
+					type: type,
+					role: "value",
+					unit: unit,
+					read: true,
+					write: false,
+					states: states,
+				},
+				native: {},
+			});
+
+			await this.setObjectAsync(`Devices.${duid}.cleaningInfo.records.${i}.map`, {
+				type: "folder",
+				common: {
+					name: "Map",
+				},
+				native: {},
+			});
+			for (const name of ["mapBase64", "mapBase64Truncated", "mapData"]) {
+				const objectString = `Devices.${duid}.cleaningInfo.records.${i}.map.${name}`;
+				await this.createStateObjectHelper(objectString, name, "string", null, null, "value", true, false);
+			}
+		}
+	}
+
+	async createCleaningInfo(duid, key, object) {
+		const path = `Devices.${duid}.cleaningInfo.${key}`;
+		const name = this.translations[object.name];
+
+		this.setObjectAsync(path, {
+			type: "state",
+			common: {
+				name: name,
+				type: "number",
+				role: "value",
+				unit: object.unit,
+				read: true,
+				write: false,
+			},
+			native: {},
+		});
+	}
+
+	async createBaseRobotObjects(duid) {
+		for (const name of ["mapBase64", "mapBase64Truncated", "mapData"]) {
+			const objectString = `Devices.${duid}.map.${name}`;
+			await this.createStateObjectHelper(objectString, name, "string", null, null, "value", true, false);
+		}
+
+		this.createNetworkInfoObjects(duid);
+	}
+
+	async createBasicVacuumObjects(duid) {
+		this.createNetworkInfoObjects(duid);
+	}
+
+	async createBasicWashingMachineObjects(duid) {
+		this.createNetworkInfoObjects(duid);
+	}
+
+	async createNetworkInfoObjects(duid) {
+		for (const name of ["ssid", "ip", "mac", "bssid", "rssi"]) {
+			const objectString = `Devices.${duid}.networkInfo.${name}`;
+			const objectType = name == "rssi" ? "number" : "string";
+			await this.createStateObjectHelper(objectString, name, objectType, null, null, "value", true, false);
+		}
 	}
 
 	isCleaning(state) {
@@ -1003,7 +1178,7 @@ class Roborock extends utils.Adapter {
 				const s = userdata.rriot.s;
 				const k = userdata.rriot.k;
 
-				if (robots[robot].setup.camera) {
+				if (this.vacuums[duid].features.isCameraSupported()) {
 					cameraCount++;
 					go2rtcConfig.streams[duid] = `roborock://mqtt-eu-3.roborock.com:8883?u=${u}&s=${s}&k=${k}&did=${duid}&key=${localKey}&pin=${this.config.cameraPin}`;
 				}
@@ -1136,12 +1311,12 @@ class Roborock extends utils.Adapter {
 				} else if (typeof state.val != "boolean") {
 					this.vacuums[duid].command(duid, command, state.val);
 				}
-			}
 
-			if (typeof state.val == "boolean") {
-				this.commandTimeout = this.setTimeout(() => {
-					this.setStateAsync(id, false, true);
-				}, 1000);
+				if (typeof state.val == "boolean") {
+					this.commandTimeout = this.setTimeout(() => {
+						this.setStateAsync(id, false, true);
+					}, 1000);
+				}
 			}
 		} else {
 			this.log.error(`Error! Missing state onChangeState!`);
