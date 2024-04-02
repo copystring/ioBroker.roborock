@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.6.0",
+    "version": "0.6.1",
     "news": {
+      "0.6.1": {
+        "en": "Fix lint",
+        "de": "Fix lint",
+        "ru": "Fix lint",
+        "pt": "Fix lint",
+        "nl": "Fix plint",
+        "fr": "Fixer la peluche",
+        "it": "Fissare l'intreccio",
+        "es": "Lino fijo",
+        "pl": "Napraw lint",
+        "uk": "Фіксований відтінок",
+        "zh-cn": "修补线"
+      },
       "0.6.0": {
         "en": "New and improved message queue handler\nConvert robot features to new much more modular system\nAdd support for large photos of obstacles\nMany bug fixes I can't remember :D",
         "de": "Neuer und verbesserter Nachrichtenwartegriff\nRoboter-Features in neues viel mehr modulares System umwandeln\nUnterstützung für große Fotos von Hindernissen\nViele Fehlerbehebungen kann ich mich nicht erinnern :D",
@@ -80,19 +93,6 @@
         "pl": "Przerób parser map i kreator map\nKonwertuj wiele ciągów znaków na literały szablonowe\nPopraw logikę pobierania go2rtc\nPopraw rejestrowanie błędów\nPobierz obrazy roborock z serwera roborock i udostępnij je w formacie base64 png (należy włączyć w opcjach, zużywa sporo zasobów)\nUżyj sprytnej logiki, aby sąsiednie pokoje nigdy nie były tego samego koloru 🎉\nNazwa każdego pokoju jest teraz wyświetlana na mapie\nNapraw pozycję wyskakującego zdjęcia na mapie\nPoważnie przyspiesz rysowanie mapy dywanu\nDodaj podstawową obsługę Q8 Max\nPodstawowe wsparcie dla Q5 Pro\nObsługuj nowe typy bloków na mapie\nNie zawieszaj się, gdy na koncie znajduje się Roborock Zeo One\nNowe polecenia dla Roborock S7 MaxV\nWiele poprawek\nDodaj obsługę stacji dla Q7 Max\nDodaj podstawową obsługę scen/programów\nJeśli to możliwe, łącz się z urządzeniami za pośrednictwem protokołu TCP zamiast MQTT\nZrefaktoryzuj interfejs sieciowy, aby na dobre naprawić pozycję wyskakujących okienek\nDodaj obsługę kodowania/dekodowania A01 (w tym przypadku obsługiwane będą urządzenia takie jak Zeo One, Dyad Pro itp.). Ogromne podziękowania dla rovo89!!!",
         "uk": "Переробити синтаксичний аналізатор карт і творець карт\nПеретворіть lof рядків на шаблонні літерали\nПокращення логіки завантаження go2rtc\nПокращити журнал помилок\nЗавантажте зображення roborock із сервера roborock і зробіть їх доступними як base64 png (потрібно ввімкнути в параметрах, використовує досить багато ресурсів)\nВикористовуйте розумну логіку, щоб суміжні кімнати ніколи не були одного кольору 🎉\nНазва кожної кімнати тепер відображається на карті\nВиправте положення спливаючого фото на карті\nСерйозно прискорити малювання карти килима\nДодайте базову підтримку Q8 Max\nБазова підтримка Q5 Pro\nПідтримка нових типів блоків на карті\nНе вилітайте, коли Roborock Zeo One є в обліковому записі\nНові команди для Roborock S7 MaxV\nБагато виправлень помилок\nДодати підтримку станції для Q7 Max\nДодати базову підтримку сцени/програми\nПідключайтеся до пристроїв через TCP замість MQTT, де це можливо\nРефакторинг веб-інтерфейсу, щоб назавжди виправити положення спливаючого вікна\nДодайте підтримку кодування/декодування A01 (з цим підтримуватимуться такі пристрої, як Zeo One, Dyad Pro тощо). Величезне спасибі rovo89!!!",
         "zh-cn": "返工地图解析器和地图创建器\n将大量字符串转换为模板文字\n改进go2rtc下载逻辑\n改进错误记录\n从roborock服务器下载roborock图像并将其作为base64 png提供（需要在选项中启用，使用相当多的资源）\n使用一些聪明的逻辑，让相邻的房间永远不会是相同的颜色🎉\n每个房间的名称现在显示在地图上\n修复地图上照片弹出位置\n大幅加快地毯图绘制速度\n添加基本​​的 Q8 Max 支持\nQ5 Pro 基本支持\n支持地图上新的区块类型\n当 Roborock Zeo One 在帐户中时不要崩溃\nRoborock S7 MaxV 的新命令\n许多错误修复\n添加对 Q7 Max 电台的支持\n添加基本​​场景/节目支持\n尽可能通过 TCP 而不是 MQTT 连接到设备\n重构 Web 界面以永久修复弹出位置\n添加对 A01 编码/解码的支持（使用此设备将支持 Zeo One、Dyad Pro 等）。非常感谢 rovo89！"
-      },
-      "0.4.4": {
-        "en": "Fix for getting the map for each cleaning record",
-        "de": "Fix, um die Karte für jeden Reinigungsrekord zu bekommen",
-        "ru": "Исправление для получения карты для каждой записи очистки",
-        "pt": "Fix para obter o mapa para cada registro de limpeza",
-        "nl": "Vertaling:",
-        "fr": "Fix pour obtenir la carte pour chaque enregistrement de nettoyage",
-        "it": "Fissare per ottenere la mappa per ogni record di pulizia",
-        "es": "Fijación para obtener el mapa para cada registro de limpieza",
-        "pl": "Fix ma na celu uzyskanie mapy dla każdego zapisu czyszczonego",
-        "uk": "Виправлення для отримання карти для кожного запису очищення",
-        "zh-cn": "每个清洁记录地图的ix"
       }
     },
     "titleLang": {
