@@ -77,7 +77,7 @@ class Roborock extends utils.Adapter {
 
 		this.sentryInstance = this.getPluginInstance("sentry");
 
-		this.translations = require(`./admin/i18n/${this.language}/translations.json`);
+		this.translations = require(`./admin/i18n/${this.language || "en"}/translations.json`); // fall back to en for test-and-release.yml
 
 		await this.setupBasicObjects();
 
