@@ -760,7 +760,6 @@ class Roborock extends utils.Adapter {
 						devices[device].deviceStatus[deviceAttribute] >= 0 && devices[device].deviceStatus[deviceAttribute] <= 100
 							? parseInt(devices[device].deviceStatus[deviceAttribute])
 							: 0;
-;
 					this.setStateAsync("Devices." + duid + ".consumables." + deviceAttribute, { val: val, ack: true });
 				}
 			}
