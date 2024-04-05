@@ -208,14 +208,6 @@ class Roborock extends utils.Adapter {
 
 					this.processScene(scene);
 
-					try {
-						await this.download_go2rtc();
-					} catch (error) {
-						this.catchError(`Failed to download go2rtc. ${error.stack}`);
-					}
-
-					this.start_go2rtc(this.vacuums, userdata);
-
 					this.homedataInterval = this.setInterval(this.updateHomeData.bind(this), 180 * 1000, homeId);
 					await this.updateHomeData(homeId);
 
@@ -233,6 +225,18 @@ class Roborock extends utils.Adapter {
 			}
 		} catch (error) {
 			this.log.error("Failed to get home details: " + error.stack);
+		}
+
+		try {
+			await this.download_go2rtc();
+		} catch (error) {
+			this.catchError(`Failed to download go2rtc. ${error.stack}`);
+		}
+
+		try {
+			this.start_go2rtc(this.vacuums, userdata);
+		} catch (error) {
+			this.catchError(`Failed to start go2rtc. ${error.stack}`);
 		}
 	}
 
@@ -1178,7 +1182,8 @@ class Roborock extends utils.Adapter {
 				const s = userdata.rriot.s;
 				const k = userdata.rriot.k;
 
-				if (this.vacuums[duid].features.isCameraSupported()) {
+				if (this.vacuums[duid].features.getFeatureList().isCameraSupported) {
+					this.log.debug(`TEST TEST camera support for ${duid} added!`);
 					cameraCount++;
 					go2rtcConfig.streams[duid] = `roborock://mqtt-eu-3.roborock.com:8883?u=${u}&s=${s}&k=${k}&did=${duid}&key=${localKey}&pin=${this.config.cameraPin}`;
 				}
