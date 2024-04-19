@@ -67,6 +67,8 @@ class Roborock extends utils.Adapter {
 		this.messageQueueHandler = new messageQueueHandler(this);
 
 		this.pendingRequests = new Map();
+
+		this.localDevices = {};
 	}
 
 	/**
@@ -175,16 +177,6 @@ class Roborock extends utils.Adapter {
 					this.localKeys = new Map(devices.map((device) => [device.duid, device.localKey]));
 					// this.adapter.log.debug(`initUser test: ${JSON.stringify(Array.from(this.adapter.localKeys.entries()))}`);
 
-					this.localDevices = await this.localConnector.getLocalDevices();
-					this.log.debug(`localDevices: ${JSON.stringify(this.localDevices)}`);
-
-					for (const device in this.localDevices) {
-						const duid = device;
-						const ip = this.localDevices[device];
-
-						await this.localConnector.createClient(duid, ip);
-					}
-
 					await this.rr_mqtt_connector.initUser(userdata);
 					await this.rr_mqtt_connector.initMQTT_Subscribe();
 					await this.rr_mqtt_connector.initMQTT_Message();
@@ -216,8 +208,29 @@ class Roborock extends utils.Adapter {
 						this.startWebserver();
 						await this.startWebsocketServer();
 					}
-					this.log.info(`Starting adapter finished. Lets go!!!!!!!`);
+
+					const discoveredDevices = await this.localConnector.getLocalDevices();
+
 					await this.createDevices(products, devices);
+					await this.getNetworkInfo(devices);
+
+					// merge udp discovered devices with local devices found via mqtt
+					Object.entries(discoveredDevices).forEach(([duid, ip]) => {
+						if (!Object.prototype.hasOwnProperty.call(this.localDevices, duid)) {
+							this.localDevices[duid] = ip;
+						}
+					});
+					this.log.debug(`localDevices: ${JSON.stringify(this.localDevices)}`);
+
+					for (const device in this.localDevices) {
+						const duid = device;
+						const ip = this.localDevices[device];
+
+						await this.localConnector.createClient(duid, ip);
+					}
+					this.initializeDeviceUpdates(products, devices);
+
+					this.log.info(`Starting adapter finished. Lets go!!!!!!!`);
 				} else {
 					this.log.info(`Most likely failed to login. Deleting UserData to force new login!`);
 					await this.deleteStateAsync(`UserData`);
@@ -272,12 +285,20 @@ class Roborock extends utils.Adapter {
 		return userdata;
 	}
 
+	async getNetworkInfo(devices) {
+		for (const device in devices) {
+			const duid = devices[device].duid;
+			const vacuum = this.vacuums[duid];
+			await vacuum.getParameter(duid, "get_network_info");
+		}
+	}
+
 	async createDevices(products, devices) {
 		for (const device in devices) {
-			const productID = devices[device]["productId"];
+			const productId = devices[device]["productId"];
 			// const robotModel = products[device]["model"];
-			const robotModel = this.getRobotModel(products, productID);
-			const productCategory = this.getProductCategory(products, productID);
+			const robotModel = this.getRobotModel(products, productId);
+			const productCategory = this.getProductCategory(products, productId);
 			const duid = devices[device].duid;
 			const name = devices[device].name;
 
@@ -293,10 +314,20 @@ class Roborock extends utils.Adapter {
 			this.subscribeStates("Devices." + duid + ".commands.*");
 			this.subscribeStates("Devices." + duid + ".reset_consumables.*");
 			this.subscribeStates("Devices." + duid + ".programs.startProgram");
+		}
+	}
+
+	async initializeDeviceUpdates(products, devices) {
+		for (const deviceId in devices) {
+			const device = devices[deviceId];
+			const duid = device.duid;
+			const productId = device["productId"];
+			const robotModel = this.getRobotModel(products, productId);
 
 			this.vacuums[duid].mainUpdateInterval = () =>
 				this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
-			if (devices[device].online) {
+
+			if (device.online) {
 				this.log.debug(duid + " online. Starting mainUpdateInterval.");
 				this.vacuums[duid].mainUpdateInterval(); // actually start mainUpdateInterval()
 				// Map updater gets started automatically via getParameter with get_status
@@ -636,16 +667,12 @@ class Roborock extends utils.Adapter {
 			// nothing for now
 		} else if (robotModel == "roborock.wetdryvac.a56") {
 			await vacuum.getParameter(duid, "get_status");
-
-			await vacuum.getParameter(duid, "get_network_info");
 		} else {
 			await vacuum.getParameter(duid, "get_status");
 
 			await vacuum.getParameter(duid, "get_room_mapping");
 
 			await vacuum.getParameter(duid, "get_consumable");
-
-			await vacuum.getParameter(duid, "get_network_info");
 
 			await vacuum.getParameter(duid, "get_server_timer");
 
@@ -759,7 +786,6 @@ class Roborock extends utils.Adapter {
 				const targetConsumable = await this.getObjectAsync(`Devices.${duid}.consumables.${deviceAttribute}`);
 
 				if (targetConsumable) {
-
 					const val =
 						devices[device].deviceStatus[deviceAttribute] >= 0 && devices[device].deviceStatus[deviceAttribute] <= 100
 							? parseInt(devices[device].deviceStatus[deviceAttribute])
@@ -951,7 +977,7 @@ class Roborock extends utils.Adapter {
 				role: "value",
 				read: true,
 				write: true,
-				def: false
+				def: false,
 			},
 			native: {},
 		});
