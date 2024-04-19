@@ -1209,7 +1209,6 @@ class Roborock extends utils.Adapter {
 				const k = userdata.rriot.k;
 
 				if (this.vacuums[duid].features.getFeatureList().isCameraSupported) {
-					this.log.debug(`TEST TEST camera support for ${duid} added!`);
 					cameraCount++;
 					go2rtcConfig.streams[duid] = `roborock://mqtt-eu-3.roborock.com:8883?u=${u}&s=${s}&k=${k}&did=${duid}&key=${localKey}&pin=${this.config.cameraPin}`;
 				}
