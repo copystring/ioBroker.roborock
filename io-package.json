@@ -1,9 +1,22 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.6.3",
+    "version": "0.6.4",
     "tier": 1,
     "news": {
+      "0.6.4": {
+        "en": "Fix io-package.json and update packages",
+        "de": "Fix io-package.json und Update-Pakete",
+        "ru": "Fix io-package.json и обновления пакетов",
+        "pt": "Fix io-package.json e pacotes de atualização",
+        "nl": "Fix io-package.json en update pakketten",
+        "fr": "Correction des paquets io-package.json et mise à jour",
+        "it": "Fissare i pacchetti io-package.json e aggiornare i pacchetti",
+        "es": "Fijar io-package.json y actualizar paquetes",
+        "pl": "Napraw jo- package.json i uaktualnij pakiety",
+        "uk": "Виправлення io-package.json і оновлення пакетів",
+        "zh-cn": "修复 io- package.json 和更新软件包"
+      },
       "0.6.3": {
         "en": "Add consumables to Qrevo MaxV\nFix S5 Max clean records defintion\nFix app_start via web interface\nImprove local devices discovery",
         "de": "Verbrauchsmaterialien zu Qrevo MaxV hinzufügen\nFix S5 Max Clean Records defination\nApp_start über die Web-Schnittstelle beheben\nLokale Geräte entdecken",
@@ -81,19 +94,6 @@
         "pl": "Przywróć oryginalne tworzenie UserData",
         "uk": "Відновити створення оригінального користувача",
         "zh-cn": "恢复原始用户数据创建"
-      },
-      "0.5.2": {
-        "en": "Little bug fixes\nRemove Roborock S5. There is no such device\nLimit HomeData requests to prevent rate limit",
-        "de": "Kleine Fehlerbehebungen\nEntfernen Roborock S5. Es gibt kein solches Gerät\nBegrenzt nach Hause Datenanforderungen zur Verhinderung von Ratengrenzen",
-        "ru": "Маленькие исправления ошибок\nУдалить Roborock S5. Нет такого устройства\nОграничение дома Запросы на данные для предотвращения ограничения скорости",
-        "pt": "Pequenas correções de bugs\nRemover Roborock S5. Não há tal dispositivo\nLimitar a casa Pedidos de dados para evitar limite de taxa",
-        "nl": "Kleine foutherstel\nVerwijder Roborock S5. Zo'n apparaat bestaat niet\nBeperken begin Gegevensverzoeken om tarieflimiet te voorkomen",
-        "fr": "Petit bug corrigé\nSupprimer Roborock S5. Il n'y a pas de tel dispositif\nLimiter la maison Demandes de données pour prévenir la limitation des tarifs",
-        "it": "Piccoli correzioni di bug\nRimuovere Roborock S5. Non esiste un tale dispositivo\nLimite Home Richieste di dati per prevenire il limite di velocità",
-        "es": "Pequeñas correcciones de errores\nQuitar Roborock S5. No hay tal dispositivo\nLimite el hogar Solicitudes de datos para prevenir el límite de tarifas",
-        "pl": "Małe poprawki błędów\nUsuń Robolock S5. Nie ma takiego urządzenia\nSpis treści Prośby o dane w celu zapobieżenia ograniczeniom stawek",
-        "uk": "Маленькі виправлення помилок\nВидалити Roborock S5. Немає такого пристрою\nГоловна Запити даних для запобігання обмеження швидкості",
-        "zh-cn": "小错误修正\n拿掉罗波洛克S5 没有这种装置\n限制家 防止费率限制的数据请求"
       }
     },
     "titleLang": {
