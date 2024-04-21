@@ -2,6 +2,7 @@
   "common": {
     "name": "roborock",
     "version": "0.6.3",
+    "tier": 1,
     "news": {
       "0.6.3": {
         "en": "Add consumables to Qrevo MaxV\nFix S5 Max clean records defintion\nFix app_start via web interface\nImprove local devices discovery",
@@ -129,7 +130,11 @@
       "template",
       "home automation"
     ],
-    "license": "MIT",
+    "licenseInformation": {
+      "license": "MIT",
+      "type": "free",
+      "link": "https://github.com/copystring/ioBroker.roborock/blob/main/README.md"
+    },
     "platform": "Javascript/Node.js",
     "main": "main.js",
     "icon": "roborock.png",

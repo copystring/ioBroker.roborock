@@ -52,6 +52,9 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Fix io-package.json and update packages
+
 ### 0.6.3 (2024-04-21)
 * (copystring) Add consumables to Qrevo MaxV
 * (copystring) Fix S5 Max clean records defintion
