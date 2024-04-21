@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.6.2",
+    "version": "0.6.3",
     "news": {
+      "0.6.3": {
+        "en": "Add consumables to Qrevo MaxV\nFix S5 Max clean records defintion\nFix app_start via web interface\nImprove local devices discovery",
+        "de": "Verbrauchsmaterialien zu Qrevo MaxV hinzufügen\nFix S5 Max Clean Records defination\nApp_start über die Web-Schnittstelle beheben\nLokale Geräte entdecken",
+        "ru": "Добавить расходные материалы в Qrevo MaxV\nИсправление S5 Max чистых записей\nИсправить приложение_запуск через веб-интерфейс\nУлучшить обнаружение местных устройств",
+        "pt": "Adicionar consumíveis a Qrevo MaxV\nCorrigir definição de registros limpos S5 Max\nFix app_start via interface web\nMelhorar a descoberta de dispositivos locais",
+        "nl": "Verbruiksgoederen toevoegen aan Qrevo MaxV\nFix S5 Max clean records defintion\nApp_start herstellen via webinterface\nVerbeteren van lokale apparaten ontdekking",
+        "fr": "Ajouter des consommables à Qrevo MaxV\nCorrection des enregistrements S5 Max propres définition\nCorrection de l'app_start via l'interface web\nAméliorer la découverte des appareils locaux",
+        "it": "Aggiungi materiali di consumo a Qrevo MaxV\nFissare S5 Max disco pulito definzione\nFissa app_start tramite interfaccia web\nMigliorare la scoperta dei dispositivi locali",
+        "es": "Añadir consumibles a Qrevo MaxV\nFijar S5 Max registros limpios definición\nFijar app_start a través de la interfaz web\nMejorar el descubrimiento de dispositivos locales",
+        "pl": "Dodaj materiały eksploatacyjne do Qrevo MaxV\nFix S5 Max czysta definicja rekordów\nFix app _ start poprzez interfejs webowy\nUlepszenie wyszukiwania urządzeń lokalnych",
+        "uk": "Додати витратні матеріали до Qrevo MaxV\nФіксація S5 Max очищення записів\nВиправлення app_start через веб-інтерфейс\nПокращення відкриття локальних пристроїв",
+        "zh-cn": "将消耗品添加到 Qrevo MaxV\n修复 S5 最大清洁记录定义\n通过网络界面修复app_启动\n改进本地设备的发现"
+      },
       "0.6.2": {
         "en": "Fix start of go2rtc",
         "de": "Start von go2rtc",
@@ -80,19 +93,6 @@
         "pl": "Małe poprawki błędów\nUsuń Robolock S5. Nie ma takiego urządzenia\nSpis treści Prośby o dane w celu zapobieżenia ograniczeniom stawek",
         "uk": "Маленькі виправлення помилок\nВидалити Roborock S5. Немає такого пристрою\nГоловна Запити даних для запобігання обмеження швидкості",
         "zh-cn": "小错误修正\n拿掉罗波洛克S5 没有这种装置\n限制家 防止费率限制的数据请求"
-      },
-      "0.5.1": {
-        "en": "Fix lint",
-        "de": "Fix lint",
-        "ru": "Фиксация lint",
-        "pt": "Fix lint",
-        "nl": "_",
-        "fr": "Fix lint",
-        "it": "Fissare l'intuizione",
-        "es": "Lino fijo",
-        "pl": "Fix lint",
-        "uk": "Фіксований відтінок",
-        "zh-cn": "Fix Lint"
       }
     },
     "titleLang": {
