@@ -52,6 +52,12 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Add consumables to Qrevo MaxV
+* (copystring) Fix S5 Max clean records defintion
+* (copystring) Fix app_start via web interface
+* (copystring) Improve local devices discovery
+
 ### 0.6.2 (2024-04-05)
 * (copystring) Fix start of go2rtc
 
