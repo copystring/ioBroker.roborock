@@ -417,7 +417,7 @@ class Roborock extends utils.Adapter {
 	}
 
 	async startMapUpdater(duid) {
-		if (this.vacuums[duid].mapUpdater == null) {
+		if (!this.vacuums[duid].mapUpdater) {
 			this.log.debug("Started map updater on robot: " + duid);
 			this.vacuums[duid].mapUpdater = this.setInterval(() => {
 				this.vacuums[duid].getMap(duid);
@@ -1336,6 +1336,8 @@ class Roborock extends utils.Adapter {
 							}
 							break;
 					}
+				} else if (command == "app_stop") {
+					this.stopMapUpdater(duid);
 				} else if (command == "startProgram") {
 					this.executeScene(state);
 				} else if (typeof state.val != "boolean") {
