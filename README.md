@@ -56,6 +56,8 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Add and fix some parameters and attributes
 * (copystring) Fix getMap() in getParameter()
 * (copystring) Add connection state to timeouts
+* (copystring) Detect and report unsupported attributes
+* (copystring) Improve camera and voice support detection
 
 ### 0.6.4 (2024-04-21)
 * (copystring) Fix io-package.json and update packages
