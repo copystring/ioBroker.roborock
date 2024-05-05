@@ -2,7 +2,7 @@
 
 const utils = require("@iobroker/adapter-core");
 
-const axios = require("axios").default;
+const axios = require("axios");
 const crypto = require("crypto");
 const websocket = require("ws");
 const express = require("express");
