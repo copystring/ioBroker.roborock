@@ -59,6 +59,7 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Detect and report unsupported attributes
 * (copystring) Improve camera and voice support detection
 * (copystring) Wait for TCP client to connect on start of adapter
+* (copystring) Add handling of TCP chunks. This will fix a lot of timeouts 🎉
 
 ### 0.6.4 (2024-04-21)
 * (copystring) Fix io-package.json and update packages

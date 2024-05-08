@@ -336,10 +336,10 @@ class Roborock extends utils.Adapter {
 			this.updateDataExtraData(duid, this.vacuums[duid]);
 			this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
 
-			this.vacuums[duid].getCleanSummary(duid);
+			await this.vacuums[duid].getCleanSummary(duid);
 
 			// get map once at start of adapter
-			this.vacuums[duid].getMap(duid);
+			await this.vacuums[duid].getMap(duid);
 		}
 	}
 
@@ -427,14 +427,14 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
-	stopMapUpdater(duid) {
+	async stopMapUpdater(duid) {
 		this.log.debug(`Stopping map updater on robot: ${duid}`);
 
 		if (this.vacuums[duid].mapUpdater) {
 			this.clearInterval(this.vacuums[duid].mapUpdater);
 			this.vacuums[duid].mapUpdater = null;
 
-			this.vacuums[duid].getCleanSummary(duid);
+			await this.vacuums[duid].getCleanSummary(duid);
 		}
 	}
 
