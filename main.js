@@ -203,12 +203,6 @@ class Roborock extends utils.Adapter {
 					this.homedataInterval = this.setInterval(this.updateHomeData.bind(this), 180 * 1000, homeId);
 					await this.updateHomeData(homeId);
 
-					// These need to start only after all states have been set
-					if (this.config.enable_map_creation == true) {
-						this.startWebserver();
-						await this.startWebsocketServer();
-					}
-
 					const discoveredDevices = await this.localConnector.getLocalDevices();
 
 					await this.createDevices(products, devices);
@@ -229,6 +223,12 @@ class Roborock extends utils.Adapter {
 						await this.localConnector.createClient(duid, ip);
 					}
 					this.initializeDeviceUpdates(products, devices);
+
+					// These need to start only after all states have been set
+					if (this.config.enable_map_creation == true) {
+						this.startWebserver();
+						await this.startWebsocketServer();
+					}
 
 					this.log.info(`Starting adapter finished. Lets go!!!!!!!`);
 				} else {
