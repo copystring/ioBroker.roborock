@@ -60,6 +60,7 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Improve camera and voice support detection
 * (copystring) Wait for TCP client to connect on start of adapter
 * (copystring) Add handling of TCP chunks. This will fix a lot of timeouts 🎉
+* (copystring) Manage stop/stop in the webinterface via state of robot instead of guessing via clicking the buttons in the webinterface
 
 ### 0.6.4 (2024-04-21)
 * (copystring) Fix io-package.json and update packages

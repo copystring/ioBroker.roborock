@@ -326,11 +326,17 @@ class Roborock extends utils.Adapter {
 
 			this.vacuums[duid].mainUpdateInterval = () =>
 				this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
-
 			if (device.online) {
 				this.log.debug(duid + " online. Starting mainUpdateInterval.");
 				this.vacuums[duid].mainUpdateInterval(); // actually start mainUpdateInterval()
 				// Map updater gets started automatically via getParameter with get_status
+			}
+
+			this.vacuums[duid].getStatusIntervall = () =>
+				this.setInterval(this.getStatus.bind(this), 1000, duid, this.vacuums[duid], robotModel);
+			if (device.online) {
+				this.log.debug(duid + " online. Starting getStatusIntervall.");
+				this.vacuums[duid].getStatusIntervall(); // actually start getStatusIntervall()
 			}
 
 			this.updateDataExtraData(duid, this.vacuums[duid]);
@@ -641,9 +647,11 @@ class Roborock extends utils.Adapter {
 		return this.onlineChecker(duid)
 			.then((onlineState) => {
 				if (!onlineState && this.vacuums[duid].mainUpdateInterval) {
+					this.clearInterval(this.vacuums[duid].getStatusIntervall);
 					this.clearInterval(this.vacuums[duid].mainUpdateInterval);
 					this.clearInterval(this.vacuums[duid].mapUpdater);
 				} else if (!this.vacuums[duid].mainUpdateInterval) {
+					this.vacuums[duid].getStatusIntervall();
 					this.startMainUpdateInterval(duid, onlineState);
 				}
 				return onlineState;
@@ -660,7 +668,7 @@ class Roborock extends utils.Adapter {
 			});
 	}
 
-	async updateDataMinimumData(duid, vacuum, robotModel) {
+	async getStatus(duid, vacuum, robotModel) {
 		this.log.debug("Latest data requested");
 
 		if (robotModel == "roborock.wm.a102") {
@@ -669,7 +677,17 @@ class Roborock extends utils.Adapter {
 			await vacuum.getParameter(duid, "get_status");
 		} else {
 			await vacuum.getParameter(duid, "get_status");
+		}
+	}
 
+	async updateDataMinimumData(duid, vacuum, robotModel) {
+		this.log.debug("Latest data requested");
+
+		if (robotModel == "roborock.wm.a102") {
+			// nothing for now
+		} else if (robotModel == "roborock.wetdryvac.a56") {
+			// nothing for now
+		} else {
 			await vacuum.getParameter(duid, "get_room_mapping");
 
 			await vacuum.getParameter(duid, "get_consumable");
@@ -726,6 +744,7 @@ class Roborock extends utils.Adapter {
 		this.localConnector.clearLocalDevicedTimeout();
 
 		for (const duid in this.vacuums) {
+			this.clearInterval(this.vacuums[duid].getStatusIntervall);
 			this.clearInterval(this.vacuums[duid].mainUpdateInterval);
 			this.clearInterval(this.vacuums[duid].mapUpdater);
 		}
