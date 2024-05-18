@@ -669,8 +669,6 @@ class Roborock extends utils.Adapter {
 	}
 
 	async getStatus(duid, vacuum, robotModel) {
-		this.log.debug("Latest data requested");
-
 		if (robotModel == "roborock.wm.a102") {
 			// nothing for now
 		} else if (robotModel == "roborock.wetdryvac.a56") {
