@@ -669,12 +669,14 @@ class Roborock extends utils.Adapter {
 	}
 
 	async getStatus(duid, vacuum, robotModel) {
-		if (robotModel == "roborock.wm.a102") {
-			// nothing for now
-		} else if (robotModel == "roborock.wetdryvac.a56") {
-			await vacuum.getParameter(duid, "get_status");
-		} else {
-			await vacuum.getParameter(duid, "get_status");
+		if (this.socket) {
+			if (robotModel == "roborock.wm.a102") {
+				// nothing for now
+			} else if (robotModel == "roborock.wetdryvac.a56") {
+				await vacuum.getParameter(duid, "get_status");
+			} else {
+				await vacuum.getParameter(duid, "get_status");
+			}
 		}
 	}
 
