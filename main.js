@@ -318,6 +318,7 @@ class Roborock extends utils.Adapter {
 	}
 
 	async initializeDeviceUpdates(products, devices) {
+		this.log.debug(`initializeDeviceUpdates`);
 		for (const deviceId in devices) {
 			const device = devices[deviceId];
 			const duid = device.duid;
@@ -669,14 +670,12 @@ class Roborock extends utils.Adapter {
 	}
 
 	async getStatus(duid, vacuum, robotModel) {
-		if (this.socket) {
-			if (robotModel == "roborock.wm.a102") {
-				// nothing for now
-			} else if (robotModel == "roborock.wetdryvac.a56") {
-				await vacuum.getParameter(duid, "get_status");
-			} else {
-				await vacuum.getParameter(duid, "get_status");
-			}
+		if (robotModel == "roborock.wm.a102") {
+			// nothing for now
+		} else if (robotModel == "roborock.wetdryvac.a56") {
+			await vacuum.getParameter(duid, "get_status");
+		} else {
+			await vacuum.getParameter(duid, "get_status");
 		}
 	}
 
