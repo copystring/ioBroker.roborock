@@ -329,7 +329,6 @@ class Roborock extends utils.Adapter {
 			if (device.online) {
 				this.log.debug(duid + " online. Starting mainUpdateInterval.");
 				this.vacuums[duid].mainUpdateInterval(); // actually start mainUpdateInterval()
-				// Map updater gets started automatically via getParameter with get_status
 			}
 
 			this.vacuums[duid].getStatusIntervall = () =>
@@ -337,6 +336,7 @@ class Roborock extends utils.Adapter {
 			if (device.online) {
 				this.log.debug(duid + " online. Starting getStatusIntervall.");
 				this.vacuums[duid].getStatusIntervall(); // actually start getStatusIntervall()
+				// Map updater gets started automatically via getParameter with get_status
 			}
 
 			this.updateDataExtraData(duid, this.vacuums[duid]);
