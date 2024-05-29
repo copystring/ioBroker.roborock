@@ -467,6 +467,23 @@ class Roborock extends utils.Adapter {
 			this.socket = socket;
 			this.log.debug("Websocket client connected");
 
+
+			socket.on("pong", () => {
+				this.socket = socket;
+			});
+
+			this.webSocketInterval = this.setInterval(() => {
+				if (!this.socket) {
+					this.log.debug("Client disconnected. Stopping interval.");
+					this.clearInterval(this.webSocketInterval);
+					socket.terminate();
+					return;
+				}
+
+				this.socket = null;
+				socket.ping();
+			}, 1000);
+
 			socket.on("message", async (message) => {
 				const data = JSON.parse(message.toString());
 				const command = data["command"];
@@ -531,6 +548,7 @@ class Roborock extends utils.Adapter {
 
 			socket.on("close", () => {
 				this.log.debug("Client disconnected");
+				this.clearInterval(this.webSocketInterval);
 				this.socket = null;
 			});
 
@@ -757,6 +775,10 @@ class Roborock extends utils.Adapter {
 
 		// Clear the messageQueue map
 		this.messageQueue.clear();
+
+		if (this.webSocketInterval) {
+			this.clearInterval(this.webSocketInterval);
+		}
 	}
 
 	checkAndClearRequest(requestId) {
