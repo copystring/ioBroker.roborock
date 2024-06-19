@@ -36,7 +36,7 @@
     "find-process": "^1.4.7",
     "jwk-to-pem": "^2.0.5",
     "mqtt": "^5.3.1",
-    "ws": "^8.12.1"
+    "ws": "^8.17.1"
   },
   "devDependencies": {
     "@alcalzone/release-script": "^3.7.0",
