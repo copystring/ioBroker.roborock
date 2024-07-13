@@ -7,10 +7,10 @@ export default [
 		languageOptions: {
 			ecmaVersion: 2020,
 			sourceType: "module",
-		},
-		globals: {
-			...globals.node,
-			...globals.mocha,
+			globals: {
+				...globals.node,
+				...globals.mocha,
+			},
 		},
 		rules: {
 			indent: ["error", "tab", { SwitchCase: 1 }],
@@ -28,10 +28,10 @@ export default [
 		languageOptions: {
 			ecmaVersion: 5,
 			sourceType: "script",
-		},
-		globals: {
-			...globals.browser,
-			...Object.fromEntries(Object.entries(globals.node).map(([key]) => [key, false])),
+			globals: {
+				...globals.browser,
+				...Object.fromEntries(Object.entries(globals.node).map(([key]) => [key, false])),
+			},
 		},
 		rules: {
 			// Specific rules for zones.js can be defined here
