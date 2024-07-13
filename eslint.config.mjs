@@ -2,7 +2,7 @@ import { defineConfig } from "eslint/config";
 import globals from "globals";
 
 
-export default defineConfig([
+export default [
 	{
 		ignorePatterns: ["**/.eslintrc.js", "admin/words.js"],
 	},
@@ -42,4 +42,4 @@ export default defineConfig([
 			// Specific rules for zones.js can be defined here
 		},
 	},
-]);
+];
