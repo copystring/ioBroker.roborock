@@ -64,23 +64,18 @@ export default [
 
 			semi: ["error", "always"],
 		},
-		overrides: {
-			files: ["zones.js"],
-			env: {
-				browser: true,
-				node: false,
-			},
-			parserOptions: {
-				ecmaVersion: 5,
-				sourceType: "script",
-			},
-			rules: {
-				// Spezifische Regeln für zones.js oder deaktivieren Sie bestimmte Regeln
-			},
-		},
 	},
 	{
 		files: ["lib/map/zones.js"],
+
+		env: {
+			browser: true,
+			node: false,
+		},
+		parserOptions: {
+			ecmaVersion: 5,
+			sourceType: "script",
+		},
 
 		languageOptions: {
 			globals: {
