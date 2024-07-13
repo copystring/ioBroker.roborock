@@ -26,7 +26,7 @@ export default [
 	{
 		files: ["lib/map/zones.js"],
 		languageOptions: {
-			ecmaVersion: 5,
+			ecmaVersion: 2020,
 			sourceType: "script",
 			globals: {
 				...globals.browser,
