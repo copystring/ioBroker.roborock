@@ -22,6 +22,8 @@
     "node": ">= 18"
   },
   "dependencies": {
+    "@eslint/eslintrc": "^3.1.0",
+    "@eslint/js": "^9.7.0",
     "@iobroker/adapter-core": "^3.1.6",
     "@sentry/node": "^8.17.0",
     "@sentry/tracing": "^7.114.0",
@@ -36,8 +38,11 @@
     "express": "^4.19.2",
     "fetch-github-release": "^1.0.0",
     "find-process": "^1.4.7",
+    "globals": "^15.8.0",
     "jwk-to-pem": "^2.0.5",
     "mqtt": "^5.8.0",
+    "npmlog": "^7.0.1",
+    "rimraf": "^6.0.1",
     "ws": "^8.18.0"
   },
   "devDependencies": {
