@@ -1315,6 +1315,7 @@ class Roborock extends utils.Adapter {
 
 			callback();
 		} catch (e) {
+			this.catchError(e.stack);
 			callback();
 		}
 	}
