@@ -37,6 +37,7 @@ This adapter allows you the control, get states, cleaning history and view the m
 - Roborock Q Revo
 - Roborock Q8 Max
 - Roborock Q5 Pro
+- Roborock Q Revo Pro
 
 ## Zone cleaning
 This feature only works when map creation is enabled in the adapter options!
