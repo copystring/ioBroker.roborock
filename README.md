@@ -63,6 +63,7 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Manage stop/stop in the webinterface via state of robot instead of guessing via clicking the buttons in the webinterface
 * (copystring) Refactor and improve javascript code of web interface
 * (copystring) Add Roborock Q Revo Pro
+* (copystring) Update dependencies
 
 ### 0.6.4 (2024-04-21)
 * (copystring) Fix io-package.json and update packages
