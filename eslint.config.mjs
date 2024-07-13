@@ -1,82 +1,45 @@
+import { defineConfig } from "eslint/config";
 import globals from "globals";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import js from "@eslint/js";
-import { FlatCompat } from "@eslint/eslintrc";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const compat = new FlatCompat({
-	baseDirectory: __dirname,
-	recommendedConfig: js.configs.recommended,
-	allConfig: js.configs.all,
-});
 
-export default [
+export default defineConfig([
 	{
-		ignores: ["**/.eslintrc.js", "admin/words.js", "lib/roborockPackage/*"],
+		ignorePatterns: ["**/.eslintrc.js", "admin/words.js"],
 	},
-	...compat.extends("eslint:recommended"),
 	{
-		plugins: {},
-
+		files: ["**/*.js"],
+		excludedFiles: ["lib/map/zones.js"],
 		languageOptions: {
-			globals: {
-				...globals.node,
-				...globals.mocha,
-			},
-
 			ecmaVersion: 2020,
 			sourceType: "module",
 		},
-
+		globals: {
+			...globals.node,
+			...globals.mocha,
+		},
 		rules: {
-			indent: [
-				"error",
-				"tab",
-				{
-					SwitchCase: 1,
-				},
-			],
-
+			indent: ["error", "tab", { SwitchCase: 1 }],
 			"no-console": "off",
-
-			"no-unused-vars": [
-				"error",
-				{
-					ignoreRestSiblings: true,
-					argsIgnorePattern: "^_",
-				},
-			],
-
+			"no-unused-vars": ["error", { ignoreRestSiblings: true, argsIgnorePattern: "^_" }],
 			"no-var": "error",
 			"no-trailing-spaces": "error",
 			"prefer-const": "error",
-
-			quotes: [
-				"error",
-				"double",
-				{
-					avoidEscape: true,
-					allowTemplateLiterals: true,
-				},
-			],
-
+			quotes: ["error", "double", { avoidEscape: true, allowTemplateLiterals: true }],
 			semi: ["error", "always"],
 		},
 	},
 	{
 		files: ["lib/map/zones.js"],
-
 		languageOptions: {
 			ecmaVersion: 5,
 			sourceType: "script",
-			globals: {
-				...globals.browser,
-				...Object.fromEntries(Object.entries(globals.node).map(([key]) => [key, "off"])),
-			},
 		},
-
-		rules: {},
+		globals: {
+			...globals.browser,
+			...Object.fromEntries(Object.entries(globals.node).map(([key]) => [key, false])),
+		},
+		rules: {
+			// Specific rules for zones.js can be defined here
+		},
 	},
-];
+]);
