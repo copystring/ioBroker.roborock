@@ -27,7 +27,7 @@ export default [
 			},
 
 			ecmaVersion: 2020,
-			sourceType: "commonjs",
+			sourceType: "module",
 		},
 
 		rules: {
