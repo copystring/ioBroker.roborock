@@ -68,12 +68,9 @@ export default [
 	{
 		files: ["lib/map/zones.js"],
 
-		parserOptions: {
+		languageOptions: {
 			ecmaVersion: 5,
 			sourceType: "script",
-		},
-
-		languageOptions: {
 			globals: {
 				...globals.browser,
 				...Object.fromEntries(Object.entries(globals.node).map(([key]) => [key, "off"])),
