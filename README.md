@@ -37,6 +37,7 @@ This adapter allows you the control, get states, cleaning history and view the m
 - Roborock Q Revo
 - Roborock Q8 Max
 - Roborock Q5 Pro
+- Roborock Q Revo Pro
 
 ## Zone cleaning
 This feature only works when map creation is enabled in the adapter options!
@@ -52,6 +53,19 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (copystring) Add and fix some parameters and attributes
+* (copystring) Fix getMap() in getParameter()
+* (copystring) Add connection state to timeouts
+* (copystring) Detect and report unsupported attributes
+* (copystring) Improve camera and voice support detection
+* (copystring) Wait for TCP client to connect on start of adapter
+* (copystring) Add handling of TCP chunks. This will fix a lot of timeouts 🎉
+* (copystring) Manage stop/stop in the webinterface via state of robot instead of guessing via clicking the buttons in the webinterface
+* (copystring) Refactor and improve javascript code of web interface
+* (copystring) Add Roborock Q Revo Pro
+* (copystring) Update dependencies
+
 ### 0.6.4 (2024-04-21)
 * (copystring) Fix io-package.json and update packages
 
