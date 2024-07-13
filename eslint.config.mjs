@@ -7,58 +7,88 @@ import { FlatCompat } from "@eslint/eslintrc";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const compat = new FlatCompat({
-    baseDirectory: __dirname,
-    recommendedConfig: js.configs.recommended,
-    allConfig: js.configs.all
+	baseDirectory: __dirname,
+	recommendedConfig: js.configs.recommended,
+	allConfig: js.configs.all,
 });
 
-export default [{
-    ignores: ["**/.eslintrc.js", "admin/words.js", "lib/roborockPackage/*"],
-}, ...compat.extends("eslint:recommended"), {
-    plugins: {},
+export default [
+	{
+		ignores: ["**/.eslintrc.js", "admin/words.js", "lib/roborockPackage/*"],
+	},
+	...compat.extends("eslint:recommended"),
+	{
+		plugins: {},
 
-    languageOptions: {
-        globals: {
-            ...globals.node,
-            ...globals.mocha,
-        },
+		languageOptions: {
+			globals: {
+				...globals.node,
+				...globals.mocha,
+			},
 
-        ecmaVersion: 2020,
-        sourceType: "commonjs",
-    },
+			ecmaVersion: 2020,
+			sourceType: "commonjs",
+		},
 
-    rules: {
-        indent: ["error", "tab", {
-            SwitchCase: 1,
-        }],
+		rules: {
+			indent: [
+				"error",
+				"tab",
+				{
+					SwitchCase: 1,
+				},
+			],
 
-        "no-console": "off",
+			"no-console": "off",
 
-        "no-unused-vars": ["error", {
-            ignoreRestSiblings: true,
-            argsIgnorePattern: "^_",
-        }],
+			"no-unused-vars": [
+				"error",
+				{
+					ignoreRestSiblings: true,
+					argsIgnorePattern: "^_",
+				},
+			],
 
-        "no-var": "error",
-        "no-trailing-spaces": "error",
-        "prefer-const": "error",
+			"no-var": "error",
+			"no-trailing-spaces": "error",
+			"prefer-const": "error",
 
-        quotes: ["error", "double", {
-            avoidEscape: true,
-            allowTemplateLiterals: true,
-        }],
+			quotes: [
+				"error",
+				"double",
+				{
+					avoidEscape: true,
+					allowTemplateLiterals: true,
+				},
+			],
 
-        semi: ["error", "always"],
-    },
-}, {
-    files: ["lib/map/zones.js"],
+			semi: ["error", "always"],
+		},
+		overrides: {
+			files: ["zones.js"],
+			env: {
+				browser: true,
+				node: false,
+			},
+			parserOptions: {
+				ecmaVersion: 5,
+				sourceType: "script",
+			},
+			rules: {
+				// Spezifische Regeln für zones.js oder deaktivieren Sie bestimmte Regeln
+			},
+		},
+	},
+	{
+		files: ["lib/map/zones.js"],
 
-    languageOptions: {
-        globals: {
-            ...globals.browser,
-            ...Object.fromEntries(Object.entries(globals.node).map(([key]) => [key, "off"])),
-        },
-    },
+		languageOptions: {
+			globals: {
+				...globals.browser,
+				...Object.fromEntries(Object.entries(globals.node).map(([key]) => [key, "off"])),
+			},
+		},
 
-    rules: {},
-}];
+		rules: {},
+	},
+];
