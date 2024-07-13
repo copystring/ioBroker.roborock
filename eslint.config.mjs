@@ -68,10 +68,6 @@ export default [
 	{
 		files: ["lib/map/zones.js"],
 
-		env: {
-			browser: true,
-			node: false,
-		},
 		parserOptions: {
 			ecmaVersion: 5,
 			sourceType: "script",
