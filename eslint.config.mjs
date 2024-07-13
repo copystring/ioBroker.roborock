@@ -3,8 +3,7 @@ import globals from "globals";
 export default [
 	{
 		files: ["**/*.js"],
-		excludedFiles: ["lib/map/zones.js"],
-		ignores: ["**/.eslintrc.js", "admin/words.js"],
+		ignores: ["**/.eslintrc.js", "admin/words.js", "lib/map/zones.js"],
 		languageOptions: {
 			ecmaVersion: 2020,
 			sourceType: "module",
