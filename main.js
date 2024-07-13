@@ -2,7 +2,7 @@
 
 const utils = require("@iobroker/adapter-core");
 
-const axios = require("axios").default;
+const axios = require("axios");
 const crypto = require("crypto");
 const websocket = require("ws");
 const express = require("express");
@@ -203,12 +203,6 @@ class Roborock extends utils.Adapter {
 					this.homedataInterval = this.setInterval(this.updateHomeData.bind(this), 180 * 1000, homeId);
 					await this.updateHomeData(homeId);
 
-					// These need to start only after all states have been set
-					if (this.config.enable_map_creation == true) {
-						this.startWebserver();
-						await this.startWebsocketServer();
-					}
-
 					const discoveredDevices = await this.localConnector.getLocalDevices();
 
 					await this.createDevices(products, devices);
@@ -229,6 +223,12 @@ class Roborock extends utils.Adapter {
 						await this.localConnector.createClient(duid, ip);
 					}
 					this.initializeDeviceUpdates(products, devices);
+
+					// These need to start only after all states have been set
+					if (this.config.enable_map_creation == true) {
+						this.startWebserver();
+						await this.startWebsocketServer();
+					}
 
 					this.log.info(`Starting adapter finished. Lets go!!!!!!!`);
 				} else {
@@ -318,6 +318,7 @@ class Roborock extends utils.Adapter {
 	}
 
 	async initializeDeviceUpdates(products, devices) {
+		this.log.debug(`initializeDeviceUpdates`);
 		for (const deviceId in devices) {
 			const device = devices[deviceId];
 			const duid = device.duid;
@@ -326,20 +327,26 @@ class Roborock extends utils.Adapter {
 
 			this.vacuums[duid].mainUpdateInterval = () =>
 				this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
-
 			if (device.online) {
 				this.log.debug(duid + " online. Starting mainUpdateInterval.");
 				this.vacuums[duid].mainUpdateInterval(); // actually start mainUpdateInterval()
+			}
+
+			this.vacuums[duid].getStatusIntervall = () =>
+				this.setInterval(this.getStatus.bind(this), 1000, duid, this.vacuums[duid], robotModel);
+			if (device.online) {
+				this.log.debug(duid + " online. Starting getStatusIntervall.");
+				this.vacuums[duid].getStatusIntervall(); // actually start getStatusIntervall()
 				// Map updater gets started automatically via getParameter with get_status
 			}
 
 			this.updateDataExtraData(duid, this.vacuums[duid]);
 			this.updateDataMinimumData(duid, this.vacuums[duid], robotModel);
 
-			this.vacuums[duid].getCleanSummary(duid);
+			await this.vacuums[duid].getCleanSummary(duid);
 
 			// get map once at start of adapter
-			this.vacuums[duid].getMap(duid);
+			await this.vacuums[duid].getMap(duid);
 		}
 	}
 
@@ -417,7 +424,7 @@ class Roborock extends utils.Adapter {
 	}
 
 	async startMapUpdater(duid) {
-		if (this.vacuums[duid].mapUpdater == null) {
+		if (!this.vacuums[duid].mapUpdater) {
 			this.log.debug("Started map updater on robot: " + duid);
 			this.vacuums[duid].mapUpdater = this.setInterval(() => {
 				this.vacuums[duid].getMap(duid);
@@ -427,14 +434,14 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
-	stopMapUpdater(duid) {
+	async stopMapUpdater(duid) {
 		this.log.debug(`Stopping map updater on robot: ${duid}`);
 
 		if (this.vacuums[duid].mapUpdater) {
 			this.clearInterval(this.vacuums[duid].mapUpdater);
 			this.vacuums[duid].mapUpdater = null;
 
-			this.vacuums[duid].getCleanSummary(duid);
+			await this.vacuums[duid].getCleanSummary(duid);
 		}
 	}
 
@@ -459,6 +466,23 @@ class Roborock extends utils.Adapter {
 		socketServer.on("connection", async (socket) => {
 			this.socket = socket;
 			this.log.debug("Websocket client connected");
+
+
+			socket.on("pong", () => {
+				this.socket = socket;
+			});
+
+			this.webSocketInterval = this.setInterval(() => {
+				if (!this.socket) {
+					this.log.debug("Client disconnected. Stopping interval.");
+					this.clearInterval(this.webSocketInterval);
+					socket.terminate();
+					return;
+				}
+
+				this.socket = null;
+				socket.ping();
+			}, 1000);
 
 			socket.on("message", async (message) => {
 				const data = JSON.parse(message.toString());
@@ -524,6 +548,7 @@ class Roborock extends utils.Adapter {
 
 			socket.on("close", () => {
 				this.log.debug("Client disconnected");
+				this.clearInterval(this.webSocketInterval);
 				this.socket = null;
 			});
 
@@ -641,9 +666,11 @@ class Roborock extends utils.Adapter {
 		return this.onlineChecker(duid)
 			.then((onlineState) => {
 				if (!onlineState && this.vacuums[duid].mainUpdateInterval) {
+					this.clearInterval(this.vacuums[duid].getStatusIntervall);
 					this.clearInterval(this.vacuums[duid].mainUpdateInterval);
 					this.clearInterval(this.vacuums[duid].mapUpdater);
 				} else if (!this.vacuums[duid].mainUpdateInterval) {
+					this.vacuums[duid].getStatusIntervall();
 					this.startMainUpdateInterval(duid, onlineState);
 				}
 				return onlineState;
@@ -660,16 +687,24 @@ class Roborock extends utils.Adapter {
 			});
 	}
 
-	async updateDataMinimumData(duid, vacuum, robotModel) {
-		this.log.debug("Latest data requested");
-
+	async getStatus(duid, vacuum, robotModel) {
 		if (robotModel == "roborock.wm.a102") {
 			// nothing for now
 		} else if (robotModel == "roborock.wetdryvac.a56") {
 			await vacuum.getParameter(duid, "get_status");
 		} else {
 			await vacuum.getParameter(duid, "get_status");
+		}
+	}
 
+	async updateDataMinimumData(duid, vacuum, robotModel) {
+		this.log.debug("Latest data requested");
+
+		if (robotModel == "roborock.wm.a102") {
+			// nothing for now
+		} else if (robotModel == "roborock.wetdryvac.a56") {
+			// nothing for now
+		} else {
 			await vacuum.getParameter(duid, "get_room_mapping");
 
 			await vacuum.getParameter(duid, "get_consumable");
@@ -726,6 +761,7 @@ class Roborock extends utils.Adapter {
 		this.localConnector.clearLocalDevicedTimeout();
 
 		for (const duid in this.vacuums) {
+			this.clearInterval(this.vacuums[duid].getStatusIntervall);
 			this.clearInterval(this.vacuums[duid].mainUpdateInterval);
 			this.clearInterval(this.vacuums[duid].mapUpdater);
 		}
@@ -739,6 +775,10 @@ class Roborock extends utils.Adapter {
 
 		// Clear the messageQueue map
 		this.messageQueue.clear();
+
+		if (this.webSocketInterval) {
+			this.clearInterval(this.webSocketInterval);
+		}
 	}
 
 	checkAndClearRequest(requestId) {
@@ -1336,6 +1376,8 @@ class Roborock extends utils.Adapter {
 							}
 							break;
 					}
+				} else if (command == "app_stop") {
+					this.stopMapUpdater(duid);
 				} else if (command == "startProgram") {
 					this.executeScene(state);
 				} else if (typeof state.val != "boolean") {

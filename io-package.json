@@ -136,7 +136,6 @@
       "link": "https://github.com/copystring/ioBroker.roborock/blob/main/README.md"
     },
     "platform": "Javascript/Node.js",
-    "main": "main.js",
     "icon": "roborock.png",
     "enabled": true,
     "extIcon": "https://raw.githubusercontent.com/copystring/ioBroker.roborock/main/admin/roborock.png",
@@ -175,6 +174,8 @@
     "password"
   ],
   "native": {
+    "username": "",
+    "password": "",
     "enable_map_creation": false,
     "map_creation_interval": 2,
     "map_scale": 2,
