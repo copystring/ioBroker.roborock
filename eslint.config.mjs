@@ -2,11 +2,9 @@ import globals from "globals";
 
 export default [
 	{
-		ignorePatterns: ["**/.eslintrc.js", "admin/words.js"],
-	},
-	{
 		files: ["**/*.js"],
 		excludedFiles: ["lib/map/zones.js"],
+		ignores: ["**/.eslintrc.js", "admin/words.js"],
 		languageOptions: {
 			ecmaVersion: 2020,
 			sourceType: "module",
