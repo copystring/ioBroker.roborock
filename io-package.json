@@ -1,9 +1,22 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.6.5",
+    "version": "0.6.6",
     "tier": 1,
     "news": {
+      "0.6.6": {
+        "en": "require min node 20 to operate correctly with current dependencies",
+        "de": "min-knoten 20 muss mit aktuellen abhängigkeiten korrekt arbeiten",
+        "ru": "потребовать min node 20 для правильной работы с текущими зависимостями",
+        "pt": "exigir o nó 20 min para operar corretamente com dependências atuais",
+        "nl": "vereist min node 20 om correct te werken met huidige afhankelijkheden",
+        "fr": "nécessite un nœud min 20 pour fonctionner correctement avec les dépendances actuelles",
+        "it": "richiedono nodo min 20 per operare correttamente con le dipendenze attuali",
+        "es": "requiere nodo 20 min para funcionar correctamente con las dependencias actuales",
+        "pl": "wymagają, aby węzeł min 20 działał prawidłowo z bieżącymi zależnościami",
+        "uk": "потрібно хв вузол 20, щоб працювати правильно з поточними залежностями",
+        "zh-cn": "需要 min 节点 20 才能在当前依赖关系下正确运行"
+      },
       "0.6.5": {
         "en": "Add and fix some parameters and attributes\nFix getMap() in getParameter()\nAdd connection state to timeouts\nDetect and report unsupported attributes\nImprove camera and voice support detection\nWait for TCP client to connect on start of adapter\nAdd handling of TCP chunks. This will fix a lot of timeouts 🎉\nManage stop/stop in the webinterface via state of robot instead of guessing via clicking the buttons in the webinterface\nRefactor and improve javascript code of web interface\nAdd Roborock Q Revo Pro\nUpdate dependencies",
         "de": "Fügen und fixieren Sie einige Parameter und Attribute\nGetMap() in getParameter() reparieren\nFügen Sie den Verbindungszustand zu Timeouts hinzu\nErkennen und melden Sie nicht unterstützte Attribute\nVerbesserung der Kamera- und Sprachunterstützungserkennung\nWarten Sie auf TCP-Client, um am Anfang des Adapters zu verbinden\nFügen Sie die Handhabung von TCP-Stücken hinzu. Dies wird eine Menge Zeitouts beheben 🎉\nStopp/Stopp im Webinterface über den Zustand des Roboters verwalten, anstatt zu erraten, indem Sie auf die Schaltflächen im Webinterface klicken\nRefactor und verbessern Javascript-Code der Web-Schnittstelle\nRoborock Q Revo Pro hinzufügen\nAbhängigkeiten aktualisieren",
@@ -81,19 +94,6 @@
         "pl": "Nowy i ulepszony menedżer kolejki wiadomości\nPrzelicz funkcje robota do nowego znacznie bardziej modułowego systemu\nDodaj wsparcie dla dużych zdjęć przeszkód\nWiele poprawek, których nie pamiętam: D",
         "uk": "Новий та покращений обробник черги повідомлення\nПеретворення функцій роботи на новий модуль\nДодати підтримку для великих фото перешкод\nБагато виправлень помилок я не можу пам'ятати :D",
         "zh-cn": "新建和改进的消息队列处理器\n将机器人特性转换为新的更多模块化系统\n添加障碍的大照片支持\n许多错误修正我不记得: D"
-      },
-      "0.5.4": {
-        "en": "Fix mqtt disconnect/reconnect bug on start of adapter",
-        "de": "Behebt mqtt den Fehler beim Start des Adapters",
-        "ru": "Fix mqtt отключения/подключения клопа в начале адаптера",
-        "pt": "Corrigir mqtt desconectar/reconectar o erro no início do adaptador",
-        "nl": "Fix mqtt loskoppelen/reconnect bug bij het starten van de adapter",
-        "fr": "Correction du bug de déconnexion/reconnect de mqtt au début de l'adaptateur",
-        "it": "Fissare mqtt scollegare/ricollegare bug all'inizio dell'adattatore",
-        "es": "Fijar el fallo de desconexión/reconexión en el inicio del adaptador",
-        "pl": "Napraw błąd odłączenia / ponownego podłączenia mqtt na początku adaptera",
-        "uk": "Виправлення mqtt відключення / відключення помилок на запуску адаптера",
-        "zh-cn": "在适配器启动时修复 mqtt 断开/ 重连接错误"
       }
     },
     "titleLang": {
