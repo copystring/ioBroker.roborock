@@ -264,7 +264,11 @@ class Roborock extends utils.Adapter {
 					needtwostepauth: "false",
 				}).toString()
 			)
-			.then((res) => res.data.data);
+			.then((res) => res.data.data)
+			.catch((error) => {
+				this.catchError(error.stack, "getUserData");
+				return;
+			});
 
 		// Alternative without password:
 		// await loginApi.post("api/v1/sendEmailCode", new url.URLSearchParams({username: username, type: "auth"}).toString()).then(res => res.data);
