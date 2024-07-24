@@ -21,28 +21,38 @@
 			"label": "Map Creation Interval",
 			"newLine": true,
 			"min": 1,
-			"max": 240
+			"max": 240,
+			"style": {
+			  "width": "198px"
+			}
 		},
 		"updateInterval": {
 			"type": "number",
 			"label": "Update interval",
 			"newLine": true,
 			"min": 1,
-			"max": 240
+			"max": 240,
+			"style": {
+			  "width": "198px"
+			}
 		},
 		"map_scale": {
 			"type": "number",
 			"label": "Quality of map (higher = better)",
 			"newLine": true,
 			"min": 1,
-			"max": 32
+			"max": 32,
+			"style": {
+			  "width": "198px"
+			}
 		},
 		"webserverPort": {
-			"type": "number",
+			"type": "port",
 			"label": "Webserver Port",
 			"newLine": true,
-			"min": 1,
-			"max": 65535
+			"style": {
+			  "width": "198px"
+			}
 		},
 		"hostname_ip": {
 			"type": "text",
