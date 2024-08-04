@@ -12,7 +12,8 @@
     "ioBroker",
     "template",
     "Smart Home",
-    "home automation"
+    "home automation",
+    "roborock"
   ],
   "repository": {
     "type": "git",
