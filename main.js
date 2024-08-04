@@ -978,6 +978,27 @@ class Roborock extends utils.Adapter {
 			unit: unit,
 			read: true,
 			write: false,
+			states: {"10": "OK", "01": "ERROR"},
+		};
+
+		this.setObjectAsync(path, {
+			type: "state",
+			common: common,
+			native: {},
+		});
+	}
+
+	async createDockingStationObject(duid, state, type, states, unit) {
+		const path = `Devices.${duid}.dockingStationStatus.${state}`;
+		const name = this.translations[state];
+
+		const common = {
+			name: name,
+			type: type,
+			role: "value",
+			unit: unit,
+			read: true,
+			write: false,
 			states: states,
 		};
 
