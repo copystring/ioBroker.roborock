@@ -30,19 +30,6 @@
         "uk": "Виправлення io-package.json і оновлення пакетів",
         "zh-cn": "修复 io- package.json 和更新软件包"
       },
-      "0.6.3": {
-        "en": "Add consumables to Qrevo MaxV\nFix S5 Max clean records defintion\nFix app_start via web interface\nImprove local devices discovery",
-        "de": "Verbrauchsmaterialien zu Qrevo MaxV hinzufügen\nFix S5 Max Clean Records defination\nApp_start über die Web-Schnittstelle beheben\nLokale Geräte entdecken",
-        "ru": "Добавить расходные материалы в Qrevo MaxV\nИсправление S5 Max чистых записей\nИсправить приложение_запуск через веб-интерфейс\nУлучшить обнаружение местных устройств",
-        "pt": "Adicionar consumíveis a Qrevo MaxV\nCorrigir definição de registros limpos S5 Max\nFix app_start via interface web\nMelhorar a descoberta de dispositivos locais",
-        "nl": "Verbruiksgoederen toevoegen aan Qrevo MaxV\nFix S5 Max clean records defintion\nApp_start herstellen via webinterface\nVerbeteren van lokale apparaten ontdekking",
-        "fr": "Ajouter des consommables à Qrevo MaxV\nCorrection des enregistrements S5 Max propres définition\nCorrection de l'app_start via l'interface web\nAméliorer la découverte des appareils locaux",
-        "it": "Aggiungi materiali di consumo a Qrevo MaxV\nFissare S5 Max disco pulito definzione\nFissa app_start tramite interfaccia web\nMigliorare la scoperta dei dispositivi locali",
-        "es": "Añadir consumibles a Qrevo MaxV\nFijar S5 Max registros limpios definición\nFijar app_start a través de la interfaz web\nMejorar el descubrimiento de dispositivos locales",
-        "pl": "Dodaj materiały eksploatacyjne do Qrevo MaxV\nFix S5 Max czysta definicja rekordów\nFix app _ start poprzez interfejs webowy\nUlepszenie wyszukiwania urządzeń lokalnych",
-        "uk": "Додати витратні матеріали до Qrevo MaxV\nФіксація S5 Max очищення записів\nВиправлення app_start через веб-інтерфейс\nПокращення відкриття локальних пристроїв",
-        "zh-cn": "将消耗品添加到 Qrevo MaxV\n修复 S5 最大清洁记录定义\n通过网络界面修复app_启动\n改进本地设备的发现"
-      },
       "0.6.2": {
         "en": "Fix start of go2rtc",
         "de": "Start von go2rtc",
@@ -68,19 +55,6 @@
         "pl": "Napraw lint",
         "uk": "Фіксований відтінок",
         "zh-cn": "修补线"
-      },
-      "0.6.0": {
-        "en": "New and improved message queue handler\nConvert robot features to new much more modular system\nAdd support for large photos of obstacles\nMany bug fixes I can't remember :D",
-        "de": "Neuer und verbesserter Nachrichtenwartegriff\nRoboter-Features in neues viel mehr modulares System umwandeln\nUnterstützung für große Fotos von Hindernissen\nViele Fehlerbehebungen kann ich mich nicht erinnern :D",
-        "ru": "Новый и улучшенный обработчик очереди сообщений\nПеревести функции роботов в новые гораздо более модульные системы\nДобавить поддержку для больших фотографий препятствий\nМногие исправления ошибок, которые я не могу вспомнить:D",
-        "pt": "Manipulador de fila de mensagem novo e melhorado\nConverter recursos de robô para novo sistema muito mais modular\nAdicionar suporte para grandes fotos de obstáculos\nMuitas correções de bugs que não me lembro :D",
-        "nl": "Nieuwe en verbeterde bericht wachtrij-afhandeling\nConverteer robot functies naar nieuwe veel meer modulair systeem\nOndersteuning toevoegen voor grote foto's van obstakels\nVeel bug fixes die ik me niet kan herinneren:D",
-        "fr": "Nouveau gestionnaire de files d'attente de messages amélioré\nConvertir les fonctionnalités du robot en un nouveau système beaucoup plus modulaire\nAjouter un support pour les grandes photos des obstacles\nBeaucoup de corrections de bugs dont je ne me souviens pas :D",
-        "it": "Nuovo e migliorato gestore della coda dei messaggi\nConvertire funzioni robot in un nuovo sistema molto più modulare\nAggiungi supporto per grandi foto di ostacoli\nMolte correzioni di bug non ricordo:D",
-        "es": "Manejador de cola de mensaje nuevo y mejorado\nConvertir características de robot en nuevo sistema mucho más modular\nAñadir soporte para grandes fotos de obstáculos\nMuchas correcciones de errores que no puedo recordar :D",
-        "pl": "Nowy i ulepszony menedżer kolejki wiadomości\nPrzelicz funkcje robota do nowego znacznie bardziej modułowego systemu\nDodaj wsparcie dla dużych zdjęć przeszkód\nWiele poprawek, których nie pamiętam: D",
-        "uk": "Новий та покращений обробник черги повідомлення\nПеретворення функцій роботи на новий модуль\nДодати підтримку для великих фото перешкод\nБагато виправлень помилок я не можу пам'ятати :D",
-        "zh-cn": "新建和改进的消息队列处理器\n将机器人特性转换为新的更多模块化系统\n添加障碍的大照片支持\n许多错误修正我不记得: D"
       },
       "0.5.4": {
         "en": "Fix mqtt disconnect/reconnect bug on start of adapter",
@@ -151,7 +125,7 @@
     },
     "dependencies": [
       {
-        "js-controller": ">=3.3.22"
+        "js-controller": ">=5.0.19"
       }
     ],
     "globalDependencies": [
