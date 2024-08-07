@@ -1000,7 +1000,7 @@ class Roborock extends utils.Adapter {
 				role: "value",
 				read: true,
 				write: false,
-				states: {"10": "OK", "01": "ERROR"},
+				states: {"0":"UNKNOWN", "1": "ERROR", "2": "OK"},
 			},
 			native: {},
 		});
