@@ -53,7 +53,7 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.6.6 (2024-07-14)
 * (copystring) require min node 20 to operate correctly with current dependencies
 
 ### 0.6.5 (2024-07-13)
