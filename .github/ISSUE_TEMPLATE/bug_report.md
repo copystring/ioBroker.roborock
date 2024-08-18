@@ -1,6 +1,12 @@
 ---
 name: Bug report
-description: Report a bug and upload your debug log file
+about: Report a bug and upload your debug log file
+title: "[BUG] "
+labels: bug
+assignees: ''
+
+---
+
 title: "[BUG] "
 labels: bug
 assignees: ''
