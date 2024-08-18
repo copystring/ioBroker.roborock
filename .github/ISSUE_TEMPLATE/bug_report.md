@@ -1,7 +1,7 @@
 ---
 name: Bug report
 about: Something is not working as it should
-title: ''
+title: "[BUG] "
 labels: ''
 assignees: ''
 
@@ -20,8 +20,10 @@ Steps to reproduce the behavior:
 **Expected behavior**  
 A clear and concise description of what you expected to happen.
 
-**Screenshots & Logfiles**  
-If applicable, add screenshots and logfiles to help explain your problem.
+**Screenshots & Logfiles (Required)**  
+To help us understand and fix the issue, please upload relevant screenshots and the debug log as a .txt file.
+
+[Please upload your debug log here]
 
 **Versions:**  
  - Adapter version: <adapter-version>
