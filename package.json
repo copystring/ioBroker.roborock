@@ -29,7 +29,7 @@
     "@sentry/tracing": "^7.114.0",
     "@terascope/fetch-github-release": "^0.8.10",
     "@tsconfig/node18": "^18.2.4",
-    "axios": "^1.7.2",
+    "axios": "^1.7.4",
     "binary-parser": "^2.2.1",
     "canvas": "^2.11.2",
     "crc-32": "^1.2.2",
