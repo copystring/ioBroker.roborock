@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Bug Report
+    url: /issues/new?template=bug_report.yaml
+    about: Report a bug with the required information and debug logs.
+  - name: Feature Request
+    url: /issues/new?template=feature_request.md
+    about: Suggest a new feature or enhancement.
