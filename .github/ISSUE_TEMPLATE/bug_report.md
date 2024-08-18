@@ -1,35 +1,122 @@
 ---
 name: Bug report
-about: Something is not working as it should
+description: Report a bug and upload your debug log file
 title: "[BUG] "
 labels: bug
 assignees: ''
 
----
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Describe the bug
+        A clear and concise description of what the bug is.
 
-**Describe the bug**  
-A clear and concise description of what the bug is.
+  - type: textarea
+    id: bug_description
+    attributes:
+      label: "Bug Description"
+      description: "A clear and concise description of what the bug is."
+      placeholder: "Describe the bug..."
+      value: ""
+      required: true
 
-**To Reproduce**  
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '...'
-3. Scroll down to '....'
-4. See error
+  - type: markdown
+    attributes:
+      value: |
+        ## To Reproduce
+        Steps to reproduce the behavior:
+        1. Go to '...'
+        2. Click on '...'
+        3. Scroll down to '....'
+        4. See error
 
-**Expected behavior**  
-A clear and concise description of what you expected to happen.
+  - type: textarea
+    id: steps_to_reproduce
+    attributes:
+      label: "Steps to Reproduce"
+      description: "Describe the steps to reproduce the bug."
+      placeholder: "List the steps here..."
+      value: ""
+      required: true
 
-**Screenshots & Logfiles (Required)**  
-To help us understand and fix the issue, please upload relevant screenshots and the debug log as a .txt file.
+  - type: markdown
+    attributes:
+      value: |
+        ## Expected behavior
+        A clear and concise description of what you expected to happen.
 
-[Please upload your debug log here]
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: "Expected Behavior"
+      description: "What did you expect to happen?"
+      placeholder: "Describe the expected behavior..."
+      value: ""
+      required: true
 
-**Versions:**  
- - Adapter version: <adapter-version>
- - JS-Controller version: <js-controller-version> <!-- determine this with `iobroker -v` on the console -->
- - Node version: <node-version> <!-- determine this with `node -v` on the console -->
- - Operating system: <os-name>
+  - type: markdown
+    attributes:
+      value: |
+        ## Screenshots & Logfiles (Required)
+        To help us understand and fix the issue, please upload relevant screenshots and the debug log as a .txt file.
 
-**Additional context**  
-Add any other context about the problem here.
+  - type: file-upload
+    id: debug_log
+    attributes:
+      label: "Debug Log"
+      description: "Upload your debug log as a .txt file."
+      accept: .txt
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ## Versions
+        Please provide the following version information.
+
+  - type: input
+    id: adapter_version
+    attributes:
+      label: "Adapter Version"
+      description: "Version of the adapter"
+      placeholder: "<adapter-version>"
+      required: true
+
+  - type: input
+    id: js_controller_version
+    attributes:
+      label: "JS-Controller Version"
+      description: "Version of the JS-Controller (use `iobroker -v` to determine this)"
+      placeholder: "<js-controller-version>"
+      required: true
+
+  - type: input
+    id: node_version
+    attributes:
+      label: "Node.js Version"
+      description: "Version of Node.js (use `node -v` to determine this)"
+      placeholder: "<node-version>"
+      required: true
+
+  - type: input
+    id: os_name
+    attributes:
+      label: "Operating System"
+      description: "Name of the operating system"
+      placeholder: "<os-name>"
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ## Additional context
+        Add any other context about the problem here.
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: "Additional Context"
+      description: "Any other details that might help us understand the issue."
+      placeholder: "Add any additional context here..."
+      required: false
