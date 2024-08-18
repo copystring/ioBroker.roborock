@@ -1,0 +1,17 @@
+name: Check for Debug Log in Bug Reports
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  check-debuglog:
+    if: contains(github.event.issue.labels.*.name, 'bug')
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check for Debug Log
+      run: |
+        if ! echo "${{ github.event.issue.body }}" | grep -q "\.txt"; then
+          echo "Error: Please upload a debug log as a .txt file." >&2
+          exit 1
+        fi
