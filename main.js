@@ -336,8 +336,7 @@ class Roborock extends utils.Adapter {
 				this.vacuums[duid].mainUpdateInterval(); // actually start mainUpdateInterval()
 			}
 
-			this.vacuums[duid].getStatusIntervall = () =>
-				this.setInterval(this.getStatus.bind(this), 1000, duid, this.vacuums[duid], robotModel);
+			this.vacuums[duid].getStatusIntervall = () => this.setInterval(this.getStatus.bind(this), 1000, duid, this.vacuums[duid], robotModel);
 			if (device.online) {
 				this.log.debug(duid + " online. Starting getStatusIntervall.");
 				this.vacuums[duid].getStatusIntervall(); // actually start getStatusIntervall()
@@ -470,7 +469,6 @@ class Roborock extends utils.Adapter {
 		socketServer.on("connection", async (socket) => {
 			this.socket = socket;
 			this.log.debug("Websocket client connected");
-
 
 			socket.on("pong", () => {
 				this.socket = socket;
@@ -1394,8 +1392,29 @@ class Roborock extends utils.Adapter {
 					switch (command) {
 						case "app_zoned_clean":
 						case "app_goto_target":
-							if (typeof state.val == "string") {
-								this.vacuums[duid].command(duid, command, JSON.parse(state.val));
+							if (typeof state.val === "string") {
+								try {
+									const params = JSON.parse(state.val);
+
+									const isCorrectLength =
+										(command === "app_zoned_clean" && (params.length === 4 || params.length === 5)) || (command === "app_goto_target" && params.length === 4);
+
+									const areAllNumbers = params.every((item) => typeof item === "number");
+
+									const isValidFifth = params.length !== 5 || (params[4] >= 1 && params[4] <= 3);
+
+									if (isCorrectLength && areAllNumbers && isValidFifth) {
+										this.vacuums[duid].command(duid, command, params);
+									} else {
+										let expectedFormat = "[x1, y1, x2, y2]";
+										if (command === "app_zoned_clean") {
+											expectedFormat += " or [x1, y1, x2, y2, repeat] (where repeat is between 1 and 3)";
+										}
+										this.log.error(`Invalid command parameters for ${command}: ${state.val}. Expected format: ${expectedFormat}`);
+									}
+								} catch (error) {
+									this.log.error(`Error parsing JSON for ${command}: ${error}`);
+								}
 							}
 							break;
 					}
