@@ -1308,9 +1308,9 @@ class Roborock extends utils.Adapter {
 	}
 
 	async catchError(error, attribute, duid) {
-		const onlineState = await this.onlineChecker(duid);
+		// const onlineState = await this.onlineChecker(duid);
 
-		if (onlineState) {
+		// if (onlineState) {
 			if (error.toString().includes("retry") || error.toString().includes("locating") || error.toString().includes("timed out after 10 seconds")) {
 				this.log.warn(`Failed to execute ${attribute} on robot ${duid} ${error}`);
 			} else {
@@ -1322,7 +1322,7 @@ class Roborock extends utils.Adapter {
 					}
 				}
 			}
-		}
+		// }
 	}
 
 	/**
