@@ -38,7 +38,7 @@
     "express": "^4.19.2",
     "fetch-github-release": "^1.0.0",
     "find-process": "^1.4.7",
-    "globals": "^15.8.0",
+    "globals": "^15.9.0",
     "jwk-to-pem": "^2.0.5",
     "mqtt": "^5.9.0",
     "npmlog": "^7.0.1",
