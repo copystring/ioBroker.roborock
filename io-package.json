@@ -1,9 +1,22 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.6.7",
+    "version": "0.6.8",
     "tier": 1,
     "news": {
+      "0.6.8": {
+        "en": "Q Revo supports `switch_status` in `get_status`",
+        "de": "Q Revo unterstützt `switch_status` in `get_status `",
+        "ru": "Q Revo поддерживает `switch_status' в `get_status \"",
+        "pt": "Q Revo suporta `switch_status` em `get_status \"",
+        "nl": "Q Revo ondersteunt de status van \"switch\" in de status \"get_status\" Wat",
+        "fr": "Q Revo prend en charge `switch_status` dans `get_status \"",
+        "it": "Q Revo supporta `switch_status` in `get_status #",
+        "es": "Q Revo apoya `switch_status` en `get_status `",
+        "pl": "Q Revo obsługuje 'switch _ status' w 'get _ status'",
+        "uk": "Р Рево підтримка `switch_status` у `get_status й",
+        "zh-cn": "问题 Revo 在“ get_ status” 中支持“ switch_ status ” `"
+      },
       "0.6.7": {
         "en": "Update dependencies\nMany bug fixes\nImprove support for: Q Revo Pro\nAdd parsing of dss in deviceStatus as `docking station status`\nAdd `resume_segment_clean` & `stop_segment_clean`\nImprove reconnect intervall of direct connection\nAdd missing translations\nFix cleaningInfo of older Robots like S6 etc\nGeneral logging improvements",
         "de": "Abhängigkeiten aktualisieren\nViele Bugfixes\nUnterstützung für: Q Revo Pro\nFügen Sie Parsing von dss in deviceStatus als `docking station status hinzu `\n`resume_segment_clean` & `stop_segment_clean`\nReconnect Intervall der direkten Verbindung verbessern\nFehlende Übersetzungen hinzufügen\nReinigung Info Ã1⁄4ber ältere Roboter wie S6 etc\nAllgemeine Protokollierungsverbesserungen",
@@ -81,19 +94,6 @@
         "pl": "Napraw lint",
         "uk": "Фіксований відтінок",
         "zh-cn": "修补线"
-      },
-      "0.5.4": {
-        "en": "Fix mqtt disconnect/reconnect bug on start of adapter",
-        "de": "Behebt mqtt den Fehler beim Start des Adapters",
-        "ru": "Fix mqtt отключения/подключения клопа в начале адаптера",
-        "pt": "Corrigir mqtt desconectar/reconectar o erro no início do adaptador",
-        "nl": "Fix mqtt loskoppelen/reconnect bug bij het starten van de adapter",
-        "fr": "Correction du bug de déconnexion/reconnect de mqtt au début de l'adaptateur",
-        "it": "Fissare mqtt scollegare/ricollegare bug all'inizio dell'adattatore",
-        "es": "Fijar el fallo de desconexión/reconexión en el inicio del adaptador",
-        "pl": "Napraw błąd odłączenia / ponownego podłączenia mqtt na początku adaptera",
-        "uk": "Виправлення mqtt відключення / відключення помилок на запуску адаптера",
-        "zh-cn": "在适配器启动时修复 mqtt 断开/ 重连接错误"
       }
     },
     "titleLang": {
