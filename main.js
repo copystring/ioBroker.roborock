@@ -1323,6 +1323,9 @@ class Roborock extends utils.Adapter {
 				}
 			}
 		}
+		else {
+			this.log.warn(`Robot ${duid} is offline. ${attribute} failed.`);
+		}
 	}
 
 	/**
