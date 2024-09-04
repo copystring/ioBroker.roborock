@@ -53,7 +53,7 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.6.7 (2024-09-04)
 * (copystring) Update dependencies
 * (copystring) Many bug fixes
 * (copystring) Improve support for: Q Revo Pro

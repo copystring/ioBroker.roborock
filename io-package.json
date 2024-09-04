@@ -1,9 +1,22 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.6.6",
+    "version": "0.6.7",
     "tier": 1,
     "news": {
+      "0.6.7": {
+        "en": "Update dependencies\nMany bug fixes\nImprove support for: Q Revo Pro\nAdd parsing of dss in deviceStatus as `docking station status`\nAdd `resume_segment_clean` & `stop_segment_clean`\nImprove reconnect intervall of direct connection\nAdd missing translations\nFix cleaningInfo of older Robots like S6 etc\nGeneral logging improvements",
+        "de": "Abhängigkeiten aktualisieren\nViele Bugfixes\nUnterstützung für: Q Revo Pro\nFügen Sie Parsing von dss in deviceStatus als `docking station status hinzu `\n`resume_segment_clean` & `stop_segment_clean`\nReconnect Intervall der direkten Verbindung verbessern\nFehlende Übersetzungen hinzufügen\nReinigung Info Ã1⁄4ber ältere Roboter wie S6 etc\nAllgemeine Protokollierungsverbesserungen",
+        "ru": "Зависимости обновления\nМногие исправления ошибок\nУлучшить поддержку: Q Revo Pro\nДобавить почерк dss в deviceStatus в качестве `docking station status \"\nДобавить `resume_segment_clean & `stop_segment_clean`\nУлучшить переподключение интервала прямого подключения\nДобавить недостающие переводы\nОчистка Информация о старых роботах, таких как S6 и т.д\nОбщее улучшение лесозаготовок",
+        "pt": "Dependências de atualização\nMuitas correções de bugs\nMelhorar o suporte para: Q Revo Pro\nAdicionar análise de dss no dispositivoStatus como status da estação de `docking \"\nAdicionar `resume_segment_clean` & `stop_segment_clean`\nMelhore o intervalo de reconectação da conexão direta\nAdicionar traduções em falta\nLimpeza fixa Info de robôs mais velhos como S6 etc\nMelhorias gerais de registro",
+        "nl": "Afhankelijkheden bijwerken\nVeel fouten verholpen\nOndersteuning verbeteren voor: Q Revo Pro\nHet verwerken van dss in deviceStatus toevoegen als de status van het dockingstation Wat\nVoeg \nVerbeteren reconnect intervall van directe verbinding\nOntbrekende vertalingen toevoegen\nReinigen Informatie over oudere robots zoals S6 etc\nAlgemene verbeteringen in de houtkap",
+        "fr": "Mise à jour des dépendances\nBeaucoup de corrections de bogues\nAméliorer le support pour : Q Revo Pro\nAjouter l'analyse de dss dans l'appareilStatut de la station d'aiguillage \"\nAjouter `resume_segment_clean` et `stop_segment_clean`\nAméliorer l'intervalle de connexion direct\nAjouter les traductions manquantes\nFixer le nettoyage Info de robots plus anciens comme S6 etc\nAmélioration générale de l'exploitation forestière",
+        "it": "Dipendenze di aggiornamento\nMolte correzioni di bug\nMigliora il supporto per: Q Revo Pro\nAggiungi parsing di dss nel dispositivoStatus come `docking stato della stazione #\nAggiungi `resume_segment_clean` & `stop_segment_clean`\nMigliorare l'intervallo di connessione diretta\nAggiungi le traduzioni mancanti\nFissare la pulizia Info su vecchi robot come S6 ecc\nMiglioramenti generali di registrazione",
+        "es": "Actualizar las dependencias\nMuchas correcciones de errores\nMejorar el soporte para: Q Revo Pro\nAñadir paresing de dss en el dispositivoStatus como ` estado de estación de estacionamiento `\nAdd `resume_segment_clean` ' stop_segment_clean`\nMejorar el intervalo de conexión directa\nAñadir traducciones desaparecidas\nLimpieza fija Información de robots antiguos como S6 etc\nMejoras generales de registro",
+        "pl": "Aktualizuj zależności\nWiele poprawek\nPoprawa wsparcia dla: Q Revo Pro\nDodaj parsing dss in deviceStatus jako 'status stacji dokującej'\nDodaj 'CV _ segment _ clean' & 'stop _ segment _ clean'\nPoprawa reconnect intervall bezpośredniego połączenia\nDodaj brakujące tłumaczenia\nNapraw czyszczenie Informacje o starszych robotach takich jak S6 itp\nOgólne ulepszenia w zakresie logowania",
+        "uk": "Оновлення залежності\nБагато виправлення помилок\nПідтримка: Q Revo Pro\nДодайте підписи на ds в пристроїStatus як статус `docking Station й\n`resume_segment_clean` & `stop_segment_clean`\nПокращення інтервалу відключення прямого з'єднання\nДодати відсутні переклади\nФіксація Інформація старших роботів, таких як S6 і т.д\nУдосконалення загального входу",
+        "zh-cn": "更新依赖关系\n许多错误修正\n改进对 QRevo Pro 的支持\n在设备中添加 ds 解析状态为“ docking station ” `\n添加“ resume_section_sclean” 和“ stop_section_sclean”\n改进直接连接的重联间隔\n添加缺失的翻译\n修补清洁 S6等较老机器人的信息\n一般伐木改进"
+      },
       "0.6.6": {
         "en": "require min node 20 to operate correctly with current dependencies",
         "de": "min-knoten 20 muss mit aktuellen abhängigkeiten korrekt arbeiten",
