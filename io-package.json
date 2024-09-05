@@ -1,9 +1,22 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.6.9",
+    "version": "0.6.10",
     "tier": 1,
     "news": {
+      "0.6.10": {
+        "en": "Add `set_switch_status` to S7 MaxV and Q Revo Pro",
+        "de": "`set_switch_status` zu S7 MaxV und Q Revo Pro hinzufügen",
+        "ru": "Добавить `set_switch_status' в S7 MaxV и Q Revo Pro",
+        "pt": "Adicione `set_switch_status` ao S7 MaxV e Q Revo Pro",
+        "nl": "Toevoegen aan S7 MaxV en Q Revo Pro",
+        "fr": "Ajouter `set_switch_status` à S7 MaxV et Q Revo Pro",
+        "it": "Aggiungi `set_switch_status` a S7 MaxV e Q Revo Pro",
+        "es": "Añadir `set_switch_status` a S7 MaxV y Q Revo Pro",
+        "pl": "Dodaj 'set _ switch _ status' do S7 MaxV i Q Revo Pro",
+        "uk": "Додати `set_switch_status` до S7 MaxV та Q Revo Pro",
+        "zh-cn": "在 S7 MaxV 和 Q Revo Pro 中添加“ set_switch_status ”"
+      },
       "0.6.9": {
         "en": "Fix bugs\nAdd missing states\nAdd missing translations",
         "de": "Fehler beheben\nFehlende Staaten hinzufügen\nFehlende Übersetzungen hinzufügen",
@@ -81,19 +94,6 @@
         "pl": "Napraw jo- package.json i uaktualnij pakiety",
         "uk": "Виправлення io-package.json і оновлення пакетів",
         "zh-cn": "修复 io- package.json 和更新软件包"
-      },
-      "0.6.2": {
-        "en": "Fix start of go2rtc",
-        "de": "Start von go2rtc",
-        "ru": "Исправлено начало go2rtc",
-        "pt": "Fix start of go2rtc",
-        "nl": "Begin van Go2rtc herstellen",
-        "fr": "Correction du début de go2rtc",
-        "it": "Risolvere l'inizio di go2rtc",
-        "es": "Inicio fijo de go2rtc",
-        "pl": "Napraw start go2rtc",
-        "uk": "Виправлення запуску go2rtc",
-        "zh-cn": "修复 go2rtc 的开始"
       }
     },
     "titleLang": {
