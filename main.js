@@ -1307,14 +1307,14 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
-	async catchError(error, attribute, duid) {
+	async catchError(error, attribute, duid, model) {
 		const onlineState = await this.onlineChecker(duid);
 
 		if (onlineState) {
 			if (error.toString().includes("retry") || error.toString().includes("locating") || error.toString().includes("timed out after 10 seconds")) {
-				this.log.warn(`Failed to execute ${attribute} on robot ${duid} ${error}`);
+				this.log.warn(`Failed to execute ${attribute} on robot ${duid} (${model || "unknown model"}) ${error}`);
 			} else {
-				this.log.error(`Failed to execute ${attribute} on robot ${duid} ${error.stack || error}`);
+				this.log.error(`Failed to execute ${attribute} on robot ${duid} (${model || "unknown model"}) ${error.stack || error}`);
 
 				if (this.supportsFeature && this.supportsFeature("PLUGINS")) {
 					if (this.sentryInstance) {
