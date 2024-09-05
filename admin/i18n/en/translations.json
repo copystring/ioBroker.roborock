@@ -209,5 +209,8 @@
     "webserverPort": "Webserver Port",
     "in_warmup": "Warming up",
     "common_status": "Common status",
-    "corner_clean_mode": "Corner Cleaning Mode"
+    "corner_clean_mode": "Corner Cleaning Mode",
+    "cleaningInfo_clean_time": "Cleaning Time",
+    "cleaningInfo_clean_area": "Cleaning Area",
+    "cleaningInfo_clean_count": "Total cleaning cycles"
 }
