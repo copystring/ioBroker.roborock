@@ -1,9 +1,22 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.6.8",
+    "version": "0.6.9",
     "tier": 1,
     "news": {
+      "0.6.9": {
+        "en": "Fix bugs\nAdd missing states\nAdd missing translations",
+        "de": "Fehler beheben\nFehlende Staaten hinzufügen\nFehlende Übersetzungen hinzufügen",
+        "ru": "Fix ошибки\nДобавить недостающие состояния\nДобавить недостающие переводы",
+        "pt": "Corrigir erros\nAdicionar estados desaparecidos\nAdicionar traduções em falta",
+        "nl": "Fix bugs\nOntbrekende staten toevoegen\nOntbrekende vertalingen toevoegen",
+        "fr": "Correction des bogues\nAjouter les états manquants\nAjouter les traductions manquantes",
+        "it": "Correggi i bug\nAggiungi stati mancanti\nAggiungi le traduzioni mancanti",
+        "es": "Corregir errores\nAgregar estados desaparecidos\nAñadir traducciones desaparecidas",
+        "pl": "Napraw błędy\nDodaj brakujące stany\nDodaj brakujące tłumaczenia",
+        "uk": "Виправлення помилок\nДодати відсутні стани\nДодати відсутні переклади",
+        "zh-cn": "修复错误\n添加缺失状态\n添加缺失的翻译"
+      },
       "0.6.8": {
         "en": "Q Revo supports `switch_status` in `get_status`",
         "de": "Q Revo unterstützt `switch_status` in `get_status `",
@@ -81,19 +94,6 @@
         "pl": "Napraw start go2rtc",
         "uk": "Виправлення запуску go2rtc",
         "zh-cn": "修复 go2rtc 的开始"
-      },
-      "0.6.1": {
-        "en": "Fix lint",
-        "de": "Fix lint",
-        "ru": "Fix lint",
-        "pt": "Fix lint",
-        "nl": "Fix plint",
-        "fr": "Fixer la peluche",
-        "it": "Fissare l'intreccio",
-        "es": "Lino fijo",
-        "pl": "Napraw lint",
-        "uk": "Фіксований відтінок",
-        "zh-cn": "修补线"
       }
     },
     "titleLang": {
