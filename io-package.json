@@ -1,9 +1,22 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.6.10",
+    "version": "0.6.11",
     "tier": 1,
     "news": {
+      "0.6.11": {
+        "en": "Add `voice_chat_status` to S7 MaxV",
+        "de": "Fügen Sie `voice_chat_status` zu S7 MaxV hinzu",
+        "ru": "Добавить `voice_chat_status' в S7 MaxV",
+        "pt": "Adicionar `voice_chat_status` a S7 MaxV",
+        "nl": "Toevoegen aan S7 MaxV",
+        "fr": "Ajouter `voix_chat_status` à S7 MaxV",
+        "it": "Aggiungi `voice_chat_status` a S7 MaxV",
+        "es": "Añadir `voice_chat_status` a S7 MaxV",
+        "pl": "Dodaj 'voice _ chat _ status' do S7 MaxV",
+        "uk": "Додати `voice_chat_status` до S7 MaxV",
+        "zh-cn": "将“ voice_ chat_ status” 添加到 S7 最大值"
+      },
       "0.6.10": {
         "en": "Add `set_switch_status` to S7 MaxV and Q Revo Pro",
         "de": "`set_switch_status` zu S7 MaxV und Q Revo Pro hinzufügen",
@@ -81,19 +94,6 @@
         "pl": "Dodawanie i naprawianie niektórych parametrów i atrybutów\nFix getMap () in getParameter ()\nDodaj stan połączenia do timeout\nWykrywanie i raportowanie nieobsługiwanych atrybutów\nPoprawa wykrywania kamery i wsparcia głosowego\nPoczekaj, aż klient TCP podłączy się na początku adaptera\nDodaj obsługę części TCP. To naprawi wiele przerw czasowych\nZarządzanie zatrzymaniem / zatrzymaniem w Interfejsie WWW poprzez stan robota zamiast zgadywania poprzez kliknięcie przycisków w Interfejsie WWW\nZmień i ulepsz kod Javascript interfejsu WWW\nDodaj Robolock Q Revo Pro\nAktualizuj zależności",
         "uk": "Додавання та виправлення параметрів та атрибутів\nВиправлення getMap() в getParameter()\nДодати стан з'єднання до розкладу\nВиявлення та звіт непідтримуваних атрибутів\nПокращення виявлення відеокамери та голосової підтримки\nОчікується клієнту TCP для підключення на старті адаптера\nДодавання обробки ручок TCP. Це дозволить виправити багато часу 🎉\nКерування зупинкою/стопкою в веб-інтерфейсі через стан роботи замість того, щоб натиснути кнопки в webinterface\nРефактор і поліпшення поштового індексу веб-інтерфейсу\nДодати Roborock Q Revo Pro\nОновлення залежності",
         "zh-cn": "添加并修正一些参数和属性\n在 getParemeter () 中修正获取地图\n将连接状态添加到超时\n检测和报告不支持的属性\n改进相机和语音支持检测\n等待 TCP 客户端在适配器启动时连接\n添加 TCP 块的处理 。 这会解决很多超时的问题\n通过机器人状态管理网络界面中的停止/停止,而不是通过点击网络界面中的按钮猜测\n修改和改进网络界面的javascript代码\n添加 Roborock Q Revo Pro 选项\n更新依赖关系"
-      },
-      "0.6.4": {
-        "en": "Fix io-package.json and update packages",
-        "de": "Fix io-package.json und Update-Pakete",
-        "ru": "Fix io-package.json и обновления пакетов",
-        "pt": "Fix io-package.json e pacotes de atualização",
-        "nl": "Fix io-package.json en update pakketten",
-        "fr": "Correction des paquets io-package.json et mise à jour",
-        "it": "Fissare i pacchetti io-package.json e aggiornare i pacchetti",
-        "es": "Fijar io-package.json y actualizar paquetes",
-        "pl": "Napraw jo- package.json i uaktualnij pakiety",
-        "uk": "Виправлення io-package.json і оновлення пакетів",
-        "zh-cn": "修复 io- package.json 和更新软件包"
       }
     },
     "titleLang": {

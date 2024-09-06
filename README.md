@@ -53,7 +53,7 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.6.11 (2024-09-06)
 * (copystring) Add `voice_chat_status` to S7 MaxV
 
 ### 0.6.10 (2024-09-05)
