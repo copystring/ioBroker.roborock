@@ -6,13 +6,9 @@ const axios = require("axios");
 const crypto = require("crypto");
 const websocket = require("ws");
 const express = require("express");
-const os = require("os");
-const fs = require("fs");
-const path = require("path");
-const { execFile } = require("child_process");
-const findProcess = require("find-process");
+const childProcess = require("child_process");
+const go2rtcPath = require("go2rtc-static"); // Pfad zur Binärdatei
 
-const { downloadRelease } = require("@terascope/fetch-github-release");
 
 const rrLocalConnector = require("./lib/localConnector").localConnector;
 const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roborock_mqtt_connector;
@@ -22,17 +18,6 @@ const roborockPackageHelper = require("./lib/roborockPackageHelper").roborockPac
 const deviceFeatures = require("./lib/deviceFeatures").deviceFeatures;
 const messageQueueHandler = require("./lib/messageQueueHandler").messageQueueHandler;
 let socketServer, webserver;
-
-const systems = {
-	win32: { x64: "go2rtc_win64.zip" },
-	linux: {
-		arm: "go2rtc_linux_arm",
-		arm64: "go2rtc_linux_arm64",
-		ia32: "go2rtc_linux_i386",
-		x64: "go2rtc_linux_amd64",
-	},
-};
-let go2rtc;
 
 class Roborock extends utils.Adapter {
 	/**
@@ -238,12 +223,6 @@ class Roborock extends utils.Adapter {
 			}
 		} catch (error) {
 			this.log.error("Failed to get home details: " + error.stack);
-		}
-
-		try {
-			await this.download_go2rtc();
-		} catch (error) {
-			this.catchError(`Failed to download go2rtc. ${error.stack}`);
 		}
 
 		try {
@@ -998,7 +977,7 @@ class Roborock extends utils.Adapter {
 				role: "value",
 				read: true,
 				write: false,
-				states: {"0":"UNKNOWN", "1": "ERROR", "2": "OK"},
+				states: { 0: "UNKNOWN", 1: "ERROR", 2: "OK" },
 			},
 			native: {},
 		});
@@ -1209,52 +1188,6 @@ class Roborock extends utils.Adapter {
 		});
 	}
 
-	async download_go2rtc() {
-		const arch = os.arch();
-		const platform = os.platform();
-		const filename = systems[platform][arch];
-		const unzippedFilePath = "./lib/go2rtc/" + filename;
-		this.log.debug(`arch:  ${arch}`);
-		this.log.debug(`platform: ${platform}`);
-		this.log.debug(`System type: ${filename}`);
-
-		const user = "AlexxIT";
-		const repo = "go2rtc";
-		const outputdir = "./lib/go2rtc";
-		const filterRelease = (release) => release.prerelease === false;
-		const filterAsset = (asset) => asset.name.includes(filename);
-		const leaveZipped = false;
-
-		const outputFilePath = path.join(outputdir, filename);
-
-		if (fs.existsSync(outputFilePath)) {
-			// delete old file. Sometimes the adapter crashes and the file is not deleted.
-			try {
-				fs.unlinkSync(outputFilePath);
-				this.log.debug(`Old file ${outputFilePath} has been deleted.`);
-			} catch (error) {
-				this.log.error(`Error deleting old file ${outputFilePath}: ${error.message}`);
-			}
-		}
-
-		try {
-			await downloadRelease(user, repo, outputdir, filterRelease, filterAsset, leaveZipped);
-		} catch (error) {
-			this.log.error("Error: " + error.message);
-		}
-
-		if (platform != "win32") {
-			fs.chmod(unzippedFilePath, 0o755, (err) => {
-				if (err) {
-					this.log.error(`Error making ${unzippedFilePath} executable: ${err}`);
-				} else {
-					this.log.debug(`Made ${unzippedFilePath} executable`);
-				}
-			});
-			go2rtc = filename;
-		} else go2rtc = "go2rtc.exe";
-	}
-
 	async start_go2rtc(robots, userdata) {
 		let cameraCount = 0;
 
@@ -1275,35 +1208,24 @@ class Roborock extends utils.Adapter {
 			}
 		}
 
-		if (go2rtc && cameraCount > 0) {
-			const exePath = path.join(__dirname, "./lib/go2rtc/") + go2rtc;
-			this.log.debug(`exePath: ${exePath}`);
+		if (cameraCount > 0) {
+			const go2rtc_process = childProcess.spawn(go2rtcPath.toString(), ["-config", JSON.stringify(go2rtcConfig)], { shell: false, detached: false, windowsHide: true });
 
-			const processList = await findProcess("name", go2rtc);
+			go2rtc_process.on("error", (error) => {
+				this.log.error(`Error starting go2rtc: ${error}`);
+			});
 
-			if (processList) {
-				processList.forEach((proc) => {
-					this.log.debug(`Killing process with pid ${proc.pid}`);
-					process.kill(proc.pid, "SIGTERM");
-				});
-			}
+			go2rtc_process.stdout.on("data", (data) => {
+				this.log.debug(`go2rtc output: ${data}`);
+			});
 
-			try {
-				execFile(exePath, ["-config", JSON.stringify(go2rtcConfig)], (error, stdout, stderr) => {
-					if (error) {
-						this.log.error(`Error executing file ${error}`);
-						return;
-					}
-					if (stdout) {
-						this.log.debug(`Output from go2rtc: ${stdout}`);
-					}
-					if (stderr) {
-						this.log.error(`Error output from: ${stderr}`);
-					}
-				});
-			} catch (error) {
-				this.log.error(`Failed to launch go2rtc: ${error}`);
-			}
+			go2rtc_process.stderr.on("data", (data) => {
+				this.log.error(`go2rtc error output: ${data}`);
+			});
+
+			process.on("exit", () => {
+				go2rtc_process.kill();
+			});
 		}
 	}
 
@@ -1322,8 +1244,7 @@ class Roborock extends utils.Adapter {
 					}
 				}
 			}
-		}
-		else {
+		} else {
 			this.log.warn(`Robot ${duid} is offline. ${attribute} failed.`);
 		}
 	}
