@@ -1023,7 +1023,15 @@ class Roborock extends utils.Adapter {
 	}
 
 	async createCleaningRecord(duid, state, type, states, unit) {
-		for (let i = 0; i < 20; i++) {
+		let start = 0;
+		let end = 19;
+		const robotModel = this.getRobotModel(duid);
+		if (robotModel == "roborock.vacuum.a97") {
+			start = 1;
+			end = 20;
+		}
+
+		for (let i = start; i <= end; i++) {
 			await this.setObjectAsync(`Devices.${duid}.cleaningInfo.records.${i}`, {
 				type: "folder",
 				common: {
