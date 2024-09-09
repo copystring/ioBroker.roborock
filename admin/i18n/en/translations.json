@@ -131,7 +131,7 @@
     "msg_ver": "Message Version",
     "option1": "option1",
     "option2": "",
-    "rdt": "???",
+    "rdt": "Remaining dry time",
     "resetConsumables_description": "Consumables available for reset",
     "reset_dust_collection_work_times": "Dust collection",
     "reset_filter_element_work_time": "Filter element",
