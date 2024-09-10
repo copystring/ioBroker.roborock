@@ -54,9 +54,12 @@ This feature only works when map creation is enabled in the adapter options!
 	### **WORK IN PROGRESS**
 -->
 ### **WORK IN PROGRESS**
+ * (copystring) Bug fixes
  * (copystring) Add basic support for S8 MaxV Ultra
  * (copystring) Newly found attributes are now warning instead of error
  * (copystring) Improve detection of `home_sec`
+ * (copystring) Fix docking station detection
+ * (copystring) BREAKING: Adjust docking station states to reflect the smart phone app
 
 ### 0.6.12 (2024-09-08)
  * (copystring) Change go2rtc github to go2rtc-static npm
