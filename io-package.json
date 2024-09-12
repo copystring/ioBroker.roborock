@@ -1,9 +1,22 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.6.12",
+    "version": "0.6.13",
     "tier": 1,
     "news": {
+      "0.6.13": {
+        "en": "Bug fixes\nAdd basic support for S8 MaxV Ultra\nNewly found attributes are now warning instead of error\nImprove detection of `home_sec`\nFix docking station detection\nBREAKING: Adjust docking station states to reflect the smart phone app\nDetect remote devices and connect via mqtt instead\nImprove docking station feature handling",
+        "de": "Fehlerbehebungen\nGrundunterstützung für S8 MaxV hinzufügen Ultra\nNeu gefundene Attribute sind jetzt Warnung statt Fehler\nErkennung von `home_sec verbessern `\nErkennung der Andockstation\nBREAKING: Anpassen der Docking Station Zustände, um die Smartphone-App zu reflektieren\nRemote-Geräte erkennen und über mqt anschließen\nVerbessern Sie die Funktion der Docking Station",
+        "ru": "Запястья\nДобавить базовую поддержку S8 MaxV Ультра\nНедавно найденные атрибуты теперь предупреждают, а не ошибаются\nУлучшить обнаружение `home_sec \"\nОбнаружение док-станций\nНастройка состояния док-станции для отражения приложения смарт-телефон\nОтобразить удаленные устройства и подключиться через mqtt\nУлучшить обработку док-станций",
+        "pt": "Correções de bugs\nAdicionar suporte básico para S8 MaxV Ultra Ultra Ultra Ultra\nOs atributos recém-chegados estão agora alertando em vez de erro\nMelhorar a detecção de `home_sec \"\nCorrigir detecção de estação de ancoragem\nBREAKING: Ajustar a estação de ancoragem afirma refletir o aplicativo de telefone inteligente\nDetectar dispositivos remotos e conectar via mqtt em vez\nMelhorar o manuseio de recursos da estação de ancoragem",
+        "nl": "Bugfixes\nBasisondersteuning voor S8 MaxV toevoegen Ultra\nNieuw gevonden attributen zijn nu waarschuwing in plaats van fout\nVerbeteren van detectie van \"home_sec\" Wat\nFix docking station detectie\nBREAKING: Aanpassen docking station staten om de smartphone app weer te geven\nDetecteer externe apparaten en verbind via mqtt in plaats daarvan\nVerbetering docking station functie behandeling",
+        "fr": "Corrections des bogues\nAjouter le support de base pour S8 MaxV Ultra\nLes attributs nouvellement trouvés sont maintenant avertis au lieu d'erreur\nAméliorer la détection de `home_sec \"\nCorrection de la détection des stations d'amarrage\nBREAKING: Réglez les états de station d'accueil pour refléter l'application de téléphone intelligent\nDétecter les périphériques distants et se connecter via mqtt à la place\nAméliorer la gestion des fonctionnalités de la station d'amarrage",
+        "it": "Correzioni di bug\nAggiungi supporto di base per S8 MaxV Ultra\nGli attributi appena trovati ora avvertono invece di errore\nMigliorare il rilevamento di `home_sec #\nRilevamento della stazione di docking\nBREAKING: Regolare gli stati di docking station per riflettere l'app smart phone\nRilevare dispositivi remoti e collegare tramite mqtt\nMigliorare la gestione delle funzioni docking station",
+        "es": "Corrección de errores\nAñadir soporte básico para S8 MaxV Ultra\nLos atributos recién encontrados son ahora advertencia en lugar de error\nMejorar la detección de `home_sec `\nDetección de estación de acoplamiento fijo\nBREAKING: Ajuste los estados de la estación de acoplamiento para reflejar la aplicación de teléfono inteligente\nDetectar dispositivos remotos y conectar a través de mqtt\nMejorar la función de estación de docking",
+        "pl": "Poprawki błędów\nDodaj podstawowe wsparcie dla S8 MaxV Ultra\nNowo znalezione atrybuty są teraz ostrzeganie zamiast błędu\nPoprawa wykrywania \"home _ sec '\nNapraw wykrywanie stacji dokującej\nBREAKING: Dostosowanie stacji dokującej stan odzwierciedlać aplikacji smartphone\nWykrywanie zdalnych urządzeń i łączenie za pośrednictwem mqtt\nPoprawa obsługi funkcji stacji dokującej",
+        "uk": "Виправлення помилок\nДодати базову підтримку S8 MaxV Ультра\nНові знайдені атрибути тепер попереджають замість помилки\nПокращення виявлення `home_sec й\nФіксація док-станція\nBREAKING: Регульувати стани докінгу для відображення смартфона\nВиявлення віддалених пристроїв та підключення через mqtt замість\nПокращити роботу док-станція",
+        "zh-cn": "错误修正\n为 S8 MaxV 添加基本支持 超强\n新找到的属性现在是警告而不是错误\n改进对“家园”的检测 `\n固定对接站检测\n调整对接站状态以反映智能手机应用\n检测远程设备并通过 mqtt 连接\n改进对接站功能处理"
+      },
       "0.6.12": {
         "en": "Change go2rtc github to go2rtc-static npm",
         "de": "Wechseln go2rtc github zu go2rtc-statisch npm",
@@ -81,19 +94,6 @@
         "pl": "Aktualizuj zależności\nWiele poprawek\nPoprawa wsparcia dla: Q Revo Pro\nDodaj parsing dss in deviceStatus jako 'status stacji dokującej'\nDodaj 'CV _ segment _ clean' & 'stop _ segment _ clean'\nPoprawa reconnect intervall bezpośredniego połączenia\nDodaj brakujące tłumaczenia\nNapraw czyszczenie Informacje o starszych robotach takich jak S6 itp\nOgólne ulepszenia w zakresie logowania",
         "uk": "Оновлення залежності\nБагато виправлення помилок\nПідтримка: Q Revo Pro\nДодайте підписи на ds в пристроїStatus як статус `docking Station й\n`resume_segment_clean` & `stop_segment_clean`\nПокращення інтервалу відключення прямого з'єднання\nДодати відсутні переклади\nФіксація Інформація старших роботів, таких як S6 і т.д\nУдосконалення загального входу",
         "zh-cn": "更新依赖关系\n许多错误修正\n改进对 QRevo Pro 的支持\n在设备中添加 ds 解析状态为“ docking station ” `\n添加“ resume_section_sclean” 和“ stop_section_sclean”\n改进直接连接的重联间隔\n添加缺失的翻译\n修补清洁 S6等较老机器人的信息\n一般伐木改进"
-      },
-      "0.6.6": {
-        "en": "require min node 20 to operate correctly with current dependencies",
-        "de": "min-knoten 20 muss mit aktuellen abhängigkeiten korrekt arbeiten",
-        "ru": "потребовать min node 20 для правильной работы с текущими зависимостями",
-        "pt": "exigir o nó 20 min para operar corretamente com dependências atuais",
-        "nl": "vereist min node 20 om correct te werken met huidige afhankelijkheden",
-        "fr": "nécessite un nœud min 20 pour fonctionner correctement avec les dépendances actuelles",
-        "it": "richiedono nodo min 20 per operare correttamente con le dipendenze attuali",
-        "es": "requiere nodo 20 min para funcionar correctamente con las dependencias actuales",
-        "pl": "wymagają, aby węzeł min 20 działał prawidłowo z bieżącymi zależnościami",
-        "uk": "потрібно хв вузол 20, щоб працювати правильно з поточними залежностями",
-        "zh-cn": "需要 min 节点 20 才能在当前依赖关系下正确运行"
       }
     },
     "titleLang": {
