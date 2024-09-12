@@ -61,6 +61,7 @@ This feature only works when map creation is enabled in the adapter options!
  * (copystring) Fix docking station detection
  * (copystring) BREAKING: Adjust docking station states to reflect the smart phone app
  * (copystring) Detect remote devices and connect via mqtt instead
+ * (copystring) Improve docking station feature handling
 
 ### 0.6.12 (2024-09-08)
  * (copystring) Change go2rtc github to go2rtc-static npm
