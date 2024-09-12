@@ -56,6 +56,7 @@ class Roborock extends utils.Adapter {
 		this.pendingRequests = new Map();
 
 		this.localDevices = {};
+		this.remoteDevices = new Set();
 	}
 
 	/**
@@ -624,8 +625,9 @@ class Roborock extends utils.Adapter {
 		if (homedata && typeof homedata.val == "string") {
 			const homedataJSON = JSON.parse(homedata.val);
 			const receivedDevice = homedataJSON.receivedDevices.find((device) => device.duid == duid);
+			const remoteDevice = this.remoteDevices.has(duid);
 
-			if (receivedDevice) {
+			if (receivedDevice || remoteDevice) {
 				return true;
 			}
 
