@@ -19,6 +19,8 @@ const deviceFeatures = require("./lib/deviceFeatures").deviceFeatures;
 const messageQueueHandler = require("./lib/messageQueueHandler").messageQueueHandler;
 let socketServer, webserver;
 
+const dockingStationStates = ["cleanFluidStatus", "waterBoxFilterStatus", "dustBagStatus", "dirtyWaterBoxStatus", "clearWaterBoxStatus", "isUpdownWaterReady"];
+
 class Roborock extends utils.Adapter {
 	/**
 	 * @param {Partial<utils.AdapterOptions>} [options={}]
@@ -54,6 +56,7 @@ class Roborock extends utils.Adapter {
 		this.pendingRequests = new Map();
 
 		this.localDevices = {};
+		this.remoteDevices = new Set();
 	}
 
 	/**
@@ -622,8 +625,9 @@ class Roborock extends utils.Adapter {
 		if (homedata && typeof homedata.val == "string") {
 			const homedataJSON = JSON.parse(homedata.val);
 			const receivedDevice = homedataJSON.receivedDevices.find((device) => device.duid == duid);
+			const remoteDevice = this.remoteDevices.has(duid);
 
-			if (receivedDevice) {
+			if (receivedDevice || remoteDevice) {
 				return true;
 			}
 
@@ -965,22 +969,24 @@ class Roborock extends utils.Adapter {
 		});
 	}
 
-	async createDockingStationObject(duid, state) {
-		const path = `Devices.${duid}.dockingStationStatus.${state}`;
-		const name = this.translations[state];
+	async createDockingStationObject(duid) {
+		for (const state of dockingStationStates) {
+			const path = `Devices.${duid}.dockingStationStatus.${state}`;
+			const name = this.translations[state];
 
-		this.setObjectAsync(path, {
-			type: "state",
-			common: {
-				name: name,
-				type: "number",
-				role: "value",
-				read: true,
-				write: false,
-				states: { 0: "UNKNOWN", 1: "ERROR", 2: "OK" },
-			},
-			native: {},
-		});
+			this.setObjectNotExistsAsync(path, {
+				type: "state",
+				common: {
+					name: name,
+					type: "number",
+					role: "value",
+					read: true,
+					write: false,
+					states: { 0: "UNKNOWN", 1: "ERROR", 2: "OK" },
+				},
+				native: {},
+			});
+		}
 	}
 
 	async createConsumable(duid, state, type, states, unit) {
