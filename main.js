@@ -1335,7 +1335,7 @@ class Roborock extends utils.Adapter {
 									const params = JSON.parse(state.val);
 
 									const isCorrectLength =
-										(command === "app_zoned_clean" && (params.length === 4 || params.length === 5)) || (command === "app_goto_target" && params.length === 4);
+										(command === "app_zoned_clean" && (params.length === 4 || params.length === 5)) || (command === "app_goto_target" && params.length === 2);
 
 									const areAllNumbers = params.every((item) => typeof item === "number");
 
