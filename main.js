@@ -1233,9 +1233,7 @@ class Roborock extends utils.Adapter {
 	}
 
 	async catchError(error, attribute, duid, model) {
-		const onlineState = await this.onlineChecker(duid);
-
-		if (onlineState) {
+		if (error) {
 			if (error.toString().includes("retry") || error.toString().includes("locating") || error.toString().includes("timed out after 10 seconds")) {
 				this.log.warn(`Failed to execute ${attribute} on robot ${duid} (${model || "unknown model"}): ${error}`);
 			} else {
@@ -1247,8 +1245,6 @@ class Roborock extends utils.Adapter {
 					}
 				}
 			}
-		} else {
-			this.log.warn(`Robot ${duid} is offline. ${attribute} failed.`);
 		}
 	}
 
