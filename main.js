@@ -280,15 +280,14 @@ class Roborock extends utils.Adapter {
 		const devices = this.devices;
 
 		for (const device of devices) {
-			const duid = devices[device].duid;
-			const name = devices[device].name;
+			const duid = device.duid;
+			const name = device.name;
 
 			const robotModel = this.getProductAttribute(duid, "model");
-			const productCategory = this.getProductAttribute(duid, "category");
 
 			this.vacuums[duid] = new vacuum_class(this, robotModel);
 			this.vacuums[duid].name = name;
-			this.vacuums[duid].features = new deviceFeatures(this, devices[device].featureSet, devices[device].newFeatureSet, duid, robotModel, productCategory);
+			this.vacuums[duid].features = new deviceFeatures(this, device.featureSet, device.newFeatureSet, duid);
 
 			await this.vacuums[duid].features.processSupportedFeatures();
 
@@ -301,8 +300,11 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
-	async initializeDeviceUpdates(products, devices) {
+	async initializeDeviceUpdates() {
 		this.log.debug(`initializeDeviceUpdates`);
+
+		const devices = this.devices;
+
 		for (const device of devices) {
 			const duid = device.duid;
 			const robotModel = this.getProductAttribute(duid);
