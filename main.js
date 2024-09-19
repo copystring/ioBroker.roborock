@@ -832,7 +832,7 @@ class Roborock extends utils.Adapter {
 						},
 						native: {},
 					});
-					this.setStateAsync("Devices." + duid + ".deviceInfo." + deviceAttribute, { val: devices[device][deviceAttribute], ack: true });
+					this.setStateChangedAsync("Devices." + duid + ".deviceInfo." + deviceAttribute, { val: devices[device][deviceAttribute], ack: true });
 				}
 			}
 		}
