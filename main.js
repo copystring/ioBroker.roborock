@@ -297,6 +297,7 @@ class Roborock extends utils.Adapter {
 			this.subscribeStates("Devices." + duid + ".commands.*");
 			this.subscribeStates("Devices." + duid + ".reset_consumables.*");
 			this.subscribeStates("Devices." + duid + ".programs.startProgram");
+			this.subscribeStates("Devices." + duid + ".deviceInfo.online");
 		}
 	}
 
@@ -1287,10 +1288,15 @@ class Roborock extends utils.Adapter {
 	 */
 	async onStateChange(id, state) {
 		if (state) {
-			if (state.ack == false) {
-				const idParts = id.split(".");
-				const duid = idParts[3];
-				const folder = idParts[4];
+			const idParts = id.split(".");
+			const duid = idParts[3];
+			const folder = idParts[4];
+
+			if (state.ack) {
+				if (id.endsWith("online")) {
+					this.log.info(`Device ${duid} is now ${state.val ? "online" : "offline"}`);
+				}
+			} else {
 				const command = idParts[5];
 
 				this.log.debug(`onStateChange: ${command} with value: ${state.val}`);
