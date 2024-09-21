@@ -190,7 +190,7 @@ class Roborock extends utils.Adapter {
 
 					this.processScene(scene);
 
-					this.homedataInterval = this.setInterval(this.updateHomeData.bind(this), 60 * 1000, homeId);
+					this.homedataInterval = this.setInterval(this.updateHomeData.bind(this), this.config.updateInterval * 1000, homeId);
 					await this.updateHomeData(homeId);
 
 					const discoveredDevices = await this.localConnector.getLocalDevices();
