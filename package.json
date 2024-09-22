@@ -31,7 +31,7 @@
     "@tsconfig/node18": "^18.2.4",
     "axios": "^1.7.7",
     "binary-parser": "^2.2.1",
-    "canvas": "^2.11.2",
+    "canvas": "^3.0.0-rc2",
     "crc-32": "^1.2.2",
     "esbuild": "^0.23.0",
     "eventemitter2": "^6.4.9",
