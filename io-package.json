@@ -1,9 +1,22 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.6.14",
+    "version": "0.6.15",
     "tier": 1,
     "news": {
+      "0.6.15": {
+        "en": "Refactor some code\nimprove handling of online/offline detection and related logging\nS6 MaxV supports avoid carpet",
+        "de": "Refactor einige Code\nverbesserung des umgangs mit online/offline-erkennung und verwandter protokollierung\nS6 MaxV-Träger vermeiden Teppich",
+        "ru": "Рефакторировать код\nулучшение работы с онлайн/оффлайн-обнаружением и смежными лесозаготовками\nS6 MaxV поддерживает избегание ковра",
+        "pt": "Refactor algum código\nmelhorar o manuseio de detecção on-line/offline e registro relacionado\nSuportes S6 MaxV evitar tapete",
+        "nl": "Code refactoreren\nverbeteren van de omgang met online/offline detectie en aanverwante logging\nS6 MaxV ondersteunt vermijden tapijt",
+        "fr": "Refactorer un code\naméliorer la gestion de la détection en ligne/hors ligne et l'enregistrement connexe\nSupports S6 MaxV pour éviter le tapis",
+        "it": "Refactor alcuni codici\nmigliorare la gestione del rilevamento online/offline e relativi logging\nI supporti S6 MaxV evitano il tappeto",
+        "es": "Refactor algún código\nmejorar el manejo de la detección en línea/offline y registro conexo\nS6 MaxV admite evitar la alfombra",
+        "pl": "Zmień kod\npoprawa obsługi wykrywania online / offline i związanego z tym wyrębu\nS6 MaxV obsługuje unikać dywanu",
+        "uk": "Рефактор коду\nпокращити роботу онлайн / в автономному режимі виявлення та пов'язаних з реєстрацією\nS6 MaxV підтримує ковролін",
+        "zh-cn": "重构一些代码\n改进在线/离线检测和相关记录的处理\nS6 最大V 支持避免地毯"
+      },
       "0.6.14": {
         "en": "Fix bug in app_goto_target parameter validation",
         "de": "Fehler in der Parametervalidierung von app_goto_target beheben",
@@ -81,19 +94,6 @@
         "pl": "Napraw błędy\nDodaj brakujące stany\nDodaj brakujące tłumaczenia",
         "uk": "Виправлення помилок\nДодати відсутні стани\nДодати відсутні переклади",
         "zh-cn": "修复错误\n添加缺失状态\n添加缺失的翻译"
-      },
-      "0.6.8": {
-        "en": "Q Revo supports `switch_status` in `get_status`",
-        "de": "Q Revo unterstützt `switch_status` in `get_status `",
-        "ru": "Q Revo поддерживает `switch_status' в `get_status \"",
-        "pt": "Q Revo suporta `switch_status` em `get_status \"",
-        "nl": "Q Revo ondersteunt de status van \"switch\" in de status \"get_status\" Wat",
-        "fr": "Q Revo prend en charge `switch_status` dans `get_status \"",
-        "it": "Q Revo supporta `switch_status` in `get_status #",
-        "es": "Q Revo apoya `switch_status` en `get_status `",
-        "pl": "Q Revo obsługuje 'switch _ status' w 'get _ status'",
-        "uk": "Р Рево підтримка `switch_status` у `get_status й",
-        "zh-cn": "问题 Revo 在“ get_ status” 中支持“ switch_ status ” `"
       }
     },
     "titleLang": {
