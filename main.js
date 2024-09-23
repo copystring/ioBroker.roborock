@@ -308,7 +308,7 @@ class Roborock extends utils.Adapter {
 
 		for (const device of devices) {
 			const duid = device.duid;
-			const robotModel = this.getProductAttribute(duid);
+			const robotModel = this.getProductAttribute(duid, "model");
 
 			this.vacuums[duid].mainUpdateInterval = () =>
 				this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
