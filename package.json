@@ -82,7 +82,8 @@
   "scripts": {
     "test:declarations": "tsc -p test/lib/TS/tsconfig.json && tsc -p test/lib/JS/tsconfig.json",
     "test:javascript": "node node_modules/mocha/bin/mocha --exit",
-    "test": "mocha test/**/*.test.js"
+    "test": "mocha test/**/*.test.js",
+    "lint": "eslint ."
   },
   "bugs": {
     "url": "https://github.com/copystring/ioBroker.roborock/issues"
