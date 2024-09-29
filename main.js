@@ -963,7 +963,7 @@ class Roborock extends utils.Adapter {
 			const path = `Devices.${duid}.dockingStationStatus.${state}`;
 			const name = this.translations[state];
 
-			this.setObjectNotExistsAsync(path, {
+			await this.setObjectNotExistsAsync(path, {
 				type: "state",
 				common: {
 					name: name,
