@@ -1,9 +1,22 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.6.15",
+    "version": "0.6.16",
     "tier": 1,
     "news": {
+      "0.6.16": {
+        "en": "Bugfixes\nupdate test-and-release.yml\nFix S6 feature detection\nMigrate from canvas to @napu-rs/canvas\nAdd Qrevo S & Qrevo Curve",
+        "de": "Bugfixes\nupdate test-and-release.yml\nFix S6 Funktion Erkennung\nVon Leinwand zu @napu-rs/canvas migrieren\nQrevo S & Qrevo Kurve",
+        "ru": "Bugfixs\nобновление test-and-release.yml\nФикс S6\nMigrate from canvas to @napu-rs/canvas\nДобавить Qrevo S & Qrevo Куры",
+        "pt": "Bugfixs\natualizar test-and-release.yml\nCorrigir detecção de recursos S6\nMigrar de tela para @napu-rs/canvas\nAdicionar Qrevo S & Qrevo Curve",
+        "nl": "Bugfixes\nupdate test-and-release.yml\nFix S6-functiedetectie\nMigreren van doek naar @napu-rs/canvas\nQrevo S & Qrevo toevoegen Curve",
+        "fr": "Fixes de bogue\nmettre à jour test-and-release.yml\nCorrection de la détection des fonctionnalités S6\nMigrer de la toile à @napu-rs/canvas\nAjouter Qrevo S & Qrevo Courbe",
+        "it": "Bugfix\naggiornamento test-and-release.yml\nRilevamento della funzione Fix S6\nMigrare da tela a @napu-rs/canvas\nAggiungi Qrevo S & Qrevo Curva",
+        "es": "Bugfixes\nactualizar test-and-release.yml\nDetección de funciones S6\nMigrar de lienzo a @napu-rs/canvas\nAñadir Qrevo S ' Qrevo Curva",
+        "pl": "Korekty błędów\nupdate test- and- releasase.yml\nNapraw wykrywanie funkcji S6\nMigracja z płótna na @ napu- rs / płótno\nDodaj Qrevo S & Qrevo Krzywa",
+        "uk": "Помилки\njavascript licenses api веб-сайт go1.13.8\nВизначення функції S6\nМіграція з полотна до @napu-rs/canvas\nДодати Qrevo S & Qrevo Проксимус",
+        "zh-cn": "错误修正\n更新测试和释放.yml\n修复 S6 特性检测\n从帆布迁移到 @napu-rs/canvas\n添加 Qrevo S & Qrevo 曲线"
+      },
       "0.6.15": {
         "en": "Refactor some code\nimprove handling of online/offline detection and related logging\nS6 MaxV supports avoid carpet",
         "de": "Refactor einige Code\nverbesserung des umgangs mit online/offline-erkennung und verwandter protokollierung\nS6 MaxV-Träger vermeiden Teppich",
@@ -81,19 +94,6 @@
         "pl": "Dodaj 'set _ switch _ status' do S7 MaxV i Q Revo Pro",
         "uk": "Додати `set_switch_status` до S7 MaxV та Q Revo Pro",
         "zh-cn": "在 S7 MaxV 和 Q Revo Pro 中添加“ set_switch_status ”"
-      },
-      "0.6.9": {
-        "en": "Fix bugs\nAdd missing states\nAdd missing translations",
-        "de": "Fehler beheben\nFehlende Staaten hinzufügen\nFehlende Übersetzungen hinzufügen",
-        "ru": "Fix ошибки\nДобавить недостающие состояния\nДобавить недостающие переводы",
-        "pt": "Corrigir erros\nAdicionar estados desaparecidos\nAdicionar traduções em falta",
-        "nl": "Fix bugs\nOntbrekende staten toevoegen\nOntbrekende vertalingen toevoegen",
-        "fr": "Correction des bogues\nAjouter les états manquants\nAjouter les traductions manquantes",
-        "it": "Correggi i bug\nAggiungi stati mancanti\nAggiungi le traduzioni mancanti",
-        "es": "Corregir errores\nAgregar estados desaparecidos\nAñadir traducciones desaparecidas",
-        "pl": "Napraw błędy\nDodaj brakujące stany\nDodaj brakujące tłumaczenia",
-        "uk": "Виправлення помилок\nДодати відсутні стани\nДодати відсутні переклади",
-        "zh-cn": "修复错误\n添加缺失状态\n添加缺失的翻译"
       }
     },
     "titleLang": {
