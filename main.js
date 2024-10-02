@@ -308,7 +308,7 @@ class Roborock extends utils.Adapter {
 
 		for (const device of devices) {
 			const duid = device.duid;
-			const robotModel = this.getProductAttribute(duid);
+			const robotModel = this.getProductAttribute(duid, "model");
 
 			this.vacuums[duid].mainUpdateInterval = () =>
 				this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
@@ -963,7 +963,7 @@ class Roborock extends utils.Adapter {
 			const path = `Devices.${duid}.dockingStationStatus.${state}`;
 			const name = this.translations[state];
 
-			this.setObjectNotExistsAsync(path, {
+			await this.setObjectNotExistsAsync(path, {
 				type: "state",
 				common: {
 					name: name,
@@ -1325,23 +1325,38 @@ class Roborock extends utils.Adapter {
 								try {
 									const params = JSON.parse(state.val);
 
-									const isCorrectLength =
-										(command === "app_zoned_clean" && (params.length === 4 || params.length === 5)) || (command === "app_goto_target" && params.length === 2);
+									if (command === "app_zoned_clean") {
+										// Check if params is an array and contains multiple arrays
+										if (Array.isArray(params) && params.every(Array.isArray)) {
+											const allZonesValid = params.every((zone) => {
+												const isCorrectLength = zone.length === 4 || zone.length === 5;
+												const areAllNumbers = zone.every((item) => typeof item === "number");
+												const isValidFifth = zone.length !== 5 || (zone[4] >= 1 && zone[4] <= 3);
+												return isCorrectLength && areAllNumbers && isValidFifth;
+											});
 
-									const areAllNumbers = params.every((item) => typeof item === "number");
-
-									const isValidFifth = params.length !== 5 || (params[4] >= 1 && params[4] <= 3);
-
-									if (isCorrectLength && areAllNumbers && isValidFifth) {
-										this.vacuums[duid].command(duid, command, params);
-									} else {
-										let expectedFormat = "[x1, y1, x2, y2]";
-										if (command === "app_zoned_clean") {
-											expectedFormat += " or [x1, y1, x2, y2, repeat] (where repeat is between 1 and 3)";
-										} else if (command === "app_goto_target") {
-											expectedFormat = "[x, y]";
+											if (allZonesValid) {
+												this.vacuums[duid].command(duid, command, params);
+											} else {
+												this.log.error(
+													`Invalid command parameters for ${command}: ${state.val}. Expected format: [[x1, y1, x2, y2, repeat], [x1, y1, x2, y2, repeat], ...] (where repeat is between 1 and 3)`
+												);
+											}
+										} else {
+											this.log.error(
+												`Invalid command parameters for ${command}: ${state.val}. Expected format: [[x1, y1, x2, y2, repeat], [x1, y1, x2, y2, repeat], ...] (where repeat is between 1 and 3)`
+											);
 										}
-										this.log.error(`Invalid command parameters for ${command}: ${state.val}. Expected format: ${expectedFormat}`);
+									} else if (command === "app_goto_target") {
+										// For app_goto_target, params should be an array with exactly two numbers
+										const isCorrectLength = params.length === 2;
+										const areAllNumbers = params.every((item) => typeof item === "number");
+
+										if (isCorrectLength && areAllNumbers) {
+											this.vacuums[duid].command(duid, command, params);
+										} else {
+											this.log.error(`Invalid command parameters for ${command}: ${state.val}. Expected format: [x, y]`);
+										}
 									}
 								} catch (error) {
 									this.log.error(`Error parsing JSON for ${command}: ${error}`);
