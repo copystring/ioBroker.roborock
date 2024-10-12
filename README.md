@@ -59,6 +59,7 @@ This feature only works when map creation is enabled in the adapter options!
 ### **WORK IN PROGRESS**
  * (copystring) Add some missing attributes
  * (copystring) Change min of update interval to 60s to prevent issues
+ * (copystring) Add web interface to sidebar
 
 ### 0.6.16 (2024-10-02)
  * (copystring) Bugfixes
