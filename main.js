@@ -1137,6 +1137,12 @@ class Roborock extends utils.Adapter {
 		return "Error in getRobotVersion. Version not found.";
 	}
 
+	getSelectedMap(deviceStatus) {
+		const mapStatus = deviceStatus[0].map_status;
+
+		return mapStatus >> 2; // to get the currently selected map perform bitwise right shift
+	}
+
 	getRequestId() {
 		if (this.idCounter >= 9999) {
 			this.idCounter = 0;
