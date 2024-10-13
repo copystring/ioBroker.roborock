@@ -1,61 +1,49 @@
-"use strict";
-
 const utils = require("@iobroker/adapter-core");
-
 const axios = require("axios");
-const crypto = require("crypto");
-const websocket = require("ws");
+const { randomBytes, createHmac, createHash } = require("crypto");
+const WebSocket = require("ws");
 const express = require("express");
-const childProcess = require("child_process");
-const go2rtcPath = require("go2rtc-static"); // Pfad zur Binärdatei
+const { spawn } = require("child_process");
+const go2rtcPath = require("go2rtc-static");
 
-const rrLocalConnector = require("./lib/localConnector").localConnector;
-const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roborock_mqtt_connector;
-const rrMessage = require("./lib/message").message;
-const vacuum_class = require("./lib/vacuum").vacuum;
-const roborockPackageHelper = require("./lib/roborockPackageHelper").roborockPackageHelper;
-const deviceFeatures = require("./lib/deviceFeatures").deviceFeatures;
-const messageQueueHandler = require("./lib/messageQueueHandler").messageQueueHandler;
+const {
+	localConnector: rrLocalConnector,
+	roborock_mqtt_connector,
+	message: rrMessage,
+	vacuum: vacuum_class,
+	roborockPackageHelper,
+	deviceFeatures,
+	messageQueueHandler,
+} = require("./lib");
+
 let socketServer, webserver;
 
 const dockingStationStates = ["cleanFluidStatus", "waterBoxFilterStatus", "dustBagStatus", "dirtyWaterBoxStatus", "clearWaterBoxStatus", "isUpdownWaterReady"];
 
 class Roborock extends utils.Adapter {
-	/**
-	 * @param {Partial<utils.AdapterOptions>} [options={}]
-	 */
-	constructor(options) {
-		super({
-			...options,
-			name: "roborock",
-			useFormatDate: true,
-		});
+	constructor(options = {}) {
+		super({ ...options, name: "roborock", useFormatDate: true });
 		this.on("ready", this.onReady.bind(this));
 		this.on("stateChange", this.onStateChange.bind(this));
 		// this.on("objectChange", this.onObjectChange.bind(this));
 		// this.on("message", this.onMessage.bind(this));
 		this.on("unload", this.onUnload.bind(this));
+
 		this.localKeys = null;
 		this.roomIDs = {};
 		this.vacuums = {};
 		this.socket = null;
-
 		this.idCounter = 0;
-		this.nonce = crypto.randomBytes(16);
+		this.nonce = randomBytes(16);
 		this.messageQueue = new Map();
-
+		this.pendingRequests = new Map();
+		this.localDevices = {};
+		this.remoteDevices = new Set();
 		this.roborockPackageHelper = new roborockPackageHelper(this);
-
 		this.localConnector = new rrLocalConnector(this);
 		this.rr_mqtt_connector = new roborock_mqtt_connector(this);
 		this.message = new rrMessage(this);
-
 		this.messageQueueHandler = new messageQueueHandler(this);
-
-		this.pendingRequests = new Map();
-
-		this.localDevices = {};
-		this.remoteDevices = new Set();
 	}
 
 	/**
@@ -93,7 +81,7 @@ class Roborock extends utils.Adapter {
 		this.loginApi = axios.create({
 			baseURL: "https://euiot.roborock.com",
 			headers: {
-				header_clientid: crypto.createHash("md5").update(this.config.username).update(clientID).digest().toString("base64"),
+				header_clientid: createHash("md5").update(this.config.username).update(clientID).digest().toString("base64"),
 			},
 		});
 		await this.setStateAsync("info.connection", { val: true, ack: true });
@@ -123,12 +111,12 @@ class Roborock extends utils.Adapter {
 		this.api.interceptors.request.use((config) => {
 			try {
 				const timestamp = Math.floor(Date.now() / 1000);
-				const nonce = crypto.randomBytes(6).toString("base64").substring(0, 6).replace("+", "X").replace("/", "Y");
+				const nonce = randomBytes(6).toString("base64").substring(0, 6).replace("+", "X").replace("/", "Y");
 				let url;
 				if (this.api) {
 					url = new URL(this.api.getUri(config));
 					const prestr = [rriot.u, rriot.s, nonce, timestamp, md5hex(url.pathname), /*queryparams*/ "", /*body*/ ""].join(":");
-					const mac = crypto.createHmac("sha256", rriot.h).update(prestr).digest("base64");
+					const mac = createHmac("sha256", rriot.h).update(prestr).digest("base64");
 
 					config.headers["Authorization"] = `Hawk id="${rriot.u}", s="${rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
 				}
@@ -445,7 +433,7 @@ class Roborock extends utils.Adapter {
 	}
 
 	async startWebsocketServer() {
-		socketServer = new websocket.Server({ port: 7906 });
+		socketServer = new WebSocket.Server({ port: 7906 });
 		let parameters, robot;
 
 		socketServer.on("connection", async (socket) => {
@@ -1216,7 +1204,7 @@ class Roborock extends utils.Adapter {
 
 		if (cameraCount > 0) {
 			try {
-				const go2rtcProcess = childProcess.spawn(go2rtcPath.toString(), ["-config", JSON.stringify(go2rtcConfig)], { shell: false, detached: false, windowsHide: true });
+				const go2rtcProcess = spawn(go2rtcPath.toString(), ["-config", JSON.stringify(go2rtcConfig)], { shell: false, detached: false, windowsHide: true });
 
 				go2rtcProcess.on("error", (error) => {
 					this.log.error(`Error starting go2rtc: ${error.message}`);
@@ -1427,7 +1415,7 @@ if (require.main !== module) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 function md5hex(str) {
-	return crypto.createHash("md5").update(str).digest("hex");
+	return createHash("md5").update(str).digest("hex");
 }
 
 // function md5bin(str) {
