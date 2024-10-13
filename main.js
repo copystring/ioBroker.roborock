@@ -50,10 +50,14 @@ class Roborock extends utils.Adapter {
 	 * Is called when databases are connected and adapter received configuration.
 	 */
 	async onReady() {
+		if (!this.config.username || !this.config.password) {
+			this.log.error("Username or password missing!");
+			return;
+		}
+
 		this.log.info(`Starting adapter. This might take a few minutes depending on your setup. Please wait.`);
 
 		this.sentryInstance = this.getPluginInstance("sentry");
-
 		this.translations = require(`./admin/i18n/${this.language || "en"}/translations.json`); // fall back to en for test-and-release.yml
 
 		await this.setupBasicObjects();
@@ -62,19 +66,10 @@ class Roborock extends utils.Adapter {
 		let clientID = "";
 		try {
 			const storedClientID = await this.getStateAsync("clientID");
-			if (storedClientID) {
-				clientID = storedClientID.val?.toString() ?? "";
-			} else {
-				clientID = crypto.randomUUID();
-				await this.setStateAsync("clientID", { val: clientID, ack: true });
-			}
+			clientID = storedClientID?.val?.toString() || crypto.randomUUID();
+			await this.setState("clientID", { val: clientID, ack: true });
 		} catch (error) {
-			this.log.error(`Error while retrieving or setting clientID: ${error.message}`);
-		}
-
-		if (!this.config.username || !this.config.password) {
-			this.log.error("Username or password missing!");
-			return;
+			this.log.error(`Fehler beim Abrufen oder Setzen der clientID: ${error.message}`);
 		}
 
 		// Initialize the login API (which is needed to get access to the real API).
@@ -84,7 +79,7 @@ class Roborock extends utils.Adapter {
 				header_clientid: createHash("md5").update(this.config.username).update(clientID).digest().toString("base64"),
 			},
 		});
-		await this.setStateAsync("info.connection", { val: true, ack: true });
+		await this.setState("info.connection", { val: true, ack: true });
 		// api/v1/getUrlByEmail(email = ...)
 
 		const userdata = await this.getUserData(this.loginApi);
@@ -99,8 +94,8 @@ class Roborock extends utils.Adapter {
 					this.sentryInstance.getSentryObject().captureException("Failed to login. Most likely wrong token! Deleting HomeData and UserData. Try again! " + error);
 				}
 			}
-			this.deleteStateAsync("HomeData");
-			this.deleteStateAsync("UserData");
+			this.delObjectAsync("HomeData");
+			this.delObjectAsync("UserData");
 		}
 		const rriot = userdata.rriot;
 
@@ -144,7 +139,7 @@ class Roborock extends utils.Adapter {
 
 					const scene = await this.api.get(`user/scene/home/${homeId}`);
 
-					await this.setStateAsync("HomeData", {
+					await this.setState("HomeData", {
 						val: JSON.stringify(homedataResult),
 						ack: true,
 					});
@@ -241,7 +236,7 @@ class Roborock extends utils.Adapter {
 				throw new Error("Login returned empty userdata.");
 			}
 
-			await this.setStateAsync("UserData", {
+			await this.setState("UserData", {
 				val: JSON.stringify(userdata),
 				ack: true,
 			});
@@ -360,7 +355,7 @@ class Roborock extends utils.Adapter {
 
 				const enabledPath = `Devices.${duid}.programs.${programID}.enabled`;
 				await this.createStateObjectHelper(enabledPath, "enabled", "boolean", null, null, "value");
-				this.setStateAsync(enabledPath, enabled, true);
+				this.setState(enabledPath, enabled, true);
 
 				const items = JSON.parse(param).action.items;
 				for (const item in items) {
@@ -374,7 +369,7 @@ class Roborock extends utils.Adapter {
 						if (typeOfValue == "object") {
 							value = value.toString();
 						}
-						this.setStateAsync(objectPath, value, true);
+						this.setState(objectPath, value, true);
 					}
 				}
 			}
@@ -762,7 +757,7 @@ class Roborock extends utils.Adapter {
 				const homedata = home.data.result;
 
 				if (homedata) {
-					await this.setStateAsync("HomeData", {
+					await this.setState("HomeData", {
 						val: JSON.stringify(homedata),
 						ack: true,
 					});
@@ -791,7 +786,7 @@ class Roborock extends utils.Adapter {
 
 				if (targetConsumable) {
 					const val = value >= 0 && value <= 100 ? parseInt(value) : 0;
-					await this.setStateAsync(`Devices.${duid}.consumables.${attribute}`, { val: val, ack: true });
+					await this.setState(`Devices.${duid}.consumables.${attribute}`, { val: val, ack: true });
 				}
 			}
 		}
@@ -855,7 +850,7 @@ class Roborock extends utils.Adapter {
 							},
 							native: {},
 						});
-						this.setStateAsync("Devices." + duid + ".updateStatus." + state, {
+						this.setState("Devices." + duid + ".updateStatus." + state, {
 							val: update.data.result[state],
 							ack: true,
 						});
@@ -1368,7 +1363,7 @@ class Roborock extends utils.Adapter {
 
 				if (typeof state.val == "boolean") {
 					this.commandTimeout = this.setTimeout(() => {
-						this.setStateAsync(id, false, true);
+						this.setState(id, false, true);
 					}, 1000);
 				}
 			}
