@@ -1,71 +1,63 @@
-"use strict";
-
 const utils = require("@iobroker/adapter-core");
-
 const axios = require("axios");
-const crypto = require("crypto");
-const websocket = require("ws");
+const { randomBytes, createHmac, createHash } = require("crypto");
+const WebSocket = require("ws");
 const express = require("express");
-const childProcess = require("child_process");
-const go2rtcPath = require("go2rtc-static"); // Pfad zur Binärdatei
+const { spawn } = require("child_process");
+const go2rtcPath = require("go2rtc-static");
 
-const rrLocalConnector = require("./lib/localConnector").localConnector;
-const roborock_mqtt_connector = require("./lib/roborock_mqtt_connector").roborock_mqtt_connector;
-const rrMessage = require("./lib/message").message;
-const vacuum_class = require("./lib/vacuum").vacuum;
-const roborockPackageHelper = require("./lib/roborockPackageHelper").roborockPackageHelper;
-const deviceFeatures = require("./lib/deviceFeatures").deviceFeatures;
-const messageQueueHandler = require("./lib/messageQueueHandler").messageQueueHandler;
+const {
+	localConnector: rrLocalConnector,
+	roborock_mqtt_connector,
+	message: rrMessage,
+	vacuum: vacuum_class,
+	roborockPackageHelper,
+	deviceFeatures,
+	messageQueueHandler,
+} = require("./lib");
+
 let socketServer, webserver;
 
 const dockingStationStates = ["cleanFluidStatus", "waterBoxFilterStatus", "dustBagStatus", "dirtyWaterBoxStatus", "clearWaterBoxStatus", "isUpdownWaterReady"];
 
 class Roborock extends utils.Adapter {
-	/**
-	 * @param {Partial<utils.AdapterOptions>} [options={}]
-	 */
-	constructor(options) {
-		super({
-			...options,
-			name: "roborock",
-			useFormatDate: true,
-		});
+	constructor(options = {}) {
+		super({ ...options, name: "roborock", useFormatDate: true });
 		this.on("ready", this.onReady.bind(this));
 		this.on("stateChange", this.onStateChange.bind(this));
 		// this.on("objectChange", this.onObjectChange.bind(this));
 		// this.on("message", this.onMessage.bind(this));
 		this.on("unload", this.onUnload.bind(this));
+
 		this.localKeys = null;
 		this.roomIDs = {};
 		this.vacuums = {};
 		this.socket = null;
-
 		this.idCounter = 0;
-		this.nonce = crypto.randomBytes(16);
+		this.nonce = randomBytes(16);
 		this.messageQueue = new Map();
-
+		this.pendingRequests = new Map();
+		this.localDevices = {};
+		this.remoteDevices = new Set();
 		this.roborockPackageHelper = new roborockPackageHelper(this);
-
 		this.localConnector = new rrLocalConnector(this);
 		this.rr_mqtt_connector = new roborock_mqtt_connector(this);
 		this.message = new rrMessage(this);
-
 		this.messageQueueHandler = new messageQueueHandler(this);
-
-		this.pendingRequests = new Map();
-
-		this.localDevices = {};
-		this.remoteDevices = new Set();
 	}
 
 	/**
 	 * Is called when databases are connected and adapter received configuration.
 	 */
 	async onReady() {
+		if (!this.config.username || !this.config.password) {
+			this.log.error("Username or password missing!");
+			return;
+		}
+
 		this.log.info(`Starting adapter. This might take a few minutes depending on your setup. Please wait.`);
 
 		this.sentryInstance = this.getPluginInstance("sentry");
-
 		this.translations = require(`./admin/i18n/${this.language || "en"}/translations.json`); // fall back to en for test-and-release.yml
 
 		await this.setupBasicObjects();
@@ -74,29 +66,20 @@ class Roborock extends utils.Adapter {
 		let clientID = "";
 		try {
 			const storedClientID = await this.getStateAsync("clientID");
-			if (storedClientID) {
-				clientID = storedClientID.val?.toString() ?? "";
-			} else {
-				clientID = crypto.randomUUID();
-				await this.setStateAsync("clientID", { val: clientID, ack: true });
-			}
+			clientID = storedClientID?.val?.toString() || crypto.randomUUID();
+			await this.setState("clientID", { val: clientID, ack: true });
 		} catch (error) {
-			this.log.error(`Error while retrieving or setting clientID: ${error.message}`);
-		}
-
-		if (!this.config.username || !this.config.password) {
-			this.log.error("Username or password missing!");
-			return;
+			this.log.error(`Fehler beim Abrufen oder Setzen der clientID: ${error.message}`);
 		}
 
 		// Initialize the login API (which is needed to get access to the real API).
 		this.loginApi = axios.create({
 			baseURL: "https://euiot.roborock.com",
 			headers: {
-				header_clientid: crypto.createHash("md5").update(this.config.username).update(clientID).digest().toString("base64"),
+				header_clientid: createHash("md5").update(this.config.username).update(clientID).digest().toString("base64"),
 			},
 		});
-		await this.setStateAsync("info.connection", { val: true, ack: true });
+		await this.setState("info.connection", { val: true, ack: true });
 		// api/v1/getUrlByEmail(email = ...)
 
 		const userdata = await this.getUserData(this.loginApi);
@@ -111,8 +94,8 @@ class Roborock extends utils.Adapter {
 					this.sentryInstance.getSentryObject().captureException("Failed to login. Most likely wrong token! Deleting HomeData and UserData. Try again! " + error);
 				}
 			}
-			this.deleteStateAsync("HomeData");
-			this.deleteStateAsync("UserData");
+			this.delObjectAsync("HomeData");
+			this.delObjectAsync("UserData");
 		}
 		const rriot = userdata.rriot;
 
@@ -123,12 +106,12 @@ class Roborock extends utils.Adapter {
 		this.api.interceptors.request.use((config) => {
 			try {
 				const timestamp = Math.floor(Date.now() / 1000);
-				const nonce = crypto.randomBytes(6).toString("base64").substring(0, 6).replace("+", "X").replace("/", "Y");
+				const nonce = randomBytes(6).toString("base64").substring(0, 6).replace("+", "X").replace("/", "Y");
 				let url;
 				if (this.api) {
 					url = new URL(this.api.getUri(config));
 					const prestr = [rriot.u, rriot.s, nonce, timestamp, md5hex(url.pathname), /*queryparams*/ "", /*body*/ ""].join(":");
-					const mac = crypto.createHmac("sha256", rriot.h).update(prestr).digest("base64");
+					const mac = createHmac("sha256", rriot.h).update(prestr).digest("base64");
 
 					config.headers["Authorization"] = `Hawk id="${rriot.u}", s="${rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
 				}
@@ -156,7 +139,7 @@ class Roborock extends utils.Adapter {
 
 					const scene = await this.api.get(`user/scene/home/${homeId}`);
 
-					await this.setStateAsync("HomeData", {
+					await this.setState("HomeData", {
 						val: JSON.stringify(homedataResult),
 						ack: true,
 					});
@@ -223,7 +206,7 @@ class Roborock extends utils.Adapter {
 					this.log.info(`Starting adapter finished. Lets go!!!!!!!`);
 				} else {
 					this.log.info(`Most likely failed to login. Deleting UserData to force new login!`);
-					await this.deleteStateAsync(`UserData`);
+					await this.delObjectAsync(`UserData`);
 				}
 			}
 		} catch (error) {
@@ -253,7 +236,7 @@ class Roborock extends utils.Adapter {
 				throw new Error("Login returned empty userdata.");
 			}
 
-			await this.setStateAsync("UserData", {
+			await this.setState("UserData", {
 				val: JSON.stringify(userdata),
 				ack: true,
 			});
@@ -261,8 +244,8 @@ class Roborock extends utils.Adapter {
 			return userdata;
 		} catch (error) {
 			this.log.error(`Error in getUserData: ${error.message}`);
-			await this.deleteStateAsync("HomeData");
-			await this.deleteStateAsync("UserData");
+			await this.delObjectAsync("HomeData");
+			await this.delObjectAsync("UserData");
 			throw error;
 		}
 	}
@@ -372,7 +355,7 @@ class Roborock extends utils.Adapter {
 
 				const enabledPath = `Devices.${duid}.programs.${programID}.enabled`;
 				await this.createStateObjectHelper(enabledPath, "enabled", "boolean", null, null, "value");
-				this.setStateAsync(enabledPath, enabled, true);
+				this.setState(enabledPath, enabled, true);
 
 				const items = JSON.parse(param).action.items;
 				for (const item in items) {
@@ -386,7 +369,7 @@ class Roborock extends utils.Adapter {
 						if (typeOfValue == "object") {
 							value = value.toString();
 						}
-						this.setStateAsync(objectPath, value, true);
+						this.setState(objectPath, value, true);
 					}
 				}
 			}
@@ -445,7 +428,7 @@ class Roborock extends utils.Adapter {
 	}
 
 	async startWebsocketServer() {
-		socketServer = new websocket.Server({ port: 7906 });
+		socketServer = new WebSocket.Server({ port: 7906 });
 		let parameters, robot;
 
 		socketServer.on("connection", async (socket) => {
@@ -774,7 +757,7 @@ class Roborock extends utils.Adapter {
 				const homedata = home.data.result;
 
 				if (homedata) {
-					await this.setStateAsync("HomeData", {
+					await this.setState("HomeData", {
 						val: JSON.stringify(homedata),
 						ack: true,
 					});
@@ -803,7 +786,7 @@ class Roborock extends utils.Adapter {
 
 				if (targetConsumable) {
 					const val = value >= 0 && value <= 100 ? parseInt(value) : 0;
-					await this.setStateAsync(`Devices.${duid}.consumables.${attribute}`, { val: val, ack: true });
+					await this.setState(`Devices.${duid}.consumables.${attribute}`, { val: val, ack: true });
 				}
 			}
 		}
@@ -867,7 +850,7 @@ class Roborock extends utils.Adapter {
 							},
 							native: {},
 						});
-						this.setStateAsync("Devices." + duid + ".updateStatus." + state, {
+						this.setState("Devices." + duid + ".updateStatus." + state, {
 							val: update.data.result[state],
 							ack: true,
 						});
@@ -1137,6 +1120,12 @@ class Roborock extends utils.Adapter {
 		return "Error in getRobotVersion. Version not found.";
 	}
 
+	getSelectedMap(deviceStatus) {
+		const mapStatus = deviceStatus[0].map_status;
+
+		return mapStatus >> 2; // to get the currently selected map perform bitwise right shift
+	}
+
 	getRequestId() {
 		if (this.idCounter >= 9999) {
 			this.idCounter = 0;
@@ -1210,7 +1199,7 @@ class Roborock extends utils.Adapter {
 
 		if (cameraCount > 0) {
 			try {
-				const go2rtcProcess = childProcess.spawn(go2rtcPath.toString(), ["-config", JSON.stringify(go2rtcConfig)], { shell: false, detached: false, windowsHide: true });
+				const go2rtcProcess = spawn(go2rtcPath.toString(), ["-config", JSON.stringify(go2rtcConfig)], { shell: false, detached: false, windowsHide: true });
 
 				go2rtcProcess.on("error", (error) => {
 					this.log.error(`Error starting go2rtc: ${error.message}`);
@@ -1374,7 +1363,7 @@ class Roborock extends utils.Adapter {
 
 				if (typeof state.val == "boolean") {
 					this.commandTimeout = this.setTimeout(() => {
-						this.setStateAsync(id, false, true);
+						this.setState(id, false, true);
 					}, 1000);
 				}
 			}
@@ -1421,7 +1410,7 @@ if (require.main !== module) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 function md5hex(str) {
-	return crypto.createHash("md5").update(str).digest("hex");
+	return createHash("md5").update(str).digest("hex");
 }
 
 // function md5bin(str) {

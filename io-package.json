@@ -147,8 +147,26 @@
     "connectionType": "cloud",
     "dataSource": "poll",
     "adminUI": {
-      "config": "json"
+      "config": "json",
+      "tab": "html"
     },
+    "adminTab": {
+      "name": {
+        "en": "Roborock",
+        "de": "Roborock",
+        "ru": "Roborock",
+        "pt": "Roborock",
+        "nl": "Roborock",
+        "fr": "Roborock",
+        "it": "Roborock",
+        "es": "Roborock",
+        "pl": "Roborock",
+        "zh-cn": "Roborock"
+      },
+      "link": "%web_protocol%://%ip%:%webserverPort%/map.html",
+      "fa-icon": "</i><img style='width:24px;margin-bottom:-6px;' src='/adapter/admin/roborock.png'><i>"
+    },
+    "localLink": "%web_protocol%://%ip%:%webserverPort%/map.html",
     "dependencies": [
       {
         "js-controller": ">=5.0.19"
