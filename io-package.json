@@ -1,9 +1,22 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.6.16",
+    "version": "0.6.17",
     "tier": 1,
     "news": {
+      "0.6.17": {
+        "en": "Add some missing attributes\nChange min of update interval to 60s to prevent issues\nAdd web interface to sidebar",
+        "de": "Einige fehlende Attribute hinzufügen\nÄnderung min von Update-Intervall auf 60s, um Probleme zu verhindern\nWeb-Schnittstelle zu Sidebar hinzufügen",
+        "ru": "Добавить недостающие атрибуты\nИзменение интервала обновления до 60-х, чтобы предотвратить проблемы\nДобавить веб-интерфейс на боковой панели",
+        "pt": "Adicione alguns atributos ausentes\nAlterar min de intervalo de atualização para 60s para evitar problemas\nAdicionar interface web à barra lateral",
+        "nl": "Enkele ontbrekende attributen toevoegen\nVerander min van update interval naar 60s om problemen te voorkomen\nWebinterface toevoegen aan zijbalk",
+        "fr": "Ajouter quelques attributs manquants\nChanger l'intervalle min de mise à jour en 60s pour prévenir les problèmes\nAjouter une interface web à la barre latérale",
+        "it": "Aggiungere alcuni attributi mancanti\nCambia min di intervallo di aggiornamento a 60s per evitare problemi\nAggiungere l'interfaccia web alla barra laterale",
+        "es": "Añadir algunos atributos perdidos\nCambio min de intervalo de actualización a 60s para evitar problemas\nAñadir interfaz web a la barra lateral",
+        "pl": "Dodaj brakujące atrybuty\nZmień min interwał aktualizacji do 60, aby zapobiec problemom\nDodaj interfejs WWW do paska bocznego",
+        "uk": "Додати деякі відсутні атрибути\nЗміна інтервалу оновлення до 60-х\nДодати веб-інтерфейс на бічну панель",
+        "zh-cn": "添加一些缺失属性\n将更新间隔分钟改为60秒,以防止出现问题\n向侧边栏添加网页接口"
+      },
       "0.6.16": {
         "en": "Bugfixes\nupdate test-and-release.yml\nFix S6 feature detection\nMigrate from canvas to @napu-rs/canvas\nAdd Qrevo S & Qrevo Curve",
         "de": "Bugfixes\nupdate test-and-release.yml\nFix S6 Funktion Erkennung\nVon Leinwand zu @napu-rs/canvas migrieren\nQrevo S & Qrevo Kurve",
@@ -81,19 +94,6 @@
         "pl": "Dodaj 'voice _ chat _ status' do S7 MaxV",
         "uk": "Додати `voice_chat_status` до S7 MaxV",
         "zh-cn": "将“ voice_ chat_ status” 添加到 S7 最大值"
-      },
-      "0.6.10": {
-        "en": "Add `set_switch_status` to S7 MaxV and Q Revo Pro",
-        "de": "`set_switch_status` zu S7 MaxV und Q Revo Pro hinzufügen",
-        "ru": "Добавить `set_switch_status' в S7 MaxV и Q Revo Pro",
-        "pt": "Adicione `set_switch_status` ao S7 MaxV e Q Revo Pro",
-        "nl": "Toevoegen aan S7 MaxV en Q Revo Pro",
-        "fr": "Ajouter `set_switch_status` à S7 MaxV et Q Revo Pro",
-        "it": "Aggiungi `set_switch_status` a S7 MaxV e Q Revo Pro",
-        "es": "Añadir `set_switch_status` a S7 MaxV y Q Revo Pro",
-        "pl": "Dodaj 'set _ switch _ status' do S7 MaxV i Q Revo Pro",
-        "uk": "Додати `set_switch_status` до S7 MaxV та Q Revo Pro",
-        "zh-cn": "在 S7 MaxV 和 Q Revo Pro 中添加“ set_switch_status ”"
       }
     },
     "titleLang": {

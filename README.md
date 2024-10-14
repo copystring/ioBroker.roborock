@@ -55,8 +55,7 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-
-### **WORK IN PROGRESS**
+### 0.6.17 (2024-10-14)
  * (copystring) Add some missing attributes
  * (copystring) Change min of update interval to 60s to prevent issues
  * (copystring) Add web interface to sidebar
