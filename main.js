@@ -206,7 +206,7 @@ class Roborock extends utils.Adapter {
 					this.log.info(`Starting adapter finished. Lets go!!!!!!!`);
 				} else {
 					this.log.info(`Most likely failed to login. Deleting UserData to force new login!`);
-					await this.deleteStateAsync(`UserData`);
+					await this.delObjectAsync(`UserData`);
 				}
 			}
 		} catch (error) {
@@ -244,8 +244,8 @@ class Roborock extends utils.Adapter {
 			return userdata;
 		} catch (error) {
 			this.log.error(`Error in getUserData: ${error.message}`);
-			await this.deleteStateAsync("HomeData");
-			await this.deleteStateAsync("UserData");
+			await this.delObjectAsync("HomeData");
+			await this.delObjectAsync("UserData");
 			throw error;
 		}
 	}
