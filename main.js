@@ -278,7 +278,7 @@ class Roborock extends utils.Adapter {
 
 			// sub to all commands of this robot
 			this.subscribeStates("Devices." + duid + ".commands.*");
-			this.subscribeStates("Devices." + duid + ".reset_consumables.*");
+			this.subscribeStates("Devices." + duid + ".resetConsumables.*");
 			this.subscribeStates("Devices." + duid + ".programs.startProgram");
 			this.subscribeStates("Devices." + duid + ".deviceInfo.online");
 		}
@@ -1290,7 +1290,7 @@ class Roborock extends utils.Adapter {
 
 				this.log.debug(`onStateChange: ${command} with value: ${state.val}`);
 				if (state.val == true && typeof state.val == "boolean") {
-					if (folder == "reset_consumables") {
+					if (folder == "resetConsumables") {
 						await this.vacuums[duid].command(duid, "reset_consumable", command);
 					} else {
 						this.vacuums[duid].command(duid, command);
