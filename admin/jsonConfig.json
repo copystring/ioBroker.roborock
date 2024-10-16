@@ -23,7 +23,7 @@
 			"min": 1,
 			"max": 240,
 			"style": {
-			  "width": "198px"
+			  "width": "calc(100% - 198px)"
 			}
 		},
 		"updateInterval": {
@@ -33,7 +33,7 @@
 			"min": 60,
 			"max": 240,
 			"style": {
-			  "width": "198px"
+			  "width": "calc(100% - 198px)"
 			}
 		},
 		"map_scale": {
@@ -43,7 +43,7 @@
 			"min": 1,
 			"max": 32,
 			"style": {
-			  "width": "198px"
+			  "width": "calc(100% - 198px)"
 			}
 		},
 		"webserverPort": {
@@ -51,7 +51,7 @@
 			"label": "Webserver Port",
 			"newLine": true,
 			"style": {
-			  "width": "198px"
+			  "width": "calc(100% - 198px)"
 			}
 		},
 		"hostname_ip": {
