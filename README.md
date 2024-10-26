@@ -57,6 +57,9 @@ This feature only works when map creation is enabled in the adapter options!
 -->
 ### **WORK IN PROGRESS**
  * (copystring) Add cleaned_area to S8
+ * (copystring) Bugfixes for Qrevo Curve
+ * (copystring) Fix reset of consumables
+ * (copystring) Fix io-package.json
 
 ### 0.6.17 (2024-10-14)
  * (copystring) Add some missing attributes
