@@ -166,7 +166,7 @@
       "link": "%web_protocol%://%ip%:%webserverPort%/map.html",
       "fa-icon": "</i><img style='width:24px;margin-bottom:-6px;' src='/adapter/admin/roborock.png'><i>"
     },
-    "localLink": "%web_protocol%://%ip%:%webserverPort%/map.html",
+    "localLinks": { "_default": "%web_protocol%://%ip%:%webserverPort%/map.html" },
     "dependencies": [
       {
         "js-controller": ">=5.0.19"
