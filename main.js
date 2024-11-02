@@ -29,6 +29,8 @@ class Roborock extends utils.Adapter {
 		// this.on("message", this.onMessage.bind(this));
 		this.on("unload", this.onUnload.bind(this));
 
+		this.loginApi = null;
+		this.userdata = null;
 		this.localKeys = null;
 		this.roomIDs = {};
 		this.vacuums = {};
@@ -62,191 +64,169 @@ class Roborock extends utils.Adapter {
 
 		await this.setupBasicObjects();
 
-		// create new clientID if it doesn't exist yet
-		let clientID = "";
-		try {
-			const storedClientID = await this.getStateAsync("clientID");
-			clientID = storedClientID?.val?.toString() || crypto.randomUUID();
-			await this.setState("clientID", { val: clientID, ack: true });
-		} catch (error) {
-			this.log.error(`Fehler beim Abrufen oder Setzen der clientID: ${error.message}`);
-		}
+		// Call the function initially and set an interval for every 12 hours
+		await this.initializeRoborockApi();
+		this.reconnectApiInterval = this.setInterval(() => this.initializeRoborockApi(), 12 * 60 * 60 * 1000); // 12 hours interval
 
-		// Initialize the login API (which is needed to get access to the real API).
-		this.loginApi = axios.create({
-			baseURL: "https://euiot.roborock.com",
-			headers: {
-				header_clientid: createHash("md5").update(this.config.username).update(clientID).digest().toString("base64"),
-			},
-		});
-		await this.setState("info.connection", { val: true, ack: true });
-		// api/v1/getUrlByEmail(email = ...)
-
-		const userdata = await this.getUserData(this.loginApi);
+		await this.initializeHomeDetails();
 
 		try {
-			this.loginApi.defaults.headers.common["Authorization"] = userdata.token;
-		} catch (error) {
-			this.log.error("Failed to login. Most likely wrong token! Deleting HomeData and UserData. Try again! " + error);
-
-			if (this.supportsFeature && this.supportsFeature("PLUGINS")) {
-				if (this.sentryInstance) {
-					this.sentryInstance.getSentryObject().captureException("Failed to login. Most likely wrong token! Deleting HomeData and UserData. Try again! " + error);
-				}
-			}
-			this.delObjectAsync("HomeData");
-			this.delObjectAsync("UserData");
-		}
-		const rriot = userdata.rriot;
-
-		// Initialize the real API.
-		this.api = axios.create({
-			baseURL: rriot.r.a,
-		});
-		this.api.interceptors.request.use((config) => {
-			try {
-				const timestamp = Math.floor(Date.now() / 1000);
-				const nonce = randomBytes(6).toString("base64").substring(0, 6).replace("+", "X").replace("/", "Y");
-				let url;
-				if (this.api) {
-					url = new URL(this.api.getUri(config));
-					const prestr = [rriot.u, rriot.s, nonce, timestamp, md5hex(url.pathname), /*queryparams*/ "", /*body*/ ""].join(":");
-					const mac = createHmac("sha256", rriot.h).update(prestr).digest("base64");
-
-					config.headers["Authorization"] = `Hawk id="${rriot.u}", s="${rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
-				}
-			} catch (error) {
-				this.log.error("Failed to initialize API. Error: " + error);
-
-				if (this.supportsFeature && this.supportsFeature("PLUGINS")) {
-					if (this.sentryInstance) {
-						this.sentryInstance.getSentryObject().captureException("Failed to initialize API. Error: " + error);
-					}
-				}
-			}
-			return config;
-		});
-
-		// Get home details.
-		try {
-			const homeDetail = await this.loginApi.get("api/v1/getHomeDetail");
-			if (homeDetail) {
-				const homeId = homeDetail.data.data.rrHomeId;
-
-				if (this.api) {
-					const homedata = await this.api.get(`v2/user/homes/${homeId}`);
-					const homedataResult = homedata.data.result;
-
-					const scene = await this.api.get(`user/scene/home/${homeId}`);
-
-					await this.setState("HomeData", {
-						val: JSON.stringify(homedataResult),
-						ack: true,
-					});
-
-					// create devices and set states
-					this.products = homedataResult.products;
-					this.devices = homedataResult.devices.concat(homedataResult.receivedDevices);
-					this.localKeys = new Map(this.devices.map((device) => [device.duid, device.localKey]));
-					// this.adapter.log.debug(`initUser test: ${JSON.stringify(Array.from(this.adapter.localKeys.entries()))}`);
-
-					await this.rr_mqtt_connector.initUser(userdata);
-					await this.rr_mqtt_connector.initMQTT_Subscribe();
-					await this.rr_mqtt_connector.initMQTT_Message();
-
-					// store name of each room via ID
-					const rooms = homedataResult.rooms;
-					for (const room in rooms) {
-						const roomID = rooms[room].id;
-						const roomName = rooms[room].name;
-
-						this.roomIDs[roomID] = roomName;
-					}
-					this.log.debug(`RoomIDs debug: ${JSON.stringify(this.roomIDs)}`);
-
-					// reconnect every 3 hours (10800 seconds)
-					this.reconnectIntervall = this.setInterval(async () => {
-						this.log.debug(`Reconnecting after 3 hours!`);
-
-						await this.rr_mqtt_connector.reconnectClient();
-					}, 3600 * 1000);
-
-					this.processScene(scene);
-
-					this.homedataInterval = this.setInterval(this.updateHomeData.bind(this), this.config.updateInterval * 1000, homeId);
-					await this.updateHomeData(homeId);
-
-					const discoveredDevices = await this.localConnector.getLocalDevices();
-
-					await this.createDevices();
-					await this.getNetworkInfo();
-
-					// merge udp discovered devices with local devices found via mqtt
-					Object.entries(discoveredDevices).forEach(([duid, ip]) => {
-						if (!Object.prototype.hasOwnProperty.call(this.localDevices, duid)) {
-							this.localDevices[duid] = ip;
-						}
-					});
-					this.log.debug(`localDevices: ${JSON.stringify(this.localDevices)}`);
-
-					for (const device in this.localDevices) {
-						const duid = device;
-						const ip = this.localDevices[device];
-
-						await this.localConnector.createClient(duid, ip);
-					}
-					this.initializeDeviceUpdates();
-
-					// These need to start only after all states have been set
-					if (this.config.enable_map_creation == true) {
-						this.startWebserver();
-						await this.startWebsocketServer();
-					}
-
-					this.log.info(`Starting adapter finished. Lets go!!!!!!!`);
-				} else {
-					this.log.info(`Most likely failed to login. Deleting UserData to force new login!`);
-					await this.delObjectAsync(`UserData`);
-				}
-			}
-		} catch (error) {
-			this.log.error("Failed to get home details: " + error.stack);
-		}
-
-		try {
-			this.start_go2rtc(this.vacuums, userdata);
+			this.start_go2rtc(this.vacuums);
 		} catch (error) {
 			this.catchError(`Failed to start go2rtc. ${error.stack}`);
 		}
 	}
 
-	async getUserData(loginApi) {
+	async initializeRoborockApi() {
 		try {
-			const response = await loginApi.post(
-				"api/v1/login",
-				new URLSearchParams({
-					username: this.config.username,
-					password: this.config.password,
-					needtwostepauth: "false",
-				}).toString()
-			);
-			const userdata = response.data.data;
+			this.log.debug(`initializeRoborockApi`);
+			// Create or retrieve clientID
+			const clientID = (await this.getStateAsync("clientID"))?.val?.toString() || crypto.randomUUID();
+			await this.setState("clientID", { val: clientID, ack: true });
 
-			if (!userdata) {
-				throw new Error("Login returned empty userdata.");
-			}
-
-			await this.setState("UserData", {
-				val: JSON.stringify(userdata),
-				ack: true,
+			// Initialize the login API
+			this.loginApi = axios.create({
+				baseURL: "https://euiot.roborock.com",
+				headers: {
+					header_clientid: createHash("md5").update(this.config.username).update(clientID).digest().toString("base64"),
+				},
 			});
 
-			return userdata;
+			// Get user data and set authorization header
+			this.userdata = await this.getUserData();
+
+			if (!this.userdata.token) throw new Error("Failed to retrieve user token. Check login credentials.");
+			this.loginApi.defaults.headers.common["Authorization"] = this.userdata.token;
+
+			// Initialize the real API with request interceptor
+			this.api = axios.create({ baseURL: this.userdata.rriot.r.a });
+			this.api.interceptors.request.use((config) => {
+				try {
+					const timestamp = Math.floor(Date.now() / 1000);
+					const nonce = randomBytes(6)
+						.toString("base64")
+						.substring(0, 6)
+						.replace(/[+/]/g, (m) => (m === "+" ? "X" : "Y"));
+					const urlPath = this.api ? new URL(this.api.getUri(config)).pathname : "";
+					const prestr = [this.userdata.rriot.u, this.userdata.rriot.s, nonce, timestamp, md5hex(urlPath), "", ""].join(":");
+					const mac = createHmac("sha256", this.userdata.rriot.h).update(prestr).digest("base64");
+
+					config.headers["Authorization"] = `Hawk id="${this.userdata.rriot.u}", s="${this.userdata.rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
+				} catch (error) {
+					this.log.error("Failed to initialize API. Error: " + error);
+					this.sentryInstance?.getSentryObject().captureException(error);
+				}
+				return config;
+			});
+
+			await this.setState("info.connection", { val: true, ack: true });
 		} catch (error) {
-			this.log.error(`Error in getUserData: ${error.message}`);
-			await this.delObjectAsync("HomeData");
-			await this.delObjectAsync("UserData");
-			throw error;
+			this.log.error(`Error retrieving or setting clientID: ${error.message}`);
+			this.sentryInstance?.getSentryObject().captureException(error);
+			await Promise.all([this.delObjectAsync("HomeData"), this.delObjectAsync("UserData")]);
+		}
+	}
+
+	async initializeHomeDetails() {
+		try {
+			if (!this.loginApi) throw new Error("loginApi is not initialized.");
+			const homeDetail = await this.loginApi.get("api/v1/getHomeDetail");
+			if (!homeDetail) throw new Error("Failed to retrieve home details.");
+
+			const homeId = homeDetail.data.data.rrHomeId;
+			if (!this.api) throw new Error("API is not initialized.");
+
+			// Fetch home data and scene
+			const [homedataResult, scene] = await Promise.all([
+				await this.api.get(`v2/user/homes/${homeId}`).then((res) => res.data.result),
+				await this.api.get(`user/scene/home/${homeId}`).then((res) => res.data),
+			]);
+
+			// Set HomeData state
+			await this.setState("HomeData", { val: JSON.stringify(homedataResult), ack: true });
+
+			// Create devices and set states
+			this.products = homedataResult.products;
+			this.devices = homedataResult.devices.concat(homedataResult.receivedDevices);
+			this.localKeys = new Map(this.devices.map((device) => [device.duid, device.localKey]));
+
+			// Initialize MQTT and rooms
+			await this.rr_mqtt_connector.initUser(this.userdata.rriot);
+			await this.rr_mqtt_connector.initMQTT_Subscribe(this.userdata.rriot);
+			await this.rr_mqtt_connector.initMQTT_Message();
+
+			homedataResult.rooms.forEach((room) => {
+				this.roomIDs[room.id] = room.name;
+			});
+			this.log.debug(`RoomIDs debug: ${JSON.stringify(this.roomIDs)}`);
+
+			this.processScene(scene);
+
+			// Set up intervals
+			this.reconnectIntervall = this.setInterval(async () => {
+				this.log.debug(`Reconnecting every hour!`);
+				await this.rr_mqtt_connector.reconnectClient();
+			}, 3600 * 1000);
+
+			this.homedataInterval = this.setInterval(() => this.updateHomeData(homeId), this.config.updateInterval * 1000);
+			await this.updateHomeData(homeId);
+
+			// Initialize local devices
+			const discoveredDevices = await this.localConnector.getLocalDevices();
+			await this.createDevices();
+			await this.getNetworkInfo();
+
+			Object.entries(discoveredDevices).forEach(([duid, ip]) => {
+				if (!this.localDevices[duid]) {
+					this.localDevices[duid] = ip;
+				}
+			});
+			this.log.debug(`localDevices: ${JSON.stringify(this.localDevices)}`);
+
+			await Promise.all(Object.entries(this.localDevices).map(([duid, ip]) => this.localConnector.createClient(duid, ip)));
+			this.initializeDeviceUpdates();
+
+			// Start map creation if enabled
+			if (this.config.enable_map_creation) {
+				this.startWebserver();
+				await this.startWebsocketServer();
+			}
+
+			this.log.info(`Starting adapter finished. Let's go!!!!!!!`);
+		} catch (error) {
+			this.log.error("Failed to get home details: " + error.stack);
+		}
+	}
+
+	async getUserData() {
+		if (this.loginApi) {
+			try {
+				const response = await this.loginApi.post(
+					"api/v1/login",
+					new URLSearchParams({
+						username: this.config.username,
+						password: this.config.password,
+						needtwostepauth: "false",
+					}).toString()
+				);
+				const userdata = response.data.data;
+
+				if (!userdata) {
+					throw new Error("Login returned empty userdata.");
+				}
+
+				await this.setState("UserData", {
+					val: JSON.stringify(userdata),
+					ack: true,
+				});
+
+				return userdata;
+			} catch (error) {
+				this.log.error(`Error in getUserData: ${error.message}. This is most likely due to too many reconnects.`);
+				await this.delObjectAsync("HomeData");
+				await this.delObjectAsync("UserData");
+				throw error;
+			}
 		}
 	}
 
@@ -319,15 +299,16 @@ class Roborock extends utils.Adapter {
 	}
 
 	async processScene(scene) {
-		if (scene && scene.data.result) {
-			this.log.debug(`Processing scene ${JSON.stringify(scene.data.result)}`);
+		if (scene && scene?.result) {
+			const data = scene.result;
+			this.log.debug(`Processing scene ${JSON.stringify(data)}`);
 
 			const programs = {};
-			for (const program in scene.data.result) {
-				const enabled = scene.data.result[program].enabled;
-				const programID = scene.data.result[program].id;
-				const programName = scene.data.result[program].name;
-				const param = scene.data.result[program].param;
+			for (const program in data) {
+				const enabled = data[program].enabled;
+				const programID = data[program].id;
+				const programName = data[program].name;
+				const param = data[program].param;
 
 				this.log.debug(`Processing scene param ${param}`);
 				const duid = JSON.parse(param).action.items[0].entityId;
@@ -713,6 +694,9 @@ class Roborock extends utils.Adapter {
 		}
 		if (this.commandTimeout) {
 			this.clearTimeout(this.commandTimeout);
+		}
+		if (this.reconnectApiInterval) {
+			this.clearInterval(this.reconnectApiInterval);
 		}
 
 		this.localConnector.clearLocalDevicedTimeout();
@@ -1180,7 +1164,7 @@ class Roborock extends utils.Adapter {
 		});
 	}
 
-	async start_go2rtc(robots, userdata) {
+	async start_go2rtc(robots) {
 		let cameraCount = 0;
 
 		const go2rtcConfig = { streams: {} };
@@ -1188,7 +1172,7 @@ class Roborock extends utils.Adapter {
 			if (this.localKeys) {
 				const localKey = this.localKeys.get(duid);
 
-				const { u, s, k } = userdata.rriot;
+				const { u, s, k } = this.userdata.rriot;
 
 				if (this.vacuums[duid].features.getFeatureList().isCameraSupported) {
 					cameraCount++;

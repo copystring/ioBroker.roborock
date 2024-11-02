@@ -60,6 +60,8 @@ This feature only works when map creation is enabled in the adapter options!
  * (copystring) Bugfixes for Qrevo Curve
  * (copystring) Fix reset of consumables
  * (copystring) Fix io-package.json
+ * (copystring) Add Roborock Qrevo Master
+ * (copystring) Refactor login api and renew login every 12 hours
 
 ### 0.6.17 (2024-10-14)
  * (copystring) Add some missing attributes
