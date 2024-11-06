@@ -66,9 +66,13 @@ class Roborock extends utils.Adapter {
 
 		// Call the function initially and set an interval for every 12 hours
 		await this.initializeRoborockApi();
-		this.reconnectApiInterval = this.setInterval(() => this.initializeRoborockApi(), 12 * 60 * 60 * 1000); // 12 hours interval
-
 		await this.initializeHomeDetails();
+
+		this.reconnectApiInterval = this.setInterval(async () => {
+			await this.initializeRoborockApi();
+			await this.initializeHomeDetails();
+		}, 12 * 60 * 60 * 1000); // 12 hours interval
+
 
 		try {
 			this.start_go2rtc(this.vacuums);
@@ -163,11 +167,17 @@ class Roborock extends utils.Adapter {
 			this.processScene(scene);
 
 			// Set up intervals
+			if (this.reconnectIntervall) {
+				this.clearInterval(this.reconnectIntervall);
+			}
 			this.reconnectIntervall = this.setInterval(async () => {
 				this.log.debug(`Reconnecting every hour!`);
 				await this.rr_mqtt_connector.reconnectClient();
 			}, 3600 * 1000);
 
+			if (this.homedataInterval) {
+				this.clearInterval(this.homedataInterval);
+			}
 			this.homedataInterval = this.setInterval(() => this.updateHomeData(homeId), this.config.updateInterval * 1000);
 			await this.updateHomeData(homeId);
 
