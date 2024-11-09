@@ -426,6 +426,9 @@ class Roborock extends utils.Adapter {
 			this.clearInterval(this.vacuums[duid].mapUpdater);
 			this.vacuums[duid].mapUpdater = null;
 
+			// update last map or the last map is maybe outdated and roborock is still on the way back
+			await this.vacuums[duid].getMap(duid);
+
 			await this.vacuums[duid].getCleanSummary(duid);
 		}
 	}
