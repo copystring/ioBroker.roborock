@@ -215,7 +215,7 @@ class Roborock extends utils.Adapter {
 					this.initializeDeviceUpdates();
 
 					// These need to start only after all states have been set
-					if (this.config.enable_map_creation == true) {
+					if (this.config.enable_webserver == true) {
 						this.startWebserver();
 						await this.startWebsocketServer();
 					}
