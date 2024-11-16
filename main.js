@@ -69,6 +69,7 @@ class Roborock extends utils.Adapter {
 		await this.initializeHomeDetails();
 
 		this.reconnectApiInterval = this.setInterval(async () => {
+			this.rr_mqtt_connector = new roborock_mqtt_connector(this);
 			await this.initializeRoborockApi();
 			await this.initializeHomeDetails();
 		}, 12 * 60 * 60 * 1000); // 12 hours interval
