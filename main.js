@@ -1219,7 +1219,7 @@ class Roborock extends utils.Adapter {
 
 	async catchError(error, attribute, duid, model) {
 		if (error) {
-			if (error.toString().includes("retry") || error.toString().includes("locating") || error.toString().includes("timed out after 10 seconds")) {
+			if (error.toString().includes("retry") || error.toString().includes("locating") || error.toString().includes("timed out after 30 seconds")) {
 				this.log.warn(`Failed to execute ${attribute} on robot ${duid} (${model || "unknown model"}): ${error}`);
 			} else {
 				this.log.error(`Failed to execute ${attribute} on robot ${duid} (${model || "unknown model"}): ${error.stack || error}`);
