@@ -103,6 +103,8 @@ class Roborock extends utils.Adapter {
 			if (!this.userdata.token) throw new Error("Failed to retrieve user token. Check login credentials.");
 			this.loginApi.defaults.headers.common["Authorization"] = this.userdata.token;
 
+			this.log.info(`Userdata: ${JSON.stringify(this.userdata)}`);
+
 			// Initialize the real API with request interceptor
 			this.api = axios.create({ baseURL: this.userdata.rriot.r.a });
 			this.api.interceptors.request.use((config) => {
