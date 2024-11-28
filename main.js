@@ -74,7 +74,6 @@ class Roborock extends utils.Adapter {
 			await this.initializeHomeDetails();
 		}, 12 * 60 * 60 * 1000); // 12 hours interval
 
-
 		try {
 			this.start_go2rtc(this.vacuums);
 		} catch (error) {
@@ -212,7 +211,11 @@ class Roborock extends utils.Adapter {
 	}
 
 	async getUserData() {
-		if (this.loginApi) {
+		const userdata = await this.getStateAsync("UserData");
+
+		if (userdata) {
+			return typeof userdata.val === "string" ? JSON.parse(userdata.val) : null;
+		} else if (this.loginApi) {
 			try {
 				const response = await this.loginApi.post(
 					"api/v1/login",
