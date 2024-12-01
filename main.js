@@ -103,7 +103,9 @@ class Roborock extends utils.Adapter {
 			if (!this.userdata.token) throw new Error("Failed to retrieve user token. Check login credentials.");
 			this.loginApi.defaults.headers.common["Authorization"] = this.userdata.token;
 
-			this.log.info(`Userdata: ${JSON.stringify(this.userdata)}`);
+			const mqttUser = this.rr_mqtt_connector.md5hex(this.userdata.rriot.u + ":" + this.userdata.rriot.k).substring(2, 10);
+			const mqttPassword = this.rr_mqtt_connector.md5hex(this.userdata.rriot.s + ":" + this.userdata.rriot.k).substring(16);
+			this.log.info(`Userdata: ${JSON.stringify(this.userdata)} mqttUser: ${mqttUser} mqttPassword: ${mqttPassword}`);
 
 			// Initialize the real API with request interceptor
 			this.api = axios.create({ baseURL: this.userdata.rriot.r.a });
