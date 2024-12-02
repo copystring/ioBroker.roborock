@@ -1244,6 +1244,7 @@ class Roborock extends utils.Adapter {
 	onUnload(callback) {
 		try {
 			this.clearTimersAndIntervals();
+			this.setState("info.connection", { val: false, ack: true });
 
 			callback();
 		} catch (e) {
