@@ -64,7 +64,7 @@ class Roborock extends utils.Adapter {
 
 		await this.setupBasicObjects();
 
-		// Call the function initially and set an interval for every 12 hours
+		// Call the function initially and set an interval for every 3 hours
 		await this.initializeRoborockApi();
 		await this.initializeHomeDetails();
 
@@ -72,7 +72,7 @@ class Roborock extends utils.Adapter {
 			this.rr_mqtt_connector = new roborock_mqtt_connector(this);
 			await this.initializeRoborockApi();
 			await this.initializeHomeDetails();
-		}, 12 * 60 * 60 * 1000); // 12 hours interval
+		}, 3 * 60 * 60 * 1000); // 3 hours interval
 
 
 		try {
