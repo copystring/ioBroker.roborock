@@ -30,7 +30,7 @@
 			"type": "number",
 			"label": "Update interval",
 			"newLine": true,
-			"min": 1,
+			"min": 60,
 			"max": 240,
 			"style": {
 			  "width": "198px"

@@ -130,7 +130,7 @@
     "msg_seq": "Message Sequence",
     "msg_ver": "Message Version",
     "option1": "option1",
-    "option2": "",
+    "option2": "option2",
     "rdt": "Remaining dry time",
     "resetConsumables_description": "Consumables available for reset",
     "reset_dust_collection_work_times": "Dust collection",
