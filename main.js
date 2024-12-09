@@ -69,6 +69,9 @@ class Roborock extends utils.Adapter {
 		await this.initializeHomeDetails();
 
 		this.reconnectApiInterval = this.setInterval(async () => {
+			// clean disconnect and reconnect every 3 hours
+			await this.rr_mqtt_connector.disconnectClient();
+
 			this.rr_mqtt_connector = new roborock_mqtt_connector(this);
 			await this.initializeRoborockApi();
 			await this.initializeHomeDetails();
