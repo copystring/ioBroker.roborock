@@ -29,8 +29,6 @@ class Roborock extends utils.Adapter {
 		// this.on("message", this.onMessage.bind(this));
 		this.on("unload", this.onUnload.bind(this));
 
-		this.loginApi = null;
-		this.userdata = null;
 		this.localKeys = null;
 		this.roomIDs = {};
 		this.vacuums = {};
@@ -43,7 +41,6 @@ class Roborock extends utils.Adapter {
 		this.remoteDevices = new Set();
 		this.roborockPackageHelper = new roborockPackageHelper(this);
 		this.localConnector = new rrLocalConnector(this);
-		this.rr_mqtt_connector = new roborock_mqtt_connector(this);
 		this.message = new rrMessage(this);
 		this.messageQueueHandler = new messageQueueHandler(this);
 	}
@@ -65,21 +62,23 @@ class Roborock extends utils.Adapter {
 		await this.setupBasicObjects();
 
 		// Call the function initially and set an interval for every 3 hours
-		await this.initializeRoborockApi();
-		await this.initializeHomeDetails();
+		const { loginApi, userdata } = await this.initializeRoborockApi();
+		this.rr_mqtt_connector = new roborock_mqtt_connector(this, userdata);
+		await this.initializeHomeDetails(loginApi, userdata);
 
 		this.reconnectApiInterval = this.setInterval(async () => {
 			// clean disconnect and reconnect every 3 hours
-			await this.rr_mqtt_connector.disconnectClient();
+			if (this.rr_mqtt_connector) {
+				await this.rr_mqtt_connector.disconnectClient();
+			}
 
-			this.rr_mqtt_connector = new roborock_mqtt_connector(this);
-			await this.initializeRoborockApi();
-			await this.initializeHomeDetails();
+			const { loginApi, userdata } = await this.initializeRoborockApi();
+			this.rr_mqtt_connector = new roborock_mqtt_connector(this, userdata);
+			await this.initializeHomeDetails(loginApi, userdata);
 		}, 3 * 60 * 60 * 1000); // 3 hours interval
 
-
 		try {
-			this.start_go2rtc(this.vacuums);
+			this.start_go2rtc(this.vacuums, userdata);
 		} catch (error) {
 			this.catchError(`Failed to start go2rtc. ${error.stack}`);
 		}
@@ -93,7 +92,7 @@ class Roborock extends utils.Adapter {
 			await this.setState("clientID", { val: clientID, ack: true });
 
 			// Initialize the login API
-			this.loginApi = axios.create({
+			const loginApi = axios.create({
 				baseURL: "https://euiot.roborock.com",
 				headers: {
 					header_clientid: createHash("md5").update(this.config.username).update(clientID).digest().toString("base64"),
@@ -101,17 +100,14 @@ class Roborock extends utils.Adapter {
 			});
 
 			// Get user data and set authorization header
-			this.userdata = await this.getUserData();
+			const userdata = await this.getUserData(loginApi);
+			this.log.debug(`Userdata: ${JSON.stringify(userdata)}`);
 
-			if (!this.userdata.token) throw new Error("Failed to retrieve user token. Check login credentials.");
-			this.loginApi.defaults.headers.common["Authorization"] = this.userdata.token;
-
-			const mqttUser = this.rr_mqtt_connector.md5hex(this.userdata.rriot.u + ":" + this.userdata.rriot.k).substring(2, 10);
-			const mqttPassword = this.rr_mqtt_connector.md5hex(this.userdata.rriot.s + ":" + this.userdata.rriot.k).substring(16);
-			this.log.info(`Userdata: ${JSON.stringify(this.userdata)} mqttUser: ${mqttUser} mqttPassword: ${mqttPassword}`);
+			if (!userdata.token) throw new Error("Failed to retrieve user token. Check login credentials.");
+			loginApi.defaults.headers.common["Authorization"] = userdata.token;
 
 			// Initialize the real API with request interceptor
-			this.api = axios.create({ baseURL: this.userdata.rriot.r.a });
+			this.api = axios.create({ baseURL: userdata.rriot.r.a });
 			this.api.interceptors.request.use((config) => {
 				try {
 					const timestamp = Math.floor(Date.now() / 1000);
@@ -120,10 +116,10 @@ class Roborock extends utils.Adapter {
 						.substring(0, 6)
 						.replace(/[+/]/g, (m) => (m === "+" ? "X" : "Y"));
 					const urlPath = this.api ? new URL(this.api.getUri(config)).pathname : "";
-					const prestr = [this.userdata.rriot.u, this.userdata.rriot.s, nonce, timestamp, md5hex(urlPath), "", ""].join(":");
-					const mac = createHmac("sha256", this.userdata.rriot.h).update(prestr).digest("base64");
+					const prestr = [userdata.rriot.u, userdata.rriot.s, nonce, timestamp, md5hex(urlPath), "", ""].join(":");
+					const mac = createHmac("sha256", userdata.rriot.h).update(prestr).digest("base64");
 
-					config.headers["Authorization"] = `Hawk id="${this.userdata.rriot.u}", s="${this.userdata.rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
+					config.headers["Authorization"] = `Hawk id="${userdata.rriot.u}", s="${userdata.rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
 				} catch (error) {
 					this.log.error("Failed to initialize API. Error: " + error);
 					this.sentryInstance?.getSentryObject().captureException(error);
@@ -132,17 +128,21 @@ class Roborock extends utils.Adapter {
 			});
 
 			await this.setState("info.connection", { val: true, ack: true });
+
+			return { loginApi, userdata };
 		} catch (error) {
-			this.log.error(`Error retrieving or setting clientID: ${error.message}`);
+			this.log.error(`Error retrieving or setting clientID: ${error.stack}`);
 			this.sentryInstance?.getSentryObject().captureException(error);
 			await Promise.all([this.delObjectAsync("HomeData"), this.delObjectAsync("UserData")]);
+
+			return { loginApi: null, userdata: null };
 		}
 	}
 
-	async initializeHomeDetails() {
+	async initializeHomeDetails(loginApi, userdata) {
 		try {
-			if (!this.loginApi) throw new Error("loginApi is not initialized.");
-			const homeDetail = await this.loginApi.get("api/v1/getHomeDetail");
+			if (!loginApi) throw new Error("loginApi is not initialized.");
+			const homeDetail = await loginApi.get("api/v1/getHomeDetail");
 			if (!homeDetail) throw new Error("Failed to retrieve home details.");
 
 			const homeId = homeDetail.data.data.rrHomeId;
@@ -163,9 +163,11 @@ class Roborock extends utils.Adapter {
 			this.localKeys = new Map(this.devices.map((device) => [device.duid, device.localKey]));
 
 			// Initialize MQTT and rooms
-			await this.rr_mqtt_connector.initUser(this.userdata.rriot);
-			await this.rr_mqtt_connector.initMQTT_Subscribe(this.userdata.rriot);
-			await this.rr_mqtt_connector.initMQTT_Message();
+			if (this.rr_mqtt_connector) {
+				await this.rr_mqtt_connector.initUser();
+				await this.rr_mqtt_connector.initMQTT_Subscribe(userdata.rriot);
+				await this.rr_mqtt_connector.initMQTT_Message();
+			}
 
 			homedataResult.rooms.forEach((room) => {
 				this.roomIDs[room.id] = room.name;
@@ -180,7 +182,9 @@ class Roborock extends utils.Adapter {
 			}
 			this.reconnectIntervall = this.setInterval(async () => {
 				this.log.debug(`Reconnecting every hour!`);
-				await this.rr_mqtt_connector.reconnectClient();
+				if (this.rr_mqtt_connector) {
+					await this.rr_mqtt_connector.reconnectClient();
+				}
 			}, 3600 * 1000);
 
 			if (this.homedataInterval) {
@@ -216,35 +220,33 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
-	async getUserData() {
-		if (this.loginApi) {
-			try {
-				const response = await this.loginApi.post(
-					"api/v1/login",
-					new URLSearchParams({
-						username: this.config.username,
-						password: this.config.password,
-						needtwostepauth: "false",
-					}).toString()
-				);
-				const userdata = response.data.data;
+	async getUserData(loginApi) {
+		try {
+			const response = await loginApi.post(
+				"api/v1/login",
+				new URLSearchParams({
+					username: this.config.username,
+					password: this.config.password,
+					needtwostepauth: "false",
+				}).toString()
+			);
+			const userdata = response.data.data;
 
-				if (!userdata) {
-					throw new Error("Login returned empty userdata.");
-				}
-
-				await this.setState("UserData", {
-					val: JSON.stringify(userdata),
-					ack: true,
-				});
-
-				return userdata;
-			} catch (error) {
-				this.log.error(`Error in getUserData: ${error.message}. This is most likely due to too many reconnects.`);
-				await this.delObjectAsync("HomeData");
-				await this.delObjectAsync("UserData");
-				throw error;
+			if (!userdata) {
+				throw new Error("Login returned empty userdata.");
 			}
+
+			await this.setState("UserData", {
+				val: JSON.stringify(userdata),
+				ack: true,
+			});
+
+			return userdata;
+		} catch (error) {
+			this.log.error(`Error in getUserData: ${error.message}. This is most likely due to too many reconnects.`);
+			await this.delObjectAsync("HomeData");
+			await this.delObjectAsync("UserData");
+			throw error;
 		}
 	}
 
@@ -1182,7 +1184,7 @@ class Roborock extends utils.Adapter {
 		});
 	}
 
-	async start_go2rtc(robots) {
+	async start_go2rtc(robots, userdata) {
 		let cameraCount = 0;
 
 		const go2rtcConfig = { streams: {} };
@@ -1190,7 +1192,7 @@ class Roborock extends utils.Adapter {
 			if (this.localKeys) {
 				const localKey = this.localKeys.get(duid);
 
-				const { u, s, k } = this.userdata.rriot;
+				const { u, s, k } = userdata.rriot;
 
 				if (this.vacuums[duid].features.getFeatureList().isCameraSupported) {
 					cameraCount++;
