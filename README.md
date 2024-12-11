@@ -63,7 +63,10 @@ This feature only works when map creation is enabled in the adapter options!
  * (copystring) Fix reset of consumables
  * (copystring) Fix io-package.json
  * (copystring) Add Roborock Qrevo Master
- * (copystring) Refactor login api and renew login every 12 hours
+ * (copystring) Refactor login api and renew login every 3 hours
+ * (fL4sH3r) Fix unit of clean_percent
+ * (copystring) Add water box support to S6
+ * (copystring) Many small fixed I can't be bothered to list 😅
 
 ### 0.6.17 (2024-10-14)
  * (copystring) Add some missing attributes
