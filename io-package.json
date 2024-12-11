@@ -1,9 +1,22 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.6.17",
+    "version": "0.6.18",
     "tier": 1,
     "news": {
+      "0.6.18": {
+        "en": "Add cleaned_area to S8\nBugfixes for Qrevo Curve\nFix reset of consumables\nFix io-package.json\nAdd Roborock Qrevo Master\nRefactor login api and renew login every 3 hours\nFix unit of clean_percent\nAdd water box support to S6\nMany small fixed I can't be bothered to list 😅",
+        "de": "Gesäubert_area zu S8 hinzufügen\nBugfixes für Qrevo Curve\nReset von Verbrauchsmaterialien\nIo-package.json\nRoborock Qrevo Master hinzufügen\nRefactor login api und erneuern Login alle 3 Stunden\nFixeinheit von clean_percent\nWasserkastenunterstützung für S6 hinzufügen\nViele kleine fixierte ich kann nicht gestört werden, um 😅",
+        "ru": "Добавить очищенный_area в S8\nQrevo Curve\nИсправление расходуемых материалов\nFix io-package.json\nДобавить мастера Roborock Qrevo\nРефакторный логин api и обновляет логин каждые 3 часа\nFix unit of clean_percent\nДобавить поддержку водной коробки S6\nМного маленьких фиксированных я не могу быть потрудился перечислить 😅",
+        "pt": "Adicionar cleaned_area a S8\nBugfixs para a curva Qrevo\nFix reset de consumíveis\nFix io-package.json\nAdicionar Roborock Qrevo Master\nRefactor login api e renovar login a cada 3 horas\nFix unidade de clean_percent\nAdicionar suporte de caixa de água para S6\nMuitos pequenos fixos não posso ser incomodado para listar  to",
+        "nl": "_Geschoond gebied toevoegen aan S8\nBugfixes voor Qrevo-curve\nReset van verbruiksartikelen herstellen\nFix io-package.json\nRoborock Qrevo Meester toevoegen\nRefactor login api en vernieuwen login elke 3 uur\nRepareren eenheid van clean_percent\nWaterbakondersteuning toevoegen aan S6\nVeel kleine vaste ik kan niet worden lastig gemaakt om lijst",
+        "fr": "Ajouter la zone nettoyée à S8\nBugfixes pour la courbe Qrevo\nCorrection de la remise des consommables\nRéparez io-package.json\nAjouter Roborock Qrevo Master\nRefactor login api et renouveler la connexion toutes les 3 heures\nCorrection de l'unité de pourcentage propre\nAjouter le support de boîte à eau à S6\nBeaucoup de petits fixes Je ne peux pas être dérangé pour lister",
+        "it": "Aggiungi clean_area a S8\nBugfixs per la curva di Qrevo\nRipristino dei materiali di consumo\nFissare io-package.json\nAggiungi Roborock Qrevo Master\nRefactor login api e rinnovare il login ogni 3 ore\nUnità di fissaggio di clean_percent\nAggiungi supporto scatola acqua a S6\nMolti piccoli fissi non posso essere disturbato a elencare 😅",
+        "es": "Añadir cleaned_area a S8\nBugfixes para Qrevo Curve\nFijación de los bienes fungibles\nFijar io-paquete.json\nAñadir Roborock Qrevo Master\nRefactor login api y renovar login cada 3 horas\nUnidad de fijación limpia_porcent\nAñadir soporte de caja de agua a S6\nMuchos pequeños fijos no puedo ser molestado en la lista 😅",
+        "pl": "Dodaj oczyszczoną powierzchnię do S8\nPoprawki dla krzywej Qrevo\nNapraw resetowanie materiałów eksploatacyjnych\nNapraw jo- package.json\nDodaj Robolock Qrevo Master\nRefaktor logowania api i odnowić logowanie co 3 godziny\nNapraw jednostkę czystego _%\nDodaj obsługę skrzynki wodnej do S6\nWiele małych naprawionych nie mogę być kłopotliwy, aby wykaz",
+        "uk": "Додати cleaned_area до S8\nВиправлення помилок для Qrevo Curve\nВиправлення скидання витратних матеріалів\nEnglish, Українська, Français..\nДодати майстер Roborock Qrevo\nРефакторний логін Api і новий логін кожні 3 години\nФіксований блок чистоти\nДодавання підтримки водяної коробки до S6\nБагато малий фіксований я не можу бути якірований до списку 😅",
+        "zh-cn": "将清除的区域添加到 S8\nQurevo 曲线的错误修正\n更换消耗品\n修复 io- package.json\n添加 Roborock Qurevo 主控器\n每3小时重置登录 api 并更新登录\n清洁单位% (%)\n向 S6 添加水箱支持\n很多小的修补,我不用再提了"
+      },
       "0.6.17": {
         "en": "Add some missing attributes\nChange min of update interval to 60s to prevent issues\nAdd web interface to sidebar",
         "de": "Einige fehlende Attribute hinzufügen\nÄnderung min von Update-Intervall auf 60s, um Probleme zu verhindern\nWeb-Schnittstelle zu Sidebar hinzufügen",
@@ -81,19 +94,6 @@
         "pl": "Zmień go2rtc github na go2rtc- static npm",
         "uk": "Зміна go2rtc github для go2rtc-static npm",
         "zh-cn": "将go2rtc github改为go2rtc- static npm"
-      },
-      "0.6.11": {
-        "en": "Add `voice_chat_status` to S7 MaxV",
-        "de": "Fügen Sie `voice_chat_status` zu S7 MaxV hinzu",
-        "ru": "Добавить `voice_chat_status' в S7 MaxV",
-        "pt": "Adicionar `voice_chat_status` a S7 MaxV",
-        "nl": "Toevoegen aan S7 MaxV",
-        "fr": "Ajouter `voix_chat_status` à S7 MaxV",
-        "it": "Aggiungi `voice_chat_status` a S7 MaxV",
-        "es": "Añadir `voice_chat_status` a S7 MaxV",
-        "pl": "Dodaj 'voice _ chat _ status' do S7 MaxV",
-        "uk": "Додати `voice_chat_status` до S7 MaxV",
-        "zh-cn": "将“ voice_ chat_ status” 添加到 S7 最大值"
       }
     },
     "titleLang": {
@@ -166,7 +166,9 @@
       "link": "%web_protocol%://%ip%:%webserverPort%/map.html",
       "fa-icon": "</i><img style='width:24px;margin-bottom:-6px;' src='/adapter/admin/roborock.png'><i>"
     },
-    "localLinks": { "_default": "%web_protocol%://%ip%:%webserverPort%/map.html" },
+    "localLinks": {
+      "_default": "%web_protocol%://%ip%:%webserverPort%/map.html"
+    },
     "dependencies": [
       {
         "js-controller": ">=5.0.19"
