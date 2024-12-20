@@ -61,21 +61,21 @@ class Roborock extends utils.Adapter {
 
 		await this.setupBasicObjects();
 
-		// Call the function initially and set an interval for every 3 hours
+		// Call the function initially and set an interval for every hour
 		const { loginApi, userdata } = await this.initializeRoborockApi();
 		this.rr_mqtt_connector = new roborock_mqtt_connector(this, userdata);
 		await this.initializeHomeDetails(loginApi, userdata);
 
 		this.reconnectApiInterval = this.setInterval(async () => {
-			// clean disconnect and reconnect every 3 hours
+			// clean disconnect and reconnect every hour
 			if (this.rr_mqtt_connector) {
 				await this.rr_mqtt_connector.disconnectClient();
-			}
 
-			const { loginApi, userdata } = await this.initializeRoborockApi();
-			this.rr_mqtt_connector = new roborock_mqtt_connector(this, userdata);
-			await this.initializeHomeDetails(loginApi, userdata);
-		}, 3 * 60 * 60 * 1000); // 3 hours interval
+				const { loginApi, userdata } = await this.initializeRoborockApi();
+				this.rr_mqtt_connector = new roborock_mqtt_connector(this, userdata);
+				await this.initializeHomeDetails(loginApi, userdata);
+			}
+		}, 60 * 60 * 1000); // 1 hour interval
 
 		try {
 			this.start_go2rtc(this.vacuums, userdata);
@@ -175,17 +175,6 @@ class Roborock extends utils.Adapter {
 			this.log.debug(`RoomIDs debug: ${JSON.stringify(this.roomIDs)}`);
 
 			this.processScene(scene);
-
-			// Set up intervals
-			if (this.reconnectIntervall) {
-				this.clearInterval(this.reconnectIntervall);
-			}
-			this.reconnectIntervall = this.setInterval(async () => {
-				this.log.debug(`Reconnecting every hour!`);
-				if (this.rr_mqtt_connector) {
-					await this.rr_mqtt_connector.reconnectClient();
-				}
-			}, 3600 * 1000);
 
 			if (this.homedataInterval) {
 				this.clearInterval(this.homedataInterval);
@@ -706,9 +695,6 @@ class Roborock extends utils.Adapter {
 	}
 
 	clearTimersAndIntervals() {
-		if (this.reconnectIntervall) {
-			this.clearInterval(this.reconnectIntervall);
-		}
 		if (this.homedataInterval) {
 			this.clearInterval(this.homedataInterval);
 		}
