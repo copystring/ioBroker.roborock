@@ -133,7 +133,7 @@ class Roborock extends utils.Adapter {
 		} catch (error) {
 			this.log.error(`Error retrieving or setting clientID: ${error.stack}`);
 			this.sentryInstance?.getSentryObject().captureException(error);
-			await Promise.all([this.delObjectAsync("HomeData"), this.delObjectAsync("UserData")]);
+			await Promise.all([this.delObjectAsync("HomeData"), this.delObjectAsync("UserData"), this.setupBasicObjects()],);
 
 			return { loginApi: null, userdata: null };
 		}
@@ -235,6 +235,8 @@ class Roborock extends utils.Adapter {
 			this.log.error(`Error in getUserData: ${error.message}. This is most likely due to too many reconnects.`);
 			await this.delObjectAsync("HomeData");
 			await this.delObjectAsync("UserData");
+
+			await this.setupBasicObjects();
 			throw error;
 		}
 	}
