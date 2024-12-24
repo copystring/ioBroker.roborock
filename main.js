@@ -82,6 +82,18 @@ class Roborock extends utils.Adapter {
 		} catch (error) {
 			this.catchError(`Failed to start go2rtc. ${error.stack}`);
 		}
+
+		// Start map creation if enabled
+		if (this.config.enable_map_creation) {
+			try {
+				this.startWebserver();
+				await this.startWebsocketServer();
+			}
+			catch (error)
+			{
+				this.catchError(error.stack);
+			}
+		}
 	}
 
 	async initializeRoborockApi() {
@@ -196,12 +208,6 @@ class Roborock extends utils.Adapter {
 
 			await Promise.all(Object.entries(this.localDevices).map(([duid, ip]) => this.localConnector.createClient(duid, ip)));
 			this.initializeDeviceUpdates();
-
-			// Start map creation if enabled
-			if (this.config.enable_map_creation) {
-				this.startWebserver();
-				await this.startWebsocketServer();
-			}
 
 			this.log.info(`Starting adapter finished. Let's go!!!!!!!`);
 		} catch (error) {
