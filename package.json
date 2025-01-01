@@ -61,7 +61,7 @@
     "@types/proxyquire": "^1.3.31",
     "@types/sinon": "^17.0.3",
     "@types/sinon-chai": "^3.2.12",
-    "@types/ws": "^8.5.12",
+    "@types/ws": "^8.5.13",
     "chai": "^4.3.4",
     "chai-as-promised": "^8.0.0",
     "eslint": "^9.16.0",
