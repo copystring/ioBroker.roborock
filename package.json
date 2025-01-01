@@ -33,7 +33,7 @@
     "axios": "^1.7.9",
     "binary-parser": "^2.2.1",
     "crc-32": "^1.2.2",
-    "esbuild": "^0.24.0",
+    "esbuild": "^0.24.2",
     "eventemitter2": "^6.4.9",
     "express": "^4.21.1",
     "fetch-github-release": "^1.0.0",
