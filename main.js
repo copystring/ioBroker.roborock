@@ -1,6 +1,5 @@
 const utils = require("@iobroker/adapter-core");
-const axios = require("axios");
-const { randomBytes, createHmac, createHash } = require("crypto");
+const { randomBytes } = require("crypto");
 const WebSocket = require("ws");
 const express = require("express");
 const { spawn } = require("child_process");
@@ -14,6 +13,7 @@ const {
 	roborockPackageHelper,
 	deviceFeatures,
 	messageQueueHandler,
+	roborockApi,
 } = require("./lib");
 
 let socketServer, webserver;
@@ -29,8 +29,6 @@ class Roborock extends utils.Adapter {
 		// this.on("message", this.onMessage.bind(this));
 		this.on("unload", this.onUnload.bind(this));
 
-		this.localKeys = null;
-		this.roomIDs = {};
 		this.vacuums = {};
 		this.socket = null;
 		this.idCounter = 0;
@@ -43,6 +41,8 @@ class Roborock extends utils.Adapter {
 		this.localConnector = new rrLocalConnector(this);
 		this.message = new rrMessage(this);
 		this.messageQueueHandler = new messageQueueHandler(this);
+		this.rr_mqtt_connector = new roborock_mqtt_connector(this);
+		this.roborockApi = new roborockApi(this);
 	}
 
 	/**
@@ -61,24 +61,31 @@ class Roborock extends utils.Adapter {
 
 		await this.setupBasicObjects();
 
-		// Call the function initially and set an interval for every hour
-		const { loginApi, userdata } = await this.initializeRoborockApi();
-		this.rr_mqtt_connector = new roborock_mqtt_connector(this, userdata);
-		await this.initializeHomeDetails(loginApi, userdata);
+		// do stuff on first start of adapter
+		const clientID = await this.getStateAsync("clientID");
+		if (clientID && !clientID.val) {
+			const randomClientID = crypto.randomUUID();
+			await this.setState("clientID", { val: randomClientID, ack: true });
+		}
+
+		// Call the functions initially and set an interval for every hour
+		await this.roborockApi.init();
+
+		await this.initializeConnection();
 
 		this.reconnectApiInterval = this.setInterval(async () => {
 			// clean disconnect and reconnect every hour
-			if (this.rr_mqtt_connector) {
-				await this.rr_mqtt_connector.disconnectClient();
+			await this.rr_mqtt_connector.disconnectClient();
 
-				const { loginApi, userdata } = await this.initializeRoborockApi();
-				this.rr_mqtt_connector = new roborock_mqtt_connector(this, userdata);
-				await this.initializeHomeDetails(loginApi, userdata);
-			}
+			await this.initializeConnection();
 		}, 60 * 60 * 1000); // 1 hour interval
 
+		await this.initializeDeviceUpdates();
+
+		this.log.info(`Starting adapter finished. Let's go!!!!!!!`);
+
 		try {
-			this.start_go2rtc(this.vacuums, userdata);
+			await this.start_go2rtc(this.vacuums);
 		} catch (error) {
 			this.catchError(`Failed to start go2rtc. ${error.stack}`);
 		}
@@ -88,167 +95,51 @@ class Roborock extends utils.Adapter {
 			try {
 				this.startWebserver();
 				await this.startWebsocketServer();
-			}
-			catch (error)
-			{
+			} catch (error) {
 				this.catchError(error.stack);
 			}
 		}
 	}
 
-	async initializeRoborockApi() {
-		try {
-			this.log.debug(`initializeRoborockApi`);
-			// Create or retrieve clientID
-			const clientID = (await this.getStateAsync("clientID"))?.val?.toString() || crypto.randomUUID();
-			await this.setState("clientID", { val: clientID, ack: true });
-
-			// Initialize the login API
-			const loginApi = axios.create({
-				baseURL: "https://euiot.roborock.com",
-				headers: {
-					header_clientid: createHash("md5").update(this.config.username).update(clientID).digest().toString("base64"),
-				},
-			});
-
-			// Get user data and set authorization header
-			const userdata = await this.getUserData(loginApi);
-			this.log.debug(`Userdata: ${JSON.stringify(userdata)}`);
-
-			if (!userdata.token) throw new Error("Failed to retrieve user token. Check login credentials.");
-			loginApi.defaults.headers.common["Authorization"] = userdata.token;
-
-			// Initialize the real API with request interceptor
-			this.api = axios.create({ baseURL: userdata.rriot.r.a });
-			this.api.interceptors.request.use((config) => {
-				try {
-					const timestamp = Math.floor(Date.now() / 1000);
-					const nonce = randomBytes(6)
-						.toString("base64")
-						.substring(0, 6)
-						.replace(/[+/]/g, (m) => (m === "+" ? "X" : "Y"));
-					const urlPath = this.api ? new URL(this.api.getUri(config)).pathname : "";
-					const prestr = [userdata.rriot.u, userdata.rriot.s, nonce, timestamp, md5hex(urlPath), "", ""].join(":");
-					const mac = createHmac("sha256", userdata.rriot.h).update(prestr).digest("base64");
-
-					config.headers["Authorization"] = `Hawk id="${userdata.rriot.u}", s="${userdata.rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
-				} catch (error) {
-					this.log.error("Failed to initialize API. Error: " + error);
-					this.sentryInstance?.getSentryObject().captureException(error);
-				}
-				return config;
-			});
-
-			await this.setState("info.connection", { val: true, ack: true });
-
-			return { loginApi, userdata };
-		} catch (error) {
-			this.log.error(`Error retrieving or setting clientID: ${error.stack}`);
-			this.sentryInstance?.getSentryObject().captureException(error);
-			await Promise.all([this.delObjectAsync("HomeData"), this.delObjectAsync("UserData"), this.setupBasicObjects()],);
-
-			return { loginApi: null, userdata: null };
+	async initializeConnection() {
+		if (this.homedataInterval) {
+			this.clearInterval(this.homedataInterval);
 		}
-	}
 
-	async initializeHomeDetails(loginApi, userdata) {
-		try {
-			if (!loginApi) throw new Error("loginApi is not initialized.");
-			const homeDetail = await loginApi.get("api/v1/getHomeDetail");
-			if (!homeDetail) throw new Error("Failed to retrieve home details.");
+		await this.roborockApi.initializeRealApi();
 
-			const homeId = homeDetail.data.data.rrHomeId;
-			if (!this.api) throw new Error("API is not initialized.");
+		await this.roborockApi.getHomeData(); // no need to store HomeData here. It's never used anywhere even though it returns HomeData as value
 
-			// Fetch home data and scene
-			const [homedataResult, scene] = await Promise.all([
-				await this.api.get(`v2/user/homes/${homeId}`).then((res) => res.data.result),
-				await this.api.get(`user/scene/home/${homeId}`).then((res) => res.data),
-			]);
+		const scenes = await this.roborockApi.getScenes();
 
-			// Set HomeData state
-			await this.setState("HomeData", { val: JSON.stringify(homedataResult), ack: true });
+		// Initialize MQTT
+		await this.rr_mqtt_connector.initUser();
+		await this.rr_mqtt_connector.initMQTT_Subscribe();
+		await this.rr_mqtt_connector.initMQTT_Message();
 
-			// Create devices and set states
-			this.products = homedataResult.products;
-			this.devices = homedataResult.devices.concat(homedataResult.receivedDevices);
-			this.localKeys = new Map(this.devices.map((device) => [device.duid, device.localKey]));
+		this.processScenes(scenes);
 
-			// Initialize MQTT and rooms
-			if (this.rr_mqtt_connector) {
-				await this.rr_mqtt_connector.initUser();
-				await this.rr_mqtt_connector.initMQTT_Subscribe(userdata.rriot);
-				await this.rr_mqtt_connector.initMQTT_Message();
+		// Initialize local devices
+		const discoveredDevices = await this.localConnector.getLocalDevices(); // this discovers devices in local network via udp discovery
+		await this.createDevices();
+		await this.getNetworkInfo();
+
+		Object.entries(discoveredDevices).forEach(([duid, ip]) => {
+			if (!this.localDevices[duid]) {
+				this.localDevices[duid] = ip;
 			}
+		});
+		this.log.debug(`localDevices: ${JSON.stringify(this.localDevices)}`);
 
-			homedataResult.rooms.forEach((room) => {
-				this.roomIDs[room.id] = room.name;
-			});
-			this.log.debug(`RoomIDs debug: ${JSON.stringify(this.roomIDs)}`);
+		await Promise.all(Object.entries(this.localDevices).map(async ([duid, ip]) => await this.localConnector.createClient(duid, ip)));
 
-			this.processScene(scene);
-
-			if (this.homedataInterval) {
-				this.clearInterval(this.homedataInterval);
-			}
-			this.homedataInterval = this.setInterval(() => this.updateHomeData(homeId), this.config.updateInterval * 1000);
-			await this.updateHomeData(homeId);
-
-			// Initialize local devices
-			const discoveredDevices = await this.localConnector.getLocalDevices();
-			await this.createDevices();
-			await this.getNetworkInfo();
-
-			Object.entries(discoveredDevices).forEach(([duid, ip]) => {
-				if (!this.localDevices[duid]) {
-					this.localDevices[duid] = ip;
-				}
-			});
-			this.log.debug(`localDevices: ${JSON.stringify(this.localDevices)}`);
-
-			await Promise.all(Object.entries(this.localDevices).map(([duid, ip]) => this.localConnector.createClient(duid, ip)));
-			this.initializeDeviceUpdates();
-
-			this.log.info(`Starting adapter finished. Let's go!!!!!!!`);
-		} catch (error) {
-			this.log.error("Failed to get home details: " + error.stack);
-		}
-	}
-
-	async getUserData(loginApi) {
-		try {
-			const response = await loginApi.post(
-				"api/v1/login",
-				new URLSearchParams({
-					username: this.config.username,
-					password: this.config.password,
-					needtwostepauth: "false",
-				}).toString()
-			);
-			const userdata = response.data.data;
-
-			if (!userdata) {
-				throw new Error("Login returned empty userdata.");
-			}
-
-			await this.setState("UserData", {
-				val: JSON.stringify(userdata),
-				ack: true,
-			});
-
-			return userdata;
-		} catch (error) {
-			this.log.error(`Error in getUserData: ${error.message}. This is most likely due to too many reconnects.`);
-			await this.delObjectAsync("HomeData");
-			await this.delObjectAsync("UserData");
-
-			await this.setupBasicObjects();
-			throw error;
-		}
+		this.homedataInterval = this.setInterval(async () => await this.updateMiscDeviceData(), this.config.updateInterval * 1000);
+		await this.updateMiscDeviceData();
 	}
 
 	async getNetworkInfo() {
-		const devices = this.devices;
+		const devices = this.roborockApi.getDevices();
+
 		for (const device in devices) {
 			const duid = devices[device].duid;
 			const vacuum = this.vacuums[duid];
@@ -257,13 +148,13 @@ class Roborock extends utils.Adapter {
 	}
 
 	async createDevices() {
-		const devices = this.devices;
+		const devices = await this.roborockApi.getDevices();
 
 		for (const device of devices) {
 			const duid = device.duid;
 			const name = device.name;
 
-			const robotModel = this.getProductAttribute(duid, "model");
+			const robotModel = await this.getProductAttribute(duid, "model");
 
 			this.vacuums[duid] = new vacuum_class(this, robotModel);
 			this.vacuums[duid].name = name;
@@ -284,11 +175,11 @@ class Roborock extends utils.Adapter {
 	async initializeDeviceUpdates() {
 		this.log.debug(`initializeDeviceUpdates`);
 
-		const devices = this.devices;
+		const devices = await this.roborockApi.getDevices();
 
 		for (const device of devices) {
 			const duid = device.duid;
-			const robotModel = this.getProductAttribute(duid, "model");
+			const robotModel = await this.getProductAttribute(duid, "model");
 
 			this.vacuums[duid].mainUpdateInterval = () =>
 				this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
@@ -315,7 +206,7 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
-	async processScene(scene) {
+	async processScenes(scene) {
 		if (scene && scene?.result) {
 			const data = scene.result;
 			this.log.debug(`Processing scene ${JSON.stringify(data)}`);
@@ -375,16 +266,6 @@ class Roborock extends utils.Adapter {
 			for (const duid in programs) {
 				const objectPath = `Devices.${duid}.programs.startProgram`;
 				await this.createStateObjectHelper(objectPath, "Start saved program", "string", null, Object.keys(programs[duid])[0], "value", true, true, programs[duid]);
-			}
-		}
-	}
-
-	async executeScene(sceneID) {
-		if (this.api) {
-			try {
-				await this.api.post(`user/scene/${sceneID.val}/execute`);
-			} catch (error) {
-				this.catchError(error.stack, "executeScene");
 			}
 		}
 	}
@@ -527,15 +408,17 @@ class Roborock extends utils.Adapter {
 	}
 
 	getProductAttribute(duid, attribute) {
-		const products = this.products;
-		const productID = this.devices.find((device) => device.duid == duid).productId;
+		const devices = this.roborockApi.getDevices();
+
+		const products = this.roborockApi.getProducts();;
+		const productID = devices.find((device) => device.duid == duid).productId;
 		const product = products.find((product) => product.id == productID);
 
 		return product ? product[attribute] : null;
 	}
 
-	startMainUpdateInterval(duid, online) {
-		const robotModel = this.getProductAttribute(duid, "model");
+	async startMainUpdateInterval(duid, online) {
+		const robotModel = await this.getProductAttribute(duid, "model");
 
 		this.vacuums[duid].mainUpdateInterval = () =>
 			this.setInterval(this.updateDataMinimumData.bind(this), this.config.updateInterval * 1000, duid, this.vacuums[duid], robotModel);
@@ -747,31 +630,15 @@ class Roborock extends utils.Adapter {
 		this.log.debug(`Length of message queue: ${this.messageQueue.size}`);
 	}
 
-	async updateHomeData(homeId) {
-		this.log.debug(`Updating HomeData with homeId: ${homeId}`);
-		if (this.api) {
-			try {
-				const home = await this.api.get(`user/homes/${homeId}`);
-				const homedata = home.data.result;
+	async updateMiscDeviceData() {
+		const homedata = await this.roborockApi.getHomeData();
 
-				if (homedata) {
-					await this.setState("HomeData", {
-						val: JSON.stringify(homedata),
-						ack: true,
-					});
-					this.log.debug(`homedata successfully updated`);
+		await this.setState("HomeData", { val: JSON.stringify(homedata), ack: true });
 
-					await this.updateConsumablesPercent(homedata.devices);
-					await this.updateConsumablesPercent(homedata.receivedDevices);
-					await this.updateDeviceInfo(homedata.devices);
-					await this.updateDeviceInfo(homedata.receivedDevices);
-				} else {
-					this.log.warn("homedata failed to download");
-				}
-			} catch (error) {
-				this.log.error(`Failed to update updateHomeData with error: ${error}`);
-			}
-		}
+		await this.updateConsumablesPercent(homedata.devices);
+		await this.updateConsumablesPercent(homedata.receivedDevices);
+		await this.updateDeviceInfo(homedata.devices);
+		await this.updateDeviceInfo(homedata.receivedDevices);
 	}
 
 	async updateConsumablesPercent(devices) {
@@ -824,38 +691,32 @@ class Roborock extends utils.Adapter {
 
 		if (isLocalDevice) {
 			this.log.debug(`getting firmware status`);
-			if (this.api) {
-				try {
-					const update = await this.api.get(`ota/firmware/${duid}/updatev2`);
+			const update = await this.roborockApi.getFirmwareStates(duid);
 
-					await this.setObjectNotExistsAsync("Devices." + duid + ".updateStatus", {
-						type: "folder",
-						common: {
-							name: "Update status",
-						},
-						native: {},
-					});
+			await this.setObjectNotExistsAsync("Devices." + duid + ".updateStatus", {
+				type: "folder",
+				common: {
+					name: "Update status",
+				},
+				native: {},
+			});
 
-					for (const state in update.data.result) {
-						await this.setObjectNotExistsAsync("Devices." + duid + ".updateStatus." + state, {
-							type: "state",
-							common: {
-								name: state,
-								type: this.getType(update.data.result[state]),
-								role: "value",
-								read: true,
-								write: false,
-							},
-							native: {},
-						});
-						this.setState("Devices." + duid + ".updateStatus." + state, {
-							val: update.data.result[state],
-							ack: true,
-						});
-					}
-				} catch (error) {
-					this.catchError(error, "checkForNewFirmware()", duid);
-				}
+			for (const state in update.data.result) {
+				await this.setObjectNotExistsAsync("Devices." + duid + ".updateStatus." + state, {
+					type: "state",
+					common: {
+						name: state,
+						type: this.getType(update.data.result[state]),
+						role: "value",
+						read: true,
+						write: false,
+					},
+					native: {},
+				});
+				this.setState("Devices." + duid + ".updateStatus." + state, {
+					val: update.data.result[state],
+					ack: true,
+				});
 			}
 		}
 	}
@@ -1001,7 +862,7 @@ class Roborock extends utils.Adapter {
 	async createCleaningRecord(duid, state, type, states, unit) {
 		let start = 0;
 		let end = 19;
-		const robotModel = this.getProductAttribute(duid, "model");
+		const robotModel = await this.getProductAttribute(duid, "model");
 		if (robotModel == "roborock.vacuum.a97") {
 			start = 1;
 			end = 20;
@@ -1165,7 +1026,7 @@ class Roborock extends utils.Adapter {
 			native: {},
 		});
 
-		await this.setObjectAsync("clientID", {
+		await this.setObjectNotExistsAsync("clientID", {
 			type: "state",
 			common: {
 				name: "Client ID",
@@ -1178,15 +1039,16 @@ class Roborock extends utils.Adapter {
 		});
 	}
 
-	async start_go2rtc(robots, userdata) {
+	async start_go2rtc(robots) {
 		let cameraCount = 0;
+		const localKeys = this.roborockApi.getMatchedLocalKeys();
 
 		const go2rtcConfig = { streams: {} };
 		for (const duid of Object.keys(robots)) {
-			if (this.localKeys) {
-				const localKey = this.localKeys.get(duid);
+			if (localKeys) {
+				const localKey = localKeys.get(duid);
 
-				const { u, s, k } = userdata.rriot;
+				const { u, s, k } = await this.roborockApi.get_rriot();
 
 				if (this.vacuums[duid].features.getFeatureList().isCameraSupported) {
 					cameraCount++;
@@ -1355,7 +1217,7 @@ class Roborock extends utils.Adapter {
 				} else if (command == "app_stop") {
 					this.stopMapUpdater(duid);
 				} else if (command == "startProgram") {
-					this.executeScene(state);
+					this.roborockApi.executeScene(state);
 				} else if (typeof state.val != "boolean") {
 					this.vacuums[duid].command(duid, command, state.val);
 				}
@@ -1405,13 +1267,3 @@ if (require.main !== module) {
 	// otherwise start the instance directly
 	new Roborock();
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-function md5hex(str) {
-	return createHash("md5").update(str).digest("hex");
-}
-
-// function md5bin(str) {
-// 	return crypto.createHash("md5").update(str).digest();
-// }
