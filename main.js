@@ -365,28 +365,19 @@ class Roborock extends utils.Adapter {
 						this.vacuums[data["duid"]].getParameter(data["duid"], "get_photo", data["attribute"]);
 						break;
 					case "sniffing_decrypt":
-						await this.getStateAsync("HomeData")
-							.then((homedata) => {
-								if (homedata) {
-									const homedataVal = homedata.val;
-									if (typeof homedataVal == "string") {
-										// this.log.debug(`Sniffing message received!`);
-										const homedataParsed = JSON.parse(homedataVal);
+						const devices = this.roborockApi.getDevices();
 
-										this.decodeSniffedMessage(data, homedataParsed.devices);
-										this.decodeSniffedMessage(data, homedataParsed.receivedDevices);
-									}
-								}
-							})
-							.catch((error) => {
-								this.log.error("Failed to decode/decrypt sniffing message. " + error);
+						try {
+							this.decodeSniffedMessage(data, devices);
+						} catch (error) {
+							this.log.error("Failed to decode/decrypt sniffing message. " + error);
 
-								if (this.supportsFeature && this.supportsFeature("PLUGINS")) {
-									if (this.sentryInstance) {
-										this.sentryInstance.getSentryObject().captureException("Failed to initialize API. Error: " + error);
-									}
+							if (this.supportsFeature && this.supportsFeature("PLUGINS")) {
+								if (this.sentryInstance) {
+									this.sentryInstance.getSentryObject().captureException("Failed to initialize API. Error: " + error);
 								}
-							});
+							}
+						}
 
 						break;
 				}
@@ -410,7 +401,7 @@ class Roborock extends utils.Adapter {
 	getProductAttribute(duid, attribute) {
 		const devices = this.roborockApi.getDevices();
 
-		const products = this.roborockApi.getProducts();;
+		const products = this.roborockApi.getProducts();
 		const productID = devices.find((device) => device.duid == duid).productId;
 		const product = products.find((product) => product.id == productID);
 
@@ -453,13 +444,12 @@ class Roborock extends utils.Adapter {
 	}
 
 	async onlineChecker(duid) {
-		const homedata = await this.getStateAsync("HomeData");
+		const homedata = await this.roborockApi.getHomeData();
 
-		// If the home data is not found or if its value is not a string, return false.
-		if (homedata && typeof homedata.val == "string") {
-			const homedataJSON = JSON.parse(homedata.val);
-			const device = homedataJSON.devices.find((device) => device.duid == duid);
-			const receivedDevice = homedataJSON.receivedDevices.find((device) => device.duid == duid);
+		// if home data is null return false.
+		if (homedata != null) {
+			const device = homedata.devices.find((device) => device.duid == duid);
+			const receivedDevice = homedata.receivedDevices.find((device) => device.duid == duid);
 
 			// If the device is not found, return false.
 			if (!device && !receivedDevice) {
@@ -473,11 +463,11 @@ class Roborock extends utils.Adapter {
 	}
 
 	async isRemoteDevice(duid) {
-		const homedata = await this.getStateAsync("HomeData");
+		const homedata = await this.roborockApi.getHomeData();
 
-		if (homedata && typeof homedata.val == "string") {
-			const homedataJSON = JSON.parse(homedata.val);
-			const receivedDevice = homedataJSON.receivedDevices.find((device) => device.duid == duid);
+		// if home data is null return false.
+		if (homedata != null) {
+			const receivedDevice = homedata.receivedDevices.find((device) => device.duid == duid);
 			const remoteDevice = this.remoteDevices.has(duid);
 
 			if (receivedDevice || remoteDevice) {
@@ -632,8 +622,6 @@ class Roborock extends utils.Adapter {
 
 	async updateMiscDeviceData() {
 		const homedata = await this.roborockApi.getHomeData();
-
-		await this.setState("HomeData", { val: JSON.stringify(homedata), ack: true });
 
 		await this.updateConsumablesPercent(homedata.devices);
 		await this.updateConsumablesPercent(homedata.receivedDevices);
@@ -967,13 +955,10 @@ class Roborock extends utils.Adapter {
 	}
 
 	async getRobotVersion(duid) {
-		const homedata = await this.getStateAsync("HomeData");
-		if (homedata && homedata.val) {
-			const devices = JSON.parse(homedata.val.toString()).devices.concat(JSON.parse(homedata.val.toString()).receivedDevices);
+		const devices = this.roborockApi.getDevices();
 
-			for (const device in devices) {
-				if (devices[device].duid == duid) return devices[device].pv;
-			}
+		for (const device in devices) {
+			if (devices[device].duid == duid) return devices[device].pv;
 		}
 
 		return "Error in getRobotVersion. Version not found.";
