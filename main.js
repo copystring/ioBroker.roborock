@@ -514,11 +514,11 @@ class Roborock extends utils.Adapter {
 				return onlineState;
 			})
 			.catch((error) => {
-				this.log.error("startStopIntervals " + error);
+				this.log.error("startStopIntervals " + error.stack);
 
 				if (this.supportsFeature && this.supportsFeature("PLUGINS")) {
 					if (this.sentryInstance) {
-						this.sentryInstance.getSentryObject().captureException("startStopIntervals " + error);
+						this.sentryInstance.getSentryObject().captureException("startStopIntervals " + error.stack);
 					}
 				}
 				return false; // Make device appear as offline on error. Just in case.
