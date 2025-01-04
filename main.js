@@ -445,17 +445,15 @@ class Roborock extends utils.Adapter {
 
 	async onlineChecker(duid) {
 		const devices = this.roborockApi.getDevices();
-		const receivedDevices = this.roborockApi.getReceivedDevices();
 
 		const device = devices.find((device) => device.duid == duid);
-		const receivedDevice = receivedDevices.find((device) => device.duid == duid);
 
 		// If the device is not found, return false.
-		if (!device && !receivedDevice) {
+		if (!device) {
 			return false;
 		}
 
-		return device?.online || receivedDevice?.online;
+		return device?.online;
 	}
 
 	async isRemoteDevice(duid) {
