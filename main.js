@@ -444,40 +444,31 @@ class Roborock extends utils.Adapter {
 	}
 
 	async onlineChecker(duid) {
-		const homedata = await this.roborockApi.getHomeData();
+		const devices = this.roborockApi.getDevices();
+		const receivedDevices = this.roborockApi.getReceivedDevices();
 
-		// if home data is null return false.
-		if (homedata != null) {
-			const device = homedata.devices.find((device) => device.duid == duid);
-			const receivedDevice = homedata.receivedDevices.find((device) => device.duid == duid);
+		const device = devices.find((device) => device.duid == duid);
+		const receivedDevice = receivedDevices.find((device) => device.duid == duid);
 
-			// If the device is not found, return false.
-			if (!device && !receivedDevice) {
-				return false;
-			}
-
-			return device?.online || receivedDevice?.online;
-		} else {
+		// If the device is not found, return false.
+		if (!device && !receivedDevice) {
 			return false;
 		}
+
+		return device?.online || receivedDevice?.online;
 	}
 
 	async isRemoteDevice(duid) {
-		const homedata = await this.roborockApi.getHomeData();
+		const receivedDevices = this.roborockApi.getReceivedDevices();
 
-		// if home data is null return false.
-		if (homedata != null) {
-			const receivedDevice = homedata.receivedDevices.find((device) => device.duid == duid);
-			const remoteDevice = this.remoteDevices.has(duid);
+		const receivedDevice = receivedDevices.find((device) => device.duid == duid);
+		const remoteDevice = this.remoteDevices.has(duid);
 
-			if (receivedDevice || remoteDevice) {
-				return true;
-			}
-
-			return false;
-		} else {
-			return false;
+		if (receivedDevice || remoteDevice) {
+			return true;
 		}
+
+		return false;
 	}
 
 	async getConnector(duid) {
@@ -625,12 +616,10 @@ class Roborock extends utils.Adapter {
 	}
 
 	async updateMiscDeviceData() {
-		const homedata = await this.roborockApi.getHomeData();
+		const devices = this.roborockApi.getDevices();
 
-		await this.updateConsumablesPercent(homedata.devices);
-		await this.updateConsumablesPercent(homedata.receivedDevices);
-		await this.updateDeviceInfo(homedata.devices);
-		await this.updateDeviceInfo(homedata.receivedDevices);
+		await this.updateConsumablesPercent(devices);
+		await this.updateDeviceInfo(devices);
 	}
 
 	async updateConsumablesPercent(devices) {
