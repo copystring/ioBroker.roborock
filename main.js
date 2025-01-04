@@ -491,6 +491,10 @@ class Roborock extends utils.Adapter {
 	}
 
 	async manageDeviceIntervals(duid) {
+		if (!duid) {
+			this.catchError("duid missing on manageDeviceIntervals()!");
+		}
+
 		return this.onlineChecker(duid)
 			.then((onlineState) => {
 				if (!onlineState && this.vacuums[duid].mainUpdateInterval) {
