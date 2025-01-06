@@ -810,6 +810,18 @@ class Roborock extends utils.Adapter {
 			},
 			native: {},
 		});
+
+		await this.setObjectNotExistsAsync("endpoint", {
+			type: "state",
+			common: {
+				name: "MQTT endpoint",
+				type: "string",
+				role: "value",
+				read: true,
+				write: false,
+			},
+			native: {},
+		});
 	}
 
 	async start_go2rtc() {
