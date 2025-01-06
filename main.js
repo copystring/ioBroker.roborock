@@ -876,9 +876,9 @@ class Roborock extends utils.Adapter {
 
 		if (error) {
 			if (error.toString().includes("retry") || error.toString().includes("locating") || error.toString().includes("timed out after 30 seconds")) {
-				this.log.warn(`Failed to execute ${attribute} on robot ${duid} (${robotModel || "unknown model"}): ${error}`);
+				this.log.warn(`Failed to process ${attribute} on robot ${duid} (${robotModel || "unknown model"}): ${error}`);
 			} else {
-				this.log.error(`Failed to execute ${attribute} on robot ${duid} (${robotModel || "unknown model"}): ${error.stack || error}`);
+				this.log.error(`Failed to process ${attribute} on robot ${duid} (${robotModel || "unknown model"}): ${error.stack || error}`);
 
 				if (this.supportsFeature && this.supportsFeature("PLUGINS")) {
 					if (this.sentryInstance) {
