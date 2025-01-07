@@ -188,7 +188,6 @@ class Roborock extends utils.Adapter {
 
 		if (scenes && scenes?.result) {
 			const data = scenes.result;
-			this.log.debug(`Processing scene ${JSON.stringify(data)}`);
 
 			const programs = {};
 			for (const program in data) {
@@ -197,7 +196,6 @@ class Roborock extends utils.Adapter {
 				const programName = data[program].name;
 				const param = data[program].param;
 
-				this.log.debug(`Processing scene param ${param}`);
 				const duid = JSON.parse(param).action.items[0].entityId;
 
 				if (!programs[duid]) {
@@ -486,11 +484,9 @@ class Roborock extends utils.Adapter {
 
 	async checkForNewFirmware(duid) {
 		this.log.debug(`Checking for new firmware`);
-		const isLocalDevice = !this.requests_handler.isRemoteDevice(duid);
-		this.log.debug(`isLocalDevice ${isLocalDevice}`);
+		const isLocalDevice = this.requests_handler.isLocalDevice(duid);
 
 		if (isLocalDevice) {
-			this.log.debug(`getting firmware status`);
 			const update = await this.http_api.getFirmwareStates(duid);
 
 			await this.setObjectNotExistsAsync("Devices." + duid + ".updateStatus", {
