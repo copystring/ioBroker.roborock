@@ -872,13 +872,13 @@ class Roborock extends utils.Adapter {
 	}
 
 	async catchError(error, attribute, duid) {
-		const robotModel = this.http_api.getRobotModel(duid);
+		const robotModel = duid ? this.http_api.getRobotModel(duid) : "unknown device model";
 
 		if (error) {
 			if (error.toString().includes("retry") || error.toString().includes("locating") || error.toString().includes("timed out after 30 seconds")) {
-				this.log.warn(`Failed to process ${attribute} on robot ${duid} (${robotModel || "unknown model"}): ${error}`);
+				this.log.warn(`Failed to process ${attribute} on robot ${duid} (${robotModel}): ${error}`);
 			} else {
-				this.log.error(`Failed to process ${attribute} on robot ${duid} (${robotModel || "unknown model"}): ${error.stack || error}`);
+				this.log.error(`Failed to process ${attribute} on robot ${duid} (${robotModel}): ${error.stack || error}`);
 
 				if (this.supportsFeature && this.supportsFeature("PLUGINS")) {
 					if (this.sentryInstance) {
