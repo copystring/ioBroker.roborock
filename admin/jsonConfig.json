@@ -5,16 +5,31 @@
 		"username": {
 			"type": "text",
 			"label": "Login",
-			"newLine": true
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 12,
+			"lg": 12,
+			"xl": 12
 		},
 		"password": {
 			"type": "password",
-			"label": "Password"
+			"label": "Password",
+			"xs": 12,
+			"sm": 12,
+			"md": 12,
+			"lg": 12,
+			"xl": 12
 		},
 		"enable_map_creation": {
 			"type": "checkbox",
 			"label": "Enable Map Creation",
-			"newLine": true
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 6,
+			"lg": 6,
+			"xl": 6
 		},
 		"map_creation_interval": {
 			"type": "number",
@@ -22,9 +37,11 @@
 			"newLine": true,
 			"min": 1,
 			"max": 240,
-			"style": {
-			  "width": "198px"
-			}
+			"xs": 12,
+			"sm": 12,
+			"md": 6,
+			"lg": 2,
+			"xl": 2
 		},
 		"updateInterval": {
 			"type": "number",
@@ -32,9 +49,11 @@
 			"newLine": true,
 			"min": 60,
 			"max": 240,
-			"style": {
-			  "width": "198px"
-			}
+			"xs": 12,
+			"sm": 12,
+			"md": 6,
+			"lg": 2,
+			"xl": 2
 		},
 		"map_scale": {
 			"type": "number",
@@ -42,32 +61,51 @@
 			"newLine": true,
 			"min": 1,
 			"max": 32,
-			"style": {
-			  "width": "198px"
-			}
+			"xs": 12,
+			"sm": 12,
+			"md": 6,
+			"lg": 2,
+			"xl": 2
 		},
 		"webserverPort": {
 			"type": "port",
 			"label": "Webserver Port",
 			"newLine": true,
-			"style": {
-			  "width": "198px"
-			}
+			"xs": 12,
+			"sm": 12,
+			"md": 6,
+			"lg": 2,
+			"xl": 2
 		},
 		"hostname_ip": {
 			"type": "text",
 			"label": "Hostname/IP for camera stream",
-			"newLine": true
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 12,
+			"lg": 12,
+			"xl": 12
 		},
 		"cameraPin": {
 			"type": "number",
 			"label": "PIN for streaming the camera",
-			"newLine": true
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 12,
+			"lg": 12,
+			"xl": 12
 		},
 		"downloadRoborockImages": {
 			"type": "checkbox",
 			"label": "Download Roborock Images",
-			"newLine": true
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 6,
+			"lg": 2,
+			"xl": 2
 		}
 	}
 }

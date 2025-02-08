@@ -57,6 +57,9 @@ This feature only works when map creation is enabled in the adapter options!
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (simatec) Responsive Design added
+
 ### 0.6.18 (2024-12-11)
  * (copystring) Add cleaned_area to S8
  * (copystring) Bugfixes for Qrevo Curve
