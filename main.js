@@ -296,7 +296,7 @@ class Roborock extends utils.Adapter {
 
 			socket.on("message", async (message) => {
 				const data = JSON.parse(message.toString());
-				const command = data["command"];
+				const command = data.command;
 				const sendValue = {};
 				sendValue.parameters = [];
 
@@ -318,14 +318,14 @@ class Roborock extends utils.Adapter {
 						sendValue.command = "robotList";
 
 						for (const robotID in devices) {
-							robot = [robotID, devices.name];
+							robot = [devices[robotID].duid, devices[robotID].name];
 							sendValue.parameters.push(robot);
 						}
 						socket.send(JSON.stringify(sendValue));
 						break;
 
 					case "getMap":
-						this.requests_handler.getMap(data["duid"]);
+						this.requests_handler.getMap(data.duid);
 						break;
 
 					case "get_photo":
