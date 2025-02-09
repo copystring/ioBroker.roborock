@@ -51,8 +51,13 @@ class Roborock extends utils.Adapter {
 
 		this.log.info(`Starting adapter. This might take a few minutes depending on your setup. Please wait.`);
 
-		const clientID = await this.ensureClientID();
-		await this.http_api.init(clientID);
+		try {
+			const clientID = await this.ensureClientID();
+			await this.http_api.init(clientID);
+		}
+		catch (error) {
+			this.log.error(`Failed to get clientID. ${error.stack}`);
+		}
 
 		await this.setupBasicObjects();
 
@@ -141,6 +146,10 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
+	/**
+	 *
+	 * @returns {Promise<string>}
+	 */
 	async ensureClientID() {
 		try {
 			const clientID = await this.getStateAsync("clientID");
@@ -151,11 +160,11 @@ class Roborock extends utils.Adapter {
 				return randomClientID;
 			} else {
 				this.log.info(`Loaded existing clientID: ${clientID.val}`);
-				return clientID.val;
+				return clientID.val.toString();
 			}
 		} catch (error) {
 			this.log.error(`Error ensuring clientID: ${error.message}`);
-			throw error; // Optional, falls der Fehler weitergereicht werden soll
+			throw error;
 		}
 	}
 
