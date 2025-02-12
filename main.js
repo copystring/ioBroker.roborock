@@ -51,6 +51,8 @@ class Roborock extends utils.Adapter {
 
 		this.log.info(`Starting adapter. This might take a few minutes depending on your setup. Please wait.`);
 
+		await this.setupBasicObjects();
+
 		try {
 			const clientID = await this.ensureClientID();
 			await this.http_api.init(clientID);
@@ -58,7 +60,6 @@ class Roborock extends utils.Adapter {
 			this.log.error(`Failed to get clientID. ${error.stack}`);
 		}
 
-		await this.setupBasicObjects();
 
 		await this.requests_handler.init(); // this makes the requests handler connect to mqtt. tcp follows later when IP of each device have been received
 
