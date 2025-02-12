@@ -71,6 +71,8 @@ class Roborock extends utils.Adapter {
 			const duid = device.duid;
 
 			await this.requests_handler.getParameter(duid, "get_network_info"); // this needs to be called first on start of adapter to get the IP adresses of each device
+
+			this.createNetworkInfoObjects(duid);
 		}
 		// now network data is present, connect tcp client to devices
 		await this.requests_handler.initTCP();
@@ -729,21 +731,30 @@ class Roborock extends utils.Adapter {
 		});
 	}
 
+	/**
+	 * @param {string} duid
+	 */
 	async createBaseRobotObjects(duid) {
 		for (const name of ["mapBase64", "mapBase64Truncated", "mapData"]) {
 			const objectString = `Devices.${duid}.map.${name}`;
 			await this.createStateObjectHelper(objectString, name, "string", null, null, "value", true, false);
 		}
 
-		this.createNetworkInfoObjects(duid);
+		// this.createNetworkInfoObjects(duid);
 	}
 
-	async createBasicVacuumObjects(duid) {
-		this.createNetworkInfoObjects(duid);
+	/**
+	 * @param {string} _duid
+	 */
+	async createBasicVacuumObjects(_duid) {
+		// nothing for now
 	}
 
-	async createBasicWashingMachineObjects(duid) {
-		this.createNetworkInfoObjects(duid);
+	/**
+	 * @param {string} _duid
+	 */
+	async createBasicWashingMachineObjects(_duid) {
+		// nothing for now
 	}
 
 	async createNetworkInfoObjects(duid) {
