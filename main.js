@@ -54,8 +54,7 @@ class Roborock extends utils.Adapter {
 		try {
 			const clientID = await this.ensureClientID();
 			await this.http_api.init(clientID);
-		}
-		catch (error) {
+		} catch (error) {
 			this.log.error(`Failed to get clientID. ${error.stack}`);
 		}
 
@@ -190,6 +189,7 @@ class Roborock extends utils.Adapter {
 		this.subscribeStates("Devices." + duid + ".resetConsumables.*");
 		this.subscribeStates("Devices." + duid + ".programs.startProgram");
 		this.subscribeStates("Devices." + duid + ".deviceInfo.online");
+		this.subscribeStates("Devices." + duid + ".deviceStatus.state");
 	}
 
 	async processScenes() {
@@ -941,6 +941,13 @@ class Roborock extends utils.Adapter {
 			if (state.ack) {
 				if (id.endsWith("online")) {
 					this.log.info(`Device ${duid} is now ${state.val ? "online" : "offline"}`);
+				} else if (folder == "deviceStatus") {
+					const parameter = idParts[5];
+					if (parameter == "state") {
+						if (state.val == 8) {
+							this.requests_handler.getCleanSummary(duid);
+						}
+					}
 				}
 			} else {
 				const command = idParts[5];
