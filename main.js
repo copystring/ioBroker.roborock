@@ -70,9 +70,9 @@ class Roborock extends utils.Adapter {
 		for (const device of devices) {
 			const duid = device.duid;
 
-			await this.requests_handler.getParameter(duid, "get_network_info"); // this needs to be called first on start of adapter to get the IP adresses of each device
+			await this.createNetworkInfoObjects(duid);
 
-			this.createNetworkInfoObjects(duid);
+			await this.requests_handler.getParameter(duid, "get_network_info"); // this needs to be called first on start of adapter to get the IP adresses of each device
 		}
 		// now network data is present, connect tcp client to devices
 		await this.requests_handler.initTCP();
@@ -559,7 +559,7 @@ class Roborock extends utils.Adapter {
 			common.def = def;
 		}
 
-		this.setObjectAsync(path, {
+		await this.setObjectAsync(path, {
 			type: "state",
 			common: common,
 			native: native,
