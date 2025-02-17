@@ -411,6 +411,7 @@ class Roborock extends utils.Adapter {
 					//do nothing
 					break;
 				case "roborock.vacuum.s6":
+				case "roborock.vacuum.a72":
 					await this.requests_handler.getParameter(duid, "get_carpet_mode");
 					break;
 				case "roborock.vacuum.a27":
