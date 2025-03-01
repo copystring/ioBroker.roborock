@@ -378,6 +378,9 @@ class Roborock extends utils.Adapter {
 		return device?.online;
 	}
 
+	/**
+	 * @param {string} duid
+	 */
 	async updateDeviceData(duid) {
 		const robotModel = this.http_api.getRobotModel(duid);
 
@@ -447,6 +450,9 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
+	/**
+	 * @param {string} duid
+	 */
 	async updateConsumablesPercent(duid) {
 		const devices = this.http_api.getDevices();
 		const device = devices.find((device) => device.duid === duid);
@@ -463,6 +469,9 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
+	/**
+	 * @param {string} duid
+	 */
 	async updateDeviceInfo(duid) {
 		const devices = this.http_api.getDevices();
 		const device = devices.find((device) => device.duid === duid);
@@ -765,6 +774,9 @@ class Roborock extends utils.Adapter {
 		// nothing for now
 	}
 
+	/**
+	 * @param {string} duid
+	 */
 	async createNetworkInfoObjects(duid) {
 		for (const name of ["ssid", "ip", "mac", "bssid", "rssi"]) {
 			const objectString = `Devices.${duid}.networkInfo.${name}`;
@@ -773,6 +785,9 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
+	/**
+	 * @param {string} duid
+	 */
 	async getRobotVersion(duid) {
 		const devices = this.http_api.getDevices();
 
