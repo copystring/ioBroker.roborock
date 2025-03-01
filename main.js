@@ -60,7 +60,6 @@ class Roborock extends utils.Adapter {
 			this.log.error(`Failed to get clientID. ${error.stack}`);
 		}
 
-
 		await this.requests_handler.init(); // this makes the requests handler connect to mqtt. tcp follows later when IP of each device have been received
 
 		// get latest data on start of adapter
@@ -495,38 +494,46 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
+	/**
+	 * @param {string} duid
+	 */
 	async checkForNewFirmware(duid) {
 		this.log.debug(`Checking for new firmware`);
 		const isLocalDevice = this.requests_handler.isLocalDevice(duid);
 
 		if (isLocalDevice) {
-			const update = await this.http_api.getFirmwareStates(duid);
+			this.http_api
+				.getFirmwareStates(duid)
+				.then(async (update) => {
+					await this.setObjectNotExistsAsync("Devices." + duid + ".updateStatus", {
+						type: "folder",
+						common: {
+							name: "Update status",
+						},
+						native: {},
+					});
 
-			await this.setObjectNotExistsAsync("Devices." + duid + ".updateStatus", {
-				type: "folder",
-				common: {
-					name: "Update status",
-				},
-				native: {},
-			});
-
-			for (const state in update.data.result) {
-				await this.setObjectNotExistsAsync("Devices." + duid + ".updateStatus." + state, {
-					type: "state",
-					common: {
-						name: state,
-						type: this.getType(update.data.result[state]),
-						role: "value",
-						read: true,
-						write: false,
-					},
-					native: {},
+					for (const state in update.data.result) {
+						await this.setObjectNotExistsAsync("Devices." + duid + ".updateStatus." + state, {
+							type: "state",
+							common: {
+								name: state,
+								type: this.getType(update.data.result[state]),
+								role: "value",
+								read: true,
+								write: false,
+							},
+							native: {},
+						});
+						this.setState("Devices." + duid + ".updateStatus." + state, {
+							val: update.data.result[state],
+							ack: true,
+						});
+					}
+				})
+				.catch((error) => {
+					this.log.error(`Failed to check for new firmware ${error.stack}`);
 				});
-				this.setState("Devices." + duid + ".updateStatus." + state, {
-					val: update.data.result[state],
-					ack: true,
-				});
-			}
 		}
 	}
 
