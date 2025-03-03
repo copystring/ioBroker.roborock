@@ -71,7 +71,7 @@ class Roborock extends utils.Adapter {
 
 			await this.createNetworkInfoObjects(duid);
 
-			await this.requests_handler.getParameter(duid, "get_network_info"); // this needs to be called first on start of adapter to get the IP adresses of each device
+			await this.requests_handler.getParameter(duid, "get_network_info", []); // this needs to be called first on start of adapter to get the IP adresses of each device
 		}
 		// now network data is present, connect tcp client to devices
 		await this.requests_handler.initTCP();
@@ -133,7 +133,7 @@ class Roborock extends utils.Adapter {
 		try {
 			await this.start_go2rtc();
 		} catch (error) {
-			this.catchError(`Failed to start go2rtc. ${error.stack}`);
+			this.catchError(error.stack, `start_go2rtc`);
 		}
 
 		// Start map creation if enabled
@@ -169,6 +169,9 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
+	/**
+	 * @param {Object} device
+	 */
 	async createDeviceObjects(device) {
 		const duid = device.duid;
 		const name = device.name;
@@ -365,6 +368,9 @@ class Roborock extends utils.Adapter {
 		socketServer.close();
 	}
 
+	/**
+	 * @param {string} duid
+	 */
 	async onlineChecker(duid) {
 		const devices = this.http_api.getDevices();
 
@@ -389,17 +395,17 @@ class Roborock extends utils.Adapter {
 		} else if (robotModel == "roborock.wetdryvac.a56") {
 			// nothing for now
 		} else {
-			await this.requests_handler.getParameter(duid, "get_fw_features");
-
-			await this.requests_handler.getParameter(duid, "get_multi_maps_list");
-
-			await this.requests_handler.getParameter(duid, "get_room_mapping");
-
-			await this.requests_handler.getParameter(duid, "get_consumable");
-
-			await this.requests_handler.getParameter(duid, "get_server_timer");
-
-			await this.requests_handler.getParameter(duid, "get_timer");
+			const requestList = [
+				"get_fw_features",
+				"get_multi_maps_list",
+				"get_room_mapping",
+				"get_consumable",
+				"get_server_timer",
+				"get_timer"
+			];
+			for (const request of requestList) {
+				await this.requests_handler.getParameter(duid, request, []);
+			}
 
 			await this.checkForNewFirmware(duid);
 
@@ -414,18 +420,18 @@ class Roborock extends utils.Adapter {
 					break;
 				case "roborock.vacuum.s6":
 				case "roborock.vacuum.a72":
-					await this.requests_handler.getParameter(duid, "get_carpet_mode");
+					await this.requests_handler.getParameter(duid, "get_carpet_mode", []);
 					break;
 				case "roborock.vacuum.a27":
-					await this.requests_handler.getParameter(duid, "get_dust_collection_switch_status");
-					await this.requests_handler.getParameter(duid, "get_wash_towel_mode");
-					await this.requests_handler.getParameter(duid, "get_smart_wash_params");
-					await this.requests_handler.getParameter(duid, "app_get_dryer_setting");
+					await this.requests_handler.getParameter(duid, "get_dust_collection_switch_status", {});
+					await this.requests_handler.getParameter(duid, "get_wash_towel_mode", {});
+					await this.requests_handler.getParameter(duid, "get_smart_wash_params", {});
+					await this.requests_handler.getParameter(duid, "app_get_dryer_setting", {});
 					break;
 				default:
-					await this.requests_handler.getParameter(duid, "get_carpet_mode");
-					await this.requests_handler.getParameter(duid, "get_carpet_clean_mode");
-					await this.requests_handler.getParameter(duid, "get_water_box_custom_mode");
+					await this.requests_handler.getParameter(duid, "get_carpet_mode", []);
+					await this.requests_handler.getParameter(duid, "get_carpet_clean_mode", []);
+					await this.requests_handler.getParameter(duid, "get_water_box_custom_mode", []);
 			}
 		}
 	}
@@ -583,6 +589,13 @@ class Roborock extends utils.Adapter {
 		});
 	}
 
+	/**
+	 * @param {string} duid
+	 * @param {string | number} command
+	 * @param {Object} type
+	 * @param {Object} defaultState
+	 * @param {string} states
+	 */
 	async createCommand(duid, command, type, defaultState, states) {
 		const path = `Devices.${duid}.commands.${command}`;
 		const name = this.translations[command];
@@ -604,6 +617,13 @@ class Roborock extends utils.Adapter {
 		});
 	}
 
+	/**
+	 * @param {string} duid
+	 * @param {string | number} state
+	 * @param {Object} type
+	 * @param {Object} states
+	 * @param {string} unit
+	 */
 	async createDeviceStatus(duid, state, type, states, unit) {
 		const path = `Devices.${duid}.deviceStatus.${state}`;
 		const name = this.translations[state];
@@ -625,6 +645,9 @@ class Roborock extends utils.Adapter {
 		});
 	}
 
+	/**
+	 * @param {string} duid
+	 */
 	async createDockingStationObject(duid) {
 		for (const state of dockingStationStates) {
 			const path = `Devices.${duid}.dockingStationStatus.${state}`;
@@ -645,6 +668,13 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
+	/**
+	 * @param {string} duid
+	 * @param {string | number} state
+	 * @param {Object} type
+	 * @param {Object} states
+	 * @param {string} unit
+	 */
 	async createConsumable(duid, state, type, states, unit) {
 		const path = `Devices.${duid}.consumables.${state}`;
 		const name = this.translations[state];
@@ -666,6 +696,10 @@ class Roborock extends utils.Adapter {
 		});
 	}
 
+	/**
+	 * @param {string} duid
+	 * @param {string | number} state
+	 */
 	async createResetConsumables(duid, state) {
 		const path = `Devices.${duid}.resetConsumables.${state}`;
 		const name = this.translations[state];
@@ -684,6 +718,13 @@ class Roborock extends utils.Adapter {
 		});
 	}
 
+	/**
+	 * @param {string} duid
+	 * @param {string | number} state
+	 * @param {Object} type
+	 * @param {Object} states
+	 * @param {string} unit
+	 */
 	async createCleaningRecord(duid, state, type, states, unit) {
 		let start = 0;
 		let end = 19;
@@ -730,6 +771,11 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
+	/**
+	 * @param {string} duid
+	 * @param {string} key
+	 * @param {Object} object
+	 */
 	async createCleaningInfo(duid, key, object) {
 		const path = `Devices.${duid}.cleaningInfo.${key}`;
 		const name = this.translations[object.name];
@@ -911,6 +957,11 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
+	/**
+	 * @param {Error} error
+	 * @param {string} [attribute]
+	 * @param {string} [duid]
+	 */
 	async catchError(error, attribute, duid) {
 		const robotModel = duid ? this.http_api.getRobotModel(duid) : "unknown device model";
 
