@@ -115,6 +115,7 @@ class Roborock extends utils.Adapter {
 							this.updateDeviceData(duid);
 							this.updateConsumablesPercent(duid);
 							this.updateDeviceInfo(duid);
+							await this.http_api.updateHomeData(); // this is needed to get the online status of the devices
 
 							updateIntervalCount = 0;
 						}
