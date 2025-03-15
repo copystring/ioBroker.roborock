@@ -730,9 +730,15 @@ class Roborock extends utils.Adapter {
 		let start = 0;
 		let end = 19;
 		const robotModel = await this.http_api.getRobotModel(duid);
-		if (robotModel == "roborock.vacuum.a97") {
-			start = 1;
-			end = 20;
+		switch (robotModel) {
+			case "roborock.vacuum.a97":
+				start = 1;
+				end = 20;
+				break;
+			case "roborock.vacuum.a21":
+				start = 1;
+				end = 21;
+				break;
 		}
 
 		for (let i = start; i <= end; i++) {
