@@ -17,6 +17,51 @@ const dockingStationStates = ["cleanFluidStatus", "waterBoxFilterStatus", "dustB
 
 let updateIntervalCount = 0;
 
+const A01states = {
+	200: "Start",
+	201: "Status",
+	202: "SelfCleanMode",
+	203: "SelfCleanLevel",
+	204: "WarmLevel",
+	205: "CleanMode",
+	206: "Suction",
+	207: "WaterLevel",
+	208: "BrushSpeed",
+	209: "Power",
+	210: "Preset",
+	212: "AutoSelfClean",
+	213: "AutoDry",
+	214: "MeshLeft",
+	215: "BrushLeft",
+	216: "Error",
+	218: "MeshReset",
+	219: "BrushReset",
+	221: "Volumn",
+	222: "StandLockAutoRun",
+	223: "AutoSelfCleanMode",
+	224: "AutoDryMode",
+	225: "SilentDryDuration",
+	226: "SilentModeSwitch",
+	227: "SilentModeStartTime",
+	228: "SilentModeEndTime",
+	229: "RecentCleanTime",
+	230: "TotalCleanTime",
+	235: "FeatureInfo",
+	236: "ResetRobot",
+	237: "DryRemainTimeMin",
+	238: "Cleanser",
+	10000: "QueryDP",
+	10001: "CheckIsFCC",
+	10002: "AutoDryTimer",
+	10003: "SetSoundPackage",
+	10004: "SoundPackageInfo",
+	10005: "GeneralInfo",
+	10006: "PrivacyInfo",
+	10007: "UpdateInfo",
+	10101: "RPCRequest",
+	10102: "RPCResponse",
+};
+
 class Roborock extends utils.Adapter {
 	constructor(options = {}) {
 		super({ ...options, name: "roborock", useFormatDate: true });
@@ -67,11 +112,16 @@ class Roborock extends utils.Adapter {
 
 		// need to get network data before processing any other data
 		for (const device of devices) {
-			const duid = device.duid;
+			const version = await this.getDeviceProtocolVersion(device.duid);
 
-			await this.createNetworkInfoObjects(duid);
+			if (version != "A01") {
+				const duid = device.duid;
 
-			await this.requests_handler.getParameter(duid, "get_network_info", []); // this needs to be called first on start of adapter to get the IP adresses of each device
+				await this.createNetworkInfoObjects(duid);
+
+				await this.requests_handler.getParameter(duid, "get_network_info", []); // this needs to be called first on start of adapter to get the IP adresses of each device
+				break;
+			}
 		}
 		// now network data is present, connect tcp client to devices
 		await this.requests_handler.initTCP();
@@ -79,17 +129,29 @@ class Roborock extends utils.Adapter {
 		// now tcp clients are connected. process any further data
 		for (const device of devices) {
 			const duid = device.duid;
+			const version = await this.getDeviceProtocolVersion(duid);
 
-			await this.createDeviceObjects(device);
+			switch (version) {
+				case "A01":
+					await this.createDeviceObjects(device);
 
-			await this.requests_handler.getStatus(duid);
+					await this.requests_handler.getStatus(duid);
+					this.updateDeviceInfo(duid);
+					break;
 
-			this.updateDeviceData(duid);
-			this.updateConsumablesPercent(duid);
-			this.updateDeviceInfo(duid);
+				default:
+					await this.createDeviceObjects(device);
 
-			await this.requests_handler.getCleanSummary(duid);
-			await this.requests_handler.getMap(duid);
+					await this.requests_handler.getStatus(duid);
+
+					this.updateDeviceData(duid);
+					this.updateConsumablesPercent(duid);
+					this.updateDeviceInfo(duid);
+
+					await this.requests_handler.getCleanSummary(duid);
+					await this.requests_handler.getMap(duid);
+					break;
+			}
 		}
 		await this.processScenes();
 
@@ -103,28 +165,37 @@ class Roborock extends utils.Adapter {
 			for (const device of devices) {
 				if (device.online) {
 					const duid = device.duid;
+					const version = await this.getDeviceProtocolVersion(duid);
 
-					try {
-						// update status every second if websocket is connected or update interval is met
-						if (this.socket || updateIntervalCount % this.config.updateInterval == 0) {
-							await this.requests_handler.getStatus(duid);
-						}
+					switch (version) {
+						case "A01":
+							if (updateIntervalCount % this.config.updateInterval == 0) {
+								await this.requests_handler.getStatus(duid);
+							}
+							break;
+						default:
+							try {
+								// update status every second if websocket is connected or update interval is met
+								if (this.socket || updateIntervalCount % this.config.updateInterval == 0) {
+									await this.requests_handler.getStatus(duid);
+								}
 
-						// update device data on interval defined in options
-						if (updateIntervalCount % this.config.updateInterval == 0) {
-							this.updateDeviceData(duid);
-							this.updateConsumablesPercent(duid);
-							this.updateDeviceInfo(duid);
-							await this.http_api.updateHomeData(); // this is needed to get the online status of the devices
+								// update device data on interval defined in options
+								if (updateIntervalCount % this.config.updateInterval == 0) {
+									this.updateDeviceData(duid);
+									this.updateConsumablesPercent(duid);
+									this.updateDeviceInfo(duid);
+									await this.http_api.updateHomeData(); // this is needed to get the online status of the devices
 
-							updateIntervalCount = 0;
-						}
+									updateIntervalCount = 0;
+								}
 
-						// update map when needed
-						const isCleaning = this.requests_handler.isCleaning(duid);
-						if (isCleaning) this.requests_handler.getMap(duid);
-					} catch (error) {
-						this.catchError(error.stack, "mainUpdateInterval", duid);
+								// update map when needed
+								const isCleaning = this.requests_handler.isCleaning(duid);
+								if (isCleaning) this.requests_handler.getMap(duid);
+							} catch (error) {
+								this.catchError(error.stack, "mainUpdateInterval", duid);
+							}
 					}
 				}
 			}
@@ -390,20 +461,10 @@ class Roborock extends utils.Adapter {
 	 */
 	async updateDeviceData(duid) {
 		const robotModel = this.http_api.getRobotModel(duid);
+		const version = await this.getDeviceProtocolVersion(duid);
 
-		if (robotModel == "roborock.wm.a102") {
-			// nothing for now
-		} else if (robotModel == "roborock.wetdryvac.a56") {
-			// nothing for now
-		} else {
-			const requestList = [
-				"get_fw_features",
-				"get_multi_maps_list",
-				"get_room_mapping",
-				"get_consumable",
-				"get_server_timer",
-				"get_timer"
-			];
+		if (version != "A01") {
+			const requestList = ["get_fw_features", "get_multi_maps_list", "get_room_mapping", "get_consumable", "get_server_timer", "get_timer"];
 			for (const request of requestList) {
 				await this.requests_handler.getParameter(duid, request, []);
 			}
@@ -461,17 +522,21 @@ class Roborock extends utils.Adapter {
 	 * @param {string} duid
 	 */
 	async updateConsumablesPercent(duid) {
-		const devices = this.http_api.getDevices();
-		const device = devices.find((device) => device.duid === duid);
+		const version = await this.getDeviceProtocolVersion(duid);
 
-		const deviceStatus = device.deviceStatus;
+		if (version != "A01") {
+			const devices = this.http_api.getDevices();
+			const device = devices.find((device) => device.duid === duid);
 
-		for (const [attribute, value] of Object.entries(deviceStatus)) {
-			const targetConsumable = await this.getObjectAsync(`Devices.${duid}.consumables.${attribute}`);
+			const deviceStatus = device.deviceStatus;
 
-			if (targetConsumable) {
-				const val = value >= 0 && value <= 100 ? parseInt(value) : 0;
-				await this.setState(`Devices.${duid}.consumables.${attribute}`, { val: val, ack: true });
+			for (const [attribute, value] of Object.entries(deviceStatus)) {
+				const targetConsumable = await this.getObjectAsync(`Devices.${duid}.consumables.${attribute}`);
+
+				if (targetConsumable) {
+					const val = value >= 0 && value <= 100 ? parseInt(value) : 0;
+					await this.setState(`Devices.${duid}.consumables.${attribute}`, { val: val, ack: true });
+				}
 			}
 		}
 	}
@@ -729,6 +794,7 @@ class Roborock extends utils.Adapter {
 	async createCleaningRecord(duid, state, type, states, unit) {
 		let start = 0;
 		let end = 19;
+
 		const robotModel = await this.http_api.getRobotModel(duid);
 		switch (robotModel) {
 			case "roborock.vacuum.a97":
@@ -841,7 +907,7 @@ class Roborock extends utils.Adapter {
 	/**
 	 * @param {string} duid
 	 */
-	async getRobotVersion(duid) {
+	async getDeviceProtocolVersion(duid) {
 		const devices = this.http_api.getDevices();
 
 		for (const device in devices) {
@@ -960,6 +1026,118 @@ class Roborock extends utils.Adapter {
 				});
 			} catch (error) {
 				this.log.error(`Failed to start go2rtc: ${error.message}`);
+			}
+		}
+	}
+
+	/**
+	 * Processes A01 protocol messages and stores the parsed data in a structured format.
+	 * @param {string} duid - The device unique identifier.
+	 * @param {object} response - The parsed response object.
+	 */
+	async processA01(duid, response) {
+		if (!response || !response.dps || typeof response.dps !== "object") {
+			this.log.warn(`Invalid response from A01 with ${duid}`);
+			return;
+		}
+
+		for (const [ID, value] of Object.entries(response.dps)) {
+			const folderName = ID.length === 5 ? ID : "deviceStatus";
+			const basePath = `Devices.${duid}.${folderName}`;
+			const stateName = A01states[ID] || ID;
+
+			let parsedValue = value;
+
+			if (typeof value === "string" && value.startsWith("{") && value.endsWith("}")) {
+				parsedValue = JSON.parse(value);
+			}
+
+			if (typeof parsedValue === "object" && parsedValue !== null) {
+				await this.setObjectNotExistsAsync(basePath, {
+					type: "channel",
+					common: { name: stateName },
+					native: {},
+				});
+
+				for (const [attribute, attrValue] of Object.entries(parsedValue)) {
+					if (typeof attrValue === "object" && attrValue !== null) {
+						const subPath = `${basePath}.${attribute}`;
+						await this.setObjectNotExistsAsync(subPath, {
+							type: "channel",
+							common: { name: attribute },
+							native: {},
+						});
+
+						for (const [subAttribute, subAttrValue] of Object.entries(attrValue)) {
+							if (typeof subAttrValue === "object" && subAttrValue !== null) {
+								const subSubPath = `${subPath}.${subAttribute}`;
+								await this.setObjectNotExistsAsync(subSubPath, {
+									type: "channel",
+									common: { name: subAttribute },
+									native: {},
+								});
+
+								for (const [subSubAttribute, subSubAttrValue] of Object.entries(subAttrValue)) {
+									const subSubSubPath = `${subSubPath}.${subSubAttribute}`;
+									await this.setObjectNotExistsAsync(subSubSubPath, {
+										type: "state",
+										common: {
+											name: subSubAttribute,
+											type: this.getType(subSubAttrValue),
+											role: "value",
+											read: true,
+											write: false,
+										},
+										native: {},
+									});
+									this.setState(subSubSubPath, { val: subSubAttrValue, ack: true });
+								}
+							} else {
+								const statePath = `${subPath}.${subAttribute}`;
+								await this.setObjectNotExistsAsync(statePath, {
+									type: "state",
+									common: {
+										name: subAttribute,
+										type: this.getType(subAttrValue),
+										role: "value",
+										read: true,
+										write: false,
+									},
+									native: {},
+								});
+								this.setState(statePath, { val: subAttrValue, ack: true });
+							}
+						}
+					} else {
+						const statePath = `${basePath}.${attribute}`;
+						await this.setObjectNotExistsAsync(statePath, {
+							type: "state",
+							common: {
+								name: attribute,
+								type: this.getType(attrValue),
+								role: "value",
+								read: true,
+								write: false,
+							},
+							native: {},
+						});
+						this.setState(statePath, { val: attrValue, ack: true });
+					}
+				}
+			} else {
+				const statePath = `${basePath}.${ID}`;
+				await this.setObjectNotExistsAsync(statePath, {
+					type: "state",
+					common: {
+						name: stateName,
+						type: this.getType(parsedValue),
+						role: "value",
+						read: true,
+						write: false,
+					},
+					native: {},
+				});
+				this.setState(statePath, { val: parsedValue, ack: true });
 			}
 		}
 	}
