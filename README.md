@@ -42,6 +42,7 @@ This adapter allows you the control, get states, cleaning history and view the m
 - Roborock Q Revo Pro
 - Roborock Qrevo S
 - Roborock Qrevo Curve
+- Roborock Saros 10R
 
 ## Zone cleaning
 This feature only works when map creation is enabled in the adapter options!
@@ -64,6 +65,7 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) Get clean history when robot state changes to charging
 * (copystring) Q5 Pro does not support any water box modes. Removed them.
 * (copystring) Add basic read only support for Wet Dry Vacuums
+* (copystring) Add basic support for Saros 10R
 
 ### 0.6.19 (2025-02-08)
 * (copystring) Rewrite of mqtt connection logic
