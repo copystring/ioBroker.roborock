@@ -958,6 +958,18 @@ class Roborock extends utils.Adapter {
 			native: {},
 		});
 
+		await this.setObjectAsync("cachedHomeID", {
+			type: "state",
+			common: {
+				name: "homeID",
+				type: "string",
+				role: "value",
+				read: true,
+				write: false,
+			},
+			native: {},
+		});
+
 		await this.setObjectNotExistsAsync("clientID", {
 			type: "state",
 			common: {
