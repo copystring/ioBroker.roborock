@@ -1158,7 +1158,7 @@ class Roborock extends utils.Adapter {
 
 				if (this.supportsFeature && this.supportsFeature("PLUGINS")) {
 					if (this.sentryInstance) {
-						this.sentryInstance.getSentryObject().captureException(`Error: ${error}`);
+						this.sentryInstance.getSentryObject().captureException(error);
 					}
 				}
 			}
