@@ -80,6 +80,8 @@ class Roborock extends utils.Adapter {
 		this.requests_handler = new requests_handler(this);
 		this.device_features = new device_features(this);
 		this.sniffing = new sniffing(this);
+
+		this.isInitializing = true;
 	}
 
 	/**
@@ -117,7 +119,7 @@ class Roborock extends utils.Adapter {
 			if (version != "A01") {
 				const duid = device.duid;
 
-				await this.createNetworkInfoObjects(duid);
+				// await this.createNetworkInfoObjects(duid);
 
 				await this.requests_handler.getParameter(duid, "get_network_info", []); // this needs to be called first on start of adapter to get the IP adresses of each device
 				break;
@@ -648,7 +650,7 @@ class Roborock extends utils.Adapter {
 			common.def = def;
 		}
 
-		await this.setObjectAsync(path, {
+		await this.setObjectNotExistsAsync(path, {
 			type: "state",
 			common: common,
 			native: native,
@@ -893,16 +895,16 @@ class Roborock extends utils.Adapter {
 		// nothing for now
 	}
 
-	/**
-	 * @param {string} duid
-	 */
-	async createNetworkInfoObjects(duid) {
-		for (const name of ["ssid", "ip", "mac", "bssid", "rssi"]) {
-			const objectString = `Devices.${duid}.networkInfo.${name}`;
-			const objectType = name == "rssi" ? "number" : "string";
-			await this.createStateObjectHelper(objectString, name, objectType, null, null, "value", true, false);
-		}
-	}
+	// /**
+	//  * @param {string} duid
+	//  */
+	// async createNetworkInfoObjects(duid) {
+	// 	for (const name of ["ssid", "ip", "mac", "bssid", "rssi"]) {
+	// 		const objectString = `Devices.${duid}.networkInfo.${name}`;
+	// 		const objectType = name == "rssi" ? "number" : "string";
+	// 		await this.createStateObjectHelper(objectString, name, objectType, null, null, "value", true, false);
+	// 	}
+	// }
 
 	/**
 	 * @param {string} duid
