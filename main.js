@@ -142,7 +142,7 @@ class Roborock extends utils.Adapter {
 					break;
 
 				default:
-					await this.createDeviceObjects(device);
+					// await this.createDeviceObjects(device);
 
 					await this.requests_handler.getStatus(duid);
 
@@ -627,11 +627,48 @@ class Roborock extends utils.Adapter {
 		// Return the appropriate string representation of the type.
 		switch (type) {
 			case "boolean":
-				return "boolean";
 			case "number":
-				return "number";
+				return type;;
 			default:
 				return "string";
+		}
+	}
+
+	async ensureState(path, value) {
+		if (this.isInitializing) {
+			const attribute = path.split(".").pop();
+			const commonExtended = this.device_features.getCommonExtended(attribute) || {};
+			const name = this.translations[attribute];
+
+			await this.setObjectNotExistsAsync(path, {
+				type: "state",
+				common: {
+					name: name,
+					type: this.getType(value),
+					role: "value",
+					read: true,
+					write: false,
+					...commonExtended,
+				},
+				native: {},
+			});
+		}
+
+		this.setStateChangedAsync(path, value);
+	}
+
+	async ensureFolder(path) {
+		if (this.isInitializing) {
+			const attribute = path.split(".").pop();
+			const name = this.translations[attribute];
+
+			await this.setObjectNotExistsAsync(path, {
+				type: "folder",
+				common: {
+					name: name,
+				},
+				native: {},
+			});
 		}
 	}
 
