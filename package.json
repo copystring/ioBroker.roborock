@@ -27,8 +27,6 @@
     "@eslint/js": "^9.7.0",
     "@iobroker/adapter-core": "^3.2.3",
     "@napi-rs/canvas": "^0.1.65",
-    "@sentry/node": "^9.9.0",
-    "@sentry/tracing": "^7.120.3",
     "@tsconfig/node18": "^18.2.4",
     "axios": "^1.7.9",
     "binary-parser": "^2.2.1",
