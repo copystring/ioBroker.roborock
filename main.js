@@ -620,15 +620,16 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
-	getType(attribute) {
+	getType(value) {
 		// Get the type of the attribute.
-		const type = typeof attribute;
+		const type = typeof value.val;
+		this.log.debug(`value.val: ${value.val}, type: ${type}`);
 
 		// Return the appropriate string representation of the type.
 		switch (type) {
 			case "boolean":
 			case "number":
-				return type;;
+				return type;
 			default:
 				return "string";
 		}
@@ -639,12 +640,13 @@ class Roborock extends utils.Adapter {
 			const attribute = path.split(".").pop();
 			const commonExtended = this.device_features.getCommonExtended(attribute) || {};
 			const name = this.translations[attribute];
+			const type = this.getType(value);
 
-			await this.setObjectNotExistsAsync(path, {
+			const result = await this.setObjectNotExistsAsync(path, {
 				type: "state",
 				common: {
 					name: name,
-					type: this.getType(value),
+					type: type,
 					role: "value",
 					read: true,
 					write: false,
@@ -652,6 +654,14 @@ class Roborock extends utils.Adapter {
 				},
 				native: {},
 			});
+
+			if (!result) {
+				const obj = await this.getObjectAsync(path);
+				if (obj && obj.common.type != type) {
+					obj.common.type = type;
+					await this.extendObject(path, obj);
+				}
+			}
 		}
 
 		this.setStateChangedAsync(path, value);
