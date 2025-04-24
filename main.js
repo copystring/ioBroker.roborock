@@ -530,14 +530,11 @@ class Roborock extends utils.Adapter {
 			const devices = this.http_api.getDevices();
 			const device = devices.find((device) => device.duid === duid);
 
-			const deviceStatus = device.deviceStatus;
-
-			for (const [attribute, value] of Object.entries(deviceStatus)) {
-				const targetConsumable = await this.getObjectAsync(`Devices.${duid}.consumables.${attribute}`);
-
-				if (targetConsumable) {
+			for (const [attribute, value] of Object.entries(device.deviceStatus)) {
+				if (attribute == "125" || attribute == "126" || attribute == "127") {
 					const val = value >= 0 && value <= 100 ? parseInt(value) : 0;
-					await this.setState(`Devices.${duid}.consumables.${attribute}`, { val: val, ack: true });
+					const commonExtended = this.device_features.getCommonConsumable(attribute);
+					await this.ensureState(`Devices.${duid}.consumables.${attribute}`, { val: val, ack: true }, commonExtended);
 				}
 			}
 		}
@@ -623,7 +620,6 @@ class Roborock extends utils.Adapter {
 	getType(value) {
 		// Get the type of the attribute.
 		const type = typeof value.val;
-		this.log.debug(`value.val: ${value.val}, type: ${type}`);
 
 		// Return the appropriate string representation of the type.
 		switch (type) {
@@ -635,30 +631,30 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
-	async ensureState(path, value) {
+	async ensureState(path, value, commonExtended) {
 		if (this.isInitializing) {
 			const attribute = path.split(".").pop();
-			const commonExtended = this.device_features.getCommonExtended(attribute) || {};
-			const name = this.translations[attribute];
-			const type = this.getType(value);
+
+			const common = {
+				name: this.translations[attribute],
+				type: this.getType(value),
+				role: "value",
+				read: true,
+				write: false,
+				...commonExtended,
+			};
 
 			const result = await this.setObjectNotExistsAsync(path, {
 				type: "state",
-				common: {
-					name: name,
-					type: type,
-					role: "value",
-					read: true,
-					write: false,
-					...commonExtended,
-				},
+				common: common,
 				native: {},
 			});
 
+
 			if (!result) {
 				const obj = await this.getObjectAsync(path);
-				if (obj && obj.common.type != type) {
-					obj.common.type = type;
+				if (obj && obj.common) {
+					obj.common = common;
 					await this.extendObject(path, obj);
 				}
 			}
@@ -670,12 +666,11 @@ class Roborock extends utils.Adapter {
 	async ensureFolder(path) {
 		if (this.isInitializing) {
 			const attribute = path.split(".").pop();
-			const name = this.translations[attribute];
 
 			await this.setObjectNotExistsAsync(path, {
 				type: "folder",
 				common: {
-					name: name,
+					name: this.translations[attribute],
 				},
 				native: {},
 			});
@@ -781,34 +776,6 @@ class Roborock extends utils.Adapter {
 				native: {},
 			});
 		}
-	}
-
-	/**
-	 * @param {string} duid
-	 * @param {string | number} state
-	 * @param {Object} type
-	 * @param {Object} states
-	 * @param {string} unit
-	 */
-	async createConsumable(duid, state, type, states, unit) {
-		const path = `Devices.${duid}.consumables.${state}`;
-		const name = this.translations[state];
-
-		const common = {
-			name: name,
-			type: type,
-			role: "value",
-			unit: unit,
-			read: true,
-			write: false,
-			states: states,
-		};
-
-		this.setObjectAsync(path, {
-			type: "state",
-			common: common,
-			native: {},
-		});
 	}
 
 	/**
