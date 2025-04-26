@@ -122,7 +122,6 @@ class Roborock extends utils.Adapter {
 				// await this.createNetworkInfoObjects(duid);
 
 				await this.requests_handler.getParameter(duid, "get_network_info", []); // this needs to be called first on start of adapter to get the IP adresses of each device
-				break;
 			}
 		}
 		// now network data is present, connect tcp client to devices
@@ -142,7 +141,7 @@ class Roborock extends utils.Adapter {
 					break;
 
 				default:
-					// await this.createDeviceObjects(device);
+					await this.createDeviceObjects(device);
 
 					await this.requests_handler.getStatus(duid);
 
@@ -548,28 +547,22 @@ class Roborock extends utils.Adapter {
 		const device = devices.find((device) => device.duid === duid);
 
 		for (const deviceAttribute in device) {
-			let value = device[deviceAttribute];
-
-			if (typeof value != "object") {
-				let unit;
-
-				if (deviceAttribute == "activeTime") {
-					unit = "h";
-					value = Math.round(device[deviceAttribute] / 1000 / 60 / 60);
+			if (typeof device[deviceAttribute] != "object") {
+				const commonDeviceInfo = deviceAttribute == "activeTime" ? { unit: "h"} : null;
+				let value;
+				switch (deviceAttribute) {
+					case "activeTime":
+						value = Math.round(device[deviceAttribute] / 1000 / 60 / 60);
+						break;
+					case "createTime":
+						value = new Date(device[deviceAttribute] * 1000);
+						break;
+					default:
+						value = device[deviceAttribute];
+						break;
 				}
-				await this.setObjectAsync("Devices." + duid + ".deviceInfo." + deviceAttribute, {
-					type: "state",
-					common: {
-						name: deviceAttribute,
-						type: this.getType(value),
-						unit: unit,
-						role: "value",
-						read: true,
-						write: false,
-					},
-					native: {},
-				});
-				this.setStateChangedAsync("Devices." + duid + ".deviceInfo." + deviceAttribute, { val: value, ack: true });
+
+				this.ensureState("Devices." + duid + ".deviceInfo." + deviceAttribute, { val: value, ack: true }, commonDeviceInfo);
 			}
 		}
 	}
@@ -631,9 +624,22 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
+	/**
+	 * @param {string} path
+	 * @param {object} value
+	 * @param {object} commonExtended
+	 */
 	async ensureState(path, value, commonExtended) {
 		if (this.isInitializing) {
 			const attribute = path.split(".").pop();
+
+			if (!attribute) {
+				throw new Error(`Invalid path: "${path}"`);
+			}
+
+			const folderPath = path.split(".").slice(0, -1).join(".");
+
+			this.ensureFolder(folderPath);
 
 			const common = {
 				name: this.translations[attribute],
@@ -661,6 +667,47 @@ class Roborock extends utils.Adapter {
 		}
 
 		this.setStateChangedAsync(path, value);
+	}
+
+	/**
+	 * @param {string} path
+	 * @param {object} commonExtended
+	 */
+	async ensureCommand(path, commonExtended) {
+		if (this.isInitializing) {
+			const attribute = path.split(".").pop();
+
+			if (!attribute) {
+				throw new Error(`Invalid path: "${path}"`);
+			}
+
+			const folderPath = path.split(".").slice(0, -1).join(".");
+
+			this.ensureFolder(folderPath);
+
+			const common = {
+				name: this.translations[attribute],
+				role: "value",
+				read: true,
+				write: false,
+				...commonExtended,
+			};
+
+			const result = await this.setObjectNotExistsAsync(path, {
+				type: "state",
+				common: common,
+				native: {},
+			});
+
+
+			if (!result) {
+				const obj = await this.getObjectAsync(path);
+				if (obj && obj.common) {
+					obj.common = common;
+					await this.extendObject(path, obj);
+				}
+			}
+		}
 	}
 
 	async ensureFolder(path) {
@@ -701,62 +748,6 @@ class Roborock extends utils.Adapter {
 
 	/**
 	 * @param {string} duid
-	 * @param {string | number} command
-	 * @param {Object} type
-	 * @param {Object} defaultState
-	 * @param {string} states
-	 */
-	async createCommand(duid, command, type, defaultState, states) {
-		const path = `Devices.${duid}.commands.${command}`;
-		const name = this.translations[command];
-
-		const common = {
-			name: name,
-			type: type,
-			role: "value",
-			read: true,
-			write: true,
-			def: defaultState,
-			states: states,
-		};
-
-		this.setObjectAsync(path, {
-			type: "state",
-			common: common,
-			native: {},
-		});
-	}
-
-	/**
-	 * @param {string} duid
-	 * @param {string | number} state
-	 * @param {Object} type
-	 * @param {Object} states
-	 * @param {string} unit
-	 */
-	async createDeviceStatus(duid, state, type, states, unit) {
-		const path = `Devices.${duid}.deviceStatus.${state}`;
-		const name = this.translations[state];
-
-		const common = {
-			name: name,
-			type: type,
-			role: "value",
-			unit: unit,
-			read: true,
-			write: false,
-			states: states,
-		};
-
-		this.setObjectAsync(path, {
-			type: "state",
-			common: common,
-			native: {},
-		});
-	}
-
-	/**
-	 * @param {string} duid
 	 */
 	async createDockingStationObject(duid) {
 		for (const state of dockingStationStates) {
@@ -776,111 +767,6 @@ class Roborock extends utils.Adapter {
 				native: {},
 			});
 		}
-	}
-
-	/**
-	 * @param {string} duid
-	 * @param {string | number} state
-	 */
-	async createResetConsumables(duid, state) {
-		const path = `Devices.${duid}.resetConsumables.${state}`;
-		const name = this.translations[state];
-
-		this.setObjectNotExistsAsync(path, {
-			type: "state",
-			common: {
-				name: name,
-				type: "boolean",
-				role: "value",
-				read: true,
-				write: true,
-				def: false,
-			},
-			native: {},
-		});
-	}
-
-	/**
-	 * @param {string} duid
-	 * @param {string | number} state
-	 * @param {Object} type
-	 * @param {Object} states
-	 * @param {string} unit
-	 */
-	async createCleaningRecord(duid, state, type, states, unit) {
-		let start = 0;
-		let end = 19;
-
-		const robotModel = await this.http_api.getRobotModel(duid);
-		switch (robotModel) {
-			case "roborock.vacuum.a97":
-				start = 1;
-				end = 20;
-				break;
-			case "roborock.vacuum.a21":
-				start = 1;
-				end = 21;
-				break;
-		}
-
-		for (let i = start; i <= end; i++) {
-			await this.setObjectAsync(`Devices.${duid}.cleaningInfo.records.${i}`, {
-				type: "folder",
-				common: {
-					name: `Cleaning record ${i}`,
-				},
-				native: {},
-			});
-
-			this.setObjectAsync(`Devices.${duid}.cleaningInfo.records.${i}.${state}`, {
-				type: "state",
-				common: {
-					name: this.translations[state],
-					type: type,
-					role: "value",
-					unit: unit,
-					read: true,
-					write: false,
-					states: states,
-				},
-				native: {},
-			});
-
-			await this.setObjectAsync(`Devices.${duid}.cleaningInfo.records.${i}.map`, {
-				type: "folder",
-				common: {
-					name: "Map",
-				},
-				native: {},
-			});
-			for (const name of ["mapBase64", "mapBase64Truncated", "mapData"]) {
-				const objectString = `Devices.${duid}.cleaningInfo.records.${i}.map.${name}`;
-				await this.createStateObjectHelper(objectString, name, "string", null, null, "value", true, false);
-			}
-		}
-	}
-
-	/**
-	 * @param {string} duid
-	 * @param {string} key
-	 * @param {Object} object
-	 */
-	async createCleaningInfo(duid, key, object) {
-		const path = `Devices.${duid}.cleaningInfo.${key}`;
-		const name = this.translations[object.name];
-
-		this.setObjectAsync(path, {
-			type: "state",
-			common: {
-				name: name,
-				type: "number",
-				role: "value",
-				unit: object.unit,
-				read: true,
-				write: false,
-			},
-			native: {},
-		});
 	}
 
 	/**
