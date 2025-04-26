@@ -1315,7 +1315,7 @@ class Roborock extends utils.Adapter {
 				}
 			}
 		} else {
-			this.log.error(`Error! Missing state onChangeState!`);
+			this.log.error(`Error! Missing state onChangeState with ID ${id}!`);
 		}
 	}
 
