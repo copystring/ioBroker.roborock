@@ -555,14 +555,14 @@ class Roborock extends utils.Adapter {
 						value = Math.round(device[deviceAttribute] / 1000 / 60 / 60);
 						break;
 					case "createTime":
-						value = new Date(device[deviceAttribute] * 1000);
+						value = new Date(device[deviceAttribute] * 1000).toLocaleString();
 						break;
 					default:
 						value = device[deviceAttribute];
 						break;
 				}
 
-				this.ensureState("Devices." + duid + ".deviceInfo." + deviceAttribute, { val: value, ack: true }, commonDeviceInfo);
+				this.ensureState(`Devices.${duid}.deviceInfo.${deviceAttribute}`, { val: value, ack: true }, commonDeviceInfo);
 			}
 		}
 	}
