@@ -578,30 +578,10 @@ class Roborock extends utils.Adapter {
 			this.http_api
 				.getFirmwareStates(duid)
 				.then(async (update) => {
-					await this.setObjectNotExistsAsync("Devices." + duid + ".updateStatus", {
-						type: "folder",
-						common: {
-							name: "Update status",
-						},
-						native: {},
-					});
-
 					for (const state in update.data.result) {
-						await this.setObjectNotExistsAsync("Devices." + duid + ".updateStatus." + state, {
-							type: "state",
-							common: {
-								name: state,
-								type: this.getType(update.data.result[state]),
-								role: "value",
-								read: true,
-								write: false,
-							},
-							native: {},
-						});
-						this.setState("Devices." + duid + ".updateStatus." + state, {
-							val: update.data.result[state],
-							ack: true,
-						});
+						const value = update.data.result[state];
+
+						this.ensureState(`Devices.${duid}.updateStatus.${state}`, { val: value, ack: true});
 					}
 				})
 				.catch((error) => {
@@ -627,7 +607,7 @@ class Roborock extends utils.Adapter {
 	/**
 	 * @param {string} path
 	 * @param {object} value
-	 * @param {object} commonExtended
+	 * @param {object} [commonExtended]
 	 */
 	async ensureState(path, value, commonExtended) {
 		if (this.isInitializing) {
