@@ -689,7 +689,7 @@ class Roborock extends utils.Adapter {
 				name: this.translations[attribute],
 				role: "value",
 				read: true,
-				write: false,
+				write: true,
 				...commonExtended,
 			};
 
