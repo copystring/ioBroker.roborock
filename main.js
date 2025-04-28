@@ -1034,7 +1034,7 @@ class Roborock extends utils.Adapter {
 
 		if (error) {
 			if (error.toString().includes("retry") || error.toString().includes("locating") || error.toString().includes("timed out after 30 seconds")) {
-				this.log.warn(`Failed to process ${JSON.stringify(attribute)} on robot ${duid} (${robotModel}): ${error}`);
+				this.log.warn(`Failed to process ${JSON.stringify(attribute)} on robot ${duid} (${robotModel}): ${error.stack || error}`);
 			} else {
 				this.log.error(`Failed to process ${JSON.stringify(attribute)} on robot ${duid} (${robotModel}): ${error.stack || error}`);
 
