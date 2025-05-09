@@ -1083,7 +1083,7 @@ class Roborock extends utils.Adapter {
 	/**
 	 * Is called if a subscribed state changes
 	 * @param {string} id
-	 * @param {ioBroker.State} state
+	 * @param {ioBroker.State | null | undefined} state
 	 */
 	async onStateChange(id, state) {
 		if (state) {
