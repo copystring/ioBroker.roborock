@@ -183,10 +183,11 @@ class Roborock extends utils.Adapter {
 
 								// update device data on interval defined in options
 								if (updateIntervalCount % this.config.updateInterval == 0) {
+									await this.http_api.updateHomeData(); // this is needed to get the online status of the devices and has to run before any other requests. Otherwise requests might be missing homedata and will time out.
+
 									this.updateDeviceData(duid);
 									this.updateConsumablesPercent(duid);
 									this.updateDeviceInfo(duid);
-									await this.http_api.updateHomeData(); // this is needed to get the online status of the devices
 
 									updateIntervalCount = 0;
 								}
