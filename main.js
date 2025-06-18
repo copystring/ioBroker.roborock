@@ -164,8 +164,10 @@ class Roborock extends utils.Adapter {
 			const devices = this.http_api.getDevices();
 
 			for (const device of devices) {
+				const duid = device.duid;
+				await this.updateDeviceInfo(duid);
+
 				if (device.online) {
-					const duid = device.duid;
 					const version = await this.getDeviceProtocolVersion(duid);
 
 					switch (version) {
@@ -187,7 +189,6 @@ class Roborock extends utils.Adapter {
 
 									this.updateDeviceData(duid);
 									this.updateConsumablesPercent(duid);
-									this.updateDeviceInfo(duid);
 
 									updateIntervalCount = 0;
 								}
@@ -549,7 +550,7 @@ class Roborock extends utils.Adapter {
 
 		for (const deviceAttribute in device) {
 			if (typeof device[deviceAttribute] != "object") {
-				const commonDeviceInfo = deviceAttribute == "activeTime" ? { unit: "h"} : null;
+				const commonDeviceInfo = deviceAttribute == "activeTime" ? { unit: "h" } : null;
 				let value;
 				switch (deviceAttribute) {
 					case "activeTime":
@@ -563,7 +564,7 @@ class Roborock extends utils.Adapter {
 						break;
 				}
 
-				this.ensureState(`Devices.${duid}.deviceInfo.${deviceAttribute}`, { val: value, ack: true }, commonDeviceInfo);
+				await this.ensureState(`Devices.${duid}.deviceInfo.${deviceAttribute}`, { val: value, ack: true }, commonDeviceInfo);
 			}
 		}
 	}
@@ -582,7 +583,7 @@ class Roborock extends utils.Adapter {
 					for (const state in update.data.result) {
 						const value = update.data.result[state];
 
-						this.ensureState(`Devices.${duid}.updateStatus.${state}`, { val: value, ack: true});
+						this.ensureState(`Devices.${duid}.updateStatus.${state}`, { val: value, ack: true });
 					}
 				})
 				.catch((error) => {
@@ -637,7 +638,6 @@ class Roborock extends utils.Adapter {
 				native: {},
 			});
 
-
 			if (!result) {
 				const obj = await this.getObjectAsync(path);
 				if (obj && obj.common) {
@@ -679,7 +679,6 @@ class Roborock extends utils.Adapter {
 				common: common,
 				native: {},
 			});
-
 
 			if (!result) {
 				const obj = await this.getObjectAsync(path);
