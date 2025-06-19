@@ -72,7 +72,6 @@ class Roborock extends utils.Adapter {
 		this.on("unload", this.onUnload.bind(this));
 
 		this.socket = null;
-		this.idCounter = 1;
 		this.nonce = randomBytes(16);
 		this.pendingRequests = new Map();
 		this.http_api = new http_api(this);
@@ -797,14 +796,6 @@ class Roborock extends utils.Adapter {
 		}
 
 		return "Error in getRobotVersion. Version not found.";
-	}
-
-	getRequestId() {
-		if (this.idCounter >= 9999) {
-			this.idCounter = 1;
-			return this.idCounter;
-		}
-		return this.idCounter++;
 	}
 
 	async setupBasicObjects() {
