@@ -468,10 +468,10 @@ class Roborock extends utils.Adapter {
 		if (version != "A01") {
 			const requestList = ["get_fw_features", "get_multi_maps_list", "get_room_mapping", "get_consumable", "get_server_timer", "get_timer"];
 			for (const request of requestList) {
-				await this.requests_handler.getParameter(duid, request, []);
+				this.requests_handler.getParameter(duid, request, []);
 			}
 
-			await this.checkForNewFirmware(duid);
+			this.checkForNewFirmware(duid);
 
 			switch (robotModel) {
 				case "roborock.vacuum.s4":
@@ -484,18 +484,18 @@ class Roborock extends utils.Adapter {
 					break;
 				case "roborock.vacuum.s6":
 				case "roborock.vacuum.a72":
-					await this.requests_handler.getParameter(duid, "get_carpet_mode", []);
+					this.requests_handler.getParameter(duid, "get_carpet_mode", []);
 					break;
 				case "roborock.vacuum.a27":
-					await this.requests_handler.getParameter(duid, "get_dust_collection_switch_status", {});
-					await this.requests_handler.getParameter(duid, "get_wash_towel_mode", {});
-					await this.requests_handler.getParameter(duid, "get_smart_wash_params", {});
-					await this.requests_handler.getParameter(duid, "app_get_dryer_setting", {});
+					this.requests_handler.getParameter(duid, "get_dust_collection_switch_status", {});
+					this.requests_handler.getParameter(duid, "get_wash_towel_mode", {});
+					this.requests_handler.getParameter(duid, "get_smart_wash_params", {});
+					this.requests_handler.getParameter(duid, "app_get_dryer_setting", {});
 					break;
 				default:
-					await this.requests_handler.getParameter(duid, "get_carpet_mode", []);
-					await this.requests_handler.getParameter(duid, "get_carpet_clean_mode", []);
-					await this.requests_handler.getParameter(duid, "get_water_box_custom_mode", []);
+					this.requests_handler.getParameter(duid, "get_carpet_mode", []);
+					this.requests_handler.getParameter(duid, "get_carpet_clean_mode", []);
+					this.requests_handler.getParameter(duid, "get_water_box_custom_mode", []);
 			}
 		}
 	}
