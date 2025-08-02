@@ -148,8 +148,12 @@ class Roborock extends utils.Adapter {
 					this.updateConsumablesPercent(duid);
 					this.updateDeviceInfo(duid);
 
-					await this.requests_handler.getCleanSummary(duid);
-					await this.requests_handler.getMap(duid);
+					this.requests_handler.getCleanSummary(duid).catch((error) => {
+						this.catchError(error.stack, "getCleanSummary", duid);
+					});
+					this.requests_handler.getMap(duid).catch((error) => {
+						this.catchError(error.stack, "getMap", duid);
+					});
 					break;
 			}
 		}
