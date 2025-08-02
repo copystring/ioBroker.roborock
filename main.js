@@ -572,7 +572,6 @@ class Roborock extends utils.Adapter {
 	 * @param {string} duid
 	 */
 	async checkForNewFirmware(duid) {
-		this.log.debug(`Checking for new firmware`);
 		const isLocalDevice = this.requests_handler.isLocalDevice(duid);
 
 		if (isLocalDevice) {
