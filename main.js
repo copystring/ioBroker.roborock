@@ -148,6 +148,7 @@ class Roborock extends utils.Adapter {
 					this.updateConsumablesPercent(duid);
 					this.updateDeviceInfo(duid);
 
+					// first run of getting maps can run in background
 					this.requests_handler.getCleanSummary(duid).catch((error) => {
 						this.catchError(error.stack, "getCleanSummary", duid);
 					});
