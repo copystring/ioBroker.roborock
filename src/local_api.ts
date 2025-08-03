@@ -1,10 +1,10 @@
 "use strict";
 
-const crypto = require("crypto");
-const Parser = require("binary-parser").Parser;
-const net = require("net");
-const dgram = require("dgram");
-const crc32 = require("crc-32");
+import crypto from "crypto";
+import { Parser } from "binary-parser";
+import net from "net";
+import dgram from "dgram";
+import crc32 from "crc-32";
 
 const UDP_DISCOVERY_PORT = 58866;
 const TCP_CONNECTION_PORT = 58867;
@@ -13,7 +13,10 @@ const TIMEOUT = 5000; // 5 seconds timeout
 const BROADCAST_TOKEN = Buffer.from("qWKYcdQWrbm9hPqe", "utf8");
 
 class EnhancedSocket extends net.Socket {
-	constructor(options) {
+	connected: boolean;
+	chunkBuffer: Buffer;
+
+	constructor(options = {}) {
 		super(options);
 		this.connected = false;
 		this.chunkBuffer = Buffer.alloc(0);
@@ -59,7 +62,13 @@ const vL01_Parser = new Parser()
 	.buffer("payload", { length: "payloadLen" })
 	.uint32("crc32");
 
-class local_api {
+export class local_api {
+	adapter: any;
+	server: dgram.Socket;
+	localDevices: Record<string, EnhancedSocket>;
+	cloudDevices: Set<string>;
+	localDevicesTimeout: NodeJS.Timeout | null = null;
+
 	constructor(adapter) {
 		this.adapter = adapter;
 
@@ -399,5 +408,3 @@ class local_api {
 		}
 	}
 }
-
-module.exports = local_api;

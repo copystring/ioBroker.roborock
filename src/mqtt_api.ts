@@ -1,10 +1,9 @@
-"use strict";
+import type { Roborock } from "./main";
+import mqtt, { MqttClient } from "mqtt";
 
-const mqtt = require("mqtt");
-const crypto = require("crypto");
-const Parser = require("binary-parser").Parser;
-const zlib = require("zlib");
-const forge = require("node-forge");
+import crypto from "crypto";
+import { Parser } from "binary-parser";
+import zlib from "zlib";
 
 // Parser for protocol 301 messages
 const protocol301Parser = new Parser()
@@ -28,12 +27,16 @@ const photoParser = new Parser()
 	})
 	.uint8("id");
 
-class mqtt_api {
-	/**
-	 * Constructor for the mqtt_api class.
-	 * @param {object} adapter - The adapter instance.
-	 */
-	constructor(adapter) {
+export class mqtt_api {
+	adapter: Roborock;
+	mqttUser: string;
+	mqttPassword: string;
+	client: MqttClient | null;
+	connected: boolean;
+	pendingPhotoRequests: Record<string, any>;
+	mqttOptions: any;
+
+	constructor(adapter: Roborock) {
 		this.adapter = adapter;
 
 		this.mqttUser = "";
@@ -41,34 +44,6 @@ class mqtt_api {
 		this.client = null;
 
 		this.connected = false;
-
-		// Generate an RSA key pair for encryption
-		const keypair = forge.pki.rsa.generateKeyPair(2048);
-		this.keys = {
-			public: { n: null, e: null },
-			private: {
-				n: null,
-				e: null,
-				d: null,
-				p: null,
-				q: null,
-				dmp1: null,
-				dmq1: null,
-				coeff: null,
-			},
-		};
-
-		// Convert the keys to the desired format (hexadecimal strings)
-		this.keys.public.n = keypair.publicKey.n.toString(16);
-		this.keys.public.e = keypair.publicKey.e.toString(16);
-		this.keys.private.n = keypair.privateKey.n.toString(16);
-		this.keys.private.e = keypair.privateKey.e.toString(16);
-		this.keys.private.d = keypair.privateKey.d.toString(16);
-		this.keys.private.p = keypair.privateKey.p.toString(16);
-		this.keys.private.q = keypair.privateKey.q.toString(16);
-		this.keys.private.dmp1 = keypair.privateKey.dP.toString(16);
-		this.keys.private.dmq1 = keypair.privateKey.dQ.toString(16);
-		this.keys.private.coeff = keypair.privateKey.qInv.toString(16);
 
 		// Object to store pending photo requests
 		this.pendingPhotoRequests = {};
@@ -134,14 +109,14 @@ class mqtt_api {
 				// Subscribe to the necessary topic
 				client.subscribe(`rr/m/o/${rriot.u}/${this.mqttUser}/#`, (error, granted) => {
 					if (error) {
-						this.adapter.catchError(`Failed to subscribe to Roborock MQTT Server! Error: ${error}, granted: ${JSON.stringify(granted)}`);
+						this.adapter.log.error(`Failed to subscribe to Roborock MQTT Server! Error: ${error}, granted: ${JSON.stringify(granted)}`);
 					}
 				});
 
 				this.connected = true;
 				this.adapter.log.info(`MQTT connection established ${JSON.stringify(result)}.`);
 			} else {
-				this.adapter.catchError("MQTT connection failed: No result on connect.", "client.on('connect')");
+				this.adapter.log.error("MQTT connection failed: No result on connect.", "client.on('connect')");
 			}
 		});
 
@@ -162,11 +137,11 @@ class mqtt_api {
 
 		client.on("reconnect", (error) => {
 			if (error) {
-				this.adapter.catchError(`Failed to reconnect to MQTT server.`, "mqtt client reconnect");
+				this.adapter.log.error(`Failed to reconnect to MQTT server.`, "mqtt client reconnect");
 			} else {
 				client.subscribe(`rr/m/o/${rriot.u}/${this.mqttUser}/#`, (error, granted) => {
 					if (error) {
-						this.adapter.catchError(`Failed to subscribe to Roborock MQTT Server! Error: ${error}, granted: ${JSON.stringify(granted)}`, "client.on('reconnect')");
+						this.adapter.log.error(`Failed to subscribe to Roborock MQTT Server! Error: ${error}, granted: ${JSON.stringify(granted)}`, "client.on('reconnect')");
 					}
 				});
 			}
@@ -371,7 +346,7 @@ class mqtt_api {
 				this.adapter.log.info("Disconnecting mqtt client!");
 				await this.client.endAsync();
 			} catch (error) {
-				this.adapter.catchError(`Failed to disconnect with error: ${error}`, `disconnectClient`);
+				this.adapter.log.error(`Failed to disconnect with error: ${error}`, `disconnectClient`);
 			}
 		}
 	}
@@ -416,5 +391,3 @@ class mqtt_api {
 		this.clearIntervals();
 	}
 }
-
-module.exports = mqtt_api;

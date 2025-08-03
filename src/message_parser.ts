@@ -1,9 +1,9 @@
-"use strict";
+import type { Roborock } from "./main";
 
-const crypto = require("crypto");
-const CRC32 = require("crc-32");
-const Parser = require("binary-parser").Parser;
-const forge = require("node-forge");
+import crypto from "crypto";
+import CRC32 from "crc-32";
+import { Parser } from "binary-parser";
+import forge from "node-forge";
 
 const HEADER_LEN = 3 + 4 + 4 + 4 + 2 + 2; // version + seq + random + timestamp + protocol + payloadLen
 const CRC32_LEN = 4; // CRC32 length
@@ -44,8 +44,10 @@ const messageParser = new Parser()
 	})
 	.uint32("crc32");
 
-class message_parser {
-	constructor(adapter) {
+export class message_parser {
+	adapter: Roborock;
+
+	constructor(adapter: Roborock) {
 		this.adapter = adapter;
 	}
 
@@ -54,7 +56,7 @@ class message_parser {
 	 * @param {string} duid
 	 */
 	_decodeMsg(message, duid) {
-		const decodedMessages = [];
+		const decodedMessages: any[] = [];
 		let offset = 0;
 		while (offset + 3 <= message.length) {
 			// Do some checks before trying to decode the message.
@@ -145,7 +147,7 @@ class message_parser {
 			const payload = JSON.stringify({ dps: { [method]: params }, t: timestamp });
 			return payload;
 		} else {
-			const inner = {
+			const inner: any = {
 				id: messageID,
 				method: method,
 				params: params,
@@ -255,5 +257,3 @@ class message_parser {
 		return crypto.createHash("md5").update(str).digest("hex");
 	}
 }
-
-module.exports = message_parser;

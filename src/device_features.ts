@@ -1,4 +1,4 @@
-"use strict";
+import { Roborock } from "./main";
 
 const errorCodes = {
 	0: "No error",
@@ -82,7 +82,7 @@ const firmwareFeatures = {
 	125: "isRemoteSupported",
 };
 
-const commands = {
+const commands: Record<string, any> = {
 	app_start: { type: "boolean", def: false },
 	app_segment_clean: { type: "boolean", def: false },
 	app_stop: { type: "boolean", def: false },
@@ -182,8 +182,12 @@ const actions = {
 	}
 };
 
-class device_features {
-	constructor(adapter) {
+export class device_features {
+	adapter: Roborock;
+	cleaningInfo: Record<string, any>;
+	cleaningRecords: Record<string, any>;
+
+	constructor(adapter: Roborock) {
 		this.adapter = adapter;
 		this.cleaningInfo = {};
 		this.cleaningRecords = {};
@@ -648,7 +652,7 @@ class device_features {
 					}
 				}
 			} else {
-				this.adapter.catchError(`This robot is not fully supported just yet. Contact the dev to get this robot fully supported! Model: ${robotModel}`);
+				this.adapter.log.error(`This robot is not fully supported just yet. Contact the dev to get this robot fully supported! Model: ${robotModel}`);
 			}
 
 			this.adapter.createBaseRobotObjects(duid);
@@ -732,5 +736,3 @@ class device_features {
 		}
 	}
 }
-
-module.exports = device_features;

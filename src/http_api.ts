@@ -1,15 +1,22 @@
 // credits to rovo89
 // taken from here https://gist.github.com/rovo89/dff47ed19fca0dfdda77503e66c2b7c7
 
-"use strict";
+import { Roborock } from "./main";
 
-const axios = require("axios");
-const crypto = require("crypto");
+import axios from "axios";
+import crypto from "crypto";
 
 const API_BASE_URL = "https://euiot.roborock.com";
 const API_LOGIN_ENDPOINT = "api/v1/login";
 
-class http_api {
+export class http_api {
+	adapter: Roborock;
+	loginApi: any;
+	realApi: any;
+	userData: any;
+	homeData: any;
+	homeID: string | null;
+
 	constructor(adapter) {
 		this.adapter = adapter;
 
@@ -74,7 +81,7 @@ class http_api {
 				await this.adapter.setState("HomeData", { val: null, ack: true });
 				await this.adapter.setState("UserData", { val: null, ack: true });
 
-				this.adapter.catchError(error.stack);
+				this.adapter.log.error(error.stack);
 			}
 		}
 
@@ -297,5 +304,3 @@ class http_api {
 function md5hex(str) {
 	return crypto.createHash("md5").update(str).digest("hex");
 }
-
-module.exports = http_api;

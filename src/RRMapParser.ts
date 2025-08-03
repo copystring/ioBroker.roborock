@@ -1,6 +1,6 @@
-"use strict";
+import type { Roborock } from "./main";
 
-const crypto = require("crypto");
+import crypto from "crypto";
 
 const TYPES = {
 	CHARGER_LOCATION: 1,
@@ -68,16 +68,18 @@ const OFFSETS = {
 	BLOCKS: 0x0c,
 };
 
-class RRMapParser {
-	constructor(adapter) {
+export class RRMapParser {
+	adapter: Roborock;
+
+	constructor(adapter: Roborock) {
 		this.adapter = adapter;
 	}
 
-	BytesToInt(buffer, offset, len) {
+	BytesToInt(buffer: Buffer, offset: number, len: number) {
 		return buffer.slice(offset, offset + len).reduce((acc, byte, i) => acc | (byte << (8 * i)), 0);
 	}
 
-	async parsedata(buf) {
+	async parsedata(buf: Buffer) {
 		const metaData = this.PARSE(buf);
 		if (!metaData.map_index) {
 			this.adapter.log.error(`RRMapParser: Failed to parse map data. map_index was missing`);
@@ -126,7 +128,7 @@ class RRMapParser {
 						const offset = this.getSingleByteOffset(blockBuffer);
 						const [left, top, width, height] = this.getMapSizes(blockBuffer, offset1);
 
-						let parameters = {};
+						let parameters: any = {};
 						parameters = {
 							segments: {
 								count: hlength > 24 ? this.getCount(blockBuffer) : 0,
@@ -316,9 +318,9 @@ class RRMapParser {
 		}
 	}
 
-	extractObstacles(buf, offset) {
+	extractObstacles(buf: Buffer, offset: number) {
 		const obstacleCount = this.getCount(buf);
-		const obstacles = [];
+		const obstacles: any[] = [];
 
 		for (let i = 0; i < obstacleCount * 28; i += 28) {
 			const obstacle = [
@@ -352,8 +354,8 @@ class RRMapParser {
 		return [left, top, width, height];
 	}
 
-	getPointInPath(buf, dataPosition) {
-		const result = [];
+	getPointInPath(buf: Buffer, dataPosition: number) {
+		const result: number[] = [];
 		for (let i = 0; i < 2; i++) {
 			result.push(buf.readUInt16LE(dataPosition + OFFSETS.PATH + i * 2));
 		}
@@ -410,8 +412,8 @@ class RRMapParser {
 		}
 	}
 
-	getNonceData(buf) {
-		const sections = [];
+	getNonceData(buf: Buffer): { type: number; unixTime: number }[] {
+		const sections: { type: number; unixTime: number }[] = [];
 
 		for (let i = 12; i < buf.length; i += 5) {
 			const type = buf[i];
@@ -423,37 +425,36 @@ class RRMapParser {
 		return sections;
 	}
 
-	readUInt16LE(buf, dataPosition, offset, count) {
-		const result = [];
+
+	readUInt16LE(buf: Buffer, dataPosition: number, offset: number, count: number) {
+		const result: number[] = [];
 		for (let j = 0; j < count; j++) {
 			result.push(buf.readUInt16LE(dataPosition + offset + j * 2));
 		}
 		return result;
 	}
 
-	readInt32LE(buf, dataPosition, offset, count) {
-		const array = [];
+	readInt32LE(buf: Buffer, dataPosition: number, offset: number, count: number) {
+		const array: number[] = [];
 		for (let j = 0; j < count; j++) {
 			array.push(buf.readInt32LE(offset + dataPosition + j * 4));
 		}
 		return array;
 	}
 
-	readUInt32LE(buf, dataPosition, offset, count) {
-		const array = [];
+	readUInt32LE(buf: Buffer, dataPosition: number, offset: number, count: number) {
+		const array: number[] = [];
 		for (let j = 0; j < count; j++) {
 			array.push(buf.readUInt32LE(offset + dataPosition + j * 4));
 		}
 		return array;
 	}
 
-	readUInt8(buf, dataPosition, offset, count) {
-		const array = [];
+	readUInt8(buf: Buffer, dataPosition: number, offset: number, count: number) {
+		const array: number[] = [];
 		for (let j = 0; j < count; j++) {
 			array.push(buf.readUInt8(offset + dataPosition + j));
 		}
 		return array;
 	}
 }
-
-module.exports = RRMapParser;

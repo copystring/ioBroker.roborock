@@ -1,21 +1,53 @@
 const utils = require("@iobroker/adapter-core");
-const { randomBytes } = require("crypto");
-const WebSocket = require("ws");
-const express = require("express");
-const { spawn } = require("child_process");
-const go2rtcPath = require("go2rtc-static");
+import { randomBytes } from "crypto";
+import ws from "ws";
+import express from "express";
+import { spawn } from "child_process";
+import go2rtcPath from "go2rtc-static";
 
-const roborock_package_helper = require("./lib/roborock_package_helper");
-const device_features = require("./lib/device_features");
-const requests_handler = require("./lib/requests_handler");
-const http_api = require("./lib/http_api");
-const sniffing = require("./lib/sniffing");
+import { roborock_package_helper } from "./roborock_package_helper";
+import { device_features } from "./device_features";
+import { RequestsHandler }  from "./RequestsHandler";
+import { http_api } from "./http_api";
+const sniffing = require("../lib/sniffing");
 
 let socketServer, webserver;
 
 const dockingStationStates = ["cleanFluidStatus", "waterBoxFilterStatus", "dustBagStatus", "dirtyWaterBoxStatus", "clearWaterBoxStatus", "isUpdownWaterReady"];
 
 let updateIntervalCount = 0;
+
+type StateObjectOptions = {
+	path: string;
+	name: string;
+	type: string;
+	unit?: string;
+	def?: any;
+	role?: string;
+	read?: boolean;
+	write?: boolean;
+	states?: any;
+	native?: Record<string, any>;
+};
+
+type DeviceStatus = Record<string, number>;
+
+interface SendValue {
+	parameters: any[];
+	command: string;
+}
+
+interface Robot {
+	duid: string;
+	name: string;
+}
+
+interface StateCommonExtension {
+	min?: number;
+	max?: number;
+	unit?: string;
+}
+
 
 const A01states = {
 	200: "Start",
@@ -62,7 +94,7 @@ const A01states = {
 	10102: "RPCResponse",
 };
 
-class Roborock extends utils.Adapter {
+export class Roborock extends utils.Adapter {
 	constructor(options = {}) {
 		super({ ...options, name: "roborock", useFormatDate: true });
 		this.on("ready", this.onReady.bind(this));
@@ -76,7 +108,7 @@ class Roborock extends utils.Adapter {
 		this.pendingRequests = new Map();
 		this.http_api = new http_api(this);
 		this.roborock_package_helper = new roborock_package_helper(this);
-		this.requests_handler = new requests_handler(this);
+		this.requests_handler = new RequestsHandler(this);
 		this.device_features = new device_features(this);
 		this.sniffing = new sniffing(this);
 
@@ -93,7 +125,7 @@ class Roborock extends utils.Adapter {
 		}
 
 		this.sentryInstance = this.getPluginInstance("sentry");
-		this.translations = require(`./admin/i18n/${this.language || "en"}/translations.json`); // fall back to en for test-and-release.yml
+		this.translations = require(`.././admin/i18n/${this.language || "en"}/translations.json`); // fall back to en for test-and-release.yml
 
 		this.log.info(`Starting adapter. This might take a few minutes depending on your setup. Please wait.`);
 
@@ -212,7 +244,7 @@ class Roborock extends utils.Adapter {
 		try {
 			await this.start_go2rtc();
 		} catch (error) {
-			this.catchError(error.stack, `start_go2rtc`);
+			this.adapter.log.error(`Failed to start go2rtc: ${error.stack}`);
 		}
 
 		// Start map creation if enabled
@@ -221,7 +253,7 @@ class Roborock extends utils.Adapter {
 				this.startWebserver();
 				await this.startWebsocketServer();
 			} catch (error) {
-				this.catchError(error.stack);
+				this.adapter.log.error(`Failed to start websocket server: ${error.stack}`);
 			}
 		}
 	}
@@ -313,7 +345,7 @@ class Roborock extends utils.Adapter {
 				});
 
 				const enabledPath = `Devices.${duid}.programs.${programID}.enabled`;
-				await this.createStateObjectHelper(enabledPath, "enabled", "boolean", null, null, "value");
+				await this.createStateObjectHelper({ path: enabledPath, name: "enabled", type: "boolean", def: null, role: "value"});
 				this.setState(enabledPath, enabled, true);
 
 				const items = JSON.parse(param).action.items;
@@ -323,7 +355,7 @@ class Roborock extends utils.Adapter {
 						let value = items[item][attribute];
 						const typeOfValue = typeof value;
 
-						await this.createStateObjectHelper(objectPath, attribute, typeOfValue, null, null, "value", true, false);
+						await this.createStateObjectHelper({ path: objectPath, name: attribute, type: typeOfValue, def: null, role: "value", read: true, write: false });
 
 						if (typeOfValue == "object") {
 							value = value.toString();
@@ -335,7 +367,7 @@ class Roborock extends utils.Adapter {
 
 			for (const duid in programs) {
 				const objectPath = `Devices.${duid}.programs.startProgram`;
-				await this.createStateObjectHelper(objectPath, "Start saved program", "string", null, Object.keys(programs[duid])[0], "value", true, true, programs[duid]);
+				await this.createStateObjectHelper({ path: objectPath, name: "Start saved program", type: "string", def: Object.keys(programs[duid])[0], role: "value", read: true, write: true, states: programs[duid] });
 			}
 		}
 	}
@@ -355,8 +387,7 @@ class Roborock extends utils.Adapter {
 	}
 
 	async startWebsocketServer() {
-		socketServer = new WebSocket.Server({ port: 7906 });
-		let parameters, robot;
+		socketServer = new ws.Server({ port: 7906 });
 
 		socketServer.on("connection", async (socket) => {
 			this.socket = socket;
@@ -380,13 +411,11 @@ class Roborock extends utils.Adapter {
 
 			socket.on("message", async (message) => {
 				const data = JSON.parse(message.toString());
-				const command = data.command;
-				const sendValue = {};
-				sendValue.parameters = [];
+				const sendValue: SendValue = { parameters: [], command: data.command };
 
 				const devices = this.http_api.getDevices();
 
-				switch (command) {
+				switch (sendValue.command) {
 					case "app_zoned_clean":
 					case "app_goto_target":
 					case "app_start":
@@ -394,15 +423,15 @@ class Roborock extends utils.Adapter {
 					case "stop_zoned_clean":
 					case "app_pause":
 					case "app_charge":
-						parameters = data["parameters"];
-						this.requests_handler.command(data["duid"], command, parameters);
+						sendValue.parameters = data["parameters"];
+						this.requests_handler.command(data["duid"], sendValue.command, sendValue.parameters);
 						break;
 
 					case "getRobots":
 						sendValue.command = "robotList";
 
 						for (const robotID in devices) {
-							robot = [devices[robotID].duid, devices[robotID].name];
+							const robot: Robot = { duid: devices[robotID].duid, name: devices[robotID].name };
 							sendValue.parameters.push(robot);
 						}
 						socket.send(JSON.stringify(sendValue));
@@ -534,10 +563,11 @@ class Roborock extends utils.Adapter {
 		if (version != "A01") {
 			const devices = this.http_api.getDevices();
 			const device = devices.find((device) => device.duid === duid);
+			const status = device.deviceStatus as DeviceStatus;
 
-			for (const [attribute, value] of Object.entries(device.deviceStatus)) {
+			for (const [attribute, value] of Object.entries(status)) {
 				if (attribute == "125" || attribute == "126" || attribute == "127") {
-					const val = value >= 0 && value <= 100 ? parseInt(value) : 0;
+					const val = value >= 0 && value <= 100 ? value : 0;
 					const commonExtended = this.device_features.getCommonConsumable(attribute);
 					await this.ensureState(`Devices.${duid}.consumables.${attribute}`, { val: val, ack: true }, commonExtended);
 				}
@@ -554,7 +584,7 @@ class Roborock extends utils.Adapter {
 
 		for (const deviceAttribute in device) {
 			if (typeof device[deviceAttribute] != "object") {
-				const commonDeviceInfo = deviceAttribute == "activeTime" ? { unit: "h" } : null;
+				const commonDeviceInfo = deviceAttribute == "activeTime" ? { unit: "h" } : undefined;
 				let value;
 				switch (deviceAttribute) {
 					case "activeTime":
@@ -614,7 +644,7 @@ class Roborock extends utils.Adapter {
 	 * @param {object} value
 	 * @param {object} [commonExtended]
 	 */
-	async ensureState(path, value, commonExtended) {
+	async ensureState(path, value, commonExtended?: StateCommonExtension) {
 		if (this.isInitializing) {
 			const attribute = path.split(".").pop();
 
@@ -707,20 +737,11 @@ class Roborock extends utils.Adapter {
 		}
 	}
 
-	async createStateObjectHelper(path, name, type, unit, def, role, read, write, states, native = {}) {
-		const common = {
-			name: name,
-			type: type,
-			unit: unit,
-			role: role,
-			read: read,
-			write: write,
-			states: states,
-		};
+	async createStateObjectHelper(options: StateObjectOptions) {
+		const { path, name, type, unit, def, role, read, write, states, native } = options;
 
-		if (def !== undefined && def !== null && def !== "") {
-			common.def = def;
-		}
+		const common: any = { name, type, role, read, write, unit, states };
+		if (def !== undefined && def !== null && def !== "") common.def = def;
 
 		await this.setObjectNotExistsAsync(path, {
 			type: "state",
@@ -758,7 +779,7 @@ class Roborock extends utils.Adapter {
 	async createBaseRobotObjects(duid) {
 		for (const name of ["mapBase64", "mapBase64Truncated", "mapData"]) {
 			const objectString = `Devices.${duid}.map.${name}`;
-			await this.createStateObjectHelper(objectString, name, "string", null, null, "value", true, false);
+			await this.createStateObjectHelper({ path: objectString, name, type: "string", def: null, role: "value", read: true, write: false });
 		}
 
 		// this.createNetworkInfoObjects(duid);
@@ -883,26 +904,28 @@ class Roborock extends utils.Adapter {
 		}
 
 		if (cameraCount > 0) {
-			try {
-				const go2rtcProcess = spawn(go2rtcPath.toString(), ["-config", JSON.stringify(go2rtcConfig)], { shell: false, detached: false, windowsHide: true });
+			if (go2rtcPath) {
+				try {
+					const go2rtcProcess = spawn(go2rtcPath.toString(), ["-config", JSON.stringify(go2rtcConfig)], { shell: false, detached: false, windowsHide: true });
 
-				go2rtcProcess.on("error", (error) => {
-					this.log.error(`Error starting go2rtc: ${error.message}`);
-				});
+					go2rtcProcess.on("error", (error) => {
+						this.log.error(`Error starting go2rtc: ${error.message}`);
+					});
 
-				go2rtcProcess.stdout.on("data", (data) => {
-					this.log.debug(`go2rtc output: ${data}`);
-				});
+					go2rtcProcess.stdout.on("data", (data) => {
+						this.log.debug(`go2rtc output: ${data}`);
+					});
 
-				go2rtcProcess.stderr.on("data", (data) => {
-					this.log.error(`go2rtc error output: ${data}`);
-				});
+					go2rtcProcess.stderr.on("data", (data) => {
+						this.log.error(`go2rtc error output: ${data}`);
+					});
 
-				process.on("exit", () => {
-					go2rtcProcess.kill();
-				});
-			} catch (error) {
-				this.log.error(`Failed to start go2rtc: ${error.message}`);
+					process.on("exit", () => {
+						go2rtcProcess.kill();
+					});
+				} catch (error) {
+					this.log.error(`Failed to start go2rtc: ${error.message}`);
+				}
 			}
 		}
 	}
@@ -1053,7 +1076,7 @@ class Roborock extends utils.Adapter {
 
 			callback();
 		} catch (e) {
-			this.catchError(e.stack);
+			this.log.error(`Failed to unload adapter: ${e.stack}`);
 			callback();
 		}
 	}

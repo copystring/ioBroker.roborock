@@ -1,7 +1,11 @@
-const fs = require("fs");
-const JSZip = require("jszip");
+import { Roborock } from "./main";
 
-class roborock_package_helper {
+import fs from "fs";
+import JSZip from "jszip";
+
+export class roborock_package_helper {
+	adapter: Roborock;
+
 	constructor(adapter) {
 		this.adapter = adapter;
 	}
@@ -10,8 +14,7 @@ class roborock_package_helper {
 		const products = await loginApi.get("api/v3/product");
 		const list = products.data.data.categoryDetailList;
 
-		let appPluginRequest = {};
-		appPluginRequest = {
+		const appPluginRequest: any = {
 			apilevel: 99999, // sniffed 10016 and 10019 from the app but it's subject to change so we use a high number
 			productids: [],
 			type: 2,
@@ -101,7 +104,7 @@ class roborock_package_helper {
 					fs.writeFileSync(versionFilePath, version.toString());
 				}
 			} catch (err) {
-				this.adapter.catchError(err, "roborock_package_helper.updateProduct", null, productID);
+				this.adapter.log.error(`${err.stack} roborock_package_helper.updateProduct ${productID}`);
 			}
 		}
 	}
@@ -112,5 +115,3 @@ class roborock_package_helper {
 		}
 	}
 }
-
-module.exports = roborock_package_helper;

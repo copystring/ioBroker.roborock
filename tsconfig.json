@@ -30,7 +30,7 @@
 	"include": [
 		"**/*.js",
 		"**/*.d.ts"
-	],
+, "main.ts", "main.ts"	],
 	"exclude": [
 		"node_modules/**",
 		"widgets/**",

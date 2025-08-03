@@ -1,12 +1,12 @@
-"use strict";
+import type { Roborock } from "./main";
 
-const fs = require("fs");
-const zlib = require("zlib");
-const RRMapParser = require("./RRMapParser");
-const MapCreator = require("./mapCreator");
-const message_parser = require("./message_parser");
-const local_api = require("./local_api");
-const mqtt_api = require("./mqtt_api");
+import fs from "fs";
+import zlib from "zlib";
+import { RRMapParser } from "./RRMapParser";
+import {MapCreator } from "./mapCreator";
+import { message_parser } from "./message_parser";
+import { local_api } from"./local_api";
+import { mqtt_api } from "./mqtt_api";
 
 const requestTimeout = 30000; // 30s
 
@@ -39,8 +39,20 @@ const parameterFolders = {
 	get_carpet_cleaning_mode: "deviceStatus",
 };
 
-class requests_handler {
-	constructor(adapter) {
+export class RequestsHandler {
+	adapter: Roborock;
+	idCounter: number;
+	messageQueue: Map<string, any>;
+	localDevices: Record<string, string>;
+	local_api: local_api;
+	mqtt_api: mqtt_api;
+	message_parser: message_parser;
+	mapParser: RRMapParser;
+	mapCreator: MapCreator;
+	mqttResetInterval: NodeJS.Timeout | null = null;
+	cached_get_status_value: any[];
+
+	constructor(adapter: Roborock) {
 		this.adapter = adapter;
 
 		this.idCounter = 1;
@@ -98,7 +110,7 @@ class requests_handler {
 	}
 
 	async initTCP() {
-		const tcpDevices = await this.local_api.getLocalDevices(); // UDP discovery
+		const tcpDevices = await this.local_api.getLocalDevices() as Record<string, any>; // UDP discovery
 		this.localDevices = { ...this.localDevices, ...tcpDevices };
 		this.adapter.log.debug(`localDevices: ${JSON.stringify(this.localDevices)}`);
 
@@ -129,10 +141,13 @@ class requests_handler {
 				return await this.getParameter(duid, "get_prop", ["get_status"]);
 		}
 	}
-
+	/**
+	 * @param {string} duid
+	 * @param {number} startTime
+	 */
 	async getCleaningRecordMap(duid, startTime) {
 		try {
-			const cleaningRecordMap = await this.sendRequest(duid, "get_clean_record_map", { start_time: startTime });
+			const cleaningRecordMap = await this.sendRequest(duid, "get_clean_record_map", { start_time: startTime }) as Buffer;
 			const parsedData = await this.mapParser.parsedata(cleaningRecordMap);
 			this.adapter.log.debug(`Generating map for cleaning record with start time ${startTime} for duid ${duid}`); // never remove this log, it is very useful for debugging like room naming issues
 			const [mapBase64, mapBase64Truncated] = await this.mapCreator.canvasMap(parsedData);
@@ -153,7 +168,7 @@ class requests_handler {
 	 */
 	async getCleanSummary(duid) {
 		try {
-			const cleaningAttributes = await this.sendRequest(duid, "get_clean_summary", []);
+			const cleaningAttributes = await this.sendRequest(duid, "get_clean_summary", []) as Buffer;
 
 			for (const cleaningAttribute in cleaningAttributes) {
 				const mappedAttribute = mappedCleanSummary[cleaningAttribute] || cleaningAttribute;
@@ -171,13 +186,13 @@ class requests_handler {
 				} else if (mappedAttribute == "records") {
 					const cleaningRecordsJSON = [];
 
-					for (const cleaningRecord in cleaningAttributes[cleaningAttribute]) {
+					for (const cleaningRecord in cleaningAttributes[cleaningAttribute] as Number) {
 						const cleaningRecordID = cleaningAttributes[cleaningAttribute][cleaningRecord];
-						const cleaningRecordAttributes = (await this.sendRequest(duid, "get_clean_record", [cleaningRecordID]))[0];
+						const cleaningRecordAttributes = (await this.sendRequest(duid, "get_clean_record", [cleaningRecordID]) as Buffer)[0];
 
 						cleaningRecordsJSON[cleaningRecord] = cleaningRecordAttributes;
 
-						for (const cleaningRecordAttribute in cleaningRecordAttributes) {
+						for (const cleaningRecordAttribute in cleaningRecordAttributes as Number) {
 							const mappedRecordAttribute = mappedCleaningRecordAttribute[cleaningRecordAttribute] || cleaningRecordAttribute;
 							const cleaningRecordCommon = this.adapter.device_features.getCommonCleaningRecords(mappedRecordAttribute);
 
@@ -201,7 +216,7 @@ class requests_handler {
 					}
 
 					const objectString = `Devices.${duid}.cleaningInfo.JSON`;
-					await this.adapter.createStateObjectHelper(objectString, "cleaningInfoJSON", "string", null, null, "json", true, false);
+					await this.adapter.createStateObjectHelper({path: objectString, name: "cleaningInfoJSON", type: "string", def: "json", read: true, write: false});
 					this.adapter.setStateAsync(`Devices.${duid}.cleaningInfo.JSON`, { val: JSON.stringify(cleaningRecordsJSON), ack: true });
 				}
 			}
@@ -347,16 +362,18 @@ class requests_handler {
 						if (selectedMap != null) {
 							const roomIDs = this.adapter.http_api.getMatchedRoomIDs();
 
-							value.map(async ([shortID, roomID]) => {
-								const room = roomIDs.find((r) => r.id.toString() === roomID);
-								const roomName = room?.name || "unknown";
+							if (Array.isArray(value)) {
+								value.map(async ([shortID, roomID]) => {
+									const room = roomIDs.find((r) => r.id.toString() === roomID);
+									const roomName = room?.name || "unknown";
 
-								const objectString = `Devices.${duid}.floors.${selectedMap}.${shortID}`;
-								await this.adapter.createStateObjectHelper(objectString, roomName, "boolean", null, true, "value", true, true);
-							});
+									const objectString = `Devices.${duid}.floors.${selectedMap}.${shortID}`;
+									await this.adapter.createStateObjectHelper({path: objectString, name: roomName, type: "boolean", def: true, read: true, write: true});
+								});
+							}
 
 							const objectString = `Devices.${duid}.floors.cleanCount`;
-							await this.adapter.createStateObjectHelper(objectString, "Clean count", "number", null, 1, "value", true, true);
+							await this.adapter.createStateObjectHelper({path: objectString, name: "Clean count", type: "number", def: 1, read: true, write: true});
 						}
 						break;
 					case "get_multi_maps_list":
@@ -389,8 +406,10 @@ class requests_handler {
 
 						// Handle the load_multi_map command
 						const commandPath = `Devices.${duid}.commands.load_multi_map`;
+						this.adapter.log.debug(`commandPath: "${commandPath}"`);
+
 						if (value[0]["max_multi_map"] > 1) {
-							await this.adapter.createStateObjectHelper(commandPath, "Load map", "number", null, 0, "value", true, true, maps);
+							await this.adapter.createStateObjectHelper({path: commandPath, name: "Load map", type: "number", def: 0, read: true, write: true, states: maps});
 						} else {
 							this.adapter.delObjectAsync(commandPath);
 						}
@@ -441,7 +460,7 @@ class requests_handler {
 									const extractedPhoto = this.extractPhoto(photoData);
 
 									if (extractedPhoto) {
-										const photo = {};
+										const photo: any = {};
 										photo.duid = duid;
 										photo.command = "get_photo";
 										photo.image = `data:image/jpeg;base64,${extractedPhoto.toString("base64")}`;
@@ -464,8 +483,20 @@ class requests_handler {
 						break;
 					}
 					case "app_get_dryer_setting": {
-						const actualVal = JSON.stringify({ on: { dry_time: value.on.dry_time }, status: value.status });
-						this.adapter.setStateAsync(`Devices.${duid}.commands.${parameter.replace("get", "set")}`, { val: actualVal, ack: true });
+						if (
+							value &&
+							typeof value === "object" &&
+							"on" in value &&
+							value.on &&
+							typeof value.on === "object" &&
+							"dry_time" in value.on &&
+							"status" in value
+						) {
+							const actualVal = JSON.stringify({ on: { dry_time: value.on.dry_time }, status: value.status });
+							this.adapter.setStateAsync(`Devices.${duid}.commands.${parameter.replace("get", "set")}`, { val: actualVal, ack: true });
+						} else {
+							this.adapter.log.warn(`Unexpected value structure for ${parameter}: ${JSON.stringify(value)}`);
+						}
 						break;
 					}
 					default: {
@@ -512,7 +543,7 @@ class requests_handler {
 				case "load_multi_map": {
 					const result = await this.sendRequest(duid, "load_multi_map", value);
 
-					if (result[0] == "ok") {
+					if (Array.isArray(result) && result[0] == "ok") {
 						await this.getMap(duid).then(async () => {
 							await this.getParameter(duid, "get_room_mapping", []);
 						});
@@ -523,8 +554,7 @@ class requests_handler {
 				case "app_segment_clean": {
 					this.adapter.log.debug("Starting room cleaning");
 
-					const roomList = {};
-					roomList.segments = [];
+					const roomList: { segments: any[] } = { segments: [] };
 					const roomFloor = await this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.map_status`);
 					const mappedRoomList = await this.sendRequest(duid, "get_room_mapping", []);
 
@@ -588,7 +618,7 @@ class requests_handler {
 						const getCommand = parameter.replace("set", "get");
 						await this.getParameter(duid, getCommand, []);
 					} else {
-						const result = await this.sendRequest(duid, parameter);
+						const result = await this.sendRequest(duid, parameter, undefined);
 						this.adapter.log.debug(`Command: ${parameter} result: ${result}`);
 					}
 			}
@@ -610,7 +640,7 @@ class requests_handler {
 					const mappedRooms = await this.sendRequest(duid, "get_room_mapping", []);
 
 					// For testing and debugging maps; this cannot be stored in a state.
-					zlib.gzip(map, (error, buffer) => {
+					zlib.gzip(map as Buffer, (error, buffer) => {
 						if (error) {
 							this.adapter.log.error(`Error compressing map to gz ${error}`);
 						} else {
@@ -622,11 +652,11 @@ class requests_handler {
 						}
 					});
 
-					const parsedData = await this.mapParser.parsedata(map);
+					const parsedData = await this.mapParser.parsedata(map as Buffer);
 					const selectedMap = this.getSelectedMap(duid);
 					if (selectedMap != null) {
 						this.adapter.log.debug(`Generating map for selected map ${selectedMap} for duid ${duid}`); // never remove this log, it is very useful for debugging like room naming issues
-						const [mapBase64, mapBase64Truncated] = await this.mapCreator.canvasMap(parsedData, selectedMap, mappedRooms);
+						const [mapBase64, mapBase64Truncated] = await this.mapCreator.canvasMap(parsedData, {selectedMap: selectedMap, mappedRooms: mappedRooms});
 
 						await this.adapter.ensureState(`Devices.${duid}.map.mapData`, { val: JSON.stringify(parsedData), ack: true });
 						await this.adapter.ensureState(`Devices.${duid}.map.mapBase64`, { val: mapBase64, ack: true });
@@ -952,5 +982,3 @@ class requests_handler {
 		this.messageQueue.clear();
 	}
 }
-
-module.exports = requests_handler;

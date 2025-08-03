@@ -1,4 +1,4 @@
-"use strict";
+import { Roborock } from "./main";
 
 const { createCanvas, loadImage } = require("@napi-rs/canvas");
 const { Image } = require("@napi-rs/canvas");
@@ -59,8 +59,17 @@ const obstacleTitles = {
 	27: "Bar",
 };
 
-class MapCreator {
-	constructor(adapter) {
+interface CanvasMapOptions {
+	selectedMap?: any;
+	mappedRooms?: any;
+	options?: any;
+}
+
+export class MapCreator {
+	adapter: Roborock;
+	adjacencyMatrix: number[][];
+
+	constructor(adapter: Roborock) {
 		this.adapter = adapter;
 		this.adjacencyMatrix = new Array(1024).fill(0); // Matrix, initial leer
 	}
@@ -219,7 +228,13 @@ class MapCreator {
 		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 	}
 
-	async canvasMap(mapdata, selectedMap, mappedRooms, options) {
+	async canvasMap(mapdata: any, params: CanvasMapOptions = {}) {
+		const {
+			selectedMap = null,
+			mappedRooms = null,
+			options = {},
+		} = params;
+
 		if (options) {
 			colors.floor = options.FLOORCOLOR;
 			colors.obstacle = options.WALLCOLOR;
@@ -283,7 +298,7 @@ class MapCreator {
 			}
 
 			const segmentsData = {};
-			const assignedColors = [];
+			const assignedColors: string[] = [];
 			if (mapdata.IMAGE.pixels.segments && !mapdata.CURRENTLY_CLEANED_BLOCKS && colors.newmap) {
 				const availableColors = [...orgcolors.slice(0, 4)]; // Exclude reserved colors
 
@@ -323,7 +338,7 @@ class MapCreator {
 				const largestSegment = mapdata.IMAGE.segments.largestSegment;
 
 				// Determine reserved colors:
-				let reservedColors = [];
+				let reservedColors: string[] = [];
 				if (maxAdjacentRoom === largestSegment) {
 					// Reserve only one color, rest available for normal rooms
 					assignedColors[maxAdjacentRoom] = orgcolors[1];
@@ -748,7 +763,7 @@ class MapCreator {
 				const segment = segmentsData[segnum];
 				let roomName = "";
 
-				if (typeof selectedMap !== "undefined") {
+				if (typeof selectedMap !== "undefined" && mappedRooms) {
 					const mapping = mappedRooms.find(([segmentID]) => parseInt(segmentID) === parseInt(segnum));
 
 					if (mapping) {
@@ -796,5 +811,3 @@ class MapCreator {
 		}
 	}
 }
-
-module.exports = MapCreator;
