@@ -25,6 +25,7 @@
 		// "noUnusedLocals": true,
 		// "noUnusedParameters": true,
 		"useUnknownInCatchVariables": false,
+		"esModuleInterop": true
 
 	},
 	"include": [

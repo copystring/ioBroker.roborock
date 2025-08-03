@@ -3,7 +3,7 @@ import type { Roborock } from "./main";
 import fs from "fs";
 import zlib from "zlib";
 import { RRMapParser } from "./RRMapParser";
-import {MapCreator } from "./mapCreator";
+import { MapCreator } from "./mapCreator";
 import { message_parser } from "./message_parser";
 import { local_api } from"./local_api";
 import { mqtt_api } from "./mqtt_api";
