@@ -121,7 +121,7 @@ export class local_api {
 		const client = new EnhancedSocket();
 
 		try {
-			await new Promise((resolve, reject) => {
+			await new Promise<void>((resolve, reject) => {
 				client
 					.connect(TCP_CONNECTION_PORT, ip, () => {
 						this.adapter.log.info(`TCP client for ${duid} connected`);

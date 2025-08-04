@@ -77,7 +77,7 @@
     "www/",
     "io-package.json",
     "LICENSE",
-    "src/main.ts"
+    "src/*.ts"
   ],
   "scripts": {
     "test:js": "mocha --config test/mocharc.custom.json \"{!(node_modules|test)/**/*.test.js,*.test.js,test/**/test!(PackageFiles|Startup).js}\"",

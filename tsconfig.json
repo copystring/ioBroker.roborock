@@ -4,7 +4,6 @@
 	// https://github.com/tsconfig/bases#node-14-tsconfigjson
 	"extends": "@tsconfig/node18/tsconfig.json",
 	"compilerOptions": {
-		// do not compile anything, this file is just to configure type checking
 		"noEmit": true,
 
 		// check JS files
@@ -25,13 +24,12 @@
 		// "noUnusedLocals": true,
 		// "noUnusedParameters": true,
 		"useUnknownInCatchVariables": false,
-		"esModuleInterop": true
+		"esModuleInterop": true,
 
+		"rootDir": "src",
+		"outDir": "build",
 	},
-	"include": [
-		"**/*.js",
-		"**/*.d.ts"
-, "main.ts", "main.ts"	],
+	"include": ["src/**/*.ts", "src/**/*.d.ts"],
 	"exclude": [
 		"node_modules/**",
 		"widgets/**",

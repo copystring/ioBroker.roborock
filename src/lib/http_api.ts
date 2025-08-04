@@ -1,7 +1,7 @@
 // credits to rovo89
 // taken from here https://gist.github.com/rovo89/dff47ed19fca0dfdda77503e66c2b7c7
 
-import { Roborock } from "./main";
+import { Roborock } from "../main";
 
 import axios from "axios";
 import crypto from "crypto";

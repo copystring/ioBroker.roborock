@@ -1,4 +1,4 @@
-import { Roborock } from "./main";
+import { Roborock } from "../main";
 
 const errorCodes = {
 	0: "No error",

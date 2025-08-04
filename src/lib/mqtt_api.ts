@@ -1,4 +1,4 @@
-import type { Roborock } from "./main";
+import type { Roborock } from "../main";
 import mqtt, { MqttClient } from "mqtt";
 
 import crypto from "crypto";

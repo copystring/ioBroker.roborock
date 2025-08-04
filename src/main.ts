@@ -5,10 +5,10 @@ import express from "express";
 import { spawn } from "child_process";
 import go2rtcPath from "go2rtc-static";
 
-import { roborock_package_helper } from "./roborock_package_helper";
-import { device_features } from "./device_features";
-import { RequestsHandler }  from "./RequestsHandler";
-import { http_api } from "./http_api";
+import { roborock_package_helper } from "./lib/roborock_package_helper";
+import { device_features } from "./lib/device_features";
+import { RequestsHandler }  from "./lib/RequestsHandler";
+import { http_api } from "./lib/http_api";
 const sniffing = require("../lib/sniffing");
 
 let socketServer, webserver;

@@ -1,4 +1,4 @@
-import type { Roborock } from "./main";
+import type { Roborock } from "../main";
 
 import crypto from "crypto";
 

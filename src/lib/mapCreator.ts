@@ -1,4 +1,4 @@
-import { Roborock } from "./main";
+import { Roborock } from "../main";
 
 const { createCanvas, loadImage } = require("@napi-rs/canvas");
 const { Image } = require("@napi-rs/canvas");

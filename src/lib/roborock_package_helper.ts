@@ -1,4 +1,4 @@
-import { Roborock } from "./main";
+import { Roborock } from "../main";
 
 import fs from "fs";
 import JSZip from "jszip";
