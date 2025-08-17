@@ -28,6 +28,13 @@
 
 		"rootDir": "src",
 		"outDir": "build",
+
+		"target": "ES2022",
+		"module": "CommonJS",
+		"moduleResolution": "Node",
+		"sourceMap": true,
+		"inlineSources": true,
+		"strict": true
 	},
 	"include": ["src/**/*.ts", "src/**/*.d.ts"],
 	"exclude": [
