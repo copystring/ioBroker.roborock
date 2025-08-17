@@ -10,16 +10,30 @@ export declare class local_api {
     server: dgram.Socket;
     localDevices: Record<string, EnhancedSocket>;
     cloudDevices: Set<string>;
+    localIps: Set<string>;
     localDevicesTimeout: NodeJS.Timeout | null;
     constructor(adapter: any);
-    initiateClient(duid: any): Promise<void>;
+    /**
+     * Initiates a TCP client connection for the given device.
+     *
+     * @async
+     * @param {string} duid - The unique device identifier (DUID).
+     * @returns {Promise<void>} Resolves when the client attempt has finished.
+     */
+    initiateClient(duid: string): Promise<void>;
     createClient(duid: any, ip: any): Promise<void>;
-    isPortOpen(ip: any): Promise<unknown>;
+    isLocallyReachable(ip: string): Promise<boolean>;
     checkComplete(buffer: any): boolean;
     clearChunkBuffer(duid: any): void;
     sendMessage(duid: any, message: any): void;
     isConnected(duid: any): boolean | undefined;
     getLocalDevices(): Promise<unknown>;
+    updateTcpIps(): Promise<void>;
+    /**
+     * @param {string} duid
+     */
+    isLocalDevice(duid: any): boolean;
+    getIpForDuid(duid: any): any;
     decryptECB(encrypted: any): any;
     decryptGCM(hexPacket: any): string | null;
     removePadding(str: any): any;

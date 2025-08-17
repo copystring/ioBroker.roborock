@@ -2,15 +2,10 @@ import type { Roborock } from "../main";
 import { RRMapParser } from "./RRMapParser";
 import { MapCreator } from "./mapCreator";
 import { message_parser } from "./message_parser";
-import { local_api } from "./local_api";
-import { mqtt_api } from "./mqtt_api";
 export declare class RequestsHandler {
     adapter: Roborock;
     idCounter: number;
     messageQueue: Map<string, any>;
-    localDevices: Record<string, string>;
-    local_api: local_api;
-    mqtt_api: mqtt_api;
     message_parser: message_parser;
     mapParser: RRMapParser;
     mapCreator: MapCreator;
@@ -21,13 +16,7 @@ export declare class RequestsHandler {
      * Schedules the MQTT API to be reset every hour.
      */
     scheduleMqttReset(): void;
-    /**
-     * Resets the MQTT API instance by cleaning up resources and reinitializing it.
-     */
-    resetMqttApi(): Promise<void>;
     init(): Promise<void>;
-    initTCP(): Promise<void>;
-    getIpForDuid(duid: any): string | null;
     /**
      * @param {string} duid
      */
@@ -110,11 +99,7 @@ export declare class RequestsHandler {
     /**
      * @param {string} duid
      */
-    isLocalDevice(duid: any): boolean;
-    /**
-     * @param {string} duid
-     */
-    getConnector(duid: any): Promise<local_api | mqtt_api>;
+    getConnector(duid: any): Promise<any>;
     /**
      * @param {string} attribute
      * @param {number} value

@@ -584,13 +584,19 @@ class MapCreator {
                 });
             }
             // Zeichne Ladestation wenn vorhanden
-            if (mapdata.CHARGER_LOCATION) {
-                if (mapdata.CHARGER_LOCATION.position[0] && mapdata.CHARGER_LOCATION.position[1]) {
-                    ctx.beginPath();
-                    const img_charger_rotated = this.rotateCanvas(img_charger, mapdata.CHARGER_LOCATION.angle);
-                    ctx.drawImage(img_charger_rotated, this.robotXtoPixelX(mapdata.IMAGE, mapdata.CHARGER_LOCATION.position[0] / 50) - img_charger_rotated.width / 2, this.robotYtoPixelY(mapdata.IMAGE, mapdata.CHARGER_LOCATION.position[1] / 50) - img_charger_rotated.height / 2, img_charger_rotated.width, img_charger_rotated.height);
-                }
-            }
+            // if (mapdata.CHARGER_LOCATION) {
+            // 	if (mapdata.CHARGER_LOCATION.position[0] && mapdata.CHARGER_LOCATION.position[1]) {
+            // 		ctx.beginPath();
+            // 		const img_charger_rotated = this.rotateCanvas(img_charger, mapdata.CHARGER_LOCATION.angle);
+            // 		ctx.drawImage(
+            // 			img_charger_rotated,
+            // 			this.robotXtoPixelX(mapdata.IMAGE, mapdata.CHARGER_LOCATION.position[0] / 50) - img_charger_rotated.width / 2,
+            // 			this.robotYtoPixelY(mapdata.IMAGE, mapdata.CHARGER_LOCATION.position[1] / 50) - img_charger_rotated.height / 2,
+            // 			img_charger_rotated.width * 100,
+            // 			img_charger_rotated.height * 100
+            // 		);
+            // 	}
+            // }
             // Zeichne Roboter
             if (mapdata.ROBOT_POSITION) {
                 if (mapdata.PATH.current_angle && mapdata.ROBOT_POSITION[0] && mapdata.ROBOT_POSITION[1]) {
@@ -660,3 +666,4 @@ class MapCreator {
     }
 }
 exports.MapCreator = MapCreator;
+//# sourceMappingURL=mapCreator.js.map

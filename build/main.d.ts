@@ -39,10 +39,6 @@ export declare class Roborock extends utils.Adapter {
     /**
      * @param {string} duid
      */
-    onlineChecker(duid: any): Promise<any>;
-    /**
-     * @param {string} duid
-     */
     updateDeviceData(duid: any): Promise<void>;
     clearTimersAndIntervals(): void;
     /**
@@ -51,8 +47,9 @@ export declare class Roborock extends utils.Adapter {
     updateConsumablesPercent(duid: any): Promise<void>;
     /**
      * @param {string} duid
+     * @param {Array} devices
      */
-    updateDeviceInfo(duid: any): Promise<void>;
+    updateDeviceInfo(duid: any, devices: any): Promise<void>;
     /**
      * @param {string} duid
      */
@@ -99,6 +96,10 @@ export declare class Roborock extends utils.Adapter {
      * @param {object} response - The parsed response object.
      */
     processA01(duid: any, response: any): Promise<void>;
+    /**
+     * Resets the MQTT API instance by cleaning up resources and reinitializing it.
+     */
+    resetMqttApi(): Promise<void>;
     /**
      * @param {Error} error
      * @param {string} [attribute]

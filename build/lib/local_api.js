@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.local_api = void 0;
 const crypto_1 = __importDefault(require("crypto"));
 const binary_parser_1 = require("binary-parser");
+const ping_1 = __importDefault(require("ping"));
 const net_1 = __importDefault(require("net"));
 const dgram_1 = __importDefault(require("dgram"));
 const crc_32_1 = __importDefault(require("crc-32"));
@@ -59,6 +60,7 @@ class local_api {
     server;
     localDevices;
     cloudDevices;
+    localIps;
     localDevicesTimeout = null;
     constructor(adapter) {
         this.adapter = adapter;
@@ -71,36 +73,47 @@ class local_api {
         }
         this.localDevices = {};
         this.cloudDevices = new Set();
+        this.localIps = new Set();
     }
+    /**
+     * Initiates a TCP client connection for the given device.
+     *
+     * @async
+     * @param {string} duid - The unique device identifier (DUID).
+     * @returns {Promise<void>} Resolves when the client attempt has finished.
+     */
     async initiateClient(duid) {
-        if (this.localDevices[duid]) {
-            return;
-        }
-        const ip = this.adapter.requests_handler.getIpForDuid(duid);
+        // 1) Resolve IP
+        const ip = this.getIpForDuid(duid); // must return string or null
         if (!ip) {
-            this.adapter.log.warn(`No IP found for ${duid}, skipping TCP check`);
+            this.adapter.log.warn(`No IP for ${duid}; switching to MQTT`);
+            this.cloudDevices.add(duid);
             return;
         }
-        const portOpen = await this.isPortOpen(ip);
-        if (portOpen) {
-            this.adapter.log.info(`TCP port reachable for ${duid}, creating TCP client`);
-            await this.createClient(duid, ip);
-            if (this.cloudDevices.has(duid)) {
-                this.adapter.log.info(`TCP connection for ${duid} restored. Switching back from MQTT.`);
-                this.cloudDevices.delete(duid);
-            }
+        // 2) Already connected? Do nothing.
+        const existing = this.localDevices?.[duid];
+        if (existing?.connected) {
+            this.adapter.log.debug(`TCP already connected for ${duid}`);
+            this.cloudDevices.delete(duid);
+            return;
         }
-        else {
-            const online = this.adapter.onlineChecker(duid);
-            if (online) {
-                this.adapter.log.info(`TCP not reachable for ${duid}, using MQTT`);
-                this.cloudDevices.add(duid);
-            }
-            else {
-                this.adapter.log.warn(`TCP not reachable for ${duid}, and device is offline`);
-            }
-            // Repeat in 60s
-            setTimeout(() => this.initiateClient(duid), 60000);
+        // 3) Quick reachability check (ping)
+        const reachable = await this.isLocallyReachable(ip);
+        this.adapter.log.debug(`Reachable (ICMP) ${duid} @ ${ip}: ${reachable}`);
+        if (!reachable) {
+            this.adapter.log.info(`Host not reachable for ${duid}; using MQTT`);
+            this.cloudDevices.add(duid);
+            return;
+        }
+        // 4) Connect
+        try {
+            await this.createClient(duid, ip);
+            this.adapter.log.info(`TCP client established for ${duid}`);
+            this.cloudDevices.delete(duid);
+        }
+        catch (err) {
+            this.adapter.log.warn(`TCP connect failed for ${duid}: ${err?.message || err}; using MQTT`);
+            this.cloudDevices.add(duid);
         }
     }
     async createClient(duid, ip) {
@@ -121,7 +134,6 @@ class local_api {
         catch (error) {
             this.adapter.log.warn(`TCP connect error for ${duid}: ${error.message}`);
             delete this.localDevices[duid];
-            setTimeout(() => this.initiateClient(duid), 60000); // Retry via initiateClient with port check
             return;
         }
         client.on("data", async (message) => {
@@ -174,33 +186,15 @@ class local_api {
             }
         });
         client.on("close", () => {
-            this.adapter.log.info(`TCP client for ${duid} disconnected, attempting reconnect via initiateClient...`);
-            setTimeout(() => this.initiateClient(duid), 60000);
             delete this.localDevices[duid];
         });
         client.on("error", (error) => {
             this.adapter.log.info(`TCP error for ${duid}: ${error.message}`);
         });
     }
-    async isPortOpen(ip) {
-        return new Promise((resolve) => {
-            const socket = new net_1.default.Socket();
-            const onFail = (reason) => {
-                this.adapter.log.debug(`TCP port check failed for ${ip} – reason: ${reason}`);
-                socket.destroy();
-                resolve(false);
-            };
-            socket.setTimeout(2000);
-            socket.once("error", (err) => onFail(`error: ${err.message}`));
-            socket.once("timeout", () => onFail("timeout"));
-            socket.once("connect", () => {
-                socket.end();
-                socket.once("close", () => {
-                    resolve(true);
-                });
-            });
-            socket.connect(TCP_CONNECTION_PORT, ip);
-        });
+    async isLocallyReachable(ip) {
+        const res = await ping_1.default.promise.probe(ip, { timeout: 2 });
+        return res.alive;
     }
     checkComplete(buffer) {
         let totalLength = 0;
@@ -296,6 +290,24 @@ class local_api {
             }, TIMEOUT);
         });
     }
+    async updateTcpIps() {
+        const tcpDevices = (await this.getLocalDevices()); // UDP discovery
+        this.adapter.log.debug(`updateTcpIps() called, found devices: ${JSON.stringify(tcpDevices)}`);
+        this.localIps = { ...this.localIps, ...tcpDevices };
+        this.adapter.log.debug(`local IPs: ${JSON.stringify(this.localIps)}`);
+    }
+    /**
+     * @param {string} duid
+     */
+    isLocalDevice(duid) {
+        if (duid in this.localDevices) {
+            return true;
+        }
+        return false;
+    }
+    getIpForDuid(duid) {
+        return this.localIps?.[duid] || null;
+    }
     decryptECB(encrypted) {
         const input = Buffer.isBuffer(encrypted) ? encrypted : Buffer.from(encrypted, "binary");
         const decipher = crypto_1.default.createDecipheriv("aes-128-ecb", BROADCAST_TOKEN, null);
@@ -353,3 +365,4 @@ class local_api {
     }
 }
 exports.local_api = local_api;
+//# sourceMappingURL=local_api.js.map

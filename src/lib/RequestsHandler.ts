@@ -5,8 +5,6 @@ import zlib from "zlib";
 import { RRMapParser } from "./RRMapParser";
 import { MapCreator } from "./mapCreator";
 import { message_parser } from "./message_parser";
-import { local_api } from"./local_api";
-import { mqtt_api } from "./mqtt_api";
 
 const requestTimeout = 30000; // 30s
 
@@ -43,9 +41,6 @@ export class RequestsHandler {
 	adapter: Roborock;
 	idCounter: number;
 	messageQueue: Map<string, any>;
-	localDevices: Record<string, string>;
-	local_api: local_api;
-	mqtt_api: mqtt_api;
 	message_parser: message_parser;
 	mapParser: RRMapParser;
 	mapCreator: MapCreator;
@@ -58,11 +53,6 @@ export class RequestsHandler {
 		this.idCounter = 1;
 
 		this.messageQueue = new Map();
-
-		this.localDevices = {};
-
-		this.local_api = new local_api(this.adapter);
-		this.mqtt_api = new mqtt_api(this.adapter);
 
 		this.message_parser = new message_parser(this.adapter);
 
@@ -85,40 +75,12 @@ export class RequestsHandler {
 		}
 		// Set an interval to reset the MQTT API every 1 hour (3600000 ms)
 		this.mqttResetInterval = setInterval(async () => {
-			await this.resetMqttApi();
+			await this.adapter.resetMqttApi();
 		}, 3600000);
 	}
 
-	/**
-	 * Resets the MQTT API instance by cleaning up resources and reinitializing it.
-	 */
-	async resetMqttApi() {
-		this.adapter.log.info("Resetting MQTT API instance...");
-		// Cleanup the existing MQTT API instance
-		if (this.mqtt_api) {
-			this.mqtt_api.cleanup();
-			this.clearQueue();
-		}
-		// Create a new MQTT API instance and initialize it
-		this.mqtt_api = new mqtt_api(this.adapter);
-		await this.mqtt_api.init();
-		this.adapter.log.info("MQTT API instance has been reset.");
-	}
-
 	async init() {
-		await this.mqtt_api.init();
-	}
-
-	async initTCP() {
-		const tcpDevices = await this.local_api.getLocalDevices() as Record<string, any>; // UDP discovery
-		this.localDevices = { ...this.localDevices, ...tcpDevices };
-		this.adapter.log.debug(`localDevices: ${JSON.stringify(this.localDevices)}`);
-
-		await Promise.all(Object.keys(this.localDevices).map((duid) => this.local_api.initiateClient(duid)));
-	}
-
-	getIpForDuid(duid) {
-		return this.localDevices?.[duid] || null;
+		await this.adapter.mqtt_api.init();
 	}
 
 	/**
@@ -264,7 +226,7 @@ export class RequestsHandler {
 
 						for (const attribute in value) {
 							if (attribute == "ip" && !(await this.isCloudDevice(duid))) {
-								this.localDevices[duid] = value[attribute];
+								this.adapter.local_api.localDevices[duid] = value[attribute];
 							}
 
 							this.adapter.ensureState(`Devices.${duid}.networkInfo.${attribute}`, { val: value[attribute], ack: true });
@@ -692,7 +654,7 @@ export class RequestsHandler {
 		}
 		if (!this.cached_get_status_value[duid]) {
 			this.adapter.log.error(
-				`this.cached_get_status_value for ${duid} is not initialized. Request get_status first. this.cached_get_status_value: ${JSON.stringify(
+				`isCleaning: this.cached_get_status_value for ${duid} is not initialized. Request get_status first. this.cached_get_status_value: ${JSON.stringify(
 					this.cached_get_status_value
 				)}`
 			);
@@ -728,7 +690,7 @@ export class RequestsHandler {
 		}
 		if (!this.cached_get_status_value[duid]) {
 			this.adapter.log.error(
-				`this.cached_get_status_value for ${duid} is not initialized. Request get_status first. this.cached_get_status_value: ${JSON.stringify(
+				`getSelectedMap: this.cached_get_status_value for ${duid} is not initialized. Request get_status first. this.cached_get_status_value: ${JSON.stringify(
 					this.cached_get_status_value
 				)}`
 			);
@@ -773,9 +735,8 @@ export class RequestsHandler {
 		const payload = await this.message_parser.buildPayload(duid, protocol, messageID, method, params);
 		const roborockMessage = await this.message_parser.buildRoborockMessage(duid, protocol, timestamp, payload);
 
-		const deviceOnline = await this.adapter.onlineChecker(duid);
-		const mqttConnectionState = this.mqtt_api.isConnected();
-		const localConnectionState = this.local_api.isConnected(duid);
+		const mqttConnectionState = this.adapter.mqtt_api.isConnected();
+		const localConnectionState = this.adapter.local_api.isConnected(duid);
 
 		if (!roborockMessage) {
 			this.adapter.catchError("Failed to build buildRoborockMessage!", "function sendRequest", duid);
@@ -783,20 +744,12 @@ export class RequestsHandler {
 		}
 
 		if (version == "A01") {
-			if (!deviceOnline) {
-				this.adapter.log.debug(`Device ${duid} offline. Not sending for method ${method} request!`);
-				return Promise.resolve();
-			}
-			this.mqtt_api.sendMessage(duid, roborockMessage);
+			this.adapter.mqtt_api.sendMessage(duid, roborockMessage);
 			return Promise.resolve();
 		}
 
 		return new Promise((resolve, reject) => {
-			if (!deviceOnline) {
-				this.adapter.pendingRequests.delete(messageID);
-				this.adapter.log.debug(`Device ${duid} offline. Not sending for method ${method} request!`);
-				return reject();
-			} else if (!mqttConnectionState && remoteConnection) {
+			if (!mqttConnectionState && remoteConnection) {
 				this.adapter.pendingRequests.delete(messageID);
 				this.adapter.log.debug(`Cloud connection not available. Not sending for method ${method} request!`);
 				return reject();
@@ -808,7 +761,7 @@ export class RequestsHandler {
 				// Setup timeout for the request
 				const timeout = this.adapter.setTimeout(() => {
 					this.adapter.pendingRequests.delete(messageID);
-					this.local_api.clearChunkBuffer(duid);
+					this.adapter.local_api.clearChunkBuffer(duid);
 					if (remoteConnection || isL01Device) {
 						reject(new Error(`Cloud request with id ${messageID} and method ${method} timed out after 30 seconds. MQTT connection state: ${mqttConnectionState}`));
 					} else {
@@ -820,17 +773,17 @@ export class RequestsHandler {
 				this.adapter.pendingRequests.set(messageID, { resolve, reject, timeout });
 
 				if (remoteConnection || method == "get_map_v1" || method == "get_clean_record_map" || method == "get_photo" || method == "get_network_info") {
-					this.mqtt_api.sendMessage(duid, roborockMessage);
+					this.adapter.mqtt_api.sendMessage(duid, roborockMessage);
 					this.adapter.log.debug(`Sent payload for ${duid} with ${payload} using cloud connection using version ${version}`);
 				} else if (isL01Device) {
 					// Special case devices with version L01
-					this.mqtt_api.sendMessage(duid, roborockMessage);
+					this.adapter.mqtt_api.sendMessage(duid, roborockMessage);
 				} else {
 					const lengthBuffer = Buffer.alloc(4);
 					lengthBuffer.writeUInt32BE(roborockMessage.length, 0);
 
 					const fullMessage = Buffer.concat([lengthBuffer, roborockMessage]);
-					this.local_api.sendMessage(duid, fullMessage);
+					this.adapter.local_api.sendMessage(duid, fullMessage);
 					this.adapter.log.debug(`Sent payload for ${duid} with ${payload} using local connection using version ${version}`);
 				}
 			}
@@ -867,7 +820,7 @@ export class RequestsHandler {
 		const receivedDevices = this.adapter.http_api.getReceivedDevices();
 
 		const sharedDevice = receivedDevices.find((device) => device.duid == duid);
-		const cloudDevice = this.local_api.cloudDevices.has(duid);
+		const cloudDevice = this.adapter.local_api.cloudDevices.has(duid);
 
 		if (sharedDevice || cloudDevice) {
 			return true;
@@ -879,23 +832,13 @@ export class RequestsHandler {
 	/**
 	 * @param {string} duid
 	 */
-	isLocalDevice(duid) {
-		if (duid in this.localDevices) {
-			return true;
-		}
-		return false;
-	}
-
-	/**
-	 * @param {string} duid
-	 */
 	async getConnector(duid) {
 		const isRemote = await this.isCloudDevice(duid);
 
 		if (isRemote) {
-			return this.mqtt_api;
+			return this.adapter.mqtt_api;
 		} else {
-			return this.local_api;
+			return this.adapter.local_api;
 		}
 	}
 
@@ -968,8 +911,8 @@ export class RequestsHandler {
 	}
 
 	clearQueue() {
-		this.local_api.clearLocalDevicedTimeout();
-		this.mqtt_api.clearIntervals();
+		this.adapter.local_api.clearLocalDevicedTimeout();
+		this.adapter.mqtt_api.clearIntervals();
 
 		this.messageQueue.forEach(({ timeout102, timeout301 }) => {
 			this.adapter.clearTimeout(timeout102);

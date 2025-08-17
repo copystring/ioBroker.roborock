@@ -7,8 +7,10 @@ import go2rtcPath from "go2rtc-static";
 
 import { roborock_package_helper } from "./lib/roborock_package_helper";
 import { device_features } from "./lib/device_features";
-import { RequestsHandler }  from "./lib/RequestsHandler";
+import { RequestsHandler } from "./lib/RequestsHandler";
 import { http_api } from "./lib/http_api";
+import { local_api } from "./lib/local_api";
+import { mqtt_api } from "./lib/mqtt_api";
 const sniffing = require("../lib/sniffing");
 
 let socketServer, webserver;
@@ -47,7 +49,6 @@ interface StateCommonExtension {
 	max?: number;
 	unit?: string;
 }
-
 
 const A01states = {
 	200: "Start",
@@ -107,6 +108,8 @@ export class Roborock extends utils.Adapter {
 		this.nonce = randomBytes(16);
 		this.pendingRequests = new Map();
 		this.http_api = new http_api(this);
+		this.local_api = new local_api(this);
+		this.mqtt_api = new mqtt_api(this);
 		this.roborock_package_helper = new roborock_package_helper(this);
 		this.requests_handler = new RequestsHandler(this);
 		this.device_features = new device_features(this);
@@ -155,38 +158,39 @@ export class Roborock extends utils.Adapter {
 				await this.requests_handler.getParameter(duid, "get_network_info", []); // this needs to be called first on start of adapter to get the IP adresses of each device
 			}
 		}
-		// now network data is present, connect tcp client to devices
-		await this.requests_handler.initTCP();
 
-		// now tcp clients are connected. process any further data
+		await this.local_api.updateTcpIps();
+
 		for (const device of devices) {
 			const duid = device.duid;
+
+			if (device.online) {
+				await this.local_api.initiateClient(duid);
+			}
 			const version = await this.getDeviceProtocolVersion(duid);
 
+			await this.createDeviceObjects(device);
 			switch (version) {
 				case "A01":
-					await this.createDeviceObjects(device);
-
 					await this.requests_handler.getStatus(duid);
-					this.updateDeviceInfo(duid);
 					break;
-
 				default:
 					await this.createDeviceObjects(device);
 
-					await this.requests_handler.getStatus(duid);
-
-					this.updateDeviceData(duid);
-					this.updateConsumablesPercent(duid);
-					this.updateDeviceInfo(duid);
-
-					// first run of getting maps can run in background
-					this.requests_handler.getCleanSummary(duid).catch((error) => {
-						this.catchError(error.stack, "getCleanSummary", duid);
-					});
-					this.requests_handler.getMap(duid).catch((error) => {
-						this.catchError(error.stack, "getMap", duid);
-					});
+					if (!device.online) {
+						this.log.debug(`Device ${duid} is offline. Skipping status update.`);
+					} else {
+						// get all maps on start of adapter but don't wait for them to finish. Not waiting speeds up the startup process
+						this.requests_handler.getCleanSummary(duid).catch((error) => {
+							this.catchError(error.stack, "getCleanSummary", duid);
+						});
+						this.requests_handler.getStatus(duid).catch((error) => {
+							this.catchError(error.stack, "getStatus", duid);
+						});
+						this.requests_handler.getMap(duid).catch((error) => {
+							this.catchError(error.stack, "getMap", duid);
+						});
+					}
 					break;
 			}
 		}
@@ -201,9 +205,11 @@ export class Roborock extends utils.Adapter {
 
 			for (const device of devices) {
 				const duid = device.duid;
-				await this.updateDeviceInfo(duid);
 
-				if (device.online) {
+				if (!device.online) {
+					this.log.debug(`Device ${duid} is offline. Skipping status update.`);
+				} else {
+					await this.updateDeviceInfo(duid, devices);
 					const version = await this.getDeviceProtocolVersion(duid);
 
 					switch (version) {
@@ -244,7 +250,7 @@ export class Roborock extends utils.Adapter {
 		try {
 			await this.start_go2rtc();
 		} catch (error) {
-			this.adapter.log.error(`Failed to start go2rtc: ${error.stack}`);
+			this.log.error(`Failed to start go2rtc: ${error.stack}`);
 		}
 
 		// Start map creation if enabled
@@ -345,7 +351,7 @@ export class Roborock extends utils.Adapter {
 				});
 
 				const enabledPath = `Devices.${duid}.programs.${programID}.enabled`;
-				await this.createStateObjectHelper({ path: enabledPath, name: "enabled", type: "boolean", def: null, role: "value"});
+				await this.createStateObjectHelper({ path: enabledPath, name: "enabled", type: "boolean", def: null, role: "value" });
 				this.setState(enabledPath, enabled, true);
 
 				const items = JSON.parse(param).action.items;
@@ -367,7 +373,16 @@ export class Roborock extends utils.Adapter {
 
 			for (const duid in programs) {
 				const objectPath = `Devices.${duid}.programs.startProgram`;
-				await this.createStateObjectHelper({ path: objectPath, name: "Start saved program", type: "string", def: Object.keys(programs[duid])[0], role: "value", read: true, write: true, states: programs[duid] });
+				await this.createStateObjectHelper({
+					path: objectPath,
+					name: "Start saved program",
+					type: "string",
+					def: Object.keys(programs[duid])[0],
+					role: "value",
+					read: true,
+					write: true,
+					states: programs[duid],
+				});
 			}
 		}
 	}
@@ -479,22 +494,6 @@ export class Roborock extends utils.Adapter {
 	/**
 	 * @param {string} duid
 	 */
-	async onlineChecker(duid) {
-		const devices = this.http_api.getDevices();
-
-		const device = devices.find((device) => device.duid == duid);
-
-		// If the device is not found, return false.
-		if (!device) {
-			return false;
-		}
-
-		return device?.online;
-	}
-
-	/**
-	 * @param {string} duid
-	 */
 	async updateDeviceData(duid) {
 		const robotModel = this.http_api.getRobotModel(duid);
 		const version = await this.getDeviceProtocolVersion(duid);
@@ -577,9 +576,9 @@ export class Roborock extends utils.Adapter {
 
 	/**
 	 * @param {string} duid
+	 * @param {Array} devices
 	 */
-	async updateDeviceInfo(duid) {
-		const devices = this.http_api.getDevices();
+	async updateDeviceInfo(duid, devices) {
 		const device = devices.find((device) => device.duid === duid);
 
 		for (const deviceAttribute in device) {
@@ -607,7 +606,7 @@ export class Roborock extends utils.Adapter {
 	 * @param {string} duid
 	 */
 	async checkForNewFirmware(duid) {
-		const isLocalDevice = this.requests_handler.isLocalDevice(duid);
+		const isLocalDevice = this.local_api.isLocalDevice(duid);
 
 		if (isLocalDevice) {
 			this.http_api
@@ -1040,6 +1039,22 @@ export class Roborock extends utils.Adapter {
 				this.setState(statePath, { val: parsedValue, ack: true });
 			}
 		}
+	}
+
+	/**
+	 * Resets the MQTT API instance by cleaning up resources and reinitializing it.
+	 */
+	async resetMqttApi() {
+		this.log.info("Resetting MQTT API instance...");
+		// Cleanup the existing MQTT API instance
+		if (this.mqtt_api) {
+			this.mqtt_api.cleanup();
+			this.requests_handler.clearQueue();
+		}
+		// Create a new MQTT API instance and initialize it
+		this.mqtt_api = new mqtt_api(this);
+		await this.mqtt_api.init();
+		this.log.info("MQTT API instance has been reset.");
 	}
 
 	/**

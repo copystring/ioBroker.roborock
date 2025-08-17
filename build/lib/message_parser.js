@@ -133,7 +133,7 @@ class message_parser {
      */
     async buildPayload(duid, protocol, messageID, method, params) {
         const timestamp = Math.floor(Date.now() / 1000);
-        const endpoint = await this.adapter.requests_handler.mqtt_api.ensureEndpoint();
+        const endpoint = await this.adapter.mqtt_api.ensureEndpoint();
         const version = await this.adapter.getDeviceProtocolVersion(duid);
         // this.adapter.log.debug("sendRequest started with: " + requestId);
         if (version == "A01") {
@@ -239,3 +239,4 @@ class message_parser {
     }
 }
 exports.message_parser = message_parser;
+//# sourceMappingURL=message_parser.js.map
