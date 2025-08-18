@@ -748,6 +748,7 @@ export class RequestsHandler {
 			return Promise.resolve();
 		}
 
+		this.adapter.log.debug(`mqttConnectionState: ${mqttConnectionState}, localConnectionState: ${localConnectionState}, remoteConnection: ${remoteConnection}`);
 		return new Promise((resolve, reject) => {
 			if (!mqttConnectionState && remoteConnection) {
 				this.adapter.pendingRequests.delete(messageID);
