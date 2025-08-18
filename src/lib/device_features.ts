@@ -323,10 +323,10 @@ export class device_features {
 	isVideoLiveCallSupported(duid) {
 		const ip = this.adapter.config.hostname_ip;
 		const streamTypes = {
-			stream_html: `http://${ip}:1984/stream.html?src=${duid}`,
-			webrtc_html: `http://${ip}:1984/webrtc.html?src=${duid}&media=video`,
-			stream_mp4: `http://${ip}:1984/api/stream.mp4?src=${duid}`,
-			rtsp: `rtsp://${ip}:8554/${duid}?video`,
+			stream_html: `http://${ip}:${1984 + this.adapter.instance}/stream.html?src=${duid}`,
+			webrtc_html: `http://${ip}:${1984 + this.adapter.instance}/webrtc.html?src=${duid}&media=video`,
+			stream_mp4: `http://${ip}:${1984 + this.adapter.instance}/api/stream.mp4?src=${duid}`,
+			rtsp: `rtsp://${ip}:${8554 + this.adapter.instance}/${duid}?video`,
 		};
 
 		for (const [name, stream_uri] of Object.entries(streamTypes)) {

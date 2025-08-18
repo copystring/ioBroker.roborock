@@ -390,7 +390,7 @@ export class Roborock extends utils.Adapter {
 	startWebserver() {
 		const app = express();
 		app.use(express.static("lib/map"));
-		webserver = app.listen(this.config.webserverPort);
+		webserver = app.listen(this.config.webserverPort + this.instance);
 
 		webserver.on("error", (error) => {
 			// This code will run if there was an error starting the server
@@ -402,7 +402,7 @@ export class Roborock extends utils.Adapter {
 	}
 
 	async startWebsocketServer() {
-		socketServer = new ws.Server({ port: 7906 });
+		socketServer = new ws.Server({ server: webserver, path: "/ws" });
 
 		socketServer.on("connection", async (socket) => {
 			this.socket = socket;
@@ -886,7 +886,17 @@ export class Roborock extends utils.Adapter {
 		let cameraCount = 0;
 		const localKeys = this.http_api.getMatchedLocalKeys();
 
-		const go2rtcConfig = { streams: {} };
+		const port = 8554 + this.instance;
+		const rtspPort = 1984 + this.instance;
+		const go2rtcConfig = {
+			server: {
+				listen: `:${port}`,
+			},
+			rtsp: {
+				listen: `:${rtspPort}`,
+			},
+			streams: {},
+		};
 		for (const device of devices) {
 			const duid = device.duid;
 
