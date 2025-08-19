@@ -22,4 +22,3 @@ lib/go2rtc/go2rtc_win64.zip
 .env
 lib/sniffing/__pycache__/
 images/products/
-build/
