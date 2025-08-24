@@ -706,7 +706,7 @@ export class RequestsHandler {
 	 * @returns {boolean}
 	 */
 	isMQTTOnlyL01Device(duid) {
-		const L01Models = ["roborock.vacuum.a144", "roborock.vacuum.a147", "roborock.vacuum.a187", "roborock.vacuum.a156", "roborock.vacuum.a135", "roborock.vacuum.a168"];
+		const L01Models = ["roborock.vacuum.a144", "roborock.vacuum.a147", "roborock.vacuum.a187", "roborock.vacuum.a156", "roborock.vacuum.a135", "roborock.vacuum.a168", "roborock.vacuum.a101"];
 
 		const model = this.adapter.http_api.getRobotModel(duid);
 		return typeof model === "string" && L01Models.includes(model.trim());
