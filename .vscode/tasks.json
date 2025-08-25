@@ -5,7 +5,10 @@
       "type": "npm",
       "script": "watch",
       "label": "npm: watch",
-      "group": "build",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
       "isBackground": true,
       "problemMatcher": "$tsc-watch",
       "runOptions": { "runOn": "folderOpen" }
