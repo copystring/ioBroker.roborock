@@ -595,7 +595,9 @@ class device_features {
                 // Roborock Qrevo Edge
                 "roborock.vacuum.a156": [],
                 // Roborock QV 35A
-                "roborock.vacuum.a168": []
+                "roborock.vacuum.a168": [],
+                // Qrevo Curv S5X
+                "roborock.vacuum.a159": []
             };
             // process modelConfig
             const configActions = modelConfig[robotModel];
