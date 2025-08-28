@@ -154,44 +154,38 @@ class Roborock extends utils.Adapter {
         // handle requests based on interval here. No separate interval needed anywhere
         this.log.debug(`initializing mainUpdateInterval`);
         this.mainUpdateInterval = this.setInterval(async () => {
-            await this.http_api.updateHomeData(); // this is needed to get the online status of the devices and has to run before any other requests. Otherwise requests might be missing homedata and will time out.
-            const devices = this.http_api.getDevices();
-            for (const device of devices) {
-                const duid = device.duid;
-                if (!device.online) {
-                    this.log.debug(`Device ${duid} is offline. Skipping status update.`);
-                }
-                else {
-                    await this.updateDeviceInfo(duid, devices);
-                    const version = await this.getDeviceProtocolVersion(duid);
-                    switch (version) {
-                        case "A01":
-                            if (updateIntervalCount % this.config.updateInterval == 0) {
+            if (updateIntervalCount % this.config.updateInterval == 0) {
+                await this.http_api.updateHomeData(); // this is needed to get the online status of the devices and has to run before any other requests. Otherwise requests might be missing homedata and will time out.
+                const devices = this.http_api.getDevices();
+                for (const device of devices) {
+                    const duid = device.duid;
+                    if (!device.online) {
+                        this.log.debug(`Device ${duid} is offline. Skipping status update.`);
+                    }
+                    else {
+                        await this.updateDeviceInfo(duid, devices);
+                        const version = await this.getDeviceProtocolVersion(duid);
+                        switch (version) {
+                            case "A01":
                                 await this.requests_handler.getStatus(duid);
-                            }
-                            break;
-                        default:
-                            try {
-                                // update status every second if websocket is connected or update interval is met
-                                if (this.socket || updateIntervalCount % this.config.updateInterval == 0) {
+                                break;
+                            default:
+                                try {
                                     await this.requests_handler.getStatus(duid);
-                                }
-                                // update device data on interval defined in options
-                                if (updateIntervalCount % this.config.updateInterval == 0) {
                                     this.updateDeviceData(duid);
                                     this.updateConsumablesPercent(duid);
-                                    updateIntervalCount = 0;
+                                    // update map when needed
+                                    const isCleaning = this.requests_handler.isCleaning(duid);
+                                    if (isCleaning)
+                                        this.requests_handler.getMap(duid);
                                 }
-                                // update map when needed
-                                const isCleaning = this.requests_handler.isCleaning(duid);
-                                if (isCleaning)
-                                    this.requests_handler.getMap(duid);
-                            }
-                            catch (error) {
-                                this.catchError(error.stack, "mainUpdateInterval", duid);
-                            }
+                                catch (error) {
+                                    this.catchError(error.stack, "mainUpdateInterval", duid);
+                                }
+                        }
                     }
                 }
+                updateIntervalCount = 0;
             }
             updateIntervalCount++;
         }, 1000);
