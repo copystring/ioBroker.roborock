@@ -106,14 +106,12 @@ class Roborock extends utils.Adapter {
         // Initialize MQTT API
         await this.mqtt_api.init();
         await this.http_api.updateHomeData();
-        // get latest data on start of adapter
         const devices = await this.http_api.getDevices();
         // need to get network data before processing any other data
         for (const device of devices) {
             const version = await this.getDeviceProtocolVersion(device.duid);
             if (version != "A01") {
                 const duid = device.duid;
-                // await this.createNetworkInfoObjects(duid);
                 await this.requests_handler.getParameter(duid, "get_network_info", []); // this needs to be called first on start of adapter to get the IP adresses of each device
             }
         }
@@ -130,7 +128,6 @@ class Roborock extends utils.Adapter {
                     await this.requests_handler.getStatus(duid);
                     break;
                 default:
-                    await this.createDeviceObjects(device);
                     if (!device.online) {
                         this.log.debug(`Device ${duid} is offline. Skipping status update.`);
                     }
@@ -651,7 +648,6 @@ class Roborock extends utils.Adapter {
             const objectString = `Devices.${duid}.map.${name}`;
             await this.createStateObjectHelper({ path: objectString, name, type: "string", def: null, role: "value", read: true, write: false });
         }
-        // this.createNetworkInfoObjects(duid);
     }
     /**
      * @param {string} _duid
@@ -665,16 +661,6 @@ class Roborock extends utils.Adapter {
     async createBasicWashingMachineObjects(_duid) {
         // nothing for now
     }
-    // /**
-    //  * @param {string} duid
-    //  */
-    // async createNetworkInfoObjects(duid) {
-    // 	for (const name of ["ssid", "ip", "mac", "bssid", "rssi"]) {
-    // 		const objectString = `Devices.${duid}.networkInfo.${name}`;
-    // 		const objectType = name == "rssi" ? "number" : "string";
-    // 		await this.createStateObjectHelper(objectString, name, objectType, null, null, "value", true, false);
-    // 	}
-    // }
     /**
      * @param {string} duid
      */

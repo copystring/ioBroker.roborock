@@ -145,8 +145,6 @@ export class Roborock extends utils.Adapter {
 		await this.mqtt_api.init();
 
 		await this.http_api.updateHomeData();
-
-		// get latest data on start of adapter
 		const devices = await this.http_api.getDevices();
 
 		// need to get network data before processing any other data
@@ -155,8 +153,6 @@ export class Roborock extends utils.Adapter {
 
 			if (version != "A01") {
 				const duid = device.duid;
-
-				// await this.createNetworkInfoObjects(duid);
 
 				await this.requests_handler.getParameter(duid, "get_network_info", []); // this needs to be called first on start of adapter to get the IP adresses of each device
 			}
@@ -178,8 +174,6 @@ export class Roborock extends utils.Adapter {
 					await this.requests_handler.getStatus(duid);
 					break;
 				default:
-					await this.createDeviceObjects(device);
-
 					if (!device.online) {
 						this.log.debug(`Device ${duid} is offline. Skipping status update.`);
 					} else {
@@ -227,7 +221,6 @@ export class Roborock extends utils.Adapter {
 
 									this.updateDeviceData(duid);
 									this.updateConsumablesPercent(duid);
-
 
 									// update map when needed
 									const isCleaning = this.requests_handler.isCleaning(duid);
@@ -777,7 +770,6 @@ export class Roborock extends utils.Adapter {
 			await this.createStateObjectHelper({ path: objectString, name, type: "string", def: null, role: "value", read: true, write: false });
 		}
 
-		// this.createNetworkInfoObjects(duid);
 	}
 
 	/**
@@ -793,17 +785,6 @@ export class Roborock extends utils.Adapter {
 	async createBasicWashingMachineObjects(_duid) {
 		// nothing for now
 	}
-
-	// /**
-	//  * @param {string} duid
-	//  */
-	// async createNetworkInfoObjects(duid) {
-	// 	for (const name of ["ssid", "ip", "mac", "bssid", "rssi"]) {
-	// 		const objectString = `Devices.${duid}.networkInfo.${name}`;
-	// 		const objectType = name == "rssi" ? "number" : "string";
-	// 		await this.createStateObjectHelper(objectString, name, objectType, null, null, "value", true, false);
-	// 	}
-	// }
 
 	/**
 	 * @param {string} duid
