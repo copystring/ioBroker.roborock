@@ -41,7 +41,6 @@ export class http_api {
 
 		await this.initializeRealApi();
 		await this.getHomeID();
-		await this.updateHomeData();
 	}
 
 	async initializeRealApi() {

@@ -141,7 +141,11 @@ export class Roborock extends utils.Adapter {
 			this.log.error(`Failed to get clientID. ${error.stack}`);
 		}
 
-		await this.requests_handler.init(); // this makes the requests handler connect to mqtt. tcp follows later when IP of each device have been received
+
+		// Initialize MQTT API
+		await this.mqtt_api.init();
+
+		await this.http_api.updateHomeData();
 
 		// get latest data on start of adapter
 		const devices = await this.http_api.getDevices();
@@ -201,6 +205,7 @@ export class Roborock extends utils.Adapter {
 		// handle requests based on interval here. No separate interval needed anywhere
 		this.log.debug(`initializing mainUpdateInterval`);
 		this.mainUpdateInterval = this.setInterval(async () => {
+			await this.http_api.updateHomeData(); // this is needed to get the online status of the devices and has to run before any other requests. Otherwise requests might be missing homedata and will time out.
 			const devices = this.http_api.getDevices();
 
 			for (const device of devices) {
@@ -227,7 +232,6 @@ export class Roborock extends utils.Adapter {
 
 								// update device data on interval defined in options
 								if (updateIntervalCount % this.config.updateInterval == 0) {
-									await this.http_api.updateHomeData(); // this is needed to get the online status of the devices and has to run before any other requests. Otherwise requests might be missing homedata and will time out.
 
 									this.updateDeviceData(duid);
 									this.updateConsumablesPercent(duid);

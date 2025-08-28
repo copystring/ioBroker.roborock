@@ -38,7 +38,6 @@ class http_api {
         // api/v1/getUrlByEmail(email = ...)
         await this.initializeRealApi();
         await this.getHomeID();
-        await this.updateHomeData();
     }
     async initializeRealApi() {
         this.adapter.log.debug(`initialize http_api`);
