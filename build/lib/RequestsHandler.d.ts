@@ -16,7 +16,6 @@ export declare class RequestsHandler {
      * Schedules the MQTT API to be reset every hour.
      */
     scheduleMqttReset(): void;
-    init(): Promise<void>;
     /**
      * @param {string} duid
      */

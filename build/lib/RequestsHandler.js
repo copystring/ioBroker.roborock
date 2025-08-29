@@ -69,9 +69,6 @@ class RequestsHandler {
             await this.adapter.resetMqttApi();
         }, 3600000);
     }
-    async init() {
-        await this.adapter.mqtt_api.init();
-    }
     /**
      * @param {string} duid
      */
@@ -644,7 +641,7 @@ class RequestsHandler {
             this.adapter.mqtt_api.sendMessage(duid, roborockMessage);
             return Promise.resolve();
         }
-        this.adapter.log.debug(`mqttConnectionState: ${mqttConnectionState}, localConnectionState: ${localConnectionState}, remoteConnection: ${remoteConnection}`);
+        this.adapter.log.debug(`duid: ${duid}, mqttConnectionState: ${mqttConnectionState}, localConnectionState: ${localConnectionState}, remoteConnection: ${remoteConnection}`);
         this.adapter.log.debug(`localDevices: ${JSON.stringify(this.adapter.local_api.localDevices)}`);
         return new Promise((resolve, reject) => {
             if (!mqttConnectionState && remoteConnection) {
