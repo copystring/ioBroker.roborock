@@ -205,7 +205,7 @@ class RequestsHandler {
                 case "get_prop":
                     if (attribute == "get_status") {
                         this.cached_get_status_value[duid] = value[0];
-                        this.adapter.log.debug(`this.cached_get_status_value: ${JSON.stringify(this.cached_get_status_value)}`);
+                        this.adapter.log.debug(`this.cached_get_status_value: ${JSON.stringify({ ...this.cached_get_status_value })}`);
                         for (const attribute in this.cached_get_status_value[duid]) {
                             // if (!(await this.adapter.getObjectAsync(`Devices.${duid}.deviceStatus.${attribute}`))) {
                             // 	this.adapter.log.warn(
@@ -569,7 +569,7 @@ class RequestsHandler {
             return false;
         }
         if (!this.cached_get_status_value[duid]) {
-            this.adapter.log.error(`isCleaning: this.cached_get_status_value for ${duid} is not initialized. Request get_status first. this.cached_get_status_value: ${JSON.stringify(this.cached_get_status_value)}`);
+            this.adapter.log.error(`isCleaning: this.cached_get_status_value for ${duid} is not initialized. Request get_status first. this.cached_get_status_value: ${JSON.stringify({ ...this.cached_get_status_value })}`);
             return false;
         }
         const cleaningState = this.cached_get_status_value[duid].state;
