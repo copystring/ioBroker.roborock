@@ -246,7 +246,7 @@ export class RequestsHandler {
 					case "get_prop":
 						if (attribute == "get_status") {
 							this.cached_get_status_value[duid] = value;
-							this.adapter.log.debug(`this.cached_get_status_value[${duid}]: ${JSON.stringify(this.cached_get_status_value[duid])}`);
+							this.adapter.log.debug(`this.cached_get_status_value: ${JSON.stringify(this.cached_get_status_value)}`);
 
 							for (const attribute in this.cached_get_status_value[duid][0]) {
 								// if (!(await this.adapter.getObjectAsync(`Devices.${duid}.deviceStatus.${attribute}`))) {
