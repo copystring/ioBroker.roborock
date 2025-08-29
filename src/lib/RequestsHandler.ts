@@ -245,7 +245,6 @@ export class RequestsHandler {
 						break;
 					case "get_prop":
 						if (attribute == "get_status") {
-							// Only send status every minute or if websocket is connected
 							this.cached_get_status_value[duid] = value;
 
 							for (const attribute in this.cached_get_status_value[duid][0]) {
