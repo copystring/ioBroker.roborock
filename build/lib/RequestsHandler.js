@@ -156,7 +156,7 @@ class RequestsHandler {
      * @param {string} duid
      */
     getDockingStationStatus(duid) {
-        const dss = this.cached_get_status_value[duid][0].dss;
+        const dss = this.cached_get_status_value[duid].dss;
         return {
             cleanFluidStatus: (dss >> 10) & 0b11,
             waterBoxFilterStatus: (dss >> 8) & 0b11,
@@ -204,17 +204,17 @@ class RequestsHandler {
                     break;
                 case "get_prop":
                     if (attribute == "get_status") {
-                        this.cached_get_status_value[duid] = value;
+                        this.cached_get_status_value[duid] = value[0];
                         this.adapter.log.debug(`this.cached_get_status_value: ${JSON.stringify(this.cached_get_status_value)}`);
-                        for (const attribute in this.cached_get_status_value[duid][0]) {
+                        for (const attribute in this.cached_get_status_value[duid]) {
                             // if (!(await this.adapter.getObjectAsync(`Devices.${duid}.deviceStatus.${attribute}`))) {
                             // 	this.adapter.log.warn(
-                            // 		`Unsupported attribute: ${attribute} of get_status with value ${this.cached_get_status_value[duid][0][attribute]}. Please contact the dev to add the newly found attribute of your robot. Model: ${robotModel}`
+                            // 		`Unsupported attribute: ${attribute} of get_status with value ${this.cached_get_status_value[duid][attribute]}. Please contact the dev to add the newly found attribute of your robot. Model: ${robotModel}`
                             // 	);
                             // 	continue; // Skip unsupported attributes
                             // }
-                            if (typeof this.cached_get_status_value[duid][0][attribute] == "object") {
-                                this.cached_get_status_value[duid][0][attribute] = JSON.stringify(this.cached_get_status_value[duid][0][attribute]);
+                            if (typeof this.cached_get_status_value[duid][attribute] == "object") {
+                                this.cached_get_status_value[duid][attribute] = JSON.stringify(this.cached_get_status_value[duid][attribute]);
                             }
                             switch (attribute) {
                                 case "dock_type":
@@ -230,7 +230,7 @@ class RequestsHandler {
                                 case "map_status": {
                                     const selectedMap = this.getSelectedMap(duid);
                                     if (selectedMap != null) {
-                                        this.cached_get_status_value[duid][0][attribute] = selectedMap;
+                                        this.cached_get_status_value[duid][attribute] = selectedMap;
                                         const mapCount = await this.adapter.getStateAsync(`Devices.${duid}.floors.multi_map_count`);
                                         // Don't process load_multi_map for single level configuration
                                         if (mapCount) {
@@ -255,10 +255,10 @@ class RequestsHandler {
                                     break;
                                 }
                                 case "last_clean_t":
-                                    this.cached_get_status_value[duid][0][attribute] = new Date(this.cached_get_status_value[duid][0][attribute]).toString();
+                                    this.cached_get_status_value[duid][attribute] = new Date(this.cached_get_status_value[duid][attribute]).toString();
                                     break;
                             }
-                            const value = this.cached_get_status_value[duid][0][attribute];
+                            const value = this.cached_get_status_value[duid][attribute];
                             const commonDeviceStates = this.adapter.device_features.getCommonDeviceStates(attribute);
                             this.adapter.ensureState(`Devices.${duid}.deviceStatus.${attribute}`, { val: value, ack: true }, commonDeviceStates);
                         }
