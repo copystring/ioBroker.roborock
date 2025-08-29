@@ -572,7 +572,7 @@ class RequestsHandler {
             this.adapter.log.error(`isCleaning: this.cached_get_status_value for ${duid} is not initialized. Request get_status first. this.cached_get_status_value: ${JSON.stringify(this.cached_get_status_value)}`);
             return false;
         }
-        const cleaningState = this.cached_get_status_value[duid][0].state;
+        const cleaningState = this.cached_get_status_value[duid].state;
         switch (cleaningState) {
             case 4: // Remote Control
             case 5: // Cleaning
@@ -601,7 +601,7 @@ class RequestsHandler {
             this.adapter.log.error(`getSelectedMap: this.cached_get_status_value for ${duid} is not initialized. Request get_status first. this.cached_get_status_value: ${JSON.stringify(this.cached_get_status_value)}`);
             return null;
         }
-        return this.cached_get_status_value[duid][0].map_status >> 2; // Bitwise right shift to obtain the selected map
+        return this.cached_get_status_value[duid].map_status >> 2; // Bitwise right shift to obtain the selected map
     }
     /**
      * Checks if the given DUID is a known L01 device that only works via MQTT (until TCP support is verified).
