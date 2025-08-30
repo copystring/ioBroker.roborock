@@ -28,7 +28,7 @@ export declare class local_api {
     checkComplete(buffer: any): boolean;
     clearChunkBuffer(duid: any): void;
     sendMessage(duid: any, message: any): void;
-    isConnected(duid: any): boolean | undefined;
+    isConnected(duid: any): boolean;
     getLocalDevices(): Promise<unknown>;
     updateTcpIps(): Promise<void>;
     /**

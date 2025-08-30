@@ -282,6 +282,7 @@ export class local_api {
 		if (this.localDevices[duid]) {
 			return this.localDevices[duid].connected;
 		}
+		return false;
 	}
 
 	async getLocalDevices() {
