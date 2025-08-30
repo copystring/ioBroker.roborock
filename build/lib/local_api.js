@@ -60,8 +60,10 @@ class local_api {
     server;
     localDevices;
     cloudDevices;
-    localIps;
+    localIps = {};
     localDevicesTimeout = null;
+    reconnectPlanned = new Set();
+    connecting = new Set();
     constructor(adapter) {
         this.adapter = adapter;
         this.server = dgram_1.default.createSocket("udp4");
@@ -73,7 +75,7 @@ class local_api {
         }
         this.localDevices = {};
         this.cloudDevices = new Set();
-        this.localIps = new Set();
+        this.localIps = {};
     }
     /**
      * Initiates a TCP client connection for the given device.
@@ -83,59 +85,88 @@ class local_api {
      * @returns {Promise<void>} Resolves when the client attempt has finished.
      */
     async initiateClient(duid) {
-        // 1) Resolve IP
-        const ip = this.getIpForDuid(duid); // must return string or null
-        if (!ip) {
-            this.adapter.log.warn(`No IP for ${duid}; switching to MQTT`);
-            this.cloudDevices.add(duid);
+        if (this.connecting.has(duid)) {
+            this.adapter.log.debug(`initiateClient: connect already in flight for ${duid}`);
             return;
         }
-        // 2) Already connected? Do nothing.
-        const existing = this.localDevices?.[duid];
-        if (existing?.connected) {
-            this.adapter.log.debug(`TCP already connected for ${duid}`);
-            this.cloudDevices.delete(duid);
-            return;
-        }
-        // 3) Quick reachability check (ping)
-        const reachable = await this.isLocallyReachable(ip);
-        this.adapter.log.debug(`Reachable (ICMP) ${duid} @ ${ip}: ${reachable}`);
-        if (!reachable) {
-            this.adapter.log.info(`Host not reachable for ${duid}; using MQTT`);
-            this.cloudDevices.add(duid);
-            return;
-        }
-        // 4) Connect
+        this.connecting.add(duid);
         try {
-            await this.createClient(duid, ip);
-            this.adapter.log.info(`TCP client established for ${duid}`);
-            this.cloudDevices.delete(duid);
+            // 1) Resolve IP
+            const ip = this.getIpForDuid(duid); // must return string or null
+            if (!ip) {
+                this.adapter.log.warn(`No IP for ${duid}; switching to MQTT`);
+                this.cloudDevices.add(duid);
+                return;
+            }
+            // 2) Already connected? Do nothing.
+            const existing = this.localDevices?.[duid];
+            if (existing?.connected) {
+                this.adapter.log.debug(`TCP already connected for ${duid}`);
+                this.cloudDevices.delete(duid);
+                return;
+            }
+            // 3) Quick reachability check (ping)
+            const reachable = await this.isLocallyReachable(ip);
+            this.adapter.log.debug(`Reachable (ICMP) ${duid} @ ${ip}: ${reachable}`);
+            if (!reachable) {
+                this.adapter.log.info(`Host not reachable for ${duid}; using MQTT`);
+                this.cloudDevices.add(duid);
+                return;
+            }
+            // 4) Connect
+            try {
+                await this.createClient(duid, ip);
+                this.adapter.log.info(`TCP client established for ${duid}`);
+                this.cloudDevices.delete(duid);
+            }
+            catch (err) {
+                this.adapter.log.warn(`TCP connect failed for ${duid}: ${err?.message || err}; using MQTT`);
+                this.cloudDevices.add(duid);
+            }
         }
-        catch (err) {
-            this.adapter.log.warn(`TCP connect failed for ${duid}: ${err?.message || err}; using MQTT`);
-            this.cloudDevices.add(duid);
+        finally {
+            this.connecting.delete(duid);
         }
     }
     async createClient(duid, ip) {
         const client = new EnhancedSocket();
-        try {
-            await new Promise((resolve, reject) => {
-                client
-                    .connect(TCP_CONNECTION_PORT, ip, () => {
-                    this.adapter.log.info(`TCP client for ${duid} connected`);
-                    this.localDevices[duid] = client;
-                    resolve();
-                })
-                    .on("error", (error) => {
-                    reject(error);
-                });
-            });
-        }
-        catch (error) {
-            this.adapter.log.warn(`TCP connect error for ${duid}: ${error.message}`);
+        const scheduleReconnect = (reason) => {
+            this.adapter.log.warn(`TCP ${reason} for ${duid}, reconnecting in 5s`);
+            // recycle old socket
+            const old = this.localDevices[duid];
+            if (old) {
+                try {
+                    old.removeAllListeners();
+                }
+                catch { }
+                try {
+                    old.destroy();
+                }
+                catch { }
+            }
             delete this.localDevices[duid];
-            return;
-        }
+            // timer already planned?
+            if (this.reconnectPlanned.has(duid)) {
+                this.adapter.log.debug(`Reconnect already scheduled for ${duid}, skip`);
+                return;
+            }
+            this.reconnectPlanned.add(duid);
+            setTimeout(() => {
+                this.reconnectPlanned.delete(duid);
+                this.initiateClient(duid).catch((e) => this.adapter.log.warn(`Reconnect attempt failed for ${duid}: ${e?.message || e}`));
+            }, 5000);
+        };
+        await new Promise((resolve, reject) => {
+            const onErrorOnce = (err) => reject(err);
+            client.once("error", onErrorOnce); // only for the connect phase
+            client.connect(TCP_CONNECTION_PORT, ip, () => {
+                client.off("error", onErrorOnce); // Remove listener
+                this.adapter.log.info(`TCP client for ${duid} connected`);
+                this.localDevices[duid] = client;
+                this.reconnectPlanned.delete(duid);
+                resolve();
+            });
+        });
         client.on("data", async (message) => {
             try {
                 if (client.chunkBuffer.length == 0) {
@@ -185,12 +216,9 @@ class local_api {
                 this.adapter.catchError(`Failed to create tcp client: ${error.stack}`, `function createClient`, duid);
             }
         });
-        client.on("close", () => {
-            delete this.localDevices[duid];
-        });
-        client.on("error", (error) => {
-            this.adapter.log.info(`TCP error for ${duid}: ${error.message}`);
-        });
+        client.on("close", () => scheduleReconnect(`connection closed`));
+        client.on("error", (error) => scheduleReconnect(`connection error: ${error.message}`));
+        client.on("end", () => scheduleReconnect("connection ended"));
     }
     async isLocallyReachable(ip) {
         const res = await ping_1.default.promise.probe(ip, { timeout: 2 });
@@ -216,7 +244,7 @@ class local_api {
     }
     sendMessage(duid, message) {
         const client = this.localDevices[duid];
-        if (client) {
+        if (client?.connected) {
             client.write(message);
         }
     }
@@ -361,6 +389,7 @@ class local_api {
     clearLocalDevicedTimeout() {
         if (this.localDevicesTimeout) {
             this.adapter.clearTimeout(this.localDevicesTimeout);
+            this.localDevicesTimeout = null;
         }
     }
 }

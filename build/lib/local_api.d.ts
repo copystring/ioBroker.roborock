@@ -10,8 +10,10 @@ export declare class local_api {
     server: dgram.Socket;
     localDevices: Record<string, EnhancedSocket>;
     cloudDevices: Set<string>;
-    localIps: Set<string>;
+    localIps: Record<string, string>;
     localDevicesTimeout: NodeJS.Timeout | null;
+    private reconnectPlanned;
+    private connecting;
     constructor(adapter: any);
     /**
      * Initiates a TCP client connection for the given device.
@@ -33,7 +35,7 @@ export declare class local_api {
      * @param {string} duid
      */
     isLocalDevice(duid: any): boolean;
-    getIpForDuid(duid: any): any;
+    getIpForDuid(duid: any): string | null;
     decryptECB(encrypted: any): any;
     decryptGCM(hexPacket: any): string | null;
     removePadding(str: any): any;
