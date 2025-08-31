@@ -11,7 +11,7 @@ export declare class local_api {
     localDevices: Record<string, EnhancedSocket>;
     cloudDevices: Set<string>;
     localIps: Record<string, string>;
-    localDevicesTimeout: NodeJS.Timeout | null;
+    localDevicesInterval: NodeJS.Timeout | null;
     private reconnectPlanned;
     private connecting;
     constructor(adapter: any);
@@ -24,13 +24,14 @@ export declare class local_api {
      */
     initiateClient(duid: string): Promise<void>;
     createClient(duid: any, ip: any): Promise<void>;
+    scheduleReconnect(duid: string, reason: string): void;
     isLocallyReachable(ip: string): Promise<boolean>;
     checkComplete(buffer: any): boolean;
     clearChunkBuffer(duid: any): void;
     sendMessage(duid: any, message: any): void;
     isConnected(duid: any): boolean;
-    getLocalDevices(): Promise<unknown>;
-    updateTcpIps(): Promise<void>;
+    startUdpDiscovery(): void;
+    cleanup(): void;
     /**
      * @param {string} duid
      */

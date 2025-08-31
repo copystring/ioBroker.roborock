@@ -158,7 +158,7 @@ export class Roborock extends utils.Adapter {
 			}
 		}
 
-		await this.local_api.updateTcpIps();
+		await this.local_api.startUdpDiscovery();
 
 		for (const device of devices) {
 			const duid = device.duid;
@@ -540,6 +540,8 @@ export class Roborock extends utils.Adapter {
 		if (this.webSocketInterval) {
 			this.clearInterval(this.webSocketInterval);
 		}
+
+		this.local_api.cleanup();
 	}
 
 	/**

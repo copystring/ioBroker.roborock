@@ -115,7 +115,7 @@ class Roborock extends utils.Adapter {
                 await this.requests_handler.getParameter(duid, "get_network_info", []); // this needs to be called first on start of adapter to get the IP adresses of each device
             }
         }
-        await this.local_api.updateTcpIps();
+        await this.local_api.startUdpDiscovery();
         for (const device of devices) {
             const duid = device.duid;
             if (device.online) {
@@ -452,6 +452,7 @@ class Roborock extends utils.Adapter {
         if (this.webSocketInterval) {
             this.clearInterval(this.webSocketInterval);
         }
+        this.local_api.cleanup();
     }
     /**
      * @param {string} duid
