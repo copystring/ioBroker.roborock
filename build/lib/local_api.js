@@ -242,7 +242,7 @@ class local_api {
         return false;
     }
     startUdpDiscovery() {
-        this.adapter.log.debug(`startUdpDiscovery() called`);
+        this.adapter.log.debug(`UDP Discovery started`);
         const devices = {}; // Temporary list to store discovered devices
         const firstOpts = process.platform === "win32" ? { type: "udp4", reuseAddr: true } : { type: "udp4", reusePort: true };
         const server = dgram_1.default.createSocket(firstOpts).bind(UDP_DISCOVERY_PORT);
@@ -251,7 +251,6 @@ class local_api {
             let parsedMessage;
             // Dynamically select the parser based on version
             const version = versionParser.parse(msg).version;
-            this.adapter.log.debug(`startUdpDiscovery() packet with version ${version} received: ${msg.toString("hex")}`);
             switch (version) {
                 case "L01":
                     parsedMessage = vL01_Parser.parse(msg.slice(3));
@@ -285,7 +284,6 @@ class local_api {
         server.on("error", (error) => this.adapter.catchError(`Server error: ${error.stack}`));
         // Set a timeout for discovering devices
         const localDevicesInterval = this.adapter.setInterval(() => {
-            this.adapter.log.debug(`startUdpDiscovery() called, found devices: ${JSON.stringify(devices)}`);
             const oldDevices = new Set(Object.keys(this.localIps));
             const newDevices = new Set(Object.keys(devices));
             for (const duid of newDevices) {
