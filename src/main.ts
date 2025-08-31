@@ -158,7 +158,7 @@ export class Roborock extends utils.Adapter {
 			}
 		}
 
-		await this.local_api.startUdpDiscovery();
+		this.stopUdpDiscovery = await this.local_api.startUdpDiscovery();
 
 		for (const device of devices) {
 			const duid = device.duid;
@@ -540,8 +540,6 @@ export class Roborock extends utils.Adapter {
 		if (this.webSocketInterval) {
 			this.clearInterval(this.webSocketInterval);
 		}
-
-		this.local_api.cleanup();
 	}
 
 	/**
@@ -1076,6 +1074,7 @@ export class Roborock extends utils.Adapter {
 	onUnload(callback) {
 		try {
 			this.clearTimersAndIntervals();
+			this.stopUdpDiscovery();
 			this.setState("info.connection", { val: false, ack: true });
 
 			callback();

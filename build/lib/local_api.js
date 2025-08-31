@@ -57,7 +57,6 @@ const vL01_Parser = new binary_parser_1.Parser()
     .uint32("crc32");
 class local_api {
     adapter;
-    server;
     localDevices;
     cloudDevices;
     localIps = {};
@@ -66,21 +65,6 @@ class local_api {
     connecting = new Set();
     constructor(adapter) {
         this.adapter = adapter;
-        this.server = dgram_1.default.createSocket("udp4");
-        try {
-            this.server = dgram_1.default.createSocket({ type: "udp4", reusePort: true });
-            this.server.bind(UDP_DISCOVERY_PORT, "0.0.0.0", () => {
-                this.adapter.log.info(`UDP discovery listening on port ${UDP_DISCOVERY_PORT} with reusePort`);
-            });
-        }
-        catch (err) {
-            // fallback, falls OS kein SO_REUSEPORT kennt (z. B. Windows)
-            this.adapter.log.warn(`reusePort not available (${err.message}), falling back to reuseAddr`);
-            this.server = dgram_1.default.createSocket({ type: "udp4", reuseAddr: true });
-            this.server.bind(UDP_DISCOVERY_PORT, "0.0.0.0", () => {
-                this.adapter.log.info(`UDP discovery listening on port ${UDP_DISCOVERY_PORT} with reuseAddr`);
-            });
-        }
         this.localDevices = {};
         this.cloudDevices = new Set();
         this.localIps = {};
@@ -260,7 +244,9 @@ class local_api {
     startUdpDiscovery() {
         this.adapter.log.debug(`startUdpDiscovery() called`);
         const devices = {}; // Temporary list to store discovered devices
-        this.server.on("message", (msg) => {
+        const firstOpts = process.platform === "win32" ? { type: "udp4", reuseAddr: true } : { type: "udp4", reusePort: true };
+        const server = dgram_1.default.createSocket(firstOpts).bind(UDP_DISCOVERY_PORT);
+        server.on("message", (msg) => {
             let decodedMessage;
             let parsedMessage;
             // Dynamically select the parser based on version
@@ -296,9 +282,9 @@ class local_api {
                 this.adapter.log.warn(`Failed to process message: ${error.stack}`);
             }
         });
-        this.server.on("error", (error) => this.adapter.catchError(`Server error: ${error.stack}`));
+        server.on("error", (error) => this.adapter.catchError(`Server error: ${error.stack}`));
         // Set a timeout for discovering devices
-        this.localDevicesInterval = this.adapter.setInterval(() => {
+        const localDevicesInterval = this.adapter.setInterval(() => {
             this.adapter.log.debug(`startUdpDiscovery() called, found devices: ${JSON.stringify(devices)}`);
             const oldDevices = new Set(Object.keys(this.localIps));
             const newDevices = new Set(Object.keys(devices));
@@ -318,14 +304,12 @@ class local_api {
                 delete devices[key];
             }
         }, TIMEOUT);
-    }
-    // Cleanup function to remove temporary handlers and clear the timeout
-    cleanup() {
-        this.server.removeAllListeners();
-        if (this.localDevicesInterval) {
-            this.adapter.clearTimeout(this.localDevicesInterval);
-            this.localDevicesInterval = null;
-        }
+        return () => {
+            this.adapter.clearInterval(localDevicesInterval);
+            server.removeAllListeners();
+            server.close();
+            this.adapter.log.info("UDP discovery stopped");
+        };
     }
     /**
      * @param {string} duid

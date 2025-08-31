@@ -65,7 +65,6 @@ const vL01_Parser = new Parser()
 
 export class local_api {
 	adapter: any;
-	server: dgram.Socket;
 	localDevices: Record<string, EnhancedSocket>;
 	cloudDevices: Set<string>;
 	localIps: Record<string, string> = {};
@@ -75,21 +74,6 @@ export class local_api {
 
 	constructor(adapter) {
 		this.adapter = adapter;
-		this.server = dgram.createSocket("udp4");
-
-		try {
-			this.server = dgram.createSocket({ type: "udp4", reusePort: true });
-			this.server.bind(UDP_DISCOVERY_PORT, "0.0.0.0", () => {
-				this.adapter.log.info(`UDP discovery listening on port ${UDP_DISCOVERY_PORT} with reusePort`);
-			});
-		} catch (err) {
-			// fallback, falls OS kein SO_REUSEPORT kennt (z. B. Windows)
-			this.adapter.log.warn(`reusePort not available (${err.message}), falling back to reuseAddr`);
-			this.server = dgram.createSocket({ type: "udp4", reuseAddr: true });
-			this.server.bind(UDP_DISCOVERY_PORT, "0.0.0.0", () => {
-				this.adapter.log.info(`UDP discovery listening on port ${UDP_DISCOVERY_PORT} with reuseAddr`);
-			});
-		}
 
 		this.localDevices = {};
 		this.cloudDevices = new Set();
@@ -290,8 +274,10 @@ export class local_api {
 	startUdpDiscovery() {
 		this.adapter.log.debug(`startUdpDiscovery() called`);
 		const devices = {}; // Temporary list to store discovered devices
+		const firstOpts: dgram.SocketOptions = process.platform === "win32" ? { type: "udp4", reuseAddr: true } : { type: "udp4", reusePort: true };
+		const server = dgram.createSocket(firstOpts).bind(UDP_DISCOVERY_PORT);
 
-		this.server.on("message", (msg) => {
+		server.on("message", (msg) => {
 			let decodedMessage;
 			let parsedMessage;
 
@@ -332,10 +318,10 @@ export class local_api {
 			}
 		});
 
-		this.server.on("error", (error) => this.adapter.catchError(`Server error: ${error.stack}`));
+		server.on("error", (error) => this.adapter.catchError(`Server error: ${error.stack}`));
 
 		// Set a timeout for discovering devices
-		this.localDevicesInterval = this.adapter.setInterval(() => {
+		const localDevicesInterval = this.adapter.setInterval(() => {
 			this.adapter.log.debug(`startUdpDiscovery() called, found devices: ${JSON.stringify(devices)}`);
 
 			const oldDevices = new Set(Object.keys(this.localIps));
@@ -358,15 +344,14 @@ export class local_api {
 				delete devices[key];
 		}
 		}, TIMEOUT);
-	}
 
-	// Cleanup function to remove temporary handlers and clear the timeout
-	cleanup() {
-		this.server.removeAllListeners();
-		if (this.localDevicesInterval) {
-			this.adapter.clearTimeout(this.localDevicesInterval);
-			this.localDevicesInterval = null;
-		}
+
+		return () => {
+			this.adapter.clearInterval(localDevicesInterval);
+			server.removeAllListeners();
+			server.close();
+			this.adapter.log.info("UDP discovery stopped");
+		};
 	}
 
 	/**

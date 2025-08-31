@@ -1,5 +1,4 @@
 import net from "net";
-import dgram from "dgram";
 declare class EnhancedSocket extends net.Socket {
     connected: boolean;
     chunkBuffer: Buffer;
@@ -7,7 +6,6 @@ declare class EnhancedSocket extends net.Socket {
 }
 export declare class local_api {
     adapter: any;
-    server: dgram.Socket;
     localDevices: Record<string, EnhancedSocket>;
     cloudDevices: Set<string>;
     localIps: Record<string, string>;
@@ -30,8 +28,7 @@ export declare class local_api {
     clearChunkBuffer(duid: any): void;
     sendMessage(duid: any, message: any): void;
     isConnected(duid: any): boolean;
-    startUdpDiscovery(): void;
-    cleanup(): void;
+    startUdpDiscovery(): () => void;
     /**
      * @param {string} duid
      */
