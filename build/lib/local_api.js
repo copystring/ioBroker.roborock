@@ -267,7 +267,6 @@ class local_api {
             try {
                 // Decrypt the payload (if needed)
                 const parsedDecodedMessage = JSON.parse(decodedMessage);
-                this.adapter.log.debug(`${parsedDecodedMessage.duid} discovered @ ${parsedDecodedMessage.ip}`);
                 if (parsedDecodedMessage) {
                     const localKeys = this.adapter.http_api.getMatchedLocalKeys();
                     const localKey = localKeys.get(parsedDecodedMessage.duid);
