@@ -200,7 +200,7 @@ export class Roborock extends utils.Adapter {
 		this.mainUpdateInterval = this.setInterval(async () => {
 			if (updateIntervalCount % this.config.updateInterval == 0) {
 				await this.http_api.updateHomeData(); // this is needed to get the online status of the devices and has to run before any other requests. Otherwise requests might be missing homedata and will time out.
-				this.adapter.log.debug(`localDevices: ${JSON.stringify(this.local_api.localDevices)}`);
+				this.log.debug(`localDevices: ${JSON.stringify(this.local_api.localDevices)}`);
 				const devices = this.http_api.getDevices();
 
 				for (const device of devices) {
