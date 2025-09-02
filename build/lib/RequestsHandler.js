@@ -185,7 +185,7 @@ class RequestsHandler {
                     mode = parameter;
                     for (const attribute in value) {
                         if (attribute == "ip" && !(await this.isCloudDevice(duid))) {
-                            this.adapter.local_api.localDevices[duid] = value[attribute];
+                            this.adapter.local_api.localIps[duid] = value[attribute];
                         }
                         this.adapter.ensureState(`Devices.${duid}.networkInfo.${attribute}`, { val: value[attribute], ack: true });
                     }
