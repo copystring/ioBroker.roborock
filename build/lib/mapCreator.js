@@ -106,6 +106,33 @@ class MapCreator {
             }
         }
     }
+    appendPolyline(ctx, map, points, from, to, scale, gapPx = 10) {
+        if (to - from < 1)
+            return;
+        let lastX = NaN, lastY = NaN, haveLast = false;
+        const gap2 = gapPx * scale * (gapPx * scale);
+        for (let i = from; i <= to; i++) {
+            const p = points[i];
+            const x = this.robotXtoPixelX(map.IMAGE, p[0] / 50);
+            const y = this.robotYtoPixelY(map.IMAGE, p[1] / 50);
+            if (!haveLast) {
+                ctx.moveTo(x, y);
+                haveLast = true;
+            }
+            else {
+                const dx = x - lastX, dy = y - lastY;
+                if (dx * dx + dy * dy > gap2 || (i !== from && i !== from + 1 && Number.isNaN(lastX))) {
+                    // harter Sprung: „Stift heben”
+                    ctx.moveTo(x, y);
+                }
+                else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            lastX = x;
+            lastY = y;
+        }
+    }
     /**
      * Builds an adjacency matrix indicating which segments (rooms) touch each other.
      * The matrix is 32x32 because segment IDs range from 0 to 31.
@@ -192,12 +219,15 @@ class MapCreator {
         return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
     async canvasMap(mapdata, params = {}) {
-        const { selectedMap = null, mappedRooms = null, options = {}, } = params;
+        const { selectedMap = null, mappedRooms = null, options = {} } = params;
         if (options) {
-            colors.floor = options.FLOORCOLOR;
-            colors.obstacle = options.WALLCOLOR;
-            colors.path = options.PATHCOLOR;
-            colors.newmap = options && options.newmap ? options.newmap : true;
+            if (options.FLOORCOLOR)
+                colors.floor = options.FLOORCOLOR;
+            if (options.WALLCOLOR)
+                colors.obstacle = options.WALLCOLOR;
+            if (options.PATHCOLOR)
+                colors.path = options.PATHCOLOR;
+            colors.newmap = options?.newmap ?? true;
             if (options.ROBOT === "robot") {
                 img = await loadImage(robot);
             }
@@ -390,13 +420,13 @@ class MapCreator {
                 ctx.strokeStyle = "rgba(255,255,255,0.18)"; // transparent, Roborock-like
                 let lastIdx = -1;
                 let segmentStarted = false;
+                ctx.beginPath(); // nur EIN Pfad für alles!
                 for (let i = 0; i < points.length; i++) {
                     const mopIdx = i + mopOffset;
                     if (mops?.[mopIdx] & 1) {
                         const x = this.robotXtoPixelX(mapdata.IMAGE, points[i][0] / 50);
                         const y = this.robotYtoPixelY(mapdata.IMAGE, points[i][1] / 50);
                         if (!segmentStarted) {
-                            ctx.beginPath();
                             ctx.moveTo(x, y);
                             segmentStarted = true;
                         }
@@ -409,9 +439,7 @@ class MapCreator {
                             const dist2 = dx * dx + dy * dy;
                             const threshold = 10 * scale;
                             if (dist2 > threshold * threshold || i !== lastIdx + 1) {
-                                // Start new segment
-                                ctx.stroke();
-                                ctx.beginPath();
+                                // harter Sprung → neuer MoveTo
                                 ctx.moveTo(x, y);
                             }
                             else {
@@ -420,32 +448,99 @@ class MapCreator {
                         }
                         lastIdx = i;
                     }
-                    else if (segmentStarted) {
-                        // End of current segment: only stroke here!
-                        ctx.stroke();
+                    else {
                         segmentStarted = false;
                     }
                 }
-                // Stroke in case the last segment runs until the end
-                if (segmentStarted)
-                    ctx.stroke();
-            }
-            // Male den Pfad
-            if (mapdata.PATH?.points?.length) {
-                ctx.fillStyle = colors.path;
-                ctx.lineWidth = this.adapter.config.map_scale / 2;
-                ctx.strokeStyle = colors.path;
-                ctx.beginPath();
-                let [cold1, cold2] = [this.robotXtoPixelX(mapdata.IMAGE, mapdata.PATH.points[0][0] / 50), this.robotYtoPixelY(mapdata.IMAGE, mapdata.PATH.points[0][1] / 50)];
-                ctx.fillRect(cold1, cold2, (1 * this.adapter.config.map_scale) / 2, (1 * this.adapter.config.map_scale) / 2);
-                mapdata.PATH.points.slice(1).forEach((coord) => {
-                    ctx.moveTo(cold1, cold2);
-                    cold1 = this.robotXtoPixelX(mapdata.IMAGE, coord[0] / 50);
-                    cold2 = this.robotYtoPixelY(mapdata.IMAGE, coord[1] / 50);
-                    ctx.lineTo(cold1, cold2);
-                });
+                // jetzt EIN Stroke für alles
                 ctx.stroke();
-                ctx.closePath();
+            }
+            // Male Pfad + Backwash
+            if (mapdata.PATH?.points?.length && mapdata.MOP_PATH?.length) {
+                const scale = this.adapter.config.map_scale;
+                const pts = mapdata.PATH.points;
+                const mops = mapdata.MOP_PATH;
+                const mopOffset = -12;
+                // --- normaler Pfad ---
+                ctx.beginPath();
+                ctx.lineCap = "round";
+                ctx.lineJoin = "round";
+                ctx.strokeStyle = "rgba(255,255,255,0.5)";
+                ctx.lineWidth = Math.max(1, scale / 2);
+                ctx.setLineDash([]);
+                let lastIdx = -1;
+                for (let i = 0; i < pts.length; i++) {
+                    const idx = i + mopOffset;
+                    const isBackwash = idx >= 0 && idx < mops.length && ((mops[idx] >> 3) & 1) === 1;
+                    if (!isBackwash) {
+                        const x = this.robotXtoPixelX(mapdata.IMAGE, pts[i][0] / 50);
+                        const y = this.robotYtoPixelY(mapdata.IMAGE, pts[i][1] / 50);
+                        if (lastIdx < 0) {
+                            ctx.moveTo(x, y);
+                        }
+                        else {
+                            const last = pts[lastIdx];
+                            const lx = this.robotXtoPixelX(mapdata.IMAGE, last[0] / 50);
+                            const ly = this.robotYtoPixelY(mapdata.IMAGE, last[1] / 50);
+                            const dx = x - lx;
+                            const dy = y - ly;
+                            const dist2 = dx * dx + dy * dy;
+                            const threshold = 10 * scale;
+                            if (dist2 > threshold * threshold || i !== lastIdx + 1) {
+                                ctx.moveTo(x, y);
+                            }
+                            else {
+                                ctx.lineTo(x, y);
+                            }
+                        }
+                        lastIdx = i;
+                    }
+                    else {
+                        lastIdx = -1;
+                    }
+                }
+                ctx.stroke();
+                // --- Backwash-Pfad ---
+                ctx.beginPath();
+                ctx.lineCap = "round";
+                ctx.lineJoin = "round";
+                ctx.strokeStyle = "rgba(255,255,255,0.2)";
+                ctx.lineWidth = 0.5 * scale;
+                ctx.setLineDash([4, 8]);
+                lastIdx = -1;
+                for (let i = 0; i < pts.length; i++) {
+                    const idx = i + mopOffset;
+                    const isBackwash = idx >= 0 && idx < mops.length && ((mops[idx] >> 3) & 1) === 1;
+                    if (isBackwash) {
+                        const x = this.robotXtoPixelX(mapdata.IMAGE, pts[i][0] / 50);
+                        const y = this.robotYtoPixelY(mapdata.IMAGE, pts[i][1] / 50);
+                        if (lastIdx < 0) {
+                            ctx.moveTo(x, y);
+                        }
+                        else {
+                            const last = pts[lastIdx];
+                            const lx = this.robotXtoPixelX(mapdata.IMAGE, last[0] / 50);
+                            const ly = this.robotYtoPixelY(mapdata.IMAGE, last[1] / 50);
+                            const dx = x - lx;
+                            const dy = y - ly;
+                            const dist2 = dx * dx + dy * dy;
+                            const threshold = 10 * scale;
+                            if (dist2 > threshold * threshold || i !== lastIdx + 1) {
+                                ctx.moveTo(x, y);
+                            }
+                            else {
+                                ctx.lineTo(x, y);
+                            }
+                        }
+                        lastIdx = i;
+                    }
+                    else {
+                        lastIdx = -1;
+                    }
+                }
+                ctx.stroke();
+                // Reset dashes, falls später noch mehr gezeichnet wird
+                ctx.setLineDash([]);
             }
             // Male geplanten Pfad
             if (mapdata.GOTO_PREDICTED_PATH) {

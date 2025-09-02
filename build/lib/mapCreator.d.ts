@@ -14,6 +14,7 @@ export declare class MapCreator {
     robotYtoPixelY(image: any, robotCoord: any): number;
     rotateCanvas(img: any, angleInDegrees: any): any;
     drawLineBresenham(imageData: any, x1: any, y1: any, x2: any, y2: any): void;
+    appendPolyline(ctx: any, map: any, points: number[][], from: number, to: number, scale: number, gapPx?: number): void;
     /**
      * Builds an adjacency matrix indicating which segments (rooms) touch each other.
      * The matrix is 32x32 because segment IDs range from 0 to 31.
