@@ -108,7 +108,84 @@ export class local_api {
 			}
 
 			// Try TCP connect
-			await this.createClient(duid, ip);
+			const client = new EnhancedSocket();
+
+			await new Promise<void>((resolve, reject) => {
+				const onErrorOnce = (err: Error) => reject(err);
+				client.once("error", onErrorOnce); // only for the connect phase
+
+				client.setTimeout(5000, () => {
+					client.destroy();
+					reject(new Error("TCP connect timeout"));
+				});
+
+				client.connect(TCP_CONNECTION_PORT, ip, () => {
+					client.off("error", onErrorOnce); // Remove listener
+					client.setTimeout(0);
+					this.adapter.log.info(`TCP client for ${duid} connected`);
+					this.localDevices[duid] = client;
+					this.reconnectPlanned.delete(duid);
+					resolve();
+				});
+			});
+
+			client.on("data", async (message) => {
+				try {
+					if (client.chunkBuffer.length == 0) {
+						if (!this.checkComplete(message)) {
+							this.adapter.log.debug(`New chunk buffer created`);
+						}
+						client.chunkBuffer = message;
+					} else {
+						this.adapter.log.debug(`New chunk buffer data received`);
+						client.chunkBuffer = Buffer.concat([client.chunkBuffer, message]);
+					}
+					// this.adapter.log.debug(`new chunk received: ${message.toString("hex")}`);
+
+					let offset = 0;
+					if (this.checkComplete(client.chunkBuffer)) {
+						if (client.chunkBuffer.length != message.length) {
+							this.adapter.log.debug(`Chunk buffer data is complete. Processing...`);
+						}
+						// this.adapter.log.debug(`chunkBuffer: ${client.chunkBuffer.toString("hex")}`);
+						while (offset + 4 <= client.chunkBuffer.length) {
+							const segmentLength = client.chunkBuffer.readUInt32BE(offset);
+							// length of 17 does not contain any useful data.
+							// The parser for this looks like this: const shortMessageParser = new Parser().endianess("big").string("version", {length: 3,}).uint32("seq").uint32("random").uint32("timestamp").uint16("protocol")
+							if (segmentLength != 17) {
+								const currentBuffer = client.chunkBuffer.subarray(offset + 4, offset + segmentLength + 4);
+								const dataArr = this.adapter.requests_handler.message_parser._decodeMsg(currentBuffer, duid);
+
+								const allMessages = Array.isArray(dataArr) ? dataArr : dataArr ? [dataArr] : [];
+								for (const data of allMessages) {
+									if (data.protocol == 4) {
+										const dps = JSON.parse(data.payload).dps;
+
+										if (dps) {
+											const _102 = JSON.stringify(dps["102"]);
+											const parsed_102 = JSON.parse(JSON.parse(_102));
+											const id = parsed_102.id;
+											const result = parsed_102.result;
+
+											this.adapter.requests_handler.resolvePendingRequest(id, result, data.protocol);
+										}
+									}
+								}
+							}
+							offset += 4 + segmentLength;
+						}
+
+						this.clearChunkBuffer(duid);
+					}
+				} catch (error) {
+					this.adapter.catchError(`Failed to create tcp client: ${error.stack}`, `function initiateClient`, duid);
+				}
+			});
+
+			client.on("close", () => this.scheduleReconnect(duid, `connection closed`));
+			client.on("error", (error) => this.scheduleReconnect(duid, `connection error: ${error.message}`));
+			client.on("end", () => this.scheduleReconnect(duid, "connection ended"));
+
 			this.adapter.log.info(`TCP client established for ${duid}`);
 			this.cloudDevices.delete(duid);
 		} catch (err: any) {
@@ -118,86 +195,6 @@ export class local_api {
 		} finally {
 			this.connecting.delete(duid);
 		}
-	}
-
-	async createClient(duid, ip) {
-		const client = new EnhancedSocket();
-
-		await new Promise<void>((resolve, reject) => {
-			const onErrorOnce = (err: Error) => reject(err);
-			client.once("error", onErrorOnce); // only for the connect phase
-
-			client.setTimeout(5000, () => {
-				client.destroy();
-				reject(new Error("TCP connect timeout"));
-			});
-
-			client.connect(TCP_CONNECTION_PORT, ip, () => {
-				client.off("error", onErrorOnce); // Remove listener
-				client.setTimeout(0);
-				this.adapter.log.info(`TCP client for ${duid} connected`);
-				this.localDevices[duid] = client;
-				this.reconnectPlanned.delete(duid);
-				resolve();
-			});
-		});
-
-		client.on("data", async (message) => {
-			try {
-				if (client.chunkBuffer.length == 0) {
-					if (!this.checkComplete(message)) {
-						this.adapter.log.debug(`New chunk buffer created`);
-					}
-					client.chunkBuffer = message;
-				} else {
-					this.adapter.log.debug(`New chunk buffer data received`);
-					client.chunkBuffer = Buffer.concat([client.chunkBuffer, message]);
-				}
-				// this.adapter.log.debug(`new chunk received: ${message.toString("hex")}`);
-
-				let offset = 0;
-				if (this.checkComplete(client.chunkBuffer)) {
-					if (client.chunkBuffer.length != message.length) {
-						this.adapter.log.debug(`Chunk buffer data is complete. Processing...`);
-					}
-					// this.adapter.log.debug(`chunkBuffer: ${client.chunkBuffer.toString("hex")}`);
-					while (offset + 4 <= client.chunkBuffer.length) {
-						const segmentLength = client.chunkBuffer.readUInt32BE(offset);
-						// length of 17 does not contain any useful data.
-						// The parser for this looks like this: const shortMessageParser = new Parser().endianess("big").string("version", {length: 3,}).uint32("seq").uint32("random").uint32("timestamp").uint16("protocol")
-						if (segmentLength != 17) {
-							const currentBuffer = client.chunkBuffer.subarray(offset + 4, offset + segmentLength + 4);
-							const dataArr = this.adapter.requests_handler.message_parser._decodeMsg(currentBuffer, duid);
-
-							const allMessages = Array.isArray(dataArr) ? dataArr : dataArr ? [dataArr] : [];
-							for (const data of allMessages) {
-								if (data.protocol == 4) {
-									const dps = JSON.parse(data.payload).dps;
-
-									if (dps) {
-										const _102 = JSON.stringify(dps["102"]);
-										const parsed_102 = JSON.parse(JSON.parse(_102));
-										const id = parsed_102.id;
-										const result = parsed_102.result;
-
-										this.adapter.requests_handler.resolvePendingRequest(id, result, data.protocol);
-									}
-								}
-							}
-						}
-						offset += 4 + segmentLength;
-					}
-
-					this.clearChunkBuffer(duid);
-				}
-			} catch (error) {
-				this.adapter.catchError(`Failed to create tcp client: ${error.stack}`, `function createClient`, duid);
-			}
-		});
-
-		client.on("close", () => this.scheduleReconnect(duid, `connection closed`));
-		client.on("error", (error) => this.scheduleReconnect(duid, `connection error: ${error.message}`));
-		client.on("end", () => this.scheduleReconnect(duid, "connection ended"));
 	}
 
 	scheduleReconnect(duid: string, reason: string) {
@@ -220,11 +217,12 @@ export class local_api {
 		const t = this.adapter.setTimeout(() => {
 			this.reconnectPlanned.delete(duid);
 
-			// nur nochmal probieren, wenn duid noch lokal ist
+			// retry only if duid is still local
 			if (this.getIpForDuid(duid)) {
 				this.initiateClient(duid).catch((e) => this.adapter.log.warn(`Reconnect attempt failed for ${duid}: ${e?.message || e}`));
 			} else {
-				this.adapter.log.debug(`Skip reconnect for ${duid}, no longer in localIps`);
+				this.adapter.log.debug(`Skip reconnect for ${duid}, no longer in localIps. Trying again next time.`);
+				this.scheduleReconnect(duid, "waiting for IP");
 			}
 		}, 5000);
 	}
@@ -337,9 +335,8 @@ export class local_api {
 			// Clear the temporary devices list for the next discovery
 			for (const key of Object.keys(devices)) {
 				delete devices[key];
-		}
+			}
 		}, TIMEOUT);
-
 
 		return () => {
 			this.adapter.clearInterval(localDevicesInterval);

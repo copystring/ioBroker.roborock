@@ -21,7 +21,6 @@ export declare class local_api {
      * @returns {Promise<void>} Resolves when the client attempt has finished.
      */
     initiateClient(duid: string): Promise<void>;
-    createClient(duid: any, ip: any): Promise<void>;
     scheduleReconnect(duid: string, reason: string): void;
     isLocallyReachable(ip: string): Promise<boolean>;
     checkComplete(buffer: any): boolean;

@@ -40,7 +40,7 @@ export declare class RRMapParser {
     getForbiddenZone(buf: any, dataPosition: any, offset: any): number[];
     getSingleByteOffset(buf: any): any;
     getTwoByteOffsets(buf: any): any[];
-    getDatatype(buf: any, offset: any): "UInt8" | "UInt16LE" | "UInt32LE" | "Unknown";
+    getDatatype(buf: any, offset: any): "Unknown" | "UInt8" | "UInt16LE" | "UInt32LE";
     getNonceData(buf: Buffer): {
         type: number;
         unixTime: number;
