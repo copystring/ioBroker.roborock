@@ -925,7 +925,8 @@ class Roborock extends utils.Adapter {
     onUnload(callback) {
         try {
             this.clearTimersAndIntervals();
-            this.stopUdpDiscovery();
+            if (this.stopUdpDiscovery())
+                this.stopUdpDiscovery();
             this.setState("info.connection", { val: false, ack: true });
             callback();
         }
