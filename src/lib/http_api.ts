@@ -136,7 +136,13 @@ export class http_api {
 
 		if (this.homeID) {
 			this.adapter.log.debug(`Getting HomeData with homeId: ${this.homeID}`);
-			this.homeData = await this.realApi.get(`v2/user/homes/${this.homeID}`).then((res) => res.data.result);
+			this.homeData = await this.realApi
+				.get(`v2/user/homes/${this.homeID}`)
+				.then((res) => res.data.result)
+				.catch((e) => {
+					this.adapter.log.error(`Error: ${e?.stack || e}`);
+					return null;
+				});
 
 			await this.adapter.setState("HomeData", { val: JSON.stringify(this.homeData), ack: true });
 		} else {
