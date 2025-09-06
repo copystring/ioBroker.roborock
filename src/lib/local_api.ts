@@ -9,7 +9,6 @@ import crc32 from "crc-32";
 
 const UDP_DISCOVERY_PORT = 58866;
 const TCP_CONNECTION_PORT = 58867;
-const TIMEOUT = 5000; // 5 seconds timeout
 
 const BROADCAST_TOKEN = Buffer.from("qWKYcdQWrbm9hPqe", "utf8");
 
@@ -336,7 +335,7 @@ export class local_api {
 			for (const key of Object.keys(devices)) {
 				delete devices[key];
 			}
-		}, TIMEOUT);
+		}, 60000);
 
 		return () => {
 			this.adapter.clearInterval(localDevicesInterval);
