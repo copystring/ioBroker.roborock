@@ -302,9 +302,10 @@ export class local_api {
 					const localKeys = this.adapter.http_api.getMatchedLocalKeys();
 					const localKey = localKeys.get(parsedDecodedMessage.duid);
 
-					if (localKey) {
-						// Only add devices that are in the localKeys list
+					if (localKey && !devices[parsedDecodedMessage.duid]) {
+						// Only add devices that are in the localKeys list and not already discovered
 						devices[parsedDecodedMessage.duid] = parsedDecodedMessage.ip;
+						this.adapter.log.debug(`Added local device: ${parsedDecodedMessage.duid} @ ${parsedDecodedMessage.ip} using version ${version}`);
 					}
 				}
 			} catch (error) {
