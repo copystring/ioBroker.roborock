@@ -17,8 +17,6 @@ let socketServer, webserver;
 
 const dockingStationStates = ["cleanFluidStatus", "waterBoxFilterStatus", "dustBagStatus", "dirtyWaterBoxStatus", "clearWaterBoxStatus", "isUpdownWaterReady"];
 
-let updateIntervalCount = 0;
-
 type StateObjectOptions = {
 	path: string;
 	name: string;
@@ -197,8 +195,13 @@ export class Roborock extends utils.Adapter {
 
 		// handle requests based on interval here. No separate interval needed anywhere
 		this.log.debug(`initializing mainUpdateInterval`);
+		let updateIntervalCount = this.config.updateInterval; // start with update to get data right away
 		this.mainUpdateInterval = this.setInterval(async () => {
-			if (updateIntervalCount % this.config.updateInterval == 0) {
+			updateIntervalCount++; // this needs to be here in case someone sets the interval to 1 second to avoid running it twice in the beginning
+
+			if (updateIntervalCount >= this.config.updateInterval) {
+				updateIntervalCount = 0;
+
 				await this.http_api.updateHomeData(); // this is needed to get the online status of the devices and has to run before any other requests. Otherwise requests might be missing homedata and will time out.
 				const devices = this.http_api.getDevices();
 				this.log.debug(`localDevices: ${JSON.stringify(this.local_api.localDevices)}`);
@@ -233,9 +236,7 @@ export class Roborock extends utils.Adapter {
 						}
 					}
 				}
-				updateIntervalCount = 0;
 			}
-			updateIntervalCount++;
 		}, 1000);
 
 		try {
