@@ -172,9 +172,10 @@ class http_api {
     }
     getDevices() {
         if (!this.homeData) {
-            throw new Error("this.homeData is not initialized. Initialize via updateHomeData() first");
+            this.adapter.log.warn("homeData not initialized, returning empty devices list");
+            return [];
         }
-        return this.homeData.devices.concat(this.homeData.receivedDevices);
+        return [...(this.homeData.devices || []), ...(this.homeData.receivedDevices || [])];
     }
     getReceivedDevices() {
         if (!this.homeData) {

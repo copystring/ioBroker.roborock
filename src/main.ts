@@ -143,7 +143,7 @@ export class Roborock extends utils.Adapter {
 		await this.mqtt_api.init();
 
 		await this.http_api.updateHomeData();
-		const devices = await this.http_api.getDevices();
+		const devices = this.http_api.getDevices();
 
 		// need to get network data before processing any other data
 		for (const device of devices) {

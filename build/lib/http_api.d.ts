@@ -22,10 +22,10 @@ export declare class http_api {
      */
     getFirmwareStates(duid: any): Promise<any>;
     getProducts(): any;
-    getDevices(): any;
+    getDevices(): any[];
     getReceivedDevices(): any;
     getMatchedRoomIDs(assignFallbackNames?: boolean): any;
-    getMatchedLocalKeys(): Map<unknown, unknown>;
+    getMatchedLocalKeys(): Map<any, any>;
     /**
      * @param {string} duid
      * @returns {string|null}
