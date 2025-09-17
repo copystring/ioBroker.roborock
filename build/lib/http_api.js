@@ -226,14 +226,20 @@ class http_api {
             throw new Error("Parameter duid missing in function getRobotModel");
         }
         const devices = this.getDevices();
-        const products = this.getProducts();
-        const device = devices.find((device) => device.duid === duid);
-        if (!device) {
-            this.adapter.log.error(`device ${duid} not found in devices`);
+        try {
+            const products = this.getProducts();
+            const device = devices.find((device) => device.duid === duid);
+            if (!device) {
+                this.adapter.log.error(`device ${duid} not found in devices`);
+                return null;
+            }
+            const product = products.find((product) => product.id === device.productId);
+            return product ? product.model : null;
+        }
+        catch (error) {
+            this.adapter.log.error(`Error in getRobotModel: ${error.message}`);
             return null;
         }
-        const product = products.find((product) => product.id === device.productId);
-        return product ? product.model : null;
     }
     /**
      * @param {string} duid
