@@ -246,10 +246,16 @@ class http_api {
      */
     getProductCategory(duid) {
         const devices = this.getDevices();
-        const products = this.getProducts();
-        const productID = devices.find((device) => device.duid == duid).productId;
-        const product = products.find((product) => product.id == productID);
-        return product ? product.category : null;
+        try {
+            const products = this.getProducts();
+            const productID = devices.find((device) => device.duid == duid).productId;
+            const product = products.find((product) => product.id == productID);
+            return product ? product.category : null;
+        }
+        catch (error) {
+            this.adapter.log.error(`Error in getProductCategory: ${error.message}`);
+            return null;
+        }
     }
     /**
      * @param {string} duid
