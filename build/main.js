@@ -746,7 +746,7 @@ class Roborock extends utils.Adapter {
             const duid = device.duid;
             if (localKeys) {
                 const localKey = localKeys.get(duid);
-                const { u, s, k } = await this.http_api.get_rriot();
+                const { u, s, k } = this.http_api.get_rriot();
                 if (this.device_features.getFeatureList(duid).isCameraSupported) {
                     cameraCount++;
                     go2rtcConfig.streams[duid] = `roborock://mqtt-eu-3.roborock.com:8883?u=${u}&s=${s}&k=${k}&did=${duid}&key=${localKey}&pin=${this.config.cameraPin}`;

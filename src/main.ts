@@ -883,7 +883,7 @@ export class Roborock extends utils.Adapter {
 			if (localKeys) {
 				const localKey = localKeys.get(duid);
 
-				const { u, s, k } = await this.http_api.get_rriot();
+				const { u, s, k } = this.http_api.get_rriot();
 
 				if (this.device_features.getFeatureList(duid).isCameraSupported) {
 					cameraCount++;

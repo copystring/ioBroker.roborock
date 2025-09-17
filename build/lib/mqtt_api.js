@@ -92,7 +92,7 @@ class mqtt_api {
      * @param {object} client - The MQTT client.
      */
     async subscribe_mqtt_events(client) {
-        const rriot = await this.adapter.http_api.get_rriot();
+        const rriot = this.adapter.http_api.get_rriot();
         client.on("connect", (result) => {
             if (result) {
                 // Subscribe to the necessary topic
@@ -304,7 +304,7 @@ class mqtt_api {
      * @param {Buffer} roborockMessage - The message to send.
      */
     async sendMessage(duid, roborockMessage) {
-        const rriot = await this.adapter.http_api.get_rriot();
+        const rriot = this.adapter.http_api.get_rriot();
         if (this.client) {
             this.client.publish(`rr/m/i/${rriot.u}/${this.mqttUser}/${duid}`, roborockMessage, { qos: 1 });
         }

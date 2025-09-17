@@ -74,24 +74,30 @@ class http_api {
         if (!this.userData.token)
             throw new Error("Failed to retrieve user token. Check login credentials.");
         this.loginApi.defaults.headers.common["Authorization"] = this.userData.token;
-        const rriot = this.get_rriot();
-        // Initialize the real API.
-        const realApi = axios_1.default.create({ baseURL: this.userData.rriot.r.a });
-        realApi.interceptors.request.use((config) => {
-            const timestamp = Math.floor(Date.now() / 1000);
-            const nonce = crypto_1.default
-                .randomBytes(6)
-                .toString("base64")
-                .substring(0, 6)
-                .replace(/[+/]/g, (m) => (m === "+" ? "X" : "Y"));
-            const urlPath = realApi ? new URL(realApi.getUri(config)).pathname : "";
-            const prestr = [rriot.u, rriot.s, nonce, timestamp, md5hex(urlPath), "", ""].join(":");
-            const mac = crypto_1.default.createHmac("sha256", rriot.h).update(prestr).digest("base64");
-            config.headers["Authorization"] = `Hawk id="${rriot.u}", s="${rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
-            return config;
-        });
-        this.realApi = realApi;
-        await this.adapter.setState("info.connection", { val: true, ack: true });
+        try {
+            const rriot = this.get_rriot();
+            // Initialize the real API.
+            const realApi = axios_1.default.create({ baseURL: this.userData.rriot.r.a });
+            realApi.interceptors.request.use((config) => {
+                const timestamp = Math.floor(Date.now() / 1000);
+                const nonce = crypto_1.default
+                    .randomBytes(6)
+                    .toString("base64")
+                    .substring(0, 6)
+                    .replace(/[+/]/g, (m) => (m === "+" ? "X" : "Y"));
+                const urlPath = realApi ? new URL(realApi.getUri(config)).pathname : "";
+                const prestr = [rriot.u, rriot.s, nonce, timestamp, md5hex(urlPath), "", ""].join(":");
+                const mac = crypto_1.default.createHmac("sha256", rriot.h).update(prestr).digest("base64");
+                config.headers["Authorization"] = `Hawk id="${rriot.u}", s="${rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
+                return config;
+            });
+            this.realApi = realApi;
+            await this.adapter.setState("info.connection", { val: true, ack: true });
+        }
+        catch (error) {
+            this.adapter.log.error(`Error in initializeRealApi: ${error.stack}`);
+            await this.adapter.setState("info.connection", { val: false, ack: true });
+        }
     }
     async getHomeID() {
         if (!this.loginApi) {
