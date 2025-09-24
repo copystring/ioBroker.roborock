@@ -1,12 +1,12 @@
 import type { Roborock } from "../main";
 import { RRMapParser } from "./RRMapParser";
 import { MapCreator } from "./mapCreator";
-import { message_parser } from "./message_parser";
-export declare class RequestsHandler {
+import { messageParser } from "./messageParser";
+export declare class requestsHandler {
     adapter: Roborock;
     idCounter: number;
     messageQueue: Map<string, any>;
-    message_parser: message_parser;
+    messageParser: messageParser;
     mapParser: RRMapParser;
     mapCreator: MapCreator;
     mqttResetInterval: NodeJS.Timeout | null;
@@ -68,12 +68,6 @@ export declare class RequestsHandler {
      * @param {string} duid
      */
     getSelectedMap(duid: any): number | null;
-    /**
-     * Checks if the given DUID is a known L01 device that only works via MQTT (until TCP support is verified).
-     * @param {string} duid - The device unique id.
-     * @returns {boolean}
-     */
-    isMQTTOnlyL01Device(duid: any): boolean;
     /**
      * @param {string} duid
      * @param {string} method

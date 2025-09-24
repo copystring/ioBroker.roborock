@@ -152,7 +152,7 @@ class mqtt_api {
                 // this.adapter.log.debug(`MESSAGE RECEIVED for duid ${duid} with key: ${localKeys.get(duid)} data: ${JSON.stringify(data.toString("hex"))} message: ${message}`);
                 // this.adapter.log.debug(`MESSAGE RECEIVED for duid ${duid} with key: ${localKeys.get(duid)} data: ${JSON.stringify(data)}`);
                 // this.adapter.log.debug("Protocol: " + data.protocol);
-                const dataArr = this.adapter.requests_handler.message_parser._decodeMsg(message, duid);
+                const dataArr = this.adapter.requestsHandler.messageParser._decodeMsg(message, duid);
                 const allMessages = Array.isArray(dataArr) ? dataArr : dataArr ? [dataArr] : [];
                 // this.adapter.log.debug(`Received ${allMessages.length} messages for duid ${duid} with topic ${topic} allMessages: ${JSON.stringify(allMessages)}.`);
                 for (const data of allMessages) {
@@ -175,7 +175,7 @@ class mqtt_api {
                         // this.adapter.log.debug(`Cloud message for ${duid} with protocol 102 and id ${dps.id} received. Result: ${JSON.stringify(dps.result)}`);
                         // special check for secure request like get_map_v1 etc. Don't process if result is OK. Instead wait for the actual response for protocol 301
                         if (dps.result != "ok") {
-                            this.adapter.requests_handler.resolvePendingRequest(dps.id, dps.result, data.protocol);
+                            this.adapter.requestsHandler.resolvePendingRequest(dps.id, dps.result, data.protocol);
                         }
                     }
                     else if (data.protocol == 300 || data.protocol == 301) {
@@ -248,7 +248,7 @@ class mqtt_api {
                 this.pendingPhotoRequests[data.payload.id].chunks.push(data.payload);
                 // If we have all chunks, resolve the pending request
                 const photoDataGzip = Buffer.concat(this.pendingPhotoRequests[data.payload.id].chunks);
-                this.adapter.requests_handler.resolvePendingRequest(data.payload.id, photoDataGzip, data.protocol);
+                this.adapter.requestsHandler.resolvePendingRequest(data.payload.id, photoDataGzip, data.protocol);
             }
             else {
                 // Handle other protocol 301 messages (not photo chunks)
@@ -256,7 +256,7 @@ class mqtt_api {
                 if (data.payload.subarray(0, 8).toString() === "ROBOROCK") {
                     const photoData = photoParser.parse(data.payload);
                     this.adapter.log.debug(`Cloud message with protocol 301 and photo id ${photoData.id} received.`);
-                    this.adapter.requests_handler.resolvePendingRequest(photoData.id, data.payload.slice(56), data.protocol);
+                    this.adapter.requestsHandler.resolvePendingRequest(photoData.id, data.payload.slice(56), data.protocol);
                     // Handle map data
                 }
                 else if (endpoint.startsWith(parsedData.endpoint)) {
@@ -266,7 +266,7 @@ class mqtt_api {
                     const decrypted = Buffer.concat([decipher.update(data.payload.subarray(24)), decipher.final()]);
                     const unzipped = zlib_1.default.gunzipSync(decrypted);
                     // Resolve the pending request with the decrypted data
-                    this.adapter.requests_handler.resolvePendingRequest(parsedData.id, unzipped, data.protocol);
+                    this.adapter.requestsHandler.resolvePendingRequest(parsedData.id, unzipped, data.protocol);
                 }
             }
         }

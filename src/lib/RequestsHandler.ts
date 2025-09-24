@@ -4,7 +4,7 @@ import fs from "fs";
 import zlib from "zlib";
 import { RRMapParser } from "./RRMapParser";
 import { MapCreator } from "./mapCreator";
-import { message_parser } from "./message_parser";
+import { messageParser } from "./messageParser";
 
 const requestTimeout = 30000; // 30s
 
@@ -37,11 +37,11 @@ const parameterFolders = {
 	get_carpet_cleaning_mode: "deviceStatus",
 };
 
-export class RequestsHandler {
+export class requestsHandler {
 	adapter: Roborock;
 	idCounter: number;
 	messageQueue: Map<string, any>;
-	message_parser: message_parser;
+	messageParser: messageParser;
 	mapParser: RRMapParser;
 	mapCreator: MapCreator;
 	mqttResetInterval: NodeJS.Timeout | null = null;
@@ -54,7 +54,7 @@ export class RequestsHandler {
 
 		this.messageQueue = new Map();
 
-		this.message_parser = new message_parser(this.adapter);
+		this.messageParser = new messageParser(this.adapter);
 
 		this.mapParser = new RRMapParser(this.adapter);
 		this.mapCreator = new MapCreator(this.adapter);
@@ -689,17 +689,6 @@ export class RequestsHandler {
 		return this.cached_get_status_value[duid].map_status >> 2; // Bitwise right shift to obtain the selected map
 	}
 
-	/**
-	 * Checks if the given DUID is a known L01 device that only works via MQTT (until TCP support is verified).
-	 * @param {string} duid - The device unique id.
-	 * @returns {boolean}
-	 */
-	isMQTTOnlyL01Device(duid) {
-		const L01Models = ["roborock.vacuum.a144", "roborock.vacuum.a147", "roborock.vacuum.a187", "roborock.vacuum.a156", "roborock.vacuum.a135", "roborock.vacuum.a168", "roborock.vacuum.a101"];
-
-		const model = this.adapter.http_api.getRobotModel(duid);
-		return typeof model === "string" && L01Models.includes(model.trim());
-	}
 
 	/**
 	 * @param {string} duid
@@ -709,7 +698,6 @@ export class RequestsHandler {
 	async sendRequest(duid, method, params) {
 		const remoteConnection = await this.isCloudDevice(duid);
 		let protocol = 101;
-		const isL01Device = this.isMQTTOnlyL01Device(duid);
 		const version = await this.adapter.getDeviceProtocolVersion(duid);
 
 		this.idCounter = this.idCounter > 9999 ? 1 : this.idCounter + 1;
@@ -717,12 +705,12 @@ export class RequestsHandler {
 
 		const timestamp = Math.floor(Date.now() / 1000);
 
-		if (!remoteConnection && method != "get_map_v1" && method != "get_clean_record_map" && method != "get_network_info" && !isL01Device) {
+		if (!remoteConnection && method != "get_map_v1" && method != "get_clean_record_map" && method != "get_network_info") {
 			protocol = 4;
 		}
 
-		const payload = await this.message_parser.buildPayload(duid, protocol, messageID, method, params);
-		const roborockMessage = await this.message_parser.buildRoborockMessage(duid, protocol, timestamp, payload);
+		const payload = await this.messageParser.buildPayload(duid, protocol, messageID, method, params);
+		const roborockMessage = await this.messageParser.buildRoborockMessage(duid, protocol, timestamp, payload);
 
 		const mqttConnectionState = this.adapter.mqtt_api.isConnected();
 		const localConnectionState = this.adapter.local_api.isConnected(duid);
@@ -752,7 +740,7 @@ export class RequestsHandler {
 				const timeout = this.adapter.setTimeout(() => {
 					this.adapter.pendingRequests.delete(messageID);
 					this.adapter.local_api.clearChunkBuffer(duid);
-					if (remoteConnection || isL01Device) {
+					if (remoteConnection) {
 						reject(new Error(`Cloud request with id ${messageID} and method ${method} timed out after 30 seconds. MQTT connection state: ${mqttConnectionState}`));
 					} else {
 						reject(new Error(`Local request with id ${messageID} and method ${method} timed out after 30 seconds. Local connection state: ${localConnectionState}`));
@@ -765,9 +753,6 @@ export class RequestsHandler {
 				if (remoteConnection || method == "get_map_v1" || method == "get_clean_record_map" || method == "get_photo" || method == "get_network_info") {
 					this.adapter.mqtt_api.sendMessage(duid, roborockMessage);
 					this.adapter.log.debug(`Sent payload for ${duid} with ${payload} using cloud connection using version ${version}`);
-				} else if (isL01Device) {
-					// Special case devices with version L01
-					this.adapter.mqtt_api.sendMessage(duid, roborockMessage);
 				} else {
 					const lengthBuffer = Buffer.alloc(4);
 					lengthBuffer.writeUInt32BE(roborockMessage.length, 0);

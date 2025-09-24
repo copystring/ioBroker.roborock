@@ -34,7 +34,8 @@
 		"moduleResolution": "Node",
 		"sourceMap": true,
 		"inlineSources": true,
-		"strict": true
+		"strict": true,
+		"types": ["mocha", "node"]
 	},
 	"include": ["src/**/*.ts", "src/**/*.d.ts"],
 	"exclude": [

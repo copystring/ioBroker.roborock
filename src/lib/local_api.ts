@@ -153,7 +153,7 @@ export class local_api {
 							// The parser for this looks like this: const shortMessageParser = new Parser().endianess("big").string("version", {length: 3,}).uint32("seq").uint32("random").uint32("timestamp").uint16("protocol")
 							if (segmentLength != 17) {
 								const currentBuffer = client.chunkBuffer.subarray(offset + 4, offset + segmentLength + 4);
-								const dataArr = this.adapter.requests_handler.message_parser._decodeMsg(currentBuffer, duid);
+								const dataArr = this.adapter.requestsHandler.messageParser._decodeMsg(currentBuffer, duid);
 
 								const allMessages = Array.isArray(dataArr) ? dataArr : dataArr ? [dataArr] : [];
 								for (const data of allMessages) {
@@ -166,7 +166,7 @@ export class local_api {
 											const id = parsed_102.id;
 											const result = parsed_102.result;
 
-											this.adapter.requests_handler.resolvePendingRequest(id, result, data.protocol);
+											this.adapter.requestsHandler.resolvePendingRequest(id, result, data.protocol);
 										}
 									}
 								}

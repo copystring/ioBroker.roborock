@@ -7,7 +7,7 @@ import go2rtcPath from "go2rtc-static";
 
 import { roborock_package_helper } from "./lib/roborock_package_helper";
 import { device_features } from "./lib/device_features";
-import { RequestsHandler } from "./lib/RequestsHandler";
+import { requestsHandler } from "./lib/requestsHandler";
 import { http_api } from "./lib/http_api";
 import { local_api } from "./lib/local_api";
 import { mqtt_api } from "./lib/mqtt_api";
@@ -109,7 +109,7 @@ export class Roborock extends utils.Adapter {
 		this.local_api = new local_api(this);
 		this.mqtt_api = new mqtt_api(this);
 		this.roborock_package_helper = new roborock_package_helper(this);
-		this.requests_handler = new RequestsHandler(this);
+		this.requestsHandler = new requestsHandler(this);
 		this.device_features = new device_features(this);
 		this.sniffing = new sniffing(this);
 
@@ -152,7 +152,7 @@ export class Roborock extends utils.Adapter {
 			if (version != "A01") {
 				const duid = device.duid;
 
-				await this.requests_handler.getParameter(duid, "get_network_info", []); // this needs to be called first on start of adapter to get the IP adresses of each device
+				await this.requestsHandler.getParameter(duid, "get_network_info", []); // this needs to be called first on start of adapter to get the IP adresses of each device
 			}
 		}
 
@@ -169,20 +169,20 @@ export class Roborock extends utils.Adapter {
 			await this.createDeviceObjects(device);
 			switch (version) {
 				case "A01":
-					await this.requests_handler.getStatus(duid);
+					await this.requestsHandler.getStatus(duid);
 					break;
 				default:
 					if (!device.online) {
 						this.log.debug(`Device ${duid} is offline. Skipping status update.`);
 					} else {
 						// get all maps on start of adapter but don't wait for them to finish. Not waiting speeds up the startup process
-						this.requests_handler.getCleanSummary(duid).catch((error) => {
+						this.requestsHandler.getCleanSummary(duid).catch((error) => {
 							this.catchError(error.stack, "getCleanSummary", duid);
 						});
-						this.requests_handler.getStatus(duid).catch((error) => {
+						this.requestsHandler.getStatus(duid).catch((error) => {
 							this.catchError(error.stack, "getStatus", duid);
 						});
-						this.requests_handler.getMap(duid).catch((error) => {
+						this.requestsHandler.getMap(duid).catch((error) => {
 							this.catchError(error.stack, "getMap", duid);
 						});
 					}
@@ -218,18 +218,18 @@ export class Roborock extends utils.Adapter {
 
 						switch (version) {
 							case "A01":
-								await this.requests_handler.getStatus(duid);
+								await this.requestsHandler.getStatus(duid);
 								break;
 							default:
 								try {
-									await this.requests_handler.getStatus(duid);
+									await this.requestsHandler.getStatus(duid);
 
 									this.updateDeviceData(duid);
 									this.updateConsumablesPercent(duid);
 
 									// update map when needed
-									const isCleaning = this.requests_handler.isCleaning(duid);
-									if (isCleaning) this.requests_handler.getMap(duid);
+									const isCleaning = this.requestsHandler.isCleaning(duid);
+									if (isCleaning) this.requestsHandler.getMap(duid);
 								} catch (error) {
 									this.catchError(error.stack, "mainUpdateInterval", duid);
 								}
@@ -431,7 +431,7 @@ export class Roborock extends utils.Adapter {
 					case "app_pause":
 					case "app_charge":
 						sendValue.parameters = data["parameters"];
-						this.requests_handler.command(data["duid"], sendValue.command, sendValue.parameters);
+						this.requestsHandler.command(data["duid"], sendValue.command, sendValue.parameters);
 						break;
 
 					case "getRobots":
@@ -445,11 +445,11 @@ export class Roborock extends utils.Adapter {
 						break;
 
 					case "getMap":
-						this.requests_handler.getMap(data.duid);
+						this.requestsHandler.getMap(data.duid);
 						break;
 
 					case "get_photo":
-						this.requests_handler.getParameter(data["duid"], "get_photo", data["attribute"]);
+						this.requestsHandler.getParameter(data["duid"], "get_photo", data["attribute"]);
 						break;
 					case "sniffing_decrypt":
 						try {
@@ -493,7 +493,7 @@ export class Roborock extends utils.Adapter {
 		if (version != "A01") {
 			const requestList = ["get_fw_features", "get_multi_maps_list", "get_room_mapping", "get_consumable", "get_server_timer", "get_timer"];
 			for (const request of requestList) {
-				this.requests_handler.getParameter(duid, request, []);
+				this.requestsHandler.getParameter(duid, request, []);
 			}
 
 			this.checkForNewFirmware(duid);
@@ -509,18 +509,18 @@ export class Roborock extends utils.Adapter {
 					break;
 				case "roborock.vacuum.s6":
 				case "roborock.vacuum.a72":
-					this.requests_handler.getParameter(duid, "get_carpet_mode", []);
+					this.requestsHandler.getParameter(duid, "get_carpet_mode", []);
 					break;
 				case "roborock.vacuum.a27":
-					this.requests_handler.getParameter(duid, "get_dust_collection_switch_status", {});
-					this.requests_handler.getParameter(duid, "get_wash_towel_mode", {});
-					this.requests_handler.getParameter(duid, "get_smart_wash_params", {});
-					this.requests_handler.getParameter(duid, "app_get_dryer_setting", {});
+					this.requestsHandler.getParameter(duid, "get_dust_collection_switch_status", {});
+					this.requestsHandler.getParameter(duid, "get_wash_towel_mode", {});
+					this.requestsHandler.getParameter(duid, "get_smart_wash_params", {});
+					this.requestsHandler.getParameter(duid, "app_get_dryer_setting", {});
 					break;
 				default:
-					this.requests_handler.getParameter(duid, "get_carpet_mode", []);
-					this.requests_handler.getParameter(duid, "get_carpet_clean_mode", []);
-					this.requests_handler.getParameter(duid, "get_water_box_custom_mode", []);
+					this.requestsHandler.getParameter(duid, "get_carpet_mode", []);
+					this.requestsHandler.getParameter(duid, "get_carpet_clean_mode", []);
+					this.requestsHandler.getParameter(duid, "get_water_box_custom_mode", []);
 			}
 		}
 	}
@@ -532,8 +532,8 @@ export class Roborock extends utils.Adapter {
 		if (this.mainUpdateInterval) {
 			this.clearInterval(this.mainUpdateInterval);
 		}
-		if (this.requests_handler) {
-			this.requests_handler.clearQueue();
+		if (this.requestsHandler) {
+			this.requestsHandler.clearQueue();
 		}
 
 		if (this.mainUpdateInterval) {
@@ -1039,7 +1039,7 @@ export class Roborock extends utils.Adapter {
 		// Cleanup the existing MQTT API instance
 		if (this.mqtt_api) {
 			this.mqtt_api.cleanup();
-			this.requests_handler.clearQueue();
+			this.requestsHandler.clearQueue();
 		}
 		// Create a new MQTT API instance and initialize it
 		this.mqtt_api = new mqtt_api(this);
@@ -1122,7 +1122,7 @@ export class Roborock extends utils.Adapter {
 					const parameter = idParts[5];
 					if (parameter == "state") {
 						if (state.val == 8) {
-							this.requests_handler.getCleanSummary(duid);
+							this.requestsHandler.getCleanSummary(duid);
 						}
 					}
 				}
@@ -1132,12 +1132,12 @@ export class Roborock extends utils.Adapter {
 				this.log.debug(`onStateChange: ${command} with value: ${state.val}`);
 				if (state.val == true && typeof state.val == "boolean") {
 					if (folder == "resetConsumables") {
-						await this.requests_handler.command(duid, "reset_consumable", command);
+						await this.requestsHandler.command(duid, "reset_consumable", command);
 					} else {
-						this.requests_handler.command(duid, command);
+						this.requestsHandler.command(duid, command);
 					}
 				} else if (command == "load_multi_map") {
-					await this.requests_handler.command(duid, command, [state.val]);
+					await this.requestsHandler.command(duid, command, [state.val]);
 				} else if (
 					command == "app_start" ||
 					command == "app_segment_clean" ||
@@ -1164,7 +1164,7 @@ export class Roborock extends utils.Adapter {
 											});
 
 											if (allZonesValid) {
-												this.requests_handler.command(duid, command, params);
+												this.requestsHandler.command(duid, command, params);
 											} else {
 												this.log.error(
 													`Invalid command parameters for ${command}: ${state.val}. Expected format: [[x1, y1, x2, y2, repeat], [x1, y1, x2, y2, repeat], ...] (where repeat is between 1 and 3)`
@@ -1181,7 +1181,7 @@ export class Roborock extends utils.Adapter {
 										const areAllNumbers = params.every((item) => typeof item === "number");
 
 										if (isCorrectLength && areAllNumbers) {
-											this.requests_handler.command(duid, command, params);
+											this.requestsHandler.command(duid, command, params);
 										} else {
 											this.log.error(`Invalid command parameters for ${command}: ${state.val}. Expected format: [x, y]`);
 										}
@@ -1195,7 +1195,7 @@ export class Roborock extends utils.Adapter {
 				} else if (command == "startProgram") {
 					this.http_api.executeScene(state);
 				} else if (typeof state.val != "boolean") {
-					this.requests_handler.command(duid, command, state.val);
+					this.requestsHandler.command(duid, command, state.val);
 				}
 
 				if (typeof state.val == "boolean") {
