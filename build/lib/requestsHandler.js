@@ -614,9 +614,9 @@ class requestsHandler {
         this.idCounter = this.idCounter > 9999 ? 1 : this.idCounter + 1;
         const messageID = method === "get_photo" ? ((this.idCounter - 1) % 256) + 1 : this.idCounter;
         const timestamp = Math.floor(Date.now() / 1000);
-        if (!remoteConnection && method != "get_map_v1" && method != "get_clean_record_map" && method != "get_network_info") {
-            protocol = 4;
-        }
+        // if (!remoteConnection && method != "get_map_v1" && method != "get_clean_record_map" && method != "get_network_info") {
+        // 	protocol = 4;
+        // }
         const payload = await this.messageParser.buildPayload(duid, protocol, messageID, method, params);
         const roborockMessage = await this.messageParser.buildRoborockMessage(duid, protocol, timestamp, payload);
         const mqttConnectionState = this.adapter.mqtt_api.isConnected();
