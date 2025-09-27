@@ -189,6 +189,10 @@ class http_api {
         }
         return this.homeData.receivedDevices;
     }
+    isSharedDevice(duid) {
+        const reactedDevices = this.getReceivedDevices();
+        return reactedDevices.some((device) => device.duid === duid);
+    }
     getMatchedRoomIDs(assignFallbackNames = false) {
         if (!this.homeData || !Array.isArray(this.homeData.rooms)) {
             throw new Error("this.homeData.rooms is not initialized. Call updateHomeData() first.");

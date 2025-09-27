@@ -6,12 +6,17 @@ declare class EnhancedSocket extends net.Socket {
 }
 export declare class local_api {
     adapter: any;
-    localDevices: Record<string, EnhancedSocket>;
+    deviceSockets: Record<string, EnhancedSocket>;
     cloudDevices: Set<string>;
-    localIps: Record<string, string>;
+    localDevices: Record<string, {
+        ip: string;
+        version: string;
+    }>;
     localDevicesInterval: NodeJS.Timeout | null;
     private reconnectPlanned;
     private connecting;
+    private discoveryServer;
+    private discoveryTimer;
     constructor(adapter: any);
     /**
      * Initiates a TCP client connection for the given device.
@@ -27,12 +32,14 @@ export declare class local_api {
     clearChunkBuffer(duid: any): void;
     sendMessage(duid: any, message: any): void;
     isConnected(duid: any): boolean;
-    startUdpDiscovery(): () => void;
+    startUdpDiscovery(timeoutMs?: number): Promise<void>;
+    stopUdpDiscovery(): void;
     /**
      * @param {string} duid
      */
     isLocalDevice(duid: any): boolean;
     getIpForDuid(duid: any): string | null;
+    getLocalProtocolVersion(duid: any): string | null;
     decryptECB(encrypted: any): any;
     decryptGCM(hexPacket: any): string | null;
     removePadding(str: any): any;

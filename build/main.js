@@ -106,15 +106,16 @@ class Roborock extends utils.Adapter {
         await this.mqtt_api.init();
         await this.http_api.updateHomeData();
         const devices = this.http_api.getDevices();
+        await this.local_api.startUdpDiscovery();
         // need to get network data before processing any other data
         for (const device of devices) {
             const version = await this.getDeviceProtocolVersion(device.duid);
-            if (version != "A01") {
+            const isSharedDevice = this.http_api.isSharedDevice(device.duid);
+            if (version != "A01" && !isSharedDevice) {
                 const duid = device.duid;
                 await this.requestsHandler.getParameter(duid, "get_network_info", []); // this needs to be called first on start of adapter to get the IP adresses of each device
             }
         }
-        this.stopUdpDiscovery = await this.local_api.startUdpDiscovery();
         for (const device of devices) {
             const duid = device.duid;
             if (device.online) {
@@ -155,16 +156,16 @@ class Roborock extends utils.Adapter {
             if (updateIntervalCount >= this.config.updateInterval) {
                 updateIntervalCount = 0;
                 await this.http_api.updateHomeData(); // this is needed to get the online status of the devices and has to run before any other requests. Otherwise requests might be missing homedata and will time out.
-                const devices = this.http_api.getDevices();
+                const cloudDevices = this.http_api.getDevices();
+                this.log.debug(`cloudDevices: ${JSON.stringify(cloudDevices)}`);
                 this.log.debug(`localDevices: ${JSON.stringify(this.local_api.localDevices)}`);
-                this.log.debug(`devices: ${JSON.stringify(devices)}`);
-                for (const device of devices) {
+                for (const device of cloudDevices) {
                     const duid = device.duid;
                     if (!device.online) {
                         this.log.debug(`Device ${duid} is offline. Skipping status update.`);
                     }
                     else {
-                        await this.updateDeviceInfo(duid, devices);
+                        await this.updateDeviceInfo(duid, cloudDevices);
                         const version = await this.getDeviceProtocolVersion(duid);
                         switch (version) {
                             case "A01":
@@ -667,10 +668,16 @@ class Roborock extends utils.Adapter {
      * @param {string} duid
      */
     async getDeviceProtocolVersion(duid) {
-        const devices = this.http_api.getDevices();
-        for (const device in devices) {
-            if (devices[device].duid == duid)
-                return devices[device].pv;
+        const isLocalDevice = this.local_api.isLocalDevice(duid);
+        if (isLocalDevice) {
+            return this.local_api.getLocalProtocolVersion(duid);
+        }
+        else {
+            const devices = this.http_api.getDevices();
+            for (const device in devices) {
+                if (devices[device].duid == duid)
+                    return devices[device].pv;
+            }
         }
         return "Error in getRobotVersion. Version not found.";
     }
@@ -926,8 +933,7 @@ class Roborock extends utils.Adapter {
     onUnload(callback) {
         try {
             this.clearTimersAndIntervals();
-            if (this.stopUdpDiscovery())
-                this.stopUdpDiscovery();
+            this.local_api.stopUdpDiscovery();
             this.setState("info.connection", { val: false, ack: true });
             callback();
         }

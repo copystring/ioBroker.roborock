@@ -183,9 +183,10 @@ class requestsHandler {
             switch (parameter) {
                 case "get_network_info":
                     mode = parameter;
+                    const localDevice = this.adapter.local_api.localDevices[duid];
                     for (const attribute in value) {
-                        if (attribute == "ip" && !(await this.isCloudDevice(duid))) {
-                            this.adapter.local_api.localIps[duid] = value[attribute];
+                        if (attribute == "ip" && !(await this.isCloudDevice(duid)) && !localDevice) {
+                            this.adapter.local_api.localDevices[duid] = { ip: value[attribute], version: "1.0" };
                         }
                         this.adapter.ensureState(`Devices.${duid}.networkInfo.${attribute}`, { val: value[attribute], ack: true });
                     }

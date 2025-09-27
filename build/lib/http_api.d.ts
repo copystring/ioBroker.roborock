@@ -24,6 +24,7 @@ export declare class http_api {
     getProducts(): any;
     getDevices(): any[];
     getReceivedDevices(): any;
+    isSharedDevice(duid: any): any;
     getMatchedRoomIDs(assignFallbackNames?: boolean): any;
     getMatchedLocalKeys(): Map<any, any>;
     /**

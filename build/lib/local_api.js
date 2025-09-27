@@ -56,17 +56,19 @@ const vL01_Parser = new binary_parser_1.Parser()
     .uint32("crc32");
 class local_api {
     adapter;
-    localDevices;
+    deviceSockets;
     cloudDevices;
-    localIps = {};
+    localDevices = {};
     localDevicesInterval = null;
     reconnectPlanned = new Set();
     connecting = new Set();
+    discoveryServer = null;
+    discoveryTimer = null;
     constructor(adapter) {
         this.adapter = adapter;
-        this.localDevices = {};
+        this.deviceSockets = {};
         this.cloudDevices = new Set();
-        this.localIps = {};
+        this.localDevices = {};
     }
     /**
      * Initiates a TCP client connection for the given device.
@@ -87,7 +89,7 @@ class local_api {
                 return;
             }
             // Already connected?
-            const existing = this.localDevices?.[duid];
+            const existing = this.deviceSockets?.[duid];
             if (existing?.connected) {
                 this.adapter.log.debug(`Already connected via TCP: ${duid}`);
                 this.cloudDevices.delete(duid);
@@ -106,7 +108,7 @@ class local_api {
                     client.off("error", onErrorOnce); // Remove listener
                     client.setTimeout(0);
                     this.adapter.log.info(`TCP client for ${duid} connected`);
-                    this.localDevices[duid] = client;
+                    this.deviceSockets[duid] = client;
                     this.reconnectPlanned.delete(duid);
                     resolve();
                 });
@@ -177,7 +179,7 @@ class local_api {
     }
     scheduleReconnect(duid, reason) {
         this.adapter.log.warn(`TCP ${reason} for ${duid}, retry in 5s`);
-        const old = this.localDevices[duid];
+        const old = this.deviceSockets[duid];
         if (old) {
             try {
                 old.removeAllListeners();
@@ -187,7 +189,7 @@ class local_api {
                 old.destroy();
             }
             catch { }
-            delete this.localDevices[duid];
+            delete this.deviceSockets[duid];
         }
         if (this.reconnectPlanned.has(duid))
             return;
@@ -199,7 +201,7 @@ class local_api {
                 this.initiateClient(duid).catch((e) => this.adapter.log.warn(`Reconnect attempt failed for ${duid}: ${e?.message || e}`));
             }
             else {
-                this.adapter.log.debug(`Skip reconnect for ${duid}, no longer in localIps. Trying again next time.`);
+                this.adapter.log.debug(`Skip reconnect for ${duid}, no longer in localDevices. Trying again next time.`);
                 this.scheduleReconnect(duid, "waiting for IP");
             }
         }, 5000);
@@ -222,31 +224,35 @@ class local_api {
         return totalLength <= buffer.length;
     }
     clearChunkBuffer(duid) {
-        if (this.localDevices[duid]) {
-            this.localDevices[duid].chunkBuffer = Buffer.alloc(0);
+        if (this.deviceSockets[duid]) {
+            this.deviceSockets[duid].chunkBuffer = Buffer.alloc(0);
         }
     }
     sendMessage(duid, message) {
-        const client = this.localDevices[duid];
+        const client = this.deviceSockets[duid];
         if (client?.connected) {
             client.write(message);
         }
     }
     isConnected(duid) {
-        if (this.localDevices[duid]) {
-            return this.localDevices[duid].connected;
+        if (this.deviceSockets[duid]) {
+            return this.deviceSockets[duid].connected;
         }
         return false;
     }
-    startUdpDiscovery() {
-        this.adapter.log.debug(`UDP Discovery started`);
-        const devices = {}; // Temporary list to store discovered devices
+    async startUdpDiscovery(timeoutMs = 10_000) {
+        if (this.discoveryServer) {
+            this.adapter.log.warn("UDP discovery already running");
+            return;
+        }
+        this.adapter.log.debug("UDP Discovery started");
+        const devices = {};
         const firstOpts = process.platform === "win32" ? { type: "udp4", reuseAddr: true } : { type: "udp4", reusePort: true };
-        const server = dgram_1.default.createSocket(firstOpts).bind(UDP_DISCOVERY_PORT);
-        server.on("message", (msg) => {
+        this.discoveryServer = dgram_1.default.createSocket(firstOpts);
+        this.discoveryServer.on("message", (msg) => {
+            // this.adapter.log.debug(`UDP message received: ${msg.toString("hex")}`);
             let decodedMessage;
             let parsedMessage;
-            // Dynamically select the parser based on version
             const version = versionParser.parse(msg).version;
             switch (version) {
                 case "L01":
@@ -258,18 +264,16 @@ class local_api {
                     decodedMessage = this.decryptECB(parsedMessage.payload);
                     break;
                 default:
-                    this.adapter.log.warn(`Unknown protocol version "${version}" found in local discovery packet. Please report this! Raw: ${msg.toString("hex")}`);
+                    this.adapter.log.warn(`Unknown protocol version "${version}" found in local discovery packet. Raw: ${msg.toString("hex")}`);
                     return;
             }
             try {
-                // Decrypt the payload (if needed)
                 const parsedDecodedMessage = JSON.parse(decodedMessage);
                 if (parsedDecodedMessage) {
                     const localKeys = this.adapter.http_api.getMatchedLocalKeys();
                     const localKey = localKeys.get(parsedDecodedMessage.duid);
                     if (localKey && !devices[parsedDecodedMessage.duid]) {
-                        // Only add devices that are in the localKeys list and not already discovered
-                        devices[parsedDecodedMessage.duid] = parsedDecodedMessage.ip;
+                        devices[parsedDecodedMessage.duid] = { ip: parsedDecodedMessage.ip, version: version };
                         this.adapter.log.debug(`Added local device: ${parsedDecodedMessage.duid} @ ${parsedDecodedMessage.ip} using version ${version}`);
                     }
                 }
@@ -278,45 +282,50 @@ class local_api {
                 this.adapter.log.warn(`Failed to process message: ${error.stack}`);
             }
         });
-        server.on("error", (error) => this.adapter.catchError(`Server error: ${error.stack}`));
-        // Set a timeout for discovering devices
-        const localDevicesInterval = this.adapter.setInterval(() => {
-            const oldDevices = new Set(Object.keys(this.localIps));
-            const newDevices = new Set(Object.keys(devices));
-            for (const duid of newDevices) {
-                if (!oldDevices.has(duid)) {
-                    this.adapter.log.info(`New local device discovered: ${duid} @ ${devices[duid]}`);
-                }
-            }
-            for (const duid of oldDevices) {
-                if (!newDevices.has(duid)) {
-                    this.adapter.log.info(`Device no longer discovered locally: ${duid}`);
-                }
-            }
-            this.localIps = { ...devices };
-            // Clear the temporary devices list for the next discovery
-            for (const key of Object.keys(devices)) {
-                delete devices[key];
-            }
-        }, 60000);
-        return () => {
-            this.adapter.clearInterval(localDevicesInterval);
-            server.removeAllListeners();
-            server.close();
+        this.discoveryServer.on("listening", () => {
+            const addr = this.discoveryServer.address();
+            this.adapter.log.info(`UDP listening on ${addr.address}:${addr.port}`);
+        });
+        this.discoveryServer.on("error", (error) => this.adapter.catchError(`Server error: ${error.stack}`));
+        this.discoveryServer.bind(UDP_DISCOVERY_PORT);
+        await new Promise((resolve) => {
+            this.discoveryTimer = setTimeout(() => {
+                this.stopUdpDiscovery();
+                this.adapter.log.info(`UDP discovery finished after ${timeoutMs / 1000}s`);
+                resolve();
+            }, timeoutMs);
+        });
+    }
+    stopUdpDiscovery() {
+        if (this.discoveryTimer) {
+            clearTimeout(this.discoveryTimer);
+            this.discoveryTimer = null;
+        }
+        if (this.discoveryServer) {
+            this.discoveryServer.removeAllListeners();
+            this.discoveryServer.close();
+            this.discoveryServer = null;
             this.adapter.log.info("UDP discovery stopped");
-        };
+        }
     }
     /**
      * @param {string} duid
      */
     isLocalDevice(duid) {
-        if (duid in this.localDevices) {
+        if (duid in this.deviceSockets) {
             return true;
         }
         return false;
     }
     getIpForDuid(duid) {
-        return this.localIps?.[duid] || null;
+        const isSharedDevice = this.adapter.http_api.isSharedDevice(duid);
+        if (isSharedDevice) {
+            return null;
+        }
+        return this.localDevices?.[duid].ip || null;
+    }
+    getLocalProtocolVersion(duid) {
+        return this.localDevices?.[duid].version || null;
     }
     decryptECB(encrypted) {
         const input = Buffer.isBuffer(encrypted) ? encrypted : Buffer.from(encrypted, "binary");
