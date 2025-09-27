@@ -75,11 +75,14 @@ export class messageParser {
 			// Decrypt payload
 			const frame = { ...data };
 			try {
-				if (version === "1.0") {
-					frame.payload = cryptoEngine.decryptV1(frame.payload, localKey, frame.timestamp);
-				} else if (version === "A01") {
-					frame.payload = cryptoEngine.decryptA01(frame.payload, localKey, frame.random);
-				} else if (version === "L01") {
+				switch (version) {
+					case "1.0":
+						frame.payload = cryptoEngine.decryptV1(frame.payload, localKey, frame.timestamp);
+						break;
+					case "A01":
+						frame.payload = cryptoEngine.decryptA01(frame.payload, localKey, frame.random);
+						break;
+					case "L01":
 					frame.payload = cryptoEngine.decryptL01(
 						frame.payload,
 						localKey,
@@ -141,14 +144,18 @@ export class messageParser {
 		let encrypted: Buffer | undefined;
 
 		try {
-			if (version === "1.0") {
-				encrypted = cryptoEngine.encryptV1(payloadBuf, localKey, timestamp);
-			} else if (version === "A01") {
-				encrypted = cryptoEngine.encryptA01(payloadBuf, localKey, random);
-			} else if (version === "L01") {
-				encrypted = cryptoEngine.encryptL01(payloadBuf, localKey, timestamp, seq, random, this.adapter.connectNonce, this.adapter.ackNonce?.get(duid));
-			} else {
-				return false;
+			switch (version) {
+				case "1.0":
+					encrypted = cryptoEngine.encryptV1(payloadBuf, localKey, timestamp);
+					break;
+				case "A01":
+					encrypted = cryptoEngine.encryptA01(payloadBuf, localKey, random);
+					break;
+				case "L01":
+					encrypted = cryptoEngine.encryptL01(payloadBuf, localKey, timestamp, seq, random, this.adapter.connectNonce, this.adapter.ackNonce?.get(duid));
+					break;
+				default:
+					return false;
 			}
 		} catch (err) {
 			this.adapter.log.error(`[buildRoborockMessage] Encrypt failed: ${err}`);

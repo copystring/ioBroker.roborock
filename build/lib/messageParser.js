@@ -69,14 +69,15 @@ class messageParser {
             // Decrypt payload
             const frame = { ...data };
             try {
-                if (version === "1.0") {
-                    frame.payload = cryptoEngine_1.cryptoEngine.decryptV1(frame.payload, localKey, frame.timestamp);
-                }
-                else if (version === "A01") {
-                    frame.payload = cryptoEngine_1.cryptoEngine.decryptA01(frame.payload, localKey, frame.random);
-                }
-                else if (version === "L01") {
-                    frame.payload = cryptoEngine_1.cryptoEngine.decryptL01(frame.payload, localKey, frame.timestamp, frame.seq, frame.random, this.adapter.connectNonce, this.adapter.ackNonce?.get(duid));
+                switch (version) {
+                    case "1.0":
+                        frame.payload = cryptoEngine_1.cryptoEngine.decryptV1(frame.payload, localKey, frame.timestamp);
+                        break;
+                    case "A01":
+                        frame.payload = cryptoEngine_1.cryptoEngine.decryptA01(frame.payload, localKey, frame.random);
+                        break;
+                    case "L01":
+                        frame.payload = cryptoEngine_1.cryptoEngine.decryptL01(frame.payload, localKey, frame.timestamp, frame.seq, frame.random, this.adapter.connectNonce, this.adapter.ackNonce?.get(duid));
                 }
                 delete frame.payloadLen;
                 decoded.push(frame);
@@ -122,17 +123,18 @@ class messageParser {
         const payloadBuf = Buffer.isBuffer(payload) ? payload : Buffer.from(payload, "utf-8");
         let encrypted;
         try {
-            if (version === "1.0") {
-                encrypted = cryptoEngine_1.cryptoEngine.encryptV1(payloadBuf, localKey, timestamp);
-            }
-            else if (version === "A01") {
-                encrypted = cryptoEngine_1.cryptoEngine.encryptA01(payloadBuf, localKey, random);
-            }
-            else if (version === "L01") {
-                encrypted = cryptoEngine_1.cryptoEngine.encryptL01(payloadBuf, localKey, timestamp, seq, random, this.adapter.connectNonce, this.adapter.ackNonce?.get(duid));
-            }
-            else {
-                return false;
+            switch (version) {
+                case "1.0":
+                    encrypted = cryptoEngine_1.cryptoEngine.encryptV1(payloadBuf, localKey, timestamp);
+                    break;
+                case "A01":
+                    encrypted = cryptoEngine_1.cryptoEngine.encryptA01(payloadBuf, localKey, random);
+                    break;
+                case "L01":
+                    encrypted = cryptoEngine_1.cryptoEngine.encryptL01(payloadBuf, localKey, timestamp, seq, random, this.adapter.connectNonce, this.adapter.ackNonce?.get(duid));
+                    break;
+                default:
+                    return false;
             }
         }
         catch (err) {
