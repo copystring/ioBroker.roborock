@@ -249,8 +249,8 @@ class local_api {
         const devices = {};
         const firstOpts = process.platform === "win32" ? { type: "udp4", reuseAddr: true } : { type: "udp4", reusePort: true };
         this.discoveryServer = dgram_1.default.createSocket(firstOpts);
-        // this.adapter.log.debug(`UDP message received: ${msg.toString("hex")}`);
         this.discoveryServer.on("message", async (msg, rinfo) => {
+            this.adapter.log.debug(`UDP message received: ${msg.toString("hex")}`);
             let decodedMessage;
             let parsedMessage;
             const version = versionParser.parse(msg).version;
@@ -268,6 +268,21 @@ class local_api {
                     return;
             }
             try {
+                const header = parsedMessage?.header;
+                const protocolId = header?.protocol;
+                this.adapter.log.debug(`UDP packet from ${rinfo.address}:${rinfo.port} using protocol ${version} (protocolId=${protocolId})`);
+                if (protocolId === 1) {
+                    const duid = header.duid;
+                    const ackNonce = header.nonce;
+                    if (duid && devices[duid]) {
+                        devices[duid].ackNonce = ackNonce;
+                        this.adapter.log.debug(`Received hello_response from ${duid} → ackNonce=${ackNonce}`);
+                    }
+                    else {
+                        this.adapter.log.debug(`Received hello_response (duid unknown) → ackNonce=${ackNonce}`);
+                    }
+                    return;
+                }
                 const parsedDecodedMessage = JSON.parse(decodedMessage);
                 if (!parsedDecodedMessage)
                     return;
@@ -291,10 +306,6 @@ class local_api {
                             this.adapter.log.warn(`Failed to send Hello: ${err}`);
                         }
                     }
-                }
-                else if (version === "L01" && parsedDecodedMessage.nonce) {
-                    devices[duid].ackNonce = parsedDecodedMessage.nonce;
-                    this.adapter.log.debug(`Received hello_response from ${duid} → ackNonce=${parsedDecodedMessage.nonce}`);
                 }
             }
             catch (error) {
@@ -330,13 +341,9 @@ class local_api {
     }
     async sendHello(duid, ip, localKey, connectNonce) {
         const timestamp = Math.floor(Date.now() / 1000);
-        const protocol = 0x65;
-        const payload = JSON.stringify({
-            dps: { [protocol]: "{}" },
-            t: timestamp,
-            nonce: connectNonce, // connectNonce im hello_request
-        });
-        const msg = await this.adapter.requestsHandler.messageParser.buildRoborockMessage(duid, protocol, timestamp, payload);
+        const protocol = 0;
+        const payload = Buffer.alloc(0);
+        const msg = await this.adapter.requestsHandler.messageParser.buildRoborockMessage(duid, protocol, timestamp, payload, connectNonce);
         if (!msg)
             throw new Error("Failed to build hello message");
         const udp = dgram_1.default.createSocket("udp4");

@@ -283,8 +283,8 @@ export class local_api {
 
 		this.discoveryServer = dgram.createSocket(firstOpts);
 
-			// this.adapter.log.debug(`UDP message received: ${msg.toString("hex")}`);
 		this.discoveryServer.on("message", async (msg, rinfo) => {
+			this.adapter.log.debug(`UDP message received: ${msg.toString("hex")}`);
 			let decodedMessage;
 			let parsedMessage;
 
@@ -304,6 +304,23 @@ export class local_api {
 			}
 
 			try {
+				const header = parsedMessage?.header;
+				const protocolId = header?.protocol;
+				this.adapter.log.debug(`UDP packet from ${rinfo.address}:${rinfo.port} using protocol ${version} (protocolId=${protocolId})`);
+
+				if (protocolId === 1) {
+					const duid = header.duid;
+					const ackNonce = header.nonce;
+
+					if (duid && devices[duid]) {
+						devices[duid].ackNonce = ackNonce;
+						this.adapter.log.debug(`Received hello_response from ${duid} → ackNonce=${ackNonce}`);
+					} else {
+						this.adapter.log.debug(`Received hello_response (duid unknown) → ackNonce=${ackNonce}`);
+					}
+					return;
+				}
+
 				const parsedDecodedMessage = JSON.parse(decodedMessage);
 				if (!parsedDecodedMessage) return;
 
@@ -329,9 +346,6 @@ export class local_api {
 							this.adapter.log.warn(`Failed to send Hello: ${err}`);
 						}
 					}
-				} else if (version === "L01" && parsedDecodedMessage.nonce) {
-					devices[duid].ackNonce = parsedDecodedMessage.nonce;
-					this.adapter.log.debug(`Received hello_response from ${duid} → ackNonce=${parsedDecodedMessage.nonce}`);
 				}
 			} catch (error) {
 				this.adapter.log.warn(`Failed to process message: ${error.stack}`);
@@ -372,15 +386,11 @@ export class local_api {
 
 	async sendHello(duid: string, ip: string, localKey: string, connectNonce: number) {
 		const timestamp = Math.floor(Date.now() / 1000);
-		const protocol = 0x65;
+		const protocol = 0;
 
-		const payload = JSON.stringify({
-			dps: { [protocol]: "{}" },
-			t: timestamp,
-			nonce: connectNonce, // connectNonce im hello_request
-		});
+		const payload = Buffer.alloc(0);
 
-		const msg = await this.adapter.requestsHandler.messageParser.buildRoborockMessage(duid, protocol, timestamp, payload);
+		const msg = await this.adapter.requestsHandler.messageParser.buildRoborockMessage(duid, protocol, timestamp, payload, connectNonce);
 		if (!msg) throw new Error("Failed to build hello message");
 
 		const udp = dgram.createSocket("udp4");
