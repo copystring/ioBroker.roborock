@@ -249,8 +249,8 @@ class local_api {
         const devices = {};
         const firstOpts = process.platform === "win32" ? { type: "udp4", reuseAddr: true } : { type: "udp4", reusePort: true };
         this.discoveryServer = dgram_1.default.createSocket(firstOpts);
-        this.discoveryServer.on("message", (msg) => {
-            // this.adapter.log.debug(`UDP message received: ${msg.toString("hex")}`);
+        // this.adapter.log.debug(`UDP message received: ${msg.toString("hex")}`);
+        this.discoveryServer.on("message", async (msg, rinfo) => {
             let decodedMessage;
             let parsedMessage;
             const version = versionParser.parse(msg).version;
@@ -269,13 +269,32 @@ class local_api {
             }
             try {
                 const parsedDecodedMessage = JSON.parse(decodedMessage);
-                if (parsedDecodedMessage) {
-                    const localKeys = this.adapter.http_api.getMatchedLocalKeys();
-                    const localKey = localKeys.get(parsedDecodedMessage.duid);
-                    if (localKey && !devices[parsedDecodedMessage.duid]) {
-                        devices[parsedDecodedMessage.duid] = { ip: parsedDecodedMessage.ip, version: version };
-                        this.adapter.log.debug(`Added local device: ${parsedDecodedMessage.duid} @ ${parsedDecodedMessage.ip} using version ${version}`);
+                if (!parsedDecodedMessage)
+                    return;
+                const duid = parsedDecodedMessage.duid;
+                const ip = parsedDecodedMessage.ip;
+                const localKeys = this.adapter.http_api.getMatchedLocalKeys();
+                const localKey = localKeys.get(duid);
+                if (!localKey)
+                    return;
+                if (!devices[duid]) {
+                    devices[duid] = { ip, version };
+                    this.adapter.log.debug(`Added local device: ${duid} @ ${ip} using version ${version}`);
+                    if (version === "L01") {
+                        const connectNonce = Math.floor(Math.random() * 1e9);
+                        devices[duid].connectNonce = connectNonce;
+                        try {
+                            await this.sendHello(duid, ip, localKey, connectNonce);
+                            this.adapter.log.debug(`Hello sent to ${duid} with connectNonce=${connectNonce}`);
+                        }
+                        catch (err) {
+                            this.adapter.log.warn(`Failed to send Hello: ${err}`);
+                        }
                     }
+                }
+                else if (version === "L01" && parsedDecodedMessage.nonce) {
+                    devices[duid].ackNonce = parsedDecodedMessage.nonce;
+                    this.adapter.log.debug(`Received hello_response from ${duid} → ackNonce=${parsedDecodedMessage.nonce}`);
                 }
             }
             catch (error) {
@@ -293,10 +312,6 @@ class local_api {
                 this.stopUdpDiscovery();
                 this.adapter.log.info(`UDP discovery finished after ${timeoutMs / 1000}s`);
                 this.localDevices = { ...devices };
-                // Clear the temporary devices list for the next discovery
-                for (const key of Object.keys(devices)) {
-                    delete devices[key];
-                }
                 resolve();
             }, timeoutMs);
         });
@@ -312,6 +327,28 @@ class local_api {
             this.discoveryServer = null;
             this.adapter.log.info("UDP discovery stopped");
         }
+    }
+    async sendHello(duid, ip, localKey, connectNonce) {
+        const timestamp = Math.floor(Date.now() / 1000);
+        const protocol = 0x65;
+        const payload = JSON.stringify({
+            dps: { [protocol]: "{}" },
+            t: timestamp,
+            nonce: connectNonce, // connectNonce im hello_request
+        });
+        const msg = await this.adapter.requestsHandler.messageParser.buildRoborockMessage(duid, protocol, timestamp, payload);
+        if (!msg)
+            throw new Error("Failed to build hello message");
+        const udp = dgram_1.default.createSocket("udp4");
+        return new Promise((resolve, reject) => {
+            udp.send(msg, UDP_DISCOVERY_PORT, ip, (err) => {
+                udp.close();
+                if (err)
+                    reject(err);
+                else
+                    resolve();
+            });
+        });
     }
     /**
      * @param {string} duid

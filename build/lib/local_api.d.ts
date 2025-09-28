@@ -34,6 +34,7 @@ export declare class local_api {
     isConnected(duid: any): boolean;
     startUdpDiscovery(timeoutMs?: number): Promise<void>;
     stopUdpDiscovery(): void;
+    sendHello(duid: string, ip: string, localKey: string, connectNonce: number): Promise<void>;
     /**
      * @param {string} duid
      */
