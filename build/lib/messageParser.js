@@ -131,7 +131,9 @@ class messageParser {
                     encrypted = cryptoEngine_1.cryptoEngine.encryptA01(payloadBuf, localKey, random);
                     break;
                 case "L01":
-                    encrypted = cryptoEngine_1.cryptoEngine.encryptL01(payloadBuf, localKey, timestamp, seq, random, this.adapter.connectNonce, this.adapter.ackNonce?.get(duid));
+                    const connectNonce = this.adapter.local_api.localDevices[duid]?.connectNonce;
+                    const ackNonce = this.adapter.local_api.localDevices[duid]?.ackNonce;
+                    encrypted = cryptoEngine_1.cryptoEngine.encryptL01(payloadBuf, localKey, timestamp, seq, random, connectNonce, ackNonce);
                     break;
                 default:
                     return false;
