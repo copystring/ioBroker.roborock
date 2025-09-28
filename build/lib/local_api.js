@@ -292,6 +292,11 @@ class local_api {
             this.discoveryTimer = setTimeout(() => {
                 this.stopUdpDiscovery();
                 this.adapter.log.info(`UDP discovery finished after ${timeoutMs / 1000}s`);
+                this.localDevices = { ...devices };
+                // Clear the temporary devices list for the next discovery
+                for (const key of Object.keys(devices)) {
+                    delete devices[key];
+                }
                 resolve();
             }, timeoutMs);
         });

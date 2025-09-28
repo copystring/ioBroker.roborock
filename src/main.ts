@@ -159,7 +159,6 @@ export class Roborock extends utils.Adapter {
 			}
 		}
 
-
 		for (const device of devices) {
 			const duid = device.duid;
 
