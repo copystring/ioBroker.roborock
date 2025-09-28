@@ -83,15 +83,11 @@ export class messageParser {
 						frame.payload = cryptoEngine.decryptA01(frame.payload, localKey, frame.random);
 						break;
 					case "L01":
-					frame.payload = cryptoEngine.decryptL01(
-						frame.payload,
-						localKey,
-						frame.timestamp,
-						frame.seq,
-						frame.random,
-						this.adapter.connectNonce,
-						this.adapter.ackNonce?.get(duid)
-					);
+						const dev = this.adapter.local_api.localDevices[duid];
+						if (!dev?.connectNonce || dev.ackNonce == null) {
+							throw new Error(`[decodeMsg] Missing nonces for L01 (duid=${duid})`);
+						}
+						frame.payload = cryptoEngine.decryptL01(frame.payload, localKey, frame.timestamp, frame.seq, frame.random, dev.connectNonce, dev.ackNonce);
 				}
 				delete frame.payloadLen;
 				decoded.push(frame);
