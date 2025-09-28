@@ -147,6 +147,7 @@ export class Roborock extends utils.Adapter {
 
 		await this.local_api.startUdpDiscovery();
 
+
 		// need to get network data before processing any other data
 		for (const device of devices) {
 			const version = await this.getDeviceProtocolVersion(device.duid);
@@ -161,11 +162,14 @@ export class Roborock extends utils.Adapter {
 
 		for (const device of devices) {
 			const duid = device.duid;
+			const version = await this.getDeviceProtocolVersion(duid);
 
 			if (device.online) {
 				await this.local_api.initiateClient(duid);
+				if (version === "L01") {
+					await this.local_api.initL01(duid);
+				}
 			}
-			const version = await this.getDeviceProtocolVersion(duid);
 
 			await this.createDeviceObjects(device);
 			switch (version) {

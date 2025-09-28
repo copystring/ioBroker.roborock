@@ -141,14 +141,26 @@ class local_api {
                                 const dataArr = this.adapter.requestsHandler.messageParser._decodeMsg(currentBuffer, duid);
                                 const allMessages = Array.isArray(dataArr) ? dataArr : dataArr ? [dataArr] : [];
                                 for (const data of allMessages) {
-                                    if (data.protocol == 4) {
-                                        const dps = JSON.parse(data.payload).dps;
-                                        if (dps) {
-                                            const _102 = JSON.stringify(dps["102"]);
-                                            const parsed_102 = JSON.parse(JSON.parse(_102));
-                                            const id = parsed_102.id;
-                                            const result = parsed_102.result;
-                                            this.adapter.requestsHandler.resolvePendingRequest(id, result, data.protocol);
+                                    switch (data.protocol) {
+                                        case 2: // hello_response
+                                            {
+                                                const ackNonce = data.header?.nonce;
+                                                if (ackNonce !== undefined) {
+                                                    this.localDevices[duid].ackNonce = ackNonce;
+                                                    this.adapter.log.debug(`initL01: hello_response received from ${duid}, ackNonce=${ackNonce}`);
+                                                }
+                                            }
+                                            break;
+                                        case 4: {
+                                            const dps = JSON.parse(data.payload).dps;
+                                            if (dps) {
+                                                const _102 = JSON.stringify(dps["102"]);
+                                                const parsed_102 = JSON.parse(JSON.parse(_102));
+                                                const id = parsed_102.id;
+                                                const result = parsed_102.result;
+                                                this.adapter.requestsHandler.resolvePendingRequest(id, result, data.protocol);
+                                            }
+                                            break;
                                         }
                                     }
                                 }
@@ -267,21 +279,6 @@ class local_api {
                     this.adapter.log.warn(`Unknown protocol version "${version}" found in local discovery packet. Raw: ${msg.toString("hex")}`);
             }
             try {
-                const header = parsedMessage?.header;
-                const protocolId = header?.protocol;
-                this.adapter.log.debug(`UDP packet from ${rinfo.address}:${rinfo.port} using protocol ${version} (protocolId=${protocolId})`);
-                if (protocolId === 1) {
-                    const duid = header.duid;
-                    const ackNonce = header.nonce;
-                    if (duid && devices[duid]) {
-                        devices[duid].ackNonce = ackNonce;
-                        this.adapter.log.debug(`Received hello_response from ${duid} → ackNonce=${ackNonce}`);
-                    }
-                    else {
-                        this.adapter.log.debug(`Received hello_response (duid unknown) → ackNonce=${ackNonce}`);
-                    }
-                    return;
-                }
                 const parsedDecodedMessage = JSON.parse(decodedMessage);
                 if (!parsedDecodedMessage)
                     return;
@@ -298,7 +295,7 @@ class local_api {
                         const connectNonce = Math.floor(Math.random() * 1e9);
                         devices[duid].connectNonce = connectNonce;
                         try {
-                            await this.sendHello(duid, ip, localKey, connectNonce);
+                            await this.sendHello(duid, connectNonce);
                             this.adapter.log.debug(`Hello sent to ${duid} with connectNonce=${connectNonce}`);
                         }
                         catch (err) {
@@ -338,23 +335,50 @@ class local_api {
             this.adapter.log.info("UDP discovery stopped");
         }
     }
-    async sendHello(duid, ip, localKey, connectNonce) {
+    async initL01(duid) {
+        const dev = this.localDevices[duid];
+        if (!dev) {
+            this.adapter.log.warn(`initL01: no local device found for ${duid}`);
+            return;
+        }
+        try {
+            const client = this.deviceSockets[duid];
+            if (!client?.connected) {
+                this.adapter.log.warn(`initL01: device ${duid} not connected via TCP`);
+                return;
+            }
+            // connectNonce erzeugen
+            const connectNonce = Math.floor(Math.random() * 1e9);
+            dev.connectNonce = connectNonce;
+            // hello_request (protocol=1) bauen
+            const timestamp = Math.floor(Date.now() / 1000);
+            const helloMsg = await this.adapter.requestsHandler.messageParser.buildRoborockMessage(duid, 1, // hello_request
+            timestamp, Buffer.alloc(0), connectNonce);
+            if (!helloMsg)
+                throw new Error("Failed to build hello message");
+            // Prefix mit Länge hinzufügen
+            const lengthBuf = Buffer.alloc(4);
+            lengthBuf.writeUInt32BE(helloMsg.length, 0);
+            const wrapped = Buffer.concat([lengthBuf, helloMsg]);
+            client.write(wrapped);
+            this.adapter.log.debug(`initL01: hello_request sent to ${duid} (connectNonce=${connectNonce})`);
+        }
+        catch (err) {
+            this.adapter.log.warn(`initL01 failed for ${duid}: ${err.message || err}`);
+        }
+    }
+    async sendHello(duid, connectNonce) {
+        const client = this.deviceSockets[duid];
+        if (!client?.connected)
+            throw new Error("TCP not connected");
         const timestamp = Math.floor(Date.now() / 1000);
-        const protocol = 0;
+        const protocol = 1;
         const payload = Buffer.alloc(0);
         const msg = await this.adapter.requestsHandler.messageParser.buildRoborockMessage(duid, protocol, timestamp, payload, connectNonce);
         if (!msg)
             throw new Error("Failed to build hello message");
-        const udp = dgram_1.default.createSocket("udp4");
-        return new Promise((resolve, reject) => {
-            udp.send(msg, UDP_DISCOVERY_PORT, ip, (err) => {
-                udp.close();
-                if (err)
-                    reject(err);
-                else
-                    resolve();
-            });
-        });
+        client.write(msg);
+        this.adapter.log.debug(`Hello (TCP) sent to ${duid} with connectNonce=${connectNonce}`);
     }
     /**
      * @param {string} duid
