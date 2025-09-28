@@ -92,7 +92,7 @@ export class messageParser {
 				delete frame.payloadLen;
 				decoded.push(frame);
 			} catch (err: any) {
-				this.adapter.log.error(`[_decodeMsg] Decrypt failed: ${err?.stack || err}`);
+				this.adapter.log.error(`[_decodeMsg] CRC32 mismatch for duid=${duid} at offset ${offset}`);
 			}
 
 			offset += msgLen;

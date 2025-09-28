@@ -87,7 +87,7 @@ class messageParser {
                 decoded.push(frame);
             }
             catch (err) {
-                this.adapter.log.error(`[_decodeMsg] Decrypt failed: ${err?.stack || err}`);
+                this.adapter.log.error(`[_decodeMsg] CRC32 mismatch for duid=${duid} at offset ${offset}`);
             }
             offset += msgLen;
         }
