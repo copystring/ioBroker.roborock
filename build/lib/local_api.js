@@ -265,7 +265,6 @@ class local_api {
                     break;
                 default:
                     this.adapter.log.warn(`Unknown protocol version "${version}" found in local discovery packet. Raw: ${msg.toString("hex")}`);
-                    return;
             }
             try {
                 const header = parsedMessage?.header;
