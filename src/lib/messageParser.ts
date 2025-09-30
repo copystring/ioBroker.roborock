@@ -3,13 +3,42 @@ import { cryptoEngine } from "./cryptoEngine";
 
 import CRC32 from "crc-32";
 import { Parser } from "binary-parser";
+import { z } from "zod";
+
+// --------------------
+// Types & Schemas
+// --------------------
+
+export type ProtocolVersion = "1.0" | "A01" | "L01";
+
+const SUPPORTED_VERSIONS: ProtocolVersion[] = ["1.0", "A01", "L01"] as const;
+
+const FrameSchema = z.object({
+	version: z.string(),
+	seq: z.number(),
+	random: z.number(),
+	timestamp: z.number(),
+	protocol: z.number(),
+	payloadLen: z.number(),
+	payload: z.instanceof(Buffer),
+	crc32: z.number(),
+});
+
+export type Frame = z.infer<typeof FrameSchema> & { version: ProtocolVersion };
+
+// --------------------
+// Constants
+// --------------------
 
 const HEADER_LEN = 3 + 4 + 4 + 4 + 2 + 2; // version + seq + random + timestamp + protocol + payloadLen
 const CRC32_LEN = 4; // CRC32 length
 
-// Global rolling counter
 let seq = 1;
 let random = 4711;
+
+// --------------------
+// Binary Parser
+// --------------------
 
 const frameParser = new Parser()
 	.endianess("big")
@@ -22,6 +51,40 @@ const frameParser = new Parser()
 	.buffer("payload", { length: "payloadLen" })
 	.uint32("crc32");
 
+// --------------------
+// CRC Utilities
+// --------------------
+
+function validateCrc(buf: Buffer): boolean {
+	const crc = CRC32.buf(buf.subarray(0, buf.length - 4)) >>> 0;
+	return crc === buf.readUInt32BE(buf.length - 4);
+}
+
+function appendCrc(buf: Buffer): void {
+	const crc = CRC32.buf(buf.subarray(0, buf.length - 4)) >>> 0;
+	buf.writeUInt32BE(crc, buf.length - 4);
+}
+
+// --------------------
+// Dispatch Maps
+// --------------------
+
+const decryptors: Record<ProtocolVersion, (...args: any[]) => Buffer> = {
+	"1.0": (payload, key, timestamp) => cryptoEngine.decryptV1(payload, key, timestamp),
+	A01: (payload, key, random) => cryptoEngine.decryptA01(payload, key, random),
+	L01: (payload, key, timestamp, seq, random, connectNonce, ackNonce) => cryptoEngine.decryptL01(payload, key, timestamp, seq, random, connectNonce, ackNonce),
+};
+
+const encryptors: Record<ProtocolVersion, (...args: any[]) => Buffer> = {
+	"1.0": (payload, key, timestamp) => cryptoEngine.encryptV1(payload, key, timestamp),
+	A01: (payload, key, random) => cryptoEngine.encryptA01(payload, key, random),
+	L01: (payload, key, timestamp, seq, random, connectNonce, ackNonce) => cryptoEngine.encryptL01(payload, key, timestamp, seq, random, connectNonce, ackNonce),
+};
+
+// --------------------
+// Message Parser
+// --------------------
+
 export class messageParser {
 	adapter: Roborock;
 
@@ -32,39 +95,46 @@ export class messageParser {
 	/**
 	 * Decodes one or more messages from a buffer.
 	 */
-	_decodeMsg(message: Buffer, duid: string) {
-		const decoded: any[] = [];
+	_decodeMsg(message: Buffer, duid: string): Frame | Frame[] | null {
+		const decoded: Frame[] = [];
 		let offset = 0;
 
 		while (offset + 3 <= message.length) {
-			const version = message.toString("latin1", offset, offset + 3);
-			if (!["1.0", "A01", "L01"].includes(version)) {
+			const version = message.toString("latin1", offset, offset + 3) as ProtocolVersion;
+
+			if (!SUPPORTED_VERSIONS.includes(version)) {
 				this.adapter.log.error(`[decodeMsg] Unsupported version "${version}" at offset ${offset}`);
 				offset++;
 				continue;
 			}
 
-			let data: any;
+			let raw: unknown;
 			try {
-				data = frameParser.parse(message.subarray(offset));
+				raw = frameParser.parse(message.subarray(offset));
 			} catch (err) {
 				this.adapter.log.error(`[decodeMsg] Parse failed at offset ${offset}: ${err}`);
+				break;
+			}
+
+			let data: Frame;
+			try {
+				data = FrameSchema.parse(raw) as Frame;
+				data.version = version;
+			} catch (err) {
+				this.adapter.log.error(`[decodeMsg] Validation failed: ${err}`);
 				break;
 			}
 
 			const msgLen = HEADER_LEN + data.payloadLen + CRC32_LEN;
 			if (msgLen <= 0 || offset + msgLen > message.length) break;
 
-			// Check CRC
 			const msgBuffer = message.subarray(offset, offset + msgLen);
-			const crc32 = CRC32.buf(msgBuffer.subarray(0, msgLen - 4)) >>> 0;
-			if (crc32 !== msgBuffer.readUInt32BE(msgLen - 4)) {
+			if (!validateCrc(msgBuffer)) {
 				this.adapter.log.error(`[decodeMsg] CRC32 mismatch at offset ${offset}`);
 				offset += msgLen;
 				continue;
 			}
 
-			// Retrieve key
 			const localKey = this.adapter.http_api.getMatchedLocalKeys().get(duid);
 			if (!localKey) {
 				this.adapter.log.error(`[decodeMsg] No localKey for DUID ${duid}`);
@@ -72,27 +142,21 @@ export class messageParser {
 				continue;
 			}
 
-			// Decrypt payload
-			const frame = { ...data };
 			try {
-				switch (version) {
-					case "1.0":
-						frame.payload = cryptoEngine.decryptV1(frame.payload, localKey, frame.timestamp);
-						break;
-					case "A01":
-						frame.payload = cryptoEngine.decryptA01(frame.payload, localKey, frame.random);
-						break;
-					case "L01":
-						const dev = this.adapter.local_api.localDevices[duid];
-						if (!dev?.connectNonce || dev.ackNonce == null) {
-							throw new Error(`[decodeMsg] Missing nonces for L01 (duid=${duid})`);
-						}
-						frame.payload = cryptoEngine.decryptL01(frame.payload, localKey, frame.timestamp, frame.seq, frame.random, dev.connectNonce, dev.ackNonce);
+				if (version === "L01") {
+					const dev = this.adapter.local_api.localDevices[duid];
+					if (!dev?.connectNonce || dev.ackNonce == null) {
+						throw new Error(`[decodeMsg] Missing nonces for L01 (duid=${duid})`);
+					}
+					data.payload = decryptors.L01(data.payload, localKey, data.timestamp, data.seq, data.random, dev.connectNonce, dev.ackNonce);
+				} else if (version === "1.0") {
+					data.payload = decryptors["1.0"](data.payload, localKey, data.timestamp);
+				} else if (version === "A01") {
+					data.payload = decryptors.A01(data.payload, localKey, data.random);
 				}
-				delete frame.payloadLen;
-				decoded.push(frame);
+				decoded.push(data);
 			} catch (err: any) {
-				this.adapter.log.error(`[_decodeMsg] CRC32 mismatch for duid=${duid} at offset ${offset}`);
+				this.adapter.log.error(`[_decodeMsg] Decrypt failed for duid=${duid} at offset ${offset}: ${err}`);
 			}
 
 			offset += msgLen;
@@ -105,7 +169,7 @@ export class messageParser {
 	/**
 	 * Builds the JSON payload for the device.
 	 */
-	async buildPayload(duid: string, protocol: number, messageID: number, method: string, params: any) {
+	async buildPayload(duid: string, protocol: number, messageID: number, method: string, params: any): Promise<string> {
 		const timestamp = Math.floor(Date.now() / 1000);
 		const endpoint = await this.adapter.mqtt_api.ensureEndpoint();
 		const version = await this.adapter.getDeviceProtocolVersion(duid);
@@ -130,42 +194,33 @@ export class messageParser {
 	/**
 	 * Builds the final Roborock frame and encrypts the payload.
 	 */
-	async buildRoborockMessage(duid: string, protocol: number, timestamp: number, payload: string | Buffer) {
-		const version = await this.adapter.getDeviceProtocolVersion(duid);
+	async buildRoborockMessage(duid: string, protocol: number, timestamp: number, payload: string | Buffer): Promise<Buffer | false> {
+		const version = (await this.adapter.getDeviceProtocolVersion(duid)) as ProtocolVersion;
 		const localKey = this.adapter.http_api.getMatchedLocalKeys().get(duid);
-
 		if (!localKey) return false;
 
 		const payloadBuf = Buffer.isBuffer(payload) ? payload : Buffer.from(payload, "utf-8");
-		let encrypted: Buffer | undefined;
+		let encrypted: Buffer;
 
-		try {
-			switch (version) {
-				case "1.0":
-					encrypted = cryptoEngine.encryptV1(payloadBuf, localKey, timestamp);
-					break;
-				case "A01":
-					encrypted = cryptoEngine.encryptA01(payloadBuf, localKey, random);
-					break;
-				case "L01":
-					const connectNonce = this.adapter.local_api.localDevices[duid]?.connectNonce;
-					const ackNonce = this.adapter.local_api.localDevices[duid]?.ackNonce;
-					encrypted = cryptoEngine.encryptL01(payloadBuf, localKey, timestamp, seq, random, connectNonce, ackNonce);
-					break;
-				default:
-					return false;
-			}
-		} catch (err) {
-			this.adapter.log.error(`[buildRoborockMessage] Encrypt failed: ${err}`);
+		if (protocol === 1) {
+			// hello_request
+			encrypted = Buffer.alloc(0);
+		} else if (version === "L01") {
+			const connectNonce = this.adapter.local_api.localDevices[duid]?.connectNonce;
+			const ackNonce = this.adapter.local_api.localDevices[duid]?.ackNonce;
+			encrypted = encryptors.L01(payloadBuf, localKey, timestamp, seq, random, connectNonce, ackNonce);
+		} else if (version === "1.0") {
+			encrypted = encryptors["1.0"](payloadBuf, localKey, timestamp);
+		} else if (version === "A01") {
+			encrypted = encryptors.A01(payloadBuf, localKey, random);
+		} else {
 			return false;
 		}
 
-		if (!encrypted) return false;
-
-		// Assemble header and payload
 		const s = seq++ >>> 0;
 		const r = random++ >>> 0;
-		const msg = Buffer.alloc(23 + encrypted.length);
+		const msg = Buffer.alloc(HEADER_LEN + encrypted.length + CRC32_LEN);
+
 		msg.write(version);
 		msg.writeUInt32BE(s, 3);
 		msg.writeUInt32BE(r, 7);
@@ -173,7 +228,8 @@ export class messageParser {
 		msg.writeUInt16BE(protocol, 15);
 		msg.writeUInt16BE(encrypted.length, 17);
 		encrypted.copy(msg, 19);
-		msg.writeUInt32BE(CRC32.buf(msg.subarray(0, msg.length - 4)) >>> 0, msg.length - 4);
+
+		appendCrc(msg);
 
 		return msg;
 	}

@@ -1,4 +1,4 @@
-import { cryptoEngine } from "./cryptoEngine";
+import { cryptoEngine } from "../src/lib/cryptoEngine";
 import { expect } from "chai";
 
 describe("cryptoEngine L01", () => {
