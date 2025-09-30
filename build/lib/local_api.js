@@ -342,26 +342,9 @@ class local_api {
             return;
         }
         try {
-            const client = this.deviceSockets[duid];
-            if (!client?.connected) {
-                this.adapter.log.warn(`initL01: device ${duid} not connected via TCP`);
-                return;
-            }
-            // connectNonce erzeugen
             const connectNonce = Math.floor(Math.random() * 1e9);
             dev.connectNonce = connectNonce;
-            // hello_request (protocol=1) bauen
-            const timestamp = Math.floor(Date.now() / 1000);
-            const helloMsg = await this.adapter.requestsHandler.messageParser.buildRoborockMessage(duid, 1, // hello_request
-            timestamp, Buffer.alloc(0), connectNonce);
-            if (!helloMsg)
-                throw new Error("Failed to build hello message");
-            // Prefix mit Länge hinzufügen
-            const lengthBuf = Buffer.alloc(4);
-            lengthBuf.writeUInt32BE(helloMsg.length, 0);
-            const wrapped = Buffer.concat([lengthBuf, helloMsg]);
-            client.write(wrapped);
-            this.adapter.log.debug(`initL01: hello_request sent to ${duid} (connectNonce=${connectNonce})`);
+            this.sendHello(duid, connectNonce);
         }
         catch (err) {
             this.adapter.log.warn(`initL01 failed for ${duid}: ${err.message || err}`);
