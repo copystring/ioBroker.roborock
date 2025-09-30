@@ -46,6 +46,7 @@
     "sinon": "^9.2.4",
     "sinon-chai": "^3.5.0",
     "ws": "^8.18.0"
+    "zod": "^4.1.11"
   },
   "devDependencies": {
     "@alcalzone/release-script": "^3.8.0",
