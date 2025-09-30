@@ -291,17 +291,6 @@ class local_api {
                 if (!devices[duid]) {
                     devices[duid] = { ip, version };
                     this.adapter.log.debug(`Added local device: ${duid} @ ${ip} using version ${version}`);
-                    if (version === "L01") {
-                        const connectNonce = Math.floor(Math.random() * 1e9);
-                        devices[duid].connectNonce = connectNonce;
-                        try {
-                            await this.sendHello(duid, connectNonce);
-                            this.adapter.log.debug(`Hello sent to ${duid} with connectNonce=${connectNonce}`);
-                        }
-                        catch (err) {
-                            this.adapter.log.warn(`Failed to send Hello: ${err}`);
-                        }
-                    }
                 }
             }
             catch (error) {
@@ -344,7 +333,7 @@ class local_api {
         try {
             const connectNonce = Math.floor(Math.random() * 1e9);
             dev.connectNonce = connectNonce;
-            this.sendHello(duid, connectNonce);
+            await this.sendHello(duid, connectNonce);
         }
         catch (err) {
             this.adapter.log.warn(`initL01 failed for ${duid}: ${err.message || err}`);
