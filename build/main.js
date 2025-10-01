@@ -106,6 +106,7 @@ class Roborock extends utils.Adapter {
         await this.mqtt_api.init();
         await this.http_api.updateHomeData();
         const devices = this.http_api.getDevices();
+        this.log.debug(`Devices from cloud: ${JSON.stringify(devices)}`);
         await this.local_api.startUdpDiscovery();
         // need to get network data before processing any other data
         for (const device of devices) {
@@ -119,6 +120,7 @@ class Roborock extends utils.Adapter {
         for (const device of devices) {
             const duid = device.duid;
             const version = await this.getDeviceProtocolVersion(duid);
+            this.log.debug(`Device ${duid} is using protocol version ${version}`);
             if (device.online) {
                 await this.local_api.initiateClient(duid);
                 if (version === "L01") {
