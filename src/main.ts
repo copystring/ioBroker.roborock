@@ -799,6 +799,7 @@ export class Roborock extends utils.Adapter {
 	 */
 	async getDeviceProtocolVersion(duid) {
 		const isLocalDevice = this.local_api.isLocalDevice(duid);
+		this.log.debug(`Device ${duid} is ${isLocalDevice ? "local" : "cloud"} device`);
 
 		if (isLocalDevice) {
 			return this.local_api.getLocalProtocolVersion(duid);

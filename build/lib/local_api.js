@@ -369,6 +369,7 @@ class local_api {
         return this.localDevices?.[duid].ip || null;
     }
     getLocalProtocolVersion(duid) {
+        this.adapter.log.debug(`getLocalProtocolVersion for ${duid}: ${this.localDevices?.[duid]?.version || "unknown"}`);
         return this.localDevices?.[duid].version || null;
     }
     decryptECB(encrypted) {
