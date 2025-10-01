@@ -162,6 +162,7 @@ export class Roborock extends utils.Adapter {
 		for (const device of devices) {
 			const duid = device.duid;
 			const version = await this.getDeviceProtocolVersion(duid);
+			this.adapter.log.debug(`Device ${duid} is using protocol version ${version}`);
 
 			if (device.online) {
 				await this.local_api.initiateClient(duid);
