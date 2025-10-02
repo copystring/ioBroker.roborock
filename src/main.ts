@@ -162,25 +162,21 @@ export class Roborock extends utils.Adapter {
 
 		for (const device of devices) {
 			const duid = device.duid;
-			const version = await this.getDeviceProtocolVersion(duid);
-			this.log.debug(`Device ${duid} is using protocol version ${version}`);
 
 			if (device.online) {
 				await this.local_api.initiateClient(duid);
-				if (version === "L01") {
-					await this.local_api.initL01(duid);
-				}
-			}
 
-			await this.createDeviceObjects(device);
-			switch (version) {
-				case "A01":
-					await this.requestsHandler.getStatus(duid);
-					break;
-				default:
-					if (!device.online) {
-						this.log.debug(`Device ${duid} is offline. Skipping status update.`);
-					} else {
+				const version = await this.getDeviceProtocolVersion(duid);
+				this.log.debug(`Device ${duid} is using protocol version ${version}`);
+				await this.createDeviceObjects(device);
+				switch (version) {
+					case "A01":
+						await this.requestsHandler.getStatus(duid);
+						break;
+					case "L01":
+						await this.local_api.initL01(duid);
+						break;
+					default:
 						// get all maps on start of adapter but don't wait for them to finish. Not waiting speeds up the startup process
 						this.requestsHandler.getCleanSummary(duid).catch((error) => {
 							this.catchError(error.stack, "getCleanSummary", duid);
@@ -191,8 +187,10 @@ export class Roborock extends utils.Adapter {
 						this.requestsHandler.getMap(duid).catch((error) => {
 							this.catchError(error.stack, "getMap", duid);
 						});
-					}
-					break;
+						break;
+				}
+			} else {
+				this.log.debug(`Device ${duid} is offline. Skipping status update.`);
 			}
 		}
 		await this.processScenes();
