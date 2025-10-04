@@ -349,9 +349,6 @@ class local_api {
         }
     }
     async sendHello(duid, connectNonce) {
-        const client = this.deviceSockets[duid];
-        if (!client?.connected)
-            throw new Error("TCP not connected");
         const seq = 1;
         const timestamp = Math.floor(Date.now() / 1000);
         const protocol = 1;
@@ -368,7 +365,7 @@ class local_api {
         const lenBuf = Buffer.alloc(4);
         lenBuf.writeUInt32BE(msg.length, 0);
         const wrapped = Buffer.concat([lenBuf, msg]);
-        client.write(wrapped);
+        this.sendMessage(duid, wrapped);
         this.adapter.log.debug(`Hello (TCP) sent to ${duid} with connectNonce=${connectNonce}: ${wrapped.toString("hex")}`);
     }
     /**
