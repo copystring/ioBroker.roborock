@@ -179,7 +179,7 @@ class messageParser {
         else if (version === "L01") {
             const connectNonce = this.adapter.local_api.localDevices[duid]?.connectNonce;
             const ackNonce = this.adapter.local_api.localDevices[duid]?.ackNonce;
-            this.adapter.log.debug(`[buildRoborockMessage] Using connectNonce=${connectNonce?.toString("hex")} ackNonce=${ackNonce?.toString("hex")}`);
+            this.adapter.log.debug(`[buildRoborockMessage] Using connectNonce=${connectNonce} ackNonce=${ackNonce}`);
             encrypted = encryptors.L01(payloadBuf, localKey, timestamp, seq, random, connectNonce, ackNonce);
         }
         else if (version === "1.0") {
