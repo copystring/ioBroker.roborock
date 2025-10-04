@@ -131,8 +131,6 @@ export class local_api {
 			});
 
 			client.on("data", async (message) => {
-				this.adapter.log.debug(`new chunk received: ${message.toString("hex")}`);
-
 				try {
 					if (client.chunkBuffer.length == 0) {
 						if (!this.checkComplete(message)) {
