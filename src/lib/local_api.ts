@@ -399,7 +399,7 @@ export class local_api {
 	async sendHello(duid: string, connectNonce: number) {
 		const seq = 1;
 		const timestamp = Math.floor(Date.now() / 1000);
-		const protocol = 1;
+		const protocol = 0;
 
 		const payloadLen = 0;
 		const msg = Buffer.alloc(23); // 3 + 4 + 4 + 4 + 2 + 2 + 4 (CRC)
