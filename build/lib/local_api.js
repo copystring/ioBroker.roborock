@@ -134,6 +134,7 @@ class local_api {
                         // this.adapter.log.debug(`chunkBuffer: ${client.chunkBuffer.toString("hex")}`);
                         while (offset + 4 <= client.chunkBuffer.length) {
                             const segmentLength = client.chunkBuffer.readUInt32BE(offset);
+                            this.adapter.log.debug(`Segment length: ${segmentLength} at offset ${offset}`);
                             const currentBuffer = client.chunkBuffer.subarray(offset + 4, offset + segmentLength + 4);
                             // length of 17 does not contain any useful data.
                             // The parser for this looks like this: const shortMessageParser = new Parser().endianess("big").string("version", {length: 3,}).uint32("seq").uint32("random").uint32("timestamp").uint16("protocol")
