@@ -163,7 +163,7 @@ export class local_api {
 								const protocol = currentBuffer.readUInt16BE(15);
 
 								switch (protocol) {
-									case 2: // hello_response
+									case 1: // hello_response
 										this.localDevices[duid].ackNonce = nonce;
 										this.adapter.log.debug(`hello_response received from ${duid}, ackNonce=${nonce}`);
 										break;
