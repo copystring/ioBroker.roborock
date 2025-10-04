@@ -400,21 +400,27 @@ export class local_api {
 		const client = this.deviceSockets[duid];
 		if (!client?.connected) throw new Error("TCP not connected");
 
-		const version = Buffer.from("L01", "utf8");
-		const seq = Buffer.alloc(4);
-		seq.writeUInt32BE(1);
-		const random = Buffer.alloc(4);
-		random.writeUInt32BE(connectNonce);
-		const ts = Buffer.alloc(4);
-		ts.writeUInt32BE(Math.floor(Date.now() / 1000));
-		const protocol = Buffer.alloc(2);
-		protocol.writeUInt16BE(1);
+		const seq = 1;
+		const timestamp = Math.floor(Date.now() / 1000);
+		const protocol = 1;
 
-		const msg = Buffer.concat([version, seq, random, ts, protocol]);
+		const payloadLen = 0;
+		const msg = Buffer.alloc(23); // 3 + 4 + 4 + 4 + 2 + 2 + 4 (CRC)
 
-		const len = Buffer.alloc(4);
-		len.writeUInt32BE(msg.length, 0);
-		const wrapped = Buffer.concat([len, msg]);
+		msg.write("L01"); // version
+		msg.writeUInt32BE(seq, 3); // seq
+		msg.writeUInt32BE(connectNonce, 7); // nonce
+		msg.writeUInt32BE(timestamp, 11); // timestamp
+		msg.writeUInt16BE(protocol, 15); // protocol (1)
+		msg.writeUInt16BE(payloadLen, 17); // payload length (0)
+
+		const crc = crc32.buf(msg.subarray(0, msg.length - 4)) >>> 0;
+		msg.writeUInt32BE(crc, msg.length - 4);
+
+		const lenBuf = Buffer.alloc(4);
+		lenBuf.writeUInt32BE(msg.length, 0);
+
+		const wrapped = Buffer.concat([lenBuf, msg]);
 
 		client.write(wrapped);
 
