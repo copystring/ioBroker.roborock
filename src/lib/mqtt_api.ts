@@ -72,6 +72,7 @@ export class mqtt_api {
 			username: this.mqttUser,
 			password: this.mqttPassword,
 			keepalive: 30,
+			reconnectPeriod: 60000, // reconnect every 60s if disconnected
 		};
 	}
 
@@ -131,7 +132,7 @@ export class mqtt_api {
 		});
 
 		client.on("close", () => {
-			this.adapter.log.info(`MQTT connection closed.`);
+			this.adapter.log.info(`MQTT connection closed. Reconnecting in 60 seconds`);
 			this.connected = false;
 		});
 
