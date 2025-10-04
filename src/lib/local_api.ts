@@ -151,20 +151,29 @@ export class local_api {
 						// this.adapter.log.debug(`chunkBuffer: ${client.chunkBuffer.toString("hex")}`);
 						while (offset + 4 <= client.chunkBuffer.length) {
 							const segmentLength = client.chunkBuffer.readUInt32BE(offset);
-								const currentBuffer = client.chunkBuffer.subarray(offset + 4, offset + segmentLength + 4);
+							const currentBuffer = client.chunkBuffer.subarray(offset + 4, offset + segmentLength + 4);
 							// length of 17 does not contain any useful data.
 							// The parser for this looks like this: const shortMessageParser = new Parser().endianess("big").string("version", {length: 3,}).uint32("seq").uint32("random").uint32("timestamp").uint16("protocol")
 
 							if (segmentLength === 17) {
 								const version = currentBuffer.toString("utf8", 0, 3);
 								const seq = currentBuffer.readUInt32BE(3);
-								const random = currentBuffer.readUInt32BE(7); // = ackNonce
+								const nonce = currentBuffer.readUInt32BE(7);
 								const ts = currentBuffer.readUInt32BE(11);
 								const protocol = currentBuffer.readUInt16BE(15);
 
-								if (protocol === 2) {
-									this.localDevices[duid].ackNonce = random;
-									this.adapter.log.debug(`hello_response received from ${duid}, ackNonce=${random}`);
+								switch (protocol) {
+									case 2: // hello_response
+										this.localDevices[duid].ackNonce = nonce;
+										this.adapter.log.debug(`hello_response received from ${duid}, ackNonce=${nonce}`);
+										break;
+
+									case 5: // ping_response
+										this.adapter.log.debug(`ping_response received from ${duid}`);
+										break;
+
+									default:
+										this.adapter.log.debug(`short frame ${protocol} received from ${duid}`);
 								}
 							} else {
 								const dataArr = this.adapter.requestsHandler.messageParser._decodeMsg(currentBuffer, duid);
@@ -172,15 +181,6 @@ export class local_api {
 								const allMessages = Array.isArray(dataArr) ? dataArr : dataArr ? [dataArr] : [];
 								for (const data of allMessages) {
 									switch (data.protocol) {
-										case 2: // hello_response
-											{
-												const ackNonce = data.header?.nonce;
-												if (ackNonce !== undefined) {
-													this.localDevices[duid].ackNonce = ackNonce;
-													this.adapter.log.debug(`initL01: hello_response received from ${duid}, ackNonce=${ackNonce}`);
-												}
-											}
-											break;
 										case 4: {
 											const dps = JSON.parse(data.payload).dps;
 
