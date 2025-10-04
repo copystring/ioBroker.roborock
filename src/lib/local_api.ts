@@ -440,7 +440,6 @@ export class local_api {
 	}
 
 	getLocalProtocolVersion(duid) {
-		this.adapter.log.debug(`getLocalProtocolVersion for ${duid}: ${this.localDevices?.[duid]?.version || "unknown"}`);
 		return this.localDevices?.[duid].version || null;
 	}
 
