@@ -366,7 +366,7 @@ class local_api {
         len.writeUInt32BE(msg.length, 0);
         const wrapped = Buffer.concat([len, msg]);
         client.write(wrapped);
-        this.adapter.log.debug(`Hello (TCP) sent to ${duid} with connectNonce=${connectNonce}`);
+        this.adapter.log.debug(`Hello (TCP) sent to ${duid} with connectNonce=${connectNonce}: ${wrapped.toString("hex")}`);
     }
     /**
      * @param {string} duid

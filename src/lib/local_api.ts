@@ -418,7 +418,7 @@ export class local_api {
 
 		client.write(wrapped);
 
-		this.adapter.log.debug(`Hello (TCP) sent to ${duid} with connectNonce=${connectNonce}`);
+		this.adapter.log.debug(`Hello (TCP) sent to ${duid} with connectNonce=${connectNonce}: ${wrapped.toString("hex")}`);
 	}
 
 	/**
