@@ -6,17 +6,17 @@ const SALT = "TXdfu$jyZ#TZHsg4";
 
 // Lazy RSA keypair for e.g. get_photo
 let rsaKeys: {
-    public: { n: string; e: string };
-    private: {
-        n: string;
-        e: string;
-        d: string;
-        p: string;
-        q: string;
-        dmp1: string;
-        dmq1: string;
-        coeff: string;
-    };
+	public: { n: string; e: string };
+	private: {
+		n: string;
+		e: string;
+		d: string;
+		p: string;
+		q: string;
+		dmp1: string;
+		dmq1: string;
+		coeff: string;
+	};
 } | null = null;
 
 function encodeTimestamp(ts: number): string {
@@ -39,9 +39,9 @@ function toBuffer(input: string | Buffer): Buffer {
 // credits to rovo89 for the following code. Especially for version A01!
 // credits to Kenny from discord from the Homey project for the L01 implementation!
 export const cryptoEngine = {
-    /**
-     * Generate RSA keypair only when needed.
-     */
+	/**
+	 * Generate RSA keypair only when needed.
+	 */
 	ensureRsaKeys() {
 		if (rsaKeys) return rsaKeys;
 		const kp = forge.pki.rsa.generateKeyPair(2048);
@@ -118,13 +118,13 @@ export const cryptoEngine = {
 			.digest();
 
 		const digestInput = Buffer.alloc(12);
-		digestInput.writeUInt32BE(seq >>> 0);
+		digestInput.writeUInt32BE(seq >>> 0, 0);
 		digestInput.writeUInt32BE(random >>> 0, 4);
 		digestInput.writeUInt32BE(ts >>> 0, 8);
 		const iv = crypto.createHash("sha256").update(digestInput).digest().subarray(0, 12);
 
 		const aad = Buffer.alloc(20);
-		aad.writeUInt32BE(seq >>> 0);
+		aad.writeUInt32BE(seq >>> 0, 0);
 		aad.writeUInt32BE(connectNonce >>> 0, 4);
 		aad.writeUInt32BE(ackNonce >>> 0, 8);
 		aad.writeUInt32BE(random >>> 0, 12);
@@ -150,7 +150,7 @@ export const cryptoEngine = {
 
 		const digestInput = Buffer.alloc(12);
 		digestInput.writeUInt32BE(seq >>> 0);
-		digestInput.writeUInt32BE(random >>> 0, 4);
+		digestInput.writeUInt32BE(ackNonce >>> 0, 4);
 		digestInput.writeUInt32BE(ts >>> 0, 8);
 		const iv = crypto.createHash("sha256").update(digestInput).digest().subarray(0, 12);
 
@@ -158,7 +158,7 @@ export const cryptoEngine = {
 		aad.writeUInt32BE(seq >>> 0);
 		aad.writeUInt32BE(connectNonce >>> 0, 4);
 		aad.writeUInt32BE(ackNonce >>> 0, 8);
-		aad.writeUInt32BE(random >>> 0, 12);
+		aad.writeUInt32BE(ackNonce >>> 0, 12);
 		aad.writeUInt32BE(ts >>> 0, 16);
 
 		const tag = payload.subarray(payload.length - 16);

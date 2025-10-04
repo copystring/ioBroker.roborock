@@ -195,31 +195,42 @@ export class messageParser {
 	 * Builds the final Roborock frame and encrypts the payload.
 	 */
 	async buildRoborockMessage(duid: string, protocol: number, timestamp: number, payload: string | Buffer): Promise<Buffer | false> {
+		const s = seq++ >>> 0;
+		const r = random++ >>> 0;
+
 		const version = (await this.adapter.getDeviceProtocolVersion(duid)) as ProtocolVersion;
 		const localKey = this.adapter.http_api.getMatchedLocalKeys().get(duid);
 		if (!localKey) return false;
 
-		const payloadBuf = Buffer.isBuffer(payload) ? payload : Buffer.from(payload, "utf-8");
-		let encrypted: Buffer;
 
 		if (protocol === 1) {
-			// hello_request
-			encrypted = Buffer.alloc(0);
-		} else if (version === "L01") {
+			const msg = Buffer.alloc(HEADER_LEN + CRC32_LEN);
+			msg.write(version);
+			msg.writeUInt32BE(s, 3);
+			msg.writeUInt32BE(r, 7);
+			msg.writeUInt32BE(timestamp >>> 0, 11);
+			msg.writeUInt16BE(protocol, 15);
+			msg.writeUInt16BE(0, 17);
+			appendCrc(msg);
+			return msg;
+		}
+
+		let encrypted: Buffer;
+		const payloadBuf = Buffer.isBuffer(payload) ? payload : Buffer.from(payload, "utf-8");
+
+		if (version === "L01") {
 			const connectNonce = this.adapter.local_api.localDevices[duid]?.connectNonce;
 			const ackNonce = this.adapter.local_api.localDevices[duid]?.ackNonce;
 			this.adapter.log.debug(`[buildRoborockMessage] Using connectNonce=${connectNonce} ackNonce=${ackNonce}`);
-			encrypted = encryptors.L01(payloadBuf, localKey, timestamp, seq, random, connectNonce, ackNonce);
+			encrypted = encryptors.L01(payloadBuf, localKey, timestamp, s, r, connectNonce, ackNonce);
 		} else if (version === "1.0") {
 			encrypted = encryptors["1.0"](payloadBuf, localKey, timestamp);
 		} else if (version === "A01") {
-			encrypted = encryptors.A01(payloadBuf, localKey, random);
+			encrypted = encryptors.A01(payloadBuf, localKey, r);
 		} else {
 			return false;
 		}
 
-		const s = seq++ >>> 0;
-		const r = random++ >>> 0;
 		const msg = Buffer.alloc(HEADER_LEN + encrypted.length + CRC32_LEN);
 
 		msg.write(version);
