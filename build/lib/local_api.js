@@ -134,10 +134,21 @@ class local_api {
                         // this.adapter.log.debug(`chunkBuffer: ${client.chunkBuffer.toString("hex")}`);
                         while (offset + 4 <= client.chunkBuffer.length) {
                             const segmentLength = client.chunkBuffer.readUInt32BE(offset);
+                            const currentBuffer = client.chunkBuffer.subarray(offset + 4, offset + segmentLength + 4);
                             // length of 17 does not contain any useful data.
                             // The parser for this looks like this: const shortMessageParser = new Parser().endianess("big").string("version", {length: 3,}).uint32("seq").uint32("random").uint32("timestamp").uint16("protocol")
-                            if (segmentLength != 17) {
-                                const currentBuffer = client.chunkBuffer.subarray(offset + 4, offset + segmentLength + 4);
+                            if (segmentLength === 17) {
+                                const version = currentBuffer.toString("utf8", 0, 3);
+                                const seq = currentBuffer.readUInt32BE(3);
+                                const random = currentBuffer.readUInt32BE(7); // = ackNonce
+                                const ts = currentBuffer.readUInt32BE(11);
+                                const protocol = currentBuffer.readUInt16BE(15);
+                                if (protocol === 2) {
+                                    this.localDevices[duid].ackNonce = random;
+                                    this.adapter.log.debug(`hello_response received from ${duid}, ackNonce=${random}`);
+                                }
+                            }
+                            else {
                                 const dataArr = this.adapter.requestsHandler.messageParser._decodeMsg(currentBuffer, duid);
                                 const allMessages = Array.isArray(dataArr) ? dataArr : dataArr ? [dataArr] : [];
                                 for (const data of allMessages) {
@@ -343,13 +354,20 @@ class local_api {
         const client = this.deviceSockets[duid];
         if (!client?.connected)
             throw new Error("TCP not connected");
-        const timestamp = Math.floor(Date.now() / 1000);
-        const protocol = 1;
-        const payload = Buffer.alloc(0);
-        const msg = await this.adapter.requestsHandler.messageParser.buildRoborockMessage(duid, protocol, timestamp, payload, connectNonce);
-        if (!msg)
-            throw new Error("Failed to build hello message");
-        client.write(msg);
+        const version = Buffer.from("L01", "utf8");
+        const seq = Buffer.alloc(4);
+        seq.writeUInt32BE(1);
+        const random = Buffer.alloc(4);
+        random.writeUInt32BE(connectNonce);
+        const ts = Buffer.alloc(4);
+        ts.writeUInt32BE(Math.floor(Date.now() / 1000));
+        const protocol = Buffer.alloc(2);
+        protocol.writeUInt16BE(1);
+        const msg = Buffer.concat([version, seq, random, ts, protocol]);
+        const len = Buffer.alloc(4);
+        len.writeUInt32BE(msg.length, 0);
+        const wrapped = Buffer.concat([len, msg]);
+        client.write(wrapped);
         this.adapter.log.debug(`Hello (TCP) sent to ${duid} with connectNonce=${connectNonce}`);
     }
     /**
