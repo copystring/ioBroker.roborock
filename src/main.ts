@@ -793,9 +793,9 @@ export class Roborock extends utils.Adapter {
 	 * @param {string} duid
 	 */
 	async getDeviceProtocolVersion(duid) {
-		const isLocalDevice = this.local_api.isLocalDevice(duid);
+		const tcpConnected = this.local_api.isConnected(duid);
 
-		if (isLocalDevice) {
+		if (tcpConnected) {
 			return this.local_api.getLocalProtocolVersion(duid);
 		} else {
 			const devices = this.http_api.getDevices();
