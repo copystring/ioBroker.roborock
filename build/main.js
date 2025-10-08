@@ -110,15 +110,15 @@ class Roborock extends utils.Adapter {
         await this.local_api.startUdpDiscovery();
         for (const device of devices) {
             const duid = device.duid;
-            // need to get network data before processing any other data
-            const version = await this.getDeviceProtocolVersion(device.duid);
-            const isSharedDevice = this.http_api.isSharedDevice(device.duid);
-            if (version != "A01" && !isSharedDevice) {
-                const duid = device.duid;
-                await this.requestsHandler.getParameter(duid, "get_network_info", []); // this needs to be called first on start of adapter to get the IP adresses of each device
-            }
             if (device.online) {
                 await this.local_api.initiateClient(duid);
+                // need to get network data before processing any other data
+                const version = await this.getDeviceProtocolVersion(device.duid);
+                const isSharedDevice = this.http_api.isSharedDevice(device.duid);
+                if (version != "A01" && !isSharedDevice) {
+                    const duid = device.duid;
+                    await this.requestsHandler.getParameter(duid, "get_network_info", []); // this needs to be called first on start of adapter to get the IP adresses of each device
+                }
                 this.log.debug(`Device ${duid} is using protocol version ${version}`);
                 await this.createDeviceObjects(device);
                 switch (version) {
