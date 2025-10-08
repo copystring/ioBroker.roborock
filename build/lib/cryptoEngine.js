@@ -117,15 +117,15 @@ exports.cryptoEngine = {
             .update(encodeTimestamp(ts) + localKey + SALT)
             .digest();
         const digestInput = Buffer.alloc(12);
-        digestInput.writeUInt32BE(seq >>> 0);
-        digestInput.writeUInt32BE(ackNonce >>> 0, 4);
+        digestInput.writeUInt32BE(seq >>> 0, 0);
+        digestInput.writeUInt32BE(random >>> 0, 4);
         digestInput.writeUInt32BE(ts >>> 0, 8);
         const iv = crypto_1.default.createHash("sha256").update(digestInput).digest().subarray(0, 12);
         const aad = Buffer.alloc(20);
-        aad.writeUInt32BE(seq >>> 0);
+        aad.writeUInt32BE(seq >>> 0, 0);
         aad.writeUInt32BE(connectNonce >>> 0, 4);
         aad.writeUInt32BE(ackNonce >>> 0, 8);
-        aad.writeUInt32BE(ackNonce >>> 0, 12);
+        aad.writeUInt32BE(random >>> 0, 12);
         aad.writeUInt32BE(ts >>> 0, 16);
         const tag = payload.subarray(payload.length - 16);
         const ciphertext = payload.subarray(0, payload.length - 16);
