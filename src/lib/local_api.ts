@@ -120,12 +120,17 @@ export class local_api {
 					reject(new Error("TCP connect timeout"));
 				});
 
-				client.connect(TCP_CONNECTION_PORT, ip, () => {
+				client.connect(TCP_CONNECTION_PORT, ip, async () => {
 					client.off("error", onErrorOnce); // Remove listener
 					client.setTimeout(0);
 					this.adapter.log.info(`TCP client for ${duid} connected`);
 					this.deviceSockets[duid] = client;
 					this.reconnectPlanned.delete(duid);
+
+					const version = this.getLocalProtocolVersion(duid);
+					if (version == "L01") {
+						await this.initL01(duid);
+					}
 					resolve();
 				});
 			});
