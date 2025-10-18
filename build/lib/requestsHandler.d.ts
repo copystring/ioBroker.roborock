@@ -68,12 +68,8 @@ export declare class requestsHandler {
      * @param {string} duid
      */
     getSelectedMap(duid: any): number | null;
-    /**
-     * @param {string} duid
-     * @param {string} method
-     * @param {Array | Object} [params]
-     */
-    sendRequest(duid: any, method: any, params: any): Promise<unknown>;
+    isCloudRequest(duid: any, method: any): any;
+    sendRequest(duid: string, method: string, params: Array<any> | Object | undefined): Promise<unknown>;
     /**
      * Resolves a previously tracked pending request by ID.
      * Removes the request from the internal map and calls its resolve function.

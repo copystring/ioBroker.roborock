@@ -144,10 +144,9 @@ class messageParser {
     /**
      * Builds the JSON payload for the device.
      */
-    async buildPayload(duid, protocol, messageID, method, params) {
+    async buildPayload(duid, protocol, messageID, method, params, version) {
         const timestamp = Math.floor(Date.now() / 1000);
         const endpoint = await this.adapter.mqtt_api.ensureEndpoint();
-        const version = await this.adapter.getDeviceProtocolVersion(duid);
         if (version === "A01") {
             return JSON.stringify({ dps: { [method]: params }, t: timestamp });
         }
@@ -165,10 +164,9 @@ class messageParser {
     /**
      * Builds the final Roborock frame and encrypts the payload.
      */
-    async buildRoborockMessage(duid, protocol, timestamp, payload) {
+    async buildRoborockMessage(duid, protocol, timestamp, payload, version) {
         const s = seq++ >>> 0;
         const r = random++ >>> 0;
-        const version = (await this.adapter.getDeviceProtocolVersion(duid));
         const localKey = this.adapter.http_api.getMatchedLocalKeys().get(duid);
         if (!localKey)
             return false;

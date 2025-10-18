@@ -24,10 +24,10 @@ export declare class messageParser {
     /**
      * Builds the JSON payload for the device.
      */
-    buildPayload(duid: string, protocol: number, messageID: number, method: string, params: any): Promise<string>;
+    buildPayload(duid: string, protocol: number, messageID: number, method: string, params: any, version: string): Promise<string>;
     /**
      * Builds the final Roborock frame and encrypts the payload.
      */
-    buildRoborockMessage(duid: string, protocol: number, timestamp: number, payload: string | Buffer): Promise<Buffer | false>;
+    buildRoborockMessage(duid: string, protocol: number, timestamp: number, payload: string | Buffer, version: string): Promise<Buffer | false>;
 }
 export {};

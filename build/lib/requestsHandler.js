@@ -603,11 +603,10 @@ class requestsHandler {
         }
         return this.cached_get_status_value[duid].map_status >> 2; // Bitwise right shift to obtain the selected map
     }
-    /**
-     * @param {string} duid
-     * @param {string} method
-     * @param {Array | Object} [params]
-     */
+    isCloudRequest(duid, method) {
+        const cloudOnlyMethods = ["get_map_v1", "get_clean_record_map", "get_photo", "get_network_info"];
+        return cloudOnlyMethods.includes(method) || this.adapter.requestsHandler.isCloudDevice(duid);
+    }
     async sendRequest(duid, method, params) {
         const remoteConnection = await this.isCloudDevice(duid);
         let protocol = 101;
@@ -615,11 +614,11 @@ class requestsHandler {
         this.idCounter = this.idCounter > 9999 ? 1 : this.idCounter + 1;
         const messageID = method === "get_photo" ? ((this.idCounter - 1) % 256) + 1 : this.idCounter;
         const timestamp = Math.floor(Date.now() / 1000);
-        if (!remoteConnection && method != "get_map_v1" && method != "get_clean_record_map" && method != "get_network_info") {
+        if (!this.isCloudRequest(duid, method)) {
             protocol = 4;
         }
-        const payload = await this.messageParser.buildPayload(duid, protocol, messageID, method, params);
-        const roborockMessage = await this.messageParser.buildRoborockMessage(duid, protocol, timestamp, payload);
+        const payload = await this.messageParser.buildPayload(duid, protocol, messageID, method, params, version);
+        const roborockMessage = await this.messageParser.buildRoborockMessage(duid, protocol, timestamp, payload, version);
         const mqttConnectionState = this.adapter.mqtt_api.isConnected();
         const localConnectionState = this.adapter.local_api.isConnected(duid);
         if (!roborockMessage) {
@@ -656,7 +655,7 @@ class requestsHandler {
                 }, requestTimeout);
                 // Store the request with resolve and reject functions
                 this.adapter.pendingRequests.set(messageID, { resolve, reject, timeout });
-                if (remoteConnection || method == "get_map_v1" || method == "get_clean_record_map" || method == "get_photo" || method == "get_network_info") {
+                if (this.isCloudRequest(duid, method)) {
                     this.adapter.mqtt_api.sendMessage(duid, roborockMessage);
                     this.adapter.log.debug(`Sent payload for ${duid} with ${payload} using cloud connection using version ${version}`);
                 }
