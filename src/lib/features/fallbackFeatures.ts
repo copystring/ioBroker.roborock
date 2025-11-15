@@ -25,7 +25,7 @@ export class FallbackBaseFeatures extends BaseDeviceFeatures {
 		// Fallback does nothing with dock type
 	}
 
-	public async detectAndApplyRuntimeFeatures(statusData: Record<string, any>, fwFeatures?: readonly number[]): Promise<boolean> {
+	public async detectAndApplyRuntimeFeatures(): Promise<boolean> {
 		this.deps.log.warn(`[${this.duid}] Using fallback detectAndApplyRuntimeFeatures. No features detected.`);
 		return false; // Fallback does no runtime detection
 	}

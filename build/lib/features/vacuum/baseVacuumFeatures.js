@@ -376,7 +376,7 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
         this.deps.log.silly(`[${this.duid}] Detected dynamic vacuum features (raw): ${[...features].join(", ")}`);
         return features;
     }
-    async detectAndApplyRuntimeFeatures(statusData, fwFeatures) {
+    async detectAndApplyRuntimeFeatures(statusData) {
         let changedOverall = false;
         const runDetection = !this.runtimeDetectionComplete || this.deps.config.forceRuntimeDetectEveryTime; // Check config flag
         if (!runDetection) {

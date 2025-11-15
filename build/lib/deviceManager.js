@@ -93,10 +93,9 @@ class DeviceManager {
                     }
                     this.adapter.log.debug(`[DeviceManager] Applying initial features for ${duid}`);
                     const statusData = this.adapter.requestsHandler.cached_get_status_value[duid];
-                    const fwFeatures = this.adapter.http_api.getFwFeaturesResult(duid);
                     if (device.online && statusData) {
                         // These methods are in your startPolling and should exist
-                        await handler.detectAndApplyRuntimeFeatures(statusData, fwFeatures);
+                        await handler.detectAndApplyRuntimeFeatures(statusData);
                         await handler.processDockType(statusData?.dock_type);
                     }
                     else if (device.online) {
@@ -171,8 +170,7 @@ class DeviceManager {
                             await this.adapter.requestsHandler.getStatus(handler, duid);
                             const statusData = this.adapter.requestsHandler.cached_get_status_value[duid];
                             if (statusData) {
-                                const fwFeatures = this.adapter.http_api.getFwFeaturesResult(duid);
-                                const commandsChanged = await handler.detectAndApplyRuntimeFeatures(statusData, fwFeatures);
+                                const commandsChanged = await handler.detectAndApplyRuntimeFeatures(statusData);
                                 await handler.processDockType(statusData?.dock_type);
                                 if (commandsChanged) {
                                     await handler.createCommandObjects();

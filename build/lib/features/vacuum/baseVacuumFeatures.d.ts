@@ -382,7 +382,7 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     constructor(dependencies: FeatureDependencies, duid: string, robotModel: string, config: DeviceModelConfig);
     protected registerFeatures(): void;
     protected _getDynamicFeatures(): Set<Feature>;
-    detectAndApplyRuntimeFeatures(statusData: Readonly<Record<string, any>>, fwFeatures?: readonly number[]): Promise<boolean>;
+    detectAndApplyRuntimeFeatures(statusData: Readonly<Record<string, any>>): Promise<boolean>;
     processDockType(dockTypeInput: number | undefined): Promise<void>;
     getCommonConsumable(attribute: string | number): {
         unit?: string;

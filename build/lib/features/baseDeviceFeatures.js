@@ -153,7 +153,7 @@ class BaseDeviceFeatures {
         let commandsChangedByRuntime = false;
         if (initialStatus) {
             try {
-                commandsChangedByRuntime = await this.detectAndApplyRuntimeFeatures(initialStatus, initialFwFeatures);
+                commandsChangedByRuntime = await this.detectAndApplyRuntimeFeatures(initialStatus);
                 this.runtimeDetectionComplete = true; // Mark initial detection attempt as done
             }
             catch (e) {

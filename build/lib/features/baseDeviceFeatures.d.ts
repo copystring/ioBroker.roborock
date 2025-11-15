@@ -115,7 +115,7 @@ export declare abstract class BaseDeviceFeatures {
      * @param fwFeatures Optional firmware features data.
      * @returns `true` if features/commands were added or modified, `false` otherwise.
      */
-    abstract detectAndApplyRuntimeFeatures(statusData: Readonly<Record<string, any>>, fwFeatures?: readonly number[]): Promise<boolean>;
+    abstract detectAndApplyRuntimeFeatures(statusData: Readonly<Record<string, any>>): Promise<boolean>;
     /**
      * Initializes all features for the device instance according to the defined flow:
      * Model Specifics -> Runtime Detection -> Dock Processing -> Command Object Creation.

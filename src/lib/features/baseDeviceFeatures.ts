@@ -186,7 +186,7 @@ export abstract class BaseDeviceFeatures {
 	 * @param fwFeatures Optional firmware features data.
 	 * @returns `true` if features/commands were added or modified, `false` otherwise.
 	 */
-	public abstract detectAndApplyRuntimeFeatures(statusData: Readonly<Record<string, any>>, fwFeatures?: readonly number[]): Promise<boolean>;
+	public abstract detectAndApplyRuntimeFeatures(statusData: Readonly<Record<string, any>>): Promise<boolean>;
 
 	// --- Core Initialization Logic ---
 
@@ -238,7 +238,7 @@ export abstract class BaseDeviceFeatures {
 		let commandsChangedByRuntime = false;
 		if (initialStatus) {
 			try {
-				commandsChangedByRuntime = await this.detectAndApplyRuntimeFeatures(initialStatus, initialFwFeatures);
+				commandsChangedByRuntime = await this.detectAndApplyRuntimeFeatures(initialStatus);
 				this.runtimeDetectionComplete = true; // Mark initial detection attempt as done
 			} catch (e: any) {
 				this.deps.log.error(`[FeatureInit|${this.robotModel}|${this.duid}] Error during runtime feature detection: ${e.message} ${e.stack}`);

@@ -6,7 +6,7 @@ export declare class FallbackBaseFeatures extends BaseDeviceFeatures {
     protected registerFeatures(): void;
     protected _getDynamicFeatures(): Set<Feature>;
     processDockType(dockType: number): Promise<void>;
-    detectAndApplyRuntimeFeatures(statusData: Record<string, any>, fwFeatures?: readonly number[]): Promise<boolean>;
+    detectAndApplyRuntimeFeatures(): Promise<boolean>;
     getCommonConsumable(attribute: string | number): {
         unit?: string;
     } | undefined;

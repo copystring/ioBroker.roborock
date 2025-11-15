@@ -372,7 +372,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 		return features;
 	}
 
-	public async detectAndApplyRuntimeFeatures(statusData: Readonly<Record<string, any>>, fwFeatures?: readonly number[]): Promise<boolean> {
+	public async detectAndApplyRuntimeFeatures(statusData: Readonly<Record<string, any>>): Promise<boolean> {
 		let changedOverall = false;
 		const runDetection = !this.runtimeDetectionComplete || this.deps.config.forceRuntimeDetectEveryTime; // Check config flag
 

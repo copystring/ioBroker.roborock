@@ -3,7 +3,7 @@ import globals from "globals";
 export default [
 	{
 		files: ["**/*.js"],
-		ignores: ["**/.eslintrc.js", "admin/words.js", "build/", "www/", "lib/", "test.rrmap.gz"],
+		ignores: ["**/.eslintrc.js", "admin/words.js", "build/**", "www/**", "lib/", "test.rrmap.gz"],
 		languageOptions: {
 			ecmaVersion: 2020,
 			sourceType: "module",
