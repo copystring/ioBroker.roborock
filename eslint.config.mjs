@@ -3,7 +3,7 @@ import globals from "globals";
 export default [
 	{
 		files: ["**/*.js"],
-		ignores: ["**/.eslintrc.js", "admin/words.js", "lib/map/zones.js"],
+		ignores: ["**/.eslintrc.js", "admin/words.js", "build/**", "www/**", "lib/", "test.rrmap.gz"],
 		languageOptions: {
 			ecmaVersion: 2020,
 			sourceType: "module",
@@ -21,20 +21,6 @@ export default [
 			"prefer-const": "error",
 			quotes: ["error", "double", { avoidEscape: true, allowTemplateLiterals: true }],
 			semi: ["error", "always"],
-		},
-	},
-	{
-		files: ["lib/map/zones.js"],
-		languageOptions: {
-			ecmaVersion: 2020,
-			sourceType: "script",
-			globals: {
-				...globals.browser,
-				...Object.fromEntries(Object.entries(globals.node).map(([key]) => [key, false])),
-			},
-		},
-		rules: {
-			// Specific rules for zones.js can be defined here
 		},
 	},
 ];
