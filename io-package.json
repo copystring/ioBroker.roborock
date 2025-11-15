@@ -1,9 +1,22 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.6.18",
+    "version": "0.6.19",
     "tier": 1,
     "news": {
+      "0.6.19": {
+        "en": "Rewrite of mqtt connection logic\nAdd missing features to Qrevo Slim\nStart websocket & web server onReady\nUpdate LICENSE\nUpdate README.md",
+        "de": "Rewrite der mqtt-Verbindungslogik\nFügen Sie fehlende Funktionen zu Qrevo Slim hinzu\nStarten Sie Websocket & Webserver aufReady\nAktualisierung LICENSE\nUpdate README.md",
+        "ru": "Переписать логику связи mqtt\nДобавить недостающие функции в Qrevo Slim\nНачните веб-сервер наReady\nОбновление LICENSE\nОбновление README.md",
+        "pt": "Reescrever a lógica de conexão mqtt\nAdicionar recursos ausentes ao Qrevo Slim\nIniciar websocket & servidor web noReady\nAtualizar LICENSE\nAtualização README.md",
+        "nl": "Herschrijven van mqtt-verbindingslogica\nOntbrekende functies toevoegen aan Qrevo Slim\nStart websocket & webserver onReady\nLICENSE bijwerken\nREADME.md bijwerken",
+        "fr": "Réécriture de la logique de connexion mqtt\nAjouter des fonctionnalités manquantes à Qrevo Slim\nDémarrer websocket & serveur web surReady\nMettre à jour LICENSE\nMettre à jour README.md",
+        "it": "Riscrittura della logica di connessione di mqtt\nAggiungi le caratteristiche mancanti a Qrevo Slim\nAvviare websocket & web server suReady\nAggiornamento LICENSE\nAggiornamento README.md",
+        "es": "Reescribir la lógica de conexión mqtt\nAñadir características desaparecidas a Qrevo Slim\nInicio websocket & servidor web enReady\nActualización LICENSE\nActualizar README.md",
+        "pl": "Przepisz logikę połączenia mqtt\nDodaj brakujące funkcje do Qrevo Slim\nUruchom websocket i serwer WWW onReady\nAktualizacja LICENCJI\nAktualizacja README.md",
+        "uk": "Перезапис логіки з'єднання mqtt\nДодати відсутні функції до Qrevo Slim\nВеб-сервер наReady\nОновлення LICENSE\nОновлення README.md",
+        "zh-cn": "重写 mqtt 连接逻辑\n添加缺失的特性到 Qrevo Slim\n在 Ready 上启动 Websocket 服务器( W)\n更新自由度\n更新 README.md"
+      },
       "0.6.18": {
         "en": "Add cleaned_area to S8\nBugfixes for Qrevo Curve\nFix reset of consumables\nFix io-package.json\nAdd Roborock Qrevo Master\nRefactor login api and renew login every 3 hours\nFix unit of clean_percent\nAdd water box support to S6\nMany small fixed I can't be bothered to list 😅",
         "de": "Gesäubert_area zu S8 hinzufügen\nBugfixes für Qrevo Curve\nReset von Verbrauchsmaterialien\nIo-package.json\nRoborock Qrevo Master hinzufügen\nRefactor login api und erneuern Login alle 3 Stunden\nFixeinheit von clean_percent\nWasserkastenunterstützung für S6 hinzufügen\nViele kleine fixierte ich kann nicht gestört werden, um 😅",
@@ -81,19 +94,6 @@
         "pl": "Poprawki błędów\nDodaj podstawowe wsparcie dla S8 MaxV Ultra\nNowo znalezione atrybuty są teraz ostrzeganie zamiast błędu\nPoprawa wykrywania \"home _ sec '\nNapraw wykrywanie stacji dokującej\nBREAKING: Dostosowanie stacji dokującej stan odzwierciedlać aplikacji smartphone\nWykrywanie zdalnych urządzeń i łączenie za pośrednictwem mqtt\nPoprawa obsługi funkcji stacji dokującej",
         "uk": "Виправлення помилок\nДодати базову підтримку S8 MaxV Ультра\nНові знайдені атрибути тепер попереджають замість помилки\nПокращення виявлення `home_sec й\nФіксація док-станція\nBREAKING: Регульувати стани докінгу для відображення смартфона\nВиявлення віддалених пристроїв та підключення через mqtt замість\nПокращити роботу док-станція",
         "zh-cn": "错误修正\n为 S8 MaxV 添加基本支持 超强\n新找到的属性现在是警告而不是错误\n改进对“家园”的检测 `\n固定对接站检测\n调整对接站状态以反映智能手机应用\n检测远程设备并通过 mqtt 连接\n改进对接站功能处理"
-      },
-      "0.6.12": {
-        "en": "Change go2rtc github to go2rtc-static npm",
-        "de": "Wechseln go2rtc github zu go2rtc-statisch npm",
-        "ru": "Измените go2rtc github на go2rtc-статический npm",
-        "pt": "Alterar go2rtc github para go2rtc-static npm",
-        "nl": "Verander go2rtc github naar go2rtc-static npm",
-        "fr": "Changer go2rtc github en go2rtc-static npm",
-        "it": "Cambiare go2rtc github a go2rtc-static npm",
-        "es": "Cambiar go2rtc github a go2rtc-static npm",
-        "pl": "Zmień go2rtc github na go2rtc- static npm",
-        "uk": "Зміна go2rtc github для go2rtc-static npm",
-        "zh-cn": "将go2rtc github改为go2rtc- static npm"
       }
     },
     "titleLang": {
@@ -163,20 +163,22 @@
         "pl": "Roborock",
         "zh-cn": "Roborock"
       },
-      "link": "%web_protocol%://%ip%:%webserverPort%/map.html",
+      "link": "%web_protocol%://%ip%:%web_port%/roborock/index.html?instance=%instance%",
       "fa-icon": "</i><img style='width:24px;margin-bottom:-6px;' src='/adapter/admin/roborock.png'><i>"
     },
     "localLinks": {
-      "_default": "%web_protocol%://%ip%:%webserverPort%/map.html"
+      "_default": "%web_protocol%://%ip%:%web_port%/roborock/index.html?instance=%instance%"
     },
+    "messagebox": true,
     "dependencies": [
       {
-        "js-controller": ">=5.0.19"
+        "js-controller": ">=6.0.11",
+        "web": ">=4.0.0"
       }
     ],
     "globalDependencies": [
       {
-        "admin": ">=5.1.13"
+        "admin": ">=7.6.17"
       }
     ],
     "plugins": {
@@ -187,11 +189,13 @@
   },
   "encryptedNative": [
     "username",
-    "password"
+    "password",
+    "cameraPin"
   ],
   "protectedNative": [
     "username",
-    "password"
+    "password",
+    "cameraPin"
   ],
   "native": {
     "username": "",
@@ -200,7 +204,6 @@
     "map_creation_interval": 2,
     "map_scale": 2,
     "updateInterval": 60,
-    "webserverPort": 6824,
     "hostname_ip": "iobroker",
     "cameraPin": 1234
   },
