@@ -5,11 +5,19 @@
 		"username": {
 			"type": "text",
 			"label": "Login",
-			"newLine": true
+			"newLine": true,
+            "sm": 12,
+            "md": 6,
+            "lg": 6,
+            "xl": 6
 		},
 		"password": {
 			"type": "password",
-			"label": "Password"
+			"label": "Password",
+			"sm": 12,
+            "md": 6,
+            "lg": 6,
+            "xl": 6
 		},
 		"enable_map_creation": {
 			"type": "checkbox",
