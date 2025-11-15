@@ -3,10 +3,10 @@
 //
 "use strict";
 /**
- * Moderne, klassenbasierte und Promise-basierte Version von servConn.
+ * Modern, class-based and Promise-based version of servConn.
  */
 export class Connection {
-    // Private Eigenschaften
+    // Private properties
     _socket = null; // Typ SocketIOClient.Socket
     _isConnected = false;
     _disconnectedSince = null;
@@ -20,14 +20,14 @@ export class Connection {
     _useStorage = false;
     _objects = null;
     _enums = null;
-    // Auth-Promise: Methoden, die eine Auth erfordern, warten auf dieses Promise.
+    // Auth-Promise: Methods that require auth will await this promise.
     _authPromise = null;
     _resolveAuth = () => { };
     _rejectAuth = () => { };
-    // Öffentliche Eigenschaften
+    // Public properties
     namespace = "vis.0";
     user = "";
-    // Interne Timer
+    // Internal timers
     _connectInterval = null;
     _countInterval = null;
     _timer = null;
@@ -38,11 +38,11 @@ export class Connection {
         }
     }
     /**
-     * Initialisiert die Verbindung und startet den Authentifizierungsprozess.
+     * Initializes the connection and starts the authentication process.
      */
     init(connOptions, connCallbacks, objectsRequired) {
         this._connCallbacks = connCallbacks;
-        // Das Promise erstellen, auf das alle API-Aufrufe warten
+        // Create the promise that all API calls will await
         this._authPromise = new Promise((resolve, reject) => {
             this._resolveAuth = resolve;
             this._rejectAuth = reject;
@@ -54,11 +54,11 @@ export class Connection {
         if (!connOptions.name) {
             connOptions.name = this.namespace;
         }
-        // --- Logik zur Bestimmung des Verbindungstyps (local vs. socket.io) ---
+        // --- Logic for determining the connection type (local vs. socket.io) ---
         if (document.URL.split("/local/")[1] || (typeof socketUrl === "undefined" && !connOptions.connLink) || (typeof socketUrl !== "undefined" && socketUrl === "local")) {
             this._type = "local";
         }
-        // --- Verbindung herstellen ---
+        // --- Establish Connection ---
         if (this._type === "local") {
             this._isConnected = true;
             this._isAuthDone = true;
@@ -66,7 +66,7 @@ export class Connection {
                 this._connCallbacks.onConnChange(true);
             if (typeof app !== "undefined")
                 app.onConnChange(true);
-            this._resolveAuth(true); // Auth-Promise auflösen
+            this._resolveAuth(true); // Resolve auth promise
             return;
         }
         if (typeof io === "undefined") {
@@ -99,7 +99,7 @@ export class Connection {
             rememberUpgrade: connOptions.socketForceWebSockets,
             transports: connOptions.socketForceWebSockets ? ["websocket"] : undefined,
         });
-        // --- Socket-Listener registrieren ---
+        // --- Register socket listeners ---
         this._socket.on("connect", () => this._onSocketConnect(connOptions, objectsRequired));
         this._socket.on("reauthenticate", () => this._onSocketReauthenticate());
         this._socket.on("connect_error", () => this._onSocketConnectError(connOptions));
@@ -109,7 +109,7 @@ export class Connection {
         this._socket.on("stateChange", (id, state) => this._onSocketStateChange(id, state));
         this._socket.on("permissionError", (err) => this._onSocketPermissionError(err));
     }
-    // --- Private Socket-Handler ---
+    // --- Private Socket Handlers ---
     _onSocketConnect(connOptions, objectsRequired) {
         if (this._disconnectedSince) {
             const offlineTime = new Date().getTime() - this._disconnectedSince;
@@ -149,8 +149,7 @@ export class Connection {
         });
     }
     _onAuth(objectsRequired, isSecure) {
-        // *** DEIN WICHTIGER FIX ***
-        // Setzt den Auth-Status, bevor Befehle verarbeitet werden.
+        // Set auth status before processing commands.
         this._isAuthDone = true;
         this._isSecure = isSecure;
         if (this._isSecure) {
@@ -160,8 +159,8 @@ export class Connection {
         if (objectsRequired)
             this._socket.emit("subscribeObjects", "*");
         if (this._isConnected === true) {
-            // Verhindert doppeltes Feuern bei Reconnect
-            this._resolveAuth(true); // Auth-Promise trotzdem auflösen
+            // Prevent double-firing on reconnect
+            this._resolveAuth(true); // Resolve auth promise regardless
             return;
         }
         this._isConnected = true;
@@ -175,7 +174,7 @@ export class Connection {
                 });
             }, 0);
         }
-        // Alle wartenden API-Aufrufe (await _checkReady) freigeben
+        // Release all pending API calls (awaiting _checkReady)
         this._resolveAuth(true);
     }
     _onSocketReauthenticate() {
@@ -196,7 +195,7 @@ export class Connection {
     _onSocketDisconnect(connOptions) {
         this._disconnectedSince = new Date().getTime();
         this._isConnected = false;
-        // Erstelle ein neues, ungelöstes Promise für die nächste Verbindung
+        // Create a new, unresolved promise for the next connection
         this._authPromise = new Promise((resolve, reject) => {
             this._resolveAuth = resolve;
             this._rejectAuth = reject;
@@ -250,20 +249,20 @@ export class Connection {
         }
     }
     /**
-     * Prüft, ob die Verbindung initialisiert und authentifiziert ist.
-     * Wartet auf das Auth-Promise.
+     * Checks if the connection is initialized and authenticated.
+     * Awaits the auth promise.
      */
     async _checkReady(commandName) {
         if (this._type === "local") {
-            return true; // Im lokalen Modus immer bereit
+            return true; // Always ready in local mode
         }
         if (!this._authPromise) {
             console.error(`Connection not initialized. Call .init() first for ${commandName}`);
             throw new Error("Connection not initialized");
         }
-        // Wartet, bis _onAuth() _resolveAuth(true) aufgerufen hat.
+        // Waits until _onAuth() has called _resolveAuth(true).
         await this._authPromise;
-        // Zusätzliche Prüfungen (ersetzt _checkConnection)
+        // Additional checks (replaces _checkConnection)
         if (!this._isConnected) {
             console.log(`No connection for ${commandName}`);
             throw new Error("No connection");
@@ -272,15 +271,14 @@ export class Connection {
             console.log(`socket.io not initialized for ${commandName}`);
             throw new Error("Socket.io not initialized");
         }
-        // *** DEIN WICHTIGER FIX ***
-        // Wir prüfen _isAuthDone, das in _onAuth gesetzt wird.
+        // We check _isAuthDone, which is set in _onAuth.
         if (!this._isAuthDone) {
             console.warn(`Auth not done for ${commandName}. Race condition?`);
             throw new Error("Authentication not complete");
         }
         return true;
     }
-    // --- Öffentliche API-Methoden (jetzt mit async/await) ---
+    // --- Public API Methods (now with async/await) ---
     getType = () => this._type;
     getIsConnected = () => this._isConnected;
     getIsLoginRequired = () => this._isSecure;
@@ -296,7 +294,7 @@ export class Connection {
             this._connectInterval = setInterval(() => {
                 console.log("Trying connect...");
                 this._socket.connect();
-                // ... (restliche reconnect-Logik mit jQuery) ...
+                // ... (remaining reconnect logic with jQuery) ...
             }, this._reconnectInterval);
             // ...
         }
@@ -310,8 +308,8 @@ export class Connection {
         });
     }
     /**
-     * Sendet einen Befehl an eine Adapterinstanz.
-     * (Deine hinzugefügte Funktion)
+     * Sends a command to an adapter instance.
+     * (Your added function)
      */
     async sendTo(adapterInstance, command, message) {
         await this._checkReady("sendTo");
@@ -327,8 +325,8 @@ export class Connection {
         });
     }
     /**
-     * Frägt Objekte basierend auf einer View ab.
-     * (Deine hinzugefügte Funktion)
+     * Queries objects based on a view.
+     * (Your added function)
      */
     async getObjectView(design, search, params) {
         await this._checkReady("getObjectView");
@@ -344,10 +342,10 @@ export class Connection {
         });
     }
     /**
-     * Liest ein einzelnes Objekt aus der ioBroker-Datenbank.
+     * Reads a single object from the ioBroker database.
      */
     async getObject(id) {
-        await this._checkReady("getObject"); // Warten, bis Auth abgeschlossen ist
+        await this._checkReady("getObject"); // Wait for auth to complete
         return new Promise((resolve, reject) => {
             this._socket.emit("getObject", id, (err, obj) => {
                 if (err) {
@@ -375,10 +373,10 @@ export class Connection {
         });
     }
     /**
-     * Abonniert einen bestimmten State (oder ein Muster) beim Server.
+     * Subscribes to a specific state (or pattern) on the server.
      */
     async subscribeState(id) {
-        await this._checkReady("subscribeState"); // Warten, bis Auth abgeschlossen ist
+        await this._checkReady("subscribeState"); // Wait for auth to complete
         return new Promise((resolve) => {
             // console.log(`[conn] Subscribing to ${id}`);
             this._socket.emit("subscribe", id, () => {
@@ -387,10 +385,10 @@ export class Connection {
         });
     }
     /**
-     * Kündigt das Abonnement für einen bestimmten State (oder ein Muster) beim Server.
+     * Unsubscribes from a specific state (or pattern) on the server.
      */
     async unsubscribeState(id) {
-        await this._checkReady("unsubscribeState"); // Warten, bis Auth abgeschlossen ist
+        await this._checkReady("unsubscribeState"); // Wait for auth to complete
         return new Promise((resolve) => {
             // console.log(`[conn] Unsubscribing from ${id}`);
             this._socket.emit("unsubscribe", id, () => {
@@ -399,8 +397,8 @@ export class Connection {
         });
     }
     /**
-     * Liest alle Objekte, Enums, Adapter, Kanäle und Geräte.
-     * Flacht die Callback-Hölle mit async/await ab.
+     * Reads all objects, enums, adapters, channels, and devices.
+     * Flattens the callback hell with async/await.
      */
     async getObjects(useCache = false) {
         if (this._useStorage && useCache) {
@@ -415,39 +413,39 @@ export class Connection {
         }
         await this._checkReady("getObjects");
         try {
-            // 1. Hole Hauptobjekte
+            // 1. Get main objects
             const [err, data] = await new Promise((resolve) => {
                 this._socket.emit("getObjects", (err, data) => resolve([err, data]));
             });
             if (err)
                 throw err;
-            // 2. Hole Enums
+            // 2. Get enums
             const enumsRes = await this.getObjectView("system", "enum", { startkey: "enum.", endkey: "enum.\u9999" });
             const enums = {};
             for (const row of enumsRes.rows) {
                 data[row.id] = row.value;
                 enums[row.id] = row.value;
             }
-            // 3. Hole Adapter-Instanzen
+            // 3. Get adapter instances
             const adaptersRes = await this.getObjectView("system", "instance", { startkey: "system.adapter.", endkey: "system.adapter.\u9999" });
             for (const row of adaptersRes.rows) {
                 data[row.id] = row.value;
             }
-            // Default-Modus ermitteln
+            // Determine default mode
             if (data[`system.adapter.${this.namespace}`]?.native?.defaultFileMode) {
                 this._defaultMode = data[`system.adapter.${this.namespace}`].native.defaultFileMode;
             }
-            // 4. Hole Kanäle
+            // 4. Get channels
             const channelsRes = await this.getObjectView("system", "channel", { startkey: "", endkey: "\u9999" });
             for (const row of channelsRes.rows) {
                 data[row.id] = row.value;
             }
-            // 5. Hole Geräte
+            // 5. Get devices
             const devicesRes = await this.getObjectView("system", "device", { startkey: "", endkey: "\u9999" });
             for (const row of devicesRes.rows) {
                 data[row.id] = row.value;
             }
-            // Speichern, wenn Caching genutzt wird
+            // Save if caching is used
             if (this._useStorage) {
                 this._fillChildren(data);
                 this._objects = data;
@@ -465,9 +463,9 @@ export class Connection {
             throw error;
         }
     }
-    // ... (Hier die restlichen Methoden wie readFile, writeFile, getChildren etc.
-    //      nach demselben Muster in async/await umwandeln) ...
-    // Beispiel für readFile:
+    // ... (Here the remaining methods like readFile, writeFile, getChildren etc.
+    // 		convert to async/await using the same pattern) ...
+    // Example for readFile:
     async readFile(filename, isRemote = false) {
         if (this._type === "local") {
             try {
@@ -505,7 +503,7 @@ export class Connection {
             });
         });
     }
-    // --- Private Hilfsfunktionen ---
+    // --- Private Helper Functions ---
     _monitor() {
         if (this._timer)
             return;

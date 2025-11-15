@@ -82,7 +82,9 @@
   "scripts": {
     "clean": "rimraf build",
     "build": "npm run clean && tsc -p tsconfig.build.json",
+	"build:www": "tsc -p tsconfig.build.web.json",
     "watch": "npm run clean && tsc -p tsconfig.build.json --watch",
+	"watch:www": "tsc -p tsconfig.build.web.json --watch",
     "__comment_mocha": "Mocha testet: 1. Alles in 'build' AUSSER 'www'. 2. Den 'test'-Ordner.",
     "test:js": "npx mocha --config test/mocharc.custom.json \"build/!(www)/**/*.test.js\" \"test/**/test!(PackageFiles|Startup).js\"",
     "test:package": "npx mocha test/package --exit",

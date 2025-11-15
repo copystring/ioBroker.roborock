@@ -183,7 +183,7 @@ function setupSocketListeners(duid) {
     map = undefined;
     mapImageElement.attr("href", null);
     obstacleGroup.selectAll("*").remove();
-    pinGroup.selectAll("*").remove();
+    pinGroup.select("image.goto-pin").style("display", "none").style("opacity", 0);
     rects = [];
     drawZones(); // Re-draw (which will clear zones)
     document.getElementById("deleteButton").disabled = true;
@@ -209,6 +209,7 @@ function setupSocketListeners(duid) {
         switch (id) {
             case mapBase64StateId:
                 console.log(`Received new map Base64 for ${duid}`);
+                pinGroup.select("image.goto-pin").style("display", "none").style("opacity", 0);
                 drawBackgroundImage(state.val);
                 break;
             case mapDataStateId:
@@ -686,6 +687,15 @@ window.onload = async () => {
     obstacleGroup = mainGroup.append("g").attr("class", "obstacles");
     zoneGroup = mainGroup.append("g").attr("class", "zones");
     pinGroup = mainGroup.append("g").attr("class", "pins");
+    pinGroup
+        .append("image")
+        .attr("class", "goto-pin") // We use this class to select it
+        .attr("href", images_js_1.go_to_pin_image)
+        .attr("width", 29) // Base width
+        .attr("height", 24) // Base height
+        .style("opacity", 0)
+        .style("display", "none") // Start hidden
+        .style("pointer-events", "none");
     // --- 4. D3 Zoom Setup ---
     zoom = d3
         .zoom()
@@ -704,6 +714,24 @@ window.onload = async () => {
         zoneGroup.selectAll("circle.zone-handle").attr("r", baseRadius / wheelZoom);
         const obstacleBaseRadius = 1 * (scaleFactor || 8);
         obstacleGroup.selectAll("circle.obstacle-marker").attr("r", obstacleBaseRadius / wheelZoom);
+        // Keep GoTo pins at a constant size regardless of zoom
+        const scaledPinWidth = 29 / wheelZoom;
+        const scaledPinHeight = 24 / wheelZoom;
+        const scaledPinYOffset = 5 / wheelZoom; // 5px (visual) from bottom
+        pinGroup
+            .selectAll("image.goto-pin")
+            .attr("width", scaledPinWidth)
+            .attr("height", scaledPinHeight)
+            .attr("x", function () {
+            // Recalculate X offset (center)
+            const centerX = d3.select(this).attr("data-center-x");
+            return (parseFloat(centerX) || 0) - scaledPinWidth / 2;
+        })
+            .attr("y", function () {
+            // Recalculate Y offset (hotspot is 5px from bottom)
+            const centerY = d3.select(this).attr("data-center-y");
+            return (parseFloat(centerY) || 0) - (scaledPinHeight - scaledPinYOffset);
+        });
         updatePopupPosition();
     });
     svgContainer.call(zoom);
@@ -736,7 +764,9 @@ window.onload = async () => {
             svg.style("cursor", "grab");
             svgContainer.on("mousemove.gototarget", null);
             svgContainer.on("click.gototarget", null);
-            pinGroup.selectAll("image.goto-pin").remove();
+            // pinGroup.selectAll("image.goto-pin").remove(); // OLD
+            pinGroup.select("image.goto-pin").style("display", "none").style("opacity", 0);
+            goToButton.textContent = "GoTo Point"; // Reset text
             return;
         }
         // Add a new zone in the center of the current view
@@ -815,21 +845,51 @@ window.onload = async () => {
     });
     // GoTo button
     goToButton.addEventListener("click", () => {
+        // Check if GoTo mode is already active
+        if (goToTarget) {
+            // If yes, cancel the mode
+            goToTarget = false;
+            svg.style("cursor", "grab");
+            svgContainer.on("mousemove.gototarget", null);
+            svgContainer.on("click.gototarget", null);
+            // Hide the pin instead of removing it
+            pinGroup.select("image.goto-pin").style("display", "none").style("opacity", 0);
+            goToButton.textContent = "GoTo Point"; // Reset text
+            return; // Stop execution
+        }
+        // If mode was not active, start it:
         goToTarget = true;
-        svg.style("cursor", "crosshair");
-        // Add the pin image that follows the mouse
-        const pin = pinGroup
-            .append("image")
-            .attr("class", "goto-pin")
-            .attr("href", images_js_1.go_to_pin_image)
-            .attr("width", 29)
-            .attr("height", 24)
+        svg.style("cursor", "none"); // Hide cursor
+        goToButton.textContent = "Cancel"; // Set active text
+        // Get current view center to use as initial position
+        const transform = d3.zoomTransform(svgContainer.node());
+        const svgWidth = parseFloat(svg.attr("width"));
+        const svgHeight = parseFloat(svg.attr("height"));
+        // Invert the screen center point to get the world coordinates
+        const [initialX, initialY] = transform.invert([svgWidth / 2, svgHeight / 2]);
+        const scaledPinWidth = 29 / wheelZoom;
+        const scaledPinHeight = 24 / wheelZoom;
+        const scaledPinYOffset = 5 / wheelZoom; // 5px (visual) from bottom
+        const pin = pinGroup.select("image.goto-pin");
+        // Show and position the pin
+        pin
+            .style("display", "block")
             .style("opacity", 0.7)
-            .style("pointer-events", "none");
-        // Mousemove listener to move the pin
+            .attr("data-center-x", initialX)
+            .attr("data-center-y", initialY)
+            .attr("x", initialX - scaledPinWidth / 2)
+            .attr("y", initialY - (scaledPinHeight - scaledPinYOffset));
         svgContainer.on("mousemove.gototarget", (event) => {
             const [mouseX, mouseY] = d3.pointer(event, mainGroup.node());
-            pin.attr("x", mouseX - 29 / 2).attr("y", mouseY - 24);
+            const scaledPinWidth = 29 / wheelZoom;
+            const scaledPinHeight = 24 / wheelZoom;
+            const scaledPinYOffset = 5 / wheelZoom; // 5px (visual) from bottom
+            // Store center coords and apply dynamic offsets
+            pin
+                .attr("data-center-x", mouseX)
+                .attr("data-center-y", mouseY)
+                .attr("x", mouseX - scaledPinWidth / 2)
+                .attr("y", mouseY - (scaledPinHeight - scaledPinYOffset));
         });
         // Click listener to send the command
         svgContainer.on("click.gototarget", (event) => {
@@ -857,9 +917,10 @@ window.onload = async () => {
             svg.style("cursor", "grab");
             svgContainer.on("mousemove.gototarget", null);
             svgContainer.on("click.gototarget", null);
+            goToButton.textContent = "GoTo Point"; // Reset text
             // If we didn't send a command, remove the floating pin
             if (!currentRobotDuid) {
-                pinGroup.selectAll("image.goto-pin").remove();
+                pin.style("display", "none").style("opacity", 0); // Hide pin
             }
         });
     });

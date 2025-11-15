@@ -19,11 +19,15 @@ export declare class socketHandler {
      */
     private handleGetDeviceList;
     /**
-     * Handles 'app_start' command.
+     * Handles simple, parameter-less commands like start, stop, pause, dock.
      */
-    private handleAppStart;
+    private handleSimpleCommand;
+    /**
+     * Handles 'app_goto_target' command.
+     */
+    private handleGotoTarget;
     /**
      * Handles 'app_zoned_clean' command.
      */
-    private handleAppZonedClean;
+    private handleZonedClean;
 }

@@ -11,12 +11,12 @@ class socketHandler {
         // Initialize the command routing map
         this.commandHandlers = new Map();
         this.commandHandlers.set("getDeviceList", () => this.handleGetDeviceList());
-        this.commandHandlers.set("app_start", (msg) => this.handleAppStart(msg));
-        this.commandHandlers.set("app_zoned_clean", (msg) => this.handleAppZonedClean(msg));
-        // Add other simple commands here...
-        // this.commandHandlers.set("app_pause", (msg) => this.handleSimpleCommand(msg.duid, "app_pause"));
-        // this.commandHandlers.set("app_stop", (msg) => this.handleSimpleCommand(msg.duid, "app_stop"));
-        // this.commandHandlers.set("app_charge", (msg) => this.handleSimpleCommand(msg.duid, "app_charge"));
+        this.commandHandlers.set("app_start", (msg) => this.handleSimpleCommand(msg.duid, "app_start"));
+        this.commandHandlers.set("app_pause", (msg) => this.handleSimpleCommand(msg.duid, "app_pause"));
+        this.commandHandlers.set("app_stop", (msg) => this.handleSimpleCommand(msg.duid, "app_stop"));
+        this.commandHandlers.set("app_charge", (msg) => this.handleSimpleCommand(msg.duid, "app_charge"));
+        this.commandHandlers.set("app_goto_target", (msg) => this.handleGotoTarget(msg));
+        this.commandHandlers.set("app_zoned_clean", (msg) => this.handleZonedClean(msg));
     }
     /**
      * Handles all incoming messages from 'sendTo' (e.g., from Admin or Vis).
@@ -44,6 +44,7 @@ class socketHandler {
         }
         // Centralized try/catch and response
         try {
+            // We assume the message is the 'message' property of the ioBroker.Message
             const result = await handler(obj.message);
             if (obj.callback) {
                 this.adapter.sendTo(obj.from, obj.command, result, obj.callback);
@@ -136,23 +137,46 @@ class socketHandler {
         return robotList;
     }
     /**
-     * Handles 'app_start' command.
+     * Handles simple, parameter-less commands like start, stop, pause, dock.
      */
-    async handleAppStart(message) {
-        const { duid } = message;
-        this.adapter.log.info(`[SocketHandler] Received 'app_start' for DUID: ${duid}`);
-        // TODO: Call your actual adapter logic here
-        // e.g.: await this.adapter.requestsHandler.command(handler, duid, "app_start");
+    async handleSimpleCommand(duid, command) {
+        if (!duid)
+            throw new Error(`Invalid message: '${command}' requires a 'duid'.`);
+        this.adapter.log.info(`[SocketHandler] Received '${command}' for DUID: ${duid}`);
+        const handler = this.adapter.deviceFeatureHandlers.get(duid);
+        if (!handler)
+            throw new Error(`No handler for DUID ${duid}`);
+        await this.adapter.requestsHandler.command(handler, duid, command);
+        return { result: "ok" };
+    }
+    /**
+     * Handles 'app_goto_target' command.
+     */
+    async handleGotoTarget(message) {
+        const { duid, points } = message;
+        if (!duid || !points || !Array.isArray(points) || points.length !== 2) {
+            throw new Error("Invalid 'app_goto_target' message: requires 'duid' and 'points' array [x, y]");
+        }
+        this.adapter.log.info(`[SocketHandler] Received 'app_goto_target' for DUID: ${duid} with points: ${JSON.stringify(points)}`);
+        const handler = this.adapter.deviceFeatureHandlers.get(duid);
+        if (!handler)
+            throw new Error(`No handler for DUID ${duid}`);
+        await this.adapter.requestsHandler.command(handler, duid, "app_goto_target", points);
         return { result: "ok" };
     }
     /**
      * Handles 'app_zoned_clean' command.
      */
-    async handleAppZonedClean(message) {
+    async handleZonedClean(message) {
         const { duid, zones } = message;
+        if (!duid || !zones || !Array.isArray(zones)) {
+            throw new Error("Invalid 'app_zoned_clean' message: requires 'duid' and 'zones' array");
+        }
         this.adapter.log.info(`[SocketHandler] Received 'app_zoned_clean' for DUID: ${duid} with zones: ${JSON.stringify(zones)}`);
-        // TODO: Call your actual adapter logic here
-        // e.g.: await this.adapter.requestsHandler.command(handler, duid, "app_zoned_clean", zones);
+        const handler = this.adapter.deviceFeatureHandlers.get(duid);
+        if (!handler)
+            throw new Error(`No handler for DUID ${duid}`);
+        await this.adapter.requestsHandler.command(handler, duid, "app_zoned_clean", zones);
         return { result: "ok" };
     }
 }

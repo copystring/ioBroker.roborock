@@ -32,6 +32,22 @@
       "runOptions": {
         "runOn": "folderOpen" // Starts automatically when VS Code opens
       }
+    },
+    {
+      // --- TASK 3: FRONTEND (Build Watch) ---
+      "label": "3. Frontend (www Build)",
+      "type": "npm",
+      "script": "watch:www",
+      "isBackground": true,
+      "problemMatcher": "$tsc-watch",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "dev"
+      },
+      "runOptions": {
+        "runOn": "folderOpen"
+      }
     }
   ]
 }
