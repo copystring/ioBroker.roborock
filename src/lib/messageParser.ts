@@ -122,7 +122,11 @@ export class messageParser {
 
 			if (!SUPPORTED_VERSIONS.includes(version)) {
 				this.adapter.log.error(`[decodeMsg] Unsupported version "${version}" at offset ${offset}`);
-				offset++; // Advance slightly to try and find a valid header
+
+				// Advance by the minimal known message length to stop the byte-by-byte error cascade.
+				// This ensures we jump over the entire corrupted/unknown message block.
+				const MIN_MSG_LENGTH = 23;
+				offset += MIN_MSG_LENGTH;
 				continue;
 			}
 
