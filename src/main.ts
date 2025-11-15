@@ -367,11 +367,30 @@ export class Roborock extends utils.Adapter {
 			delete finalCommon.def;
 		}
 
-		await this.setObjectNotExistsAsync(path, {
-			type: "state",
-			common: finalCommon,
-			native: native,
-		});
+		let oldObj: ioBroker.Object | null | undefined;
+		try {
+			oldObj = await this.getObjectAsync(path);
+		} catch (e) {
+			oldObj = null; // Does not exist
+		}
+
+		// Check if object exists AND if its type is different from what we need
+		if (!oldObj || oldObj.common.type !== finalCommon.type) {
+			if (oldObj) {
+				// Object exists, but type is wrong
+				this.log.warn(`[ensureState] Correcting data type for "${path}". Old: "${oldObj.common.type}", New: "${finalCommon.type}".`);
+				// We must merge the old common object with our new type
+				const newCommon = { ...oldObj.common, ...finalCommon };
+				await this.extendObject(path, { common: newCommon });
+			} else {
+				// Object does not exist, create it new
+				await this.setObjectAsync(path, {
+					type: "state",
+					common: finalCommon,
+					native: native,
+				});
+			}
+		}
 	}
 
 	/**
