@@ -172,13 +172,13 @@
     "messagebox": true,
     "dependencies": [
       {
-        "js-controller": ">=5.0.19",
+        "js-controller": ">=6.0.11",
         "web": ">=4.0.0"
       }
     ],
     "globalDependencies": [
       {
-        "admin": ">=5.1.13"
+        "admin": ">=7.6.17"
       }
     ],
     "plugins": {
@@ -189,11 +189,13 @@
   },
   "encryptedNative": [
     "username",
-    "password"
+    "password",
+    "cameraPin"
   ],
   "protectedNative": [
     "username",
-    "password"
+    "password",
+    "cameraPin"
   ],
   "native": {
     "username": "",
