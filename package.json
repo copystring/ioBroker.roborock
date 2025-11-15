@@ -32,7 +32,7 @@
     "crc-32": "^1.2.2",
     "d3": "^7.9.0",
     "eventemitter2": "^6.4.9",
-    "express": "^4.21.2",
+    "express": "^5.1.0",
     "fetch-github-release": "^1.0.0",
     "go2rtc-static": "^1.9.4",
     "jszip": "^3.10.1",
