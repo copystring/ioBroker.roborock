@@ -5,11 +5,19 @@
 		"username": {
 			"type": "text",
 			"label": "Login",
-			"newLine": true
+			"newLine": true,
+            "sm": 12,
+            "md": 6,
+            "lg": 6,
+            "xl": 6
 		},
 		"password": {
 			"type": "password",
-			"label": "Password"
+			"label": "Password",
+			"sm": 12,
+            "md": 6,
+            "lg": 6,
+            "xl": 6
 		},
 		"enable_map_creation": {
 			"type": "checkbox",
@@ -42,14 +50,6 @@
 			"newLine": true,
 			"min": 1,
 			"max": 32,
-			"style": {
-			  "width": "198px"
-			}
-		},
-		"webserverPort": {
-			"type": "port",
-			"label": "Webserver Port",
-			"newLine": true,
 			"style": {
 			  "width": "198px"
 			}

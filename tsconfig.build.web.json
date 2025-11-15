@@ -1,0 +1,24 @@
+// tsconfig.map.json
+{
+  "extends": "./tsconfig.json", // Erbt die Grundeinstellungen
+  "compilerOptions": {
+    "target": "es2022", // Erzeugt modernen JS-Code
+    "module": "es2022", // Erzeugt ES-Modul-Code (import/export)
+    "noEmit": false,
+    "outDir": "./", // Überschreibt das Ausgabeverzeichnis NUR für diese Kompilierung
+    // "rootDir": "./src" // Passe ggf. das rootDir an, wenn map.ts woanders liegt
+    // Wenn map.ts im Hauptverzeichnis liegt, brauchst du ggf. kein rootDir hier
+    "lib": [
+      "ESNext", // Oder eine spezifische ES-Version wie "ES2015", "ES2020" etc.
+      "DOM",    // Fügt alle Standard-Browser-DOM-Typen hinzu (wie HTMLElement, SVGElement, MouseEvent etc.)
+      "DOM.Iterable" // Nützlich für Iteration über DOM-Collections
+    ],
+  },
+  "include": [
+    "src/www/*.ts",
+  ],
+  "exclude": [
+    "node_modules/**",
+    "widgets/**",
+  ]
+}

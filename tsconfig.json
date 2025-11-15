@@ -4,12 +4,11 @@
 	// https://github.com/tsconfig/bases#node-14-tsconfigjson
 	"extends": "@tsconfig/node18/tsconfig.json",
 	"compilerOptions": {
-		// do not compile anything, this file is just to configure type checking
-		"noEmit": true,
+		// "noEmit": true,
 
 		// check JS files
-		"allowJs": true,
-		"checkJs": true,
+		"allowJs": false,
+		"checkJs": false,
 
 
 		// This is necessary for the automatic typing of the adapter config
@@ -25,15 +24,28 @@
 		// "noUnusedLocals": true,
 		// "noUnusedParameters": true,
 		"useUnknownInCatchVariables": false,
+		"esModuleInterop": true,
 
+		"rootDir": "src",
+		"outDir": "build",
+
+		"target": "ES2022",
+		"module": "CommonJS",
+		"moduleResolution": "Node",
+		"sourceMap": true,
+		"inlineSources": true,
+		"strict": true,
+		"types": ["mocha", "node", "@iobroker/adapter-core"],
+		"lib": [
+			"ESNext",
+			"DOM",
+			"DOM.Iterable"
+		],
 	},
-	"include": [
-		"**/*.js",
-		"**/*.d.ts"
-	],
+	"include": ["src/**/*.ts", "src/**/*.d.ts"],
 	"exclude": [
 		"node_modules/**",
 		"widgets/**",
-		"lib/map/zones.js"
+    	"src/www/*.ts"
 	]
 }
