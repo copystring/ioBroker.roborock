@@ -1,22 +1,61 @@
 {
-	"eslint.enable": true,
-	"json.schemas": [
-		{
-			"fileMatch": [
-				"io-package.json"
-			],
-			"url": "https://json.schemastore.org/io-package"
-		},
-		{
-			"fileMatch": [
-				"admin/jsonConfig.json",
-				"admin/jsonCustom.json",
-				"admin/jsonTab.json"
-			],
-			"url": "https://raw.githubusercontent.com/ioBroker/adapter-react-v5/main/schemas/jsonConfig.json"
-		}
-	],
-	"prettier.printWidth": 170,
-	"task.allowAutomaticTasks": "on"
+  // --- GENERAL & AUTOMATION ---
 
+  // Allow tasks (like our npm run dev) to start automatically without asking
+  "task.allowAutomaticTasks": "on",
+
+  // Enable ESLint integration
+  "eslint.enable": true,
+  "eslint.nodePath": "./node_modules",
+
+  // Use ESLint as the default formatter for files
+  "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+
+  // Automatically format code when saving
+  "editor.formatOnSave": true,
+
+  // Automatically fix linting errors (e.g. missing semicolons) when saving
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+
+  // Your custom print width preference
+  "prettier.printWidth": 170,
+
+
+  // --- FILE VISIBILITY ---
+
+  // Exclude generated files from search results to keep search fast and clean
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/build": true,
+    "**/.git": true
+  },
+
+  // Hide compiled files and maps in the file explorer (optional, keeps tree clean)
+  "files.exclude": {
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/*.js.map": true
+    // "build/": true // Uncomment this if you want to hide the build folder entirely
+  },
+
+
+  // --- IOBROKER SPECIFIC SCHEMAS ---
+
+  // Intellisense and validation for io-package.json and admin config
+  "json.schemas": [
+    {
+      "fileMatch": ["io-package.json"],
+      "url": "https://json.schemastore.org/io-package"
+    },
+    {
+      "fileMatch": [
+        "admin/jsonConfig.json",
+        "admin/jsonCustom.json",
+        "admin/jsonTab.json"
+      ],
+      "url": "https://raw.githubusercontent.com/ioBroker/adapter-react-v5/main/schemas/jsonConfig.json"
+    }
+  ]
 }

@@ -6,16 +6,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.requestsHandler = void 0;
 const fs_1 = __importDefault(require("fs"));
 const zlib_1 = __importDefault(require("zlib"));
+const util_1 = require("util");
 const RRMapParser_1 = require("./RRMapParser");
-const mapCreator_1 = require("./mapCreator");
 const messageParser_1 = require("./messageParser");
-const requestTimeout = 30000; // 30s
-const mappedCleanSummary = {
-    0: "clean_time",
-    1: "clean_area",
-    2: "clean_count",
-    3: "records",
-};
+const mapCreator_1 = require("./mapCreator");
+const p_queue_1 = __importDefault(require("p-queue"));
+// ... (Constants)
+const REQUEST_TIMEOUT = 30000;
+const mappedCleanSummary = { 0: "clean_time", 1: "clean_area", 2: "clean_count", 3: "records" };
 const mappedCleaningRecordAttribute = {
     0: "begin",
     1: "end",
@@ -36,64 +34,69 @@ const parameterFolders = {
     get_carpet_clean_mode: "deviceStatus",
     get_carpet_cleaning_mode: "deviceStatus",
 };
+const gunzipAsync = (0, util_1.promisify)(zlib_1.default.gunzip);
+const gzipAsync = (0, util_1.promisify)(zlib_1.default.gzip);
+const writeFileAsync = (0, util_1.promisify)(fs_1.default.writeFile);
 class requestsHandler {
     adapter;
     idCounter;
-    messageQueue;
+    deviceQueues;
     messageParser;
     mapParser;
     mapCreator;
-    mqttResetInterval = null;
+    mqttResetInterval = undefined;
     cached_get_status_value;
     constructor(adapter) {
         this.adapter = adapter;
         this.idCounter = 1;
-        this.messageQueue = new Map();
+        this.deviceQueues = new Map();
         this.messageParser = new messageParser_1.messageParser(this.adapter);
         this.mapParser = new RRMapParser_1.RRMapParser(this.adapter);
         this.mapCreator = new mapCreator_1.MapCreator(this.adapter);
-        this.cached_get_status_value = [];
-        // Schedule MQTT API reset every hour
+        this.cached_get_status_value = {};
         this.scheduleMqttReset();
     }
-    /**
-     * Schedules the MQTT API to be reset every hour.
-     */
-    scheduleMqttReset() {
-        // Clear any existing interval if present
-        if (this.mqttResetInterval) {
-            clearInterval(this.mqttResetInterval);
+    getQueue(duid) {
+        if (!this.deviceQueues.has(duid)) {
+            this.deviceQueues.set(duid, new p_queue_1.default({ concurrency: 10 }));
         }
-        // Set an interval to reset the MQTT API every 1 hour (3600000 ms)
-        this.mqttResetInterval = setInterval(async () => {
+        return this.deviceQueues.get(duid);
+    }
+    scheduleMqttReset() {
+        if (this.mqttResetInterval)
+            this.adapter.clearInterval(this.mqttResetInterval);
+        this.mqttResetInterval = this.adapter.setInterval(async () => {
             await this.adapter.resetMqttApi();
         }, 3600000);
     }
-    /**
-     * @param {string} duid
-     */
-    async getStatus(duid) {
+    async getStatus(handler, duid) {
         const productCategory = await this.adapter.http_api.getProductCategory(duid);
-        // Add vacuum class here after adjusting it
         switch (productCategory) {
             case "roborock.wetdryvac":
-                // Directly send the request. Dry vacs never return data directly. No promise possible because of missing request ID
-                this.sendRequest(duid, "10000", "[200,201,202,203,204,205,206,207,208,209,210,212,213,214,215,216,221,222,223,224,225,226,227,228,235,210,10002,229,10004,10005,10007,230,237,238]");
+                this.sendRequest(duid, "10000", "[200,201,202,203,204,205,206,207,208,209,210,212,213,214,215,216,221,222,223,224,225,226,227,228,235,210,10002,229,10004,10005,10007,230,237,238]", { priority: 0 }).catch(() => { });
                 break;
             case "robot.vacuum.cleaner":
-                return await this.getParameter(duid, "get_prop", ["get_status"]);
+            default:
+                await this.getParameter(handler, duid, "get_prop", ["get_status"]);
+                break;
         }
     }
-    /**
-     * @param {string} duid
-     * @param {number} startTime
-     */
     async getCleaningRecordMap(duid, startTime) {
         try {
-            const cleaningRecordMap = await this.sendRequest(duid, "get_clean_record_map", { start_time: startTime });
-            const parsedData = await this.mapParser.parsedata(cleaningRecordMap);
-            this.adapter.log.debug(`Generating map for cleaning record with start time ${startTime} for duid ${duid}`); // never remove this log, it is very useful for debugging like room naming issues
-            const [mapBase64, mapBase64Truncated] = await this.mapCreator.canvasMap(parsedData);
+            const cleaningRecordMap = (await this.sendRequest(duid, "get_clean_record_map", { start_time: startTime }, { priority: 0 }));
+            if (!Buffer.isBuffer(cleaningRecordMap)) {
+                this.adapter.log.warn(`[getCleaningRecordMap] Received non-buffer data for record ${startTime}: ${JSON.stringify(cleaningRecordMap)}`);
+                throw new Error("Received non-buffer data for history map");
+            }
+            const parsedData = (await this.mapParser.parsedata(cleaningRecordMap, { isHistoryMap: true }));
+            if (parsedData?.IMAGE?.segments) {
+                this.adapter.log.info(`[getCleaningRecordMap] Parsed HISTORY map. Segments: ${parsedData.IMAGE.segments.id?.length || 0}`);
+            }
+            else {
+                this.adapter.log.warn(`[getCleaningRecordMap] History map for ${startTime} was parsed but contains no IMAGE data.`);
+            }
+            this.adapter.log.debug(`Generating map for cleaning record with start time ${startTime} for duid ${duid}`);
+            const [mapBase64, mapBase64Truncated] = await this.mapCreator.canvasMap(parsedData, { selectedMap: -1, mappedRooms: null });
             return {
                 mapBase64: mapBase64,
                 mapBase64Truncated: mapBase64Truncated,
@@ -105,46 +108,57 @@ class requestsHandler {
             return null;
         }
     }
-    /**
-     * @param {string} duid
-     */
-    async getCleanSummary(duid) {
+    async getCleanSummary(handler, duid) {
         try {
-            const cleaningAttributes = await this.sendRequest(duid, "get_clean_summary", []);
+            const cleaningAttributes = (await this.sendRequest(duid, "get_clean_summary", [], { priority: 0 }));
             for (const cleaningAttribute in cleaningAttributes) {
                 const mappedAttribute = mappedCleanSummary[cleaningAttribute] || cleaningAttribute;
-                const cleaningAttributeCommon = this.adapter.device_features.getCommonCleaningInfo(mappedAttribute);
+                const cleaningAttributeCommon = handler.getCommonCleaningInfo(mappedAttribute) || {}; // Ensure object
                 if (["clean_time", "clean_area", "clean_count"].includes(mappedAttribute)) {
-                    await this.adapter.ensureState(`Devices.${duid}.cleaningInfo.${cleaningAttribute}`, {
+                    cleaningAttributeCommon.type = "number";
+                    await this.adapter.ensureState(`Devices.${duid}.cleaningInfo.${cleaningAttribute}`, cleaningAttributeCommon || {});
+                    await this.adapter.setStateChangedAsync(`Devices.${duid}.cleaningInfo.${cleaningAttribute}`, {
                         val: this.calculateCleaningValue(mappedAttribute, cleaningAttributes[cleaningAttribute]),
                         ack: true,
-                    }, cleaningAttributeCommon);
+                    });
                 }
                 else if (mappedAttribute == "records") {
                     const cleaningRecordsJSON = [];
-                    for (const cleaningRecord in cleaningAttributes[cleaningAttribute]) {
-                        const cleaningRecordID = cleaningAttributes[cleaningAttribute][cleaningRecord];
-                        const cleaningRecordAttributes = (await this.sendRequest(duid, "get_clean_record", [cleaningRecordID]))[0];
+                    const recordsList = cleaningAttributes[cleaningAttribute];
+                    for (const cleaningRecord in recordsList) {
+                        const cleaningRecordID = recordsList[cleaningRecord];
+                        const cleaningRecordAttributesArr = (await this.sendRequest(duid, "get_clean_record", [cleaningRecordID], { priority: 0 }));
+                        const cleaningRecordAttributes = cleaningRecordAttributesArr[0];
                         cleaningRecordsJSON[cleaningRecord] = cleaningRecordAttributes;
                         for (const cleaningRecordAttribute in cleaningRecordAttributes) {
                             const mappedRecordAttribute = mappedCleaningRecordAttribute[cleaningRecordAttribute] || cleaningRecordAttribute;
-                            const cleaningRecordCommon = this.adapter.device_features.getCommonCleaningRecords(mappedRecordAttribute);
-                            await this.adapter.ensureState(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, {
+                            const cleaningRecordCommon = handler.getCommonCleaningRecords(mappedRecordAttribute) || {}; // Ensure object
+                            if (mappedRecordAttribute === "begin" || mappedRecordAttribute === "end") {
+                                cleaningRecordCommon.type = "string";
+                            }
+                            else {
+                                cleaningRecordCommon.type = "number"; // duration, area, error, etc.
+                            }
+                            await this.adapter.ensureState(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, cleaningRecordCommon || {});
+                            await this.adapter.setStateChangedAsync(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, {
                                 val: this.calculateRecordValue(mappedRecordAttribute, cleaningRecordAttributes[cleaningRecordAttribute]),
                                 ack: true,
-                            }, cleaningRecordCommon);
+                            });
                         }
                         if (this.adapter.config.enable_map_creation == true) {
-                            const mapArray = await this.getCleaningRecordMap(duid, cleaningAttributes[cleaningAttribute][cleaningRecord]);
-                            for (const mapType in mapArray) {
-                                const val = mapArray[mapType];
-                                this.adapter.ensureState(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.map.${mapType}`, { val: val, ack: true });
+                            const mapArray = await this.getCleaningRecordMap(duid, recordsList[cleaningRecord]);
+                            if (mapArray) {
+                                for (const mapType in mapArray) {
+                                    const val = mapArray[mapType];
+                                    await this.adapter.ensureState(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.map.${mapType}`, {});
+                                    await this.adapter.setStateChangedAsync(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.map.${mapType}`, { val: val, ack: true });
+                                }
                             }
                         }
                     }
                     const objectString = `Devices.${duid}.cleaningInfo.JSON`;
-                    await this.adapter.createStateObjectHelper({ path: objectString, name: "cleaningInfoJSON", type: "string", def: "json", read: true, write: false });
-                    this.adapter.setStateAsync(`Devices.${duid}.cleaningInfo.JSON`, { val: JSON.stringify(cleaningRecordsJSON), ack: true });
+                    await this.adapter.ensureState(objectString, { name: "cleaningInfoJSON", type: "string", def: "json", write: false });
+                    await this.adapter.setState(`Devices.${duid}.cleaningInfo.JSON`, { val: JSON.stringify(cleaningRecordsJSON), ack: true });
                 }
             }
         }
@@ -152,11 +166,10 @@ class requestsHandler {
             this.adapter.catchError(error, "get_clean_summary", duid);
         }
     }
-    /**
-     * @param {string} duid
-     */
     getDockingStationStatus(duid) {
-        const dss = this.cached_get_status_value[duid].dss;
+        const dss = this.cached_get_status_value[duid]?.dss;
+        if (dss === undefined)
+            return null;
         return {
             cleanFluidStatus: (dss >> 10) & 0b11,
             waterBoxFilterStatus: (dss >> 8) & 0b11,
@@ -166,15 +179,9 @@ class requestsHandler {
             isUpdownWaterReady: dss & 0b11,
         };
     }
-    /**
-     * @param {string} duid
-     * @param {string} parameter
-     * @param {Object} [attribute]
-     */
-    async getParameter(duid, parameter, attribute) {
-        let mode;
-        return this.sendRequest(duid, parameter, attribute)
-            .then(async (value) => {
+    async getParameter(handler, duid, parameter, attribute) {
+        try {
+            const value = await this.sendRequest(duid, parameter, attribute, { priority: 0 });
             if (!value) {
                 this.adapter.log.debug(`No value received for ${parameter} on ${duid}.`);
                 return;
@@ -182,231 +189,51 @@ class requestsHandler {
             this.adapter.log.debug(`Received value for ${parameter} on ${duid}: ${JSON.stringify(value)}`);
             switch (parameter) {
                 case "get_network_info":
-                    mode = parameter;
-                    const localDevice = this.adapter.local_api.localDevices[duid];
-                    for (const attribute in value) {
-                        if (attribute == "ip" && !(await this.isCloudDevice(duid)) && !localDevice) {
-                            this.adapter.local_api.localDevices[duid] = { ip: value[attribute], version: "1.0" };
-                        }
-                        this.adapter.ensureState(`Devices.${duid}.networkInfo.${attribute}`, { val: value[attribute], ack: true });
-                    }
+                    await this.handleGetNetworkInfo(duid, value);
                     break;
                 case "get_consumable":
-                    const consumables = value[0];
-                    for (const consumable in consumables) {
-                        const commonConsumable = this.adapter.device_features.getCommonConsumable(consumable);
-                        const value = commonConsumable && commonConsumable.unit == "h" ? Math.round(consumables[consumable] / (60 * 60)) : consumables[consumable];
-                        this.adapter.ensureState(`Devices.${duid}.consumables.${consumable}`, { val: value, ack: true }, commonConsumable);
-                        const resetConsumable = this.adapter.device_features.isResetableConsumable(consumable);
-                        if (resetConsumable) {
-                            this.adapter.ensureState(`Devices.${duid}.resetConsumables.${consumable}`, { val: false, ack: true });
-                        }
-                    }
+                    await this.handleGetConsumable(handler, duid, value);
                     break;
                 case "get_prop":
-                    if (attribute == "get_status") {
-                        this.cached_get_status_value[duid] = value[0];
-                        for (const attribute in this.cached_get_status_value[duid]) {
-                            // if (!(await this.adapter.getObjectAsync(`Devices.${duid}.deviceStatus.${attribute}`))) {
-                            // 	this.adapter.log.warn(
-                            // 		`Unsupported attribute: ${attribute} of get_status with value ${this.cached_get_status_value[duid][attribute]}. Please contact the dev to add the newly found attribute of your robot. Model: ${robotModel}`
-                            // 	);
-                            // 	continue; // Skip unsupported attributes
-                            // }
-                            if (typeof this.cached_get_status_value[duid][attribute] == "object") {
-                                this.cached_get_status_value[duid][attribute] = JSON.stringify(this.cached_get_status_value[duid][attribute]);
-                            }
-                            switch (attribute) {
-                                case "dock_type":
-                                    this.adapter.device_features.processDockType(attribute);
-                                    break;
-                                case "dss":
-                                    await this.adapter.createDockingStationObject(duid);
-                                    const dockingStationStatus = this.getDockingStationStatus(duid);
-                                    for (const state in dockingStationStatus) {
-                                        this.adapter.setStateAsync(`Devices.${duid}.dockingStationStatus.${state}`, { val: parseInt(dockingStationStatus[state]), ack: true });
-                                    }
-                                    break;
-                                case "map_status": {
-                                    const selectedMap = this.getSelectedMap(duid);
-                                    if (selectedMap != null) {
-                                        this.cached_get_status_value[duid][attribute] = selectedMap;
-                                        const mapCount = await this.adapter.getStateAsync(`Devices.${duid}.floors.multi_map_count`);
-                                        // Don't process load_multi_map for single level configuration
-                                        if (mapCount) {
-                                            // Sometimes mapCount is not available shortly after first start of adapter
-                                            if (mapCount.val > 1) {
-                                                const mapFromCommand = await this.adapter.getState(`Devices.${duid}.commands.load_multi_map`);
-                                                if (mapFromCommand && mapFromCommand.val != selectedMap) {
-                                                    await this.adapter.setStateAsync(`Devices.${duid}.commands.load_multi_map`, selectedMap, true);
-                                                    await this.getMap(duid);
-                                                }
-                                            }
-                                        }
-                                    }
-                                    break;
-                                }
-                                case "state": {
-                                    const isCleaning = this.isCleaning(duid);
-                                    if (this.adapter.socket && isCleaning) {
-                                        const sendValue = { duid: duid, command: "get_status", parameters: { isCleaning: isCleaning } };
-                                        this.adapter.socket.send(JSON.stringify(sendValue));
-                                    }
-                                    break;
-                                }
-                                case "last_clean_t":
-                                    this.cached_get_status_value[duid][attribute] = new Date(this.cached_get_status_value[duid][attribute]).toString();
-                                    break;
-                            }
-                            const value = this.cached_get_status_value[duid][attribute];
-                            const commonDeviceStates = this.adapter.device_features.getCommonDeviceStates(attribute);
-                            this.adapter.ensureState(`Devices.${duid}.deviceStatus.${attribute}`, { val: value, ack: true }, commonDeviceStates);
-                        }
-                    }
+                    await this.handleGetProp(handler, duid, value, attribute);
                     break;
                 case "get_room_mapping":
-                    const selectedMap = this.getSelectedMap(duid);
-                    if (selectedMap != null) {
-                        const roomIDs = this.adapter.http_api.getMatchedRoomIDs();
-                        if (Array.isArray(value)) {
-                            value.map(async ([shortID, roomID]) => {
-                                const room = roomIDs.find((r) => r.id.toString() === roomID);
-                                const roomName = room?.name || "unknown";
-                                const objectString = `Devices.${duid}.floors.${selectedMap}.${shortID}`;
-                                await this.adapter.createStateObjectHelper({ path: objectString, name: roomName, type: "boolean", def: true, read: true, write: true });
-                            });
-                        }
-                        const objectString = `Devices.${duid}.floors.cleanCount`;
-                        await this.adapter.createStateObjectHelper({ path: objectString, name: "Clean count", type: "number", def: 1, read: true, write: true });
-                    }
+                    await this.handleGetRoomMapping(duid, value);
                     break;
                 case "get_multi_maps_list":
-                    const mapInfo = value[0].map_info;
-                    const maps = {};
-                    // Set states for numeric parameters
-                    for (const mapParameter in value[0]) {
-                        if (typeof value[0][mapParameter] === "number") {
-                            const statePath = `Devices.${duid}.floors.${mapParameter}`;
-                            this.adapter.ensureState(statePath, { val: value[0][mapParameter], ack: true });
-                        }
-                    }
-                    // Create map folders
-                    for (const map in mapInfo) {
-                        const roomFloor = mapInfo[map]["mapFlag"];
-                        const mapName = mapInfo[map]["name"];
-                        maps[roomFloor] = mapName;
-                        const objectPath = `Devices.${duid}.floors.${roomFloor}`;
-                        this.adapter.setObjectAsync(objectPath, {
-                            type: "folder",
-                            common: {
-                                name: mapName,
-                            },
-                            native: {},
-                        });
-                    }
-                    // Handle the load_multi_map command
-                    const commandPath = `Devices.${duid}.commands.load_multi_map`;
-                    this.adapter.log.debug(`commandPath: "${commandPath}"`);
-                    if (value[0]["max_multi_map"] > 1) {
-                        await this.adapter.createStateObjectHelper({ path: commandPath, name: "Load map", type: "number", def: 0, read: true, write: true, states: maps });
-                    }
-                    else {
-                        this.adapter.delObjectAsync(commandPath);
-                    }
+                    await this.handleGetMultiMapsList(duid, value);
                     break;
                 case "get_fw_features":
-                    for (const firmwareFeature in value) {
-                        const featureID = value[firmwareFeature];
-                        const objectString = `Devices.${duid}.firmwareFeatures.${firmwareFeature}`;
-                        const featureName = this.adapter.device_features.getFirmwareFeature(featureID);
-                        // Dynamically process robot features by ID if they are supported
-                        if (typeof this.adapter.device_features[featureName] === "function") {
-                            this.adapter.device_features[featureName](duid);
-                        }
-                        this.adapter.ensureState(objectString, { val: featureName, ack: true });
-                    }
-                    break;
-                case "get_server_timer":
-                    // if (typeof(attribute_val[0]) == "object") {
-                    // attribute_val[0] = JSON.stringify(attribute_val[0]);
-                    // }
-                    // this.adapter.setStateAsync("Devices." + duid + "." + targetFolder + "." + mode, { val: attribute_val[0], ack: true });
-                    // Handle get_server_timer if needed
-                    break;
-                case "get_timer":
-                    // if (typeof(attribute_val[0]) == "object") {
-                    // attribute_val[0] = JSON.stringify(attribute_val[0]);
-                    // }
-                    // this.adapter.setStateAsync("Devices." + duid + "." + targetFolder + "." + mode, { val: attribute_val[0], ack: true });
-                    // Handle get_timer if needed
+                    await this.handleGetFwFeatures(handler, duid, value);
                     break;
                 case "get_photo":
-                    if (this.isGZIP(value)) {
-                        this.adapter.log.debug(`gzipped photo found.`);
-                        this.adapter.log.debug(JSON.stringify(value));
-                        this.unzipBuffer(value, (error, photoData) => {
-                            if (error) {
-                                this.adapter.catchError(error, "get_photo", duid);
-                                if (this.adapter.supportsFeature && this.adapter.supportsFeature("PLUGINS")) {
-                                    if (this.adapter.sentryInstance) {
-                                        this.adapter.sentryInstance.getSentryObject().captureException(`Failed to extract gzip: ${JSON.stringify(error)}`);
-                                    }
-                                }
-                            }
-                            else {
-                                const extractedPhoto = this.extractPhoto(photoData);
-                                if (extractedPhoto) {
-                                    const photo = {};
-                                    photo.duid = duid;
-                                    photo.command = "get_photo";
-                                    photo.image = `data:image/jpeg;base64,${extractedPhoto.toString("base64")}`;
-                                    if (this.adapter.socket) {
-                                        this.adapter.socket.send(JSON.stringify(photo));
-                                    }
-                                }
-                            }
-                        });
-                    }
-                    break;
-                case "get_dust_collection_switch_status":
-                case "get_wash_towel_mode":
-                case "get_smart_wash_params":
-                case "get_dust_collection_mode": {
-                    // this currently isn't used anyhwere. Check this later at some point
-                    const attribute_val = JSON.stringify(value);
-                    this.adapter.setStateAsync(`Devices.${duid}.commands.${parameter.replace("get", "set")}`, { val: attribute_val, ack: true });
-                    break;
-                }
+                    return await this.handleGetPhoto(duid, value);
                 case "app_get_dryer_setting": {
-                    if (value &&
-                        typeof value === "object" &&
-                        "on" in value &&
-                        value.on &&
-                        typeof value.on === "object" &&
-                        "dry_time" in value.on &&
-                        "status" in value) {
-                        const actualVal = JSON.stringify({ on: { dry_time: value.on.dry_time }, status: value.status });
-                        this.adapter.setStateAsync(`Devices.${duid}.commands.${parameter.replace("get", "set")}`, { val: actualVal, ack: true });
+                    const val = value;
+                    if (val && val.on && typeof val.on === "object" && "dry_time" in val.on && "status" in val) {
+                        const actualVal = JSON.stringify({ on: { dry_time: val.on.dry_time }, status: val.status });
+                        await this.adapter.setState(`Devices.${duid}.commands.${parameter.replace("get", "set")}`, { val: actualVal, ack: true });
                     }
                     else {
                         this.adapter.log.warn(`Unexpected value structure for ${parameter}: ${JSON.stringify(value)}`);
                     }
                     break;
                 }
-                default: {
+                case "get_timer":
+                case "get_server_timer":
+                    this.adapter.log.debug(`[getParameter] Received timers (get_timer/get_server_timer), ignoring value.`);
+                    break;
+                default:
                     if (parameterFolders[parameter]) {
-                        mode = parameter.substring(4);
-                        // const attribute_val = await this.sendRequest(duid, parameter, []);
-                        if (typeof value[0] == "object") {
-                            value[0] = JSON.stringify(value[0]);
-                        }
+                        const mode = parameter.substring(4);
                         const targetFolder = parameterFolders[parameter];
-                        this.adapter.ensureState(`Devices.${duid}.${targetFolder}.${mode}`, { val: value[0], ack: true });
+                        let valToSave = value[0];
+                        if (typeof valToSave == "object")
+                            valToSave = JSON.stringify(valToSave);
+                        await this.adapter.ensureState(targetFolder, {});
+                        await this.adapter.setStateChangedAsync(`Devices.${duid}.${targetFolder}.${mode}`, { val: valToSave, ack: true });
                     }
                     else {
-                        // Unknown parameter
-                        // const unknown_parameter_val = await this.sendRequest(duid, parameter, []);
-                        // this.adapter.setStateAsync("Devices." + duid + "." + targetFolder + "." + mode, { val: attribute_val[0], ack: true });
                         if (typeof value == "object") {
                             if (typeof value[0] != "number") {
                                 this.adapter.catchError(`Unknown parameter: ${JSON.stringify(value)}`, parameter, duid);
@@ -416,28 +243,212 @@ class requestsHandler {
                             this.adapter.catchError(`Unknown parameter: ${value}`, parameter, duid);
                         }
                     }
+            }
+            return value;
+        }
+        catch (error) {
+            this.adapter.catchError(error, parameter, duid);
+            throw error;
+        }
+    }
+    // --- Refactored Handlers ---
+    async handleGetNetworkInfo(duid, value) {
+        const localDevice = this.adapter.local_api.localDevices[duid];
+        for (const attribute in value) {
+            if (attribute == "ip" && value[attribute] && !localDevice) {
+                this.adapter.log.info(`[get_network_info] Adding device ${duid} @ ${value[attribute]} to local devices (missed by UDP).`);
+                this.adapter.local_api.localDevices[duid] = { ip: value[attribute], version: "1.0" };
+            }
+            await this.adapter.ensureState(`Devices.${duid}.networkInfo.${attribute}`, {});
+            await this.adapter.setStateChangedAsync(`Devices.${duid}.networkInfo.${attribute}`, { val: value[attribute], ack: true });
+        }
+    }
+    async handleGetConsumable(handler, duid, value) {
+        const consumables = value[0];
+        for (const consumable in consumables) {
+            const commonConsumable = handler.getCommonConsumable(consumable) || {}; // Ensure it's an object
+            const val = commonConsumable && commonConsumable.unit == "h" ? Math.round(consumables[consumable] / (60 * 60)) : consumables[consumable];
+            commonConsumable.type = "number"; // Consumables are always numbers
+            await this.adapter.ensureState(`Devices.${duid}.consumables.${consumable}`, commonConsumable);
+            await this.adapter.setStateChangedAsync(`Devices.${duid}.consumables.${consumable}`, { val: val, ack: true });
+            if (handler.isResetableConsumable(consumable)) {
+                await this.adapter.ensureState(`Devices.${duid}.resetConsumables.${consumable}`, {
+                    type: "boolean",
+                    write: true,
+                    role: "button",
+                    def: false,
+                });
+                await this.adapter.setState(`Devices.${duid}.resetConsumables.${consumable}`, { val: false, ack: true });
+            }
+        }
+    }
+    async handleGetProp(handler, duid, value, attribute) {
+        if (!Array.isArray(attribute) || attribute[0] !== "get_status") {
+            return;
+        }
+        this.cached_get_status_value[duid] = value[0];
+        for (const attr in this.cached_get_status_value[duid]) {
+            let val = this.cached_get_status_value[duid][attr];
+            if (typeof val == "object")
+                val = JSON.stringify(val);
+            this.cached_get_status_value[duid][attr] = val;
+            switch (attr) {
+                case "dock_type":
+                    handler.processDockType(val);
+                    break;
+                case "dss":
+                    const dssStatus = this.getDockingStationStatus(duid);
+                    if (dssStatus) {
+                        const dockStates = ["cleanFluidStatus", "waterBoxFilterStatus", "dustBagStatus", "dirtyWaterBoxStatus", "clearWaterBoxStatus", "isUpdownWaterReady"];
+                        for (const state of dockStates) {
+                            const path = `Devices.${duid}.dockingStationStatus.${state}`;
+                            await this.adapter.ensureState(path, { type: "number", role: "value", read: true, write: false, states: { 0: "UNKNOWN", 1: "ERROR", 2: "OK" } });
+                            const dssVal = dssStatus[state];
+                            if (dssVal !== undefined)
+                                await this.adapter.setStateChangedAsync(path, { val: parseInt(dssVal), ack: true });
+                        }
+                    }
+                    break;
+                case "map_status": {
+                    // Use block scope
+                    // 'val' already holds the raw map_status (e.g., 252)
+                    // We can calculate 'selectedMap' directly without reading the state
+                    const rawMapStatus = Number(val);
+                    const selectedMap = rawMapStatus >> 2; // Bitwise shift
+                    // Store the CALCULATED map ID (e.g., 63) in the cache
+                    this.cached_get_status_value[duid][attr] = selectedMap;
+                    // Overwrite 'val' so the calculated value (63) is saved to the state
+                    // instead of the raw value (252)
+                    val = selectedMap;
+                    // Now run the rest of the logic using the calculated value
+                    const mapCount = await this.adapter.getStateAsync(`Devices.${duid}.floors.multi_map_count`);
+                    if (mapCount && typeof mapCount.val === "number" && mapCount.val > 1) {
+                        const mapFromCommand = await this.adapter.getStateAsync(`Devices.${duid}.commands.load_multi_map`);
+                        if (mapFromCommand && mapFromCommand.val != selectedMap) {
+                            await this.adapter.setState(`Devices.${duid}.commands.load_multi_map`, selectedMap, true);
+                            // Don't call getMap() here during init, it will be called by startPolling
+                            if (!this.adapter.isInitializing) {
+                                this.getMap(handler, duid).catch(() => { });
+                            }
+                        }
+                    }
+                    break;
+                }
+                case "state":
+                    const isCleaning = this.isCleaning(duid);
+                    if (this.adapter.socket && isCleaning) {
+                        this.adapter.socket.send(JSON.stringify({ duid: duid, command: "get_status", parameters: { isCleaning: isCleaning } }));
+                    }
+                    break;
+                case "last_clean_t":
+                    val = new Date(val * 1000).toString();
+                    break;
+            }
+            const commonDeviceStates = handler.getCommonDeviceStates(attr) || {};
+            // Dynamically set type based on the data we received
+            if (attr === "last_clean_t") {
+                commonDeviceStates.type = "string"; // This one was converted to a string
+            }
+            else if (typeof val === "number") {
+                commonDeviceStates.type = "number";
+            }
+            else if (typeof val === "boolean") {
+                commonDeviceStates.type = "boolean";
+            }
+            await this.adapter.ensureState(`Devices.${duid}.deviceStatus.${attr}`, commonDeviceStates);
+            await this.adapter.setStateChangedAsync(`Devices.${duid}.deviceStatus.${attr}`, { val: val, ack: true });
+        }
+    }
+    async handleGetRoomMapping(duid, value) {
+        const selectedMap = await this.getSelectedMap(duid);
+        if (selectedMap != null) {
+            const roomIDs = this.adapter.http_api.getMatchedRoomIDs();
+            if (Array.isArray(value)) {
+                value.map(async ([shortID, roomID]) => {
+                    const room = roomIDs.find((r) => r.id.toString() === roomID);
+                    const roomName = room?.name || "unknown";
+                    await this.adapter.ensureState(`Devices.${duid}.floors.${selectedMap}.${shortID}`, { name: roomName, type: "boolean", def: true, write: true });
+                });
+            }
+            await this.adapter.ensureState(`Devices.${duid}.floors.cleanCount`, { name: "Clean count", type: "number", def: 1, read: true, write: true });
+        }
+    }
+    async handleGetMultiMapsList(duid, value) {
+        const mapInfo = value[0].map_info;
+        const maps = {};
+        for (const mapParameter in value[0]) {
+            if (typeof value[0][mapParameter] === "number") {
+                await this.adapter.ensureState(`Devices.${duid}.floors.${mapParameter}`, {});
+                await this.adapter.setStateChangedAsync(`Devices.${duid}.floors.${mapParameter}`, { val: value[0][mapParameter], ack: true });
+            }
+        }
+        for (const map in mapInfo) {
+            const roomFloor = mapInfo[map]["mapFlag"];
+            const mapName = mapInfo[map]["name"];
+            maps[roomFloor] = mapName;
+            this.adapter.setObjectAsync(`Devices.${duid}.floors.${roomFloor}`, {
+                type: "folder",
+                common: { name: mapName },
+                native: {},
+            });
+        }
+        if (value[0]["max_multi_map"] > 1) {
+            await this.adapter.ensureState(`Devices.${duid}.commands.load_multi_map`, { name: "Load map", type: "number", def: 0, write: true, states: maps });
+        }
+        else {
+            this.adapter.delObjectAsync(`Devices.${duid}.commands.load_multi_map`);
+        }
+    }
+    async handleGetFwFeatures(handler, duid, value) {
+        this.adapter.http_api.storeFwFeaturesResult(duid, value);
+        for (const firmwareFeature in value) {
+            const featureID = value[firmwareFeature];
+            const featureName = handler.getFirmwareFeatureName(featureID);
+            if (typeof handler[featureName] === "function") {
+                handler[featureName](duid);
+            }
+            await this.adapter.ensureState(`Devices.${duid}.firmwareFeatures.${firmwareFeature}`, {});
+            await this.adapter.setStateChangedAsync(`Devices.${duid}.firmwareFeatures.${firmwareFeature}`, { val: featureName, ack: true });
+        }
+    }
+    async handleGetPhoto(duid, value) {
+        if (Buffer.isBuffer(value)) {
+            if (this.isGZIP(value)) {
+                this.adapter.log.debug(`gzipped photo found.`);
+                try {
+                    const photoData = await gunzipAsync(value);
+                    const extractedPhoto = this.extractPhoto(photoData);
+                    if (extractedPhoto) {
+                        const photoResponse = { image: `data:image/jpeg;base64,${extractedPhoto.toString("base64")}` };
+                        this.adapter.log.debug(`photoResponse: ${photoResponse.image.substring(0, 40)}...`);
+                        return photoResponse;
+                    }
+                    else {
+                        this.adapter.log.warn(`Could not extract photo from data for ${duid}.`);
+                        throw new Error("Could not extract photo from data");
+                    }
+                }
+                catch (error) {
+                    this.adapter.catchError(error, "get_photo (unzip)", duid);
+                    throw error;
                 }
             }
-        })
-            .catch((error) => {
-            if (error) {
-                this.adapter.catchError(error, parameter, duid);
+            else {
+                this.adapter.log.warn(`Received get_photo but data was not gzipped for ${duid}.`);
+                throw new Error("Photo data not gzipped");
             }
-        });
+        }
+        return null;
     }
-    /**
-     * @param {string} duid
-     * @param {string} parameter
-     * @param {string | number | Array | Object} [value]
-     */
-    async command(duid, parameter, value) {
+    async command(handler, duid, parameter, value) {
         try {
+            const priority = 1;
             switch (parameter) {
                 case "load_multi_map": {
-                    const result = await this.sendRequest(duid, "load_multi_map", value);
+                    const result = await this.sendRequest(duid, "load_multi_map", value, { priority });
                     if (Array.isArray(result) && result[0] == "ok") {
-                        await this.getMap(duid).then(async () => {
-                            await this.getParameter(duid, "get_room_mapping", []);
+                        await this.getMap(handler, duid).then(async () => {
+                            await this.getParameter(handler, duid, "get_room_mapping", []);
                         });
                     }
                     break;
@@ -446,62 +457,61 @@ class requestsHandler {
                     this.adapter.log.debug("Starting room cleaning");
                     const roomList = { segments: [] };
                     const roomFloor = await this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.map_status`);
-                    const mappedRoomList = await this.sendRequest(duid, "get_room_mapping", []);
-                    if (mappedRoomList) {
+                    const mappedRoomList = await this.getParameter(handler, duid, "get_room_mapping", []);
+                    if (mappedRoomList && roomFloor && roomFloor.val != null) {
                         for (const mappedRoom in mappedRoomList) {
                             const roomState = await this.adapter.getStateAsync(`Devices.${duid}.floors.${roomFloor.val}.${mappedRoomList[mappedRoom][0]}`);
-                            if (roomState.val) {
+                            if (roomState && roomState.val) {
                                 roomList.segments.push(mappedRoomList[mappedRoom][0]);
                             }
                         }
                     }
                     const cleanCount = await this.adapter.getStateAsync(`Devices.${duid}.floors.cleanCount`);
-                    roomList["repeat"] = cleanCount.val;
-                    const result = await this.sendRequest(duid, "app_segment_clean", [roomList]);
+                    roomList["repeat"] = typeof cleanCount?.val === "number" ? cleanCount.val : 1;
+                    const result = await this.sendRequest(duid, "app_segment_clean", [roomList], { priority });
                     this.adapter.log.debug(`app_segment_clean with roomIDs: ${JSON.stringify(roomList)} result: ${result}`);
-                    this.adapter.setStateAsync(`Devices.${duid}.floors.cleanCount`, { val: 1, ack: true });
+                    this.adapter.setState(`Devices.${duid}.floors.cleanCount`, { val: 1, ack: true });
                     break;
                 }
                 case "reset_consumable":
-                    await this.sendRequest(duid, parameter, [value]);
+                    await this.sendRequest(duid, parameter, [value], { priority });
                     this.adapter.log.info(`Consumable ${parameter} successfully reset.`);
                     break;
                 case "app_set_dryer_status": {
-                    const result = await this.sendRequest(duid, parameter, JSON.parse(value));
+                    const result = await this.sendRequest(duid, parameter, JSON.parse(value), { priority });
                     this.adapter.log.debug(`Command: ${parameter} result: ${result}`);
                     break;
                 }
                 case "app_goto_target":
                 case "app_zoned_clean": {
-                    const result = await this.sendRequest(duid, parameter, value);
+                    const result = await this.sendRequest(duid, parameter, value, { priority });
                     this.adapter.log.debug(`Command: ${parameter} with value: ${JSON.stringify(value)} result: ${result}`);
                     break;
                 }
                 case "set_water_box_distance_off": {
                     const mappedValue = ((value - 1) / (30 - 1)) * (60 - 205) + 205;
                     const parameterValue = { distance_off: mappedValue };
-                    const result = await this.sendRequest(duid, parameter, parameterValue);
+                    const result = await this.sendRequest(duid, parameter, parameterValue, { priority });
                     this.adapter.log.debug(`Command: ${parameter} with value: ${JSON.stringify(parameterValue)} result: ${result}`);
                     break;
                 }
                 default:
                     if (value && typeof value !== "boolean") {
+                        let valueToSend = value;
                         const valueType = typeof value;
                         if (valueType === "string") {
-                            value = await JSON.parse(value);
+                            valueToSend = await JSON.parse(value);
                         }
                         else if (valueType === "number") {
-                            value = [value];
+                            valueToSend = [value];
                         }
-                        // Wait for the command to finish before updating device configuration
-                        const result = await this.sendRequest(duid, parameter, value);
+                        const result = await this.sendRequest(duid, parameter, valueToSend, { priority });
                         this.adapter.log.debug(`Command: ${parameter} with value: ${JSON.stringify(value)} result: ${result}`);
-                        // Update states instantly after sending a command
                         const getCommand = parameter.replace("set", "get");
-                        await this.getParameter(duid, getCommand, []);
+                        await this.getParameter(handler, duid, getCommand, []);
                     }
                     else {
-                        const result = await this.sendRequest(duid, parameter, undefined);
+                        const result = await this.sendRequest(duid, parameter, undefined, { priority });
                         this.adapter.log.debug(`Command: ${parameter} result: ${result}`);
                     }
             }
@@ -510,104 +520,126 @@ class requestsHandler {
             this.adapter.catchError(error, parameter, duid);
         }
     }
-    /**
-     * @param {string} duid
-     */
-    async getMap(duid) {
+    async getMap(handler, duid) {
         if (this.adapter.config.enable_map_creation) {
             this.adapter.log.debug(`Requesting new map for ${duid}`);
             try {
-                const map = await this.sendRequest(duid, "get_map_v1", []);
-                if (map != "retry" && map != "locating") {
-                    const mappedRooms = await this.sendRequest(duid, "get_room_mapping", []);
-                    // For testing and debugging maps; this cannot be stored in a state.
-                    zlib_1.default.gzip(map, (error, buffer) => {
-                        if (error) {
-                            this.adapter.log.error(`Error compressing map to gz ${error}`);
-                        }
-                        else {
-                            fs_1.default.writeFile("./test.rrmap.gz", buffer, (error) => {
-                                if (error) {
-                                    this.adapter.log.error(`Error writing map file ${error}`);
-                                }
-                            });
-                        }
-                    });
-                    const parsedData = await this.mapParser.parsedata(map);
-                    const selectedMap = this.getSelectedMap(duid);
-                    if (selectedMap != null) {
-                        this.adapter.log.debug(`Generating map for selected map ${selectedMap} for duid ${duid}`); // never remove this log, it is very useful for debugging like room naming issues
-                        const [mapBase64, mapBase64Truncated] = await this.mapCreator.canvasMap(parsedData, { selectedMap: selectedMap, mappedRooms: mappedRooms });
-                        await this.adapter.ensureState(`Devices.${duid}.map.mapData`, { val: JSON.stringify(parsedData), ack: true });
-                        await this.adapter.ensureState(`Devices.${duid}.map.mapBase64`, { val: mapBase64, ack: true });
-                        await this.adapter.ensureState(`Devices.${duid}.map.mapBase64Truncated`, { val: mapBase64Truncated, ack: true });
-                        // Send current map with scale factor
-                        const mapToSend = {
-                            duid: duid,
-                            command: "map",
-                            base64: mapBase64,
-                            map: parsedData,
-                            scale: this.adapter.config.map_scale,
-                        };
-                        if (this.adapter.socket != null) {
-                            this.adapter.socket.send(JSON.stringify(mapToSend));
-                        }
+                const mapBuf = await this.sendRequest(duid, "get_map_v1", [], { priority: 0 });
+                if (!Buffer.isBuffer(mapBuf)) {
+                    this.adapter.log.warn(`[getMap] Received non-buffer data (e.g. 'retry' or 'ok'): ${JSON.stringify(mapBuf)}`);
+                    return;
+                }
+                const mappedRooms = await this.getParameter(handler, duid, "get_room_mapping", []);
+                const parsedData = (await this.mapParser.parsedata(mapBuf, { isHistoryMap: false }));
+                if (parsedData?.metaData) {
+                    this.adapter.log.info(`[getMap] Parsed LIVE map. MapIndex (Floor): ${parsedData.metaData.map_index}, Segments: ${parsedData.IMAGE?.segments?.id?.length || 0}`);
+                }
+                else {
+                    this.adapter.log.warn(`[getMap] Live map was parsed but contains no metaData.`);
+                }
+                const selectedMap = await this.getSelectedMap(duid);
+                // Restore the check, as it was in the original code
+                if (selectedMap != null) {
+                    // This log is important (as noted in your old code)
+                    this.adapter.log.debug(`Generating map for selected map ${selectedMap} for duid ${duid}`);
+                    if (!parsedData || !parsedData.IMAGE || !parsedData.IMAGE.dimensions) {
+                        this.adapter.log.warn(`[getMap] Skipping map generation for ${duid}: Parsed data is invalid or missing IMAGE block.`);
+                        return;
                     }
+                    const dims = parsedData.IMAGE.dimensions;
+                    this.adapter.log.debug(`[getMap] Calling canvasMap for ${duid} with dimensions: w=${dims.width}, h=${dims.height}`);
+                    // Check for invalid dimensions that cause canvas crashes
+                    if (dims.width <= 0 || dims.height <= 0) {
+                        this.adapter.log.warn(`[getMap] Skipping map generation for ${duid}: Invalid map dimensions (w=${dims.width}, h=${dims.height}). Map is likely empty.`);
+                        return;
+                    }
+                    const [mapBase64, mapBase64Truncated] = await this.mapCreator.canvasMap(parsedData, {
+                        selectedMap: selectedMap,
+                        mappedRooms: mappedRooms,
+                    });
+                    await this.adapter.ensureFolder(`Devices.${duid}.map`);
+                    await this.adapter.ensureState(`Devices.${duid}.map.mapData`, { name: "Map Data JSON", type: "string", role: "json" });
+                    await this.adapter.ensureState(`Devices.${duid}.map.mapBase64`, { name: "Map Image (Base64)", type: "string", role: "text.png" });
+                    await this.adapter.ensureState(`Devices.${duid}.map.mapBase64Truncated`, { name: "Map Image (Base64 Truncated)", type: "string", role: "text.png" });
+                    await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapData`, { val: JSON.stringify(parsedData), ack: true });
+                    await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapBase64`, { val: mapBase64, ack: true });
+                    await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapBase64Truncated`, { val: mapBase64Truncated, ack: true });
+                }
+                else {
+                    this.adapter.log.warn(`[getMap] Skipping map generation for ${duid} because selectedMap is null. (map_status state not yet available?)`);
                 }
             }
             catch (error) {
-                this.adapter.catchError(error, "get_map_v1", duid);
+                this.adapter.log.error(`Error getting map for ${duid}: ${error?.stack || error}`);
             }
         }
     }
-    /**
-     * @param {string} duid
-     */
+    // --- Helpers & Core Logic ---
     isCleaning(duid) {
         if (!duid) {
             this.adapter.log.error("duid parameter missing on function isCleaning");
             return false;
         }
-        if (!this.cached_get_status_value[duid]) {
-            this.adapter.log.error(`isCleaning: this.cached_get_status_value for ${duid} is not initialized. Request get_status first. this.cached_get_status_value: ${JSON.stringify({ ...this.cached_get_status_value })}`);
+        if (!this.cached_get_status_value[duid])
             return false;
-        }
         const cleaningState = this.cached_get_status_value[duid].state;
         switch (cleaningState) {
-            case 4: // Remote Control
-            case 5: // Cleaning
-            case 6: // Returning Dock
-            case 7: // Manual Mode
-            case 11: // Spot Cleaning
-            case 15: // Docking
-            case 16: // Go To
-            case 17: // Zone Clean
-            case 18: // Room Clean
-            case 26: // Going to wash the mop
+            case 4:
+            case 5:
+            case 6:
+            case 7:
+            case 11:
+            case 15:
+            case 16:
+            case 17:
+            case 18:
+            case 26:
                 return true;
             default:
                 return false;
         }
     }
     /**
-     * @param {string} duid
+     * Gets the currently selected map ID (floor) from the ioBroker state.
+     * This is more robust than relying on the cache, which might not be initialized.
+     * @param duid The device DUID
+     * @returns The map ID (number) or null if not found.
      */
-    getSelectedMap(duid) {
+    async getSelectedMap(duid) {
         if (!duid) {
             this.adapter.log.error("duid parameter missing on function getSelectedMap");
             return null;
         }
-        if (!this.cached_get_status_value[duid]) {
-            this.adapter.log.error(`getSelectedMap: this.cached_get_status_value for ${duid} is not initialized. Request get_status first. this.cached_get_status_value: ${JSON.stringify({ ...this.cached_get_status_value })}`);
+        try {
+            // Read the map_status from the persistent ioBroker state
+            const mapStatusState = await this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.map_status`);
+            // Check if the state exists and has a valid value
+            if (mapStatusState && mapStatusState.val !== null && mapStatusState.val !== undefined) {
+                const mapStatus = Number(mapStatusState.val);
+                // Bitwise right shift to obtain the selected map
+                return mapStatus >> 2;
+            }
+            else {
+                this.adapter.log.warn(`[getSelectedMap] Could not read map_status state for ${duid}. State is null or undefined. Map generation might be skipped.`);
+                return null;
+            }
+        }
+        catch (error) {
+            this.adapter.log.error(`[getSelectedMap] Error reading state for ${duid}: ${error.message}`);
             return null;
         }
-        return this.cached_get_status_value[duid].map_status >> 2; // Bitwise right shift to obtain the selected map
     }
     isCloudRequest(duid, method) {
         const cloudOnlyMethods = ["get_map_v1", "get_clean_record_map", "get_photo", "get_network_info"];
         return cloudOnlyMethods.includes(method) || this.adapter.requestsHandler.isCloudDevice(duid);
     }
-    async sendRequest(duid, method, params) {
+    async sendRequest(duid, method, params, options = {}) {
+        const queue = this.getQueue(duid);
+        return queue.add(() => this._performRequest(duid, method, params), {
+            priority: options.priority || 0,
+        });
+    }
+    async _performRequest(duid, method, params) {
         const remoteConnection = await this.isCloudDevice(duid);
         let protocol = 101;
         const version = await this.adapter.getDeviceProtocolVersion(duid);
@@ -629,33 +661,33 @@ class requestsHandler {
             this.adapter.mqtt_api.sendMessage(duid, roborockMessage);
             return Promise.resolve();
         }
-        this.adapter.log.debug(`duid: ${duid}, mqttConnectionState: ${mqttConnectionState}, localConnectionState: ${localConnectionState}, remoteConnection: ${remoteConnection}`);
+        this.adapter.log.debug(`duid: ${duid}, mqtt: ${mqttConnectionState}, local: ${localConnectionState}, remote: ${remoteConnection}`);
         return new Promise((resolve, reject) => {
             if (!mqttConnectionState && remoteConnection) {
                 this.adapter.pendingRequests.delete(messageID);
-                this.adapter.log.debug(`Cloud connection not available. Not sending for method ${method} request!`);
-                return reject();
+                const errorMsg = `Cloud connection not available. Not sending for method ${method} request!`;
+                this.adapter.log.debug(errorMsg);
+                return reject(new Error(errorMsg));
             }
-            else if (!localConnectionState && !remoteConnection && method != "get_network_info") {
+            else if (!localConnectionState && !mqttConnectionState && method != "get_network_info") {
                 this.adapter.pendingRequests.delete(messageID);
-                this.adapter.log.debug(`Adapter locally or remotely not connected to robot ${duid}. Sending request for ${method} not possible!`);
-                return reject();
+                const errorMsg = `Adapter locally or remotely not connected to robot ${duid}. Sending request for ${method} not possible!`;
+                this.adapter.log.debug(errorMsg);
+                return reject(new Error(errorMsg));
             }
             else {
-                // Setup timeout for the request
                 const timeout = this.adapter.setTimeout(() => {
                     this.adapter.pendingRequests.delete(messageID);
                     this.adapter.local_api.clearChunkBuffer(duid);
                     if (remoteConnection) {
-                        reject(new Error(`Cloud request with id ${messageID} and method ${method} timed out after 30 seconds. MQTT connection state: ${mqttConnectionState}`));
+                        reject(new Error(`Cloud request with id ${messageID} and method ${method} timed out after 30 seconds.`));
                     }
                     else {
-                        reject(new Error(`Local request with id ${messageID} and method ${method} timed out after 30 seconds. Local connection state: ${localConnectionState}`));
+                        reject(new Error(`Local request with id ${messageID} and method ${method} timed out after 30 seconds.`));
                     }
-                }, requestTimeout);
-                // Store the request with resolve and reject functions
-                this.adapter.pendingRequests.set(messageID, { resolve, reject, timeout });
-                if (this.isCloudRequest(duid, method)) {
+                }, REQUEST_TIMEOUT);
+                this.adapter.pendingRequests.set(messageID, { method, resolve, reject, timeout });
+                if (this.isCloudRequest(duid, method) || !localConnectionState) {
                     this.adapter.mqtt_api.sendMessage(duid, roborockMessage);
                     this.adapter.log.debug(`Sent payload for ${duid} with ${payload} using cloud connection using version ${version}`);
                 }
@@ -669,56 +701,28 @@ class requestsHandler {
             }
         });
     }
-    /**
-     * Resolves a previously tracked pending request by ID.
-     * Removes the request from the internal map and calls its resolve function.
-     * Throws an error if no matching request is found.
-     *
-     * @param {string|number} id - The unique identifier of the pending request to resolve.
-     * @param {*} result - The result value to pass to the resolve function.
-     * @param {number} protocol - The protocol number associated with this request, used for error context.
-     * @throws {Error} If no pending request with the given ID exists.
-     */
     resolvePendingRequest(id, result, protocol) {
         const entry = this.adapter.pendingRequests?.get(id);
-        // if (!entry) {
-        // 	throw new Error(`No pending request found for id ${id} (protocol: ${protocol})`);
-        // }
         if (entry) {
-            clearTimeout(entry.timeout);
+            if (entry.timeout)
+                this.adapter.clearTimeout(entry.timeout);
             this.adapter.pendingRequests.delete(id);
             entry.resolve(result);
             this.adapter.log.debug(`Successfully resolved request id ${id} using protocol: ${protocol}. Size of message queue: ${this.adapter.pendingRequests.size}`);
         }
     }
-    /**
-     * @param {string} duid
-     */
     async isCloudDevice(duid) {
         const receivedDevices = this.adapter.http_api.getReceivedDevices();
         const sharedDevice = receivedDevices.find((device) => device.duid == duid);
         const cloudDevice = this.adapter.local_api.cloudDevices.has(duid);
-        if (sharedDevice || cloudDevice) {
-            return true;
-        }
-        return false;
+        return !!(sharedDevice || cloudDevice);
     }
-    /**
-     * @param {string} duid
-     */
     async getConnector(duid) {
         const isRemote = await this.isCloudDevice(duid);
-        if (isRemote) {
+        if (isRemote)
             return this.adapter.mqtt_api;
-        }
-        else {
-            return this.adapter.local_api;
-        }
+        return this.adapter.local_api;
     }
-    /**
-     * @param {string} attribute
-     * @param {number} value
-     */
     calculateCleaningValue(attribute, value) {
         switch (attribute) {
             case "clean_time":
@@ -729,10 +733,6 @@ class requestsHandler {
                 return value;
         }
     }
-    /**
-     * @param {string} attribute
-     * @param {number} value
-     */
     calculateRecordValue(attribute, value) {
         switch (attribute) {
             case "begin":
@@ -748,30 +748,33 @@ class requestsHandler {
         }
     }
     unzipBuffer(buffer, callback) {
-        zlib_1.default.gunzip(buffer, function (err, result) {
-            if (err) {
+        zlib_1.default.gunzip(buffer, (err, result) => {
+            if (err)
                 callback(err);
-            }
-            else {
+            else
                 callback(null, result);
-            }
+        });
+    }
+    unzipBufferAsync(buffer) {
+        return new Promise((resolve, reject) => {
+            this.unzipBuffer(buffer, (error, photoData) => {
+                if (error)
+                    reject(error);
+                else
+                    resolve(photoData);
+            });
         });
     }
     isGZIP(buffer) {
-        if (buffer.length < 2) {
+        if (buffer.length < 2)
             return false;
-        }
-        if (buffer[0] == 31 && buffer[1] == 139) {
+        if (buffer[0] == 31 && buffer[1] == 139)
             return true;
-        }
         return false;
     }
     extractPhoto(buffer) {
-        // Verify that the buffer is long enough to hold the header
-        if (buffer.length < 10) {
+        if (buffer.length < 10)
             return false;
-        }
-        // Check the signature
         if (buffer[26] == 74 && buffer[27] == 70 && buffer[28] == 73 && buffer[29] == 70) {
             return buffer.slice(20);
         }
@@ -783,14 +786,15 @@ class requestsHandler {
     clearQueue() {
         this.adapter.local_api.clearLocalDevicedTimeout();
         this.adapter.mqtt_api.clearIntervals();
-        this.messageQueue.forEach(({ timeout102, timeout301 }) => {
-            this.adapter.clearTimeout(timeout102);
-            if (timeout301) {
-                this.adapter.clearTimeout(timeout301);
-            }
+        // Clear map-based queues
+        this.deviceQueues.forEach((q) => q.clear());
+        this.deviceQueues.clear();
+        // Clear pending request timeouts
+        this.adapter.pendingRequests.forEach((req) => {
+            if (req.timeout)
+                this.adapter.clearTimeout(req.timeout);
         });
-        // Clear the messageQueue map
-        this.messageQueue.clear();
+        this.adapter.pendingRequests.clear();
     }
 }
 exports.requestsHandler = requestsHandler;

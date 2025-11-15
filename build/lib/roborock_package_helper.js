@@ -72,7 +72,7 @@ class roborock_package_helper {
                                     fs_1.default.writeFileSync(`${imagePath}/${relativePath}`, fileContent);
                                     const fileContentBase64 = fileContent.toString("base64");
                                     const fileNameWithoutExtension = relativePath.slice(0, relativePath.lastIndexOf("."));
-                                    const formattedNumber = (i).toString().padStart(3, "0"); // "001", "002", "003", etc.
+                                    const formattedNumber = i.toString().padStart(3, "0"); // "001", "002", "003", etc.
                                     this.adapter.setObjectAsync(`${objectPath}.${formattedNumber}`, {
                                         type: "state",
                                         common: {
@@ -80,11 +80,11 @@ class roborock_package_helper {
                                             type: "string",
                                             role: "value",
                                             read: true,
-                                            write: false
+                                            write: false,
                                         },
                                         native: {},
                                     });
-                                    this.adapter.setStateAsync(`${objectPath}.${formattedNumber}`, { val: fileContentBase64, ack: true });
+                                    this.adapter.setState(`${objectPath}.${formattedNumber}`, { val: fileContentBase64, ack: true });
                                 }
                                 i++;
                             }

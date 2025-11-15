@@ -46,14 +46,6 @@
 			  "width": "198px"
 			}
 		},
-		"webserverPort": {
-			"type": "port",
-			"label": "Webserver Port",
-			"newLine": true,
-			"style": {
-			  "width": "198px"
-			}
-		},
 		"hostname_ip": {
 			"type": "text",
 			"label": "Hostname/IP for camera stream",

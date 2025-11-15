@@ -1,121 +1,104 @@
-declare const utils: any;
-type StateObjectOptions = {
-    path: string;
-    name: string;
-    type: string;
-    unit?: string;
-    def?: any;
-    role?: string;
-    read?: boolean;
-    write?: boolean;
-    states?: any;
-    native?: Record<string, any>;
-};
-interface StateCommonExtension {
-    min?: number;
-    max?: number;
-    unit?: string;
-}
+import * as utils from "@iobroker/adapter-core";
+import ws from "ws";
+import { roborock_package_helper } from "./lib/roborock_package_helper";
+import { requestsHandler } from "./lib/requestsHandler";
+import { http_api } from "./lib/httpApi";
+import { local_api } from "./lib/localApi";
+import { mqtt_api } from "./lib/mqttApi";
+import { socketHandler } from "./lib/socketHandler";
+import { DeviceManager } from "./lib/deviceManager";
+import type { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
 export declare class Roborock extends utils.Adapter {
-    constructor(options?: {});
+    http_api: http_api;
+    local_api: local_api;
+    mqtt_api: mqtt_api;
+    requestsHandler: requestsHandler;
+    socketHandler: socketHandler;
+    deviceManager: DeviceManager;
+    deviceFeatureHandlers: Map<string, BaseDeviceFeatures>;
+    socket: ws | null;
+    nonce: Buffer;
+    pendingRequests: Map<number, {
+        method: string;
+        resolve: (value: any) => void;
+        reject: (reason?: any) => void;
+        timeout: ioBroker.Timeout | undefined;
+    }>;
+    roborock_package_helper: roborock_package_helper;
+    isInitializing: boolean;
+    sentryInstance: any;
+    translations: Record<string, string>;
+    private commandTimeout;
+    instance: number;
+    constructor(options?: Partial<utils.AdapterOptions>);
     /**
-     * Is called when databases are connected and adapter received configuration.
+     * Adapter ready logic.
      */
     onReady(): Promise<void>;
     /**
-     *
-     * @returns {Promise<string>}
+     * Message handler for Admin/Vis communication.
      */
-    ensureClientID(): Promise<any>;
+    onMessage(obj: ioBroker.Message): Promise<void>;
     /**
-     * @param {Object} device
+     * Is called when adapter shuts down.
      */
-    createDeviceObjects(device: any): Promise<void>;
+    onUnload(callback: () => void): void;
+    /**
+     * Is called if a subscribed state changes.
+     */
+    onStateChange(id: string, state: ioBroker.State | null | undefined): Promise<void>;
+    /**
+     * Ensures a ClientID exists.
+     */
+    ensureClientID(): Promise<string>;
+    /**
+     * Creates base adapter objects (Folders, States).
+     */
+    setupBasicObjects(): Promise<void>;
+    /**
+     * Processes scenes from HTTP API.
+     */
     processScenes(): Promise<void>;
-    startWebserver(): void;
-    stopWebserver(): Promise<void>;
-    startWebsocketServer(): Promise<void>;
-    stopWebsocketServer(): Promise<void>;
     /**
-     * @param {string} duid
+     * Clears all timeouts and intervals.
      */
-    updateDeviceData(duid: any): Promise<void>;
     clearTimersAndIntervals(): void;
     /**
-     * @param {string} duid
+     * Updates general device info (online status, etc.).
      */
-    updateConsumablesPercent(duid: any): Promise<void>;
+    updateDeviceInfo(duid: string, devices: any[]): Promise<void>;
     /**
-     * @param {string} duid
-     * @param {Array} devices
+     * Checks for new firmware.
      */
-    updateDeviceInfo(duid: any, devices: any): Promise<void>;
+    checkForNewFirmware(duid: string): Promise<void>;
     /**
-     * @param {string} duid
+     * Creates a state if it doesn't exist, applying translations.
      */
-    checkForNewFirmware(duid: any): Promise<void>;
-    getType(value: any): "number" | "boolean" | "string";
+    ensureState(path: string, commonOptions: Partial<ioBroker.StateCommon>, native?: Record<string, any>): Promise<void>;
     /**
-     * @param {string} path
-     * @param {object} value
-     * @param {object} [commonExtended]
+     * Creates a folder if it doesn't exist, applying translations.
      */
-    ensureState(path: any, value: any, commonExtended?: StateCommonExtension): Promise<void>;
+    ensureFolder(path: string): Promise<void>;
     /**
-     * @param {string} path
-     * @param {object} commonExtended
+     * Gets the protocol version for a device.
      */
-    ensureCommand(path: any, commonExtended: any): Promise<void>;
-    ensureFolder(path: any): Promise<void>;
-    createStateObjectHelper(options: StateObjectOptions): Promise<void>;
+    getDeviceProtocolVersion(duid: string): Promise<string>;
     /**
-     * @param {string} duid
+     * Starts the go2rtc process if cameras are present.
      */
-    createDockingStationObject(duid: any): Promise<void>;
-    /**
-     * @param {string} duid
-     */
-    createBaseRobotObjects(duid: any): Promise<void>;
-    /**
-     * @param {string} _duid
-     */
-    createBasicVacuumObjects(_duid: any): Promise<void>;
-    /**
-     * @param {string} _duid
-     */
-    createBasicWashingMachineObjects(_duid: any): Promise<void>;
-    /**
-     * @param {string} duid
-     */
-    getDeviceProtocolVersion(duid: any): Promise<any>;
-    setupBasicObjects(): Promise<void>;
     start_go2rtc(): Promise<void>;
     /**
-     * Processes A01 protocol messages and stores the parsed data in a structured format.
-     * @param {string} duid - The device unique identifier.
-     * @param {object} response - The parsed response object.
+     * Processes A01 (Tuya) protocol messages.
      */
-    processA01(duid: any, response: any): Promise<void>;
+    processA01(duid: string, response: {
+        dps?: Record<string, any>;
+    }): Promise<void>;
     /**
-     * Resets the MQTT API instance by cleaning up resources and reinitializing it.
+     * Resets the MQTT API instance.
      */
     resetMqttApi(): Promise<void>;
     /**
-     * @param {Error} error
-     * @param {string} [attribute]
-     * @param {string} [duid]
+     * Centralized error handler.
      */
-    catchError(error: any, attribute: any, duid: any): Promise<void>;
-    /**
-     * Is called when adapter shuts down - callback has to be called under any circumstances!
-     * @param {() => void} callback
-     */
-    onUnload(callback: any): void;
-    /**
-     * Is called if a subscribed state changes
-     * @param {string} id
-     * @param {ioBroker.State | null | undefined} state
-     */
-    onStateChange(id: any, state: any): Promise<void>;
+    catchError(error: any, attribute?: string, duid?: string): Promise<void>;
 }
-export {};
