@@ -21,6 +21,14 @@
 
   // Your custom print width preference
   "prettier.printWidth": 170,
+  // Tell Prettier to use tabs instead of spaces when formatting
+	"prettier.useTabs": true,
+
+	// Tell VS Code editor to use tabs by default for new files
+	"editor.insertSpaces": false,
+
+	// Force VS Code to use the setting above, not guess from the file
+	"editor.detectIndentation": false,
 
 
   // --- FILE VISIBILITY ---
