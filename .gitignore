@@ -20,7 +20,5 @@ admin/i18n/*/flat.txt
 lib/go2rtc/go2rtc.exe
 lib/go2rtc/go2rtc_win64.zip
 .env
-lib/sniffing/__pycache__/
 images/products/
-#ignore .commitinfo created by ioBroker release script
 .commitinfo
