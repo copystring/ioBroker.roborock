@@ -568,7 +568,6 @@ class MapApplication {
 			.attr("height", scaledRobotSize)
 			.attr("transform", (d) => {
 				const svgCoords = this.robotToSvg({ x: d.position[0], y: d.position[1] }, params);
-				// Formula derived from user feedback: (-angle) + 90
 				const angle = -(d.angle ?? 0) + 90;
 				return `translate(${svgCoords.x}, ${svgCoords.y}) rotate(${angle}) translate(${-scaledRobotSize / 2}, ${-scaledRobotSize / 2})`;
 			});
@@ -720,8 +719,6 @@ class MapApplication {
 			return;
 		}
 		const fixedRadius = this.rescaler.scale() * UI_CONSTANTS.OBSTACLE_RADIUS_BASE;
-		// User feedback: "circles slightly too small", "icons still too small".
-		// Increasing circle size slightly and icon size significantly.
 		const bgRadius = fixedRadius * 1.1;
 		const imageSize = fixedRadius * 1.8;
 
@@ -1001,7 +998,6 @@ class MapApplication {
 				const params = this.getMapParams();
 				if (!params) return "";
 				const svgCoords = this.robotToSvg({ x: d.position[0], y: d.position[1] }, params);
-				// Formula derived from user feedback: (-angle) + 90
 				const angle = -(d.angle ?? 0) + 90;
 				return `translate(${svgCoords.x}, ${svgCoords.y}) rotate(${angle}) translate(${-scaledRobotSize / 2}, ${-scaledRobotSize / 2})`;
 			});
