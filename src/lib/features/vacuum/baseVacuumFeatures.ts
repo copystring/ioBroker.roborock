@@ -122,6 +122,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 			7: "Empty Wash Fill Dry Dock (S8 Pro Ultra)",
 			8: "Empty Wash Fill Dry Dock (Q Revo)",
 			9: "Empty Wash Fill Dry Dock (Q Revo Pro)",
+			14: "Empty Wash Fill Dry Dock (Qrevo Master)",
 			16: "Empty Wash Fill Dry Dock (Saros 10R)",
 		},
 		baseCommands: {
@@ -493,6 +494,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 			7: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
 			8: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
 			9: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
+			14: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
 			16: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
 			10: [], // Placeholder for future dock types
 			18: [], // Placeholder for future dock types

@@ -85,6 +85,7 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
             7: string;
             8: string;
             9: string;
+            14: string;
             16: string;
         };
         baseCommands: {
