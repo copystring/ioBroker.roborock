@@ -121,6 +121,7 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             7: "Empty Wash Fill Dry Dock (S8 Pro Ultra)",
             8: "Empty Wash Fill Dry Dock (Q Revo)",
             9: "Empty Wash Fill Dry Dock (Q Revo Pro)",
+            16: "Empty Wash Fill Dry Dock (Saros 10R)",
         },
         baseCommands: {
             app_start: { type: "boolean", def: false },
@@ -485,6 +486,7 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             7: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry],
             8: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry],
             9: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry],
+            16: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry],
             10: [], // Placeholder for future dock types
             18: [], // Placeholder for future dock types
         };
