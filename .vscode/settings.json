@@ -37,14 +37,19 @@
   "search.exclude": {
     "**/node_modules": true,
     "**/build": true,
-    "**/.git": true
+    "**/.git": true,
+    "**/*.js.map": true,
+    "**/*.js": true,
+    "src/www/pathProcessor.ts": true
   },
 
   // Hide compiled files and maps in the file explorer (optional, keeps tree clean)
   "files.exclude": {
     "**/.git": true,
     "**/.DS_Store": true,
-    "**/*.js.map": true
+    "**/*.js.map": true,
+    "**/*.js": true,
+    "src/www/pathProcessor.ts": true
     // "build/": true // Uncomment this if you want to hide the build folder entirely
   },
 

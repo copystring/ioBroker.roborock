@@ -104,6 +104,10 @@ class Roborock extends utils.Adapter {
             await this.processScenes();
             this.deviceManager.startPolling();
             await this.start_go2rtc();
+            this.subscribeStates("Devices.*.commands.*");
+            this.subscribeStates("Devices.*.resetConsumables.*");
+            this.subscribeStates("Devices.*.programs.startProgram");
+            this.subscribeStates("Devices.*.deviceInfo.online");
             this.log.info(`Adapter startup finished. Let's go!`);
             this.isInitializing = false;
         }
@@ -147,8 +151,10 @@ class Roborock extends utils.Adapter {
      * Is called if a subscribed state changes.
      */
     async onStateChange(id, state) {
-        if (!state || state.ack) {
-            if (state?.ack && id.endsWith(".online")) {
+        if (!state)
+            return;
+        if (state.ack) {
+            if (id.endsWith(".online")) {
                 this.log.info(`Device ${id.split(".")[3]} is now ${state.val ? "online" : "offline"}`);
             }
             return;
@@ -157,20 +163,36 @@ class Roborock extends utils.Adapter {
         const duid = idParts[3];
         const folder = idParts[4];
         const command = idParts[5];
-        this.log.debug(`onStateChange: ${command} for ${duid} with value: ${state.val}`);
+        this.log.info(`[onStateChange] Processing command: ${command} for ${duid} in folder: ${folder}`);
         const handler = this.deviceFeatureHandlers.get(duid);
         if (!handler) {
             this.log.warn(`[onStateChange] Received command for unknown DUID: ${duid}`);
             return;
         }
         try {
-            if (folder === "resetConsumables" && state.val === true) {
-                await this.requestsHandler.command(handler, duid, "reset_consumable", command);
-            }
-            else if (folder === "programs" && command === "startProgram") {
-                await this.http_api.executeScene(state);
-            }
-            else if (folder === "commands") {
+            await this.handleCommand(duid, folder, command, state, handler, id);
+        }
+        catch (e) {
+            this.catchError(e, `onStateChange (${command})`, duid);
+        }
+    }
+    /**
+     * Handles commands from onStateChange.
+     */
+    async handleCommand(duid, folder, command, state, handler, id) {
+        if (folder === "resetConsumables" && state.val === true) {
+            await this.requestsHandler.command(handler, duid, "reset_consumable", command);
+            // Reset button
+            this.setTimeout(() => {
+                this.setState(id, false, true);
+            }, 1000);
+        }
+        else if (folder === "programs" && command === "startProgram") {
+            await this.http_api.executeScene(state);
+        }
+        else if (folder === "commands") {
+            this.log.info(`[handleCommand] Entering commands block for ${command}`);
+            try {
                 // Handle specific commands
                 switch (command) {
                     case "load_multi_map":
@@ -179,13 +201,19 @@ class Roborock extends utils.Adapter {
                     case "app_start":
                     case "app_charge":
                     case "app_spot":
-                        if (state.val === true) {
+                        this.log.info(`[handleCommand] Checking boolean command ${command}. Val: ${state.val}`);
+                        if (state.val === true || state.val === "true" || state.val === 1) {
+                            this.log.info(`[handleCommand] Triggering command ${command} for ${duid}`);
                             await this.requestsHandler.command(handler, duid, command);
+                        }
+                        else {
+                            this.log.info(`[handleCommand] Command ${command} NOT triggered because value is not true.`);
                         }
                         break;
                     case "app_segment_clean":
-                        if (state.val === true) {
+                        if (state.val === true || state.val === "true" || state.val === 1) {
                             // This command reads other states (selected rooms, count)
+                            this.log.info(`[handleCommand] Triggering app_segment_clean for ${duid}`);
                             await this.requestsHandler.command(handler, duid, command);
                         }
                         break;
@@ -202,18 +230,30 @@ class Roborock extends utils.Adapter {
                         break;
                     default:
                         // Default handler for simple set commands
-                        await this.requestsHandler.command(handler, duid, command, state.val);
+                        // If it's a boolean command (button), we only trigger on true (or truthy)
+                        if (typeof state.val === "boolean") {
+                            if (state.val === true) {
+                                await this.requestsHandler.command(handler, duid, command, state.val);
+                            }
+                        }
+                        else {
+                            // For non-boolean, just send the value
+                            await this.requestsHandler.command(handler, duid, command, state.val);
+                        }
                 }
             }
-            // Reset button presses
-            if (typeof state.val === "boolean" && state.val === true) {
-                this.commandTimeout = this.setTimeout(() => {
-                    this.setState(id, false, true);
-                }, 1000);
+            finally {
+                // Reset button presses for boolean commands in the commands folder
+                // We do this in finally to ensure it resets even if the command fails
+                // Check if it was a "button" press (boolean true)
+                if ((typeof state.val === "boolean" && state.val === true) || state.val === "true" || state.val === 1) {
+                    this.log.info(`[handleCommand] Scheduling reset for ${id}`);
+                    this.commandTimeout = this.setTimeout(() => {
+                        this.log.info(`[handleCommand] Resetting ${id} to false`);
+                        this.setState(id, false, true);
+                    }, 1000);
+                }
             }
-        }
-        catch (e) {
-            this.catchError(e, `onStateChange (${command})`, duid);
         }
     }
     /**
@@ -378,7 +418,7 @@ class Roborock extends utils.Adapter {
             }
             else {
                 // Object does not exist, create it new
-                await this.setObjectAsync(path, {
+                await this.setObject(path, {
                     type: "state",
                     common: finalCommon,
                     native: native,

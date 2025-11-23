@@ -15,12 +15,15 @@ interface PositionBlock {
     position: [number, number];
     angle: number;
 }
+interface SegmentInfo {
+    id: number;
+    name: string;
+    center: [number, number];
+}
 interface ImageBlock {
     segments: {
         count: number;
-        id: number[];
-        largestSegment: number;
-        centers: Record<string, [number, number]>;
+        list: SegmentInfo[];
     };
     position: {
         top: number;
@@ -68,16 +71,13 @@ export interface ParsedMapData {
     MODE_CARPET?: number[][];
     NONCEDATA?: NonceData[];
 }
-export declare class RRMapParser {
+export declare class MapDataParser {
     adapter: Roborock;
     constructor(adapter: Roborock);
     /**
      * Parses the complete raw map buffer from the robot.
-     * @param buf The raw map buffer.
-     * @param options.isHistoryMap Set to true if parsing a history map (which lacks the 20-byte header).
-     * @returns A structured map data object (ParsedMapData) or empty object on failure.
      */
-    parsedata(buf: Buffer, options?: {
+    parsedata(buf: Buffer, mappedRooms: any[] | null, options?: {
         isHistoryMap: boolean;
     }): Promise<ParsedMapData | {}>;
     private parseHeader;
@@ -85,6 +85,7 @@ export declare class RRMapParser {
     private parsePathBlock;
     private extractObstacles;
     private getXYPositions;
+    /** Reads unscaled pixel dimensions and offsets from the image block header. */
     private getMapSizes;
     private getPointInPath;
     private getCount;

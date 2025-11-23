@@ -438,8 +438,9 @@ class local_api {
             return this.removePadding(decrypted.toString("utf8"));
         }
         catch (e) {
-            this.adapter.log.error(`[decryptECB] Failed to decrypt! Error: ${e.message} encrypted (hex): ${input.toString("hex")}`);
-            throw e;
+            // Log warning instead of error to avoid spamming if it's just a bad packet
+            this.adapter.log.warn(`[decryptECB] Failed to decrypt packet: ${e.message}`);
+            return "";
         }
     }
     /**

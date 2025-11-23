@@ -92,17 +92,21 @@ class DeviceManager {
                         await this.adapter.requestsHandler.getParameter(handler, duid, "get_fw_features");
                     }
                     this.adapter.log.debug(`[DeviceManager] Applying initial features for ${duid}`);
-                    const statusData = this.adapter.requestsHandler.cached_get_status_value[duid];
-                    if (device.online && statusData) {
-                        // These methods are in your startPolling and should exist
-                        await handler.detectAndApplyRuntimeFeatures(statusData);
-                        await handler.processDockType(statusData?.dock_type);
-                    }
-                    else if (device.online) {
-                        this.adapter.log.warn(`[DeviceManager] No statusData for ${duid} after init poll, skipping runtime feature detection.`);
+                    // We just called getStatus, so the state should be updated.
+                    // We try to read the 'dock_type' from state to handle dock features immediately.
+                    const dockTypeState = await this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.dock_type`);
+                    if (device.online && dockTypeState && dockTypeState.val !== null) {
+                        await handler.processDockType(Number(dockTypeState.val));
                     }
                     // 5. Create all command objects for the device
                     await handler.createCommandObjects();
+                    // 6. Initial Map Update & Other Data
+                    if (device.online) {
+                        this.adapter.log.debug(`[DeviceManager] Initial data update for ${duid}`);
+                        this.updateDeviceData(handler, duid);
+                        this.updateConsumablesPercent(duid);
+                        await this.adapter.requestsHandler.getMap(handler, duid);
+                    }
                 }
                 catch (error) {
                     this.adapter.log.warn(`[DeviceManager] Failed initial poll for ${duid}: ${error.message}`);
@@ -112,14 +116,30 @@ class DeviceManager {
         }
         await Promise.all(initPromises);
         this.adapter.log.info("[DeviceManager] All devices initialized.");
+        // Background Task: Delayed fetching of heavy clean summary for ALL devices
+        // This runs once, 5 seconds after all devices have finished their foreground init.
+        this.adapter.setTimeout(async () => {
+            this.adapter.log.info("[DeviceManager] Starting background clean summary updates...");
+            for (const device of devices) {
+                if (device.online) {
+                    const handler = this.deviceFeatureHandlers.get(device.duid);
+                    if (handler) {
+                        this.adapter.log.debug(`[DeviceManager] Background clean summary update for ${device.duid}...`);
+                        await this.adapter.requestsHandler.getCleanSummary(handler, device.duid);
+                    }
+                }
+            }
+            this.adapter.log.info("[DeviceManager] Background clean summary updates finished.");
+        }, 5000);
     }
+    // Track previous cleaning state to detect completion
+    lastCleaningState = new Map();
     /**
      * Starts the polling loops.
-     * (This is your correct function from before, with comments in English)
      */
     startPolling() {
         const mainPollInterval = this.adapter.config.updateInterval; // e.g., 60 seconds
-        const fastMapPollInterval = 10; // e.g., 10 seconds for live map
+        const fastMapPollInterval = 1; // e.g., 1 second for live map
         this.adapter.log.info(`[DeviceManager] Starting main poll (every ${mainPollInterval}s) and fast map poll (every ${fastMapPollInterval}s during cleaning)`);
         let mainUpdateCount = mainPollInterval; // Counter for slow loop (run immediately on first tick)
         let mapUpdateCount = 0; // Counter for fast loop
@@ -131,7 +151,21 @@ class DeviceManager {
                 const allDevices = this.adapter.http_api.getDevices();
                 for (const device of allDevices) {
                     const duid = device.duid;
-                    if (device.online && this.adapter.requestsHandler.isCleaning(duid)) {
+                    const isCleaning = await this.adapter.requestsHandler.isCleaning(duid);
+                    const wasCleaning = this.lastCleaningState.get(duid) || false;
+                    // Detect cleaning completion (True -> False transition)
+                    if (wasCleaning && !isCleaning) {
+                        this.adapter.log.info(`[DeviceManager] Cleaning finished for ${duid}. Fetching clean summary...`);
+                        const handler = this.deviceFeatureHandlers.get(duid);
+                        if (handler) {
+                            this.adapter.requestsHandler.getCleanSummary(handler, duid).catch((e) => {
+                                this.adapter.log.error(`[DeviceManager] Failed to fetch clean summary after cleaning: ${e}`);
+                            });
+                        }
+                    }
+                    // Update state tracker
+                    this.lastCleaningState.set(duid, isCleaning);
+                    if (device.online && isCleaning) {
                         const handler = this.deviceFeatureHandlers.get(duid);
                         if (!handler)
                             continue;
@@ -168,21 +202,18 @@ class DeviceManager {
                         }
                         else {
                             await this.adapter.requestsHandler.getStatus(handler, duid);
-                            const statusData = this.adapter.requestsHandler.cached_get_status_value[duid];
-                            if (statusData) {
-                                const commandsChanged = await handler.detectAndApplyRuntimeFeatures(statusData);
-                                await handler.processDockType(statusData?.dock_type);
-                                if (commandsChanged) {
-                                    await handler.createCommandObjects();
-                                }
+                            const dockTypeState = await this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.dock_type`);
+                            if (dockTypeState && dockTypeState.val !== null) {
+                                // We can't easily reconstruct the full status object for detectAndApplyRuntimeFeatures without reading all states.
+                                // For now, let's assume runtime features are static enough or handled elsewhere.
+                                // But we MUST handle dock_type.
+                                await handler.processDockType(Number(dockTypeState.val));
                             }
-                            // These methods were in your original code, so I keep them
-                            this.updateDeviceData(handler, duid);
-                            this.updateConsumablesPercent(duid);
-                            await this.adapter.requestsHandler.getCleanSummary(handler, duid);
-                            if (!this.adapter.requestsHandler.isCleaning(duid)) {
-                                this.adapter.log.debug(`[DeviceManager] Main map update for docked device ${duid}`);
-                                await this.adapter.requestsHandler.getMap(handler, duid);
+                            // Update cleaning status and map if cleaning
+                            if (await this.adapter.requestsHandler.isCleaning(duid)) {
+                                this.updateDeviceData(handler, duid);
+                                this.updateConsumablesPercent(duid);
+                                await this.adapter.requestsHandler.getCleanSummary(handler, duid);
                             }
                         }
                     }

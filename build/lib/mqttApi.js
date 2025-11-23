@@ -203,23 +203,23 @@ class mqtt_api {
                 }
                 if (dps102) {
                     const pendingRequest = this.adapter.pendingRequests.get(dps102.id);
-                    if (pendingRequest && (pendingRequest.method === "get_map_v1" || pendingRequest.method === "get_clean_record_map")) {
-                        // This is a map request.
+                    if (pendingRequest && (pendingRequest.method === "get_map_v1" || pendingRequest.method === "get_clean_record_map" || pendingRequest.method === "get_photo")) {
+                        // This is a map or photo request.
                         const isSuccessOk = dps102.result === "ok" || (Array.isArray(dps102.result) && dps102.result[0] === "ok");
                         if (isSuccessOk) {
                             // This is the initial "ok". IGNORE IT. Do NOT resolve the promise.
-                            // The real data will come via Protocol 301.
-                            this.adapter.log.debug(`[MQTT] Received 'ok' for map request ${dps102.id}. Waiting for 301 data block.`);
+                            // The real data will come via Protocol 300/301.
+                            this.adapter.log.debug(`[MQTT] Received 'ok' for ${pendingRequest.method} request ${dps102.id}. Waiting for 300/301 data block.`);
                             // --- DO NOTHING HERE ---
                         }
                         else {
-                            // This is an ERROR for the map request (e.g., "retry" or "locating")
-                            this.adapter.log.warn(`[MQTT] Map request ${dps102.id} (Method: ${pendingRequest.method}) failed with: ${JSON.stringify(dps102.result)}`);
+                            // This is an ERROR for the request (e.g., "retry" or "locating")
+                            this.adapter.log.warn(`[MQTT] ${pendingRequest.method} request ${dps102.id} failed with: ${JSON.stringify(dps102.result)}`);
                             this.adapter.requestsHandler.resolvePendingRequest(dps102.id, dps102.result, data.protocol);
                         }
                     }
                     else {
-                        // This is a normal command (not a map), resolve it.
+                        // This is a normal command (not a map or photo), resolve it.
                         this.adapter.requestsHandler.resolvePendingRequest(dps102.id, dps102.result, data.protocol);
                     }
                 }

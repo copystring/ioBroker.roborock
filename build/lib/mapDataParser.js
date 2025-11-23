@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.RRMapParser = void 0;
+exports.MapDataParser = void 0;
 const crypto_1 = __importDefault(require("crypto"));
 // --------------------
 // Constants
@@ -72,69 +72,59 @@ const OFFSETS = {
     TARGET_Y: 0x0a,
     BLOCKS: 0x0c,
 };
-class RRMapParser {
+class MapDataParser {
     adapter;
     constructor(adapter) {
         this.adapter = adapter;
     }
     /**
      * Parses the complete raw map buffer from the robot.
-     * @param buf The raw map buffer.
-     * @param options.isHistoryMap Set to true if parsing a history map (which lacks the 20-byte header).
-     * @returns A structured map data object (ParsedMapData) or empty object on failure.
      */
-    async parsedata(buf, options = { isHistoryMap: false }) {
-        // --- PRIMARY GUARD ---
+    async parsedata(buf, mappedRooms, options = { isHistoryMap: false }) {
         if (buf.length < 8) {
-            this.adapter.log.warn(`[RRMapParser] Received map buffer is too small (< 8 bytes). Length: ${buf.length}`);
+            this.adapter.log.warn(`[MapDataParser] Received map buffer is too small (< 8 bytes). Length: ${buf.length}`);
             return {};
         }
         let metaData;
         let dataPosition = 0;
         let dataLength = buf.length;
-        // Check for Standard "rr" Header (20 bytes)
         if (buf.length >= 20 && buf[0x00] === 0x72 && buf[0x01] === 0x72) {
-            // --- CASE 1: Standard Live Map (or History Map with Header) ---
-            this.adapter.log.debug("[RRMapParser] Found 'rr' header. Parsing as Standard Map.");
+            this.adapter.log.debug("[MapDataParser] Found 'rr' header. Parsing as Standard Map.");
             metaData = this.parseHeader(buf);
             if (!metaData.header_length) {
-                // Check if header parsing failed
-                this.adapter.log.error(`[RRMapParser] Failed to parse LIVE map header (Invalid structure).`);
+                this.adapter.log.error(`[MapDataParser] Failed to parse LIVE map header (Invalid structure).`);
                 return {};
             }
             if (metaData.SHA1 !== metaData.expectedSHA1) {
-                this.adapter.log.error(`[RRMapParser] Invalid map hash!`);
+                this.adapter.log.error(`[MapDataParser] Invalid map hash!`);
                 return {};
             }
             dataPosition = 0x14; // Skip 20-byte header
-            dataLength = metaData.data_length; // Use length from header
+            dataLength = metaData.data_length;
         }
         else if (options.isHistoryMap) {
-            // --- CASE 2: History Map WITHOUT Header ---
-            this.adapter.log.debug("[RRMapParser] Parsing as History Map (No 'rr' Header).");
-            // Create dummy metadata. map_index = -1 is the key.
+            this.adapter.log.debug("[MapDataParser] Parsing as History Map (No 'rr' Header).");
             metaData = { map_index: -1 };
-            dataPosition = 0; // Start from byte 0
+            dataPosition = 0;
             dataLength = buf.length;
         }
         else {
-            // --- CASE 3: ERROR ---
-            // This is a LIVE map (isHistoryMap: false) but the "rr" header is missing.
-            this.adapter.log.warn("[RRMapParser] Invalid map header signature (expected 'rr').");
+            this.adapter.log.warn("[MapDataParser] Invalid map header signature (expected 'rr').");
             return {};
         }
         const result = { metaData };
+        const roomIDsAll = this.adapter.http_api.getMatchedRoomIDs(false);
         // Loop through all blocks
         while (dataPosition < dataLength) {
             if (dataPosition + OFFSETS.LENGTH + 4 > buf.length) {
-                this.adapter.log.warn(`[RRMapParser] Reached end of buffer prematurely while reading block header.`);
+                this.adapter.log.warn(`[MapDataParser] Reached end of buffer prematurely while reading block header.`);
                 break;
             }
             const type = buf.readUInt16LE(dataPosition);
             const hlength = buf.readUInt16LE(dataPosition + OFFSETS.HLENGTH);
             const length = buf.readUInt32LE(dataPosition + OFFSETS.LENGTH);
             if (dataPosition + hlength + length > buf.length) {
-                this.adapter.log.warn(`[RRMapParser] Block (Type ${type}) claims to be larger than buffer. Stopping parse.`);
+                this.adapter.log.warn(`[MapDataParser] Block (Type ${type}) claims to be larger than buffer. Stopping parse.`);
                 break;
             }
             const blockBuffer = buf.slice(dataPosition, dataPosition + hlength + length);
@@ -151,7 +141,7 @@ class RRMapParser {
                             break;
                         }
                         case TYPES.IMAGE: {
-                            result[typeName] = this.parseImageBlock(blockBuffer, buf, dataPosition, length, hlength);
+                            result[typeName] = this.parseImageBlock(blockBuffer, buf, dataPosition, length, hlength, mappedRooms, roomIDsAll);
                             break;
                         }
                         case TYPES.CARPET_MAP: {
@@ -227,18 +217,17 @@ class RRMapParser {
                     }
                 }
                 catch (e) {
-                    this.adapter.log.error(`[RRMapParser] Error parsing block ${typeName} (Type ${type}): ${e.stack}`);
+                    this.adapter.log.error(`[MapDataParser] Error parsing block ${typeName} (Type ${type}): ${e.stack}`);
                 }
             }
             else {
-                this.adapter.log.warn(`[RRMapParser] Unknown block type: ${type} with length ${length}`);
+                this.adapter.log.warn(`[MapDataParser] Unknown block type: ${type} with length ${length}`);
             }
             dataPosition += length + hlength;
         }
         return result;
     }
     parseHeader(mapBuf) {
-        // This function assumes the "rr" signature has already been checked
         return {
             header_length: mapBuf.readUInt16LE(OFFSETS.HLENGTH),
             data_length: mapBuf.readUInt32LE(OFFSETS.LENGTH),
@@ -255,25 +244,26 @@ class RRMapParser {
             expectedSHA1: mapBuf.subarray(mapBuf.length - 20).toString("hex"),
         };
     }
-    parseImageBlock(blockBuffer, buf, dataPosition, length, hlength) {
+    parseImageBlock(blockBuffer, buf, dataPosition, length, hlength, mappedRooms, roomIDsAll) {
+        // MM per pixel (5cm)
+        const MM_PER_PIXEL = 50;
+        // Get unscaled pixel dimensions and offsets
         const offset = this.getSingleByteOffset(blockBuffer);
-        const [left, top, width, height] = this.getMapSizes(blockBuffer, offset);
+        const { left, top, width: width_px, height: height_px } = this.getMapSizes(blockBuffer, offset);
         const parameters = {
             segments: {
                 count: hlength > 24 ? this.getCount(blockBuffer) : 0,
-                id: [],
-                largestSegment: -1,
-                centers: {},
+                list: [],
             },
             position: { top, left },
-            dimensions: { height, width },
+            dimensions: { height: height_px, width: width_px },
             pixels: { floor: [], obstacle: [], segments: [] },
         };
-        if (height <= 0 || width <= 0)
+        if (height_px <= 0 || width_px <= 0)
             return parameters;
+        // Create Bounding Boxes for segments
         const segBB = {};
-        let maxPixels = 0;
-        const pixelCountBySegment = {};
+        const segmentIDsInImage = new Set();
         const dataStart = dataPosition + offset;
         for (let i = 0; i < length; i++) {
             const pixelBytePosition = dataStart + i;
@@ -286,15 +276,14 @@ class RRMapParser {
                 // Floor
                 parameters.pixels.floor.push(i);
                 const segmentID = (buf.readUInt8(pixelBytePosition) & 248) >> 3;
-                if (!parameters.segments.id.includes(segmentID)) {
-                    parameters.segments.id.push(segmentID);
-                }
+                segmentIDsInImage.add(segmentID);
                 parameters.pixels.segments.push(i | (segmentID << 21));
-                const x = i % width;
-                const y = Math.floor(i / width);
+                // Calculate UN-SCALED pixel coordinates relative to the data block (0, 0)
+                const x = i % width_px;
+                const y = Math.floor(i / width_px);
                 const bb = segBB[segmentID];
                 if (!bb) {
-                    segBB[segmentID] = { minX: x, maxX: x, minY: y, maxY: y };
+                    segBB[segmentID] = { minX: x, maxX: x, minY: y, maxY: y, count: 1 };
                 }
                 else {
                     if (x < bb.minX)
@@ -305,21 +294,38 @@ class RRMapParser {
                         bb.minY = y;
                     if (y > bb.maxY)
                         bb.maxY = y;
-                }
-                const count = (pixelCountBySegment[segmentID] = (pixelCountBySegment[segmentID] || 0) + 1);
-                if (count > maxPixels) {
-                    maxPixels = count;
-                    parameters.segments.largestSegment = segmentID;
+                    bb.count++;
                 }
             }
         }
-        for (const segId of parameters.segments.id) {
+        // --- Process all found segments ---
+        for (const segId of segmentIDsInImage) {
+            if (segId === 0)
+                continue; // Skip "no segment"
             const bb = segBB[segId];
-            if (bb) {
-                const cx = Math.round((bb.minX + bb.maxX) / 2) + left;
-                const cy = Math.round((bb.minY + bb.maxY) / 2) + top;
-                parameters.segments.centers[segId] = [cx, cy];
+            if (!bb)
+                continue;
+            const centerX_px = Math.round((bb.minX + bb.maxX) / 2);
+            const centerY_px = Math.round((bb.minY + bb.maxY) / 2);
+            // This logic MUST match the working localCoordsToRobotCoords formula
+            // x_robot = (center_x_px + offset_x_px) * MM_PER_PIXEL
+            // y_robot = ((height_px / scale) + top_px - center_y_px) * MM_PER_PIXEL
+            const centerX_robot = Math.round((centerX_px + left) * MM_PER_PIXEL);
+            // NOTE: The map creator scales dimensions.height by map_scale, which cancels out:
+            // (height_px * scale / scale) = height_px
+            const centerY_robot = Math.round((centerY_px + top) * MM_PER_PIXEL);
+            let roomName = "";
+            const mapping = mappedRooms?.find(([id]) => parseInt(id) === segId);
+            if (mapping) {
+                const roomApiID = mapping[1];
+                const roomObj = roomIDsAll.find((r) => String(r.id) === String(roomApiID));
+                roomName = roomObj?.name || "";
             }
+            parameters.segments.list.push({
+                id: segId,
+                name: roomName,
+                center: [centerX_robot, centerY_robot], // Store correct MM coordinates
+            });
         }
         return parameters;
     }
@@ -364,12 +370,13 @@ class RRMapParser {
         const yPosition = buf.readInt32LE(yOffset);
         return [xPosition, yPosition];
     }
+    /** Reads unscaled pixel dimensions and offsets from the image block header. */
     getMapSizes(buf, offset) {
-        const top = buf.readInt32LE(offset - 0x10);
-        const left = buf.readInt32LE(offset - 0x0c);
-        const height = buf.readInt32LE(offset - 0x08);
-        const width = buf.readInt32LE(offset - 0x04);
-        return [left, top, width, height];
+        const top = buf.readInt32LE(offset - 0x10); // Unscaled Pixel Offset Y
+        const left = buf.readInt32LE(offset - 0x0c); // Unscaled Pixel Offset X
+        const height = buf.readInt32LE(offset - 0x08); // Unscaled Pixel Height
+        const width = buf.readInt32LE(offset - 0x04); // Unscaled Pixel Width
+        return { left, top, width, height };
     }
     getPointInPath(buf, dataPosition) {
         const x = buf.readUInt16LE(dataPosition);
@@ -421,5 +428,5 @@ class RRMapParser {
         return array;
     }
 }
-exports.RRMapParser = RRMapParser;
-//# sourceMappingURL=RRMapParser.js.map
+exports.MapDataParser = MapDataParser;
+//# sourceMappingURL=mapDataParser.js.map

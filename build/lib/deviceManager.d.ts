@@ -10,9 +10,9 @@ export declare class DeviceManager {
      * Initializes all devices found via the HTTP API.
      */
     initializeDevices(): Promise<void>;
+    private lastCleaningState;
     /**
      * Starts the polling loops.
-     * (This is your correct function from before, with comments in English)
      */
     startPolling(): void;
     /**

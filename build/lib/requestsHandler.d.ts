@@ -1,6 +1,6 @@
 import type { Roborock } from "../main";
 import type { BaseDeviceFeatures } from "./features/baseDeviceFeatures";
-import { RRMapParser } from "./RRMapParser";
+import { MapDataParser } from "./mapDataParser";
 import { messageParser } from "./messageParser";
 import { MapCreator } from "./mapCreator";
 export declare class requestsHandler {
@@ -8,21 +8,21 @@ export declare class requestsHandler {
     idCounter: number;
     private deviceQueues;
     messageParser: messageParser;
-    mapParser: RRMapParser;
+    mapParser: MapDataParser;
     mapCreator: MapCreator;
     mqttResetInterval: ioBroker.Interval | undefined;
-    cached_get_status_value: Record<string, any>;
     constructor(adapter: Roborock);
     private getQueue;
     scheduleMqttReset(): void;
     getStatus(handler: BaseDeviceFeatures, duid: string): Promise<void>;
     getCleaningRecordMap(duid: string, startTime: number): Promise<{
+        mapBase64CleanUncropped: string;
         mapBase64: string;
         mapBase64Truncated: string;
         mapData: string;
     } | null>;
     getCleanSummary(handler: BaseDeviceFeatures, duid: string): Promise<void>;
-    getDockingStationStatus(duid: any): {
+    getDockingStationStatus(dss: any): {
         cleanFluidStatus: number;
         waterBoxFilterStatus: number;
         dustBagStatus: number;
@@ -40,7 +40,7 @@ export declare class requestsHandler {
     private handleGetPhoto;
     command(handler: BaseDeviceFeatures, duid: string, parameter: string, value?: any): Promise<void>;
     getMap(handler: BaseDeviceFeatures, duid: string): Promise<void>;
-    isCleaning(duid: string): boolean;
+    isCleaning(duid: string): Promise<boolean>;
     /**
      * Gets the currently selected map ID (floor) from the ioBroker state.
      * This is more robust than relying on the cache, which might not be initialized.

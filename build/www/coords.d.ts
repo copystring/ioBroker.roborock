@@ -6,9 +6,16 @@ interface MapParams {
     scaleFactor: number;
     left: number;
     topMap: number;
-    mapMaxY: number;
     imageHeight: number;
 }
-export declare function localCoordsToRobotCoords(imagePoint: Point, params: MapParams): Point;
+/**
+ * Converts LOCAL "world" pixel coordinates (px, Y-down) back to ROBOT coordinates (mm).
+ * Used for Click-Tests, GoTo, and Zones.
+ */
+export declare function localCoordsToRobotCoords(localPoint: Point, params: MapParams): Point;
+/**
+ * Converts ROBOT coordinates (mm) to LOCAL "world" pixel coordinates (px, Y-down).
+ * This is used to DRAW things on the map.
+ */
 export declare function robotCoordsToLocalCoords(robotPoint: Point, params: MapParams): Point;
 export {};

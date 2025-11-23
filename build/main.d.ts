@@ -48,6 +48,10 @@ export declare class Roborock extends utils.Adapter {
      */
     onStateChange(id: string, state: ioBroker.State | null | undefined): Promise<void>;
     /**
+     * Handles commands from onStateChange.
+     */
+    private handleCommand;
+    /**
      * Ensures a ClientID exists.
      */
     ensureClientID(): Promise<string>;
