@@ -33,6 +33,9 @@ const parameterFolders = {
     get_carpet_mode: "deviceStatus",
     get_carpet_clean_mode: "deviceStatus",
     get_carpet_cleaning_mode: "deviceStatus",
+    get_wash_towel_mode: "deviceStatus",
+    get_smart_wash_params: "deviceStatus",
+    get_dust_collection_switch_status: "deviceStatus",
 };
 const gunzipAsync = (0, util_1.promisify)(zlib_1.default.gunzip);
 const gzipAsync = (0, util_1.promisify)(zlib_1.default.gzip);
@@ -244,10 +247,10 @@ class requestsHandler {
                     if (parameterFolders[parameter]) {
                         const mode = parameter.substring(4);
                         const targetFolder = parameterFolders[parameter];
-                        let valToSave = value[0];
+                        let valToSave = Array.isArray(value) ? value[0] : value;
                         if (typeof valToSave == "object")
                             valToSave = JSON.stringify(valToSave);
-                        await this.adapter.ensureState(targetFolder, {});
+                        await this.adapter.ensureState(`Devices.${duid}.${targetFolder}.${mode}`, {});
                         await this.adapter.setStateChangedAsync(`Devices.${duid}.${targetFolder}.${mode}`, { val: valToSave, ack: true });
                     }
                     else {
