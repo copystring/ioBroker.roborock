@@ -150,8 +150,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 			state: { type: "number", states: {} },
 			fan_power: { type: "number", states: { 101: "Quiet", 102: "Balanced", 103: "Turbo", 104: "Max", 105: "Off" } },
 			clean_percent: { unit: "%" },
-			water_box_custom_mode: { states: { 200: "Off", 201: "Mild", 202: "Moderate", 203: "Intense" } },
-			water_box_mode: { type: "number", states: { 200: "Off", 201: "Mild", 202: "Moderate", 203: "Intense" } },
+			water_box_mode: { type: "number", states: { 200: "Off", 201: "Mild", 202: "Moderate", 203: "Intense", 204: "Custom", 205: "Custom", 206: "Custom", 207: "Custom", 208: "Custom", 209: "Custom" } },
 			mop_mode: { states: { 300: "Standard", 301: "Deep", 303: "Deep+", 304: "Fast" } },
 			carpet_mode: {
 				states: {
@@ -591,7 +590,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 
 	protected _addWaterBoxCommands(): void {
 		this._addCommand("set_mop_mode", { type: "number", def: 300, states: { 300: "Standard", 301: "Deep", 303: "Deep+" } });
-		this._addCommand("set_water_box_custom_mode", { type: "number", def: 201, states: { 200: "Off", 201: "Mild", 202: "Moderate", 203: "Intense" } });
+this._addCommand("set_water_box_custom_mode", { type: "number", def: 201, states: { 200: "Off", 201: "Mild", 202: "Moderate", 203: "Intense", 204: "Custom", 205: "Custom", 206: "Custom", 207: "Custom", 208: "Custom", 209: "Custom" } });
 	}
 
 	protected _addCleanRouteFastModeCommand(): void {

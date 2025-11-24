@@ -189,14 +189,6 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
             clean_percent: {
                 unit: string;
             };
-            water_box_custom_mode: {
-                states: {
-                    200: string;
-                    201: string;
-                    202: string;
-                    203: string;
-                };
-            };
             water_box_mode: {
                 type: string;
                 states: {
@@ -204,6 +196,12 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
                     201: string;
                     202: string;
                     203: string;
+                    204: string;
+                    205: string;
+                    206: string;
+                    207: string;
+                    208: string;
+                    209: string;
                 };
             };
             mop_mode: {
