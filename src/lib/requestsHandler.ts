@@ -397,6 +397,12 @@ export class requestsHandler {
 				case "last_clean_t":
 					val = new Date(val * 1000).toString();
 					break;
+				case "clean_time":
+					val = Math.round(val / 60);
+					break;
+				case "clean_area":
+					val = Number((val / 1000000).toFixed(2));
+					break;
 			}
 
 			// Dynamically set type based on value
@@ -589,9 +595,20 @@ export class requestsHandler {
 		if (this.adapter.config.enable_map_creation) {
 			this.adapter.log.debug(`Requesting new map for ${duid}`);
 			try {
-				const mapBuf = await this.sendRequest(duid, "get_map_v1", [], { priority: 0 });
+				let mapBuf = await this.sendRequest(duid, "get_map_v1", [], { priority: 0 });
+				let retries = 0;
+				while (!Buffer.isBuffer(mapBuf) && Array.isArray(mapBuf) && mapBuf[0] === "retry" && retries < 3) {
+					retries++;
+					this.adapter.log.debug(`[getMap] Received 'retry' for ${duid}. Retrying (${retries}/3)...`);
+					await new Promise((resolve) => setTimeout(resolve, 1000));
+					mapBuf = await this.sendRequest(duid, "get_map_v1", [], { priority: 0 });
+				}
 
 				if (!Buffer.isBuffer(mapBuf)) {
+					if (Array.isArray(mapBuf) && mapBuf[0] === "retry") {
+						this.adapter.log.debug(`[getMap] Received 'retry' for ${duid}. Map not ready after 3 retries.`);
+						return;
+					}
 					this.adapter.log.warn(`[getMap] Received non-buffer data (e.g. 'retry' or 'ok'): ${JSON.stringify(mapBuf)}`);
 					return;
 				}

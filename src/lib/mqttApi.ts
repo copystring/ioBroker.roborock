@@ -246,7 +246,11 @@ export class mqtt_api {
 							// --- DO NOTHING HERE ---
 						} else {
 							// This is an ERROR for the request (e.g., "retry" or "locating")
-							this.adapter.log.warn(`[MQTT] ${pendingRequest.method} request ${dps102.id} failed with: ${JSON.stringify(dps102.result)}`);
+							if (Array.isArray(dps102.result) && dps102.result[0] === "retry") {
+								this.adapter.log.debug(`[MQTT] ${pendingRequest.method} request ${dps102.id} returned 'retry'.`);
+							} else {
+								this.adapter.log.warn(`[MQTT] ${pendingRequest.method} request ${dps102.id} failed with: ${JSON.stringify(dps102.result)}`);
+							}
 							this.adapter.requestsHandler.resolvePendingRequest(dps102.id, dps102.result, data.protocol);
 						}
 					} else {
