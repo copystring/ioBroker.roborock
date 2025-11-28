@@ -1,51 +1,38 @@
-// Root tsconfig to set the settings and power editor support for all TS files
 {
-	// To update the compilation target, install a different version of @tsconfig/node... and reference it here
-	// https://github.com/tsconfig/bases#node-14-tsconfigjson
-	"extends": "@tsconfig/node18/tsconfig.json",
-	"compilerOptions": {
-		"noEmit": true,
+  "extends": "@tsconfig/node18/tsconfig.json",
+  "compilerOptions": {
+    // Output
+    "noEmit": true,
+    "sourceMap": true,
+    "inlineSources": true,
+    "declaration": true,
 
-		// check JS files
-		"allowJs": false,
-		"checkJs": false,
+    // Module Resolution
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "resolveJsonModule": true,
 
+    // Type Checking - STRICT
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "allowJs": true,
+    "checkJs": true,
 
-		// This is necessary for the automatic typing of the adapter config
-		"resolveJsonModule": true,
+    // Decorators
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
 
-		// If you want to disable the stricter type checks (not recommended), uncomment the following line
-		// "strict": false,
-		// And enable some of those features for more fine-grained control
-		// "strictNullChecks": true,
-		// "strictPropertyInitialization": true,
-		// "strictBindCallApply": true,
-		"noImplicitAny": false,
-		// "noUnusedLocals": true,
-		// "noUnusedParameters": true,
-		"useUnknownInCatchVariables": false,
-		"esModuleInterop": true,
-
-		"rootDir": "src",
-		"outDir": "build",
-
-		"target": "ES2022",
-		"module": "CommonJS",
-		"moduleResolution": "Node",
-		"sourceMap": true,
-		"inlineSources": true,
-		"strict": true,
-		"types": ["mocha", "node", "@iobroker/adapter-core"],
-		"lib": [
-			"ESNext",
-			"DOM",
-			"DOM.Iterable"
-		],
-	},
-	"include": ["src/**/*.ts", "src/**/*.d.ts"],
-	"exclude": [
-		"node_modules/**",
-		"widgets/**",
-    	"src/www/*.ts"
-	]
+    // Types
+    "types": ["mocha", "node", "@iobroker/adapter-core"],
+    "lib": ["ESNext", "DOM", "DOM.Iterable"]
+  },
+  "include": [],
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.build.json" },
+    { "path": "./tsconfig.build.web.json" },
+    { "path": "./tsconfig.test.json" }
+  ]
 }

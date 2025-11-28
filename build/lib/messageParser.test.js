@@ -38,7 +38,7 @@ describe("messageParser", () => {
         (0, chai_1.expect)(msg).to.not.be.false;
         (0, chai_1.expect)(msg).to.be.instanceOf(Buffer);
         // Decode the generated message
-        const decoded = parser._decodeMsg(msg, "test-duid");
+        const decoded = parser.decodeMsg(msg, "test-duid");
         (0, chai_1.expect)(decoded).to.be.ok;
         (0, chai_1.expect)(decoded.version).to.equal("1.0");
         (0, chai_1.expect)(decoded.protocol).to.equal(1000);

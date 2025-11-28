@@ -1,24 +1,41 @@
-// src/lib/features/vacuum/a104_features.ts
-// Features for Roborock Qrevo S (roborock.vacuum.a104)
-
-import { BaseVacuumFeatures } from "./baseVacuumFeatures";
+import { BaseVacuumFeatures, VacuumProfile, BASE_FAN, BASE_WATER, BASE_MOP } from "./baseVacuumFeatures";
 import { RegisterModel, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
 
-// Define static features for the a104 model
-const a104Config: DeviceModelConfig = {
-    staticFeatures: [
-        Feature.MopForbidden,
-        Feature.WaterBox,
-        Feature.AvoidCarpet
-    ]
+const PROFILE_A104: VacuumProfile = {
+	name: "Roborock Qrevo S (a104)",
+	features: {
+		maxSuctionValue: 108
+	},
+	mappings: {
+		fan_power: { ...BASE_FAN, 108: "Max+" },
+		water_box_mode: BASE_WATER,
+		mop_mode: BASE_MOP
+	}
 };
 
-@RegisterModel('roborock.vacuum.a104')
-export class A104Features extends BaseVacuumFeatures {
-    constructor(dependencies: FeatureDependencies, duid: string) {
-        super(dependencies, duid, 'roborock.vacuum.a104', a104Config);
-    }
+const a104Config: DeviceModelConfig = {
+	staticFeatures: [
+		Feature.MopForbidden,
+		Feature.WaterBox,
+		Feature.AvoidCarpet,
+		Feature.FanMaxPlus,
+		Feature.InWarmup,
+		Feature.ChargeStatus,
+		Feature.CleanPercent,
+		Feature.RobotStatus,
+		Feature.DockStatus,
+		Feature.CommonStatus,
+		Feature.Kct,
+		Feature.SwitchStatus,
+		Feature.MapFlag,
+		Feature.CleanArea
+	]
+};
 
-    // No model-specific overrides needed currently
+@RegisterModel("roborock.vacuum.a104")
+export class A104Features extends BaseVacuumFeatures {
+	constructor(dependencies: FeatureDependencies, duid: string) {
+		super(dependencies, duid, "roborock.vacuum.a104", a104Config, PROFILE_A104);
+	}
 }

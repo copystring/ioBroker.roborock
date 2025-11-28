@@ -52,15 +52,14 @@ export declare class requestsHandler {
     sendRequest(duid: string, method: string, params: Array<any> | Object | undefined, options?: {
         priority?: number;
     }): Promise<unknown>;
-    private _performRequest;
-    resolvePendingRequest(id: any, result: any, protocol: any): void;
-    isCloudDevice(duid: any): Promise<boolean>;
-    getConnector(duid: any): Promise<import("./localApi").local_api | import("./mqttApi").mqtt_api>;
-    calculateCleaningValue(attribute: any, value: any): any;
-    calculateRecordValue(attribute: any, value: any): any;
-    unzipBuffer(buffer: any, callback: any): void;
-    private unzipBufferAsync;
-    isGZIP(buffer: any): boolean;
-    extractPhoto(buffer: any): any;
+    private performRequest;
+    resolvePendingRequest(id: number, result: any, protocol: string): void;
+    isCloudDevice(duid: string): Promise<boolean>;
+    getConnector(duid: string): Promise<import("./localApi").local_api | import("./mqttApi").mqtt_api>;
+    calculateCleaningValue(attribute: string, value: any): any;
+    calculateRecordValue(attribute: string, value: any): any;
+    unzipBuffer(buffer: Buffer, callback: (err: Error | null, result?: Buffer) => void): void;
+    isGZIP(buffer: Buffer): boolean;
+    extractPhoto(buffer: Buffer): false | Buffer;
     clearQueue(): void;
 }

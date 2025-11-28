@@ -1,16 +1,12 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.requestsHandler = void 0;
-const fs_1 = __importDefault(require("fs"));
-const zlib_1 = __importDefault(require("zlib"));
+const zlib = require("zlib");
 const util_1 = require("util");
 const mapDataParser_1 = require("./mapDataParser");
 const messageParser_1 = require("./messageParser");
 const mapCreator_1 = require("./mapCreator");
-const p_queue_1 = __importDefault(require("p-queue"));
+const p_queue_1 = require("p-queue");
 // ... (Constants)
 const REQUEST_TIMEOUT = 30000;
 const mappedCleanSummary = { 0: "clean_time", 1: "clean_area", 2: "clean_count", 3: "records" };
@@ -37,9 +33,7 @@ const parameterFolders = {
     get_smart_wash_params: "deviceStatus",
     get_dust_collection_switch_status: "deviceStatus",
 };
-const gunzipAsync = (0, util_1.promisify)(zlib_1.default.gunzip);
-const gzipAsync = (0, util_1.promisify)(zlib_1.default.gzip);
-const writeFileAsync = (0, util_1.promisify)(fs_1.default.writeFile);
+const gunzipAsync = (0, util_1.promisify)(zlib.gunzip);
 class requestsHandler {
     adapter;
     idCounter;
@@ -136,7 +130,7 @@ class requestsHandler {
                         const cleaningRecordID = recordsList[cleaningRecord];
                         const cleaningRecordAttributesArr = (await this.sendRequest(duid, "get_clean_record", [cleaningRecordID], { priority: 0 }));
                         const cleaningRecordAttributes = cleaningRecordAttributesArr[0];
-                        cleaningRecordsJSON[cleaningRecord] = cleaningRecordAttributes;
+                        cleaningRecordsJSON[parseInt(cleaningRecord)] = cleaningRecordAttributes;
                         for (const cleaningRecordAttribute in cleaningRecordAttributes) {
                             const mappedRecordAttribute = mappedCleaningRecordAttribute[cleaningRecordAttribute] || cleaningRecordAttribute;
                             const cleaningRecordCommon = handler.getCommonCleaningRecords(mappedRecordAttribute) || {}; // Ensure object
@@ -254,7 +248,7 @@ class requestsHandler {
                         await this.adapter.setStateChangedAsync(`Devices.${duid}.${targetFolder}.${mode}`, { val: valToSave, ack: true });
                     }
                     else {
-                        if (typeof value == "object") {
+                        if (Array.isArray(value)) {
                             if (typeof value[0] != "number") {
                                 this.adapter.catchError(`Unknown parameter: ${JSON.stringify(value)}`, parameter, duid);
                             }
@@ -279,32 +273,38 @@ class requestsHandler {
                 this.adapter.log.info(`[get_network_info] Adding device ${duid} @ ${value[attribute]} to local devices (missed by UDP).`);
                 this.adapter.local_api.localDevices[duid] = { ip: value[attribute], version: "1.0" };
             }
-            await this.adapter.ensureState(`Devices.${duid}.networkInfo.${attribute}`, { type: "string" });
+            const type = attribute === "rssi" ? "number" : "string";
+            await this.adapter.ensureState(`Devices.${duid}.networkInfo.${attribute}`, { type: type });
             await this.adapter.setStateChangedAsync(`Devices.${duid}.networkInfo.${attribute}`, { val: value[attribute], ack: true });
         }
     }
     async handleGetConsumable(handler, duid, value) {
         const consumables = value[0];
+        const consumableMap = {
+            "125": "main_brush_life",
+            "126": "side_brush_life",
+            "127": "filter_life",
+        };
         for (const consumable in consumables) {
-            const commonConsumable = handler.getCommonConsumable(consumable) || {}; // Ensure object
+            let mappedConsumable = consumable;
+            if (consumableMap[consumable]) {
+                mappedConsumable = consumableMap[consumable];
+            }
+            const commonConsumable = handler.getCommonConsumable(mappedConsumable) || {}; // Ensure object
             const val = commonConsumable && commonConsumable.unit == "h" ? Math.round(consumables[consumable] / (60 * 60)) : consumables[consumable];
             // Ensure type is number
             commonConsumable.type = "number";
-            // Use extendObject to force type update if it was previously a string
-            await this.adapter.extendObjectAsync(`Devices.${duid}.consumables.${consumable}`, {
-                type: "state",
-                common: commonConsumable,
-                native: {},
-            });
-            await this.adapter.setStateChangedAsync(`Devices.${duid}.consumables.${consumable}`, { val: val, ack: true });
-            if (handler.isResetableConsumable(consumable)) {
-                await this.adapter.ensureState(`Devices.${duid}.resetConsumables.${consumable}`, {
+            // Ensure state exists and has correct type
+            await this.adapter.ensureState(`Devices.${duid}.consumables.${mappedConsumable}`, commonConsumable);
+            await this.adapter.setStateChangedAsync(`Devices.${duid}.consumables.${mappedConsumable}`, { val: val, ack: true });
+            if (handler.isResetableConsumable(mappedConsumable)) {
+                await this.adapter.ensureState(`Devices.${duid}.resetConsumables.${mappedConsumable}`, {
                     type: "boolean",
                     write: true,
                     role: "button",
                     def: false,
                 });
-                await this.adapter.setStateAsync(`Devices.${duid}.resetConsumables.${consumable}`, { val: false, ack: true });
+                await this.adapter.setStateAsync(`Devices.${duid}.resetConsumables.${mappedConsumable}`, { val: false, ack: true });
             }
         }
     }
@@ -358,10 +358,6 @@ class requestsHandler {
                     break;
                 }
                 case "state":
-                    const isCleaning = await this.isCleaning(duid);
-                    if (this.adapter.socket && isCleaning) {
-                        this.adapter.socket.send(JSON.stringify({ duid: duid, command: "get_status", parameters: { isCleaning: isCleaning } }));
-                    }
                     break;
                 case "last_clean_t":
                     val = new Date(val * 1000).toString();
@@ -429,8 +425,9 @@ class requestsHandler {
         for (const firmwareFeature in value) {
             const featureID = value[firmwareFeature];
             const featureName = handler.getFirmwareFeatureName(featureID);
-            if (typeof handler[featureName] === "function") {
-                handler[featureName](duid);
+            const handlerAny = handler;
+            if (typeof handlerAny[featureName] === "function") {
+                handlerAny[featureName](duid);
             }
             await this.adapter.ensureState(`Devices.${duid}.firmwareFeatures.${firmwareFeature}`, { type: "string" });
             await this.adapter.setStateChangedAsync(`Devices.${duid}.firmwareFeatures.${firmwareFeature}`, { val: featureName, ack: true });
@@ -528,7 +525,7 @@ class requestsHandler {
                             try {
                                 valueToSend = JSON.parse(value);
                             }
-                            catch (e) {
+                            catch {
                                 // If parsing fails, treat as a regular string
                                 valueToSend = value;
                             }
@@ -580,7 +577,7 @@ class requestsHandler {
                 const mappedRooms = await this.getParameter(handler, duid, "get_room_mapping", []);
                 const parsedData = (await this.mapParser.parsedata(mapBuf, mappedRooms, { isHistoryMap: false }));
                 if (parsedData?.metaData) {
-                    this.adapter.log.info(`[getMap] Parsed LIVE map. MapIndex (Floor): ${parsedData.metaData.map_index}, Segments: ${parsedData.IMAGE?.segments?.list?.length || 0}`);
+                    this.adapter.log.debug(`[getMap] Parsed LIVE map. MapIndex (Floor): ${parsedData.metaData.map_index}, Segments: ${parsedData.IMAGE?.segments?.list?.length || 0}`);
                 }
                 else {
                     this.adapter.log.warn(`[getMap] Live map was parsed but contains no metaData.`);
@@ -706,11 +703,11 @@ class requestsHandler {
     }
     async sendRequest(duid, method, params, options = {}) {
         const queue = this.getQueue(duid);
-        return queue.add(() => this._performRequest(duid, method, params), {
+        return queue.add(() => this.performRequest(duid, method, params), {
             priority: options.priority || 0,
         });
     }
-    async _performRequest(duid, method, params) {
+    async performRequest(duid, method, params) {
         const remoteConnection = await this.isCloudDevice(duid);
         let protocol = 101;
         const version = await this.adapter.getDeviceProtocolVersion(duid);
@@ -720,7 +717,7 @@ class requestsHandler {
         if (!this.isCloudRequest(duid, method)) {
             protocol = 4;
         }
-        const payload = await this.messageParser.buildPayload(duid, protocol, messageID, method, params, version);
+        const payload = await this.messageParser.buildPayload(protocol, messageID, method, params, version);
         const roborockMessage = await this.messageParser.buildRoborockMessage(duid, protocol, timestamp, payload, version);
         const mqttConnectionState = this.adapter.mqtt_api.isConnected();
         const localConnectionState = this.adapter.local_api.isConnected(duid);
@@ -819,21 +816,11 @@ class requestsHandler {
         }
     }
     unzipBuffer(buffer, callback) {
-        zlib_1.default.gunzip(buffer, (err, result) => {
+        zlib.gunzip(buffer, (err, result) => {
             if (err)
                 callback(err);
             else
                 callback(null, result);
-        });
-    }
-    unzipBufferAsync(buffer) {
-        return new Promise((resolve, reject) => {
-            this.unzipBuffer(buffer, (error, photoData) => {
-                if (error)
-                    reject(error);
-                else
-                    resolve(photoData);
-            });
         });
     }
     isGZIP(buffer) {

@@ -1,10 +1,10 @@
 import type { Roborock } from "../main";
-import crypto from "crypto";
+import * as crypto from "crypto";
 import { Parser } from "binary-parser";
-import ping from "ping";
-import net from "net";
-import dgram from "dgram";
-import crc32 from "crc-32";
+import * as ping from "ping";
+import { Socket, SocketConstructorOpts } from "net";
+import * as dgram from "dgram";
+import * as crc32 from "crc-32";
 
 const UDP_DISCOVERY_PORT = 58866;
 const TCP_CONNECTION_PORT = 58867;
@@ -23,28 +23,28 @@ interface LocalDevice {
 	ackNonce?: number;
 }
 
-class EnhancedSocket extends net.Socket {
+class EnhancedSocket extends Socket {
 	connected: boolean;
 	chunkBuffer: Buffer;
 
-	constructor(options?: net.SocketConstructorOpts) {
+	constructor(options?: SocketConstructorOpts) {
 		super(options);
 		this.connected = false;
 		this.chunkBuffer = Buffer.alloc(0);
 
-		this.on("connect", () => {
+		(this as any).on("connect", () => {
 			this.connected = true;
 		});
 
-		this.on("close", () => {
+		(this as any).on("close", () => {
 			this.connected = false;
 		});
 
-		this.on("error", () => {
+		(this as any).on("error", () => {
 			this.connected = false;
 		});
 
-		this.on("end", () => {
+		(this as any).on("end", () => {
 			this.connected = false;
 		});
 	}
@@ -202,7 +202,7 @@ export class local_api {
 								}
 							} else {
 								// Decode standard data message
-								const dataArr = this.adapter.requestsHandler.messageParser._decodeMsg(currentBuffer, duid);
+								const dataArr = this.adapter.requestsHandler.messageParser.decodeMsg(currentBuffer, duid);
 
 								const allMessages = Array.isArray(dataArr) ? dataArr : dataArr ? [dataArr] : [];
 								for (const data of allMessages) {
@@ -219,11 +219,12 @@ export class local_api {
 											const id = parsed_102.id;
 											const result = parsed_102.result;
 
-											this.adapter.requestsHandler.resolvePendingRequest(id, result, data.protocol);
+											this.adapter.requestsHandler.resolvePendingRequest(id, result, String(data.protocol));
 										}
 									}
 								}
 							}
+
 							offset += 4 + segmentLength;
 						}
 
@@ -343,7 +344,7 @@ export class local_api {
 
 		this.discoveryServer = dgram.createSocket(socketOptions);
 
-		this.discoveryServer.on("message", async (msg, rinfo) => {
+		this.discoveryServer.on("message", async (msg) => {
 			this.adapter.log.debug(`[LocalAPI] UDP message received: ${msg.toString("hex")}`);
 			let decodedMessage: string | null = null;
 			let parsedMessage: any; // Structure depends on version
@@ -419,7 +420,7 @@ export class local_api {
 			try {
 				this.discoveryServer.removeAllListeners();
 				this.discoveryServer.close();
-			} catch (e) {
+			} catch {
 				// ignore close errors
 			}
 			this.discoveryServer = null;

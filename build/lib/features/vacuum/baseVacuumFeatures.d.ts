@@ -1,6 +1,41 @@
 import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
 import { z } from "zod";
+export declare const BASE_FAN: {
+    101: string;
+    102: string;
+    103: string;
+    104: string;
+};
+export declare const BASE_WATER: {
+    200: string;
+    201: string;
+    202: string;
+    203: string;
+};
+export declare const BASE_MOP: {
+    300: string;
+    301: string;
+    303: string;
+};
+export interface VacuumProfile {
+    name?: string;
+    docks?: Record<number, {
+        features: Feature[];
+    }>;
+    mappings: {
+        fan_power: Record<number, string>;
+        water_box_mode?: Record<number, string>;
+        mop_mode?: Record<number, string>;
+    };
+    features: {
+        maxSuctionValue: number;
+        ultraWaterValue?: number;
+        hasSmartPlan?: boolean;
+    };
+    cleanMotorModePresets?: Record<string, string>;
+}
+export declare const DEFAULT_PROFILE: VacuumProfile;
 export declare const VacuumStatusSchema: z.ZodObject<{
     state: z.ZodOptional<z.ZodNumber>;
     fan_power: z.ZodOptional<z.ZodNumber>;
@@ -18,6 +53,7 @@ export declare const VacuumStatusSchema: z.ZodObject<{
     water_box_custom_mode: z.ZodOptional<z.ZodNumber>;
 }, z.core.$loose>;
 export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
+    protected profile: VacuumProfile;
     protected static readonly CONSTANTS: {
         errorCodes: {
             0: string;
@@ -150,6 +186,10 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
             app_goto_target: {
                 type: string;
             };
+            set_clean_motor_mode: {
+                type: string;
+                def: string;
+            };
         };
         deviceStates: {
             dock_type: {
@@ -225,6 +265,181 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
                     '{"carpet_clean_mode":2}': string;
                 };
             };
+            unsave_map_flag: {
+                type: string;
+            };
+            unsave_map_reason: {
+                type: string;
+            };
+            dock_error_status: {
+                type: string;
+            };
+            debug_mode: {
+                type: string;
+            };
+            auto_dust_collection: {
+                type: string;
+            };
+            dust_collection_status: {
+                type: string;
+            };
+            adbumper_status: {
+                type: string;
+            };
+            lock_status: {
+                type: string;
+            };
+            is_locating: {
+                type: string;
+            };
+            map_status: {
+                type: string;
+            };
+            dnd_enabled: {
+                type: string;
+            };
+            lab_status: {
+                type: string;
+            };
+            in_fresh_state: {
+                type: string;
+            };
+            in_returning: {
+                type: string;
+            };
+            in_cleaning: {
+                type: string;
+            };
+            map_present: {
+                type: string;
+            };
+            is_exploring: {
+                type: string;
+            };
+            events: {
+                type: string;
+            };
+            subdivision_sets: {
+                type: string;
+            };
+            repeat: {
+                type: string;
+            };
+            replenish_mode: {
+                type: string;
+            };
+            rdt: {
+                type: string;
+            };
+            camera_status: {
+                type: string;
+            };
+            distance_off: {
+                type: string;
+            };
+            wash_phase: {
+                type: string;
+            };
+            wash_ready: {
+                type: string;
+            };
+            wash_status: {
+                type: string;
+            };
+            back_type: {
+                type: string;
+            };
+            collision_avoid_status: {
+                type: string;
+            };
+            avoid_count: {
+                type: string;
+            };
+            switch_map_mode: {
+                type: string;
+            };
+            charge_status: {
+                type: string;
+            };
+            dry_status: {
+                type: string;
+            };
+            extra_time: {
+                type: string;
+            };
+            rss: {
+                type: string;
+            };
+            dss: {
+                type: string;
+            };
+            common_status: {
+                type: string;
+            };
+            kct: {
+                type: string;
+            };
+            sterilize_status: {
+                type: string;
+            };
+            rst: {
+                type: string;
+            };
+            switch_status: {
+                type: string;
+            };
+            last_clean_t: {
+                type: string;
+            };
+            cleaning_info: {
+                type: string;
+            };
+            exit_dock: {
+                type: string;
+            };
+            dtof_status: {
+                type: string;
+            };
+            seq_type: {
+                type: string;
+            };
+            mop_forbidden_enable: {
+                type: string;
+            };
+            voice_chat_status: {
+                type: string;
+            };
+            corner_clean_mode: {
+                type: string;
+            };
+            home_sec_status: {
+                type: string;
+            };
+            home_sec_enable_password: {
+                type: string;
+            };
+            monitor_status: {
+                type: string;
+            };
+            clean_fluid: {
+                type: string;
+            };
+            water_box_carriage_status: {
+                type: string;
+            };
+            water_box_status: {
+                type: string;
+            };
+            water_shortage_status: {
+                type: string;
+            };
+            cleaned_area: {
+                type: string;
+                unit: string;
+            };
+            clean_times: {
+                type: string;
+            };
         };
         consumables: {
             main_brush_work_time: {
@@ -242,15 +457,6 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
             sensor_dirty_time: {
                 unit: string;
             };
-            125: {
-                unit: string;
-            };
-            126: {
-                unit: string;
-            };
-            127: {
-                unit: string;
-            };
             main_brush_life: {
                 unit: string;
             };
@@ -258,6 +464,12 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
                 unit: string;
             };
             filter_life: {
+                unit: string;
+            };
+            strainer_work_times: {
+                unit: string;
+            };
+            cleaning_brush_work_times: {
                 unit: string;
             };
         };
@@ -379,10 +591,11 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
             125: string;
         };
     };
-    constructor(dependencies: FeatureDependencies, duid: string, robotModel: string, config: DeviceModelConfig);
-    protected registerFeatures(): void;
-    protected _getDynamicFeatures(): Set<Feature>;
+    constructor(dependencies: FeatureDependencies, duid: string, robotModel: string, config: DeviceModelConfig, profile?: VacuumProfile);
+    protected applyCleanMotorModePresets(): void;
+    protected getDynamicFeatures(): Set<Feature>;
     detectAndApplyRuntimeFeatures(statusData: Readonly<Record<string, any>>): Promise<boolean>;
+    private lastDockType;
     processDockType(dockTypeInput: number | undefined): Promise<void>;
     getCommonConsumable(attribute: string | number): {
         unit?: string;
@@ -398,14 +611,50 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     } | undefined;
     getCommonCleaningRecords(attribute: string | number): Partial<ioBroker.StateCommon> | undefined;
     getFirmwareFeatureName(featureID: string | number): string;
-    protected _addAutoEmptyDockCommands(): void;
-    protected _addMopWashCommands(): void;
-    protected _addMopDryCommands(): void;
-    protected _addWaterBoxCommands(): void;
-    protected _addCleanRouteFastModeCommand(): void;
-    protected _createCameraStates(): Promise<void>;
-    protected _createMultiFloorStates(): Promise<void>;
-    protected _createCustomWaterDistanceState(): Promise<void>;
-    protected _addFanMaxPlusCommand(): void;
-    protected _addSmartModeCommand(): void;
+    protected addAutoEmptyDockCommands(): void;
+    protected addMopWashCommands(): void;
+    protected addMopDryCommands(): void;
+    protected addWaterBoxCommands(): void;
+    protected addCleanRouteFastModeCommand(): void;
+    protected addSmartPlanFeature(): void;
+    protected createCameraStates(): Promise<void>;
+    protected createMultiFloorStates(): Promise<void>;
+    protected addAvoidCarpetCommands(): void;
+    protected addAvoidCollisionStates(): Promise<void>;
+    protected addMopForbiddenStates(): Promise<void>;
+    protected addVoiceControlStates(): Promise<void>;
+    protected addCameraSettingsStates(): Promise<void>;
+    protected addSwitchMapModeState(): Promise<void>;
+    protected addCornerCleanModeState(): Promise<void>;
+    protected addMapFlagState(): Promise<void>;
+    protected addCommonStatusState(): Promise<void>;
+    protected addDockErrorStatusState(): Promise<void>;
+    protected addBackTypeState(): Promise<void>;
+    protected addSwitchStatusState(): Promise<void>;
+    protected addMonitorStatusState(): Promise<void>;
+    protected addCleanPercentState(): Promise<void>;
+    protected addInWarmupState(): Promise<void>;
+    protected addExitDockState(): Promise<void>;
+    protected addExtraTimeState(): Promise<void>;
+    protected addLastCleanTimeState(): Promise<void>;
+    protected addChargeStatusState(): Promise<void>;
+    protected addCleaningInfoState(): Promise<void>;
+    protected addCleanRepeatState(): Promise<void>;
+    protected addDssState(): Promise<void>;
+    protected addRssState(): Promise<void>;
+    protected addRobotStatusState(): Promise<void>;
+    protected addKctState(): Promise<void>;
+    protected addCleanFluidState(): Promise<void>;
+    protected addRdtState(): Promise<void>;
+    protected addReplenishModeState(): Promise<void>;
+    protected addCleanedAreaState(): Promise<void>;
+    protected addCleanTimesState(): Promise<void>;
+    protected createCustomWaterDistanceState(): Promise<void>;
+    createResetConsumables(): Promise<void>;
+    createConsumables(): Promise<void>;
+    protected addFanMaxPlusCommand(): void;
+    protected addNetworkInfoStates(): Promise<void>;
+    protected addUpdateStatusStates(): Promise<void>;
+    protected addSmartModeCommand(): void;
+    protected placeholderFeatures(): void;
 }

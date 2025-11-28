@@ -10,6 +10,10 @@ export declare class DeviceManager {
      * Initializes all devices found via the HTTP API.
      */
     initializeDevices(): Promise<void>;
+    /**
+     * Removes device folders for devices that are no longer in the cloud account.
+     */
+    private cleanupOrphanedDevices;
     private lastCleaningState;
     /**
      * Starts the polling loops.
@@ -22,7 +26,7 @@ export declare class DeviceManager {
     /**
      * Fetches non-status data (consumables, timers, etc.) for a device.
      */
-    updateDeviceData(handler: BaseDeviceFeatures, duid: string): void;
+    updateDeviceData(handler: BaseDeviceFeatures, duid: string): Promise<void>;
     /**
      * Fetches consumable percentages from cloud data.
      */

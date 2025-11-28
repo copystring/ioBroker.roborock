@@ -1,11 +1,8 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.http_api = void 0;
-const axios_1 = __importDefault(require("axios"));
-const crypto_1 = __importDefault(require("crypto"));
+const axios_1 = require("axios");
+const crypto = require("crypto");
 // Credits to rovo89 for the initial reverse engineering
 // https://gist.github.com/rovo89/dff47ed19fca0dfdda77503e66c2b7c7
 const API_BASE_URL = "https://euiot.roborock.com";
@@ -14,7 +11,7 @@ const API_LOGIN_ENDPOINT = "api/v1/login";
  * Helper to calculate MD5 hex string
  */
 function md5hex(str) {
-    return crypto_1.default.createHash("md5").update(str).digest("hex");
+    return crypto.createHash("md5").update(str).digest("hex");
 }
 class http_api {
     adapter;
@@ -41,7 +38,7 @@ class http_api {
         this.loginApi = axios_1.default.create({
             baseURL: API_BASE_URL,
             headers: {
-                header_clientid: crypto_1.default.createHash("md5").update(this.adapter.config.username).update(clientID).digest().toString("base64"),
+                header_clientid: crypto.createHash("md5").update(this.adapter.config.username).update(clientID).digest().toString("base64"),
             },
         });
         await this.initializeRealApi();
@@ -55,18 +52,6 @@ class http_api {
         if (!this.loginApi) {
             throw new Error("loginApi is not initialized. Call init() first.");
         }
-        // 1. Try to load existing userdata from ioBroker state
-        const storedUserData = await this.adapter.getStateAsync("UserData");
-        if (storedUserData && storedUserData.val && typeof storedUserData.val === "string") {
-            try {
-                this.userData = JSON.parse(storedUserData.val);
-            }
-            catch (e) {
-                this.adapter.log.warn("Failed to parse stored UserData, will re-login.");
-                this.userData = null;
-            }
-        }
-        // 2. If no valid userdata, perform login
         if (!this.userData) {
             try {
                 this.userData = await this.loginApi
@@ -100,7 +85,7 @@ class http_api {
             const realApi = axios_1.default.create({ baseURL: this.userData.rriot.r.a });
             realApi.interceptors.request.use((config) => {
                 const timestamp = Math.floor(Date.now() / 1000);
-                const nonce = crypto_1.default
+                const nonce = crypto
                     .randomBytes(6)
                     .toString("base64")
                     .substring(0, 6)
@@ -120,7 +105,7 @@ class http_api {
                     }
                 }
                 const prestr = [rriot.u, rriot.s, nonce, timestamp, md5hex(urlPath), "", ""].join(":");
-                const mac = crypto_1.default.createHmac("sha256", rriot.h).update(prestr).digest("base64");
+                const mac = crypto.createHmac("sha256", rriot.h).update(prestr).digest("base64");
                 config.headers["Authorization"] = `Hawk id="${rriot.u}", s="${rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
                 return config;
             });

@@ -10,13 +10,9 @@ export class FallbackBaseFeatures extends BaseDeviceFeatures {
 	}
 
 	// --- Implementation of abstract methods ---
-	protected registerFeatures(): void {
-		this.deps.log.warn(`[${this.duid}] Using fallback feature registration. No specific features registered.`);
-		// No features to register in the generic fallback
-	}
-
-	protected _getDynamicFeatures(): Set<Feature> {
-		this.deps.log.warn(`[${this.duid}] Using fallback _getDynamicFeatures. Returning empty set.`);
+	// --- Implementation of abstract methods ---
+	protected getDynamicFeatures(): Set<Feature> {
+		this.deps.log.warn(`[${this.duid}] Using fallback getDynamicFeatures. Returning empty set.`);
 		return new Set<Feature>(); // Fallback returns no dynamic features
 	}
 

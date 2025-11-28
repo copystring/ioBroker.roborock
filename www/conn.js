@@ -16,10 +16,8 @@ export class Connection {
     _reconnectInterval = 10000;
     _reloadInterval = 30;
     _isSecure = false;
-    _defaultMode = 0x644;
     _useStorage = false;
     _objects = null;
-    _enums = null;
     // Auth-Promise: Methods that require auth will await this promise.
     _authPromise = null;
     _resolveAuth = () => { };
@@ -166,7 +164,7 @@ export class Connection {
         this._isConnected = true;
         if (this._connCallbacks.onConnChange) {
             setTimeout(() => {
-                this._socket.emit("authEnabled", (auth, user) => {
+                this._socket.emit("authEnabled", (_auth, user) => {
                     this.user = user;
                     this._connCallbacks.onConnChange(this._isConnected);
                     if (typeof app !== "undefined")
@@ -302,7 +300,7 @@ export class Connection {
     async getVersion() {
         await this._checkReady("getVersion");
         return new Promise((resolve) => {
-            this._socket.emit("getVersion", (err, version) => {
+            this._socket.emit("getVersion", (_err, version) => {
                 resolve(version);
             });
         });
@@ -431,10 +429,6 @@ export class Connection {
             for (const row of adaptersRes.rows) {
                 data[row.id] = row.value;
             }
-            // Determine default mode
-            if (data[`system.adapter.${this.namespace}`]?.native?.defaultFileMode) {
-                this._defaultMode = data[`system.adapter.${this.namespace}`].native.defaultFileMode;
-            }
             // 4. Get channels
             const channelsRes = await this.getObjectView("system", "channel", { startkey: "", endkey: "\u9999" });
             for (const row of channelsRes.rows) {
@@ -449,7 +443,6 @@ export class Connection {
             if (this._useStorage) {
                 this._fillChildren(data);
                 this._objects = data;
-                this._enums = enums;
                 if (typeof storage !== "undefined") {
                     storage.set("objects", data);
                     storage.set("enums", enums);

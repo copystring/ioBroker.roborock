@@ -4,7 +4,7 @@
 	],
 	"watch-files": [
 		"!(node_modules|test)/**/*.test.js",
-		"*.test.js",
-		"test/**/test!(PackageFiles|Startup).js"
-	]
+		"*.test.js"
+	],
+	"reporter": "spec"
 }

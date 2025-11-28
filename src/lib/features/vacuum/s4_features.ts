@@ -1,22 +1,27 @@
-// src/lib/features/vacuum/s4_features.ts
-// Features for Roborock S4 (roborock.vacuum.s4)
-
-import { BaseVacuumFeatures } from "./baseVacuumFeatures";
+import { BaseVacuumFeatures, VacuumProfile, BASE_FAN, BASE_WATER, BASE_MOP } from "./baseVacuumFeatures";
 import { RegisterModel, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
-import { Feature } from "../features.enum";
 
-// Define static features for the s4 model
-const s4Config: DeviceModelConfig = {
-    staticFeatures: [
-        // No specific static features listed in old definition
-    ]
+const PROFILE_S4: VacuumProfile = {
+	name: "Roborock S4",
+	features: {
+		maxSuctionValue: 104
+	},
+	mappings: {
+		fan_power: BASE_FAN,
+		water_box_mode: BASE_WATER,
+		mop_mode: BASE_MOP
+	}
 };
 
-@RegisterModel('roborock.vacuum.s4')
-export class S4Features extends BaseVacuumFeatures {
-    constructor(dependencies: FeatureDependencies, duid: string) {
-        super(dependencies, duid, 'roborock.vacuum.s4', s4Config);
-    }
+const s4Config: DeviceModelConfig = {
+	staticFeatures: [
+		// No specific static features listed in old definition
+	]
+};
 
-    // No model-specific overrides needed currently
+@RegisterModel("roborock.vacuum.s4")
+export class S4Features extends BaseVacuumFeatures {
+	constructor(dependencies: FeatureDependencies, duid: string) {
+		super(dependencies, duid, "roborock.vacuum.s4", s4Config, PROFILE_S4);
+	}
 }

@@ -1,0 +1,13 @@
+declare module 'node-forge';
+declare module 'ping';
+declare module 'crc-32';
+declare module 'mqtt';
+declare module 'binary-parser';
+declare module 'crypto';
+declare module 'zlib';
+declare module 'dgram';
+declare module 'net';
+declare module 'crypto';
+declare module 'zlib';
+declare module 'dgram';
+declare module 'net';

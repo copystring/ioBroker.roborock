@@ -21,7 +21,7 @@ function createFeaturesForModel(adapter, duid, robotModel, productCategory) {
     // This is the correct static method for your decorator pattern
     const ModelClass = baseDeviceFeatures_1.BaseDeviceFeatures.getRegisteredModelClass(robotModel);
     if (ModelClass) {
-        adapter.log.info(`[DeviceManager] Using specific feature handler for model: ${robotModel}`);
+        adapter.log.debug(`[DeviceManager] Using specific feature handler for model: ${robotModel}`);
         // Pass dependencies and duid to the constructor
         return new ModelClass(dependencies, duid);
     }
@@ -56,7 +56,7 @@ class DeviceManager {
                 try {
                     const model = this.adapter.http_api.getRobotModel(duid);
                     const category = this.adapter.http_api.getProductCategory(duid);
-                    // We must have a model to continue
+                    // Ensure model is present before proceeding
                     if (!model) {
                         this.adapter.log.warn(`[DeviceManager] Could not find model for duid ${duid}. Skipping init.`);
                         return;
@@ -65,7 +65,7 @@ class DeviceManager {
                     // Store the handler instance
                     this.deviceFeatureHandlers.set(duid, handler);
                     await this.adapter.setObjectNotExistsAsync(`Devices.${duid}`, {
-                        type: "device", // This is the crucial part
+                        type: "device",
                         common: {
                             name: device.name || duid, // Use cloud name or DUID
                             // Optional: Link the online status for ioBroker admin
@@ -79,6 +79,8 @@ class DeviceManager {
                             category: category,
                         },
                     });
+                    // Apply static features (Model Specifics) immediately after device object creation
+                    await handler.applyModelSpecifics();
                     if (!device.online) {
                         this.adapter.log.debug(`[DeviceManager] Device ${duid} is offline. Initializing features without runtime data.`);
                     }
@@ -91,9 +93,8 @@ class DeviceManager {
                     if (device.online) {
                         await this.adapter.requestsHandler.getParameter(handler, duid, "get_fw_features");
                     }
-                    this.adapter.log.debug(`[DeviceManager] Applying initial features for ${duid}`);
-                    // We just called getStatus, so the state should be updated.
-                    // We try to read the 'dock_type' from state to handle dock features immediately.
+                    // State should be updated after getStatus.
+                    // Attempt to read 'dock_type' from state to handle dock features immediately.
                     const dockTypeState = await this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.dock_type`);
                     if (device.online && dockTypeState && dockTypeState.val !== null) {
                         await handler.processDockType(Number(dockTypeState.val));
@@ -102,11 +103,11 @@ class DeviceManager {
                     await handler.createCommandObjects();
                     // 6. Initial Map Update & Other Data
                     if (device.online) {
-                        this.adapter.log.debug(`[DeviceManager] Initial data update for ${duid}`);
-                        this.updateDeviceData(handler, duid);
-                        this.updateConsumablesPercent(duid);
+                        await this.updateDeviceData(handler, duid);
+                        await this.updateConsumablesPercent(duid);
                         await this.adapter.requestsHandler.getMap(handler, duid);
                     }
+                    handler.printSummary();
                 }
                 catch (error) {
                     this.adapter.log.warn(`[DeviceManager] Failed initial poll for ${duid}: ${error.message}`);
@@ -116,6 +117,8 @@ class DeviceManager {
         }
         await Promise.all(initPromises);
         this.adapter.log.info("[DeviceManager] All devices initialized.");
+        // Cleanup orphaned devices (devices present in ioBroker but not in cloud account)
+        await this.cleanupOrphanedDevices(devices.map((d) => d.duid));
         // Background Task: Delayed fetching of heavy clean summary for ALL devices
         // This runs once, 5 seconds after all devices have finished their foreground init.
         this.adapter.setTimeout(async () => {
@@ -131,6 +134,28 @@ class DeviceManager {
             }
             this.adapter.log.info("[DeviceManager] Background clean summary updates finished.");
         }, 5000);
+    }
+    /**
+     * Removes device folders for devices that are no longer in the cloud account.
+     */
+    async cleanupOrphanedDevices(activeDuids) {
+        const activeDuidSet = new Set(activeDuids);
+        const namespace = this.adapter.namespace;
+        try {
+            // Get all objects in the adapter namespace
+            const allObjects = await this.adapter.getAdapterObjectsAsync();
+            const deviceFolders = Object.keys(allObjects).filter((id) => id.startsWith(`${namespace}.Devices.`) && id.split(".").length === 4);
+            for (const folderId of deviceFolders) {
+                const duid = folderId.split(".").pop();
+                if (duid && !activeDuidSet.has(duid)) {
+                    this.adapter.log.info(`[DeviceManager] Deleting orphaned device folder: ${folderId}`);
+                    await this.adapter.delObjectAsync(folderId, { recursive: true });
+                }
+            }
+        }
+        catch (error) {
+            this.adapter.log.error(`[DeviceManager] Failed to cleanup orphaned devices: ${error.message}`);
+        }
     }
     // Track previous cleaning state to detect completion
     lastCleaningState = new Map();
@@ -237,14 +262,16 @@ class DeviceManager {
     /**
      * Fetches non-status data (consumables, timers, etc.) for a device.
      */
-    updateDeviceData(handler, duid) {
+    async updateDeviceData(handler, duid) {
         const robotModel = this.adapter.http_api.getRobotModel(duid);
         // Common requests
-        const requestList = ["get_fw_features", "get_multi_maps_list", "get_room_mapping", "get_consumable", "get_server_timer", "get_timer"];
+        const requestList = ["get_fw_features", "get_multi_maps_list", "get_room_mapping", "get_consumable", "get_server_timer", "get_timer", "get_network_info"];
+        const promises = [];
         for (const request of requestList) {
-            this.adapter.requestsHandler.getParameter(handler, duid, request, []).catch(() => { });
+            promises.push(this.adapter.requestsHandler.getParameter(handler, duid, request, []).catch(() => { }));
         }
-        this.adapter.checkForNewFirmware(duid);
+        await Promise.all(promises);
+        await this.adapter.checkForNewFirmware(duid);
         // Model-specific requests
         switch (robotModel) {
             case "roborock.vacuum.s4":
@@ -283,13 +310,19 @@ class DeviceManager {
         if (!device?.deviceStatus)
             return; // 'deviceStatus' exists on our fixed Device type
         const status = device.deviceStatus;
+        const consumableMap = {
+            "125": "main_brush_life",
+            "126": "side_brush_life",
+            "127": "filter_life",
+        };
         for (const [attribute, value] of Object.entries(status)) {
             // 125, 126, 127 are cloud-provided consumable percentages
             if (attribute === "125" || attribute === "126" || attribute === "127") {
                 const val = value >= 0 && value <= 100 ? value : 0;
-                const common = handler.getCommonConsumable(attribute);
-                await this.adapter.ensureState(`Devices.${duid}.consumables.${attribute}`, common || {});
-                await this.adapter.setStateChangedAsync(`Devices.${duid}.consumables.${attribute}`, { val, ack: true });
+                const mappedName = consumableMap[attribute];
+                const common = handler.getCommonConsumable(mappedName); // Use mapped name for common def
+                await this.adapter.ensureState(`Devices.${duid}.consumables.${mappedName}`, common || {});
+                await this.adapter.setStateChangedAsync(`Devices.${duid}.consumables.${mappedName}`, { val, ack: true });
             }
         }
     }

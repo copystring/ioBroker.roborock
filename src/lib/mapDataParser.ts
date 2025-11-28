@@ -1,6 +1,6 @@
 // src/lib/mapDataParser.ts
 import type { Roborock } from "../main";
-import crypto from "crypto";
+import * as crypto from "crypto";
 
 // --------------------
 // Constants
@@ -924,77 +924,32 @@ export class MapDataParser {
 	}
 
 	private getPatrol(buf: Buffer, offset: number): any[] {
-		// Header is taskId (4 bytes) + num (1 byte) -> Wait, snippet says header: [['taskId', 4], ['num', 1]]
-		// My getCount reads UInt32LE at offset 8.
-		// If header is different, getCount might be wrong.
-		// Snippet: 37: { header: [['taskId', 4], ['num', 1]] }
-		// Standard header is usually handled by parseHeader/block logic.
-		// Let's assume the standard block header structure applies (type, hlength, length, count/data).
-		// If the snippet implies the *payload* starts with taskId and num, then:
-		// But wait, my parser assumes standard block structure.
-		// Let's look at how I read count: buf.readUInt32LE(OFFSETS.TYPE_COUNT) which is 0x08.
-		// If the block data starts at 0x08, and the first 4 bytes are taskId, then count is at 0x0C?
-		// Actually, let's look at the snippet again.
-		// 37: header: [['taskId', 4], ['num', 1]]
-		// This suggests the "header" (which usually contains count) is different.
-		// My parser reads `hlength` at 0x02.
-		// If `hlength` is correct, then `offset` passed here is `dataPosition + hlength`.
-		// The snippet says `payload` function receives `result` (header parsed) and `data`.
-		// `result.num` comes from header.
-		// So for type 37, the header has taskId (4) and num (1). Total 5 bytes?
-		// My `getCount` reads 4 bytes at 0x08 (relative to block start).
-		// If the block structure is standard (Type, HLen, Len, ...), then `hlength` tells us where data starts.
-		// Usually `hlength` covers the header fields.
-		// If `hlength` is e.g. 5, then bytes 0-4 are header.
-		// But my `getCount` is hardcoded to read at 0x08.
-		// This might be an issue if the header size varies.
-		// However, `hlength` is read from the block.
-		// Let's assume for now that `num` is at the standard place or we need to read it manually.
-		// Snippet says: `result.num` comes from header `['num', 1]`.
-		// And `taskId` is 4 bytes.
-		// So header is 5 bytes?
-		// If so, `hlength` should be 5 + ... (standard overhead).
-		// Let's try to read `num` from the buffer based on `hlength`.
-		// If `hlength` is large, it might contain these fields.
-		// But `getCount` reads at `OFFSETS.TYPE_COUNT` (8).
-		// If `taskId` is at 8, then `num` is at 12?
-		// Let's implement a safe read based on the snippet logic.
+		// Header structure inside data:
+		// taskId: 4 bytes (at offset)
+		// num: 1 byte (at offset + 4)
+		// points: num * 278 bytes (starting at offset + 5)
 
-		// Re-reading snippet for 37:
-		// header: [['taskId', 4], ['num', 1]]
-		// payload uses result.num.
+		if (buf.length < offset + 5) {
+			return [];
+		}
 
-		// In my parser, I don't have a generic header parser that respects that definition.
-		// I rely on `getCount` which assumes a 4-byte count at offset 8.
-		// If type 37 has a different header, `getCount` will return garbage (taskId).
-		// So I should NOT use `getCount` for type 37.
-
-		// Let's read taskId and num manually from the block buffer (buf).
-		// The block buffer passed to `parsedata` loop is `blockBuffer` (slice).
-		// But here I receive `buf` (original) and `offset` (start of data).
-		// Wait, `getPatrol(blockBuffer, hlength)` calls with `blockBuffer` as `buf`.
-		// So `buf` here IS the block buffer.
-		// `offset` is `hlength`.
-
-		// If the header is inside the block buffer:
-		// Standard: Type(2), HLen(2), Len(4), ...
-		// Offset 8 is usually where "Count" or "Data" starts depending on HLen.
-		// If HLen includes taskId and num...
-		// Let's assume the snippet's "header" fields are at offset 8.
-		// taskId: 4 bytes at 8.
-		// num: 1 byte at 12.
-
-		const num = buf.readUInt8(12); // Assuming standard preamble of 8 bytes
+		const num = buf.readUInt8(offset + 4);
 		const points: any[] = [];
+		const dataStart = offset + 5;
+		const pointSize = 278; // Fixed size per point based on observation
+
 		for (let i = 0; i < num; i++) {
-			const base = offset + i * 278;
-			// ... parsing logic ...
-			// For brevity and safety, let's just implement the basic structure
-			// The snippet has a lot of fields.
+			const base = dataStart + i * pointSize;
+
+			// Ensure we don't read past the buffer
+			if (base + 4 > buf.length) {
+				this.adapter.log.warn(`[MapDataParser] getPatrol: Buffer too short for point ${i + 1}/${num}`);
+				break;
+			}
+
 			points.push([
 				buf.readUInt16LE(base), // x
 				buf.readUInt16LE(base + 2) // y
-				// ... other fields ...
 			]);
 		}
 		return points;

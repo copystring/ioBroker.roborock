@@ -14,10 +14,8 @@ const modelRegistry = new Map();
 function RegisterModel(robotModelId) {
     return function (constructor) {
         if (modelRegistry.has(robotModelId)) {
-            // Use console during the initial script load phase
-            console.warn(`[Roborock Features] Model ${robotModelId} is already registered. Overwriting.`);
+            // Model already registered, overwriting.
         }
-        console.log(`[Roborock Features] Registering model: ${robotModelId}`);
         modelRegistry.set(robotModelId, constructor);
     };
 }
@@ -59,9 +57,26 @@ class BaseDeviceFeatures {
             // Add more if truly generic across all device types
         },
     };
-    // --- Feature Registry (Static) ---
-    static featureRegistry = new Map();
-    static registryInitialized = false; // Ensures registration logic runs only once
+    // --- Metadata Key for Feature Registry ---
+    // We use a unique symbol to store the registry on the class prototype
+    static FEATURE_METADATA_KEY = Symbol.for("roborock.featureRegistry");
+    /**
+     * Decorator to register a method as a handler for a specific feature.
+     * @param feature The Feature enum key.
+     */
+    static DeviceFeature(feature) {
+        return function (target, propertyKey) {
+            // 'target' is the prototype of the class
+            let registry = target[BaseDeviceFeatures.FEATURE_METADATA_KEY];
+            if (!registry) {
+                registry = new Map();
+                // Store it on the prototype
+                target[BaseDeviceFeatures.FEATURE_METADATA_KEY] = registry;
+            }
+            registry.set(feature, propertyKey);
+        };
+    }
+    // --- Feature Registry (Instance Based via Metadata) ---
     /**
      * Constructor for the base feature handler.
      * @param dependencies Injected dependencies (adapter, config, APIs, helpers).
@@ -76,13 +91,6 @@ class BaseDeviceFeatures {
         this.config = config;
         // Start with generic base commands defined in this base class
         this.commands = JSON.parse(JSON.stringify(BaseDeviceFeatures.CONSTANTS.baseCommands));
-        // The registry is initialized only once, triggered by the first instance
-        // of a *concrete* base class (like BaseVacuumFeatures) calling its `registerFeatures`.
-        if (!BaseDeviceFeatures.registryInitialized) {
-            // The flag is set here, but the actual registration happens in the concrete base class.
-            BaseDeviceFeatures.registryInitialized = true;
-            this.deps.log.debug("Feature registry initialization flag set.");
-        }
     }
     /**
      * Processes features related to the detected dock type.
@@ -97,14 +105,12 @@ class BaseDeviceFeatures {
      * Applies features defined statically in the `DeviceModelConfig`.
      * Can be overridden by specific model classes to add more complex model-specific logic
      * that runs *before* runtime detection.
-     * @param statusData Optional initial status data.
-     * @param fwFeatures Optional initial firmware features data.
+     * @param _statusData Optional initial status data. Unused in base, but available for overrides.
+     * @param _fwFeatures Optional initial firmware features data. Unused in base, but available for overrides.
      */
-    async applyModelSpecifics(statusData, fwFeatures) {
-        this.deps.log.debug(`[FeatureApply|${this.robotModel}|${this.duid}] Applying model specifics (Static Features)...`);
+    async applyModelSpecifics() {
         const promises = this.config.staticFeatures.map((feature) => this.applyFeature(feature));
         await Promise.all(promises);
-        this.deps.log.debug(`[FeatureApply|${this.robotModel}|${this.duid}] Finished applying model specifics.`);
     }
     // --- Core Initialization Logic ---
     /**
@@ -113,68 +119,20 @@ class BaseDeviceFeatures {
      * @param initialStatus Optional initial status data to use for detection.
      * @param initialFwFeatures Optional initial firmware features data.
      */
-    async initialize(initialStatus, initialFwFeatures) {
+    async initialize() {
         this.deps.log.info(`[FeatureInit|${this.robotModel}|${this.duid}] Starting feature initialization...`);
-        // Ensure registry is filled by the concrete base class implementation (runs only once).
-        // This relies on the constructor setting the flag and the first instance calling registerFeatures.
-        if (BaseDeviceFeatures.featureRegistry.size === 0 && BaseDeviceFeatures.registryInitialized) {
-            // If the flag is set but registry is empty, the concrete implementation is missing the call.
-            this.deps.log.warn(`[FeatureInit|${this.robotModel}|${this.duid}] Registry initialization flag was set, but registry is empty. Ensure 'registerFeatures' is called in the constructor or initializer of the concrete base class (e.g., BaseVacuumFeatures).`);
-            // Attempt to call it here as a fallback, but it should ideally happen earlier.
-            try {
-                this.registerFeatures(); // Call the *concrete* implementation now
-                if (BaseDeviceFeatures.featureRegistry.size > 0) {
-                    this.deps.log.info(`Feature registry initialized late via initialize(). Size: ${BaseDeviceFeatures.featureRegistry.size}`);
-                }
-                else {
-                    this.deps.log.error(`[FeatureInit|${this.robotModel}|${this.duid}] Failed to initialize feature registry even after explicit call!`);
-                    return; // Abort initialization if registry fails
-                }
-            }
-            catch (e) {
-                this.deps.log.error(`[FeatureInit|${this.robotModel}|${this.duid}] Error calling registerFeatures: ${e.message} ${e.stack}`);
-                return; // Abort
-            }
-        }
-        else if (BaseDeviceFeatures.featureRegistry.size === 0 && !BaseDeviceFeatures.registryInitialized) {
-            // Should not happen if constructor sets the flag correctly.
-            this.deps.log.error(`[FeatureInit|${this.robotModel}|${this.duid}] Registry initialization logic error: Flag not set and registry empty.`);
-            return; // Abort
-        }
-        // Flow: Basis -> Typ -> Spezifisch -> Laufzeit -> Dock
+        // Flow: Base -> Type -> Specific -> Runtime -> Dock
         // 1. Apply Model Specifics (Static Flags + Model Class Overrides/Additions)
         try {
-            await this.applyModelSpecifics(initialStatus, initialFwFeatures);
+            await this.applyModelSpecifics();
         }
         catch (e) {
             this.deps.log.error(`[FeatureInit|${this.robotModel}|${this.duid}] Error applying model specifics: ${e.message} ${e.stack}`);
         }
         // 2. Runtime Detection (implemented by concrete base like BaseVacuumFeatures)
-        let commandsChangedByRuntime = false;
-        if (initialStatus) {
-            try {
-                commandsChangedByRuntime = await this.detectAndApplyRuntimeFeatures(initialStatus);
-                this.runtimeDetectionComplete = true; // Mark initial detection attempt as done
-            }
-            catch (e) {
-                this.deps.log.error(`[FeatureInit|${this.robotModel}|${this.duid}] Error during runtime feature detection: ${e.message} ${e.stack}`);
-            }
-        }
-        else {
-            this.deps.log.warn(`[FeatureInit|${this.robotModel}|${this.duid}] Initial status data missing, skipping runtime feature detection.`);
-        }
+        // Note: Runtime detection relies on data fetched later in the process.
         // 3. Process Dock Type (implementation from concrete base or model class)
-        if (initialStatus?.dock_type !== undefined) {
-            try {
-                await this.processDockType(initialStatus.dock_type);
-            }
-            catch (e) {
-                this.deps.log.error(`[FeatureInit|${this.robotModel}|${this.duid}] Error processing dock type ${initialStatus.dock_type}: ${e.message} ${e.stack}`);
-            }
-        }
-        else {
-            this.deps.log.debug(`[FeatureInit|${this.robotModel}|${this.duid}] Initial dock_type missing.`);
-        }
+        // Note: Dock type processing is handled after initial status retrieval.
         // 4. Create/Update ioBroker Objects for Commands
         try {
             await this.createCommandObjects();
@@ -183,6 +141,15 @@ class BaseDeviceFeatures {
             this.deps.log.error(`[FeatureInit|${this.robotModel}|${this.duid}] Error creating command objects: ${e.message} ${e.stack}`);
         }
         this.deps.log.info(`[FeatureInit|${this.robotModel}|${this.duid}] Initialization complete.`);
+    }
+    /**
+     * Logs a consolidated summary of applied features and created commands.
+     * Should be called explicitly after initialization is complete.
+     */
+    printSummary() {
+        const featureList = Array.from(this.appliedFeatures).sort().join(", ");
+        const commandList = Object.keys(this.commands).sort().join(", ");
+        this.deps.log.info(`[FeatureInit|${this.robotModel}|${this.duid}] Summary -> Features: [${featureList}] | Commands: [${commandList}]`);
     }
     // --- Core Helper Methods ---
     /**
@@ -202,14 +169,16 @@ class BaseDeviceFeatures {
             this.deps.log.silly(`[${this.duid}] Feature '${feature}' already applied.`);
             return false;
         }
-        const implementation = BaseDeviceFeatures.featureRegistry.get(feature);
-        if (implementation) {
-            this.deps.log.debug(`[FeatureApply|${this.robotModel}|${this.duid}] Applying feature '${feature}'...`);
+        // Retrieve the registry from metadata on the instance (prototype chain)
+        // We cast 'this' to any to access the symbol-keyed property
+        const registry = this[BaseDeviceFeatures.FEATURE_METADATA_KEY];
+        if (registry && registry.has(feature)) {
+            const methodName = registry.get(feature);
             try {
-                // Use .call(this) to bind 'this' context and execute
-                await implementation.call(this);
+                // Execute the method dynamically
+                // @ts-ignore
+                await this[methodName].call(this);
                 this.appliedFeatures.add(feature); // Mark as applied *after* successful execution
-                this.deps.log.debug(`[FeatureApply|${this.robotModel}|${this.duid}] Successfully applied feature '${feature}'.`);
                 return true;
             }
             catch (e) {
@@ -218,7 +187,12 @@ class BaseDeviceFeatures {
             }
         }
         else {
-            this.deps.log.warn(`[FeatureApply|${this.robotModel}|${this.duid}] No implementation registered for feature '${feature}'.`);
+            if (registry) {
+                this.deps.log.silly(`[FeatureApply|${this.robotModel}|${this.duid}] Registry exists but no implementation registered for feature '${feature}'. Keys: ${Array.from(registry.keys()).join(", ")}`);
+            }
+            else {
+                this.deps.log.silly(`[FeatureApply|${this.robotModel}|${this.duid}] No registry found on instance.`);
+            }
             return false; // No implementation found
         }
     }
@@ -229,6 +203,8 @@ class BaseDeviceFeatures {
      * @returns The mapped action Feature enum key, the detected key itself if it's directly actionable, or null.
      */
     mapFeature(detectedFeature) {
+        // Retrieve the registry from metadata on the instance (prototype chain)
+        const registry = this[BaseDeviceFeatures.FEATURE_METADATA_KEY];
         // Try direct mapping: Check if the value of the 'is...' key (e.g., 'MopWash') exists as an enum key
         const potentialActionName = features_enum_1.Feature[detectedFeature]; // Get string value (e.g., 'MopWash')
         // Find the enum key that corresponds to this string value, EXCLUDING the original detected key itself
@@ -236,7 +212,7 @@ class BaseDeviceFeatures {
         if (mappedActionKey) {
             const actionFeatureEnum = features_enum_1.Feature[mappedActionKey]; // Get the actual enum value (like Feature.MopWash)
             // Check if this mapped action feature *has an implementation registered*
-            if (BaseDeviceFeatures.featureRegistry.has(actionFeatureEnum)) {
+            if (registry && registry.has(actionFeatureEnum)) {
                 this.deps.log.silly(`[${this.duid}] Mapping dynamic feature '${detectedFeature}' to action '${actionFeatureEnum}'`);
                 return actionFeatureEnum;
             }
@@ -246,7 +222,7 @@ class BaseDeviceFeatures {
             }
         }
         // If no mapping, check if the detected feature key itself has a registered action
-        if (BaseDeviceFeatures.featureRegistry.has(detectedFeature)) {
+        if (registry && registry.has(detectedFeature)) {
             this.deps.log.silly(`[${this.duid}] Using dynamic feature '${detectedFeature}' directly as it has a registered action.`);
             return detectedFeature;
         }
@@ -267,7 +243,6 @@ class BaseDeviceFeatures {
             this.deps.log.error(`[${this.duid}] Failed to ensure commands folder ${folderPath}: ${e.message}`);
             return; // Abort if folder cannot be ensured
         }
-        this.deps.log.debug(`[${this.duid}] Creating/Updating ${Object.keys(this.commands).length} command objects...`);
         const promises = [];
         for (const [command, commonCommand] of Object.entries(this.commands)) {
             // Use an async IIFE (Immediately Invoked Function Expression) for safe parallel execution within the loop
@@ -343,7 +318,6 @@ class BaseDeviceFeatures {
         try {
             await Promise.all(promises); // Wait for all command object operations
             this.commandsCreated = true; // Mark as done for this run
-            this.deps.log.debug(`[${this.duid}] Command object creation/update finished.`);
         }
         catch (e) {
             // Errors inside the IIFEs are caught individually, this catches errors from Promise.all itself (rare)
@@ -357,9 +331,9 @@ class BaseDeviceFeatures {
      * @param name The name (key) of the command.
      * @param spec The `CommandSpec` definition for the command.
      */
-    _addCommand(name, spec) {
+    addCommand(name, spec) {
         if (!name || typeof name !== "string") {
-            this.deps.log.error(`[${this.duid}] _addCommand: Invalid command name provided: ${name}`);
+            this.deps.log.error(`[${this.duid}] addCommand: Invalid command name provided: ${name}`);
             return;
         }
         try {
@@ -385,7 +359,7 @@ class BaseDeviceFeatures {
             this.deps.log.silly(`[${this.duid}] Added/Updated command '${name}'`);
         }
         catch (e) {
-            this.deps.log.error(`[${this.duid}] Error in _addCommand for '${name}': ${e.message}`);
+            this.deps.log.error(`[${this.duid}] Error in addCommand for '${name}': ${e.message}`);
         }
     }
     /**
@@ -395,19 +369,19 @@ class BaseDeviceFeatures {
      * @param commonOptions State common options.
      * @param native Optional native options.
      */
-    async _ensureState(subfolder, stateName, commonOptions, native = {}) {
+    async ensureState(subfolder, stateName, commonOptions, native = {}) {
         const path = `Devices.${this.duid}.${subfolder}.${stateName}`;
         try {
             // Ensure type is valid before calling ensureState
             const validTypes = ["string", "number", "boolean", "object", "array", "mixed"];
             if (commonOptions.type && !validTypes.includes(commonOptions.type)) {
-                this.deps.log.warn(`[${this.duid}] Invalid type '${commonOptions.type}' in _ensureState for ${path}, defaulting to 'string'.`);
+                this.deps.log.warn(`[${this.duid}] Invalid type '${commonOptions.type}' in ensureState for ${path}, defaulting to 'string'.`);
                 commonOptions.type = "string";
             }
             await this.deps.ensureState(path, commonOptions, native); // Cast after validation
         }
         catch (e) {
-            this.deps.log.error(`[${this.duid}] Error in _ensureState for ${path}: ${e.message}`);
+            this.deps.log.error(`[${this.duid}] Error in ensureState for ${path}: ${e.message}`);
         }
     }
     // --- Static Methods ---
@@ -418,6 +392,12 @@ class BaseDeviceFeatures {
      */
     static getRegisteredModelClass(modelId) {
         return modelRegistry.get(modelId);
+    }
+    /**
+     * Returns an array of all registered model IDs.
+     */
+    static getRegisteredModels() {
+        return Array.from(modelRegistry.keys());
     }
     /**
      * Public method to check if a specific static feature is defined

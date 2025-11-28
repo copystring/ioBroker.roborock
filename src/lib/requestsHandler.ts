@@ -2,8 +2,8 @@
 import type { Roborock } from "../main";
 import type { BaseDeviceFeatures } from "./features/baseDeviceFeatures";
 
-import fs from "fs";
-import zlib from "zlib";
+
+import * as zlib from "zlib";
 import { promisify } from "util";
 import { MapDataParser, type ParsedMapData } from "./mapDataParser";
 import { messageParser } from "./messageParser";
@@ -13,8 +13,8 @@ import PQueue from "p-queue";
 // ... (Constants)
 
 const REQUEST_TIMEOUT = 30000;
-const mappedCleanSummary = { 0: "clean_time", 1: "clean_area", 2: "clean_count", 3: "records" };
-const mappedCleaningRecordAttribute = {
+const mappedCleanSummary: Record<string, string> = { 0: "clean_time", 1: "clean_area", 2: "clean_count", 3: "records" };
+const mappedCleaningRecordAttribute: Record<string, string> = {
 	0: "begin",
 	1: "end",
 	2: "duration",
@@ -26,7 +26,7 @@ const mappedCleaningRecordAttribute = {
 	8: "finish_reason",
 	9: "dust_collection_status",
 };
-const parameterFolders = {
+const parameterFolders: Record<string, string> = {
 	get_mop_mode: "deviceStatus",
 	get_water_box_custom_mode: "deviceStatus",
 	get_consumable: "consumables",
@@ -39,8 +39,6 @@ const parameterFolders = {
 };
 
 const gunzipAsync = promisify(zlib.gunzip);
-const gzipAsync = promisify(zlib.gzip);
-const writeFileAsync = promisify(fs.writeFile);
 
 export class requestsHandler {
 	adapter: Roborock;
@@ -147,7 +145,7 @@ export class requestsHandler {
 						ack: true,
 					});
 				} else if (mappedAttribute == "records") {
-					const cleaningRecordsJSON = [];
+					const cleaningRecordsJSON: any[] = [];
 					const recordsList = cleaningAttributes[cleaningAttribute];
 
 					for (const cleaningRecord in recordsList) {
@@ -155,7 +153,7 @@ export class requestsHandler {
 						const cleaningRecordAttributesArr = (await this.sendRequest(duid, "get_clean_record", [cleaningRecordID], { priority: 0 })) as any[];
 						const cleaningRecordAttributes = cleaningRecordAttributesArr[0];
 
-						cleaningRecordsJSON[cleaningRecord] = cleaningRecordAttributes;
+						cleaningRecordsJSON[parseInt(cleaningRecord)] = cleaningRecordAttributes;
 
 						for (const cleaningRecordAttribute in cleaningRecordAttributes) {
 							const mappedRecordAttribute = mappedCleaningRecordAttribute[cleaningRecordAttribute] || cleaningRecordAttribute;
@@ -279,7 +277,7 @@ export class requestsHandler {
 						await this.adapter.ensureState(`Devices.${duid}.${targetFolder}.${mode}`, {});
 						await this.adapter.setStateChangedAsync(`Devices.${duid}.${targetFolder}.${mode}`, { val: valToSave, ack: true });
 					} else {
-						if (typeof value == "object") {
+						if (Array.isArray(value)) {
 							if (typeof value[0] != "number") {
 								this.adapter.catchError(`Unknown parameter: ${JSON.stringify(value)}`, parameter, duid);
 							}
@@ -304,36 +302,44 @@ export class requestsHandler {
 				this.adapter.log.info(`[get_network_info] Adding device ${duid} @ ${value[attribute]} to local devices (missed by UDP).`);
 				this.adapter.local_api.localDevices[duid] = { ip: value[attribute], version: "1.0" };
 			}
-			await this.adapter.ensureState(`Devices.${duid}.networkInfo.${attribute}`, { type: "string" });
+			const type = attribute === "rssi" ? "number" : "string";
+			await this.adapter.ensureState(`Devices.${duid}.networkInfo.${attribute}`, { type: type });
 			await this.adapter.setStateChangedAsync(`Devices.${duid}.networkInfo.${attribute}`, { val: value[attribute], ack: true });
 		}
 	}
 
 	private async handleGetConsumable(handler: BaseDeviceFeatures, duid: string, value: any) {
 		const consumables = value[0];
+		const consumableMap: Record<string, string> = {
+			"125": "main_brush_life",
+			"126": "side_brush_life",
+			"127": "filter_life",
+		};
+
 		for (const consumable in consumables) {
-			const commonConsumable = handler.getCommonConsumable(consumable) || {}; // Ensure object
+			let mappedConsumable = consumable;
+			if (consumableMap[consumable]) {
+				mappedConsumable = consumableMap[consumable];
+			}
+
+			const commonConsumable = handler.getCommonConsumable(mappedConsumable) || {}; // Ensure object
 			const val = commonConsumable && commonConsumable.unit == "h" ? Math.round(consumables[consumable] / (60 * 60)) : consumables[consumable];
 
 			// Ensure type is number
 			commonConsumable.type = "number";
 
-			// Use extendObject to force type update if it was previously a string
-			await this.adapter.extendObjectAsync(`Devices.${duid}.consumables.${consumable}`, {
-				type: "state",
-				common: commonConsumable,
-				native: {},
-			});
-			await this.adapter.setStateChangedAsync(`Devices.${duid}.consumables.${consumable}`, { val: val, ack: true });
+			// Ensure state exists and has correct type
+			await this.adapter.ensureState(`Devices.${duid}.consumables.${mappedConsumable}`, commonConsumable);
+			await this.adapter.setStateChangedAsync(`Devices.${duid}.consumables.${mappedConsumable}`, { val: val, ack: true });
 
-			if (handler.isResetableConsumable(consumable)) {
-				await this.adapter.ensureState(`Devices.${duid}.resetConsumables.${consumable}`, {
+			if (handler.isResetableConsumable(mappedConsumable)) {
+				await this.adapter.ensureState(`Devices.${duid}.resetConsumables.${mappedConsumable}`, {
 					type: "boolean",
 					write: true,
 					role: "button",
 					def: false,
 				});
-				await this.adapter.setStateAsync(`Devices.${duid}.resetConsumables.${consumable}`, { val: false, ack: true });
+				await this.adapter.setStateAsync(`Devices.${duid}.resetConsumables.${mappedConsumable}`, { val: false, ack: true });
 			}
 		}
 	}
@@ -348,7 +354,6 @@ export class requestsHandler {
 			if (typeof val == "object") val = JSON.stringify(val);
 
 			const commonDeviceStates = handler.getCommonDeviceStates(attr) || {};
-
 			switch (attr) {
 				case "dock_type":
 					handler.processDockType(val);
@@ -389,10 +394,8 @@ export class requestsHandler {
 					break;
 				}
 				case "state":
-					const isCleaning = await this.isCleaning(duid);
-					if (this.adapter.socket && isCleaning) {
-						this.adapter.socket.send(JSON.stringify({ duid: duid, command: "get_status", parameters: { isCleaning: isCleaning } }));
-					}
+
+
 					break;
 				case "last_clean_t":
 					val = new Date(val * 1000).toString();
@@ -463,8 +466,9 @@ export class requestsHandler {
 		for (const firmwareFeature in value) {
 			const featureID = value[firmwareFeature];
 			const featureName = handler.getFirmwareFeatureName(featureID);
-			if (typeof handler[featureName] === "function") {
-				handler[featureName](duid);
+			const handlerAny = handler as any;
+			if (typeof handlerAny[featureName] === "function") {
+				handlerAny[featureName](duid);
 			}
 			await this.adapter.ensureState(`Devices.${duid}.firmwareFeatures.${firmwareFeature}`, { type: "string" });
 			await this.adapter.setStateChangedAsync(`Devices.${duid}.firmwareFeatures.${firmwareFeature}`, { val: featureName, ack: true });
@@ -560,7 +564,7 @@ export class requestsHandler {
 						if (valueType === "string") {
 							try {
 								valueToSend = JSON.parse(value);
-							} catch (e) {
+							} catch {
 								// If parsing fails, treat as a regular string
 								valueToSend = value;
 							}
@@ -611,13 +615,14 @@ export class requestsHandler {
 					}
 					this.adapter.log.warn(`[getMap] Received non-buffer data (e.g. 'retry' or 'ok'): ${JSON.stringify(mapBuf)}`);
 					return;
+
 				}
 
 				const mappedRooms = await this.getParameter(handler, duid, "get_room_mapping", []);
 				const parsedData = (await this.mapParser.parsedata(mapBuf, mappedRooms, { isHistoryMap: false })) as ParsedMapData;
 
 				if (parsedData?.metaData) {
-					this.adapter.log.info(
+					this.adapter.log.debug(
 						`[getMap] Parsed LIVE map. MapIndex (Floor): ${parsedData.metaData.map_index}, Segments: ${parsedData.IMAGE?.segments?.list?.length || 0}`
 					);
 				} else {
@@ -759,12 +764,12 @@ export class requestsHandler {
 
 	async sendRequest(duid: string, method: string, params: Array<any> | Object | undefined, options: { priority?: number } = {}) {
 		const queue = this.getQueue(duid);
-		return queue.add(() => this._performRequest(duid, method, params), {
+		return queue.add(() => this.performRequest(duid, method, params), {
 			priority: options.priority || 0,
 		});
 	}
 
-	private async _performRequest(duid: string, method: string, params: any) {
+	private async performRequest(duid: string, method: string, params: any) {
 		const remoteConnection = await this.isCloudDevice(duid);
 		let protocol = 101;
 		const version = await this.adapter.getDeviceProtocolVersion(duid);
@@ -777,7 +782,7 @@ export class requestsHandler {
 			protocol = 4;
 		}
 
-		const payload = await this.messageParser.buildPayload(duid, protocol, messageID, method, params, version);
+		const payload = await this.messageParser.buildPayload(protocol, messageID, method, params, version);
 		const roborockMessage = await this.messageParser.buildRoborockMessage(duid, protocol, timestamp, payload, version);
 
 		const mqttConnectionState = this.adapter.mqtt_api.isConnected();
@@ -832,7 +837,7 @@ export class requestsHandler {
 		});
 	}
 
-	resolvePendingRequest(id, result, protocol) {
+	resolvePendingRequest(id: number, result: any, protocol: string) {
 		const entry = this.adapter.pendingRequests?.get(id);
 		if (entry) {
 			if (entry.timeout) this.adapter.clearTimeout(entry.timeout);
@@ -842,20 +847,20 @@ export class requestsHandler {
 		}
 	}
 
-	async isCloudDevice(duid) {
+	async isCloudDevice(duid: string) {
 		const receivedDevices = this.adapter.http_api.getReceivedDevices();
 		const sharedDevice = receivedDevices.find((device) => device.duid == duid);
 		const cloudDevice = this.adapter.local_api.cloudDevices.has(duid);
 		return !!(sharedDevice || cloudDevice);
 	}
 
-	async getConnector(duid) {
+	async getConnector(duid: string) {
 		const isRemote = await this.isCloudDevice(duid);
 		if (isRemote) return this.adapter.mqtt_api;
 		return this.adapter.local_api;
 	}
 
-	calculateCleaningValue(attribute, value) {
+	calculateCleaningValue(attribute: string, value: any) {
 		switch (attribute) {
 			case "clean_time":
 				return Math.round(value / 60 / 60);
@@ -866,7 +871,7 @@ export class requestsHandler {
 		}
 	}
 
-	calculateRecordValue(attribute, value) {
+	calculateRecordValue(attribute: string, value: any) {
 		switch (attribute) {
 			case "begin":
 			case "end":
@@ -881,29 +886,22 @@ export class requestsHandler {
 		}
 	}
 
-	unzipBuffer(buffer, callback) {
-		zlib.gunzip(buffer, (err, result) => {
+	unzipBuffer(buffer: Buffer, callback: (err: Error | null, result?: Buffer) => void) {
+		zlib.gunzip(buffer, (err: Error | null, result: Buffer) => {
 			if (err) callback(err);
 			else callback(null, result);
 		});
 	}
 
-	private unzipBufferAsync(buffer: Buffer): Promise<Buffer> {
-		return new Promise((resolve, reject) => {
-			this.unzipBuffer(buffer, (error, photoData) => {
-				if (error) reject(error);
-				else resolve(photoData);
-			});
-		});
-	}
 
-	isGZIP(buffer) {
+
+	isGZIP(buffer: Buffer) {
 		if (buffer.length < 2) return false;
 		if (buffer[0] == 31 && buffer[1] == 139) return true;
 		return false;
 	}
 
-	extractPhoto(buffer) {
+	extractPhoto(buffer: Buffer) {
 		if (buffer.length < 10) return false;
 		if (buffer[26] == 74 && buffer[27] == 70 && buffer[28] == 73 && buffer[29] == 70) {
 			return buffer.slice(20);

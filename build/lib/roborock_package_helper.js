@@ -1,11 +1,8 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.roborock_package_helper = void 0;
-const fs_1 = __importDefault(require("fs"));
-const jszip_1 = __importDefault(require("jszip"));
+const fs = require("fs");
+const JSZip = require("jszip");
 class roborock_package_helper {
     adapter;
     constructor(adapter) {
@@ -39,14 +36,14 @@ class roborock_package_helper {
             const imagePath = `./images/products/${vacuum}`;
             const objectPath = `Devices.${duid}.images`;
             const versionFilePath = imagePath + "/version";
-            if (!fs_1.default.existsSync("./lib/roborockPackage/"))
-                fs_1.default.mkdirSync("./lib/roborockPackage/");
+            if (!fs.existsSync("./lib/roborockPackage/"))
+                fs.mkdirSync("./lib/roborockPackage/");
             try {
                 // Create missing vacuum folders
-                if (!fs_1.default.existsSync(`./images/products/`))
-                    fs_1.default.mkdirSync(`./images/products/`);
-                if (!fs_1.default.existsSync(imagePath))
-                    fs_1.default.mkdirSync(imagePath);
+                if (!fs.existsSync(`./images/products/`))
+                    fs.mkdirSync(`./images/products/`);
+                if (!fs.existsSync(imagePath))
+                    fs.mkdirSync(imagePath);
                 this.adapter.setObjectAsync(objectPath, {
                     type: "folder",
                     common: {
@@ -54,14 +51,14 @@ class roborock_package_helper {
                     },
                     native: {},
                 });
-                if (!fs_1.default.existsSync(versionFilePath)) {
-                    fs_1.default.writeFileSync(versionFilePath, "0");
+                if (!fs.existsSync(versionFilePath)) {
+                    fs.writeFileSync(versionFilePath, "0");
                 }
-                const currentVersion = fs_1.default.readFileSync(versionFilePath, "utf8");
+                const currentVersion = fs.readFileSync(versionFilePath, "utf8");
                 if (packages[rr_package].version > currentVersion) {
                     this.adapter.log.debug(`New version roborock package available: ${version}`);
                     const response = await loginApi.get(zipUrl, { responseType: "arraybuffer" });
-                    const zip = await jszip_1.default.loadAsync(response.data);
+                    const zip = await JSZip.loadAsync(response.data);
                     const folder = zip.folder("drawable-mdpi");
                     if (folder) {
                         let i = 0;
@@ -69,7 +66,7 @@ class roborock_package_helper {
                             if (!file.dir) {
                                 const fileContent = await file.async("nodebuffer");
                                 if (fileContent) {
-                                    fs_1.default.writeFileSync(`${imagePath}/${relativePath}`, fileContent);
+                                    fs.writeFileSync(`${imagePath}/${relativePath}`, fileContent);
                                     const fileContentBase64 = fileContent.toString("base64");
                                     const fileNameWithoutExtension = relativePath.slice(0, relativePath.lastIndexOf("."));
                                     const formattedNumber = i.toString().padStart(3, "0"); // "001", "002", "003", etc.
@@ -90,7 +87,7 @@ class roborock_package_helper {
                             }
                         });
                     }
-                    fs_1.default.writeFileSync(versionFilePath, version.toString());
+                    fs.writeFileSync(versionFilePath, version.toString());
                 }
             }
             catch (err) {

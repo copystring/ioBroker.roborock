@@ -1,16 +1,16 @@
 import { Roborock } from "../main";
 
-import fs from "fs";
-import JSZip from "jszip";
+import * as fs from "fs";
+import * as JSZip from "jszip";
 
 export class roborock_package_helper {
 	adapter: Roborock;
 
-	constructor(adapter) {
+	constructor(adapter: Roborock) {
 		this.adapter = adapter;
 	}
 
-	async updateProduct(loginApi, productID, duid) {
+	async updateProduct(loginApi: any, productID: string, duid: string) {
 		const products = await loginApi.get("api/v3/product");
 		const list = products.data.data.categoryDetailList;
 
@@ -20,7 +20,7 @@ export class roborock_package_helper {
 			type: 2,
 		};
 
-		const vacuumIDs = {};
+		const vacuumIDs: Record<string, string> = {};
 		for (const array in list) {
 			for (const product in list[array]["productList"]) {
 				const vacuum = list[array]["productList"][product];
@@ -103,13 +103,13 @@ export class roborock_package_helper {
 
 					fs.writeFileSync(versionFilePath, version.toString());
 				}
-			} catch (err) {
+			} catch (err: any) {
 				this.adapter.log.error(`${err.stack} roborock_package_helper.updateProduct ${productID}`);
 			}
 		}
 	}
 
-	findProductIDinPackage(productID, list) {
+	findProductIDinPackage(productID: string, list: any) {
 		if (list.model === productID) {
 			return list.id;
 		}

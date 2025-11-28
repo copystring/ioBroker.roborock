@@ -1,7 +1,39 @@
-// src/lib/features/vacuum/base_vacuum_features.ts
 import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies, CommandSpec } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
 import { z } from "zod";
+import { VACUUM_CONSTANTS } from "./vacuumConstants";
+
+// --- Shared Constants ---
+export const BASE_FAN = { 101: "Quiet", 102: "Balanced", 103: "Turbo", 104: "Max" };
+export const BASE_WATER = { 200: "Off", 201: "Mild", 202: "Moderate", 203: "Intense" };
+export const BASE_MOP = { 300: "Standard", 301: "Deep", 303: "Deep+" };
+
+export interface VacuumProfile {
+    name?: string;
+    docks?: Record<number, { features: Feature[] }>;
+    mappings: {
+        fan_power: Record<number, string>;
+        water_box_mode?: Record<number, string>;
+        mop_mode?: Record<number, string>;
+    };
+    features: {
+        maxSuctionValue: number;
+        ultraWaterValue?: number;
+        hasSmartPlan?: boolean;
+    };
+    cleanMotorModePresets?: Record<string, string>;
+}
+
+export const DEFAULT_PROFILE: VacuumProfile = {
+	mappings: {
+		fan_power: BASE_FAN,
+		water_box_mode: BASE_WATER,
+		mop_mode: BASE_MOP
+	},
+	features: {
+		maxSuctionValue: 104
+	}
+};
 
 // --- Zod Schema for Vacuum Status ---
 export const VacuumStatusSchema = z
@@ -54,197 +86,31 @@ export const VacuumStatusSchema = z
 	.passthrough(); // Allow fields not defined in the schema
 
 export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
+	protected profile: VacuumProfile;
+
 	// --- Vacuum-specific Constants ---
-	protected static readonly CONSTANTS = {
-		errorCodes: {
-			0: "No error",
-			1: "Laser sensor fault",
-			2: "Collision sensor fault",
-			3: "Wheel floating",
-			4: "Cliff sensor fault",
-			5: "Main brush blocked",
-			6: "Side brush blocked",
-			7: "Wheel blocked",
-			8: "Device stuck",
-			9: "Dust bin missing",
-			10: "Filter blocked",
-			11: "Magnetic field detected",
-			12: "Low battery",
-			13: "Charging problem",
-			14: "Battery failure",
-			15: "Wall sensor fault",
-			16: "Uneven surface",
-			17: "Side brush failure",
-			18: "Suction fan failure",
-			19: "Unpowered charging station",
-			20: "Unknown Error",
-			21: "Laser pressure sensor problem",
-			22: "Charge sensor problem",
-			23: "Dock problem",
-			24: "No-go zone or invisible wall detected",
-			254: "Bin full",
-			255: "Internal error",
-			"-1": "Unknown Error",
-		},
-		stateCodes: {
-			0: "Unknown",
-			1: "Initiating",
-			2: "Sleeping",
-			3: "Idle",
-			4: "Remote Control",
-			5: "Cleaning",
-			6: "Returning Dock",
-			7: "Manual Mode",
-			8: "Charging",
-			9: "Charging Error",
-			10: "Paused",
-			11: "Spot Cleaning",
-			12: "In Error",
-			13: "Shutting Down",
-			14: "Updating",
-			15: "Docking",
-			16: "Go To",
-			17: "Zone Clean",
-			18: "Room Clean",
-			22: "Emptying dust container",
-			23: "Washing the mop",
-			26: "Going to wash the mop",
-			28: "In call",
-			29: "Mapping",
-			100: "Fully Charged",
-		},
-		dockTypes: {
-			0: "Charging dock",
-			1: "Auto-Empty Dock",
-			2: "Empty Wash Fill Dock",
-			3: "Empty Wash Fill (Dry) Dock",
-			5: "Auto-Empty Dock (Q8 Max+)",
-			7: "Empty Wash Fill Dry Dock (S8 Pro Ultra)",
-			8: "Empty Wash Fill Dry Dock (Q Revo)",
-			9: "Empty Wash Fill Dry Dock (Q Revo Pro)",
-			14: "Empty Wash Fill Dry Dock (Qrevo Master)",
-			16: "Empty Wash Fill Dry Dock (Saros 10R)",
-		},
-		baseCommands: {
-			app_start: { type: "boolean", def: false },
-			app_segment_clean: { type: "boolean", def: false },
-			app_stop: { type: "boolean", def: false },
-			app_pause: { type: "boolean", def: false },
-			app_charge: { type: "boolean", def: false },
-			app_spot: { type: "boolean", def: false },
-			app_zoned_clean: { type: "json" },
-			resume_zoned_clean: { type: "boolean", def: false },
-			stop_zoned_clean: { type: "boolean", def: false },
-			resume_segment_clean: { type: "boolean", def: false },
-			stop_segment_clean: { type: "boolean", def: false },
-			set_custom_mode: { type: "number", def: 102, states: { 101: "Quiet", 102: "Balanced", 103: "Turbo", 104: "Max", 105: "Off" } },
-			find_me: { type: "boolean", def: false },
-			app_goto_target: { type: "json" },
-		},
-		deviceStates: {
-			dock_type: { type: "number", states: {} },
-			error_code: { type: "number", states: {} },
-			clean_area: { type: "number", unit: "m²" },
-			clean_time: { type: "number", unit: "min" },
-			battery: { type: "number", unit: "%" },
-			state: { type: "number", states: {} },
-			fan_power: { type: "number", states: { 101: "Quiet", 102: "Balanced", 103: "Turbo", 104: "Max", 105: "Off" } },
-			clean_percent: { unit: "%" },
-			water_box_mode: { type: "number", states: { 200: "Off", 201: "Mild", 202: "Moderate", 203: "Intense", 204: "Custom", 205: "Custom", 206: "Custom", 207: "Custom", 208: "Custom", 209: "Custom" } },
-			mop_mode: { states: { 300: "Standard", 301: "Deep", 303: "Deep+", 304: "Fast" } },
-			carpet_mode: {
-				states: {
-					'[{"enable":0,"stall_time":10,"current_low":400,"current_high":500,"current_integral":450}]': "off",
-					'[{"enable":1,"stall_time":10,"current_low":400,"current_high":500,"current_integral":450}]': "on",
-				},
-			},
-			carpet_clean_mode: {
-				states: {
-					'{"carpet_clean_mode":0}': "Avoid",
-					'{"carpet_clean_mode":1}': "Rise",
-					'{"carpet_clean_mode":2}': "Ignore",
-				},
-			},
-		},
-		consumables: {
-			main_brush_work_time: { unit: "h" },
-			side_brush_work_time: { unit: "h" },
-			filter_work_time: { unit: "h" },
-			filter_element_work_time: { unit: "h" },
-			sensor_dirty_time: { unit: "h" },
-			125: { unit: "%" },
-			126: { unit: "%" },
-			127: { unit: "%" },
-			main_brush_life: { unit: "%" },
-			side_brush_life: { unit: "%" },
-			filter_life: { unit: "%" },
-		},
-		resetConsumables: new Set([
-			// Filled with actual values
-			"main_brush_work_time",
-			"side_brush_work_time",
-			"filter_work_time",
-			"filter_element_work_time",
-			"sensor_dirty_time",
-			"dust_collection_work_times",
-			"strainer_work_times",
-			"cleaning_brush_work_times",
-		]),
-		cleaningRecords: {
-			0: { type: "string" }, // begin
-			1: { type: "string" }, // end
-			2: { type: "number", unit: "min" }, // duration
-			3: { type: "number", unit: "m²" }, // area
-			4: { type: "number" }, // error
-			5: { type: "number" }, // complete
-			6: { type: "number" }, // start_type
-			7: { type: "number" }, // clean_type
-			8: { type: "number" }, // finish_reason
-			9: { type: "number" }, // dust_collection_status
+	protected static readonly CONSTANTS = VACUUM_CONSTANTS;
 
-			// Mapped from name
-			begin: { type: "string" },
-			end: { type: "string" },
-			duration: { type: "number", unit: "min" },
-			area: { type: "number", unit: "m²" },
-			error: { type: "number" },
-			complete: { type: "number" },
-			start_type: { type: "number" },
-			clean_type: { type: "number" },
-			finish_reason: { type: "number" },
-			dust_collection_status: { type: "number" },
+	constructor(
+		dependencies: FeatureDependencies,
+		duid: string,
+		robotModel: string,
+		config: DeviceModelConfig,
+		profile: VacuumProfile = DEFAULT_PROFILE
+	) {
+		// Add default features that should be present on all vacuums
+		const defaultFeatures = [
+			Feature.NetworkInfo,
+			Feature.UpdateStatus,
+		];
+		const mergedConfig = {
+			...config,
+			staticFeatures: [...defaultFeatures, ...config.staticFeatures]
+		};
 
-			cleaned_area: { type: "number", unit: "m²" },
-			task_id: { type: "number" },
-			clean_times: { type: "number" },
-			dirty_replenish: { type: "number" },
-			manual_replenish: { type: "number" },
-			map_flag: { type: "number" },
-			wash_count: { type: "number" },
-			avoid_count: { type: "number" },
-		},
-		cleaningInfo: {
-			0: { unit: "h" },
-			1: { unit: "m²" },
-			clean_time: { unit: "h" },
-			clean_area: { unit: "m²" },
-		},
-		// Keep firmwareFeatures map temporarily for getFirmwareFeatureName fallback
-		firmwareFeatures: {
-			111: "isSupportFDSEndPoint",
-			112: "isSupportAutoSplitSegments",
-			114: "isSupportOrderSegmentClean",
-			116: "isMapSegmentSupported",
-			119: "isSupportLedStatusSwitch",
-			120: "isMultiFloorSupported",
-			122: "isSupportFetchTimerSummary",
-			123: "isOrderCleanSupported",
-			125: "isRemoteSupported",
-		},
-	};
+		super(dependencies, duid, robotModel, mergedConfig);
+		this.profile = profile;
 
-	constructor(dependencies: FeatureDependencies, duid: string, robotModel: string, config: DeviceModelConfig) {
-		super(dependencies, duid, robotModel, config);
 		// Initialize with Vacuum base commands
 		this.commands = JSON.parse(JSON.stringify(BaseVacuumFeatures.CONSTANTS.baseCommands));
 
@@ -253,84 +119,33 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 		BaseVacuumFeatures.CONSTANTS.deviceStates.error_code.states = BaseVacuumFeatures.CONSTANTS.errorCodes;
 		BaseVacuumFeatures.CONSTANTS.deviceStates.state.states = BaseVacuumFeatures.CONSTANTS.stateCodes;
 
-		this.registerFeatures();
+		this.applyCleanMotorModePresets();
+
+		// Deduplicate static features
+		this.config.staticFeatures = [...new Set(this.config.staticFeatures)];
 	}
 
-	// --- Implementation of abstract methods ---
-	protected registerFeatures(): void {
-		if (BaseDeviceFeatures.featureRegistry.size > 0) return;
-
-		this.deps.log.debug(`Registering Vacuum features...`);
-		const reg = BaseDeviceFeatures.featureRegistry;
-
-		// --- Command Features ---
-		reg.set(Feature.AutoEmptyDock, this._addAutoEmptyDockCommands);
-		reg.set(Feature.MopWash, this._addMopWashCommands);
-		reg.set(Feature.MopDry, this._addMopDryCommands);
-		reg.set(Feature.WaterBox, this._addWaterBoxCommands);
-		reg.set(Feature.CleanRouteFastMode, this._addCleanRouteFastModeCommand);
-		reg.set(Feature.CustomWaterBoxDistance, this._createCustomWaterDistanceState);
-		reg.set(Feature.FanMaxPlus, this._addFanMaxPlusCommand);
-		reg.set(Feature.SmartModeCommand, this._addSmartModeCommand);
-
-		// --- State/Info Features ---
-		reg.set(Feature.LiveVideo, this._createCameraStates);
-		reg.set(Feature.MultiFloor, this._createMultiFloorStates);
-
-		// --- Aliases ---
-		reg.set(Feature.ShakeMopStrength, this._addWaterBoxCommands);
-		reg.set(Feature.ElectronicWaterBox, this._addWaterBoxCommands);
-
-		// --- Placeholders ---
-		const noOp = () => {
-			this.deps.log.silly(`[${this.duid}] No-op feature called.`);
+	protected applyCleanMotorModePresets(): void {
+		const presets = this.profile.cleanMotorModePresets || {
+			'{"fan_power":102,"mop_mode":300,"water_box_mode":200}': "Vacuum",
+			'{"fan_power":105,"mop_mode":300,"water_box_mode":202}': "Mop",
+			'{"fan_power":102,"mop_mode":300,"water_box_mode":202}': "Vac & Mop"
 		};
 
-		// List ALL Feature enum keys that DO NOT have a specific implementation registered above
-		const placeholderFeatures: Feature[] = [
-			// Static Flags (might have no direct action)
-			Feature.MopForbidden,
-			Feature.AvoidCarpet,
-			Feature.Camera,
-			Feature.VoiceControl,
-
-			// Dynamic Bitfield/FW features (placeholder actions or just flags)
-			Feature.isShakeMopSetSupported,
-			Feature.isVideoMonitorSupported,
-			Feature.isVideoSettingSupported,
-			Feature.isCarpetSupported,
-			Feature.isPhotoUploadSupported,
-			Feature.isAvoidCollisionSupported,
-			Feature.isCornerCleanModeSupported,
-			Feature.isSupportSetSwitchMapMode,
-			Feature.isBackChargeAutoWashSupported,
-			Feature.isSupportFDSEndPoint,
-			Feature.isSupportAutoSplitSegments,
-			Feature.isSupportOrderSegmentClean,
-			Feature.isMapSegmentSupported,
-			Feature.isSupportLedStatusSwitch,
-			Feature.isSupportFetchTimerSummary,
-			Feature.isOrderCleanSupported,
-			Feature.isRemoteSupported,
-		];
-
-		placeholderFeatures.forEach((f) => {
-			// Register placeholder only if no other implementation was already registered for this key
-			if (!reg.has(f)) {
-				reg.set(f, noOp);
-			}
+		this.addCommand("set_clean_motor_mode", {
+			type: "json",
+			def: BaseVacuumFeatures.CONSTANTS.baseCommands.set_clean_motor_mode.def,
+			states: presets
 		});
-
-		this.deps.log.debug(`Vacuum feature registry size: ${reg.size}`);
 	}
 
-	protected _getDynamicFeatures(): Set<Feature> {
+	protected getDynamicFeatures(): Set<Feature> {
 		const features = new Set<Feature>();
 		try {
 			const featureSet = this.deps.http_api.getFeatureSet(this.duid);
 			const newFeatureSet = this.deps.http_api.getNewFeatureSet(this.duid);
 			if (featureSet === undefined) {
-				this.deps.log.error(`[${this.duid}] _getDynamicFeatures: Could not get featureSet.`);
+				this.deps.log.error(`[${this.duid}] getDynamicFeatures: Could not get featureSet.`);
 				return features;
 			}
 
@@ -367,7 +182,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 				if (fwResult.includes(125)) features.add(Feature.isRemoteSupported);
 			}
 		} catch (error: any) {
-			this.deps.log.error(`[${this.duid}] Error in _getDynamicFeatures: ${error.message}`);
+			this.deps.log.error(`[${this.duid}] Error in getDynamicFeatures: ${error.message}`);
 		}
 		this.deps.log.silly(`[${this.duid}] Detected dynamic vacuum features (raw): ${[...features].join(", ")}`);
 		return features;
@@ -376,6 +191,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 	public async detectAndApplyRuntimeFeatures(statusData: Readonly<Record<string, any>>): Promise<boolean> {
 		let changedOverall = false;
 		const runDetection = !this.runtimeDetectionComplete || this.deps.config.forceRuntimeDetectEveryTime; // Check config flag
+		const appliedFeaturesList: string[] = [];
 
 		if (!runDetection) {
 			this.deps.log.silly(`[${this.duid}] Skipping repeated runtime feature detection.`);
@@ -395,7 +211,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 		const validStatus = validationResult.data;
 
 		// --- Apply dynamic features first (Bitfields/FW) ---
-		const dynamicFeatures = this._getDynamicFeatures(); // Get current dynamic features
+		const dynamicFeatures = this.getDynamicFeatures(); // Get current dynamic features
 		this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Dynamic features from bits/fw: ${[...dynamicFeatures].join(", ")}`);
 		for (const feature of dynamicFeatures) {
 			const mappedFeature = this.mapFeature(feature);
@@ -403,7 +219,10 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 				// Apply only if NOT applied by model specifics already and NOT conflicting
 				if (!this.config.staticFeatures.includes(mappedFeature)) {
 					const applied = await this.applyFeature(mappedFeature);
-					if (applied) changedOverall = true;
+					if (applied) {
+						changedOverall = true;
+						appliedFeaturesList.push(mappedFeature);
+					}
 				} else {
 					this.deps.log.silly(
 						`[RuntimeDetect|${this.robotModel}|${this.duid}] Feature '${mappedFeature}' (from '${feature}') defined statically, skipping dynamic application.`
@@ -418,57 +237,80 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 		let changedByStatus = false;
 		// WaterBox
 		if ((validStatus.water_box_mode !== undefined || validStatus.mop_mode !== undefined) && !this.appliedFeatures.has(Feature.WaterBox)) {
-			this.deps.log.info(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected WaterBox feature via status.`);
-			if (await this.applyFeature(Feature.WaterBox)) changedByStatus = true;
+			// this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected WaterBox feature via status.`);
+			if (await this.applyFeature(Feature.WaterBox)) {
+				changedByStatus = true;
+				appliedFeaturesList.push("WaterBox");
+			}
 		}
 
 		// Carpet Mode Commands
 		if (validStatus.carpet_mode !== undefined && !this.commands["set_carpet_mode"]) {
-			this.deps.log.info(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected carpet_mode command via status.`);
+			// this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected carpet_mode command via status.`);
 			const spec: CommandSpec = { type: "json", states: BaseVacuumFeatures.CONSTANTS.deviceStates.carpet_mode.states };
-			this._addCommand("set_carpet_mode", spec);
+			this.addCommand("set_carpet_mode", spec);
 			changedByStatus = true;
+			appliedFeaturesList.push("set_carpet_mode (Command)");
 		}
 		if (validStatus.carpet_clean_mode !== undefined && !this.commands["set_carpet_clean_mode"]) {
-			this.deps.log.info(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected carpet_clean_mode command via status.`);
+			// this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected carpet_clean_mode command via status.`);
 			const spec: CommandSpec = { type: "json", states: BaseVacuumFeatures.CONSTANTS.deviceStates.carpet_clean_mode.states };
-			this._addCommand("set_carpet_clean_mode", spec);
+			this.addCommand("set_carpet_clean_mode", spec);
 			changedByStatus = true;
+			appliedFeaturesList.push("set_carpet_clean_mode (Command)");
 		}
 
 		// Refine Fan Power (Max+)
 		if (validStatus.fan_power === 108 && !this.appliedFeatures.has(Feature.FanMaxPlus)) {
 			// Apply only if not statically defined
 			if (!this.config.staticFeatures.includes(Feature.FanMaxPlus)) {
-				this.deps.log.info(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected FanMaxPlus state (108).`);
-				if (await this.applyFeature(Feature.FanMaxPlus)) changedByStatus = true;
+				// this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected FanMaxPlus state (108).`);
+				if (await this.applyFeature(Feature.FanMaxPlus)) {
+					changedByStatus = true;
+					appliedFeaturesList.push("FanMaxPlus");
+				}
 			}
 		}
 
 		// MopDry
 		if (validStatus.dry_status !== undefined && !this.appliedFeatures.has(Feature.MopDry)) {
-			this.deps.log.info(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected MopDry feature via 'dry_status' key.`);
-			if (await this.applyFeature(Feature.MopDry)) changedByStatus = true;
+			// this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected MopDry feature via 'dry_status' key.`);
+			if (await this.applyFeature(Feature.MopDry)) {
+				changedByStatus = true;
+				appliedFeaturesList.push("MopDry");
+			}
 		}
 
 		// AutoEmptyDock
 		if (validStatus.dust_collection_status !== undefined && !this.appliedFeatures.has(Feature.AutoEmptyDock)) {
-			this.deps.log.info(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected AutoEmptyDock feature via 'dust_collection_status' key.`);
-			if (await this.applyFeature(Feature.AutoEmptyDock)) changedByStatus = true;
+			// this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected AutoEmptyDock feature via 'dust_collection_status' key.`);
+			if (await this.applyFeature(Feature.AutoEmptyDock)) {
+				changedByStatus = true;
+				appliedFeaturesList.push("AutoEmptyDock");
+			}
 		}
 
 		// MopWash
 		if (validStatus.wash_status !== undefined && !this.appliedFeatures.has(Feature.MopWash)) {
-			this.deps.log.info(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected MopWash feature via 'wash_status' key.`);
-			if (await this.applyFeature(Feature.MopWash)) changedByStatus = true;
+			// this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected MopWash feature via 'wash_status' key.`);
+			if (await this.applyFeature(Feature.MopWash)) {
+				changedByStatus = true;
+				appliedFeaturesList.push("MopWash");
+			}
 		}
 
 		// Add more status-based detection rules here...
 
-		if (changedByStatus) this.deps.log.info(`[RuntimeDetect|${this.robotModel}|${this.duid}] Features/Commands applied/modified based on status.`);
+		if (changedByStatus || changedOverall) {
+			this.deps.log.info(`[RuntimeDetect|${this.robotModel}|${this.duid}] Runtime detection applied new features/commands: ${appliedFeaturesList.join(", ")}`);
+		} else {
+			this.deps.log.debug(`[RuntimeDetect|${this.robotModel}|${this.duid}] No new features detected.`);
+		}
 		this.runtimeDetectionComplete = true;
 		return changedOverall || changedByStatus; // Return true if anything changed
 	}
+
+	private lastDockType: number | undefined;
 
 	public async processDockType(dockTypeInput: number | undefined): Promise<void> {
 		if (dockTypeInput === undefined) {
@@ -483,7 +325,14 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 		}
 		const dockType = validation.data;
 
-		this.deps.log.debug(`[${this.duid}] Processing dock type ${dockType} for Vacuum`);
+		// Optimization: Skip if dock type hasn't changed
+		if (this.lastDockType === dockType) {
+			this.deps.log.silly(`[${this.duid}] Dock type ${dockType} unchanged, skipping processing.`);
+			return;
+		}
+		this.lastDockType = dockType;
+
+		this.deps.log.info(`[${this.duid}] Processing dock type ${dockType} for Vacuum`);
 		const dockFeatureMap: Record<number, Feature[]> = {
 			1: [Feature.AutoEmptyDock],
 			2: [Feature.MopWash],
@@ -495,13 +344,13 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 			9: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
 			14: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
 			16: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
-			10: [], // Placeholder for future dock types
-			18: [], // Placeholder for future dock types
+			10: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry], // S7 MaxV/Pro
+			18: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry], // S8 Pro
 		};
 		const features = dockFeatureMap[dockType];
 
 		if (features) {
-			this.deps.log.debug(`[${this.duid}] Applying dock features for type ${dockType}: ${features.join(", ")}`); // Apply features sequentially to potentially handle dependencies/overwrites correctly
+			this.deps.log.info(`[${this.duid}] Applying dock features for type ${dockType}: ${features.join(", ")}`); // Apply features sequentially to potentially handle dependencies/overwrites correctly
 			for (const feature of features) {
 				await this.applyFeature(feature); // Use applyFeature helper which checks if already applied
 			}
@@ -536,128 +385,323 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 	}
 
 	// --- Feature Implementations ---
+	// Converted to methods with decorators
 
-	protected _addAutoEmptyDockCommands(): void {
-		this._addCommand("app_start_collect_dust", { type: "boolean", def: false });
-		this._addCommand("app_stop_collect_dust", { type: "boolean", def: false });
-		this._addCommand("set_dust_collection_switch_status", { type: "json", def: '{"status":1}', states: { '{"status":0}': "Off", '{"status":1}': "On" } });
-		this._addCommand("set_dust_collection_mode", {
+    @BaseDeviceFeatures.DeviceFeature(Feature.AutoEmptyDock)
+	protected addAutoEmptyDockCommands(): void {
+		this.addCommand("app_start_collect_dust", { type: "boolean", def: false });
+		this.addCommand("app_stop_collect_dust", { type: "boolean", def: false });
+		this.addCommand("set_dust_collection_switch_status", { type: "json", def: '{"status":1}', states: { '{"status":0}': "Off", '{"status":1}': "On" } });
+		this.addCommand("set_dust_collection_mode", {
 			type: "json",
 			def: '{"mode":0}',
 			states: { '{"mode":0}': "Smart", '{"mode":1}': "Low", '{"mode":2}': "Medium", '{"mode":4}': "Max" },
 		});
 	}
 
-	protected _addMopWashCommands(): void {
-		this._addCommand("app_start_wash", { type: "boolean", def: false });
-		this._addCommand("app_stop_wash", { type: "boolean", def: false });
-		this._addCommand("set_wash_towel_mode", {
-			type: "json",
-			def: '{"wash_mode":2}',
-			states: { '{"wash_mode":0}': "Eco", '{"wash_mode":1}': "Medium", '{"wash_mode":2}': "Intense" },
-		});
-		this._addCommand("set_smart_wash_params", {
-			type: "json",
-			def: '{"smart_wash":0,"wash_interval":1800}',
-			states: {
-				'{"smart_wash":0,"wash_interval":600}': "10 Min",
-				'{"smart_wash":0,"wash_interval":900}': "15 Min",
-				'{"smart_wash":0,"wash_interval":1200}': "20 Min",
-				'{"smart_wash":0,"wash_interval":1500}': "25 Min",
-				'{"smart_wash":0,"wash_interval":1800}': "30 Min",
-				'{"smart_wash":0,"wash_interval":2100}': "35 Min",
-				'{"smart_wash":0,"wash_interval":2400}': "40 Min",
-				'{"smart_wash":0,"wash_interval":2700}': "45 Min",
-				'{"smart_wash":0,"wash_interval":3000}': "50 Min",
-				'{"smart_wash":1,"wash_interval":1200}': "Per room",
-			},
-		});
-	}
+    @BaseDeviceFeatures.DeviceFeature(Feature.MopWash)
+    protected addMopWashCommands(): void {
+    	this.addCommand("app_start_wash", { type: "boolean", def: false });
+    	this.addCommand("app_stop_wash", { type: "boolean", def: false });
+    	this.addCommand("set_wash_towel_mode", {
+    		type: "json",
+    		def: '{"wash_mode":2}',
+    		states: { '{"wash_mode":0}': "Eco", '{"wash_mode":1}': "Medium", '{"wash_mode":2}': "Intense" },
+    	});
+    	this.addCommand("set_smart_wash_params", {
+    		type: "json",
+    		def: '{"smart_wash":0,"wash_interval":1800}',
+    		states: {
+    			'{"smart_wash":0,"wash_interval":600}': "10 Min",
+    			'{"smart_wash":0,"wash_interval":900}': "15 Min",
+    			'{"smart_wash":0,"wash_interval":1200}': "20 Min",
+    			'{"smart_wash":0,"wash_interval":1500}': "25 Min",
+    			'{"smart_wash":0,"wash_interval":1800}': "30 Min",
+    			'{"smart_wash":0,"wash_interval":2100}': "35 Min",
+    			'{"smart_wash":0,"wash_interval":2400}': "40 Min",
+    			'{"smart_wash":0,"wash_interval":2700}': "45 Min",
+    			'{"smart_wash":0,"wash_interval":3000}': "50 Min",
+    			'{"smart_wash":1,"wash_interval":1200}': "Per room",
+    		},
+    	});
+    }
 
-	protected _addMopDryCommands(): void {
-		this._addCommand("app_set_dryer_status", { type: "string", def: '{"status": 0}', states: { '{"status": 1}': "On", '{"status": 0}': "Off" } });
-		this._addCommand("app_set_dryer_setting", {
-			type: "json",
-			def: '{"on":{"dry_time":10800},"status":0}',
-			states: {
-				'{"on":{"dry_time":10800},"status":0}': "Off",
-				'{"on":{"dry_time":7200},"status":1}': "2h",
-				'{"on":{"dry_time":10800},"status":1}': "3h",
-				'{"on":{"dry_time":14400},"status":1}': "4h",
-			},
-		});
-	}
+    @BaseDeviceFeatures.DeviceFeature(Feature.MopDry)
+    protected addMopDryCommands(): void {
+    	this.addCommand("app_set_dryer_status", { type: "string", def: '{"status": 0}', states: { '{"status": 1}': "On", '{"status": 0}': "Off" } });
+    	this.addCommand("app_set_dryer_setting", {
+    		type: "json",
+    		def: '{"on":{"dry_time":10800},"status":0}',
+    		states: {
+    			'{"on":{"dry_time":10800},"status":0}': "Off",
+    			'{"on":{"dry_time":7200},"status":1}': "2h",
+    			'{"on":{"dry_time":10800},"status":1}': "3h",
+    			'{"on":{"dry_time":14400},"status":1}': "4h",
+    		},
+    	});
+    }
 
-	protected _addWaterBoxCommands(): void {
-		this._addCommand("set_mop_mode", { type: "number", def: 300, states: { 300: "Standard", 301: "Deep", 303: "Deep+" } });
-this._addCommand("set_water_box_custom_mode", { type: "number", def: 201, states: { 200: "Off", 201: "Mild", 202: "Moderate", 203: "Intense", 204: "Custom", 205: "Custom", 206: "Custom", 207: "Custom", 208: "Custom", 209: "Custom" } });
-	}
+    @BaseDeviceFeatures.DeviceFeature(Feature.WaterBox)
+    @BaseDeviceFeatures.DeviceFeature(Feature.ShakeMopStrength)
+    @BaseDeviceFeatures.DeviceFeature(Feature.ElectronicWaterBox)
+    protected addWaterBoxCommands(): void {
+    	const mopStates = this.profile.mappings.mop_mode || VACUUM_CONSTANTS.deviceStates.mop_mode.states;
+    	this.addCommand("set_mop_mode", { type: "number", def: 300, states: mopStates });
 
-	protected _addCleanRouteFastModeCommand(): void {
-		const mopMode = this.commands.set_mop_mode || { type: "number", def: 300, states: {} };
-		mopMode.states = { ...BaseVacuumFeatures.CONSTANTS.deviceStates.mop_mode.states, ...mopMode.states, 304: "Fast" }; // Merge carefully
-		this._addCommand("set_mop_mode", mopMode);
-	}
+    	const waterStates = this.profile.mappings.water_box_mode || VACUUM_CONSTANTS.deviceStates.water_box_mode.states;
+    	this.addCommand("set_water_box_custom_mode", { type: "number", def: 201, states: waterStates });
+    }
 
-	protected async _createCameraStates(): Promise<void> {
-		const ip = this.deps.config.hostname_ip; // Use DI config
-		if (!ip) {
-			this.deps.log.warn(`[${this.duid}] Cannot create camera states: IP address not configured.`);
-			return;
-		}
-		const streamTypes = {
-			stream_html: `http://${ip}:${1984 + this.deps.adapter.instance}/stream.html?src=${this.duid}`,
-			webrtc_html: `http://${ip}:${1984 + this.deps.adapter.instance}/webrtc.html?src=${this.duid}&media=video`,
-			stream_mp4: `http://${ip}:${1984 + this.deps.adapter.instance}/api/stream.mp4?src=${this.duid}`,
-			rtsp: `rtsp://${ip}:${8554 + this.deps.adapter.instance}/${this.duid}?video`,
-		};
-		await this.deps.ensureFolder(`Devices.${this.duid}.camera`);
-		for (const [name, stream_uri] of Object.entries(streamTypes)) {
-			// Use _ensureState helper
-			await this._ensureState("camera", name, { type: "string", role: "url", write: false, def: stream_uri });
-		}
-	}
+    @BaseDeviceFeatures.DeviceFeature(Feature.CleanRouteFastMode)
+    protected addCleanRouteFastModeCommand(): void {
+    	const mopMode = this.commands.set_mop_mode || { type: "number", def: 300, states: {} };
+    	mopMode.states = { ...BaseVacuumFeatures.CONSTANTS.deviceStates.mop_mode.states, ...mopMode.states, 304: "Fast" }; // Merge carefully
+    	this.addCommand("set_mop_mode", mopMode);
+    }
 
-	protected async _createMultiFloorStates(): Promise<void> {
-		await this.deps.ensureFolder(`Devices.${this.duid}.floors`);
-		for (const feature of ["max_multi_map", "max_bak_map", "multi_map_count"]) {
-			// Use _ensureState helper
-			await this._ensureState("floors", feature, { type: "number", role: "value", write: false });
-		}
-	}
+    @BaseDeviceFeatures.DeviceFeature(Feature.SmartPlan)
+    protected addSmartPlanFeature(): void {
+    	const mopMode = this.commands.set_mop_mode || { type: "number", def: 300, states: {} };
+    	mopMode.states = { ...mopMode.states, 306: "SmartPlan" };
+    	this.addCommand("set_mop_mode", mopMode);
+    }
 
-	protected async _createCustomWaterDistanceState(): Promise<void> {
-		// Use _ensureState helper
-		await this._ensureState("commands", "set_water_box_distance_off", {
-			type: "number",
-			role: "level",
-			write: true,
-			def: 1,
-			min: 1,
-			max: 30,
-		});
-	}
+    @BaseDeviceFeatures.DeviceFeature(Feature.LiveVideo)
+    @BaseDeviceFeatures.DeviceFeature(Feature.Camera)
+    protected async createCameraStates(): Promise<void> {
+    	const ip = this.deps.config.hostname_ip; // Use DI config
+    	if (!ip) {
+    		this.deps.log.warn(`[${this.duid}] Cannot create camera states: IP address not configured.`);
+    		return;
+    	}
+    	const streamTypes = {
+    		stream_html: `http://${ip}:${1984 + this.deps.adapter.instance}/stream.html?src=${this.duid}`,
+    		webrtc_html: `http://${ip}:${1984 + this.deps.adapter.instance}/webrtc.html?src=${this.duid}&media=video`,
+    		stream_mp4: `http://${ip}:${1984 + this.deps.adapter.instance}/api/stream.mp4?src=${this.duid}`,
+    		rtsp: `rtsp://${ip}:${8554 + this.deps.adapter.instance}/${this.duid}?video`,
+    	};
+    	await this.deps.ensureFolder(`Devices.${this.duid}.camera`);
+    	for (const [name, stream_uri] of Object.entries(streamTypes)) {
+    		// Use ensureState helper
+    		await this.ensureState("camera", name, { type: "string", role: "url", write: false, def: stream_uri });
+    	}
+    }
 
-	protected _addFanMaxPlusCommand(): void {
-		// Ensure base command exists before modifying
-		if (!this.commands.set_custom_mode) {
-			this._addCommand("set_custom_mode", JSON.parse(JSON.stringify(BaseVacuumFeatures.CONSTANTS.baseCommands.set_custom_mode)));
-		}
-		// Safely add state
-		if (this.commands.set_custom_mode.states) {
-			this.commands.set_custom_mode.states[108] = "Max+";
-		}
-	}
+    @BaseDeviceFeatures.DeviceFeature(Feature.MultiFloor)
+    protected async createMultiFloorStates(): Promise<void> {
+    	await this.deps.ensureFolder(`Devices.${this.duid}.floors`);
+    	for (const feature of ["max_multi_map", "max_bak_map", "multi_map_count"]) {
+    		// Use ensureState helper
+    		await this.ensureState("floors", feature, { type: "number", role: "value", write: false });
+    	}
+    }
 
-	protected _addSmartModeCommand(): void {
-		this._addCommand("app_set_clean_sequence_type", {
-			type: "json",
-			role: "value.list",
-			def: '{"fan_power":110,"mop_mode":306,"type":0,"water_box_mode":209}',
-			states: {
-				'{"fan_power":102,"mop_mode":300,"repeat":1,"type":1,"water_box_mode":201}': "Mop and vacuum",
-				'{"fan_power":110,"mop_mode":306,"type":0,"water_box_mode":209}': "Smart mode",
-			},
-		});
-	}
+    @BaseDeviceFeatures.DeviceFeature(Feature.AvoidCarpet)
+    @BaseDeviceFeatures.DeviceFeature(Feature.isCarpetSupported)
+    protected addAvoidCarpetCommands(): void {
+    	this.addCommand("set_carpet_mode", { type: "json", states: BaseVacuumFeatures.CONSTANTS.deviceStates.carpet_mode.states });
+    	this.addCommand("set_carpet_clean_mode", { type: "json", states: BaseVacuumFeatures.CONSTANTS.deviceStates.carpet_clean_mode.states });
+    }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.isAvoidCollisionSupported)
+    protected async addAvoidCollisionStates(): Promise<void> {
+    	await this.ensureState("deviceStatus", "collision_avoid_status", { type: "number", role: "value", write: false });
+    	await this.ensureState("deviceStatus", "avoid_count", { type: "number", role: "value", write: false });
+    }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.MopForbidden)
+    protected async addMopForbiddenStates(): Promise<void> {
+    	await this.ensureState("deviceStatus", "mop_forbidden_enable", { type: "number", role: "value", write: false });
+    }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.VoiceControl)
+    protected async addVoiceControlStates(): Promise<void> {
+    	await this.ensureState("deviceStatus", "voice_chat_status", { type: "number", role: "value", write: false });
+    }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.Camera)
+    protected async addCameraSettingsStates(): Promise<void> {
+    	await this.ensureState("deviceStatus", "camera_status", { type: "number", role: "value", write: false });
+    	await this.ensureState("deviceStatus", "distance_off", { type: "number", role: "value", write: false });
+    }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.isSupportSetSwitchMapMode)
+    protected async addSwitchMapModeState(): Promise<void> {
+    	await this.ensureState("deviceStatus", "switch_map_mode", { type: "number", role: "value", write: false });
+    }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.isCornerCleanModeSupported)
+    protected async addCornerCleanModeState(): Promise<void> {
+    	await this.ensureState("deviceStatus", "corner_clean_mode", { type: "number", role: "value", write: false });
+    }
+
+    // --- State/Info Feature Handlers ---
+    @BaseDeviceFeatures.DeviceFeature(Feature.MapFlag)
+    protected async addMapFlagState(): Promise<void> { await this.ensureState("deviceStatus", "map_flag", { type: "number", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.CommonStatus)
+    protected async addCommonStatusState(): Promise<void> { await this.ensureState("deviceStatus", "common_status", { type: "number", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.DockStatus)
+    protected async addDockErrorStatusState(): Promise<void> { await this.ensureState("deviceStatus", "dock_error_status", { type: "number", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.BackType)
+    protected async addBackTypeState(): Promise<void> { await this.ensureState("deviceStatus", "back_type", { type: "number", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.SwitchStatus)
+    protected async addSwitchStatusState(): Promise<void> { await this.ensureState("deviceStatus", "switch_status", { type: "number", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.MonitorStatus)
+    protected async addMonitorStatusState(): Promise<void> { await this.ensureState("deviceStatus", "monitor_status", { type: "number", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.CleanPercent)
+    protected async addCleanPercentState(): Promise<void> { await this.ensureState("deviceStatus", "clean_percent", { type: "number", role: "value", write: false, unit: "%" }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.InWarmup)
+    protected async addInWarmupState(): Promise<void> { await this.ensureState("deviceStatus", "in_warmup", { type: "number", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.ExitDock)
+    protected async addExitDockState(): Promise<void> { await this.ensureState("deviceStatus", "exit_dock", { type: "number", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.ExtraTime)
+    protected async addExtraTimeState(): Promise<void> { await this.ensureState("deviceStatus", "extra_time", { type: "number", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.LastCleanTime)
+    protected async addLastCleanTimeState(): Promise<void> { await this.ensureState("deviceStatus", "last_clean_t", { type: "string", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.ChargeStatus)
+    protected async addChargeStatusState(): Promise<void> { await this.ensureState("deviceStatus", "charge_status", { type: "number", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.CleaningInfo)
+    protected async addCleaningInfoState(): Promise<void> { await this.ensureState("deviceStatus", "cleaning_info", { type: "string", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.CleanRepeat)
+    protected async addCleanRepeatState(): Promise<void> { await this.ensureState("deviceStatus", "repeat", { type: "number", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.Dss)
+    protected async addDssState(): Promise<void> { await this.ensureState("deviceStatus", "dss", { type: "number", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.Rss)
+    protected async addRssState(): Promise<void> { await this.ensureState("deviceStatus", "rss", { type: "number", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.RobotStatus)
+    protected async addRobotStatusState(): Promise<void> { await this.ensureState("deviceStatus", "state", { type: "number", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.Kct)
+    protected async addKctState(): Promise<void> { await this.ensureState("deviceStatus", "kct", { type: "number", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.CleanFluid)
+    protected async addCleanFluidState(): Promise<void> { await this.ensureState("deviceStatus", "clean_fluid", { type: "number", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.Rdt)
+    protected async addRdtState(): Promise<void> { await this.ensureState("deviceStatus", "rdt", { type: "number", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.ReplenishMode)
+    protected async addReplenishModeState(): Promise<void> { await this.ensureState("deviceStatus", "replenish_mode", { type: "number", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.CleanedArea)
+    protected async addCleanedAreaState(): Promise<void> { await this.ensureState("deviceStatus", "cleaned_area", { type: "number", role: "value", write: false, unit: "m²" }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.CleanTimes)
+    protected async addCleanTimesState(): Promise<void> { await this.ensureState("deviceStatus", "clean_times", { type: "number", role: "value", write: false }); }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.CustomWaterBoxDistance)
+    protected async createCustomWaterDistanceState(): Promise<void> {
+    	// Use ensureState helper
+    	await this.ensureState("commands", "set_water_box_distance_off", {
+    		type: "number",
+    		role: "level",
+    		write: true,
+    		def: 1,
+    		min: 1,
+    		max: 30,
+    	});
+    }
+
+    public async createResetConsumables(): Promise<void> {
+    	await this.deps.ensureFolder(`Devices.${this.duid}.resetConsumables`);
+    	for (const consumable of BaseVacuumFeatures.CONSTANTS.resetConsumables) {
+    		await this.ensureState("resetConsumables", consumable, {
+    			type: "boolean",
+    			role: "button",
+    			def: false,
+    			write: true,
+    			name: `Reset ${consumable}`
+    		});
+    	}
+    }
+
+    public async createConsumables(): Promise<void> {
+    	await this.deps.ensureFolder(`Devices.${this.duid}.consumables`);
+    	for (const [id, common] of Object.entries(BaseVacuumFeatures.CONSTANTS.consumables)) {
+    		await this.ensureState("consumables", id, {
+    			...common,
+    			type: "number",
+    			role: "value",
+    			write: false
+    		});
+    	}
+    }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.FanMaxPlus)
+    protected addFanMaxPlusCommand(): void {
+    	const fanStates = this.profile.mappings.fan_power || VACUUM_CONSTANTS.deviceStates.fan_power.states;
+    	// Use set_custom_mode for fan power as per base commands
+    	this.addCommand("set_custom_mode", { type: "number", def: 102, states: fanStates });
+    }
+
+
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.NetworkInfo)
+    protected async addNetworkInfoStates(): Promise<void> {
+    	await this.deps.ensureFolder(`Devices.${this.duid}.networkInfo`);
+    	await this.ensureState("networkInfo", "ssid", { type: "string", role: "info.name", write: false });
+    	await this.ensureState("networkInfo", "ip", { type: "string", role: "info.ip", write: false });
+    	await this.ensureState("networkInfo", "mac", { type: "string", role: "info.mac", write: false });
+    	await this.ensureState("networkInfo", "bssid", { type: "string", role: "info.address", write: false });
+    	await this.ensureState("networkInfo", "rssi", { type: "number", role: "value.rssi", write: false, unit: "dBm" });
+    }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.UpdateStatus)
+    protected async addUpdateStatusStates(): Promise<void> {
+    	await this.deps.ensureFolder(`Devices.${this.duid}.updateStatus`);
+    	await this.ensureState("updateStatus", "checking", { type: "boolean", role: "indicator", write: false });
+    	await this.ensureState("updateStatus", "available", { type: "boolean", role: "indicator", write: false });
+    	await this.ensureState("updateStatus", "progress", { type: "number", role: "value", write: false, unit: "%" });
+    	await this.ensureState("updateStatus", "version", { type: "string", role: "info.firmware", write: false });
+    	await this.ensureState("updateStatus", "description", { type: "string", role: "text", write: false });
+    }
+
+    @BaseDeviceFeatures.DeviceFeature(Feature.SmartModeCommand)
+    protected addSmartModeCommand(): void {
+    	this.addCommand("app_set_clean_sequence_type", {
+    		type: "json",
+    		role: "value.list",
+    		def: '{"fan_power":110,"mop_mode":306,"type":0,"water_box_mode":209}',
+    		states: {
+    			'{"fan_power":102,"mop_mode":300,"repeat":1,"type":1,"water_box_mode":201}': "Mop and vacuum",
+    			'{"fan_power":110,"mop_mode":306,"type":0,"water_box_mode":209}': "Smart mode",
+    		},
+    	});
+    }
+
+    // --- Placeholder Features (Flags without specific actions) ---
+    @BaseDeviceFeatures.DeviceFeature(Feature.isShakeMopSetSupported)
+    @BaseDeviceFeatures.DeviceFeature(Feature.isVideoMonitorSupported)
+    @BaseDeviceFeatures.DeviceFeature(Feature.isVideoSettingSupported)
+    @BaseDeviceFeatures.DeviceFeature(Feature.isPhotoUploadSupported)
+    @BaseDeviceFeatures.DeviceFeature(Feature.isBackChargeAutoWashSupported)
+    @BaseDeviceFeatures.DeviceFeature(Feature.isSupportFDSEndPoint)
+    @BaseDeviceFeatures.DeviceFeature(Feature.isSupportAutoSplitSegments)
+    @BaseDeviceFeatures.DeviceFeature(Feature.isSupportOrderSegmentClean)
+    @BaseDeviceFeatures.DeviceFeature(Feature.isMapSegmentSupported)
+    @BaseDeviceFeatures.DeviceFeature(Feature.isSupportLedStatusSwitch)
+    @BaseDeviceFeatures.DeviceFeature(Feature.isSupportFetchTimerSummary)
+    @BaseDeviceFeatures.DeviceFeature(Feature.isOrderCleanSupported)
+    @BaseDeviceFeatures.DeviceFeature(Feature.isRemoteSupported)
+    @BaseDeviceFeatures.DeviceFeature(Feature.isSupportTaskId)
+    protected placeholderFeatures(): void {
+    	// No-op: These features are detected but require no specific initialization logic
+    	this.deps.log.silly(`[${this.duid}] Placeholder feature initialized.`);
+    }
 }

@@ -1,35 +1,12 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MapCreator = void 0;
 const canvas_1 = require("@napi-rs/canvas");
 const roomColoring_1 = require("./roomColoring");
-const Images = __importStar(require("./images"));
+const Images = require("./images");
 const pathProcessor_js_1 = require("./pathProcessor.js");
-const fs = __importStar(require("fs"));
-const path = __importStar(require("path"));
+const fs = require("fs");
+const path = require("path");
 // -----------------------------------------------------------------------------
 // Constants & Interfaces
 // -----------------------------------------------------------------------------
@@ -182,7 +159,7 @@ class MapCreator {
     // Main Map Generation
     // --------------------
     async canvasMap(mapdata, params = {}) {
-        const { selectedMap = null, mappedRooms = null, options = {} } = params;
+        const { mappedRooms = null, options = {} } = params;
         if (!mapdata || !mapdata.IMAGE || !mapdata.IMAGE.dimensions) {
             this.adapter.log.warn(`[MapCreator] Received invalid or empty map data, cannot generate map.`);
             const errorCanvas = (0, canvas_1.createCanvas)(1, 1).toDataURL();
@@ -382,22 +359,19 @@ class MapCreator {
                 y: this.robotYtoCanvasY(img, robotCoord[1] / 50),
             };
         };
-        let pathSegments = {
-            mainPath: [[]],
-            backwashPath: [[]],
-            pureCleanPath: [[]],
-            mopPath: [[]],
-            mainPathD: "",
-            backwashPathD: "",
-            pureCleanPathD: "",
-            mopPathD: "",
-        };
-        if (mapdata.PATH?.points && mapdata.MOP_PATH) {
-            pathSegments = (0, pathProcessor_js_1.processPaths)(mapdata.PATH.points, mapdata.MOP_PATH, robotToScaledPixel, VISUAL_BLOCK_SIZE, mapdata.IMAGE);
-        }
+        const pathSegments = (mapdata.PATH?.points && mapdata.MOP_PATH)
+            ? (0, pathProcessor_js_1.processPaths)(mapdata.PATH.points, mapdata.MOP_PATH, robotToScaledPixel, VISUAL_BLOCK_SIZE, mapdata.IMAGE)
+            : {
+                mainPath: [[]],
+                backwashPath: [[]],
+                pureCleanPath: [[]],
+                mopPath: [[]],
+                mainPathD: "",
+                backwashPathD: "",
+                pureCleanPathD: "",
+                mopPathD: "",
+            };
         const lwMain = Math.max(1, VISUAL_BLOCK_SIZE / 2);
-        const lwMop = VISUAL_BLOCK_SIZE * 7;
-        const lwBackwash = VISUAL_BLOCK_SIZE * 0.5;
         const tempCanvas = (0, canvas_1.createCanvas)(ctx.canvas.width, ctx.canvas.height);
         const tempCtx = tempCanvas.getContext("2d");
         this.drawPathSegments(ctx, tempCtx, pathSegments.mainPath, LEGACY_COLORS.path, lwMain, 0.5);
@@ -617,19 +591,6 @@ class MapCreator {
             });
             ctx.stroke();
         }
-    }
-    roundRect(ctx, x, y, width, height, radius) {
-        ctx.beginPath();
-        ctx.moveTo(x + radius, y);
-        ctx.lineTo(x + width - radius, y);
-        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-        ctx.lineTo(x + width, y + height - radius);
-        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-        ctx.lineTo(x + radius, y + height);
-        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-        ctx.lineTo(x, y + radius);
-        ctx.quadraticCurveTo(x, y, x + radius, y);
-        ctx.closePath();
     }
 }
 exports.MapCreator = MapCreator;

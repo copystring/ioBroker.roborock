@@ -1,6 +1,6 @@
 import { Roborock } from "../main";
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from "axios";
-import crypto from "crypto";
+import * as crypto from "crypto";
 
 // Credits to rovo89 for the initial reverse engineering
 // https://gist.github.com/rovo89/dff47ed19fca0dfdda77503e66c2b7c7
@@ -111,19 +111,6 @@ export class http_api {
 		if (!this.loginApi) {
 			throw new Error("loginApi is not initialized. Call init() first.");
 		}
-
-		// 1. Try to load existing userdata from ioBroker state
-		const storedUserData = await this.adapter.getStateAsync("UserData");
-		if (storedUserData && storedUserData.val && typeof storedUserData.val === "string") {
-			try {
-				this.userData = JSON.parse(storedUserData.val);
-			} catch (e) {
-				this.adapter.log.warn("Failed to parse stored UserData, will re-login.");
-				this.userData = null;
-			}
-		}
-
-		// 2. If no valid userdata, perform login
 		if (!this.userData) {
 			try {
 				this.userData = await this.loginApi

@@ -3,8 +3,7 @@ import { BaseVacuumFeatures } from "./vacuum/baseVacuumFeatures";
 import { Feature } from "./features.enum";
 export declare class FallbackBaseFeatures extends BaseDeviceFeatures {
     constructor(deps: FeatureDependencies, duid: string, robotModel: string);
-    protected registerFeatures(): void;
-    protected _getDynamicFeatures(): Set<Feature>;
+    protected getDynamicFeatures(): Set<Feature>;
     processDockType(dockType: number): Promise<void>;
     detectAndApplyRuntimeFeatures(): Promise<boolean>;
     getCommonConsumable(attribute: string | number): {

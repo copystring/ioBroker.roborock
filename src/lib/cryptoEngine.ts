@@ -1,4 +1,4 @@
-import crypto from "crypto";
+import * as crypto from "crypto";
 import forge from "node-forge";
 
 // Salt from librrcodec.so (encrypted via com.roborock.iotsdk.appsecret)

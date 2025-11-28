@@ -3,7 +3,6 @@
 
 import * as utils from "@iobroker/adapter-core";
 import { randomBytes } from "crypto";
-import ws from "ws";
 import { spawn } from "child_process";
 import go2rtcPath from "go2rtc-static";
 
@@ -16,7 +15,7 @@ import { mqtt_api } from "./lib/mqttApi";
 import { socketHandler } from "./lib/socketHandler";
 import { DeviceManager } from "./lib/deviceManager";
 import { Feature } from "./lib/features/features.enum";
-import type { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
+import { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
 
 export class Roborock extends utils.Adapter {
 	// --- Public APIs (accessible by helpers) ---
@@ -29,7 +28,6 @@ export class Roborock extends utils.Adapter {
 
 	// --- Internal Properties ---
 	public deviceFeatureHandlers: Map<string, BaseDeviceFeatures>;
-	public socket: ws | null;
 	public nonce: Buffer;
 	public pendingRequests: Map<
 		number,
@@ -47,27 +45,29 @@ export class Roborock extends utils.Adapter {
 
 	private commandTimeout: ioBroker.Timeout | undefined = undefined;
 	public instance: number = 0;
+
 	constructor(options: Partial<utils.AdapterOptions> = {}) {
 		super({ ...options, name: "roborock", useFormatDate: true });
-		this.on("ready", this.onReady.bind(this));
-		this.on("stateChange", this.onStateChange.bind(this));
-		this.on("message", this.onMessage.bind(this));
-		this.on("unload", this.onUnload.bind(this));
 
 		this.instance = options.instance || 0;
-		this.socket = null;
 		this.nonce = randomBytes(16);
 		this.pendingRequests = new Map();
 		this.http_api = new http_api(this);
 		this.local_api = new local_api(this);
 		this.mqtt_api = new mqtt_api(this);
 		this.requestsHandler = new requestsHandler(this);
+
 		this.deviceManager = new DeviceManager(this);
 		this.socketHandler = new socketHandler(this);
 		this.deviceFeatureHandlers = this.deviceManager.deviceFeatureHandlers; // Reference DM's map
 
 		this.roborock_package_helper = new roborock_package_helper(this);
 		this.isInitializing = true;
+
+		this.on("ready", this.onReady.bind(this));
+		this.on("stateChange", this.onStateChange.bind(this));
+		this.on("message", this.onMessage.bind(this));
+		this.on("unload", this.onUnload.bind(this));
 	}
 
 	/**
@@ -84,8 +84,9 @@ export class Roborock extends utils.Adapter {
 		this.translations = require(`../admin/i18n/${this.language || "en"}/translations.json`);
 
 		this.log.info(`Starting adapter. This might take a few minutes...`);
-
+		this.log.debug(`[onReady] calling setupBasicObjects...`);
 		await this.setupBasicObjects();
+		this.log.debug(`[onReady] setupBasicObjects done.`);
 
 		try {
 			const clientID = await this.ensureClientID();
@@ -221,7 +222,7 @@ export class Roborock extends utils.Adapter {
 						try {
 							const params = JSON.parse(state.val as string);
 							await this.requestsHandler.command(handler, duid, command, params);
-						} catch (e) {
+						} catch {
 							this.log.error(`Invalid JSON for ${command}: ${state.val}`);
 						}
 						break;
@@ -256,6 +257,7 @@ export class Roborock extends utils.Adapter {
 	 * Ensures a ClientID exists.
 	 */
 	async ensureClientID(): Promise<string> {
+		this.log.debug(`[ensureClientID] checking state...`);
 		try {
 			const clientIDState = await this.getStateAsync("clientID"); // Use Async
 			if (clientIDState?.val) {
@@ -374,23 +376,32 @@ export class Roborock extends utils.Adapter {
 		if (!isLocal) return;
 
 		try {
+			this.log.debug(`[checkForNewFirmware] Checking for firmware update for ${duid}...`);
 			const update = await this.http_api.getFirmwareStates(duid);
+			this.log.debug(`[checkForNewFirmware] Result for ${duid}: ${JSON.stringify(update)}`);
+
 			if (update.data.result) {
 				for (const state in update.data.result) {
 					const value = update.data.result[state];
 					await this.ensureState(`Devices.${duid}.updateStatus.${state}`, { type: typeof value as ioBroker.CommonType });
 					await this.setStateChangedAsync(`Devices.${duid}.updateStatus.${state}`, { val: value, ack: true });
 				}
+			} else {
+				this.log.warn(`[checkForNewFirmware] No result in firmware update response for ${duid}`);
 			}
 		} catch (error) {
 			this.log.warn(`Failed to check for new firmware: ${error}`);
 		}
 	}
 
+
+
 	/**
 	 * Creates a state if it doesn't exist, applying translations.
 	 */
 	public async ensureState(path: string, commonOptions: Partial<ioBroker.StateCommon>, native: Record<string, any> = {}) {
+
+
 		const stateName = path.split(".").pop() || path;
 		const translatedName = commonOptions.name || this.translations[stateName] || stateName;
 
@@ -410,7 +421,7 @@ export class Roborock extends utils.Adapter {
 		let oldObj: ioBroker.Object | null | undefined;
 		try {
 			oldObj = await this.getObjectAsync(path);
-		} catch (e) {
+		} catch {
 			oldObj = null; // Does not exist
 		}
 
@@ -437,6 +448,8 @@ export class Roborock extends utils.Adapter {
 	 * Creates a folder if it doesn't exist, applying translations.
 	 */
 	async ensureFolder(path: string) {
+
+
 		const attribute = path.split(".").pop() || path;
 		await this.setObjectNotExistsAsync(path, {
 			type: "folder",
@@ -471,7 +484,7 @@ export class Roborock extends utils.Adapter {
 		const go2rtcConfig = {
 			server: { listen: `:${port}` },
 			rtsp: { listen: `:${rtspPort}` },
-			streams: {},
+			streams: {} as Record<string, string>,
 		};
 		let cameraCount = 0;
 
@@ -526,7 +539,7 @@ export class Roborock extends utils.Adapter {
 					await this.ensureFolder(path);
 					await processNested(path, value);
 				} else {
-					let val = typeof value === "object" || value === null ? JSON.stringify(value) : value;
+					const val = typeof value === "object" || value === null ? JSON.stringify(value) : value;
 					await this.ensureState(path, { name: key, type: determineType(value), write: false });
 					await this.setStateChangedAsync(path, { val, ack: true });
 				}

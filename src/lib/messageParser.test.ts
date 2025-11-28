@@ -43,7 +43,7 @@ describe("messageParser", () => {
 		expect(msg).to.be.instanceOf(Buffer);
 
 		// Decode the generated message
-		const decoded = parser._decodeMsg(msg as Buffer, "test-duid") as Frame;
+		const decoded = parser.decodeMsg(msg as Buffer, "test-duid") as Frame;
 
 		expect(decoded).to.be.ok;
 		expect(decoded.version).to.equal("1.0");

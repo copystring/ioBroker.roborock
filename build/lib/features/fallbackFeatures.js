@@ -10,12 +10,9 @@ class FallbackBaseFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
         super(deps, duid, robotModel, { staticFeatures: [] });
     }
     // --- Implementation of abstract methods ---
-    registerFeatures() {
-        this.deps.log.warn(`[${this.duid}] Using fallback feature registration. No specific features registered.`);
-        // No features to register in the generic fallback
-    }
-    _getDynamicFeatures() {
-        this.deps.log.warn(`[${this.duid}] Using fallback _getDynamicFeatures. Returning empty set.`);
+    // --- Implementation of abstract methods ---
+    getDynamicFeatures() {
+        this.deps.log.warn(`[${this.duid}] Using fallback getDynamicFeatures. Returning empty set.`);
         return new Set(); // Fallback returns no dynamic features
     }
     async processDockType(dockType) {

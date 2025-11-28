@@ -1,13 +1,8 @@
 import type { Roborock } from "../main";
-import mqtt, { type MqttClient, type IClientOptions } from "mqtt";
-
-import crypto from "crypto";
+import * as crypto from "crypto";
+import * as mqtt from "mqtt";
 import { Parser } from "binary-parser";
-import zlib from "zlib";
-
-// --------------------
-// Parsers
-// --------------------
+import * as zlib from "zlib";
 
 // Parser for protocol 301 messages (often Map Data)
 const protocol301Parser = new Parser()
@@ -43,10 +38,10 @@ export class mqtt_api {
 	adapter: Roborock;
 	mqttUser: string;
 	mqttPassword: string;
-	client: MqttClient | null;
+	client: any;
 	connected: boolean;
 	pendingPhotoRequests: Record<string, PhotoRequestData>;
-	mqttOptions: IClientOptions | null;
+	mqttOptions: any;
 
 	constructor(adapter: Roborock) {
 		this.adapter = adapter;
@@ -121,16 +116,16 @@ export class mqtt_api {
 	 * Subscribes to MQTT client events (connect, error, offline, etc.).
 	 * @param client - The MQTT client instance.
 	 */
-	async subscribe_mqtt_events(client: MqttClient): Promise<void> {
+	async subscribe_mqtt_events(client: any): Promise<void> {
 		const rriot = this.adapter.http_api.get_rriot();
 
-		client.on("connect", (packet) => {
+		client.on("connect", () => {
 			this.connected = true;
 			this.adapter.log.info(`MQTT connection established.`);
 
 			// Subscribe to the specific topic for this user
 			const topic = `rr/m/o/${rriot.u}/${this.mqttUser}/#`;
-			client.subscribe(topic, (err, granted) => {
+			client.subscribe(topic, (err: Error | null) => {
 				if (err) {
 					this.adapter.log.error(`Failed to subscribe to ${topic}! Error: ${err}`);
 				} else {
@@ -144,7 +139,7 @@ export class mqtt_api {
 			this.connected = false;
 		});
 
-		client.on("error", (error) => {
+		client.on("error", (error: Error) => {
 			this.adapter.log.error(`MQTT connection error: ${error.message}. Broker: ${rriot.r.m}`);
 			this.connected = false;
 		});
@@ -159,7 +154,7 @@ export class mqtt_api {
 			// Subscription is usually handled automatically by MQTT client on reconnect if clean=false,
 			// but if we need to re-subscribe manually:
 			const topic = `rr/m/o/${rriot.u}/${this.mqttUser}/#`;
-			client.subscribe(topic, (err) => {
+			client.subscribe(topic, (err: Error | null) => {
 				if (err) this.adapter.log.error(`Failed to re-subscribe during reconnect: ${err}`);
 			});
 		});
@@ -174,10 +169,10 @@ export class mqtt_api {
 	 * Sets up the listener for incoming MQTT messages.
 	 * @param client - The MQTT client instance.
 	 */
-	async subscribe_mqtt_message(client: MqttClient): Promise<void> {
+	async subscribe_mqtt_message(client: any): Promise<void> {
 		const endpoint = await this.ensureEndpoint();
 
-		client.on("message", async (topic, message) => {
+		client.on("message", async (topic: string, message: Buffer) => {
 			try {
 				// Extract DUID from topic (last part)
 				const duid = topic.split("/").pop();
@@ -187,7 +182,7 @@ export class mqtt_api {
 				}
 
 				// Decode the Roborock binary message wrapper
-				const dataArr = this.adapter.requestsHandler.messageParser._decodeMsg(message, duid);
+				const dataArr = this.adapter.requestsHandler.messageParser.decodeMsg(message, duid);
 				const allMessages = Array.isArray(dataArr) ? dataArr : dataArr ? [dataArr] : [];
 
 				for (const data of allMessages) {

@@ -715,7 +715,7 @@ class MapApplication {
     drawZones() {
         const dragHandler = d3
             .drag()
-            .on("start", (event, d) => {
+            .on("start", (event) => {
             const element = event.sourceEvent.target.closest("g.zone");
             if (element)
                 d3.select(element).raise().style("cursor", "grabbing");

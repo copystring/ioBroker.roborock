@@ -4,13 +4,15 @@
     "noEmit": false,
     "outDir": "./build",
     "rootDir": "./src",
-    "declaration": true,
+    "composite": true,
+    "tsBuildInfoFile": "./build/tsconfig.build.tsbuildinfo",
     "allowJs": false,
     "checkJs": false
   },
   "include": ["src/**/*.ts"],
   "exclude": [
     "node_modules/**",
-    "src/www/**"
+    "src/www/**",
+    "**/*.test.ts"
   ]
 }

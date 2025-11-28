@@ -1,74 +1,54 @@
 "use strict";
-// src/lib/features/vacuum/a144_features.ts
-// Features for Roborock Saros 10R (roborock.vacuum.a144)
-var __esDecorate = (this && this.__esDecorate) || function (ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
-    function accept(f) { if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected"); return f; }
-    var kind = contextIn.kind, key = kind === "getter" ? "get" : kind === "setter" ? "set" : "value";
-    var target = !descriptorIn && ctor ? contextIn["static"] ? ctor : ctor.prototype : null;
-    var descriptor = descriptorIn || (target ? Object.getOwnPropertyDescriptor(target, contextIn.name) : {});
-    var _, done = false;
-    for (var i = decorators.length - 1; i >= 0; i--) {
-        var context = {};
-        for (var p in contextIn) context[p] = p === "access" ? {} : contextIn[p];
-        for (var p in contextIn.access) context.access[p] = contextIn.access[p];
-        context.addInitializer = function (f) { if (done) throw new TypeError("Cannot add initializers after decoration has completed"); extraInitializers.push(accept(f || null)); };
-        var result = (0, decorators[i])(kind === "accessor" ? { get: descriptor.get, set: descriptor.set } : descriptor[key], context);
-        if (kind === "accessor") {
-            if (result === void 0) continue;
-            if (result === null || typeof result !== "object") throw new TypeError("Object expected");
-            if (_ = accept(result.get)) descriptor.get = _;
-            if (_ = accept(result.set)) descriptor.set = _;
-            if (_ = accept(result.init)) initializers.unshift(_);
-        }
-        else if (_ = accept(result)) {
-            if (kind === "field") initializers.unshift(_);
-            else descriptor[key] = _;
-        }
-    }
-    if (target) Object.defineProperty(target, contextIn.name, descriptor);
-    done = true;
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
-var __runInitializers = (this && this.__runInitializers) || function (thisArg, initializers, value) {
-    var useValue = arguments.length > 2;
-    for (var i = 0; i < initializers.length; i++) {
-        value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-    }
-    return useValue ? value : void 0;
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.A144Features = void 0;
 const baseVacuumFeatures_1 = require("./baseVacuumFeatures");
 const baseDeviceFeatures_1 = require("../baseDeviceFeatures");
 const features_enum_1 = require("../features.enum");
-// Define static features for the a144 model
+const PROFILE_A144 = {
+    name: "Roborock Saros 10R (a144)",
+    features: {
+        maxSuctionValue: 108,
+        hasSmartPlan: true
+    },
+    mappings: {
+        fan_power: { ...baseVacuumFeatures_1.BASE_FAN, 108: "Max+" },
+        water_box_mode: baseVacuumFeatures_1.BASE_WATER,
+        mop_mode: baseVacuumFeatures_1.BASE_MOP
+    }
+};
 const a144Config = {
     staticFeatures: [
         features_enum_1.Feature.MopForbidden,
         features_enum_1.Feature.WaterBox,
-        features_enum_1.Feature.LiveVideo // Action feature triggered by isVideoLiveCallSupported
-        // Add Feature.Camera if applicable
+        features_enum_1.Feature.LiveVideo,
+        features_enum_1.Feature.Camera,
+        features_enum_1.Feature.FanMaxPlus,
+        features_enum_1.Feature.SmartModeCommand,
+        features_enum_1.Feature.CommonStatus, features_enum_1.Feature.DockStatus, features_enum_1.Feature.RobotStatus,
+        features_enum_1.Feature.CleanPercent, features_enum_1.Feature.ChargeStatus, features_enum_1.Feature.InWarmup,
+        features_enum_1.Feature.MapFlag, features_enum_1.Feature.TaskId, features_enum_1.Feature.LastCleanTime,
+        features_enum_1.Feature.SwitchStatus, features_enum_1.Feature.CleaningInfo, features_enum_1.Feature.AutoEmptyDock,
+        features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry, features_enum_1.Feature.CleanRepeat,
+        features_enum_1.Feature.CleanedArea
     ]
 };
-let A144Features = (() => {
-    let _classDecorators = [(0, baseDeviceFeatures_1.RegisterModel)('roborock.vacuum.a144')];
-    let _classDescriptor;
-    let _classExtraInitializers = [];
-    let _classThis;
-    let _classSuper = baseVacuumFeatures_1.BaseVacuumFeatures;
-    var A144Features = class extends _classSuper {
-        static { _classThis = this; }
-        static {
-            const _metadata = typeof Symbol === "function" && Symbol.metadata ? Object.create(_classSuper[Symbol.metadata] ?? null) : void 0;
-            __esDecorate(null, _classDescriptor = { value: _classThis }, _classDecorators, { kind: "class", name: _classThis.name, metadata: _metadata }, null, _classExtraInitializers);
-            A144Features = _classThis = _classDescriptor.value;
-            if (_metadata) Object.defineProperty(_classThis, Symbol.metadata, { enumerable: true, configurable: true, writable: true, value: _metadata });
-            __runInitializers(_classThis, _classExtraInitializers);
-        }
-        constructor(dependencies, duid) {
-            super(dependencies, duid, 'roborock.vacuum.a144', a144Config);
-        }
-    };
-    return A144Features = _classThis;
-})();
+let A144Features = class A144Features extends baseVacuumFeatures_1.BaseVacuumFeatures {
+    constructor(dependencies, duid) {
+        super(dependencies, duid, "roborock.vacuum.a144", a144Config, PROFILE_A144);
+    }
+};
 exports.A144Features = A144Features;
+exports.A144Features = A144Features = __decorate([
+    (0, baseDeviceFeatures_1.RegisterModel)("roborock.vacuum.a144"),
+    __metadata("design:paramtypes", [Object, String])
+], A144Features);
 //# sourceMappingURL=a144_features.js.map

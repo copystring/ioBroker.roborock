@@ -1,27 +1,50 @@
-// src/lib/features/vacuum/a87_features.ts
-// Features for Roborock Qrevo MaxV (roborock.vacuum.a87)
-
-import { BaseVacuumFeatures } from "./baseVacuumFeatures";
+import { BaseVacuumFeatures, VacuumProfile, BASE_FAN, BASE_WATER, BASE_MOP } from "./baseVacuumFeatures";
 import { RegisterModel, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
 
-// Define static features for the a87 model
-const a87Config: DeviceModelConfig = {
-    staticFeatures: [
-        Feature.Camera,
-        Feature.MopForbidden,
-        Feature.ShakeMopStrength, // Alias for WaterBox logic
-        Feature.WaterBox,
-        Feature.AvoidCarpet,
-        Feature.LiveVideo          // Action feature triggered by isVideoLiveCallSupported
-    ]
+const PROFILE_A87: VacuumProfile = {
+	name: "Roborock Qrevo MaxV (a87)",
+	features: {
+		maxSuctionValue: 108,
+		hasSmartPlan: true
+	},
+	mappings: {
+		fan_power: { ...BASE_FAN, 108: "Max+" },
+		water_box_mode: BASE_WATER,
+		mop_mode: BASE_MOP
+	}
 };
 
-@RegisterModel('roborock.vacuum.a87')
-export class A87Features extends BaseVacuumFeatures {
-    constructor(dependencies: FeatureDependencies, duid: string) {
-        super(dependencies, duid, 'roborock.vacuum.a87', a87Config);
-    }
+const a87Config: DeviceModelConfig = {
+	staticFeatures: [
+		Feature.Camera,
+		Feature.MopForbidden,
+		Feature.ShakeMopStrength,
+		Feature.WaterBox,
+		Feature.AvoidCarpet,
+		Feature.LiveVideo,
+		Feature.FanMaxPlus,
+		Feature.SmartModeCommand,
+		Feature.InWarmup,
+		Feature.ChargeStatus,
+		Feature.CleanPercent,
+		Feature.RobotStatus,
+		Feature.CommonStatus,
+		Feature.LastCleanTime,
+		Feature.Kct,
+		Feature.MapFlag,
+		Feature.ReplenishMode,
+		Feature.CleanRepeat,
+		Feature.Rdt,
+		Feature.CleanArea,
+		Feature.CleanTime,
+		Feature.SwitchStatus
+	]
+};
 
-    // No model-specific overrides needed currently
+@RegisterModel("roborock.vacuum.a87")
+export class A87Features extends BaseVacuumFeatures {
+	constructor(dependencies: FeatureDependencies, duid: string) {
+		super(dependencies, duid, "roborock.vacuum.a87", a87Config, PROFILE_A87);
+	}
 }

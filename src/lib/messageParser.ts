@@ -1,15 +1,8 @@
-// src/lib/messageParser.ts
-
-import type { Roborock } from "../main";
-import { cryptoEngine } from "./cryptoEngine";
-
-import CRC32 from "crc-32";
-import { Parser } from "binary-parser";
 import { z } from "zod";
-
-// --------------------
-// Types & Schemas
-// --------------------
+import { Parser } from "binary-parser";
+import * as crc32 from "crc-32";
+import { Roborock } from "../main";
+import { cryptoEngine } from "./cryptoEngine";
 
 export type ProtocolVersion = "1.0" | "A01" | "L01";
 
@@ -66,7 +59,7 @@ const frameParser = new Parser()
  */
 function validateCrc(buf: Buffer): boolean {
 	// Calculate CRC of the buffer excluding the last 4 bytes
-	const crc = CRC32.buf(buf.subarray(0, buf.length - 4)) >>> 0;
+	const crc = crc32.buf(buf.subarray(0, buf.length - 4)) >>> 0;
 	// Compare with the CRC stored in the last 4 bytes
 	return crc === buf.readUInt32BE(buf.length - 4);
 }
@@ -75,7 +68,7 @@ function validateCrc(buf: Buffer): boolean {
  * Calculates the CRC32 checksum and writes it to the last 4 bytes of the buffer.
  */
 function appendCrc(buf: Buffer): void {
-	const crc = CRC32.buf(buf.subarray(0, buf.length - 4)) >>> 0;
+	const crc = crc32.buf(buf.subarray(0, buf.length - 4)) >>> 0;
 	buf.writeUInt32BE(crc, buf.length - 4);
 }
 
@@ -112,7 +105,7 @@ export class messageParser {
 	 * @param duid The Device Unique ID (DUID) associated with the message.
 	 * @returns A single Frame, an array of Frames, or null if no valid frames were found.
 	 */
-	_decodeMsg(message: Buffer, duid: string): Frame | Frame[] | null {
+	decodeMsg(message: Buffer, duid: string): Frame | Frame[] | null {
 		const decoded: Frame[] = [];
 		let offset = 0;
 
@@ -198,7 +191,7 @@ export class messageParser {
 	 * Builds the JSON payload string for a device command.
 	 * Handles special security parameters for specific methods (like photo/map requests).
 	 */
-	async buildPayload(duid: string, protocol: number, messageID: number, method: string, params: any, version: string): Promise<string> {
+	async buildPayload(protocol: number, messageID: number, method: string, params: any, version: string): Promise<string> {
 		const timestamp = Math.floor(Date.now() / 1000);
 		const endpoint = await this.adapter.mqtt_api.ensureEndpoint();
 

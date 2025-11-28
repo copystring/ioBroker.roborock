@@ -45,6 +45,5 @@ export declare class MapCreator {
     private drawRoomNames;
     private cropMap;
     private drawRestrictedAreas;
-    private roundRect;
 }
 export {};

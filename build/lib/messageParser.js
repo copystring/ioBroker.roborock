@@ -1,14 +1,10 @@
 "use strict";
-// src/lib/messageParser.ts
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.messageParser = void 0;
-const cryptoEngine_1 = require("./cryptoEngine");
-const crc_32_1 = __importDefault(require("crc-32"));
-const binary_parser_1 = require("binary-parser");
 const zod_1 = require("zod");
+const binary_parser_1 = require("binary-parser");
+const crc32 = require("crc-32");
+const cryptoEngine_1 = require("./cryptoEngine");
 const SUPPORTED_VERSIONS = ["1.0", "A01", "L01"];
 // Define the structure of a parsed frame using Zod for runtime validation
 const FrameSchema = zod_1.z.object({
@@ -51,7 +47,7 @@ const frameParser = new binary_parser_1.Parser()
  */
 function validateCrc(buf) {
     // Calculate CRC of the buffer excluding the last 4 bytes
-    const crc = crc_32_1.default.buf(buf.subarray(0, buf.length - 4)) >>> 0;
+    const crc = crc32.buf(buf.subarray(0, buf.length - 4)) >>> 0;
     // Compare with the CRC stored in the last 4 bytes
     return crc === buf.readUInt32BE(buf.length - 4);
 }
@@ -59,7 +55,7 @@ function validateCrc(buf) {
  * Calculates the CRC32 checksum and writes it to the last 4 bytes of the buffer.
  */
 function appendCrc(buf) {
-    const crc = crc_32_1.default.buf(buf.subarray(0, buf.length - 4)) >>> 0;
+    const crc = crc32.buf(buf.subarray(0, buf.length - 4)) >>> 0;
     buf.writeUInt32BE(crc, buf.length - 4);
 }
 // --------------------
@@ -89,7 +85,7 @@ class messageParser {
      * @param duid The Device Unique ID (DUID) associated with the message.
      * @returns A single Frame, an array of Frames, or null if no valid frames were found.
      */
-    _decodeMsg(message, duid) {
+    decodeMsg(message, duid) {
         const decoded = [];
         let offset = 0;
         while (offset + 3 <= message.length) {
@@ -170,7 +166,7 @@ class messageParser {
      * Builds the JSON payload string for a device command.
      * Handles special security parameters for specific methods (like photo/map requests).
      */
-    async buildPayload(duid, protocol, messageID, method, params, version) {
+    async buildPayload(protocol, messageID, method, params, version) {
         const timestamp = Math.floor(Date.now() / 1000);
         const endpoint = await this.adapter.mqtt_api.ensureEndpoint();
         // Protocol A01 uses a simplified payload structure

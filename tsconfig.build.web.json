@@ -1,23 +1,16 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "noEmit": false,
     "target": "ES2022",
     "module": "ES2022",
-    "moduleResolution": "node",
     "outDir": "./www",
     "rootDir": "./src/www",
-    "noEmit": false,
-    "sourceMap": true,
-    "lib": [
-      "ESNext",
-      "DOM",
-      "DOM.Iterable"
-    ]
+    "composite": true,
+    "tsBuildInfoFile": "./www/tsconfig.build.web.tsbuildinfo",
+    "allowJs": false,
+    "checkJs": false
   },
-  "include": [
-    "src/www/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules/**"
-  ]
+  "include": ["src/www/**/*.ts"],
+  "exclude": ["node_modules/**", "**/*.test.ts"]
 }

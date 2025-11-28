@@ -1,16 +1,10 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.mqtt_api = void 0;
-const mqtt_1 = __importDefault(require("mqtt"));
-const crypto_1 = __importDefault(require("crypto"));
+const crypto = require("crypto");
+const mqtt = require("mqtt");
 const binary_parser_1 = require("binary-parser");
-const zlib_1 = __importDefault(require("zlib"));
-// --------------------
-// Parsers
-// --------------------
+const zlib = require("zlib");
 // Parser for protocol 301 messages (often Map Data)
 const protocol301Parser = new binary_parser_1.Parser()
     .endianess("little")
@@ -82,7 +76,7 @@ class mqtt_api {
         }
         const rriot = this.adapter.http_api.get_rriot();
         this.adapter.log.info(`Connecting to MQTT Broker at ${rriot.r.m}...`);
-        const client = mqtt_1.default.connect(rriot.r.m, this.mqttOptions);
+        const client = mqtt.connect(rriot.r.m, this.mqttOptions);
         this.client = client;
         try {
             // Set up listeners and subscriptions
@@ -103,12 +97,12 @@ class mqtt_api {
      */
     async subscribe_mqtt_events(client) {
         const rriot = this.adapter.http_api.get_rriot();
-        client.on("connect", (packet) => {
+        client.on("connect", () => {
             this.connected = true;
             this.adapter.log.info(`MQTT connection established.`);
             // Subscribe to the specific topic for this user
             const topic = `rr/m/o/${rriot.u}/${this.mqttUser}/#`;
-            client.subscribe(topic, (err, granted) => {
+            client.subscribe(topic, (err) => {
                 if (err) {
                     this.adapter.log.error(`Failed to subscribe to ${topic}! Error: ${err}`);
                 }
@@ -159,7 +153,7 @@ class mqtt_api {
                     return;
                 }
                 // Decode the Roborock binary message wrapper
-                const dataArr = this.adapter.requestsHandler.messageParser._decodeMsg(message, duid);
+                const dataArr = this.adapter.requestsHandler.messageParser.decodeMsg(message, duid);
                 const allMessages = Array.isArray(dataArr) ? dataArr : dataArr ? [dataArr] : [];
                 for (const data of allMessages) {
                     await this.handleDecodedMessage(duid, data, endpoint);
@@ -326,10 +320,10 @@ class mqtt_api {
                 if (endpoint.startsWith(parsedHeader.endpoint)) {
                     // Decrypt and Decompress Map Data
                     const iv = Buffer.alloc(16, 0);
-                    const decipher = crypto_1.default.createDecipheriv("aes-128-cbc", this.adapter.nonce, iv);
+                    const decipher = crypto.createDecipheriv("aes-128-cbc", this.adapter.nonce, iv);
                     let decrypted = decipher.update(payloadBuf.subarray(24));
                     decrypted = Buffer.concat([decrypted, decipher.final()]);
-                    const unzipped = zlib_1.default.gunzipSync(decrypted);
+                    const unzipped = zlib.gunzipSync(decrypted);
                     // Resolve pending map request
                     this.adapter.requestsHandler.resolvePendingRequest(parsedHeader.id, unzipped, data.protocol);
                 }
@@ -393,13 +387,13 @@ class mqtt_api {
      * Helper: Calculate MD5 hex string.
      */
     md5hex(str) {
-        return crypto_1.default.createHash("md5").update(str).digest("hex");
+        return crypto.createHash("md5").update(str).digest("hex");
     }
     /**
      * Helper: Calculate MD5 binary buffer.
      */
     md5bin(str) {
-        return crypto_1.default.createHash("md5").update(str).digest();
+        return crypto.createHash("md5").update(str).digest();
     }
     /**
      * Clears internal state (e.g. pending partial downloads).

@@ -1,25 +1,32 @@
-// src/lib/features/vacuum/a40_features.ts
-// Features for Roborock Q7 (roborock.vacuum.a40)
-
-import { BaseVacuumFeatures } from "./baseVacuumFeatures";
+import { BaseVacuumFeatures, VacuumProfile, BASE_FAN, BASE_WATER, BASE_MOP } from "./baseVacuumFeatures";
 import { RegisterModel, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
 
-// Define static features for the a40 model
-const a40Config: DeviceModelConfig = {
-    staticFeatures: [
-        Feature.MopForbidden,
-        Feature.ShakeMopStrength, // Alias for WaterBox logic
-        Feature.WaterBox,
-        Feature.AvoidCarpet
-    ]
+const PROFILE_A40: VacuumProfile = {
+	name: "Roborock Q7 (a40)",
+	features: {
+		maxSuctionValue: 108
+	},
+	mappings: {
+		fan_power: { ...BASE_FAN, 108: "Max+" },
+		water_box_mode: BASE_WATER,
+		mop_mode: BASE_MOP
+	}
 };
 
-@RegisterModel('roborock.vacuum.a40')
-export class A40Features extends BaseVacuumFeatures {
-    constructor(dependencies: FeatureDependencies, duid: string) {
-        super(dependencies, duid, 'roborock.vacuum.a40', a40Config);
-    }
+const a40Config: DeviceModelConfig = {
+	staticFeatures: [
+		Feature.MopForbidden,
+		Feature.ShakeMopStrength,
+		Feature.WaterBox,
+		Feature.AvoidCarpet,
+		Feature.FanMaxPlus
+	]
+};
 
-    // No model-specific overrides needed currently
+@RegisterModel("roborock.vacuum.a40")
+export class A40Features extends BaseVacuumFeatures {
+	constructor(dependencies: FeatureDependencies, duid: string) {
+		super(dependencies, duid, "roborock.vacuum.a40", a40Config, PROFILE_A40);
+	}
 }

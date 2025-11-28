@@ -874,7 +874,7 @@ class MapApplication {
 	private drawZones() {
 		const dragHandler = d3
 			.drag<SVGGElement, Rect>()
-			.on("start", (event: any, d: Rect) => {
+			.on("start", (event: any) => {
 				const element = event.sourceEvent.target.closest("g.zone");
 				if (element) d3.select(element).raise().style("cursor", "grabbing");
 				this.deleteButton.disabled = false;

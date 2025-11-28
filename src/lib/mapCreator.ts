@@ -1,5 +1,5 @@
 import { Roborock } from "../main";
-import { createCanvas, loadImage, Image, ImageData, type Canvas, type CanvasRenderingContext2D } from "@napi-rs/canvas";
+import { createCanvas, loadImage, Image, type Canvas, type CanvasRenderingContext2D } from "@napi-rs/canvas";
 import { assignRoborockRoomColorsToHex } from "./roomColoring";
 import * as Images from "./images";
 import { processPaths, type PathResult, type PathPoint } from "./pathProcessor.js";
@@ -218,7 +218,7 @@ export class MapCreator {
 	// --------------------
 
 	public async canvasMap(mapdata: any, params: CanvasMapOptions = {}): Promise<[string, string, string]> {
-		const { selectedMap = null, mappedRooms = null, options = {} } = params;
+		const { mappedRooms = null, options = {} } = params;
 
 		if (!mapdata || !mapdata.IMAGE || !mapdata.IMAGE.dimensions) {
 			this.adapter.log.warn(`[MapCreator] Received invalid or empty map data, cannot generate map.`);
@@ -390,7 +390,7 @@ export class MapCreator {
 				ctx.fill();
 			});
 		} else if (image.pixels.segments) {
-			let segnum, lastcolor;
+			let segnum: number, lastcolor: number | undefined;
 			ctx.beginPath();
 			image.pixels.segments.forEach((px: any) => {
 				segnum = px >> 21;
@@ -440,23 +440,20 @@ export class MapCreator {
 			};
 		};
 
-		let pathSegments: PathResult = {
-			mainPath: [[]],
-			backwashPath: [[]],
-			pureCleanPath: [[]],
-			mopPath: [[]],
-			mainPathD: "",
-			backwashPathD: "",
-			pureCleanPathD: "",
-			mopPathD: "",
-		};
-		if (mapdata.PATH?.points && mapdata.MOP_PATH) {
-			pathSegments = processPaths(mapdata.PATH.points, mapdata.MOP_PATH, robotToScaledPixel, VISUAL_BLOCK_SIZE, mapdata.IMAGE);
-		}
+		const pathSegments: PathResult = (mapdata.PATH?.points && mapdata.MOP_PATH)
+			? processPaths(mapdata.PATH.points, mapdata.MOP_PATH, robotToScaledPixel, VISUAL_BLOCK_SIZE, mapdata.IMAGE)
+			: {
+				mainPath: [[]],
+				backwashPath: [[]],
+				pureCleanPath: [[]],
+				mopPath: [[]],
+				mainPathD: "",
+				backwashPathD: "",
+				pureCleanPathD: "",
+				mopPathD: "",
+			};
 
 		const lwMain = Math.max(1, VISUAL_BLOCK_SIZE / 2);
-		const lwMop = VISUAL_BLOCK_SIZE * 7;
-		const lwBackwash = VISUAL_BLOCK_SIZE * 0.5;
 
 		const tempCanvas = createCanvas(ctx.canvas.width, ctx.canvas.height);
 		const tempCtx = tempCanvas.getContext("2d");
@@ -622,7 +619,7 @@ export class MapCreator {
 			Object.keys(segmentsData).forEach((segnumStr) => {
 				const segnum = parseInt(segnumStr);
 				if (segnum === 0) return;
-				const mapping = mappedRooms.find(([id]) => parseInt(id) === segnum);
+				const mapping = mappedRooms.find(([id]: [string]) => parseInt(id) === segnum);
 				let roomName = "";
 				if (mapping) {
 					const roomID = mapping[1];
@@ -701,19 +698,5 @@ export class MapCreator {
 			});
 			ctx.stroke();
 		}
-	}
-
-	private roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
-		ctx.beginPath();
-		ctx.moveTo(x + radius, y);
-		ctx.lineTo(x + width - radius, y);
-		ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-		ctx.lineTo(x + width, y + height - radius);
-		ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-		ctx.lineTo(x + radius, y + height);
-		ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-		ctx.lineTo(x, y + radius);
-		ctx.quadraticCurveTo(x, y, x + radius, y);
-		ctx.closePath();
 	}
 }

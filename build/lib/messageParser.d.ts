@@ -1,5 +1,5 @@
-import type { Roborock } from "../main";
 import { z } from "zod";
+import { Roborock } from "../main";
 export type ProtocolVersion = "1.0" | "A01" | "L01";
 declare const FrameSchema: z.ZodObject<{
     version: z.ZodString;
@@ -23,12 +23,12 @@ export declare class messageParser {
      * @param duid The Device Unique ID (DUID) associated with the message.
      * @returns A single Frame, an array of Frames, or null if no valid frames were found.
      */
-    _decodeMsg(message: Buffer, duid: string): Frame | Frame[] | null;
+    decodeMsg(message: Buffer, duid: string): Frame | Frame[] | null;
     /**
      * Builds the JSON payload string for a device command.
      * Handles special security parameters for specific methods (like photo/map requests).
      */
-    buildPayload(duid: string, protocol: number, messageID: number, method: string, params: any, version: string): Promise<string>;
+    buildPayload(protocol: number, messageID: number, method: string, params: any, version: string): Promise<string>;
     /**
      * Builds the complete Roborock binary frame (Header + Encrypted Payload + CRC).
      * @returns The Buffer to send, or false if encryption is not possible (e.g., missing key).

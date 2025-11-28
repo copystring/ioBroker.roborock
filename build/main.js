@@ -1,38 +1,12 @@
 "use strict";
 // src/main.ts
 /// <reference types="@iobroker/adapter-core" />
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Roborock = void 0;
-const utils = __importStar(require("@iobroker/adapter-core"));
+const utils = require("@iobroker/adapter-core");
 const crypto_1 = require("crypto");
 const child_process_1 = require("child_process");
-const go2rtc_static_1 = __importDefault(require("go2rtc-static"));
+const go2rtc_static_1 = require("go2rtc-static");
 // --- API & Helper Imports ---
 const roborock_package_helper_1 = require("./lib/roborock_package_helper");
 const requestsHandler_1 = require("./lib/requestsHandler");
@@ -52,7 +26,6 @@ class Roborock extends utils.Adapter {
     deviceManager;
     // --- Internal Properties ---
     deviceFeatureHandlers;
-    socket;
     nonce;
     pendingRequests;
     roborock_package_helper;
@@ -63,12 +36,7 @@ class Roborock extends utils.Adapter {
     instance = 0;
     constructor(options = {}) {
         super({ ...options, name: "roborock", useFormatDate: true });
-        this.on("ready", this.onReady.bind(this));
-        this.on("stateChange", this.onStateChange.bind(this));
-        this.on("message", this.onMessage.bind(this));
-        this.on("unload", this.onUnload.bind(this));
         this.instance = options.instance || 0;
-        this.socket = null;
         this.nonce = (0, crypto_1.randomBytes)(16);
         this.pendingRequests = new Map();
         this.http_api = new httpApi_1.http_api(this);
@@ -80,6 +48,10 @@ class Roborock extends utils.Adapter {
         this.deviceFeatureHandlers = this.deviceManager.deviceFeatureHandlers; // Reference DM's map
         this.roborock_package_helper = new roborock_package_helper_1.roborock_package_helper(this);
         this.isInitializing = true;
+        this.on("ready", this.onReady.bind(this));
+        this.on("stateChange", this.onStateChange.bind(this));
+        this.on("message", this.onMessage.bind(this));
+        this.on("unload", this.onUnload.bind(this));
     }
     /**
      * Adapter ready logic.
@@ -93,7 +65,9 @@ class Roborock extends utils.Adapter {
         this.sentryInstance = this.getPluginInstance("sentry");
         this.translations = require(`../admin/i18n/${this.language || "en"}/translations.json`);
         this.log.info(`Starting adapter. This might take a few minutes...`);
+        this.log.debug(`[onReady] calling setupBasicObjects...`);
         await this.setupBasicObjects();
+        this.log.debug(`[onReady] setupBasicObjects done.`);
         try {
             const clientID = await this.ensureClientID();
             await this.http_api.init(clientID);
@@ -224,7 +198,7 @@ class Roborock extends utils.Adapter {
                             const params = JSON.parse(state.val);
                             await this.requestsHandler.command(handler, duid, command, params);
                         }
-                        catch (e) {
+                        catch {
                             this.log.error(`Invalid JSON for ${command}: ${state.val}`);
                         }
                         break;
@@ -260,6 +234,7 @@ class Roborock extends utils.Adapter {
      * Ensures a ClientID exists.
      */
     async ensureClientID() {
+        this.log.debug(`[ensureClientID] checking state...`);
         try {
             const clientIDState = await this.getStateAsync("clientID"); // Use Async
             if (clientIDState?.val) {
@@ -370,13 +345,18 @@ class Roborock extends utils.Adapter {
         if (!isLocal)
             return;
         try {
+            this.log.debug(`[checkForNewFirmware] Checking for firmware update for ${duid}...`);
             const update = await this.http_api.getFirmwareStates(duid);
+            this.log.debug(`[checkForNewFirmware] Result for ${duid}: ${JSON.stringify(update)}`);
             if (update.data.result) {
                 for (const state in update.data.result) {
                     const value = update.data.result[state];
                     await this.ensureState(`Devices.${duid}.updateStatus.${state}`, { type: typeof value });
                     await this.setStateChangedAsync(`Devices.${duid}.updateStatus.${state}`, { val: value, ack: true });
                 }
+            }
+            else {
+                this.log.warn(`[checkForNewFirmware] No result in firmware update response for ${duid}`);
             }
         }
         catch (error) {
@@ -404,7 +384,7 @@ class Roborock extends utils.Adapter {
         try {
             oldObj = await this.getObjectAsync(path);
         }
-        catch (e) {
+        catch {
             oldObj = null; // Does not exist
         }
         // Check if object exists AND if its type is different from what we need
@@ -511,7 +491,7 @@ class Roborock extends utils.Adapter {
                     await processNested(path, value);
                 }
                 else {
-                    let val = typeof value === "object" || value === null ? JSON.stringify(value) : value;
+                    const val = typeof value === "object" || value === null ? JSON.stringify(value) : value;
                     await this.ensureState(path, { name: key, type: determineType(value), write: false });
                     await this.setStateChangedAsync(path, { val, ack: true });
                 }

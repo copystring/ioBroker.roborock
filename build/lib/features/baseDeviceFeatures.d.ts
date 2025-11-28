@@ -27,7 +27,7 @@ export interface DeviceModelConfig {
 /**
  * Type for the constructor signature of a device feature class.
  */
-export type FeatureClassConstructor = new (dependencies: FeatureDependencies, duid: string) => BaseDeviceFeatures;
+export type FeatureClassConstructor = new (_dependencies: FeatureDependencies, _duid: string) => BaseDeviceFeatures;
 /**
  * Interface defining the dependencies injected into feature classes.
  */
@@ -73,8 +73,12 @@ export declare abstract class BaseDeviceFeatures {
             "-1": string;
         };
     };
-    protected static featureRegistry: Map<Feature, FeatureImplementation>;
-    protected static registryInitialized: boolean;
+    static readonly FEATURE_METADATA_KEY: unique symbol;
+    /**
+     * Decorator to register a method as a handler for a specific feature.
+     * @param feature The Feature enum key.
+     */
+    static DeviceFeature(feature: Feature): (target: any, propertyKey: string) => void;
     /**
      * Constructor for the base feature handler.
      * @param dependencies Injected dependencies (adapter, config, APIs, helpers).
@@ -84,16 +88,11 @@ export declare abstract class BaseDeviceFeatures {
      */
     constructor(dependencies: FeatureDependencies, duid: string, robotModel: string, config: DeviceModelConfig);
     /**
-     * Must be implemented by the concrete device-type base class (e.g., BaseVacuumFeatures)
-     * to populate the static `featureRegistry` with all possible feature implementations for that type.
-     */
-    protected abstract registerFeatures(): void;
-    /**
      * Must be implemented by the concrete device-type base class to detect features
      * based on device-specific mechanisms (e.g., bitfields, firmware info).
      * @returns A Set containing the detected `Feature` enum keys (usually the 'is...' keys).
      */
-    protected abstract _getDynamicFeatures(): Set<Feature>;
+    protected abstract getDynamicFeatures(): Set<Feature>;
     /**
      * Processes features related to the detected dock type.
      * Can be overridden by concrete base or specific model classes if needed.
@@ -104,10 +103,10 @@ export declare abstract class BaseDeviceFeatures {
      * Applies features defined statically in the `DeviceModelConfig`.
      * Can be overridden by specific model classes to add more complex model-specific logic
      * that runs *before* runtime detection.
-     * @param statusData Optional initial status data.
-     * @param fwFeatures Optional initial firmware features data.
+     * @param _statusData Optional initial status data. Unused in base, but available for overrides.
+     * @param _fwFeatures Optional initial firmware features data. Unused in base, but available for overrides.
      */
-    applyModelSpecifics(statusData?: Readonly<Record<string, any>>, fwFeatures?: readonly number[]): Promise<void>;
+    applyModelSpecifics(): Promise<void>;
     /**
      * Must be implemented by the concrete device-type base class to perform
      * runtime feature detection based on validated status data.
@@ -115,14 +114,19 @@ export declare abstract class BaseDeviceFeatures {
      * @param fwFeatures Optional firmware features data.
      * @returns `true` if features/commands were added or modified, `false` otherwise.
      */
-    abstract detectAndApplyRuntimeFeatures(statusData: Readonly<Record<string, any>>): Promise<boolean>;
+    abstract detectAndApplyRuntimeFeatures(_statusData: Readonly<Record<string, any>>): Promise<boolean>;
     /**
      * Initializes all features for the device instance according to the defined flow:
      * Model Specifics -> Runtime Detection -> Dock Processing -> Command Object Creation.
      * @param initialStatus Optional initial status data to use for detection.
      * @param initialFwFeatures Optional initial firmware features data.
      */
-    initialize(initialStatus?: Readonly<Record<string, any>>, initialFwFeatures?: readonly number[]): Promise<void>;
+    initialize(): Promise<void>;
+    /**
+     * Logs a consolidated summary of applied features and created commands.
+     * Should be called explicitly after initialization is complete.
+     */
+    printSummary(): void;
     /**
      * Applies a single feature by looking up and executing its implementation from the registry.
      * Ensures a feature is applied only once per instance.
@@ -147,7 +151,7 @@ export declare abstract class BaseDeviceFeatures {
      * @param name The name (key) of the command.
      * @param spec The `CommandSpec` definition for the command.
      */
-    protected _addCommand(name: string, spec: CommandSpec | any): void;
+    protected addCommand(name: string, spec: CommandSpec | any): void;
     /**
      * Helper to call the injected `ensureState` function with the correct path format.
      * @param subfolder The subfolder within the device structure (e.g., 'info', 'commands').
@@ -155,13 +159,17 @@ export declare abstract class BaseDeviceFeatures {
      * @param commonOptions State common options.
      * @param native Optional native options.
      */
-    protected _ensureState(subfolder: string, stateName: string, commonOptions: Partial<ioBroker.StateCommon>, native?: Record<string, any>): Promise<void>;
+    protected ensureState(subfolder: string, stateName: string, commonOptions: Partial<ioBroker.StateCommon>, native?: Record<string, any>): Promise<void>;
     /**
      * Retrieves the registered feature class constructor for a given model ID.
      * @param modelId The robot model identifier string.
      * @returns The constructor if found, otherwise undefined.
      */
     static getRegisteredModelClass(modelId: string): FeatureClassConstructor | undefined;
+    /**
+     * Returns an array of all registered model IDs.
+     */
+    static getRegisteredModels(): string[];
     /**
      * Public method to check if a specific static feature is defined
      * in this model's configuration.
