@@ -203,7 +203,7 @@ export class requestsHandler {
 
 					const objectString = `Devices.${duid}.cleaningInfo.JSON`;
 					await this.adapter.ensureState(objectString, { name: "cleaningInfoJSON", type: "string", def: "json", write: false });
-					await this.adapter.setStateAsync(`Devices.${duid}.cleaningInfo.JSON`, { val: JSON.stringify(cleaningRecordsJSON), ack: true });
+					await this.adapter.setState(`Devices.${duid}.cleaningInfo.JSON`, { val: JSON.stringify(cleaningRecordsJSON), ack: true });
 				}
 			}
 		} catch (error) {
@@ -258,7 +258,7 @@ export class requestsHandler {
 
 					if (val && val.on && typeof val.on === "object" && "dry_time" in val.on && "status" in val) {
 						const actualVal = JSON.stringify({ on: { dry_time: val.on.dry_time }, status: val.status });
-						await this.adapter.setStateAsync(`Devices.${duid}.commands.${parameter.replace("get", "set")}`, { val: actualVal, ack: true });
+						await this.adapter.setState(`Devices.${duid}.commands.${parameter.replace("get", "set")}`, { val: actualVal, ack: true });
 					} else {
 						this.adapter.log.warn(`Unexpected value structure for ${parameter}: ${JSON.stringify(value)}`);
 					}
@@ -268,6 +268,16 @@ export class requestsHandler {
 				case "get_server_timer":
 					this.adapter.log.debug(`[getParameter] Received timers (get_timer/get_server_timer), ignoring value.`);
 					break;
+				case "get_clean_motor_mode": {
+					let valToSave = value;
+					if (Array.isArray(value) && value.length > 0 && typeof value[0] === "object") {
+						valToSave = JSON.stringify(value[0]);
+					} else if (typeof value === "object") {
+						valToSave = JSON.stringify(value);
+					}
+					await this.adapter.setState(`Devices.${duid}.commands.set_clean_motor_mode`, { val: valToSave as string, ack: true });
+					break;
+				}
 				default:
 					if (parameterFolders[parameter]) {
 						const mode = parameter.substring(4);
@@ -339,7 +349,7 @@ export class requestsHandler {
 					role: "button",
 					def: false,
 				});
-				await this.adapter.setStateAsync(`Devices.${duid}.resetConsumables.${mappedConsumable}`, { val: false, ack: true });
+				await this.adapter.setState(`Devices.${duid}.resetConsumables.${mappedConsumable}`, { val: false, ack: true });
 			}
 		}
 	}
@@ -385,7 +395,7 @@ export class requestsHandler {
 					if (mapCount && typeof mapCount.val === "number" && mapCount.val > 1) {
 						const mapFromCommand = await this.adapter.getStateAsync(`Devices.${duid}.commands.load_multi_map`);
 						if (mapFromCommand && mapFromCommand.val != selectedMap) {
-							await this.adapter.setStateAsync(`Devices.${duid}.commands.load_multi_map`, selectedMap, true);
+							await this.adapter.setState(`Devices.${duid}.commands.load_multi_map`, selectedMap, true);
 							if (!this.adapter.isInitializing) {
 								this.getMap(handler, duid).catch(() => {});
 							}
@@ -532,7 +542,7 @@ export class requestsHandler {
 					roomList["repeat"] = typeof cleanCount?.val === "number" ? cleanCount.val : 1;
 					const result = await this.sendRequest(duid, "app_segment_clean", [roomList], { priority });
 					this.adapter.log.debug(`app_segment_clean with roomIDs: ${JSON.stringify(roomList)} result: ${result}`);
-					this.adapter.setStateAsync(`Devices.${duid}.floors.cleanCount`, { val: 1, ack: true });
+					this.adapter.setState(`Devices.${duid}.floors.cleanCount`, { val: 1, ack: true });
 					break;
 				}
 				case "reset_consumable":

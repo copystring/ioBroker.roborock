@@ -5,13 +5,19 @@ import { Feature } from "../features.enum";
 const PROFILE_A147: VacuumProfile = {
 	name: "Roborock Saros 10 (a147)",
 	features: {
-		maxSuctionValue: 108,
+		maxSuctionValue: 110,
 		hasSmartPlan: true
 	},
 	mappings: {
-		fan_power: { ...BASE_FAN, 108: "Max+" },
-		water_box_mode: BASE_WATER,
+		fan_power: { ...BASE_FAN, 110: "Max+" },
+		water_box_mode: { ...BASE_WATER, 209: "Ultra" },
 		mop_mode: { ...BASE_MOP, 306: "Intense/Smart" }
+	},
+	cleanMotorModePresets: {
+		'{"fan_power":110,"mop_mode":306,"water_box_mode":209}': "SmartPlan",
+		'{"fan_power":102,"mop_mode":300,"water_box_mode":200}': "Vacuum",
+		'{"fan_power":105,"mop_mode":300,"water_box_mode":202}': "Mop",
+		'{"fan_power":102,"mop_mode":300,"water_box_mode":202}': "Vac & Mop"
 	}
 };
 

@@ -7,10 +7,10 @@
     "outDir": "./www",
     "rootDir": "./src/www",
     "composite": true,
-    "tsBuildInfoFile": "./www/tsconfig.build.web.tsbuildinfo",
+    "tsBuildInfoFile": "./www/tsconfig.web.tsbuildinfo",
     "allowJs": false,
     "checkJs": false
   },
   "include": ["src/www/**/*.ts"],
-  "exclude": ["node_modules/**", "**/*.test.ts"]
+  "exclude": ["node_modules", "**/*.test.ts"]
 }

@@ -91,7 +91,8 @@ const vitestPath = path.join(__dirname, "node_modules", "vitest", "vitest.mjs");
 // Start all processes using fork
 const processes = [
 	// 1. Builds (Backend + Web)
-	startProcess("BUILDS", tscPath, ["-b", "tsconfig.json", "--watch"], colors.backend),
+	// Use tsconfig.json for backend (includes tests) and tsconfig.web.json for frontend
+	startProcess("BUILDS", tscPath, ["-b", "tsconfig.json", "tsconfig.web.json", "--watch"], colors.backend),
 
 	// 2. Backend Tests (Mocha)
 	startProcess("TESTS", mochaPath, [

@@ -2,10 +2,14 @@
   "extends": "@tsconfig/node18/tsconfig.json",
   "compilerOptions": {
     // Output
-    "noEmit": true,
+    "noEmit": false,
+    "outDir": "./build",
+    "rootDir": "./src",
     "sourceMap": true,
     "inlineSources": true,
     "declaration": true,
+    "composite": true,
+    "tsBuildInfoFile": "./build/tsconfig.tsbuildinfo",
 
     // Module Resolution
     "target": "ES2022",
@@ -17,8 +21,8 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "allowJs": true,
-    "checkJs": true,
+    "allowJs": false,
+    "checkJs": false,
 
     // Decorators
     "experimentalDecorators": true,
@@ -28,11 +32,6 @@
     "types": ["mocha", "node", "@iobroker/adapter-core"],
     "lib": ["ESNext", "DOM", "DOM.Iterable"]
   },
-  "include": [],
-  "files": [],
-  "references": [
-    { "path": "./tsconfig.build.json" },
-    { "path": "./tsconfig.build.web.json" },
-    { "path": "./tsconfig.test.json" }
-  ]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "src/www"]
 }
