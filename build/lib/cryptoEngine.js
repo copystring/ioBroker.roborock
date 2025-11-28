@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.cryptoEngine = void 0;
 const crypto = require("crypto");
-const forge = require("node-forge");
+const node_forge_1 = require("node-forge");
 // Salt from librrcodec.so (encrypted via com.roborock.iotsdk.appsecret)
 const SALT = "TXdfu$jyZ#TZHsg4";
 // Lazy RSA keypair for e.g. get_photo
@@ -29,7 +29,7 @@ exports.cryptoEngine = {
     ensureRsaKeys() {
         if (rsaKeys)
             return rsaKeys;
-        const kp = forge.pki.rsa.generateKeyPair(2048);
+        const kp = node_forge_1.default.pki.rsa.generateKeyPair(2048);
         rsaKeys = {
             public: {
                 n: kp.publicKey.n.toString(16),

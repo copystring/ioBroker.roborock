@@ -342,10 +342,11 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 			7: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
 			8: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
 			9: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
-			14: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
+			14: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry], // Qrevo Master (a117)
+			15: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry], // Qrevo S (a104)
 			16: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
 			10: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry], // S7 MaxV/Pro
-			17: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry], // Qrevo S (a159)
+			17: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry], // Qrevo Curv Series (a159)
 			18: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry], // S8 Pro
 		};
 		const features = dockFeatureMap[dockType];

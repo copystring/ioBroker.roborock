@@ -317,10 +317,11 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             7: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry],
             8: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry],
             9: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry],
-            14: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry],
+            14: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry], // Qrevo Master (a117)
+            15: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry], // Qrevo S (a104)
             16: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry],
             10: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry], // S7 MaxV/Pro
-            17: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry], // Qrevo S (a159)
+            17: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry], // Qrevo Curv Series (a159)
             18: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry], // S8 Pro
         };
         const features = dockFeatureMap[dockType];
