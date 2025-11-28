@@ -345,6 +345,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 			14: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
 			16: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
 			10: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry], // S7 MaxV/Pro
+			17: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry], // Qrevo S (a159)
 			18: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry], // S8 Pro
 		};
 		const features = dockFeatureMap[dockType];

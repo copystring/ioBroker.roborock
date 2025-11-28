@@ -97,7 +97,7 @@ export class requestsHandler {
 
 			if (!Buffer.isBuffer(cleaningRecordMap)) {
 				this.adapter.log.warn(`[getCleaningRecordMap] Received non-buffer data for record ${startTime}: ${JSON.stringify(cleaningRecordMap)}`);
-				throw new Error("Received non-buffer data for history map");
+				return null;
 			}
 
 			// We must pass 'null' for the 'mappedRooms' argument, as history maps don't have live room mappings.
