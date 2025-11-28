@@ -16,6 +16,7 @@
     "module": "CommonJS",
     "moduleResolution": "Node",
     "resolveJsonModule": true,
+    "esModuleInterop": true,
 
     // Type Checking - STRICT
     "strict": true,
