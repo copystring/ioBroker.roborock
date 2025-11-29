@@ -401,6 +401,9 @@ export declare const VACUUM_CONSTANTS: {
         sensor_dirty_time: {
             unit: string;
         };
+        dust_collection_work_times: {
+            unit: string;
+        };
         main_brush_life: {
             unit: string;
         };
@@ -506,6 +509,12 @@ export declare const VACUUM_CONSTANTS: {
             type: string;
         };
         avoid_count: {
+            type: string;
+        };
+        sub_source: {
+            type: string;
+        };
+        extra_time: {
             type: string;
         };
     };

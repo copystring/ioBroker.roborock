@@ -177,6 +177,7 @@ exports.VACUUM_CONSTANTS = {
         filter_work_time: { unit: "h" },
         filter_element_work_time: { unit: "h" },
         sensor_dirty_time: { unit: "h" },
+        dust_collection_work_times: { unit: "h" },
         main_brush_life: { unit: "%" },
         side_brush_life: { unit: "%" },
         filter_life: { unit: "%" },
@@ -223,6 +224,8 @@ exports.VACUUM_CONSTANTS = {
         map_flag: { type: "number" },
         wash_count: { type: "number" },
         avoid_count: { type: "number" },
+        sub_source: { type: "number" },
+        extra_time: { type: "number" },
     },
     cleaningInfo: {
         0: { unit: "h" },
