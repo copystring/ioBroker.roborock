@@ -145,11 +145,14 @@ export class requestsHandler {
 						ack: true,
 					});
 				} else if (mappedAttribute == "records") {
+					await this.adapter.ensureFolder(`Devices.${duid}.cleaningInfo.records`);
 					const cleaningRecordsJSON: any[] = [];
 					const recordsList = cleaningAttributes[cleaningAttribute];
 
 					for (const cleaningRecord in recordsList) {
 						const cleaningRecordID = recordsList[cleaningRecord];
+						await this.adapter.ensureFolder(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}`);
+
 						const cleaningRecordAttributesArr = (await this.sendRequest(duid, "get_clean_record", [cleaningRecordID], { priority: 0 })) as any[];
 						const cleaningRecordAttributes = cleaningRecordAttributesArr[0];
 
