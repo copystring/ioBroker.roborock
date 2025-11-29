@@ -1,33 +1,10 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.requestsHandler = void 0;
-const zlib = __importStar(require("zlib"));
+const zlib_1 = require("zlib");
 const util_1 = require("util");
 const mapDataParser_1 = require("./mapDataParser");
 const messageParser_1 = require("./messageParser");
@@ -59,7 +36,7 @@ const parameterFolders = {
     get_smart_wash_params: "deviceStatus",
     get_dust_collection_switch_status: "deviceStatus",
 };
-const gunzipAsync = (0, util_1.promisify)(zlib.gunzip);
+const gunzipAsync = (0, util_1.promisify)(zlib_1.gunzip);
 class requestsHandler {
     adapter;
     idCounter;
@@ -371,7 +348,7 @@ class requestsHandler {
                                 await this.adapter.ensureState(path, { type: "number", role: "value", read: true, write: false, states: { 0: "UNKNOWN", 1: "ERROR", 2: "OK" } });
                                 const dssVal = dssStatus[state];
                                 if (dssVal !== undefined)
-                                    await this.adapter.setStateChangedAsync(path, { val: parseInt(dssVal), ack: true });
+                                    await this.adapter.setStateChangedAsync(path, { val: dssVal, ack: true });
                             }
                         }
                     }
@@ -464,9 +441,9 @@ class requestsHandler {
         for (const firmwareFeature in value) {
             const featureID = value[firmwareFeature];
             const featureName = handler.getFirmwareFeatureName(featureID);
-            const handlerAny = handler;
-            if (typeof handlerAny[featureName] === "function") {
-                handlerAny[featureName](duid);
+            const handlerWithFeatures = handler;
+            if (typeof handlerWithFeatures[featureName] === "function") {
+                handlerWithFeatures[featureName](duid);
             }
             await this.adapter.ensureState(`Devices.${duid}.firmwareFeatures.${firmwareFeature}`, { type: "string" });
             await this.adapter.setStateChangedAsync(`Devices.${duid}.firmwareFeatures.${firmwareFeature}`, { val: featureName, ack: true });
@@ -518,7 +495,7 @@ class requestsHandler {
                     this.adapter.log.debug("Starting room cleaning");
                     const roomList = { segments: [] };
                     const roomFloor = await this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.map_status`);
-                    const mappedRoomList = await this.getParameter(handler, duid, "get_room_mapping", []);
+                    const mappedRoomList = (await this.getParameter(handler, duid, "get_room_mapping", []));
                     if (mappedRoomList && roomFloor && roomFloor.val != null) {
                         for (const mappedRoom in mappedRoomList) {
                             const roomState = await this.adapter.getStateAsync(`Devices.${duid}.floors.${roomFloor.val}.${mappedRoomList[mappedRoom][0]}`);
@@ -613,7 +590,7 @@ class requestsHandler {
                     this.adapter.log.warn(`[getMap] Received non-buffer data (e.g. 'retry' or 'ok'): ${JSON.stringify(mapBuf)}`);
                     return;
                 }
-                const mappedRooms = await this.getParameter(handler, duid, "get_room_mapping", []);
+                const mappedRooms = (await this.getParameter(handler, duid, "get_room_mapping", [])) || null;
                 const parsedData = (await this.mapParser.parsedata(mapBuf, mappedRooms, { isHistoryMap: false }));
                 if (parsedData?.metaData) {
                     this.adapter.log.debug(`[getMap] Parsed LIVE map. MapIndex (Floor): ${parsedData.metaData.map_index}, Segments: ${parsedData.IMAGE?.segments?.list?.length || 0}`);
@@ -855,7 +832,7 @@ class requestsHandler {
         }
     }
     unzipBuffer(buffer, callback) {
-        zlib.gunzip(buffer, (err, result) => {
+        (0, zlib_1.gunzip)(buffer, (err, result) => {
             if (err)
                 callback(err);
             else

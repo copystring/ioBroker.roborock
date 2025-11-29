@@ -14,7 +14,7 @@ interface UserData {
     token: string;
     rriot: RriotData;
 }
-interface Device {
+export interface Device {
     duid: string;
     localKey: string;
     productId: string;

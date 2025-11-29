@@ -118,11 +118,16 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
             2: string;
             3: string;
             5: string;
+            6: string;
             7: string;
             8: string;
             9: string;
+            10: string;
             14: string;
+            15: string;
             16: string;
+            17: string;
+            18: string;
         };
         baseCommands: {
             app_start: {
@@ -308,6 +313,9 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
                 type: string;
             };
             in_cleaning: {
+                type: string;
+            };
+            in_warmup: {
                 type: string;
             };
             map_present: {

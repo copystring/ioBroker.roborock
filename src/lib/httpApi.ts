@@ -26,7 +26,7 @@ interface UserData {
 	// ... other potential user fields
 }
 
-interface Device {
+export interface Device {
 	duid: string;
 	localKey: string;
 	productId: string;

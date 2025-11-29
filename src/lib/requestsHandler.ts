@@ -3,8 +3,22 @@ import type { Roborock } from "../main";
 import type { BaseDeviceFeatures } from "./features/baseDeviceFeatures";
 
 
-import * as zlib from "zlib";
+import { gunzip } from "zlib";
 import { promisify } from "util";
+
+type RoomMapping = [number, string][];
+
+interface FirmwareFeatures {
+	isSupportFDSEndPoint?(duid: string): void;
+	isSupportAutoSplitSegments?(duid: string): void;
+	isSupportOrderSegmentClean?(duid: string): void;
+	isMapSegmentSupported?(duid: string): void;
+	isSupportLedStatusSwitch?(duid: string): void;
+	isMultiFloorSupported?(duid: string): void;
+	isSupportFetchTimerSummary?(duid: string): void;
+	isOrderCleanSupported?(duid: string): void;
+	isRemoteSupported?(duid: string): void;
+}
 import { MapDataParser, type ParsedMapData } from "./mapDataParser";
 import { messageParser } from "./messageParser";
 import { MapCreator } from "./mapCreator";
@@ -38,7 +52,7 @@ const parameterFolders: Record<string, string> = {
 	get_dust_collection_switch_status: "deviceStatus",
 };
 
-const gunzipAsync = promisify(zlib.gunzip);
+const gunzipAsync = promisify(gunzip);
 
 export class requestsHandler {
 	adapter: Roborock;
@@ -380,7 +394,7 @@ export class requestsHandler {
 								const path = `Devices.${duid}.dockingStationStatus.${state}`;
 								await this.adapter.ensureState(path, { type: "number", role: "value", read: true, write: false, states: { 0: "UNKNOWN", 1: "ERROR", 2: "OK" } });
 								const dssVal = dssStatus[state as keyof typeof dssStatus];
-								if (dssVal !== undefined) await this.adapter.setStateChangedAsync(path, { val: parseInt(dssVal as any), ack: true });
+								if (dssVal !== undefined) await this.adapter.setStateChangedAsync(path, { val: dssVal, ack: true });
 							}
 						}
 					} catch (e) {
@@ -479,9 +493,9 @@ export class requestsHandler {
 		for (const firmwareFeature in value) {
 			const featureID = value[firmwareFeature];
 			const featureName = handler.getFirmwareFeatureName(featureID);
-			const handlerAny = handler as any;
-			if (typeof handlerAny[featureName] === "function") {
-				handlerAny[featureName](duid);
+			const handlerWithFeatures = handler as BaseDeviceFeatures & Partial<FirmwareFeatures>;
+			if (typeof handlerWithFeatures[featureName as keyof FirmwareFeatures] === "function") {
+				handlerWithFeatures[featureName as keyof FirmwareFeatures]!(duid);
 			}
 			await this.adapter.ensureState(`Devices.${duid}.firmwareFeatures.${firmwareFeature}`, { type: "string" });
 			await this.adapter.setStateChangedAsync(`Devices.${duid}.firmwareFeatures.${firmwareFeature}`, { val: featureName, ack: true });
@@ -532,7 +546,7 @@ export class requestsHandler {
 					this.adapter.log.debug("Starting room cleaning");
 					const roomList: { segments: any[]; repeat?: number } = { segments: [] };
 					const roomFloor = await this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.map_status`);
-					const mappedRoomList = await this.getParameter(handler, duid, "get_room_mapping", []);
+					const mappedRoomList = (await this.getParameter(handler, duid, "get_room_mapping", [])) as RoomMapping;
 					if (mappedRoomList && roomFloor && roomFloor.val != null) {
 						for (const mappedRoom in mappedRoomList) {
 							const roomState = await this.adapter.getStateAsync(`Devices.${duid}.floors.${roomFloor.val}.${mappedRoomList[mappedRoom][0]}`);
@@ -631,7 +645,7 @@ export class requestsHandler {
 
 				}
 
-				const mappedRooms = await this.getParameter(handler, duid, "get_room_mapping", []);
+				const mappedRooms = ((await this.getParameter(handler, duid, "get_room_mapping", [])) as RoomMapping) || null;
 				const parsedData = (await this.mapParser.parsedata(mapBuf, mappedRooms, { isHistoryMap: false })) as ParsedMapData;
 
 				if (parsedData?.metaData) {
@@ -900,7 +914,7 @@ export class requestsHandler {
 	}
 
 	unzipBuffer(buffer: Buffer, callback: (err: Error | null, result?: Buffer) => void) {
-		zlib.gunzip(buffer, (err: Error | null, result: Buffer) => {
+		gunzip(buffer, (err: Error | null, result: Buffer) => {
 			if (err) callback(err);
 			else callback(null, result);
 		});
