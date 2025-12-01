@@ -248,5 +248,8 @@ export const VACUUM_CONSTANTS = {
 		122: "isSupportFetchTimerSummary",
 		123: "isOrderCleanSupported",
 		125: "isRemoteSupported",
-	},
+	} as const,
 };
+
+export type FirmwareFeatures = typeof VACUUM_CONSTANTS.firmwareFeatures;
+export type FirmwareFeatureId = keyof FirmwareFeatures;

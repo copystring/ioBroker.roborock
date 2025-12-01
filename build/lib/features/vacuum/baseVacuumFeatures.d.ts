@@ -597,15 +597,15 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
             };
         };
         firmwareFeatures: {
-            111: string;
-            112: string;
-            114: string;
-            116: string;
-            119: string;
-            120: string;
-            122: string;
-            123: string;
-            125: string;
+            readonly 111: "isSupportFDSEndPoint";
+            readonly 112: "isSupportAutoSplitSegments";
+            readonly 114: "isSupportOrderSegmentClean";
+            readonly 116: "isMapSegmentSupported";
+            readonly 119: "isSupportLedStatusSwitch";
+            readonly 120: "isMultiFloorSupported";
+            readonly 122: "isSupportFetchTimerSummary";
+            readonly 123: "isOrderCleanSupported";
+            readonly 125: "isRemoteSupported";
         };
     };
     constructor(dependencies: FeatureDependencies, duid: string, robotModel: string, config: DeviceModelConfig, profile?: VacuumProfile);

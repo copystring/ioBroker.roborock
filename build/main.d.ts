@@ -16,12 +16,7 @@ export declare class Roborock extends utils.Adapter {
     deviceManager: DeviceManager;
     deviceFeatureHandlers: Map<string, BaseDeviceFeatures>;
     nonce: Buffer;
-    pendingRequests: Map<number, {
-        method: string;
-        resolve: (value: any) => void;
-        reject: (reason?: any) => void;
-        timeout: ioBroker.Timeout | undefined;
-    }>;
+    pendingRequests: Map<number, any>;
     roborock_package_helper: roborock_package_helper;
     isInitializing: boolean;
     sentryInstance: any;

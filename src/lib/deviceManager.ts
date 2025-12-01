@@ -104,12 +104,12 @@ export class DeviceManager {
 
 					// 1. Get initial status (get_prop)
 					if (device.online) {
-						await this.adapter.requestsHandler.getParameter(handler, duid, "get_prop", ["get_status"]);
+						this.adapter.requestsHandler.getParameter(handler, duid, "get_prop", ["get_status"]);
 					}
 
 					// 2. Get firmware features
 					if (device.online) {
-						await this.adapter.requestsHandler.getParameter(handler, duid, "get_fw_features");
+						this.adapter.requestsHandler.getParameter(handler, duid, "get_fw_features");
 					}
 
 					// State should be updated after getStatus.
@@ -125,7 +125,10 @@ export class DeviceManager {
 					if (device.online) {
 						await this.updateDeviceData(handler, duid);
 						await this.updateConsumablesPercent(duid);
-						await this.adapter.requestsHandler.getMap(handler, duid);
+						this.adapter.requestsHandler.getMap(handler, duid);
+
+						// Fire cleaning summary immediately (background)
+						this.adapter.requestsHandler.getCleanSummary(handler, duid);
 					}
 
 					handler.printSummary();
@@ -138,26 +141,14 @@ export class DeviceManager {
 		}
 
 		await Promise.all(initPromises);
+
+		// Wait for all startup requests to finish
+		await this.adapter.requestsHandler.waitForStartup();
+
 		this.adapter.log.info("[DeviceManager] All devices initialized.");
 
 		// Cleanup orphaned devices (devices present in ioBroker but not in cloud account)
 		await this.cleanupOrphanedDevices(devices.map((d) => d.duid));
-
-		// Background Task: Delayed fetching of heavy clean summary for ALL devices
-		// This runs once, 5 seconds after all devices have finished their foreground init.
-		this.adapter.setTimeout(async () => {
-			this.adapter.log.info("[DeviceManager] Starting background clean summary updates...");
-			for (const device of devices) {
-				if (device.online) {
-					const handler = this.deviceFeatureHandlers.get(device.duid);
-					if (handler) {
-						this.adapter.log.debug(`[DeviceManager] Background clean summary update for ${device.duid}...`);
-						await this.adapter.requestsHandler.getCleanSummary(handler, device.duid);
-					}
-				}
-			}
-			this.adapter.log.info("[DeviceManager] Background clean summary updates finished.");
-		}, 5000);
 	}
 
 

@@ -4,13 +4,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.requestsHandler = void 0;
+const mapCreator_1 = require("./mapCreator");
+const mapDataParser_1 = require("./mapDataParser");
 const zlib_1 = require("zlib");
 const util_1 = require("util");
-const mapDataParser_1 = require("./mapDataParser");
-const messageParser_1 = require("./messageParser");
-const mapCreator_1 = require("./mapCreator");
 const p_queue_1 = __importDefault(require("p-queue"));
-// ... (Constants)
+const messageParser_1 = require("./messageParser");
 const REQUEST_TIMEOUT = 30000;
 const mappedCleanSummary = { 0: "clean_time", 1: "clean_area", 2: "clean_count", 3: "records" };
 const mappedCleaningRecordAttribute = {
@@ -37,35 +36,323 @@ const parameterFolders = {
     get_dust_collection_switch_status: "deviceStatus",
 };
 const gunzipAsync = (0, util_1.promisify)(zlib_1.gunzip);
+// ============================================================
+// Helper for AbortSignal compatibility (Node < 20)
+// ============================================================
+function anySignal(signals) {
+    if (AbortSignal.any) {
+        return AbortSignal.any(signals);
+    }
+    const controller = new AbortController();
+    for (const signal of signals) {
+        if (signal.aborted) {
+            controller.abort(signal.reason);
+            return controller.signal;
+        }
+        signal.addEventListener("abort", () => controller.abort(signal.reason), { once: true });
+    }
+    return controller.signal;
+}
+function timeoutSignal(ms) {
+    if (AbortSignal.timeout) {
+        return AbortSignal.timeout(ms);
+    }
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(new Error("Timeout")), ms);
+    return controller.signal;
+}
+// ============================================================
+// RequestManager Class
+// ============================================================
+class RequestManager {
+    queue;
+    timeoutMs;
+    tasks;
+    constructor(concurrency = 10, timeoutMs = 30000) {
+        this.queue = new p_queue_1.default({ concurrency });
+        this.timeoutMs = timeoutMs;
+        this.tasks = new Map();
+    }
+    add(id, taskFunction, priority = 0) {
+        const manualController = new AbortController();
+        this.tasks.set(id, manualController);
+        return this.queue.add(async () => {
+            try {
+                if (manualController.signal.aborted) {
+                    throw new Error("ADAPTER_STOPPED");
+                }
+                const tSignal = timeoutSignal(this.timeoutMs);
+                const combinedSignal = anySignal([manualController.signal, tSignal]);
+                const result = await taskFunction(combinedSignal);
+                return result;
+            }
+            catch (error) {
+                if (manualController.signal.aborted || (error instanceof Error && error.message === "CANCELLED_BY_USER")) {
+                    throw new Error(`Task ${id} was cancelled manually.`);
+                }
+                else if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+                    throw new Error(`Task ${id} timed out after ${this.timeoutMs}ms.`);
+                }
+                else {
+                    throw error;
+                }
+            }
+            finally {
+                this.tasks.delete(id);
+            }
+        }, { priority });
+    }
+    cancel(id) {
+        const controller = this.tasks.get(id);
+        if (controller) {
+            controller.abort();
+            return true;
+        }
+        return false;
+    }
+    async onIdle() {
+        await this.queue.onIdle();
+    }
+    clear() {
+        this.tasks.forEach((c) => c.abort(new Error("ADAPTER_STOPPED")));
+        this.tasks.clear();
+        this.queue.clear();
+    }
+}
+class RoborockRequest {
+    adapter;
+    handler;
+    duid;
+    method;
+    params;
+    messageID;
+    resolvePromise;
+    rejectPromise;
+    promise;
+    constructor(handler, duid, method, params, messageID) {
+        this.handler = handler;
+        this.adapter = handler.adapter;
+        this.duid = duid;
+        this.method = method;
+        this.params = params;
+        this.messageID = messageID;
+        this.promise = new Promise((resolve, reject) => {
+            this.resolvePromise = resolve;
+            this.rejectPromise = reject;
+        });
+    }
+    async send(signal) {
+        if (signal?.aborted)
+            throw new Error("Aborted");
+        const remoteConnection = await this.handler.isCloudDevice(this.duid);
+        let protocol = 101;
+        const version = await this.adapter.getDeviceProtocolVersion(this.duid);
+        const timestamp = Math.floor(Date.now() / 1000);
+        if (!this.handler.isCloudRequest(this.duid, this.method)) {
+            protocol = 4;
+        }
+        const payload = await this.handler.messageParser.buildPayload(protocol, this.messageID, this.method, this.params, version);
+        const roborockMessage = await this.handler.messageParser.buildRoborockMessage(this.duid, protocol, timestamp, payload, version);
+        const mqttConnectionState = this.adapter.mqtt_api.isConnected();
+        const localConnectionState = this.adapter.local_api.isConnected(this.duid);
+        if (!roborockMessage) {
+            const errorMsg = "Failed to build buildRoborockMessage!";
+            this.adapter.catchError(errorMsg, "function sendRequest", this.duid);
+            this.rejectPromise(new Error(errorMsg));
+            return this.promise;
+        }
+        if (version == "A01") {
+            this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage);
+            this.resolvePromise(null);
+            return this.promise;
+        }
+        this.adapter.log.debug(`duid: ${this.duid}, mqtt: ${mqttConnectionState}, local: ${localConnectionState}, remote: ${remoteConnection}`);
+        if (!mqttConnectionState && remoteConnection) {
+            const errorMsg = `Cloud connection not available. Not sending for method ${this.method} request!`;
+            this.adapter.log.debug(errorMsg);
+            this.rejectPromise(new Error(errorMsg));
+            return this.promise;
+        }
+        else if (!localConnectionState && !mqttConnectionState && this.method != "get_network_info") {
+            const errorMsg = `Adapter locally or remotely not connected to robot ${this.duid}. Sending request for ${this.method} not possible!`;
+            this.adapter.log.debug(errorMsg);
+            this.rejectPromise(new Error(errorMsg));
+            return this.promise;
+        }
+        // Register in pendingRequests
+        this.adapter.pendingRequests.set(this.messageID, this);
+        // Handle AbortSignal
+        if (signal) {
+            signal.addEventListener("abort", () => {
+                if (signal.reason) {
+                    this.rejectPromise(signal.reason);
+                }
+                else {
+                    this.rejectPromise(new Error("Aborted by RequestManager"));
+                }
+            }, { once: true });
+        }
+        // Send
+        if (this.handler.isCloudRequest(this.duid, this.method) || !localConnectionState) {
+            this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage);
+            this.adapter.log.debug(`Sent payload for ${this.duid} with ${payload} using cloud connection using version ${version}`);
+        }
+        else {
+            const lengthBuffer = Buffer.alloc(4);
+            lengthBuffer.writeUInt32BE(roborockMessage.length, 0);
+            const fullMessage = Buffer.concat([lengthBuffer, roborockMessage]);
+            this.adapter.local_api.sendMessage(this.duid, fullMessage);
+            this.adapter.log.debug(`Sent payload for ${this.duid} with ${payload} using local connection using version ${version}`);
+        }
+        return this.promise;
+    }
+    resolve(result) {
+        this.adapter.pendingRequests.delete(this.messageID);
+        this.resolvePromise(result);
+    }
+    reject(reason) {
+        this.adapter.pendingRequests.delete(this.messageID);
+        this.rejectPromise(reason);
+    }
+}
 class requestsHandler {
     adapter;
     idCounter;
-    deviceQueues;
+    photoIdCounter;
+    deviceManagers;
     messageParser;
     mapParser;
     mapCreator;
     mqttResetInterval = undefined;
+    startupFinished = false;
+    startupPromises = [];
     constructor(adapter) {
         this.adapter = adapter;
-        this.idCounter = 0;
-        this.deviceQueues = new Map();
+        // Offset ID counter by instance to avoid collisions (Instance 0: 300-20000, Instance 1: 20300-40000)
+        this.idCounter = (this.adapter.instance * 20000) + 300;
+        this.photoIdCounter = 0;
+        this.deviceManagers = new Map();
         this.messageParser = new messageParser_1.messageParser(this.adapter);
         this.mapParser = new mapDataParser_1.MapDataParser(this.adapter);
         this.mapCreator = new mapCreator_1.MapCreator(this.adapter);
         this.scheduleMqttReset();
     }
-    getQueue(duid) {
-        if (!this.deviceQueues.has(duid)) {
-            this.deviceQueues.set(duid, new p_queue_1.default({ concurrency: 10 }));
-        }
-        return this.deviceQueues.get(duid);
-    }
     scheduleMqttReset() {
         if (this.mqttResetInterval)
             this.adapter.clearInterval(this.mqttResetInterval);
-        this.mqttResetInterval = this.adapter.setInterval(async () => {
-            await this.adapter.resetMqttApi();
-        }, 3600000);
+        this.mqttResetInterval = this.adapter.setInterval(() => {
+            this.adapter.log.debug("Resetting MQTT message ID counter");
+            this.idCounter = 300;
+        }, 24 * 60 * 60 * 1000); // 24 hours
+    }
+    async waitForStartup() {
+        this.adapter.log.info(`[Startup] Waiting for ${this.startupPromises.length} initial requests to finish...`);
+        await Promise.all(this.startupPromises);
+        this.startupFinished = true;
+        this.startupPromises = [];
+        this.adapter.log.info("[Startup] All initial requests finished. Adapter is ready.");
+    }
+    _processResult(requestPromise, callback, identifier, duid, alwaysBackground = false) {
+        const executionWrapper = async () => {
+            try {
+                const result = await requestPromise;
+                await callback(result);
+            }
+            catch (e) {
+                const errorMsg = e?.message || e?.toString() || "";
+                // Handle timeouts and aborts gracefully without scary stack traces
+                if (errorMsg.includes("Timeout") || errorMsg.includes("timed out") || errorMsg.includes("Aborted") || errorMsg.includes("CANCELLED") || errorMsg.includes("ADAPTER_STOPPED")) {
+                    const idMatch = errorMsg.match(/Task (req_\d+_\d+)/);
+                    const reqId = idMatch ? idMatch[1] : "unknown";
+                    if (errorMsg.includes("ADAPTER_STOPPED")) {
+                        this.adapter.log.warn(`[${identifier}] Request cancelled (Adapter stopped). ID: ${reqId}`);
+                    }
+                    else {
+                        this.adapter.log.warn(`[${identifier}] Request timed out. ID: ${reqId}`);
+                    }
+                }
+                else {
+                    this.adapter.catchError(e, `Processing-${identifier}`, duid);
+                }
+            }
+        };
+        const promise = executionWrapper();
+        if (alwaysBackground) {
+            promise.catch(() => { });
+        }
+        else if (!this.startupFinished) {
+            this.startupPromises.push(promise);
+        }
+        else {
+            promise.catch(() => { });
+        }
+    }
+    getManager(duid) {
+        if (!this.deviceManagers.has(duid)) {
+            // Initialize with default concurrency and timeout
+            // Concurrency 10, Timeout 30s
+            this.deviceManagers.set(duid, new RequestManager(10, REQUEST_TIMEOUT));
+        }
+        return this.deviceManagers.get(duid);
+    }
+    async sendRequest(duid, method, params, options = {}) {
+        const manager = this.getManager(duid);
+        const priority = options.priority || 0;
+        const attempt = async (retryCount) => {
+            let messageID;
+            if (method === "get_photo") {
+                this.photoIdCounter = this.photoIdCounter >= 250 ? 1 : this.photoIdCounter + 1;
+                messageID = this.photoIdCounter;
+            }
+            else {
+                const minId = (this.adapter.instance * 20000) + 300;
+                const maxId = (this.adapter.instance * 20000) + 20000;
+                this.idCounter = this.idCounter > maxId ? minId : this.idCounter + 1;
+                messageID = this.idCounter;
+            }
+            const req = new RoborockRequest(this, duid, method, params, messageID);
+            const taskId = `req_${messageID}_${Date.now()}`;
+            try {
+                const result = await manager.add(taskId, (signal) => req.send(signal), priority);
+                if (Array.isArray(result) && result[0] === "retry" && retryCount < 3) {
+                    this.adapter.log.debug(`[sendRequest] Received 'retry' for ${method} on ${duid}. Retrying (${retryCount + 1}/3)...`);
+                    await new Promise((resolve) => setTimeout(resolve, 1000));
+                    return attempt(retryCount + 1);
+                }
+                return result;
+            }
+            catch (error) {
+                throw error;
+            }
+        };
+        return attempt(0);
+    }
+    async getParameter(handler, duid, parameter, extraParameters) {
+        const folder = parameterFolders[parameter];
+        if (folder) {
+            await this.adapter.ensureFolder(`Devices.${duid}.${folder}`);
+        }
+        const params = extraParameters ? extraParameters : [];
+        const requestPromise = this.sendRequest(duid, parameter, params, { priority: parameter === "get_prop" ? 1 : 0 });
+        this._processResult(requestPromise, async (result) => {
+            if (typeof result === "object" && result !== null && !Array.isArray(result)) {
+                const resultObj = result;
+                for (const key in resultObj) {
+                    const subFolder = parameterFolders[key];
+                    if (subFolder) {
+                        await this.adapter.ensureFolder(`Devices.${duid}.${subFolder}`);
+                        await this.adapter.ensureState(`Devices.${duid}.${subFolder}.${key}`, handler.getCommonDeviceStates(key) || {});
+                        await this.adapter.setStateChangedAsync(`Devices.${duid}.${subFolder}.${key}`, { val: resultObj[key], ack: true });
+                    }
+                }
+            }
+        }, `getParameter-${parameter}-${duid}`, duid);
+    }
+    async command(_handler, duid, method, params) {
+        const requestPromise = this.sendRequest(duid, method, params, { priority: 1 });
+        this._processResult(requestPromise, async () => {
+            // Command successful, nothing specific to do
+        }, `command-${method}-${duid}`, duid);
     }
     async getStatus(handler, duid) {
         const productCategory = await this.adapter.http_api.getProductCategory(duid);
@@ -79,41 +366,10 @@ class requestsHandler {
                 break;
         }
     }
-    async getCleaningRecordMap(duid, startTime) {
-        try {
-            const cleaningRecordMap = (await this.sendRequest(duid, "get_clean_record_map", { start_time: startTime }, { priority: 0 }));
-            if (!Buffer.isBuffer(cleaningRecordMap)) {
-                this.adapter.log.warn(`[getCleaningRecordMap] Received non-buffer data for record ${startTime}: ${JSON.stringify(cleaningRecordMap)}`);
-                return null;
-            }
-            // We must pass 'null' for the 'mappedRooms' argument, as history maps don't have live room mappings.
-            const parsedData = (await this.mapParser.parsedata(cleaningRecordMap, null, { isHistoryMap: true }));
-            // Use the new 'segments.list' structure for counting
-            if (parsedData?.IMAGE?.segments) {
-                this.adapter.log.info(`[getCleaningRecordMap] Parsed HISTORY map. Segments: ${parsedData.IMAGE.segments.list?.length || 0}`);
-            }
-            else {
-                this.adapter.log.warn(`[getCleaningRecordMap] History map for ${startTime} was parsed but contains no IMAGE data.`);
-            }
-            this.adapter.log.debug(`Generating map for cleaning record with start time ${startTime} for duid ${duid}`);
-            // We pass 'null' for mappedRooms because history maps don't get room names painted.
-            const [mapBase64CleanUncropped, mapBase64Full, mapBase64Truncated] = await this.mapCreator.canvasMap(parsedData, { selectedMap: -1, mappedRooms: null });
-            return {
-                // Return the 3 maps as expected by getCleanSummary
-                mapBase64CleanUncropped: mapBase64CleanUncropped,
-                mapBase64: mapBase64Full,
-                mapBase64Truncated: mapBase64Truncated,
-                mapData: JSON.stringify(parsedData),
-            };
-        }
-        catch (error) {
-            this.adapter.catchError(error, "get_clean_record_map", duid);
-            return null;
-        }
-    }
     async getCleanSummary(handler, duid) {
-        try {
-            const cleaningAttributes = (await this.sendRequest(duid, "get_clean_summary", [], { priority: 0 }));
+        const requestPromise = this.sendRequest(duid, "get_clean_summary", [], { priority: 0 });
+        this._processResult(requestPromise, async (result) => {
+            const cleaningAttributes = result;
             for (const cleaningAttribute in cleaningAttributes) {
                 const mappedAttribute = mappedCleanSummary[cleaningAttribute] || cleaningAttribute;
                 const cleaningAttributeCommon = handler.getCommonCleaningInfo(mappedAttribute);
@@ -128,745 +384,217 @@ class requestsHandler {
                 }
                 else if (mappedAttribute == "records") {
                     await this.adapter.ensureFolder(`Devices.${duid}.cleaningInfo.records`);
-                    const cleaningRecordsJSON = [];
                     const recordsList = cleaningAttributes[cleaningAttribute];
+                    const cleaningRecordsJSON = [];
+                    // Process records sequentially
                     for (const cleaningRecord in recordsList) {
                         const cleaningRecordID = recordsList[cleaningRecord];
-                        await this.adapter.ensureFolder(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}`);
-                        const cleaningRecordAttributesArr = (await this.sendRequest(duid, "get_clean_record", [cleaningRecordID], { priority: 0 }));
-                        const cleaningRecordAttributes = cleaningRecordAttributesArr[0];
-                        cleaningRecordsJSON[parseInt(cleaningRecord)] = cleaningRecordAttributes;
-                        for (const cleaningRecordAttribute in cleaningRecordAttributes) {
-                            const mappedRecordAttribute = mappedCleaningRecordAttribute[cleaningRecordAttribute] || cleaningRecordAttribute;
-                            const cleaningRecordCommon = handler.getCommonCleaningRecords(mappedRecordAttribute) || {}; // Ensure object
-                            const val = this.calculateRecordValue(mappedRecordAttribute, cleaningRecordAttributes[cleaningRecordAttribute]);
-                            // Set type based on the calculated value's type
-                            cleaningRecordCommon.type = typeof val;
-                            await this.adapter.ensureState(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, cleaningRecordCommon);
-                            await this.adapter.setStateChangedAsync(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, {
-                                val: val,
-                                ack: true,
-                            });
+                        try {
+                            await this.adapter.ensureFolder(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}`);
+                            const cleaningRecordAttributesArr = (await this.sendRequest(duid, "get_clean_record", [cleaningRecordID], { priority: 0 }));
+                            const cleaningRecordAttributes = cleaningRecordAttributesArr[0];
+                            cleaningRecordsJSON[parseInt(cleaningRecord)] = cleaningRecordAttributes;
+                            const cleaningRecordCommon = handler.getCommonCleaningRecords(mappedAttribute);
+                            if (cleaningRecordCommon) {
+                                for (const cleaningRecordAttribute in cleaningRecordAttributes) {
+                                    const mappedRecordAttribute = mappedCleaningRecordAttribute[cleaningRecordAttribute] || cleaningRecordAttribute;
+                                    let val = cleaningRecordAttributes[cleaningRecordAttribute];
+                                    if (["begin", "end"].includes(mappedRecordAttribute)) {
+                                        val = new Date(val * 1000).toString();
+                                    }
+                                    else if (mappedRecordAttribute == "duration") {
+                                        val = Math.round(val / 60);
+                                    }
+                                    await this.adapter.ensureState(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, cleaningRecordCommon);
+                                    await this.adapter.setStateChangedAsync(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, {
+                                        val: val,
+                                        ack: true,
+                                    });
+                                }
+                            }
+                            if (this.adapter.config.enable_map_creation == true) {
+                                const mapArray = await this.getCleaningRecordMap(duid, recordsList[cleaningRecord]);
+                                if (mapArray) {
+                                    await this.adapter.ensureState(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.map.mapData`, {
+                                        name: "Map Data JSON",
+                                        type: "string",
+                                        role: "json",
+                                    });
+                                    await this.adapter.setStateChangedAsync(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.map.mapData`, { val: mapArray.mapData, ack: true });
+                                    await this.adapter.ensureState(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.map.mapBase64`, {
+                                        name: "Map Image (Full, Uncropped)",
+                                        type: "string",
+                                        role: "text.png",
+                                    });
+                                    await this.adapter.setStateChangedAsync(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.map.mapBase64`, { val: mapArray.mapBase64, ack: true });
+                                    await this.adapter.ensureState(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.map.mapBase64Truncated`, {
+                                        name: "Map Image (Full, Cropped)",
+                                        type: "string",
+                                        role: "text.png",
+                                    });
+                                    await this.adapter.setStateChangedAsync(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.map.mapBase64Truncated`, {
+                                        val: mapArray.mapBase64Truncated,
+                                        ack: true,
+                                    });
+                                }
+                            }
                         }
-                        if (this.adapter.config.enable_map_creation == true) {
-                            const mapArray = await this.getCleaningRecordMap(duid, recordsList[cleaningRecord]);
-                            if (mapArray) {
-                                // We only save the 3 maps relevant to history states
-                                await this.adapter.ensureState(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.map.mapData`, {
-                                    name: "Map Data JSON",
-                                    type: "string",
-                                    role: "json",
-                                });
-                                await this.adapter.setStateChangedAsync(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.map.mapData`, { val: mapArray.mapData, ack: true });
-                                await this.adapter.ensureState(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.map.mapBase64`, {
-                                    name: "Map Image (Full, Uncropped)",
-                                    type: "string",
-                                    role: "text.png",
-                                });
-                                await this.adapter.setStateChangedAsync(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.map.mapBase64`, { val: mapArray.mapBase64, ack: true });
-                                await this.adapter.ensureState(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.map.mapBase64Truncated`, {
-                                    name: "Map Image (Full, Cropped)",
-                                    type: "string",
-                                    role: "text.png",
-                                });
-                                await this.adapter.setStateChangedAsync(`Devices.${duid}.cleaningInfo.records.${cleaningRecord}.map.mapBase64Truncated`, {
-                                    val: mapArray.mapBase64Truncated,
-                                    ack: true,
-                                });
+                        catch (e) {
+                            const errorMsg = e?.message || e?.toString() || "";
+                            if (errorMsg.includes("Timeout") || errorMsg.includes("timed out") || errorMsg.includes("Aborted") || errorMsg.includes("CANCELLED") || errorMsg.includes("ADAPTER_STOPPED")) {
+                                const idMatch = errorMsg.match(/Task (req_\d+_\d+)/);
+                                const reqId = idMatch ? idMatch[1] : "unknown";
+                                if (errorMsg.includes("ADAPTER_STOPPED")) {
+                                    this.adapter.log.warn(`[getCleanSummary_record] Request cancelled (Adapter stopped). ID: ${reqId}`);
+                                }
+                                else {
+                                    this.adapter.log.warn(`[getCleanSummary_record] Request timed out. ID: ${reqId}`);
+                                }
+                            }
+                            else {
+                                this.adapter.catchError(e, "getCleanSummary_record", duid);
                             }
                         }
                     }
-                    const objectString = `Devices.${duid}.cleaningInfo.JSON`;
-                    await this.adapter.ensureState(objectString, { name: "cleaningInfoJSON", type: "string", def: "json", write: false });
-                    await this.adapter.setState(`Devices.${duid}.cleaningInfo.JSON`, { val: JSON.stringify(cleaningRecordsJSON), ack: true });
+                    await this.adapter.ensureState(`Devices.${duid}.cleaningInfo.records.json`, { name: "Cleaning Records JSON", type: "string", role: "json" });
+                    await this.adapter.setStateChangedAsync(`Devices.${duid}.cleaningInfo.records.json`, { val: JSON.stringify(cleaningRecordsJSON), ack: true });
                 }
             }
-        }
-        catch (error) {
-            this.adapter.catchError(error, "get_clean_summary", duid);
-        }
+        }, `getCleanSummary-${duid}`, duid, true);
     }
-    getDockingStationStatus(dss) {
-        if (dss === undefined)
-            return null;
-        return {
-            cleanFluidStatus: (dss >> 10) & 0b11,
-            waterBoxFilterStatus: (dss >> 8) & 0b11,
-            dustBagStatus: (dss >> 6) & 0b11,
-            dirtyWaterBoxStatus: (dss >> 4) & 0b11,
-            clearWaterBoxStatus: (dss >> 2) & 0b11,
-            isUpdownWaterReady: dss & 0b11,
-        };
-    }
-    async getParameter(handler, duid, parameter, attribute) {
+    async getCleaningRecordMap(duid, startTime) {
         try {
-            const value = await this.sendRequest(duid, parameter, attribute, { priority: 0 });
-            if (!value) {
-                this.adapter.log.debug(`No value received for ${parameter} on ${duid}.`);
-                return;
-            }
-            this.adapter.log.debug(`Received value for ${parameter} on ${duid}: ${JSON.stringify(value).slice(0, 100)}...}`);
-            switch (parameter) {
-                case "get_network_info":
-                    await this.handleGetNetworkInfo(duid, value);
-                    break;
-                case "get_consumable":
-                    await this.handleGetConsumable(handler, duid, value);
-                    break;
-                case "get_prop":
-                    await this.handleGetProp(handler, duid, value, attribute);
-                    break;
-                case "get_room_mapping":
-                    await this.handleGetRoomMapping(duid, value);
-                    break;
-                case "get_multi_maps_list":
-                    await this.handleGetMultiMapsList(duid, value);
-                    break;
-                case "get_fw_features":
-                    await this.handleGetFwFeatures(handler, duid, value);
-                    break;
-                case "get_photo":
-                    return await this.handleGetPhoto(duid, value);
-                case "app_get_dryer_setting": {
-                    const val = value;
-                    if (val && val.on && typeof val.on === "object" && "dry_time" in val.on && "status" in val) {
-                        const actualVal = JSON.stringify({ on: { dry_time: val.on.dry_time }, status: val.status });
-                        await this.adapter.setState(`Devices.${duid}.commands.${parameter.replace("get", "set")}`, { val: actualVal, ack: true });
-                    }
-                    else {
-                        this.adapter.log.warn(`Unexpected value structure for ${parameter}: ${JSON.stringify(value)}`);
-                    }
-                    break;
-                }
-                case "get_timer":
-                case "get_server_timer":
-                    this.adapter.log.debug(`[getParameter] Received timers (get_timer/get_server_timer), ignoring value.`);
-                    break;
-                case "get_clean_motor_mode": {
-                    let valToSave = value;
-                    if (Array.isArray(value) && value.length > 0 && typeof value[0] === "object") {
-                        valToSave = JSON.stringify(value[0]);
-                    }
-                    else if (typeof value === "object") {
-                        valToSave = JSON.stringify(value);
-                    }
-                    await this.adapter.setState(`Devices.${duid}.commands.set_clean_motor_mode`, { val: valToSave, ack: true });
-                    break;
-                }
-                default:
-                    if (parameterFolders[parameter]) {
-                        const mode = parameter.substring(4);
-                        const targetFolder = parameterFolders[parameter];
-                        let valToSave = Array.isArray(value) ? value[0] : value;
-                        if (typeof valToSave == "object")
-                            valToSave = JSON.stringify(valToSave);
-                        await this.adapter.ensureState(`Devices.${duid}.${targetFolder}.${mode}`, {});
-                        await this.adapter.setStateChangedAsync(`Devices.${duid}.${targetFolder}.${mode}`, { val: valToSave, ack: true });
-                    }
-                    else {
-                        if (Array.isArray(value)) {
-                            if (typeof value[0] != "number") {
-                                this.adapter.catchError(`Unknown parameter: ${JSON.stringify(value)}`, parameter, duid);
-                            }
-                        }
-                        else {
-                            this.adapter.catchError(`Unknown parameter: ${value}`, parameter, duid);
-                        }
-                    }
-            }
-            return value;
-        }
-        catch (error) {
-            this.adapter.catchError(error, parameter, duid);
-            throw error;
-        }
-    }
-    // --- Refactored Handlers ---
-    async handleGetNetworkInfo(duid, value) {
-        const localDevice = this.adapter.local_api.localDevices[duid];
-        for (const attribute in value) {
-            if (attribute == "ip" && value[attribute] && !localDevice) {
-                this.adapter.log.info(`[get_network_info] Adding device ${duid} @ ${value[attribute]} to local devices (missed by UDP).`);
-                this.adapter.local_api.localDevices[duid] = { ip: value[attribute], version: "1.0" };
-            }
-            const type = attribute === "rssi" ? "number" : "string";
-            await this.adapter.ensureState(`Devices.${duid}.networkInfo.${attribute}`, { type: type });
-            await this.adapter.setStateChangedAsync(`Devices.${duid}.networkInfo.${attribute}`, { val: value[attribute], ack: true });
-        }
-    }
-    async handleGetConsumable(handler, duid, value) {
-        const consumables = value[0];
-        const consumableMap = {
-            "125": "main_brush_life",
-            "126": "side_brush_life",
-            "127": "filter_life",
-        };
-        for (const consumable in consumables) {
-            let mappedConsumable = consumable;
-            if (consumableMap[consumable]) {
-                mappedConsumable = consumableMap[consumable];
-            }
-            const commonConsumable = handler.getCommonConsumable(mappedConsumable) || {}; // Ensure object
-            const val = commonConsumable && commonConsumable.unit == "h" ? Math.round(consumables[consumable] / (60 * 60)) : consumables[consumable];
-            // Ensure type is number
-            commonConsumable.type = "number";
-            // Ensure state exists and has correct type
-            await this.adapter.ensureState(`Devices.${duid}.consumables.${mappedConsumable}`, commonConsumable);
-            await this.adapter.setStateChangedAsync(`Devices.${duid}.consumables.${mappedConsumable}`, { val: val, ack: true });
-            if (handler.isResetableConsumable(mappedConsumable)) {
-                await this.adapter.ensureState(`Devices.${duid}.resetConsumables.${mappedConsumable}`, {
-                    type: "boolean",
-                    write: true,
-                    role: "button",
-                    def: false,
-                });
-                await this.adapter.setState(`Devices.${duid}.resetConsumables.${mappedConsumable}`, { val: false, ack: true });
-            }
-        }
-    }
-    async handleGetProp(handler, duid, value, attribute) {
-        if (!Array.isArray(attribute) || attribute[0] !== "get_status") {
-            return;
-        }
-        const statusData = value[0];
-        for (const attr in statusData) {
-            let val = statusData[attr];
-            if (typeof val == "object")
-                val = JSON.stringify(val);
-            const commonDeviceStates = handler.getCommonDeviceStates(attr) || {};
-            switch (attr) {
-                case "dock_type":
-                    handler.processDockType(val);
-                    break;
-                case "dss":
-                    try {
-                        const dssStatus = this.getDockingStationStatus(val);
-                        if (dssStatus) {
-                            const dockStates = ["cleanFluidStatus", "waterBoxFilterStatus", "dustBagStatus", "dirtyWaterBoxStatus", "clearWaterBoxStatus", "isUpdownWaterReady"];
-                            for (const state of dockStates) {
-                                const path = `Devices.${duid}.dockingStationStatus.${state}`;
-                                await this.adapter.ensureState(path, { type: "number", role: "value", read: true, write: false, states: { 0: "UNKNOWN", 1: "ERROR", 2: "OK" } });
-                                const dssVal = dssStatus[state];
-                                if (dssVal !== undefined)
-                                    await this.adapter.setStateChangedAsync(path, { val: dssVal, ack: true });
-                            }
-                        }
-                    }
-                    catch (e) {
-                        this.adapter.log.error(`Error processing DSS for ${duid} with val ${val}: ${e}`);
-                    }
-                    break;
-                case "map_status": {
-                    // Use block scope
-                    const rawMapStatus = Number(val);
-                    const selectedMap = rawMapStatus >> 2; // Bitwise shift
-                    val = selectedMap; // Overwrite 'val' to save the calculated map ID
-                    const mapCount = await this.adapter.getStateAsync(`Devices.${duid}.floors.multi_map_count`);
-                    if (mapCount && typeof mapCount.val === "number" && mapCount.val > 1) {
-                        const mapFromCommand = await this.adapter.getStateAsync(`Devices.${duid}.commands.load_multi_map`);
-                        if (mapFromCommand && mapFromCommand.val != selectedMap) {
-                            await this.adapter.setState(`Devices.${duid}.commands.load_multi_map`, selectedMap, true);
-                            if (!this.adapter.isInitializing) {
-                                this.getMap(handler, duid).catch(() => { });
-                            }
-                        }
-                    }
-                    break;
-                }
-                case "state":
-                    break;
-                case "last_clean_t":
-                    val = new Date(val * 1000).toString();
-                    break;
-                case "clean_time":
-                    val = Math.round(val / 60);
-                    break;
-                case "clean_area":
-                    val = Number((val / 1000000).toFixed(2));
-                    break;
-            }
-            // Dynamically set type based on value
-            if (attr === "last_clean_t") {
-                commonDeviceStates.type = "string";
-            }
-            else {
-                commonDeviceStates.type = typeof val;
-            }
-            await this.adapter.ensureState(`Devices.${duid}.deviceStatus.${attr}`, commonDeviceStates);
-            await this.adapter.setStateChangedAsync(`Devices.${duid}.deviceStatus.${attr}`, { val: val, ack: true });
-        }
-    }
-    async handleGetRoomMapping(duid, value) {
-        const selectedMap = await this.getSelectedMap(duid);
-        if (selectedMap != null) {
-            const roomIDs = this.adapter.http_api.getMatchedRoomIDs();
-            if (Array.isArray(value)) {
-                value.map(async ([shortID, roomID]) => {
-                    const room = roomIDs.find((r) => r.id.toString() === roomID);
-                    const roomName = room?.name || "unknown";
-                    await this.adapter.ensureState(`Devices.${duid}.floors.${selectedMap}.${shortID}`, { name: roomName, type: "boolean", def: true, write: true });
-                });
-            }
-            await this.adapter.ensureState(`Devices.${duid}.floors.cleanCount`, { name: "Clean count", type: "number", def: 1, read: true, write: true });
-        }
-    }
-    async handleGetMultiMapsList(duid, value) {
-        const mapInfo = value[0].map_info;
-        const maps = {}; // Use Record for states
-        for (const mapParameter in value[0]) {
-            if (typeof value[0][mapParameter] === "number") {
-                await this.adapter.ensureState(`Devices.${duid}.floors.${mapParameter}`, { type: "number" });
-                await this.adapter.setStateChangedAsync(`Devices.${duid}.floors.${mapParameter}`, { val: value[0][mapParameter], ack: true });
-            }
-        }
-        for (const map in mapInfo) {
-            const roomFloor = mapInfo[map]["mapFlag"];
-            const mapName = mapInfo[map]["name"];
-            maps[roomFloor] = mapName;
-            this.adapter.setObject(`Devices.${duid}.floors.${roomFloor}`, {
-                type: "folder",
-                common: { name: mapName },
-                native: {},
-            });
-        }
-        if (value[0]["max_multi_map"] > 1) {
-            await this.adapter.ensureState(`Devices.${duid}.commands.load_multi_map`, { name: "Load map", type: "number", def: 0, write: true, states: maps });
-        }
-        else {
-            this.adapter.delObjectAsync(`Devices.${duid}.commands.load_multi_map`);
-        }
-    }
-    async handleGetFwFeatures(handler, duid, value) {
-        this.adapter.http_api.storeFwFeaturesResult(duid, value);
-        for (const firmwareFeature in value) {
-            const featureID = value[firmwareFeature];
-            const featureName = handler.getFirmwareFeatureName(featureID);
-            const handlerWithFeatures = handler;
-            if (typeof handlerWithFeatures[featureName] === "function") {
-                handlerWithFeatures[featureName](duid);
-            }
-            await this.adapter.ensureState(`Devices.${duid}.firmwareFeatures.${firmwareFeature}`, { type: "string" });
-            await this.adapter.setStateChangedAsync(`Devices.${duid}.firmwareFeatures.${firmwareFeature}`, { val: featureName, ack: true });
-        }
-    }
-    async handleGetPhoto(duid, value) {
-        if (Buffer.isBuffer(value)) {
-            if (this.isGZIP(value)) {
-                this.adapter.log.debug(`gzipped photo found.`);
-                try {
-                    const photoData = await gunzipAsync(value);
-                    const extractedPhoto = this.extractPhoto(photoData);
-                    if (extractedPhoto) {
-                        const photoResponse = { image: `data:image/jpeg;base64,${extractedPhoto.toString("base64")}` };
-                        this.adapter.log.debug(`photoResponse: ${photoResponse.image.substring(0, 40)}...`);
-                        return photoResponse;
-                    }
-                    else {
-                        this.adapter.log.warn(`Could not extract photo from data for ${duid}.`);
-                        throw new Error("Could not extract photo from data");
-                    }
-                }
-                catch (error) {
-                    this.adapter.catchError(error, "get_photo (unzip)", duid);
-                    throw error;
-                }
-            }
-            else {
-                this.adapter.log.warn(`Received get_photo but data was not gzipped for ${duid}.`);
-                throw new Error("Photo data not gzipped");
-            }
-        }
-        return null;
-    }
-    async command(handler, duid, parameter, value) {
-        try {
-            const priority = 1;
-            switch (parameter) {
-                case "load_multi_map": {
-                    const result = await this.sendRequest(duid, "load_multi_map", value, { priority });
-                    if (Array.isArray(result) && result[0] == "ok") {
-                        await this.getMap(handler, duid).then(async () => {
-                            await this.getParameter(handler, duid, "get_room_mapping", []);
-                        });
-                    }
-                    break;
-                }
-                case "app_segment_clean": {
-                    this.adapter.log.debug("Starting room cleaning");
-                    const roomList = { segments: [] };
-                    const roomFloor = await this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.map_status`);
-                    const mappedRoomList = (await this.getParameter(handler, duid, "get_room_mapping", []));
-                    if (mappedRoomList && roomFloor && roomFloor.val != null) {
-                        for (const mappedRoom in mappedRoomList) {
-                            const roomState = await this.adapter.getStateAsync(`Devices.${duid}.floors.${roomFloor.val}.${mappedRoomList[mappedRoom][0]}`);
-                            if (roomState && roomState.val) {
-                                roomList.segments.push(mappedRoomList[mappedRoom][0]);
-                            }
-                        }
-                    }
-                    const cleanCount = await this.adapter.getStateAsync(`Devices.${duid}.floors.cleanCount`);
-                    roomList["repeat"] = typeof cleanCount?.val === "number" ? cleanCount.val : 1;
-                    const result = await this.sendRequest(duid, "app_segment_clean", [roomList], { priority });
-                    this.adapter.log.debug(`app_segment_clean with roomIDs: ${JSON.stringify(roomList)} result: ${result}`);
-                    this.adapter.setState(`Devices.${duid}.floors.cleanCount`, { val: 1, ack: true });
-                    break;
-                }
-                case "reset_consumable":
-                    await this.sendRequest(duid, parameter, [value], { priority });
-                    this.adapter.log.info(`Consumable ${parameter} successfully reset.`);
-                    break;
-                case "app_set_dryer_status": {
-                    const result = await this.sendRequest(duid, parameter, JSON.parse(value), { priority });
-                    this.adapter.log.debug(`Command: ${parameter} result: ${result}`);
-                    break;
-                }
-                case "app_goto_target":
-                case "app_zoned_clean": {
-                    const result = await this.sendRequest(duid, parameter, value, { priority });
-                    this.adapter.log.debug(`Command: ${parameter} with value: ${JSON.stringify(value)} result: ${result}`);
-                    break;
-                }
-                case "set_water_box_distance_off": {
-                    const mappedValue = ((value - 1) / (30 - 1)) * (60 - 205) + 205;
-                    const parameterValue = { distance_off: mappedValue };
-                    const result = await this.sendRequest(duid, parameter, parameterValue, { priority });
-                    this.adapter.log.debug(`Command: ${parameter} with value: ${JSON.stringify(parameterValue)} result: ${result}`);
-                    break;
-                }
-                default:
-                    if (value !== undefined) {
-                        let valueToSend = value;
-                        const valueType = typeof value;
-                        if (valueType === "string") {
-                            try {
-                                valueToSend = JSON.parse(value);
-                            }
-                            catch {
-                                // If parsing fails, treat as a regular string
-                                valueToSend = value;
-                            }
-                        }
-                        // Ensure valueToSend is an array if it's a primitive or object, unless it's already an array
-                        // Many Roborock commands expect parameters as an array [param1, param2]
-                        if (!Array.isArray(valueToSend)) {
-                            valueToSend = [valueToSend];
-                        }
-                        const result = await this.sendRequest(duid, parameter, valueToSend, { priority });
-                        this.adapter.log.debug(`Command: ${parameter} with value: ${JSON.stringify(valueToSend)} result: ${result}`);
-                        // If it was a set command, try to update the corresponding get command
-                        if (parameter.startsWith("set_")) {
-                            const getCommand = parameter.replace("set_", "get_");
-                            // We don't await this to avoid blocking
-                            this.getParameter(handler, duid, getCommand, []).catch(() => { });
-                        }
-                    }
-                    else {
-                        const result = await this.sendRequest(duid, parameter, [], { priority });
-                        this.adapter.log.debug(`Command: ${parameter} result: ${result}`);
-                    }
-            }
-        }
-        catch (error) {
-            this.adapter.catchError(error, parameter, duid);
-        }
-    }
-    async getMap(handler, duid) {
-        if (this.adapter.config.enable_map_creation) {
-            this.adapter.log.debug(`Requesting new map for ${duid}`);
-            try {
-                let mapBuf = await this.sendRequest(duid, "get_map_v1", [], { priority: 0 });
-                let retries = 0;
-                while (!Buffer.isBuffer(mapBuf) && Array.isArray(mapBuf) && mapBuf[0] === "retry" && retries < 3) {
-                    retries++;
-                    this.adapter.log.debug(`[getMap] Received 'retry' for ${duid}. Retrying (${retries}/3)...`);
-                    await new Promise((resolve) => setTimeout(resolve, 1000));
-                    mapBuf = await this.sendRequest(duid, "get_map_v1", [], { priority: 0 });
-                }
-                if (!Buffer.isBuffer(mapBuf)) {
-                    if (Array.isArray(mapBuf) && mapBuf[0] === "retry") {
-                        this.adapter.log.debug(`[getMap] Received 'retry' for ${duid}. Map not ready after 3 retries.`);
-                        return;
-                    }
-                    this.adapter.log.warn(`[getMap] Received non-buffer data (e.g. 'retry' or 'ok'): ${JSON.stringify(mapBuf)}`);
-                    return;
-                }
-                const mappedRooms = (await this.getParameter(handler, duid, "get_room_mapping", [])) || null;
-                const parsedData = (await this.mapParser.parsedata(mapBuf, mappedRooms, { isHistoryMap: false }));
-                if (parsedData?.metaData) {
-                    this.adapter.log.debug(`[getMap] Parsed LIVE map. MapIndex (Floor): ${parsedData.metaData.map_index}, Segments: ${parsedData.IMAGE?.segments?.list?.length || 0}`);
-                }
-                else {
-                    this.adapter.log.warn(`[getMap] Live map was parsed but contains no metaData.`);
-                }
-                const selectedMap = await this.getSelectedMap(duid);
-                if (selectedMap != null) {
-                    this.adapter.log.debug(`Generating map for selected map ${selectedMap} for duid ${duid}`);
-                    if (!parsedData || !parsedData.IMAGE || !parsedData.IMAGE.dimensions) {
-                        this.adapter.log.warn(`[getMap] Skipping map generation for ${duid}: Parsed data is invalid or missing IMAGE block.`);
-                        return;
-                    }
-                    const dims = parsedData.IMAGE.dimensions;
-                    this.adapter.log.debug(`[getMap] Calling canvasMap for ${duid} with dimensions: w=${dims.width}, h=${dims.height}`);
-                    if (dims.width <= 0 || dims.height <= 0) {
-                        this.adapter.log.warn(`[getMap] Skipping map generation for ${duid}: Invalid map dimensions (w=${dims.width}, h=${dims.height}). Map is likely empty.`);
-                        return;
-                    }
-                    const [mapBase64CleanUncropped, mapBase64Full, mapBase64Truncated] = await this.mapCreator.canvasMap(parsedData, {
-                        selectedMap: selectedMap,
-                        mappedRooms: mappedRooms, // Pass rooms to mapCreator (it still needs them for 'isCurrentlyCleaned')
-                    });
-                    await this.adapter.ensureFolder(`Devices.${duid}.map`);
-                    // 1. The new CLEAN map (Uncropped) for the Web UI (using your preferred name)
-                    await this.adapter.ensureState(`Devices.${duid}.map.mapBase64Clean`, {
-                        name: "Map Image (Clean, Uncropped)",
-                        type: "string",
-                        role: "text.png",
-                        read: true,
-                        write: false,
-                    });
-                    await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapBase64Clean`, { val: mapBase64CleanUncropped, ack: true });
-                    // 2. The FULL map (Uncropped) - existing state
-                    await this.adapter.ensureState(`Devices.${duid}.map.mapBase64`, {
-                        name: "Map Image (Full, Uncropped)",
-                        type: "string",
-                        role: "text.png",
-                        read: true,
-                        write: false,
-                    });
-                    await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapBase64`, { val: mapBase64Full, ack: true });
-                    // 3. The FULL map (Cropped) - existing state
-                    await this.adapter.ensureState(`Devices.${duid}.map.mapBase64Truncated`, {
-                        name: "Map Image (Full, Cropped)",
-                        type: "string",
-                        role: "text.png",
-                        read: true,
-                        write: false,
-                    });
-                    await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapBase64Truncated`, { val: mapBase64Truncated, ack: true });
-                    // 4. The JSON Data (now with room names)
-                    await this.adapter.ensureState(`Devices.${duid}.map.mapData`, { name: "Map Data JSON", type: "string", role: "json", read: true, write: false });
-                    await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapData`, { val: JSON.stringify(parsedData), ack: true });
-                }
-                else {
-                    this.adapter.log.warn(`[getMap] Skipping map generation for ${duid} because selectedMap is null. (map_status state not yet available?)`);
-                }
-            }
-            catch (error) {
-                this.adapter.log.error(`Error getting map for ${duid}: ${error?.stack || error}`);
-            }
-        }
-    }
-    // --- Helpers & Core Logic ---
-    async isCleaning(duid) {
-        if (!duid) {
-            this.adapter.log.error("duid parameter missing on function isCleaning");
-            return false;
-        }
-        const cleaningState = await this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.state`);
-        if (!cleaningState || cleaningState.val === null || cleaningState.val === undefined)
-            return false;
-        const stateVal = Number(cleaningState.val);
-        switch (stateVal) {
-            case 4:
-            case 5:
-            case 6:
-            case 7:
-            case 11:
-            case 15:
-            case 16:
-            case 17:
-            case 18:
-            case 26:
-                return true;
-            default:
-                return false;
-        }
-    }
-    /**
-     * Gets the currently selected map ID (floor) from the ioBroker state.
-     * This is more robust than relying on the cache, which might not be initialized.
-     * @param duid The device DUID
-     * @returns The map ID (number) or null if not found.
-     */
-    async getSelectedMap(duid) {
-        if (!duid) {
-            this.adapter.log.error("duid parameter missing on function getSelectedMap");
-            return null;
-        }
-        try {
-            // Read the map_status from the persistent ioBroker state
-            const mapStatusState = await this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.map_status`);
-            // Check if the state exists and has a valid value
-            if (mapStatusState && mapStatusState.val !== null && mapStatusState.val !== undefined) {
-                const mapStatus = Number(mapStatusState.val);
-                // Bitwise right shift to obtain the selected map
-                // This logic comes from handleGetProp, where the calculated value is stored.
-                return mapStatus;
-            }
-            else {
-                this.adapter.log.warn(`[getSelectedMap] Could not read map_status state for ${duid}. State is null or undefined. Map generation might be skipped.`);
+            const cleaningRecordMap = (await this.sendRequest(duid, "get_clean_record_map", { start_time: startTime }, { priority: 0 }));
+            if (!Buffer.isBuffer(cleaningRecordMap)) {
+                this.adapter.log.warn(`[getCleaningRecordMap] Received non-buffer data for record ${startTime}: ${JSON.stringify(cleaningRecordMap)}`);
                 return null;
             }
+            // Check if map is gzipped (starts with 0x1f 0x8b)
+            let mapBuf = cleaningRecordMap;
+            if (cleaningRecordMap[0] === 0x1f && cleaningRecordMap[1] === 0x8b) {
+                try {
+                    mapBuf = await gunzipAsync(cleaningRecordMap);
+                }
+                catch (e) {
+                    this.adapter.log.error(`[getCleaningRecordMap] Failed to unzip map data: ${e}`);
+                    return null;
+                }
+            }
+            const mapData = await this.mapParser.parsedata(mapBuf, null, { isHistoryMap: true });
+            if (!mapData) {
+                this.adapter.log.warn(`[getCleaningRecordMap] Failed to parse map data for record ${startTime}`);
+                return null;
+            }
+            // Generate images
+            const [mapBase64CleanUncropped, mapBase64, mapBase64Truncated] = await this.mapCreator.canvasMap(mapData);
+            return {
+                mapBase64CleanUncropped,
+                mapBase64,
+                mapBase64Truncated,
+                mapData: JSON.stringify(mapData),
+            };
         }
-        catch (error) {
-            this.adapter.log.error(`[getSelectedMap] Error reading state for ${duid}: ${error.message}`);
+        catch (e) {
+            const errorMsg = e?.message || e?.toString() || "";
+            if (errorMsg.includes("Timeout") || errorMsg.includes("timed out") || errorMsg.includes("Aborted") || errorMsg.includes("CANCELLED") || errorMsg.includes("ADAPTER_STOPPED")) {
+                const idMatch = errorMsg.match(/Task (req_\d+_\d+)/);
+                const reqId = idMatch ? idMatch[1] : "unknown";
+                if (errorMsg.includes("ADAPTER_STOPPED")) {
+                    this.adapter.log.warn(`[getCleaningRecordMap] Request cancelled (Adapter stopped). ID: ${reqId}`);
+                }
+                else {
+                    this.adapter.log.warn(`[getCleaningRecordMap] Request timed out. ID: ${reqId}`);
+                }
+            }
+            else {
+                this.adapter.catchError(e, "getCleaningRecordMap", duid);
+            }
             return null;
         }
     }
-    isCloudRequest(duid, method) {
-        const cloudOnlyMethods = ["get_map_v1", "get_clean_record_map", "get_photo", "get_network_info"];
-        return cloudOnlyMethods.includes(method) || this.adapter.requestsHandler.isCloudDevice(duid);
-    }
-    async sendRequest(duid, method, params, options = {}) {
-        const queue = this.getQueue(duid);
-        return queue.add(() => this.performRequest(duid, method, params), {
-            priority: options.priority || 0,
-        });
-    }
-    async performRequest(duid, method, params) {
-        const remoteConnection = await this.isCloudDevice(duid);
-        let protocol = 101;
-        const version = await this.adapter.getDeviceProtocolVersion(duid);
-        this.idCounter = this.idCounter > 9999 ? 1 : this.idCounter + 1;
-        const messageID = method === "get_photo" ? ((this.idCounter - 1) % 256) + 1 : this.idCounter;
-        const timestamp = Math.floor(Date.now() / 1000);
-        if (!this.isCloudRequest(duid, method)) {
-            protocol = 4;
-        }
-        const payload = await this.messageParser.buildPayload(protocol, messageID, method, params, version);
-        const roborockMessage = await this.messageParser.buildRoborockMessage(duid, protocol, timestamp, payload, version);
-        const mqttConnectionState = this.adapter.mqtt_api.isConnected();
-        const localConnectionState = this.adapter.local_api.isConnected(duid);
-        if (!roborockMessage) {
-            this.adapter.catchError("Failed to build buildRoborockMessage!", "function sendRequest", duid);
-            return Promise.reject("Failed to build buildRoborockMessage!");
-        }
-        if (version == "A01") {
-            this.adapter.mqtt_api.sendMessage(duid, roborockMessage);
-            return Promise.resolve();
-        }
-        this.adapter.log.debug(`duid: ${duid}, mqtt: ${mqttConnectionState}, local: ${localConnectionState}, remote: ${remoteConnection}`);
-        return new Promise((resolve, reject) => {
-            if (!mqttConnectionState && remoteConnection) {
-                this.adapter.pendingRequests.delete(messageID);
-                const errorMsg = `Cloud connection not available. Not sending for method ${method} request!`;
-                this.adapter.log.debug(errorMsg);
-                return reject(new Error(errorMsg));
+    async getMap(_handler, duid) {
+        const requestPromise = this.sendRequest(duid, "get_map_v1", [], { priority: 0 });
+        this._processResult(requestPromise, async (result) => {
+            const map = result;
+            if (!Buffer.isBuffer(map)) {
+                return;
             }
-            else if (!localConnectionState && !mqttConnectionState && method != "get_network_info") {
-                this.adapter.pendingRequests.delete(messageID);
-                const errorMsg = `Adapter locally or remotely not connected to robot ${duid}. Sending request for ${method} not possible!`;
-                this.adapter.log.debug(errorMsg);
-                return reject(new Error(errorMsg));
+            // Check if map is gzipped
+            let mapBuf = map;
+            if (map[0] === 0x1f && map[1] === 0x8b) {
+                try {
+                    mapBuf = await gunzipAsync(map);
+                }
+                catch (e) {
+                    this.adapter.log.error(`[getMap] Failed to unzip map data: ${e}`);
+                    return;
+                }
+            }
+            const mapData = await this.mapParser.parsedata(mapBuf, null);
+            if (mapData) {
+                // Update map states
+                await this.adapter.ensureState(`Devices.${duid}.map.mapData`, { name: "Map Data", type: "string", role: "json" });
+                await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapData`, { val: JSON.stringify(mapData), ack: true });
+                const [, mapBase64] = await this.mapCreator.canvasMap(mapData);
+                await this.adapter.ensureState(`Devices.${duid}.map.mapBase64`, { name: "Map Image", type: "string", role: "text.png" });
+                await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapBase64`, { val: mapBase64, ack: true });
+            }
+        }, `getMap-${duid}`, duid);
+    }
+    async isCleaning(_duid) {
+        void _duid;
+        return false;
+    }
+    isCloudDevice(_duid) {
+        void _duid;
+        return Promise.resolve(true);
+    }
+    isCloudRequest(_duid, _method) {
+        void _duid;
+        void _method;
+        // Force cloud request (Protocol 101) for now to fix ID mismatch
+        return true;
+    }
+    calculateCleaningValue(_attribute, value) {
+        return value;
+    }
+    resolvePendingRequest(messageID, result, protocol) {
+        const req = this.adapter.pendingRequests.get(messageID);
+        if (req) {
+            if (protocol) {
+                this.adapter.log.debug(`[resolvePendingRequest] Received response for request ${messageID} with protocol ${protocol}`);
+            }
+            if (req instanceof RoborockRequest) {
+                req.resolve(result);
             }
             else {
-                const timeout = this.adapter.setTimeout(() => {
-                    this.adapter.pendingRequests.delete(messageID);
-                    this.adapter.local_api.clearChunkBuffer(duid);
-                    if (remoteConnection) {
-                        reject(new Error(`Cloud request with id ${messageID} and method ${method} timed out after 30 seconds.`));
-                    }
-                    else {
-                        reject(new Error(`Local request with id ${messageID} and method ${method} timed out after 30 seconds.`));
-                    }
-                }, REQUEST_TIMEOUT);
-                this.adapter.pendingRequests.set(messageID, { method, resolve, reject, timeout });
-                if (this.isCloudRequest(duid, method) || !localConnectionState) {
-                    this.adapter.mqtt_api.sendMessage(duid, roborockMessage);
-                    this.adapter.log.debug(`Sent payload for ${duid} with ${payload} using cloud connection using version ${version}`);
-                }
-                else {
-                    const lengthBuffer = Buffer.alloc(4);
-                    lengthBuffer.writeUInt32BE(roborockMessage.length, 0);
-                    const fullMessage = Buffer.concat([lengthBuffer, roborockMessage]);
-                    this.adapter.local_api.sendMessage(duid, fullMessage);
-                    this.adapter.log.debug(`Sent payload for ${duid} with ${payload} using local connection using version ${version}`);
+                // Legacy handling if any
+                if (typeof req.resolve === "function") {
+                    req.resolve(result);
                 }
             }
-        });
-    }
-    resolvePendingRequest(id, result, protocol) {
-        const entry = this.adapter.pendingRequests?.get(id);
-        if (entry) {
-            if (entry.timeout)
-                this.adapter.clearTimeout(entry.timeout);
-            this.adapter.pendingRequests.delete(id);
-            entry.resolve(result);
-            this.adapter.log.debug(`Successfully resolved request id ${id} using protocol: ${protocol}. Size of message queue: ${this.adapter.pendingRequests.size}`);
         }
-    }
-    async isCloudDevice(duid) {
-        const receivedDevices = this.adapter.http_api.getReceivedDevices();
-        const sharedDevice = receivedDevices.find((device) => device.duid == duid);
-        const cloudDevice = this.adapter.local_api.cloudDevices.has(duid);
-        return !!(sharedDevice || cloudDevice);
-    }
-    async getConnector(duid) {
-        const isRemote = await this.isCloudDevice(duid);
-        if (isRemote)
-            return this.adapter.mqtt_api;
-        return this.adapter.local_api;
-    }
-    calculateCleaningValue(attribute, value) {
-        switch (attribute) {
-            case "clean_time":
-                return Math.round(value / 60 / 60);
-            case "clean_area":
-                return Number((value / 1000 / 1000).toFixed(2));
-            default:
-                return value;
-        }
-    }
-    calculateRecordValue(attribute, value) {
-        switch (attribute) {
-            case "begin":
-            case "end":
-                return new Date(value * 1000).toString();
-            case "duration":
-                return Math.round(value / 60);
-            case "area":
-            case "cleaned_area":
-                return Number((value / 1000 / 1000).toFixed(2));
-            default:
-                return value;
-        }
-    }
-    unzipBuffer(buffer, callback) {
-        (0, zlib_1.gunzip)(buffer, (err, result) => {
-            if (err)
-                callback(err);
-            else
-                callback(null, result);
-        });
-    }
-    isGZIP(buffer) {
-        if (buffer.length < 2)
-            return false;
-        if (buffer[0] == 31 && buffer[1] == 139)
-            return true;
-        return false;
-    }
-    extractPhoto(buffer) {
-        if (buffer.length < 10)
-            return false;
-        if (buffer[26] == 74 && buffer[27] == 70 && buffer[28] == 73 && buffer[29] == 70) {
-            return buffer.slice(20);
-        }
-        else if (buffer[42] == 74 && buffer[43] == 70 && buffer[44] == 73 && buffer[45] == 70) {
-            return buffer.slice(36);
-        }
-        return false;
     }
     clearQueue() {
         this.adapter.local_api.clearLocalDevicedTimeout();
         this.adapter.mqtt_api.clearIntervals();
         // Clear map-based queues
-        this.deviceQueues.forEach((q) => q.clear());
-        this.deviceQueues.clear();
-        // Clear pending request timeouts
+        this.deviceManagers.forEach((m) => m.clear());
+        this.deviceManagers.clear();
+        // Reject all pending requests to prevent hanging promises
         this.adapter.pendingRequests.forEach((req) => {
-            if (req.timeout)
-                this.adapter.clearTimeout(req.timeout);
+            if (req instanceof RoborockRequest) {
+                req.reject(new Error("Queue cleared (adapter stopped or disconnected)"));
+            }
+            else {
+                // Legacy fallback
+                if (req.timeout)
+                    this.adapter.clearTimeout(req.timeout);
+                // Try to reject if possible, otherwise just delete
+                if (typeof req.reject === "function") {
+                    req.reject(new Error("Queue cleared (adapter stopped or disconnected)"));
+                }
+            }
         });
         this.adapter.pendingRequests.clear();
     }

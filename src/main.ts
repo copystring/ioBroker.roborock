@@ -29,15 +29,7 @@ export class Roborock extends utils.Adapter {
 	// --- Internal Properties ---
 	public deviceFeatureHandlers: Map<string, BaseDeviceFeatures>;
 	public nonce: Buffer;
-	public pendingRequests: Map<
-		number,
-		{
-			method: string; // The method name (e.g., "get_map_v1")
-			resolve: (value: any) => void;
-			reject: (reason?: any) => void;
-			timeout: ioBroker.Timeout | undefined;
-		}
-	>;
+	public pendingRequests: Map<number, any>;
 	public roborock_package_helper: roborock_package_helper;
 	public isInitializing: boolean;
 	public sentryInstance: any;

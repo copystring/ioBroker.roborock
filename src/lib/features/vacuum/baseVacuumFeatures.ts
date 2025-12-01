@@ -169,17 +169,18 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 			if (!!(newFeatureSetInt & 256)) features.add(Feature.isCleanRouteFastModeSupported);
 
 			// Map FW Features Result to 'is...' Enum keys
-			const fwResult = this.deps.http_api.getFwFeaturesResult(this.duid); // Ensure this method exists and returns number[] | undefined
+			const fwResult = this.deps.http_api.getFwFeaturesResult(this.duid);
 			if (fwResult) {
-				if (fwResult.includes(111)) features.add(Feature.isSupportFDSEndPoint);
-				if (fwResult.includes(112)) features.add(Feature.isSupportAutoSplitSegments);
-				if (fwResult.includes(114)) features.add(Feature.isSupportOrderSegmentClean);
-				if (fwResult.includes(116)) features.add(Feature.isMapSegmentSupported);
-				if (fwResult.includes(119)) features.add(Feature.isSupportLedStatusSwitch);
-				if (fwResult.includes(120)) features.add(Feature.isMultiFloorSupported);
-				if (fwResult.includes(122)) features.add(Feature.isSupportFetchTimerSummary);
-				if (fwResult.includes(123)) features.add(Feature.isOrderCleanSupported);
-				if (fwResult.includes(125)) features.add(Feature.isRemoteSupported);
+				for (const id of fwResult) {
+					const featureName = BaseVacuumFeatures.CONSTANTS.firmwareFeatures[id as keyof typeof BaseVacuumFeatures.CONSTANTS.firmwareFeatures];
+					if (featureName) {
+						// Check if this feature name exists in our Feature enum
+						const featureEnum = Feature[featureName as keyof typeof Feature];
+						if (featureEnum) {
+							features.add(featureEnum);
+						}
+					}
+				}
 			}
 		} catch (error: any) {
 			this.deps.log.error(`[${this.duid}] Error in getDynamicFeatures: ${error.message}`);

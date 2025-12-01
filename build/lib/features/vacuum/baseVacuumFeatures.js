@@ -154,26 +154,18 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             if (!!(newFeatureSetInt & 256))
                 features.add(features_enum_1.Feature.isCleanRouteFastModeSupported);
             // Map FW Features Result to 'is...' Enum keys
-            const fwResult = this.deps.http_api.getFwFeaturesResult(this.duid); // Ensure this method exists and returns number[] | undefined
+            const fwResult = this.deps.http_api.getFwFeaturesResult(this.duid);
             if (fwResult) {
-                if (fwResult.includes(111))
-                    features.add(features_enum_1.Feature.isSupportFDSEndPoint);
-                if (fwResult.includes(112))
-                    features.add(features_enum_1.Feature.isSupportAutoSplitSegments);
-                if (fwResult.includes(114))
-                    features.add(features_enum_1.Feature.isSupportOrderSegmentClean);
-                if (fwResult.includes(116))
-                    features.add(features_enum_1.Feature.isMapSegmentSupported);
-                if (fwResult.includes(119))
-                    features.add(features_enum_1.Feature.isSupportLedStatusSwitch);
-                if (fwResult.includes(120))
-                    features.add(features_enum_1.Feature.isMultiFloorSupported);
-                if (fwResult.includes(122))
-                    features.add(features_enum_1.Feature.isSupportFetchTimerSummary);
-                if (fwResult.includes(123))
-                    features.add(features_enum_1.Feature.isOrderCleanSupported);
-                if (fwResult.includes(125))
-                    features.add(features_enum_1.Feature.isRemoteSupported);
+                for (const id of fwResult) {
+                    const featureName = BaseVacuumFeatures.CONSTANTS.firmwareFeatures[id];
+                    if (featureName) {
+                        // Check if this feature name exists in our Feature enum
+                        const featureEnum = features_enum_1.Feature[featureName];
+                        if (featureEnum) {
+                            features.add(featureEnum);
+                        }
+                    }
+                }
             }
         }
         catch (error) {
