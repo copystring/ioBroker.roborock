@@ -16,6 +16,7 @@ import { socketHandler } from "./lib/socketHandler";
 import { DeviceManager } from "./lib/deviceManager";
 import { Feature } from "./lib/features/features.enum";
 import { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
+import { buildInfo } from "./lib/buildInfo";
 
 export class Roborock extends utils.Adapter {
 	// --- Public APIs (accessible by helpers) ---
@@ -76,6 +77,7 @@ export class Roborock extends utils.Adapter {
 		this.translations = require(`../admin/i18n/${this.language || "en"}/translations.json`);
 
 		this.log.info(`Starting adapter. This might take a few minutes...`);
+		this.log.info(`Build Info: Date=${buildInfo.buildDate}, Commit=${buildInfo.commitHash}`);
 		this.log.debug(`[onReady] calling setupBasicObjects...`);
 		await this.setupBasicObjects();
 		this.log.debug(`[onReady] setupBasicObjects done.`);

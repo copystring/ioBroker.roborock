@@ -78,7 +78,7 @@
   "scripts": {
     "clean": "rimraf build",
     "copy:pathProcessor": "shx cp src/lib/pathProcessor.ts src/www/pathProcessor.ts",
-    "build": "npm run clean && tsc -b tsconfig.json",
+    "build": "npm run clean && node scripts/updateBuildInfo.js && tsc -b tsconfig.json",
     "build:www": "npm run copy:pathProcessor && tsc -b tsconfig.web.json",
     "build:all": "npm run build",
     "watch": "npm run clean && tsc -b tsconfig.json --watch",

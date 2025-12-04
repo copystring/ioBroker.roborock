@@ -42,6 +42,7 @@ const mqttApi_1 = require("./lib/mqttApi");
 const socketHandler_1 = require("./lib/socketHandler");
 const deviceManager_1 = require("./lib/deviceManager");
 const features_enum_1 = require("./lib/features/features.enum");
+const buildInfo_1 = require("./lib/buildInfo");
 class Roborock extends utils.Adapter {
     // --- Public APIs (accessible by helpers) ---
     http_api;
@@ -91,6 +92,7 @@ class Roborock extends utils.Adapter {
         this.sentryInstance = this.getPluginInstance("sentry");
         this.translations = require(`../admin/i18n/${this.language || "en"}/translations.json`);
         this.log.info(`Starting adapter. This might take a few minutes...`);
+        this.log.info(`Build Info: Date=${buildInfo_1.buildInfo.buildDate}, Commit=${buildInfo_1.buildInfo.commitHash}`);
         this.log.debug(`[onReady] calling setupBasicObjects...`);
         await this.setupBasicObjects();
         this.log.debug(`[onReady] setupBasicObjects done.`);
