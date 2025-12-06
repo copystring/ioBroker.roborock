@@ -18,20 +18,15 @@ export declare class messageParser {
     adapter: Roborock;
     constructor(adapter: Roborock);
     /**
-     * Decodes a buffer containing one or more Roborock protocol messages.
-     * @param message The raw buffer received from the network.
-     * @param duid The Device Unique ID (DUID) associated with the message.
-     * @returns A single Frame, an array of Frames, or null if no valid frames were found.
+     * Decodes a buffer containing Roborock protocol messages.
      */
     decodeMsg(message: Buffer, duid: string): Frame | Frame[] | null;
     /**
-     * Builds the JSON payload string for a device command.
-     * Handles special security parameters for specific methods (like photo/map requests).
+     * Builds JSON payload for device command.
      */
     buildPayload(protocol: number, messageID: number, method: string, params: any, version: string): Promise<string>;
     /**
-     * Builds the complete Roborock binary frame (Header + Encrypted Payload + CRC).
-     * @returns The Buffer to send, or false if encryption is not possible (e.g., missing key).
+     * Builds complete Roborock binary frame.
      */
     buildRoborockMessage(duid: string, protocol: number, timestamp: number, payload: string | Buffer, version: string): Promise<Buffer | false>;
 }

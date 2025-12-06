@@ -98,7 +98,8 @@
     "__comment_vitest": "Vitest tests ONLY 'src/www'",
     "dev:www": "npm run copy:pathProcessor && vitest watch src/www",
     "test:www": "npm run copy:pathProcessor && vitest run src/www",
-    "test:all": "npm run test && npm run test:www"
+    "test:all": "npm run test && npm run test:www",
+    "verify": "npm run lint && tsc --noEmit -p tsconfig.json"
   },
   "bugs": {
     "url": "https://github.com/copystring/ioBroker.roborock/issues"

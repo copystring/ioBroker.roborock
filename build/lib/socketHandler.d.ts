@@ -4,30 +4,29 @@ export declare class socketHandler {
     private commandHandlers;
     constructor(adapterInstance: Roborock);
     /**
-     * Handles all incoming messages from 'sendTo' (e.g., from Admin or Vis).
+     * Handles incoming 'sendTo' messages.
      * Routes commands to the appropriate handler using the commandHandlers map.
      * @param obj The message object
      */
     handleMessage(obj: ioBroker.Message): Promise<void>;
     /**
-     * Handles the 'get_obstacle_image' command.
-     * This method manages its own try/catch and response due to its complexity.
+     * Handles 'get_obstacle_image' command.
      */
     private handleGetObstacleImage;
     /**
-     * Fetches the list of robot devices from the adapter's objects.
+     * Fetches robot list.
      */
     private handleGetDeviceList;
     /**
-     * Handles simple, parameter-less commands like start, stop, pause, dock.
+     * Handles simple commands.
      */
     private handleSimpleCommand;
     /**
-     * Handles 'app_goto_target' command.
+     * Handles 'app_goto_target'.
      */
     private handleGotoTarget;
     /**
-     * Handles 'app_zoned_clean' command.
+     * Handles 'app_zoned_clean'.
      */
     private handleZonedClean;
 }

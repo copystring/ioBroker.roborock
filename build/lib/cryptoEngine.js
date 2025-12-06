@@ -31,7 +31,7 @@ const crypto = __importStar(require("crypto"));
 const node_forge_1 = __importDefault(require("node-forge"));
 // Salt from librrcodec.so (encrypted via com.roborock.iotsdk.appsecret)
 const SALT = "TXdfu$jyZ#TZHsg4";
-// Lazy RSA keypair for e.g. get_photo
+// Lazy RSA keypair generation
 let rsaKeys = null;
 function encodeTimestamp(ts) {
     const hex = ts.toString(16).padStart(8, "0").split("");
@@ -46,11 +46,14 @@ function md5hex(str) {
 function toBuffer(input) {
     return Buffer.isBuffer(input) ? input : Buffer.from(input, "utf-8");
 }
-// credits to rovo89 for the following code. Especially for version A01!
-// credits to Kenny from discord from the Homey project for the L01 implementation!
+/*
+ * Crypto implementations based on community research:
+ * - 1.0: Credits to rovo89
+ * - L01: Credits to Kenny (Homey project)
+ */
 exports.cryptoEngine = {
     /**
-     * Generate RSA keypair only when needed.
+     * Generates an RSA keypair if one does not already exist.
      */
     ensureRsaKeys() {
         if (rsaKeys)

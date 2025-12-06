@@ -1,6 +1,6 @@
 export declare const cryptoEngine: {
     /**
-     * Generate RSA keypair only when needed.
+     * Generates an RSA keypair if one does not already exist.
      */
     ensureRsaKeys(): {
         public: {

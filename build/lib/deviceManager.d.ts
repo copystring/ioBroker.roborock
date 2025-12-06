@@ -7,28 +7,36 @@ export declare class DeviceManager {
     deviceFeatureHandlers: Map<string, BaseDeviceFeatures>;
     constructor(adapter: Roborock);
     /**
-     * Initializes all devices found via the HTTP API.
+     * Initializes devices from HTTP API.
      */
     initializeDevices(): Promise<void>;
     /**
-     * Removes device folders for devices that are no longer in the cloud account.
+     * Removes orphaned device folders.
      */
     private cleanupOrphanedDevices;
-    private lastCleaningState;
+    private lastStateCode;
     /**
-     * Starts the polling loops.
+     * Get current state code.
+     */
+    private getDeviceState;
+    /**
+     * Check if robot is active.
+     */
+    private isActiveState;
+    /**
+     * Starts polling.
      */
     startPolling(): void;
     /**
-     * Stops the polling interval.
+     * Stops polling.
      */
     stopPolling(): void;
     /**
-     * Fetches non-status data (consumables, timers, etc.) for a device.
+     * Fetches non-status data.
      */
     updateDeviceData(handler: BaseDeviceFeatures, duid: string): Promise<void>;
     /**
-     * Fetches consumable percentages from cloud data.
+     * Fetches consumable percentages.
      */
     updateConsumablesPercent(duid: string): Promise<void>;
 }

@@ -556,7 +556,216 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             },
         });
     }
-    // --- Placeholder Features (Flags without specific actions) ---
+    // --- Complex Update Implementations ---
+    static MAPPED_CLEAN_SUMMARY = { 0: "clean_time", 1: "clean_area", 2: "clean_count", 3: "records" };
+    static MAPPED_CLEANING_RECORD_ATTRIBUTE = {
+        0: "begin",
+        1: "end",
+        2: "duration",
+        3: "area",
+        4: "error",
+        5: "complete",
+        6: "start_type",
+        7: "clean_type",
+        8: "finish_reason",
+        9: "dust_collection_status",
+    };
+    async updateCleanSummary() {
+        try {
+            const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_clean_summary", [], { priority: 0 });
+            const cleaningAttributes = result;
+            for (const cleaningAttribute in cleaningAttributes) {
+                const mappedAttribute = BaseVacuumFeatures.MAPPED_CLEAN_SUMMARY[cleaningAttribute] || cleaningAttribute;
+                const cleaningAttributeCommon = this.getCommonCleaningInfo(mappedAttribute);
+                if (["clean_time", "clean_area", "clean_count"].includes(mappedAttribute)) {
+                    if (cleaningAttributeCommon)
+                        cleaningAttributeCommon.type = "number";
+                    await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.${mappedAttribute}`, cleaningAttributeCommon || {});
+                    await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.${mappedAttribute}`, {
+                        val: cleaningAttributes[cleaningAttribute],
+                        ack: true,
+                    });
+                }
+                else if (mappedAttribute == "records") {
+                    await this.deps.ensureFolder(`Devices.${this.duid}.cleaningInfo.records`);
+                    const recordsList = cleaningAttributes[cleaningAttribute];
+                    const cleaningRecordsJSON = [];
+                    // Process records sequentially
+                    for (const cleaningRecord in recordsList) {
+                        const cleaningRecordID = recordsList[cleaningRecord];
+                        try {
+                            await this.deps.ensureFolder(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}`);
+                            const cleaningRecordAttributesArr = (await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_clean_record", [cleaningRecordID], { priority: 0 }));
+                            const cleaningRecordAttributes = cleaningRecordAttributesArr[0];
+                            cleaningRecordsJSON[parseInt(cleaningRecord)] = cleaningRecordAttributes;
+                            const cleaningRecordCommon = this.getCommonCleaningRecords(mappedAttribute);
+                            if (cleaningRecordCommon) {
+                                for (const cleaningRecordAttribute in cleaningRecordAttributes) {
+                                    const mappedRecordAttribute = BaseVacuumFeatures.MAPPED_CLEANING_RECORD_ATTRIBUTE[cleaningRecordAttribute] || cleaningRecordAttribute;
+                                    let val = cleaningRecordAttributes[cleaningRecordAttribute];
+                                    if (["begin", "end"].includes(mappedRecordAttribute)) {
+                                        val = new Date(val * 1000).toString();
+                                    }
+                                    else if (mappedRecordAttribute == "duration") {
+                                        val = Math.round(val / 60);
+                                    }
+                                    await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, cleaningRecordCommon);
+                                    await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, {
+                                        val: val,
+                                        ack: true,
+                                    });
+                                }
+                            }
+                            if (this.deps.config.enable_map_creation == true) {
+                                const mapArray = await this.getCleaningRecordMap(recordsList[cleaningRecord]);
+                                if (mapArray) {
+                                    await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.map.mapData`, {
+                                        name: "Map Data JSON",
+                                        type: "string",
+                                        role: "json",
+                                    });
+                                    await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.map.mapData`, { val: mapArray.mapData, ack: true });
+                                    await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.map.mapBase64`, {
+                                        name: "Map Image (Full, Uncropped)",
+                                        type: "string",
+                                        role: "text.png",
+                                    });
+                                    await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.map.mapBase64`, { val: mapArray.mapBase64, ack: true });
+                                    await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.map.mapBase64Truncated`, {
+                                        name: "Map Image (Full, Cropped)",
+                                        type: "string",
+                                        role: "text.png",
+                                    });
+                                    await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.map.mapBase64Truncated`, {
+                                        val: mapArray.mapBase64Truncated,
+                                        ack: true,
+                                    });
+                                }
+                            }
+                        }
+                        catch (e) {
+                            this.deps.log.warn(`[${this.duid}] Failed to process cleaning record ${cleaningRecordID}: ${e.message}`);
+                        }
+                    }
+                    await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.json`, { name: "Cleaning Records JSON", type: "string", role: "json" });
+                    await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.json`, { val: JSON.stringify(cleaningRecordsJSON), ack: true });
+                }
+            }
+        }
+        catch (e) {
+            this.deps.log.warn(`[${this.duid}] Failed to update clean summary: ${e.message}`);
+        }
+    }
+    async getCleaningRecordMap(startTime) {
+        try {
+            const cleaningRecordMap = (await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_clean_record_map", { start_time: startTime }, { priority: 0 }));
+            if (!Buffer.isBuffer(cleaningRecordMap)) {
+                return null;
+            }
+            // Check if map is gzipped (starts with 0x1f 0x8b)
+            let mapBuf = cleaningRecordMap;
+            if (cleaningRecordMap[0] === 0x1f && cleaningRecordMap[1] === 0x8b) {
+                try {
+                    const { promisify } = require("util");
+                    const { gunzip } = require("zlib");
+                    const gunzipAsync = promisify(gunzip);
+                    mapBuf = await gunzipAsync(cleaningRecordMap);
+                }
+                catch (e) {
+                    this.deps.log.error(`[${this.duid}] Failed to unzip map data: ${e}`);
+                    return null;
+                }
+            }
+            const mapData = await this.deps.adapter.requestsHandler.mapParser.parsedata(mapBuf, null, { isHistoryMap: true });
+            if (!mapData) {
+                return null;
+            }
+            // Generate images
+            const [mapBase64CleanUncropped, mapBase64, mapBase64Truncated] = await this.deps.adapter.requestsHandler.mapCreator.canvasMap(mapData);
+            return {
+                mapBase64CleanUncropped,
+                mapBase64,
+                mapBase64Truncated,
+                mapData: JSON.stringify(mapData),
+            };
+        }
+        catch (e) {
+            this.deps.log.warn(`[${this.duid}] Failed to get cleaning record map: ${e.message}`);
+            return null;
+        }
+    }
+    async updateMap() {
+        try {
+            const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_map_v1", [], { priority: 0 });
+            const map = result;
+            if (!Buffer.isBuffer(map)) {
+                return;
+            }
+            // Check if map is gzipped
+            let mapBuf = map;
+            if (map[0] === 0x1f && map[1] === 0x8b) {
+                try {
+                    const { promisify } = require("util");
+                    const { gunzip } = require("zlib");
+                    const gunzipAsync = promisify(gunzip);
+                    mapBuf = await gunzipAsync(map);
+                }
+                catch (e) {
+                    this.deps.log.error(`[${this.duid}] Failed to unzip map data: ${e}`);
+                    return;
+                }
+            }
+            const mapData = await this.deps.adapter.requestsHandler.mapParser.parsedata(mapBuf, null);
+            if (mapData) {
+                // Update map states
+                await this.deps.ensureState(`Devices.${this.duid}.map.mapData`, { name: "Map Data", type: "string", role: "json" });
+                await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapData`, { val: JSON.stringify(mapData), ack: true });
+                const [, mapBase64] = await this.deps.adapter.requestsHandler.mapCreator.canvasMap(mapData);
+                await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64`, { name: "Map Image", type: "string", role: "text.png" });
+                await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapBase64`, { val: mapBase64, ack: true });
+            }
+        }
+        catch (e) {
+            this.deps.log.warn(`[${this.duid}] Failed to update map: ${e.message}`);
+        }
+    }
+    async updateExtraStatus() {
+        const robotModel = this.deps.adapter.http_api.getRobotModel(this.duid);
+        switch (robotModel) {
+            case "roborock.vacuum.s4":
+            case "roborock.vacuum.s5":
+            case "roborock.vacuum.s5e":
+            case "roborock.vacuum.a08":
+            case "roborock.vacuum.a10":
+            case "roborock.vacuum.a40":
+                // No extra params needed
+                break;
+            case "roborock.vacuum.s6":
+            case "roborock.vacuum.a72":
+                await this.requestAndProcess("get_carpet_mode", [], "deviceStatus");
+                break;
+            case "roborock.vacuum.a27":
+                await this.requestAndProcess("get_dust_collection_switch_status", [], "deviceStatus");
+                await this.requestAndProcess("get_wash_towel_mode", [], "deviceStatus");
+                await this.requestAndProcess("get_smart_wash_params", [], "deviceStatus");
+                await this.requestAndProcess("app_get_dryer_setting", [], "deviceStatus");
+                break;
+            default:
+                // Assume newer models, try to get all
+                await this.requestAndProcess("get_carpet_mode", [], "deviceStatus");
+                await this.requestAndProcess("get_carpet_clean_mode", [], "deviceStatus");
+                await this.requestAndProcess("get_water_box_custom_mode", [], "deviceStatus");
+        }
+    }
+    async getPhoto(imgId, type) {
+        const requestParams = {
+            data_filter: {
+                img_id: imgId,
+                type: type,
+            },
+        };
+        return this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_photo", requestParams, { priority: 0 });
+    }
     placeholderFeatures() {
         // No-op: These features are detected but require no specific initialization logic
         this.deps.log.silly(`[${this.duid}] Placeholder feature initialized.`);

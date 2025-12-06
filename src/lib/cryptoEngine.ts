@@ -4,7 +4,7 @@ import forge from "node-forge";
 // Salt from librrcodec.so (encrypted via com.roborock.iotsdk.appsecret)
 const SALT = "TXdfu$jyZ#TZHsg4";
 
-// Lazy RSA keypair for e.g. get_photo
+// Lazy RSA keypair generation
 let rsaKeys: {
 	public: { n: string; e: string };
 	private: {
@@ -36,11 +36,14 @@ function toBuffer(input: string | Buffer): Buffer {
 	return Buffer.isBuffer(input) ? input : Buffer.from(input, "utf-8");
 }
 
-// credits to rovo89 for the following code. Especially for version A01!
-// credits to Kenny from discord from the Homey project for the L01 implementation!
+/*
+ * Crypto implementations based on community research:
+ * - 1.0: Credits to rovo89
+ * - L01: Credits to Kenny (Homey project)
+ */
 export const cryptoEngine = {
 	/**
-	 * Generate RSA keypair only when needed.
+	 * Generates an RSA keypair if one does not already exist.
 	 */
 	ensureRsaKeys() {
 		if (rsaKeys) return rsaKeys;

@@ -4,11 +4,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.socketHandler = void 0;
 class socketHandler {
     adapter;
-    // A map to route commands to specific handler functions
+    // Command routing map
     commandHandlers;
     constructor(adapterInstance) {
         this.adapter = adapterInstance;
-        // Initialize the command routing map
+        // Initialize command map
         this.commandHandlers = new Map();
         this.commandHandlers.set("getDeviceList", () => this.handleGetDeviceList());
         this.commandHandlers.set("app_start", (msg) => this.handleSimpleCommand(msg.duid, "app_start"));
@@ -19,7 +19,7 @@ class socketHandler {
         this.commandHandlers.set("app_zoned_clean", (msg) => this.handleZonedClean(msg));
     }
     /**
-     * Handles all incoming messages from 'sendTo' (e.g., from Admin or Vis).
+     * Handles incoming 'sendTo' messages.
      * Routes commands to the appropriate handler using the commandHandlers map.
      * @param obj The message object
      */
@@ -28,12 +28,12 @@ class socketHandler {
             this.adapter.log.warn("[SocketHandler] Received invalid message object.");
             return;
         }
-        // --- Special Handlers (that manage their own response) ---
-        // get_obstacle_image is complex and has its own try/catch and response logic
+        // --- Special Handlers ---
+        // get_obstacle_image has custom logic
         if (obj.command === "get_obstacle_image") {
             return this.handleGetObstacleImage(obj);
         }
-        // --- Standard Handlers (that return data) ---
+        // --- Standard Handlers ---
         const handler = this.commandHandlers.get(obj.command);
         if (!handler) {
             this.adapter.log.warn(`[SocketHandler] Unknown command received: ${obj.command}`);
@@ -42,9 +42,9 @@ class socketHandler {
             }
             return;
         }
-        // Centralized try/catch and response
+        // Centralized error handling
         try {
-            // We assume the message is the 'message' property of the ioBroker.Message
+            // Extract message payload
             const result = await handler(obj.message);
             if (obj.callback) {
                 this.adapter.sendTo(obj.from, obj.command, result, obj.callback);
@@ -58,8 +58,7 @@ class socketHandler {
         }
     }
     /**
-     * Handles the 'get_obstacle_image' command.
-     * This method manages its own try/catch and response due to its complexity.
+     * Handles 'get_obstacle_image' command.
      */
     async handleGetObstacleImage(msg) {
         const { duid, obstacleId } = msg.message;
@@ -70,7 +69,7 @@ class socketHandler {
             }
             return;
         }
-        // Use type 0 (full image) if specified, otherwise default to 1 (preview)
+        // Use type 0 (full) or 1 (preview)
         const imageType = msg.message.type === 0 ? 0 : 1;
         this.adapter.log.info(`[SocketHandler] Requesting obstacle image type: ${imageType}`);
         try {
@@ -81,13 +80,7 @@ class socketHandler {
             if (!handler) {
                 throw new Error(`No device handler found for DUID ${duid}`);
             }
-            const requestParams = {
-                data_filter: {
-                    img_id: obstacleId,
-                    type: imageType,
-                },
-            };
-            const photoResponse = await this.adapter.requestsHandler.getParameter(handler, duid, "get_photo", requestParams);
+            const photoResponse = await handler.getPhoto(obstacleId, imageType);
             if (msg.callback) {
                 this.adapter.sendTo(msg.from, msg.command, photoResponse, msg.callback);
             }
@@ -101,15 +94,14 @@ class socketHandler {
         }
     }
     /**
-     * Fetches the list of robot devices from the adapter's objects.
+     * Fetches robot list.
      */
     async handleGetDeviceList() {
         this.adapter.log.debug("[SocketHandler] Executing handleGetDeviceList...");
         let devices;
         try {
             const adapterObjects = await this.adapter.getAdapterObjectsAsync();
-            // Filter all objects to find only those that are 'device'
-            // AND are inside the 'Devices' folder
+            // Filter for devices in 'Devices' folder
             devices = Object.values(adapterObjects).filter((obj) => obj && typeof obj === "object" && obj.type === "device" && obj._id.startsWith(this.adapter.namespace + ".Devices."));
         }
         catch (e) {
@@ -122,7 +114,7 @@ class socketHandler {
         }
         const robotList = devices
             .map((dev) => {
-            // e.g., "roborock.0.Devices.ABCDEFG"
+            // e.g. "roborock.0.Devices.ABCDEFG"
             const idParts = dev._id.split(".");
             const duid = idParts.pop();
             const name = dev.common.name ? String(dev.common.name) : "Unknown Robot";
@@ -137,7 +129,7 @@ class socketHandler {
         return robotList;
     }
     /**
-     * Handles simple, parameter-less commands like start, stop, pause, dock.
+     * Handles simple commands.
      */
     async handleSimpleCommand(duid, command) {
         if (!duid)
@@ -150,7 +142,7 @@ class socketHandler {
         return { result: "ok" };
     }
     /**
-     * Handles 'app_goto_target' command.
+     * Handles 'app_goto_target'.
      */
     async handleGotoTarget(message) {
         const { duid, points } = message;
@@ -165,7 +157,7 @@ class socketHandler {
         return { result: "ok" };
     }
     /**
-     * Handles 'app_zoned_clean' command.
+     * Handles 'app_zoned_clean'.
      */
     async handleZonedClean(message) {
         const { duid, zones } = message;

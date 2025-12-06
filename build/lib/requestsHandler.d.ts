@@ -28,26 +28,14 @@ export declare class requestsHandler {
     constructor(adapter: Roborock);
     private scheduleMqttReset;
     waitForStartup(): Promise<void>;
-    private _processResult;
+    _processResult<T>(requestPromise: Promise<T>, callback: (result: T) => Promise<void>, identifier: string, duid: string, alwaysBackground?: boolean): void;
     getManager(duid: string): RequestManager;
     sendRequest(duid: string, method: string, params: unknown, options?: {
         priority?: number;
     }): Promise<unknown>;
-    getParameter(handler: BaseDeviceFeatures, duid: string, parameter: string, extraParameters?: unknown): Promise<void>;
     command(_handler: BaseDeviceFeatures, duid: string, method: string, params?: unknown): Promise<void>;
-    getStatus(handler: BaseDeviceFeatures, duid: string): Promise<void>;
-    getCleanSummary(handler: BaseDeviceFeatures, duid: string): Promise<void>;
-    getCleaningRecordMap(duid: string, startTime: number): Promise<{
-        mapBase64CleanUncropped: string;
-        mapBase64: string;
-        mapBase64Truncated: string;
-        mapData: string;
-    } | null>;
-    getMap(_handler: BaseDeviceFeatures, duid: string): Promise<void>;
-    isCleaning(_duid: string): Promise<boolean>;
     isCloudDevice(_duid: string): Promise<boolean>;
     isCloudRequest(_duid: string, _method: string): boolean;
-    private calculateCleaningValue;
     resolvePendingRequest(messageID: number, result: unknown, protocol?: unknown): void;
     clearQueue(): void;
 }

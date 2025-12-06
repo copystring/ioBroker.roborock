@@ -2,7 +2,7 @@ import type { Roborock } from "../../main";
 import { Feature } from "./features.enum";
 import { z } from "zod";
 /**
- * Specification for defining a command object's properties.
+ * Command object properties.
  */
 export type CommandSpec = {
     type: ioBroker.CommonType | "json";
@@ -14,22 +14,21 @@ export type CommandSpec = {
     role?: string;
 };
 /**
- * Type for a function that implements a specific feature.
- * It's called with the correct 'this' context bound.
+ * Feature implementation function, 'this' context is bound.
  */
 export type FeatureImplementation = () => Promise<void> | void;
 /**
- * Configuration provided by a specific model class.
+ * Model-specific configuration.
  */
 export interface DeviceModelConfig {
     staticFeatures: Feature[];
 }
 /**
- * Type for the constructor signature of a device feature class.
+ * Feature class constructor signature.
  */
 export type FeatureClassConstructor = new (_dependencies: FeatureDependencies, _duid: string) => BaseDeviceFeatures;
 /**
- * Interface defining the dependencies injected into feature classes.
+ * Dependencies injected into feature classes.
  */
 export interface FeatureDependencies {
     adapter: Roborock;
@@ -40,21 +39,19 @@ export interface FeatureDependencies {
     log: Roborock["log"];
 }
 /**
- * Class decorator to register a feature class for a specific robot model ID.
- * @param robotModelId The unique model identifier string (e.g., 'roborock.vacuum.a70').
+ * Decorator to register a feature class for a robot model.
+ * @param robotModelId Unique model identifier (e.g. 'roborock.vacuum.a70').
  */
 export declare function RegisterModel(robotModelId: string): (constructor: FeatureClassConstructor) => void;
 /**
- * Base Zod schema for validating generic status properties potentially common to all devices.
+ * Base Zod schema for generic status properties.
  */
 export declare const BaseStatusSchema: z.ZodObject<{
     error_code: z.ZodOptional<z.ZodNumber>;
 }, z.core.$loose>;
 /**
- * Abstract base class for handling device features.
- * Provides core logic for initialization, feature application, command object creation,
- * and dependency injection. Must be extended by device-type-specific base classes
- * (e.g., BaseVacuumFeatures).
+ * Base class for device features. Handles init, feature application, and commands.
+ * Extended by specific types (e.g. BaseVacuumFeatures).
  */
 export declare abstract class BaseDeviceFeatures {
     protected deps: FeatureDependencies;
@@ -75,108 +72,118 @@ export declare abstract class BaseDeviceFeatures {
     };
     static readonly FEATURE_METADATA_KEY: unique symbol;
     /**
-     * Decorator to register a method as a handler for a specific feature.
+     * Decorator to register a feature handler method.
      * @param feature The Feature enum key.
      */
     static DeviceFeature(feature: Feature): (target: any, propertyKey: string) => void;
     /**
-     * Constructor for the base feature handler.
-     * @param dependencies Injected dependencies (adapter, config, APIs, helpers).
-     * @param duid The device unique identifier.
-     * @param robotModel The robot model string.
-     * @param config Configuration containing static features for this model.
+     * Base feature handler constructor.
+     * @param dependencies Injected dependencies.
+     * @param duid Device unique identifier.
+     * @param robotModel Robot model string.
+     * @param config Static feature config.
      */
     constructor(dependencies: FeatureDependencies, duid: string, robotModel: string, config: DeviceModelConfig);
     /**
-     * Must be implemented by the concrete device-type base class to detect features
-     * based on device-specific mechanisms (e.g., bitfields, firmware info).
-     * @returns A Set containing the detected `Feature` enum keys (usually the 'is...' keys).
+     * Detects features via device-specific mechanisms (bitfields, fw info).
+     * Implemented by subclasses.
+     * @returns Set of detected `Feature` enum keys.
      */
     protected abstract getDynamicFeatures(): Set<Feature>;
     /**
-     * Processes features related to the detected dock type.
-     * Can be overridden by concrete base or specific model classes if needed.
-     * @param dockType The numeric dock type identifier.
+     * Handles dock type features. Override if needed.
+     * @param dockType Numeric dock type identifier.
      */
     processDockType(dockType: number): Promise<void>;
     /**
-     * Applies features defined statically in the `DeviceModelConfig`.
-     * Can be overridden by specific model classes to add more complex model-specific logic
-     * that runs *before* runtime detection.
-     * @param _statusData Optional initial status data. Unused in base, but available for overrides.
-     * @param _fwFeatures Optional initial firmware features data. Unused in base, but available for overrides.
+     * Applies static features from config.
+     * Override for pre-runtime model logic.
+     * @param _statusData Optional initial status data.
+     * @param _fwFeatures Optional initial firmware features.
      */
     applyModelSpecifics(): Promise<void>;
     /**
-     * Must be implemented by the concrete device-type base class to perform
-     * runtime feature detection based on validated status data.
-     * @param statusData Validated status data object.
-     * @param fwFeatures Optional firmware features data.
-     * @returns `true` if features/commands were added or modified, `false` otherwise.
+     * Performs runtime feature detection using status data.
+     * Implemented by subclasses.
+     * @param statusData Validated status data.
+     * @param fwFeatures Optional firmware features.
+     * @returns `true` if features/commands changed.
      */
     abstract detectAndApplyRuntimeFeatures(_statusData: Readonly<Record<string, any>>): Promise<boolean>;
     /**
-     * Initializes all features for the device instance according to the defined flow:
-     * Model Specifics -> Runtime Detection -> Dock Processing -> Command Object Creation.
-     * @param initialStatus Optional initial status data to use for detection.
-     * @param initialFwFeatures Optional initial firmware features data.
+     * Initializes features: Model Specifics -> Runtime Detection -> Dock Processing -> Command Objects.
+     * @param initialStatus Optional initial status.
+     * @param initialFwFeatures Optional initial firmware features.
      */
     initialize(): Promise<void>;
     /**
-     * Logs a consolidated summary of applied features and created commands.
-     * Should be called explicitly after initialization is complete.
+     * Logs summary of applied features and commands. Call after init.
      */
     printSummary(): void;
     /**
-     * Applies a single feature by looking up and executing its implementation from the registry.
-     * Ensures a feature is applied only once per instance.
-     * @param feature The Feature enum key to apply.
-     * @returns `true` if the feature was successfully applied now, `false` otherwise.
+     * Applies a feature if not already applied. Looks up implementation in registry.
+     * @param feature Feature enum key.
+     * @returns `true` if applied now.
      */
     protected applyFeature(feature: Feature): Promise<boolean>;
     /**
-     * Helper to map a dynamically detected feature key (e.g., from bitfield/fw, often starting with 'is...')
-     * to the corresponding primary action Feature key (e.g., 'MopWash') if a mapping exists and is registered.
-     * @param detectedFeature The Feature enum key detected dynamically.
-     * @returns The mapped action Feature enum key, the detected key itself if it's directly actionable, or null.
+     * Maps dynamic feature keys (e.g. 'is...') to action keys (e.g. 'MopWash').
+     * @param detectedFeature Detected Feature enum key.
+     * @returns Mapped action Feature key, detected key if actionable, or null.
      */
     protected mapFeature(detectedFeature: Feature): Feature | null;
     /**
-     * Creates or updates all command state objects in ioBroker based on the current `this.commands` map.
+     * Creates/updates ioBroker command objects from this.commands.
      */
     createCommandObjects(): Promise<void>;
     /**
-     * Adds or updates a command definition in the instance's `commands` map.
-     * Includes logic to merge `states` to prevent overwriting more specific definitions.
-     * @param name The name (key) of the command.
-     * @param spec The `CommandSpec` definition for the command.
+     * Adds/updates command definition. Merges states to preserve specifics.
+     * @param name Command name.
+     * @param spec CommandSpec definition.
      */
     protected addCommand(name: string, spec: CommandSpec | any): void;
     /**
-     * Helper to call the injected `ensureState` function with the correct path format.
-     * @param subfolder The subfolder within the device structure (e.g., 'info', 'commands').
-     * @param stateName The name of the state.
-     * @param commonOptions State common options.
+     * Calls injected ensureState with correct path.
+     * @param subfolder Subfolder name.
+     * @param stateName State name.
+     * @param commonOptions State options.
      * @param native Optional native options.
      */
     protected ensureState(subfolder: string, stateName: string, commonOptions: Partial<ioBroker.StateCommon>, native?: Record<string, any>): Promise<void>;
     /**
-     * Retrieves the registered feature class constructor for a given model ID.
-     * @param modelId The robot model identifier string.
-     * @returns The constructor if found, otherwise undefined.
+     * Get registered feature class for model.
+     * @param modelId Robot model identifier.
+     * @returns Constructor or undefined.
      */
     static getRegisteredModelClass(modelId: string): FeatureClassConstructor | undefined;
     /**
-     * Returns an array of all registered model IDs.
+     * Get all registered model IDs.
      */
     static getRegisteredModels(): string[];
     /**
-     * Public method to check if a specific static feature is defined
-     * in this model's configuration.
-     * @param feature The Feature enum key to check.
-     * @returns `true` if the feature is listed in staticFeatures, `false` otherwise.
+     * Check if static feature is defined.
+     * @param feature Feature enum key.
      */
     hasStaticFeature(feature: Feature): boolean;
+    /**
+     * Fetch data and store in folder.
+     * @param method API method.
+     * @param params API parameters.
+     * @param folder Target folder.
+     * @param mapper Optional data mapper.
+     */
+    protected requestAndProcess(method: string, params: any[], folder: string, mapper?: (data: any) => Record<string, any>): Promise<void>;
+    updateStatus(): Promise<void>;
+    updateConsumables(): Promise<void>;
+    updateNetworkInfo(): Promise<void>;
+    updateTimers(): Promise<void>;
+    updateFirmwareFeatures(): Promise<void>;
+    updateMultiMapsList(): Promise<void>;
+    updateRoomMapping(): Promise<void>;
+    updateCleanSummary(): Promise<void>;
+    updateMap(): Promise<void>;
+    updateExtraStatus(): Promise<void>;
+    getPhoto(imgId: string, type: number): Promise<any>;
     abstract getCommonConsumable(attribute: string | number): Partial<ioBroker.StateCommon> | undefined;
     abstract isResetableConsumable(consumable: string): boolean;
     abstract getCommonDeviceStates(attribute: string | number): Partial<ioBroker.StateCommon> | undefined;

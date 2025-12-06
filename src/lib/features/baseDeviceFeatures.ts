@@ -1,15 +1,15 @@
 // src/lib/features/base_device_features.ts
 import type { Roborock } from "../../main";
 import { Feature } from "./features.enum";
-import { z } from "zod"; // Import Zod
+import { z } from "zod";
 
 // --- Types & Interfaces ---
 
 /**
- * Specification for defining a command object's properties.
+ * Command object properties.
  */
 export type CommandSpec = {
-	type: ioBroker.CommonType | "json"; // Internal type can be 'json' for logic
+	type: ioBroker.CommonType | "json"; // 'json' type used for internal logic
 	def?: any;
 	states?: Record<string | number, string>;
 	min?: number;
@@ -19,44 +19,43 @@ export type CommandSpec = {
 };
 
 /**
- * Type for a function that implements a specific feature.
- * It's called with the correct 'this' context bound.
+ * Feature implementation function, 'this' context is bound.
  */
 export type FeatureImplementation = () => Promise<void> | void;
 
 /**
- * Configuration provided by a specific model class.
+ * Model-specific configuration.
  */
 export interface DeviceModelConfig {
-	staticFeatures: Feature[]; // List of features this model always has
+	staticFeatures: Feature[]; // Features this model always has
 }
 
 /**
- * Type for the constructor signature of a device feature class.
+ * Feature class constructor signature.
  */
 export type FeatureClassConstructor = new (_dependencies: FeatureDependencies, _duid: string) => BaseDeviceFeatures;
 
 /**
- * Interface defining the dependencies injected into feature classes.
+ * Dependencies injected into feature classes.
  */
 export interface FeatureDependencies {
 	adapter: Roborock;
-	config: Roborock["config"]; // Adapter configuration
-	http_api: Roborock["http_api"]; // HTTP API helper instance
-	ensureState: Roborock["ensureState"]; // Method reference for creating/ensuring states
-	ensureFolder: Roborock["ensureFolder"]; // Method reference for ensuring folders
-	log: Roborock["log"]; // Adapter log instance
-	// Add other dependencies here if needed by feature implementations
+	config: Roborock["config"];
+	http_api: Roborock["http_api"];
+	ensureState: Roborock["ensureState"];
+	ensureFolder: Roborock["ensureFolder"];
+	log: Roborock["log"];
+	// Add other dependencies if needed
 }
 
 // --- Registry & Decorator ---
 
-/** Central registry mapping robotModelId strings to feature class constructors. */
+/** Maps robotModelId to feature class constructors. */
 const modelRegistry = new Map<string, FeatureClassConstructor>();
 
 /**
- * Class decorator to register a feature class for a specific robot model ID.
- * @param robotModelId The unique model identifier string (e.g., 'roborock.vacuum.a70').
+ * Decorator to register a feature class for a robot model.
+ * @param robotModelId Unique model identifier (e.g. 'roborock.vacuum.a70').
  */
 export function RegisterModel(robotModelId: string) {
 	return function (constructor: FeatureClassConstructor) {
@@ -70,61 +69,59 @@ export function RegisterModel(robotModelId: string) {
 // --- Zod Schemas (Base) ---
 
 /**
- * Base Zod schema for validating generic status properties potentially common to all devices.
+ * Base Zod schema for generic status properties.
  */
 export const BaseStatusSchema = z
 	.object({
-		error_code: z.number().int().optional(), // Example: error code might be generic
-		// Add other truly generic status fields if applicable
+		error_code: z.number().int().optional(),
+		// Add generic status fields if applicable
 	})
-	.passthrough(); // Allow fields not defined in this schema
+	.passthrough();
 
 // --- Generic Base Class ---
 
 /**
- * Abstract base class for handling device features.
- * Provides core logic for initialization, feature application, command object creation,
- * and dependency injection. Must be extended by device-type-specific base classes
- * (e.g., BaseVacuumFeatures).
+ * Base class for device features. Handles init, feature application, and commands.
+ * Extended by specific types (e.g. BaseVacuumFeatures).
  */
 export abstract class BaseDeviceFeatures {
 	protected deps: FeatureDependencies;
-	public commands: Record<string, CommandSpec | any>; // Holds the command definitions for this device instance
+	public commands: Record<string, CommandSpec | any>; // Command definitions for this device
 	protected duid: string;
 	protected robotModel: string;
-	protected config: DeviceModelConfig; // Static feature configuration from the specific model class
-	protected appliedFeatures = new Set<Feature>(); // Tracks features already applied to this instance
-	protected runtimeDetectionComplete = false; // Flag: Initial runtime detection ran
-	protected commandsCreated = false; // Flag: Command objects created for ioBroker
+	protected config: DeviceModelConfig; // Static feature config from model class
+	protected appliedFeatures = new Set<Feature>(); // Tracks applied features
+	protected runtimeDetectionComplete = false; // Initial runtime detection flag
+	protected commandsCreated = false; // Command objects created flag
 
-	// --- Constants (Only absolutely generic ones) ---
+	// --- Constants (Generic) ---
 	protected static readonly CONSTANTS = {
-		// Define constants universally applicable across all potential Roborock device types
+		// Generic constants for all Roborock devices
 		baseCommands: {},
 		// Generic error codes (subset)
 		errorCodes: {
 			0: "No error",
 			255: "Internal error",
 			"-1": "Unknown Error",
-			// Add more if truly generic across all device types
+			// Add more if generic across all devices
 		},
 	};
 
 	// --- Metadata Key for Feature Registry ---
-	// We use a unique symbol to store the registry on the class prototype
+	// Unique symbol for registry on prototype
 	public static readonly FEATURE_METADATA_KEY = Symbol.for("roborock.featureRegistry");
 
 	/**
-	 * Decorator to register a method as a handler for a specific feature.
+	 * Decorator to register a feature handler method.
 	 * @param feature The Feature enum key.
 	 */
 	public static DeviceFeature(feature: Feature) {
 		return function (target: any, propertyKey: string) {
-			// 'target' is the prototype of the class
+			// 'target' is the prototype
 			let registry: Map<Feature, string> = target[BaseDeviceFeatures.FEATURE_METADATA_KEY];
 			if (!registry) {
 				registry = new Map();
-				// Store it on the prototype
+				// Store on prototype
 				target[BaseDeviceFeatures.FEATURE_METADATA_KEY] = registry;
 			}
 			registry.set(feature, propertyKey);
@@ -134,89 +131,82 @@ export abstract class BaseDeviceFeatures {
 	// --- Feature Registry (Instance Based via Metadata) ---
 
 	/**
-	 * Constructor for the base feature handler.
-	 * @param dependencies Injected dependencies (adapter, config, APIs, helpers).
-	 * @param duid The device unique identifier.
-	 * @param robotModel The robot model string.
-	 * @param config Configuration containing static features for this model.
+	 * Base feature handler constructor.
+	 * @param dependencies Injected dependencies.
+	 * @param duid Device unique identifier.
+	 * @param robotModel Robot model string.
+	 * @param config Static feature config.
 	 */
 	constructor(dependencies: FeatureDependencies, duid: string, robotModel: string, config: DeviceModelConfig) {
 		this.deps = dependencies;
 		this.duid = duid;
 		this.robotModel = robotModel;
 		this.config = config;
-		// Start with generic base commands defined in this base class
+		// Start with generic base commands
 		this.commands = JSON.parse(JSON.stringify(BaseDeviceFeatures.CONSTANTS.baseCommands));
 	}
 
 	// --- Abstract / Overridable Methods ---
 
 	/**
-	 * Must be implemented by the concrete device-type base class to detect features
-	 * based on device-specific mechanisms (e.g., bitfields, firmware info).
-	 * @returns A Set containing the detected `Feature` enum keys (usually the 'is...' keys).
+	 * Detects features via device-specific mechanisms (bitfields, fw info).
+	 * Implemented by subclasses.
+	 * @returns Set of detected `Feature` enum keys.
 	 */
 	protected abstract getDynamicFeatures(): Set<Feature>;
 
 	/**
-	 * Processes features related to the detected dock type.
-	 * Can be overridden by concrete base or specific model classes if needed.
-	 * @param dockType The numeric dock type identifier.
+	 * Handles dock type features. Override if needed.
+	 * @param dockType Numeric dock type identifier.
 	 */
 	public async processDockType(dockType: number): Promise<void> {
-		this.deps.log.silly(`[${this.duid}] Base processDockType called for type ${dockType}. No default actions defined.`);
-		// Default (base) implementation does nothing. Should be implemented in concrete base (e.g., BaseVacuumFeatures).
+		this.deps.log.silly(`[${this.duid}] Base processDockType called for type ${dockType}. No default actions.`);
 	}
 
 	/**
-	 * Applies features defined statically in the `DeviceModelConfig`.
-	 * Can be overridden by specific model classes to add more complex model-specific logic
-	 * that runs *before* runtime detection.
-	 * @param _statusData Optional initial status data. Unused in base, but available for overrides.
-	 * @param _fwFeatures Optional initial firmware features data. Unused in base, but available for overrides.
+	 * Applies static features from config.
+	 * Override for pre-runtime model logic.
+	 * @param _statusData Optional initial status data.
+	 * @param _fwFeatures Optional initial firmware features.
 	 */
-
 	public async applyModelSpecifics(): Promise<void> {
 		const promises = this.config.staticFeatures.map((feature) => this.applyFeature(feature));
 		await Promise.all(promises);
 	}
 
 	/**
-	 * Must be implemented by the concrete device-type base class to perform
-	 * runtime feature detection based on validated status data.
-	 * @param statusData Validated status data object.
-	 * @param fwFeatures Optional firmware features data.
-	 * @returns `true` if features/commands were added or modified, `false` otherwise.
+	 * Performs runtime feature detection using status data.
+	 * Implemented by subclasses.
+	 * @param statusData Validated status data.
+	 * @param fwFeatures Optional firmware features.
+	 * @returns `true` if features/commands changed.
 	 */
 	public abstract detectAndApplyRuntimeFeatures(_statusData: Readonly<Record<string, any>>): Promise<boolean>;
 
 	// --- Core Initialization Logic ---
 
 	/**
-	 * Initializes all features for the device instance according to the defined flow:
-	 * Model Specifics -> Runtime Detection -> Dock Processing -> Command Object Creation.
-	 * @param initialStatus Optional initial status data to use for detection.
-	 * @param initialFwFeatures Optional initial firmware features data.
+	 * Initializes features: Model Specifics -> Runtime Detection -> Dock Processing -> Command Objects.
+	 * @param initialStatus Optional initial status.
+	 * @param initialFwFeatures Optional initial firmware features.
 	 */
 	public async initialize(): Promise<void> {
 		this.deps.log.info(`[FeatureInit|${this.robotModel}|${this.duid}] Starting feature initialization...`);
 
 		// Flow: Base -> Type -> Specific -> Runtime -> Dock
 
-		// 1. Apply Model Specifics (Static Flags + Model Class Overrides/Additions)
+		// 1. Apply Model Specifics
 		try {
 			await this.applyModelSpecifics();
 		} catch (e: any) {
 			this.deps.log.error(`[FeatureInit|${this.robotModel}|${this.duid}] Error applying model specifics: ${e.message} ${e.stack}`);
 		}
 
-		// 2. Runtime Detection (implemented by concrete base like BaseVacuumFeatures)
-		// Note: Runtime detection relies on data fetched later in the process.
+		// 2. Runtime Detection (implemented by concrete base)
 
-		// 3. Process Dock Type (implementation from concrete base or model class)
-		// Note: Dock type processing is handled after initial status retrieval.
+		// 3. Process Dock Type (implemented by concrete base)
 
-		// 4. Create/Update ioBroker Objects for Commands
+		// 4. Create/Update ioBroker Objects
 		try {
 			await this.createCommandObjects();
 		} catch (e: any) {
@@ -227,8 +217,7 @@ export abstract class BaseDeviceFeatures {
 	}
 
 	/**
-	 * Logs a consolidated summary of applied features and created commands.
-	 * Should be called explicitly after initialization is complete.
+	 * Logs summary of applied features and commands. Call after init.
 	 */
 	public printSummary(): void {
 		const featureList = Array.from(this.appliedFeatures).sort().join(", ");
@@ -239,13 +228,12 @@ export abstract class BaseDeviceFeatures {
 	// --- Core Helper Methods ---
 
 	/**
-	 * Applies a single feature by looking up and executing its implementation from the registry.
-	 * Ensures a feature is applied only once per instance.
-	 * @param feature The Feature enum key to apply.
-	 * @returns `true` if the feature was successfully applied now, `false` otherwise.
+	 * Applies a feature if not already applied. Looks up implementation in registry.
+	 * @param feature Feature enum key.
+	 * @returns `true` if applied now.
 	 */
 	protected async applyFeature(feature: Feature): Promise<boolean> {
-		// Basic validation of the input feature enum value
+		// Validate input feature
 		if (!feature || !Object.values(Feature).includes(feature)) {
 			this.deps.log.warn(`[${this.duid}] Attempted to apply invalid feature value: ${feature}`);
 			return false;
@@ -256,98 +244,96 @@ export abstract class BaseDeviceFeatures {
 			return false;
 		}
 
-		// Retrieve the registry from metadata on the instance (prototype chain)
-		// We cast 'this' to any to access the symbol-keyed property
+		// Get registry from instance metadata (prototype chain)
 		const registry: Map<Feature, string> | undefined = (this as any)[BaseDeviceFeatures.FEATURE_METADATA_KEY];
 
 		if (registry && registry.has(feature)) {
 			const methodName = registry.get(feature)!;
 			try {
-				// Execute the method dynamically
+				// Execute method dynamically
 				// @ts-ignore
 				await this[methodName].call(this);
-				this.appliedFeatures.add(feature); // Mark as applied *after* successful execution
+				this.appliedFeatures.add(feature); // Mark applied after success
 				return true;
 			} catch (e: any) {
 				this.deps.log.error(`[FeatureApply|${this.robotModel}|${this.duid}] Error applying feature '${feature}': ${e.message} ${e.stack}`);
-				return false; // Application failed
+				return false;
 			}
 		} else {
 			if (registry) {
-				this.deps.log.silly(`[FeatureApply|${this.robotModel}|${this.duid}] Registry exists but no implementation registered for feature '${feature}'. Keys: ${Array.from(registry.keys()).join(", ")}`);
+				this.deps.log.silly(`[FeatureApply|${this.robotModel}|${this.duid}] Registry exists, no implementation for feature '${feature}'. Keys: ${Array.from(registry.keys()).join(", ")}`);
 			} else {
 				this.deps.log.silly(`[FeatureApply|${this.robotModel}|${this.duid}] No registry found on instance.`);
 			}
-			return false; // No implementation found
+			return false;
 		}
 	}
 
 	/**
-	 * Helper to map a dynamically detected feature key (e.g., from bitfield/fw, often starting with 'is...')
-	 * to the corresponding primary action Feature key (e.g., 'MopWash') if a mapping exists and is registered.
-	 * @param detectedFeature The Feature enum key detected dynamically.
-	 * @returns The mapped action Feature enum key, the detected key itself if it's directly actionable, or null.
+	 * Maps dynamic feature keys (e.g. 'is...') to action keys (e.g. 'MopWash').
+	 * @param detectedFeature Detected Feature enum key.
+	 * @returns Mapped action Feature key, detected key if actionable, or null.
 	 */
 	protected mapFeature(detectedFeature: Feature): Feature | null {
-		// Retrieve the registry from metadata on the instance (prototype chain)
+		// Get registry from instance metadata
 		const registry: Map<Feature, string> | undefined = (this as any)[BaseDeviceFeatures.FEATURE_METADATA_KEY];
 
-		// Try direct mapping: Check if the value of the 'is...' key (e.g., 'MopWash') exists as an enum key
-		const potentialActionName = Feature[detectedFeature as keyof typeof Feature]; // Get string value (e.g., 'MopWash')
-		// Find the enum key that corresponds to this string value, EXCLUDING the original detected key itself
+		// Check if 'is...' key value exists as enum key
+		const potentialActionName = Feature[detectedFeature as keyof typeof Feature];
+		// Find enum key for string value, excluding original key
 		const mappedActionKey = (Object.keys(Feature) as Array<keyof typeof Feature>).find((key) => Feature[key] === potentialActionName && key !== detectedFeature);
 
 		if (mappedActionKey) {
-			const actionFeatureEnum = Feature[mappedActionKey]; // Get the actual enum value (like Feature.MopWash)
-			// Check if this mapped action feature *has an implementation registered*
+			const actionFeatureEnum = Feature[mappedActionKey];
+			// Check if mapped action has registered implementation
 			if (registry && registry.has(actionFeatureEnum)) {
 				this.deps.log.silly(`[${this.duid}] Mapping dynamic feature '${detectedFeature}' to action '${actionFeatureEnum}'`);
 				return actionFeatureEnum;
 			} else {
-				this.deps.log.silly(`[${this.duid}] Dynamic feature '${detectedFeature}' mapped to '${actionFeatureEnum}', but no action is registered for it.`);
-				return null; // Mapped but no action
+				this.deps.log.silly(`[${this.duid}] Dynamic feature '${detectedFeature}' mapped to '${actionFeatureEnum}', but no action registered.`);
+				return null;
 			}
 		}
 
-		// If no mapping, check if the detected feature key itself has a registered action
+		// Check if detected feature has registered action
 		if (registry && registry.has(detectedFeature)) {
-			this.deps.log.silly(`[${this.duid}] Using dynamic feature '${detectedFeature}' directly as it has a registered action.`);
+			this.deps.log.silly(`[${this.duid}] Using dynamic feature '${detectedFeature}' directly.`);
 			return detectedFeature;
 		}
 
-		// If neither mapping nor direct action found, it's likely just a flag or unhandled
+		// No mapping or action found
 		this.deps.log.silly(`[${this.duid}] Dynamic feature '${detectedFeature}' detected but has no registered action or mapping.`);
 		return null;
 	}
 
 	/**
-	 * Creates or updates all command state objects in ioBroker based on the current `this.commands` map.
+	 * Creates/updates ioBroker command objects from this.commands.
 	 */
 	public async createCommandObjects(): Promise<void> {
 		const folderPath = `Devices.${this.duid}.commands`;
-		// Ensure folder exists *before* creating states in parallel
+		// Ensure folder exists before creating states
 		try {
 			await this.deps.ensureFolder(folderPath);
 		} catch (e: any) {
 			this.deps.log.error(`[${this.duid}] Failed to ensure commands folder ${folderPath}: ${e.message}`);
-			return; // Abort if folder cannot be ensured
+			return;
 		}
 
 		const promises: Promise<void>[] = [];
 
 		for (const [command, commonCommand] of Object.entries(this.commands)) {
-			// Use an async IIFE (Immediately Invoked Function Expression) for safe parallel execution within the loop
+			// Async IIFE for parallel execution
 			promises.push(
 				(async (cmd: string, spec: CommandSpec | any) => {
 					try {
 						const options: Partial<ioBroker.StateCommon> = {
 							...(spec as Partial<ioBroker.StateCommon>),
-							name: spec.name || this.deps.adapter.translations[cmd] || cmd, // Add name generation/translation
-							write: true, // Commands must be writable
+							name: spec.name || this.deps.adapter.translations[cmd] || cmd, // Add name generation
+							write: true, // Writable
 						};
-						const originalType = spec.type; // Store original type ('json' etc.)
+						const originalType = spec.type; // Store original type
 
-						// Determine Role if not explicitly set in spec
+						// Determine Role
 						if (!options.role) {
 							if (originalType === "boolean" && !options.states) options.role = "button";
 							else if (originalType === "number" && options.states) options.role = "value.list";
@@ -357,16 +343,16 @@ export abstract class BaseDeviceFeatures {
 							else options.role = "state";
 						}
 
-						// Adjust type for ioBroker
+						// Adjust type
 						if (originalType === "json") {
 							options.type = "string";
 						}
 
-						// Final type validation and default
+						// Type validation and default
 						const validTypes: ioBroker.CommonType[] = ["string", "number", "boolean", "object", "array", "mixed"];
 						if (!options.type || typeof options.type !== "string" || !validTypes.includes(options.type as ioBroker.CommonType)) {
 							if (originalType !== "json") {
-								// Avoid redundant log if we just set it to string
+								// Skip log if setting to string
 								this.deps.log.warn(`[${this.duid}] Invalid or missing type '${spec.type}' for command '${cmd}', defaulting to 'string'.`);
 							}
 							options.type = "string";
@@ -374,11 +360,10 @@ export abstract class BaseDeviceFeatures {
 
 						const path = `${folderPath}.${cmd}`;
 
-						// Create or Update Object
+						// Create/Update Object
 						const existingObj = await this.deps.adapter.getObjectAsync(path);
 						if (existingObj) {
-							// Only extend if common differs significantly (simple stringify might be too sensitive)
-							// A more robust check might compare key properties individually. For now, stringify is pragmatic.
+							// Extend if common differs. Stringify is good enough for now.
 							if (JSON.stringify(existingObj.common) !== JSON.stringify(options)) {
 								this.deps.log.silly(`[${this.duid}] Extending command object ${path}`);
 								await this.deps.adapter.extendObject(path, { common: options as ioBroker.StateCommon });
@@ -390,27 +375,26 @@ export abstract class BaseDeviceFeatures {
 							await this.deps.ensureState(path, options as ioBroker.StateCommon);
 						}
 
-						// Reset button states after ensuring object exists/is updated
+						// Reset button states
 						if (options.role === "button") {
 							const currentState = await this.deps.adapter.getStateAsync(path);
-							// Set to false only if not already false or if state doesn't exist yet
+							// Reset to false if needed
 							if (!currentState || currentState.val !== false) {
 								await this.deps.adapter.setState(path, false, true);
 							}
 						}
 					} catch (e: any) {
 						this.deps.log.error(`[${this.duid}] Error processing command object '${command}': ${e.message}`);
-						// Optional: Log stack trace for more details: this.deps.log.error(e.stack);
 					}
 				})(command, commonCommand)
-			); // Pass command and spec to IIFE
-		} // End for loop
+			); // Pass to IIFE
+		}
 
 		try {
-			await Promise.all(promises); // Wait for all command object operations
-			this.commandsCreated = true; // Mark as done for this run
+			await Promise.all(promises); // Wait for all operations
+			this.commandsCreated = true; // Done
 		} catch (e: any) {
-			// Errors inside the IIFEs are caught individually, this catches errors from Promise.all itself (rare)
+			// Catch Promise.all errors (rare)
 			this.deps.log.error(`[${this.duid}] Critical error during parallel command object creation: ${e.message}`);
 		}
 	}
@@ -418,10 +402,9 @@ export abstract class BaseDeviceFeatures {
 	// --- Helper Methods ---
 
 	/**
-	 * Adds or updates a command definition in the instance's `commands` map.
-	 * Includes logic to merge `states` to prevent overwriting more specific definitions.
-	 * @param name The name (key) of the command.
-	 * @param spec The `CommandSpec` definition for the command.
+	 * Adds/updates command definition. Merges states to preserve specifics.
+	 * @param name Command name.
+	 * @param spec CommandSpec definition.
 	 */
 	protected addCommand(name: string, spec: CommandSpec | any): void {
 		if (!name || typeof name !== "string") {
@@ -429,20 +412,20 @@ export abstract class BaseDeviceFeatures {
 			return;
 		}
 		try {
-			// Merge states logic: If new spec has fewer states than existing, merge them preserving existing ones.
+			// Merge states if new spec has fewer states.
 			if (this.commands[name]?.states && spec.states) {
 				const existingStatesJson = JSON.stringify(this.commands[name].states);
 				const newStatesJson = JSON.stringify(spec.states);
 				if (existingStatesJson !== newStatesJson) {
 					this.deps.log.silly(`[${this.duid}] Command '${name}' merge: Merging states.`);
-					// Merge: New states overwrite/add to existing ones
+					// Merge: New states overwrite/add
 					spec.states = { ...this.commands[name].states, ...spec.states };
 				} else {
-					// If states are identical, ensure the rest of the existing spec isn't lost if the new one is simpler
+					// Preserve existing spec if states identical
 					spec = { ...this.commands[name], ...spec, states: this.commands[name].states };
 				}
 			} else if (this.commands[name]?.states && !spec.states) {
-				// If existing had states but new one doesn't, keep existing states
+				// Keep existing states if new one has none
 				spec.states = this.commands[name].states;
 			}
 			this.commands[name] = spec;
@@ -453,16 +436,16 @@ export abstract class BaseDeviceFeatures {
 	}
 
 	/**
-	 * Helper to call the injected `ensureState` function with the correct path format.
-	 * @param subfolder The subfolder within the device structure (e.g., 'info', 'commands').
-	 * @param stateName The name of the state.
-	 * @param commonOptions State common options.
+	 * Calls injected ensureState with correct path.
+	 * @param subfolder Subfolder name.
+	 * @param stateName State name.
+	 * @param commonOptions State options.
 	 * @param native Optional native options.
 	 */
 	protected async ensureState(subfolder: string, stateName: string, commonOptions: Partial<ioBroker.StateCommon>, native: Record<string, any> = {}): Promise<void> {
 		const path = `Devices.${this.duid}.${subfolder}.${stateName}`;
 		try {
-			// Ensure type is valid before calling ensureState
+			// Validate type before ensureState
 			const validTypes: ioBroker.CommonType[] = ["string", "number", "boolean", "object", "array", "mixed"];
 			if (commonOptions.type && !validTypes.includes(commonOptions.type as ioBroker.CommonType)) {
 				this.deps.log.warn(`[${this.duid}] Invalid type '${commonOptions.type}' in ensureState for ${path}, defaulting to 'string'.`);
@@ -477,34 +460,124 @@ export abstract class BaseDeviceFeatures {
 	// --- Static Methods ---
 
 	/**
-	 * Retrieves the registered feature class constructor for a given model ID.
-	 * @param modelId The robot model identifier string.
-	 * @returns The constructor if found, otherwise undefined.
+	 * Get registered feature class for model.
+	 * @param modelId Robot model identifier.
+	 * @returns Constructor or undefined.
 	 */
 	public static getRegisteredModelClass(modelId: string): FeatureClassConstructor | undefined {
 		return modelRegistry.get(modelId);
 	}
 
 	/**
-	 * Returns an array of all registered model IDs.
+	 * Get all registered model IDs.
 	 */
 	public static getRegisteredModels(): string[] {
 		return Array.from(modelRegistry.keys());
 	}
 
 	/**
-	 * Public method to check if a specific static feature is defined
-	 * in this model's configuration.
-	 * @param feature The Feature enum key to check.
-	 * @returns `true` if the feature is listed in staticFeatures, `false` otherwise.
+	 * Check if static feature is defined.
+	 * @param feature Feature enum key.
 	 */
 	public hasStaticFeature(feature: Feature): boolean {
 		return this.config.staticFeatures.includes(feature);
 	}
 
+	// --- Data Update Methods (Unified Data Handling) ---
+
+	/**
+	 * Fetch data and store in folder.
+	 * @param method API method.
+	 * @param params API parameters.
+	 * @param folder Target folder.
+	 * @param mapper Optional data mapper.
+	 */
+	protected async requestAndProcess(method: string, params: any[], folder: string, mapper?: (data: any) => Record<string, any>): Promise<void> {
+		try {
+			const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, method, params);
+
+			let resultObj: Record<string, unknown> | undefined;
+
+			// Handle Array responses
+			if (Array.isArray(result) && result.length > 0 && typeof result[0] === "object") {
+				resultObj = result[0] as Record<string, unknown>;
+			} else if (typeof result === "object" && result !== null && !Array.isArray(result)) {
+				resultObj = result as Record<string, unknown>;
+			}
+
+			if (resultObj) {
+				// Apply mapper
+				if (mapper) {
+					resultObj = mapper(resultObj);
+				}
+
+				await this.deps.ensureFolder(`Devices.${this.duid}.${folder}`);
+
+				for (const key in resultObj) {
+					const val = resultObj[key];
+					// Determine common options (type, role, unit)
+					const common = this.getCommonDeviceStates(key) || { name: key, type: typeof val as ioBroker.CommonType, read: true, write: false };
+
+					await this.deps.ensureState(`Devices.${this.duid}.${folder}.${key}`, common);
+					await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.${folder}.${key}`, { val: val as ioBroker.StateValue, ack: true });
+				}
+			}
+		} catch (e: any) {
+			this.deps.log.warn(`[${this.duid}] Failed to update ${folder} (method: ${method}): ${e.message}`);
+		}
+	}
+
+	public async updateStatus(): Promise<void> {
+		// Default for vacuums
+		await this.requestAndProcess("get_prop", ["get_status"], "deviceStatus");
+	}
+
+	public async updateConsumables(): Promise<void> {
+		await this.requestAndProcess("get_consumable", [], "consumables");
+	}
+
+	public async updateNetworkInfo(): Promise<void> {
+		await this.requestAndProcess("get_network_info", [], "networkInfo");
+	}
+
+	public async updateTimers(): Promise<void> {
+		await this.requestAndProcess("get_timer", [], "timers");
+		await this.requestAndProcess("get_server_timer", [], "timers");
+	}
+
+	public async updateFirmwareFeatures(): Promise<void> {
+		await this.requestAndProcess("get_fw_features", [], "firmwareFeatures");
+	}
+
+	public async updateMultiMapsList(): Promise<void> {
+		await this.requestAndProcess("get_multi_maps_list", [], "map");
+	}
+
+	public async updateRoomMapping(): Promise<void> {
+		await this.requestAndProcess("get_room_mapping", [], "map");
+	}
+
+	// Complex updates (override in subclasses)
+	public async updateCleanSummary(): Promise<void> {
+		// Default: no-op
+	}
+
+	public async updateMap(): Promise<void> {
+		// Default: no-op
+	}
+
+	public async updateExtraStatus(): Promise<void> {
+		// Default: no-op. Override for model-specifics.
+	}
+
+	public async getPhoto(imgId: string, type: number): Promise<any> {
+		void imgId;
+		void type;
+		throw new Error("getPhoto not implemented for this device");
+	}
+
 	// --- Instance Getters for Constants (Abstract Declarations) ---
-	// These must be implemented by the concrete device-type base class (e.g., BaseVacuumFeatures)
-	// to provide access to type-specific constants.
+	// Implemented by subclasses to provide constants.
 
 	public abstract getCommonConsumable(attribute: string | number): Partial<ioBroker.StateCommon> | undefined;
 	public abstract isResetableConsumable(consumable: string): boolean;

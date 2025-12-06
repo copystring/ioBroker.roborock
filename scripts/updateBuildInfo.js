@@ -14,7 +14,7 @@ try {
 		commitHash += " (local changes)";
 	}
 } catch (e) {
-	console.warn("Could not get git commit hash");
+	console.warn("Could not get git commit hash", e);
 }
 
 const content = `export const buildInfo = {

@@ -673,5 +673,12 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     protected addNetworkInfoStates(): Promise<void>;
     protected addUpdateStatusStates(): Promise<void>;
     protected addSmartModeCommand(): void;
+    private static readonly MAPPED_CLEAN_SUMMARY;
+    private static readonly MAPPED_CLEANING_RECORD_ATTRIBUTE;
+    updateCleanSummary(): Promise<void>;
+    private getCleaningRecordMap;
+    updateMap(): Promise<void>;
+    updateExtraStatus(): Promise<void>;
+    getPhoto(imgId: string, type: number): Promise<any>;
     protected placeholderFeatures(): void;
 }
