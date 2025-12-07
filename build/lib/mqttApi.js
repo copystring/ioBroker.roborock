@@ -226,7 +226,7 @@ class mqtt_api {
                         if (isSuccessOk) {
                             // This is the initial "ok". IGNORE IT. Do NOT resolve the promise.
                             // The real data will come via Protocol 300/301.
-                            this.adapter.log.debug(`[MQTT] Received 'ok' for ${pendingRequest.method} request ${dps102.id}. Waiting for 300/301 data block.`);
+                            this.adapter.log.debug(`[MQTT] Received Map/Photo expectation (102) for ${pendingRequest.method} (ID: ${dps102.id}). Waiting for data.`);
                             // --- DO NOTHING HERE ---
                         }
                         else {
@@ -242,6 +242,8 @@ class mqtt_api {
                     }
                     else {
                         // This is a normal command (not a map or photo), resolve it.
+                        // Log the result payload for debugging as requested
+                        this.adapter.log.debug(`[MQTT] Command Response (102) for ${pendingRequest.method} (ID: ${dps102.id}): ${JSON.stringify(dps102.result)}`);
                         this.adapter.requestsHandler.resolvePendingRequest(dps102.id, dps102.result, data.protocol);
                     }
                 }
@@ -298,7 +300,7 @@ class mqtt_api {
             // Protocol 300: First chunk of a photo
             const photoData = photoParser.parse(payloadBuf);
             if (this.adapter.pendingRequests.has(photoData.id)) {
-                this.adapter.log.debug(`[MQTT] First photo gzip chunk detected for ReqID ${photoData.id}`);
+                this.adapter.log.debug(`[MQTT] Photo Data (300) Chunk 1 received for ReqID ${photoData.id}`);
                 this.pendingPhotoRequests[photoData.id] = {
                     chunks: [payloadBuf.subarray(56)], // Skip header
                 };
@@ -317,7 +319,7 @@ class mqtt_api {
                     // It seems we need to parse again to get ID if header is present
                     const photoData = photoParser.parse(payloadBuf);
                     if (this.pendingPhotoRequests[photoData.id]?.chunks) {
-                        this.adapter.log.debug(`[MQTT] Second photo gzip chunk detected for ReqID ${photoData.id}`);
+                        this.adapter.log.debug(`[MQTT] Photo Data (301) Chunk 2 received for ReqID ${photoData.id}`);
                         this.pendingPhotoRequests[photoData.id].chunks.push(payloadBuf);
                         // Combine and resolve
                         const totalBuffer = Buffer.concat(this.pendingPhotoRequests[photoData.id].chunks);
@@ -333,7 +335,7 @@ class mqtt_api {
             // Case B: Single Packet Photo (Header present)
             if (isRoborockHeader) {
                 const photoData = photoParser.parse(payloadBuf);
-                this.adapter.log.debug(`[MQTT] Single packet photo received for ReqID ${photoData.id}`);
+                this.adapter.log.debug(`[MQTT] Single Packet Photo (301) received for ReqID ${photoData.id}`);
                 this.adapter.requestsHandler.resolvePendingRequest(photoData.id, payloadBuf.subarray(56), data.protocol);
                 return;
             }

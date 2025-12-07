@@ -70,8 +70,8 @@ export class Roborock extends utils.Adapter {
 	 */
 	async onReady() {
 		// Config properties are now type-safe thanks to types.d.ts
-		if (!this.config.username || !this.config.password) {
-			this.log.error("Username or password missing!");
+		if (!this.config.username) {
+			this.log.error("Username missing!");
 			return;
 		}
 
@@ -80,9 +80,7 @@ export class Roborock extends utils.Adapter {
 
 		this.log.info(`Starting adapter. This might take a few minutes...`);
 		this.log.info(`Build Info: Date=${buildInfo.buildDate}, Commit=${buildInfo.commitHash}`);
-		this.log.debug(`[onReady] calling setupBasicObjects...`);
 		await this.setupBasicObjects();
-		this.log.debug(`[onReady] setupBasicObjects done.`);
 
 		try {
 			const clientID = await this.ensureClientID();
@@ -275,7 +273,6 @@ export class Roborock extends utils.Adapter {
 	 * Ensures a ClientID exists.
 	 */
 	async ensureClientID(): Promise<string> {
-		this.log.debug(`[ensureClientID] checking state...`);
 		try {
 			const clientIDState = await this.getStateAsync("clientID"); // Revert to Async
 			if (clientIDState?.val) {
@@ -540,7 +537,7 @@ export class Roborock extends utils.Adapter {
 			return;
 		}
 
-		this.log.debug(`[A01|${duid}] Processing: ${JSON.stringify(response.dps)}`);
+		this.log.debug(`[A01] Update for ${duid}: ${JSON.stringify(response.dps)}`);
 
 		const determineType = (value: any): ioBroker.CommonType => {
 			const t = typeof value;

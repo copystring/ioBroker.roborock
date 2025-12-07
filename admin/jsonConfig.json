@@ -12,15 +12,6 @@
             "lg": 6,
             "xl": 6
 		},
-		"password": {
-			"type": "password",
-			"label": "Password",
-			"xs": 12,
-			"sm": 12,
-            "md": 6,
-            "lg": 6,
-            "xl": 6
-		},
 		"enable_map_creation": {
 			"type": "checkbox",
 			"label": "Enable Map Creation",

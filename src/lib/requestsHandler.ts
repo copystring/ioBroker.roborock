@@ -158,7 +158,7 @@ class RoborockRequest {
 			return this.promise;
 		}
 
-		this.adapter.log.debug(`duid: ${this.duid}, mqtt: ${mqttConnectionState}, local: ${localConnectionState}, remote: ${remoteConnection}`);
+		// this.adapter.log.debug(`duid: ${this.duid}, mqtt: ${mqttConnectionState}, local: ${localConnectionState}, remote: ${remoteConnection}`);
 
 		if (!mqttConnectionState && remoteConnection) {
 			const errorMsg = `Cloud connection not available. Not sending for method ${this.method} request!`;
@@ -189,13 +189,13 @@ class RoborockRequest {
 		// Send
 		if (this.handler.isCloudRequest(this.duid, this.method) || !localConnectionState) {
 			this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage);
-			this.adapter.log.debug(`Sent payload for ${this.duid} with ${payload} using cloud connection using version ${version}`);
+			this.adapter.log.debug(`[SendRequest] ${this.method} to ${this.duid} via Cloud (Seq: ${this.messageID})`);
 		} else {
 			const lengthBuffer = Buffer.alloc(4);
 			lengthBuffer.writeUInt32BE(roborockMessage.length, 0);
 			const fullMessage = Buffer.concat([lengthBuffer, roborockMessage]);
 			this.adapter.local_api.sendMessage(this.duid, fullMessage);
-			this.adapter.log.debug(`Sent payload for ${this.duid} with ${payload} using local connection using version ${version}`);
+			this.adapter.log.debug(`[SendRequest] ${this.method} to ${this.duid} via Local (Seq: ${this.messageID})`);
 		}
 
 		return this.promise;
