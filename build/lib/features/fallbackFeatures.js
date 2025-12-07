@@ -50,9 +50,12 @@ class FallbackBaseFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
 }
 exports.FallbackBaseFeatures = FallbackBaseFeatures;
 // --- Specific Vacuum Fallback ---
+// ... imports
+const baseVacuumFeatures_2 = require("./vacuum/baseVacuumFeatures");
+// ...
 class FallbackVacuumFeatures extends baseVacuumFeatures_1.BaseVacuumFeatures {
-    constructor(deps, duid, robotModel) {
-        super(deps, duid, robotModel, { staticFeatures: [] }); // Start with no static features
+    constructor(deps, duid, robotModel, profile = baseVacuumFeatures_2.DEFAULT_PROFILE) {
+        super(deps, duid, robotModel, { staticFeatures: [] }, profile);
         this.deps.log.warn(`[${this.duid}] Using FallbackVacuumFeatures for model ${robotModel}. Runtime detection and base vacuum features active.`);
     }
 }

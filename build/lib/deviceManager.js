@@ -5,6 +5,8 @@ exports.DeviceManager = void 0;
 // Import BaseDeviceFeatures value
 const baseDeviceFeatures_1 = require("./features/baseDeviceFeatures");
 const fallbackFeatures_1 = require("./features/fallbackFeatures");
+const baseVacuumFeatures_1 = require("./features/vacuum/baseVacuumFeatures");
+const productHelper_1 = require("./productHelper");
 // Import indices to trigger decorators
 require("./features/vacuum/index");
 function createFeaturesForModel(adapter, duid, robotModel, productCategory) {
@@ -17,17 +19,46 @@ function createFeaturesForModel(adapter, duid, robotModel, productCategory) {
         ensureFolder: adapter.ensureFolder.bind(adapter),
         log: adapter.log,
     };
+    // dynamic profile creation
+    let dynamicProfile = baseVacuumFeatures_1.DEFAULT_PROFILE;
+    const productInfo = adapter.http_api.productInfo;
+    if (productInfo) {
+        const fanMappings = productHelper_1.ProductHelper.getStateDefinitions(productInfo, robotModel, "fan_power");
+        const mopMappings = productHelper_1.ProductHelper.getStateDefinitions(productInfo, robotModel, "mop_mode");
+        const waterMappings = productHelper_1.ProductHelper.getStateDefinitions(productInfo, robotModel, "water_box_mode");
+        const errorMappings = productHelper_1.ProductHelper.getStateDefinitions(productInfo, robotModel, "error");
+        const stateMappings = productHelper_1.ProductHelper.getStateDefinitions(productInfo, robotModel, "state");
+        if (fanMappings || mopMappings || waterMappings || errorMappings || stateMappings) {
+            adapter.log.debug(`[DeviceManager] Applied dynamic state mappings for ${robotModel}`);
+            dynamicProfile = {
+                ...baseVacuumFeatures_1.DEFAULT_PROFILE,
+                mappings: {
+                    fan_power: fanMappings || baseVacuumFeatures_1.DEFAULT_PROFILE.mappings.fan_power,
+                    mop_mode: mopMappings || baseVacuumFeatures_1.DEFAULT_PROFILE.mappings.mop_mode,
+                    water_box_mode: waterMappings || baseVacuumFeatures_1.DEFAULT_PROFILE.mappings.water_box_mode,
+                    error_code: errorMappings || undefined,
+                    state: stateMappings || undefined,
+                }
+            };
+        }
+    }
     // Get registered model class
     const ModelClass = baseDeviceFeatures_1.BaseDeviceFeatures.getRegisteredModelClass(robotModel);
     if (ModelClass) {
         adapter.log.debug(`[DeviceManager] Using specific feature handler for model: ${robotModel}`);
-        // Pass dependencies and duid
+        // Check if ModelClass accepts profile (it should if it extends BaseVacuumFeatures, but type safety might be tricky if BaseDeviceFeatures doesn't enforce it)
+        // For now, only FallbackVacuumFeatures is guaranteed to take it.
+        // If ModelClass extends BaseVacuumFeatures, it MIGHT accept it.
+        // Let's assume specific classes use their own internal profiles or can take this one.
+        // Actually, standard ModelClasses usually call super with a hardcoded profile.
+        // So passing it might not override it unless the class is designed to.
+        // But for Fallback, we control it.
         return new ModelClass(dependencies, duid);
     }
     else {
         adapter.log.warn(`[DeviceManager] Model "${robotModel}" (Category: ${productCategory}) not registered. Using fallback.`);
         if (productCategory === "robot.vacuum.cleaner" || productCategory === "roborock.vacuum") {
-            return new fallbackFeatures_1.FallbackVacuumFeatures(dependencies, duid, robotModel);
+            return new fallbackFeatures_1.FallbackVacuumFeatures(dependencies, duid, robotModel, dynamicProfile);
         }
         else {
             return new fallbackFeatures_1.FallbackBaseFeatures(dependencies, duid, robotModel);
@@ -49,6 +80,7 @@ class DeviceManager {
         const devices = this.adapter.http_api.getDevices();
         this.adapter.log.info(`[DeviceManager] Initializing ${devices.length} devices...`);
         const initPromises = [];
+        const cleanSummaryHandlers = [];
         for (const device of devices) {
             const duid = device.duid;
             const initTask = async () => {
@@ -105,7 +137,9 @@ class DeviceManager {
                         await this.updateConsumablesPercent(duid);
                         await handler.updateMap();
                         // Fire cleaning summary (background)
-                        handler.updateCleanSummary();
+                        // handler.updateCleanSummary();
+                        // Collect for later execution
+                        cleanSummaryHandlers.push(handler);
                     }
                     handler.printSummary();
                 }
@@ -118,6 +152,10 @@ class DeviceManager {
         await Promise.all(initPromises);
         // Wait for startup requests
         await this.adapter.requestsHandler.waitForStartup();
+        this.adapter.log.info(`[DeviceManager] Processing ${cleanSummaryHandlers.length} clean summaries...`);
+        for (const handler of cleanSummaryHandlers) {
+            handler.updateCleanSummary();
+        }
         this.adapter.log.info("[DeviceManager] All devices initialized.");
         // Cleanup orphaned devices
         await this.cleanupOrphanedDevices(devices.map((d) => d.duid));

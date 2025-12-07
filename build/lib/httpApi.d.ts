@@ -1,5 +1,6 @@
 import { Roborock } from "../main";
 import { type AxiosInstance } from "axios";
+import { ProductV5Response, LoginV4Response } from "./apiTypes";
 interface RriotData {
     u: string;
     s: string;
@@ -48,7 +49,8 @@ export declare class http_api {
     realApi: AxiosInstance | null;
     userData: UserData | null;
     homeData: HomeData | null;
-    homeID: string | null;
+    homeID: number | null;
+    productInfo: ProductV5Response | null;
     private fwFeaturesCache;
     constructor(adapter: Roborock);
     /**
@@ -57,9 +59,22 @@ export declare class http_api {
      */
     init(clientID: string): Promise<void>;
     /**
+     * Restores UserData from state.
+     */
+    loadUserData(): Promise<void>;
+    /**
      * Logs in (if necessary) and sets up the authenticated "Real API" with Hawk authentication.
      */
+    private loginCodeResolver;
+    submitLoginCode(code: string): void;
     initializeRealApi(): Promise<void>;
+    requestEmailCode(username: string): Promise<void>;
+    signRequest(s: string): Promise<{
+        k: string;
+    } | null>;
+    loginWithCode(code: string, k: string, s: string): Promise<LoginV4Response>;
+    getProductInfoV5(): Promise<ProductV5Response | null>;
+    downloadProductImages(): Promise<void>;
     /**
      * Retrieves the Home ID from the API.
      */

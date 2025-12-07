@@ -2,6 +2,7 @@ import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies, CommandSpec
 import { Feature } from "../features.enum";
 import { z } from "zod";
 import { VACUUM_CONSTANTS } from "./vacuumConstants";
+import { ProductHelper } from "../../productHelper";
 
 // --- Shared Constants ---
 export const BASE_FAN = { 101: "Quiet", 102: "Balanced", 103: "Turbo", 104: "Max" };
@@ -15,6 +16,8 @@ export interface VacuumProfile {
         fan_power: Record<number, string>;
         water_box_mode?: Record<number, string>;
         mop_mode?: Record<number, string>;
+        error_code?: Record<number, string>;
+        state?: Record<number, string>;
     };
     features: {
         maxSuctionValue: number;
@@ -168,19 +171,27 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 			if (!!(newFeatureSetInt & 4096)) features.add(Feature.isBackChargeAutoWashSupported);
 			if (!!(newFeatureSetInt & 256)) features.add(Feature.isCleanRouteFastModeSupported);
 
-			// Map FW Features Result to 'is...' Enum keys
+			// Check firmware features
 			const fwResult = this.deps.http_api.getFwFeaturesResult(this.duid);
 			if (fwResult) {
 				for (const id of fwResult) {
 					const featureName = BaseVacuumFeatures.CONSTANTS.firmwareFeatures[id as keyof typeof BaseVacuumFeatures.CONSTANTS.firmwareFeatures];
 					if (featureName) {
-						// Check if this feature name exists in our Feature enum
 						const featureEnum = Feature[featureName as keyof typeof Feature];
 						if (featureEnum) {
 							features.add(featureEnum);
 						}
 					}
 				}
+			}
+
+			// Add features from product info
+			if (this.deps.http_api.productInfo) {
+				const deduced = ProductHelper.deduceFeatures(this.deps.http_api.productInfo, this.robotModel);
+				for (const f of deduced) {
+					features.add(f);
+				}
+				this.deps.log.silly(`[${this.duid}] ProductHelper deduced: ${[...deduced].join(", ")}`);
 			}
 		} catch (error: any) {
 			this.deps.log.error(`[${this.duid}] Error in getDynamicFeatures: ${error.message}`);
@@ -372,7 +383,23 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 	}
 	public getCommonDeviceStates(attribute: string | number): { states?: Record<any, any>; unit?: string; type?: ioBroker.CommonType | undefined } | undefined {
 		const stateDef = BaseVacuumFeatures.CONSTANTS.deviceStates[attribute as keyof typeof BaseVacuumFeatures.CONSTANTS.deviceStates];
-		return stateDef as { states?: Record<any, any>; unit?: string; type?: ioBroker.CommonType | undefined } | undefined;
+		if (!stateDef) return undefined;
+
+		const result = { ...stateDef } as { states?: Record<any, any>; unit?: string; type?: ioBroker.CommonType | undefined };
+
+		if (attribute === "fan_power" && this.profile.mappings.fan_power) {
+			result.states = this.profile.mappings.fan_power;
+		} else if (attribute === "mop_mode" && this.profile.mappings.mop_mode) {
+			result.states = this.profile.mappings.mop_mode;
+		} else if (attribute === "water_box_mode" && this.profile.mappings.water_box_mode) {
+			result.states = this.profile.mappings.water_box_mode;
+		} else if (attribute === "error_code" && this.profile.mappings.error_code) {
+			result.states = this.profile.mappings.error_code;
+		} else if (attribute === "state" && this.profile.mappings.state) {
+			result.states = this.profile.mappings.state;
+		}
+
+		return result;
 	}
 	public getCommonCleaningInfo(attribute: string | number): { unit?: string } | undefined {
 		return BaseVacuumFeatures.CONSTANTS.cleaningInfo[attribute as keyof typeof BaseVacuumFeatures.CONSTANTS.cleaningInfo];

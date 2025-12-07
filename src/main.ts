@@ -32,6 +32,7 @@ export class Roborock extends utils.Adapter {
 	public nonce: Buffer;
 	public pendingRequests: Map<number, any>;
 	public roborock_package_helper: roborock_package_helper;
+
 	public isInitializing: boolean;
 	public sentryInstance: any;
 	public translations: Record<string, string> = {};
@@ -55,6 +56,7 @@ export class Roborock extends utils.Adapter {
 		this.deviceFeatureHandlers = this.deviceManager.deviceFeatureHandlers; // Reference DM's map
 
 		this.roborock_package_helper = new roborock_package_helper(this);
+
 		this.isInitializing = true;
 
 		this.on("ready", this.onReady.bind(this));
@@ -87,16 +89,28 @@ export class Roborock extends utils.Adapter {
 			await this.http_api.init(clientID);
 			await this.mqtt_api.init();
 			await this.http_api.updateHomeData();
+
+			if (this.config.downloadRoborockImages) {
+				this.log.info("Downloading Roborock images...");
+				await this.http_api.downloadProductImages();
+
+				// Download additional assets (icons, etc)
+				const devices = this.http_api.getDevices();
+				for (const device of devices) {
+					await this.roborock_package_helper.updateProduct(device.duid);
+				}
+			}
+
 			await this.local_api.startUdpDiscovery();
 			await this.deviceManager.initializeDevices();
 			await this.processScenes();
 			this.deviceManager.startPolling();
 			await this.start_go2rtc();
 
-			this.subscribeStates("Devices.*.commands.*");
-			this.subscribeStates("Devices.*.resetConsumables.*");
-			this.subscribeStates("Devices.*.programs.startProgram");
-			this.subscribeStates("Devices.*.deviceInfo.online");
+			this.subscribeStatesAsync("Devices.*.commands.*");
+			this.subscribeStatesAsync("Devices.*.resetConsumables.*");
+			this.subscribeStatesAsync("Devices.*.programs.startProgram");
+			this.subscribeStatesAsync("Devices.*.deviceInfo.online");
 
 			this.log.info(`Adapter startup finished. Let's go!`);
 			this.isInitializing = false;
@@ -143,16 +157,26 @@ export class Roborock extends utils.Adapter {
 	async onStateChange(id: string, state: ioBroker.State | null | undefined) {
 		if (!state) return;
 
-
-
 		if (state.ack) {
+			// ... (keep usage of id, state if needed, or previous code)
 			if (id.endsWith(".online")) {
 				this.log.info(`Device ${id.split(".")[3]} is now ${state.val ? "online" : "offline"}`);
 			}
 			return;
 		}
 
+		// Split ID once
 		const idParts = id.split(".");
+
+		// Check for root loginCode (roborock.0.loginCode)
+		if (idParts[2] === "loginCode" && state.val && String(state.val).length === 6) {
+			this.http_api.submitLoginCode(String(state.val));
+			return;
+		}
+
+		// Devices logic
+		if (idParts[2] !== "Devices") return;
+
 		const duid = idParts[3];
 		const folder = idParts[4];
 		const command = idParts[5];
@@ -253,7 +277,7 @@ export class Roborock extends utils.Adapter {
 	async ensureClientID(): Promise<string> {
 		this.log.debug(`[ensureClientID] checking state...`);
 		try {
-			const clientIDState = await this.getStateAsync("clientID"); // Use Async
+			const clientIDState = await this.getStateAsync("clientID"); // Revert to Async
 			if (clientIDState?.val) {
 				this.log.info(`Loaded existing clientID: ${clientIDState.val}`);
 				return clientIDState.val.toString();
@@ -357,7 +381,7 @@ export class Roborock extends utils.Adapter {
 				}
 
 				await this.ensureState(`Devices.${duid}.deviceInfo.${attr}`, common);
-				await this.setStateChangedAsync(`Devices.${duid}.deviceInfo.${attr}`, { val: value, ack: true });
+				await this.setStateChanged(`Devices.${duid}.deviceInfo.${attr}`, { val: value, ack: true });
 			}
 		}
 	}
@@ -378,7 +402,7 @@ export class Roborock extends utils.Adapter {
 				for (const state in update.data.result) {
 					const value = update.data.result[state];
 					await this.ensureState(`Devices.${duid}.updateStatus.${state}`, { type: typeof value as ioBroker.CommonType });
-					await this.setStateChangedAsync(`Devices.${duid}.updateStatus.${state}`, { val: value, ack: true });
+					await this.setStateChanged(`Devices.${duid}.updateStatus.${state}`, { val: value, ack: true });
 				}
 			} else {
 				this.log.warn(`[checkForNewFirmware] No result in firmware update response for ${duid}`);
@@ -535,7 +559,7 @@ export class Roborock extends utils.Adapter {
 				} else {
 					const val = typeof value === "object" || value === null ? JSON.stringify(value) : value;
 					await this.ensureState(path, { name: key, type: determineType(value), write: false });
-					await this.setStateChangedAsync(path, { val, ack: true });
+					await this.setStateChanged(path, { val, ack: true });
 				}
 			}
 		};
@@ -562,7 +586,7 @@ export class Roborock extends utils.Adapter {
 			} else {
 				const path = `Devices.${duid}.deviceStatus.${id}`;
 				await this.ensureState(path, { name: stateName, type: determineType(value), write: false });
-				await this.setStateChangedAsync(path, { val: parsedValue, ack: true });
+				await this.setStateChanged(path, { val: parsedValue, ack: true });
 			}
 		}
 	}

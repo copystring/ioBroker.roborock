@@ -27,6 +27,8 @@ export interface VacuumProfile {
         fan_power: Record<number, string>;
         water_box_mode?: Record<number, string>;
         mop_mode?: Record<number, string>;
+        error_code?: Record<number, string>;
+        state?: Record<number, string>;
     };
     features: {
         maxSuctionValue: number;

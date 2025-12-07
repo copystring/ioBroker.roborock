@@ -31,96 +31,102 @@ class roborock_package_helper {
     constructor(adapter) {
         this.adapter = adapter;
     }
-    async updateProduct(loginApi, productID, duid) {
-        const products = await loginApi.get("api/v3/product");
-        const list = products.data.data.categoryDetailList;
+    async updateProduct(duid) {
+        const loginApi = this.adapter.http_api.loginApi;
+        if (!loginApi) {
+            this.adapter.log.error("loginApi not initialized in roborock_package_helper");
+            return;
+        }
+        // Use existing V5 product info to get the ID
+        const productInfo = this.adapter.http_api.productInfo;
+        const devices = this.adapter.http_api.getDevices();
+        const device = devices.find(d => d.duid === duid);
+        if (!productInfo || !device) {
+            this.adapter.log.warn(`Cannot update product for ${duid}: Missing product info or device not found.`);
+            return;
+        }
         const appPluginRequest = {
-            apilevel: 99999, // sniffed 10016 and 10019 from the app but it's subject to change so we use a high number
-            productids: [],
-            type: 2,
+            apilevel: 99999, // safe high value for latest assets
+            productids: [device.productId],
+            type: 2, // Android
         };
-        const vacuumIDs = {};
-        for (const array in list) {
-            for (const product in list[array]["productList"]) {
-                const vacuum = list[array]["productList"][product];
-                const productIDinPackage = this.findProductIDinPackage(productID, vacuum);
-                if (productIDinPackage) {
-                    appPluginRequest.productids.push(vacuum.id);
-                    vacuumIDs[vacuum.id] = vacuum.model;
-                }
+        const vacuumIDs = {
+            [device.productId]: this.adapter.http_api.getRobotModel(duid) || "unknown_model"
+        };
+        try {
+            // Reuse V4 auth headers for V1 asset request (works for now)
+            const packageData = await loginApi.post("api/v1/appplugin", appPluginRequest);
+            if (packageData.data.code !== 200) {
+                this.adapter.log.warn(`AppPlugin (assets) request failed: ${JSON.stringify(packageData.data)}`);
+                return;
             }
-        }
-        const packageData = await loginApi.post("api/v1/appplugin", appPluginRequest);
-        const packages = packageData.data.data;
-        for (const rr_package in packages) {
-            const vacuum = vacuumIDs[packages[rr_package].productid];
-            const zipUrl = packages[rr_package].url;
-            const version = packages[rr_package].version;
-            const imagePath = `./images/products/${vacuum}`;
-            const objectPath = `Devices.${duid}.images`;
-            const versionFilePath = imagePath + "/version";
-            if (!fs.existsSync("./lib/roborockPackage/"))
-                fs.mkdirSync("./lib/roborockPackage/");
-            try {
-                // Create missing vacuum folders
-                if (!fs.existsSync(`./images/products/`))
-                    fs.mkdirSync(`./images/products/`);
-                if (!fs.existsSync(imagePath))
-                    fs.mkdirSync(imagePath);
-                this.adapter.setObjectAsync(objectPath, {
-                    type: "folder",
-                    common: {
-                        name: "images",
-                    },
-                    native: {},
-                });
-                if (!fs.existsSync(versionFilePath)) {
-                    fs.writeFileSync(versionFilePath, "0");
-                }
-                const currentVersion = fs.readFileSync(versionFilePath, "utf8");
-                if (packages[rr_package].version > currentVersion) {
-                    this.adapter.log.debug(`New version roborock package available: ${version}`);
-                    const response = await loginApi.get(zipUrl, { responseType: "arraybuffer" });
-                    const zip = await JSZip.loadAsync(response.data);
-                    const folder = zip.folder("drawable-mdpi");
-                    if (folder) {
-                        let i = 0;
-                        folder.forEach(async (relativePath, file) => {
-                            if (!file.dir) {
-                                const fileContent = await file.async("nodebuffer");
-                                if (fileContent) {
-                                    fs.writeFileSync(`${imagePath}/${relativePath}`, fileContent);
-                                    const fileContentBase64 = fileContent.toString("base64");
-                                    const fileNameWithoutExtension = relativePath.slice(0, relativePath.lastIndexOf("."));
-                                    const formattedNumber = i.toString().padStart(3, "0"); // "001", "002", "003", etc.
-                                    this.adapter.setObjectAsync(`${objectPath}.${formattedNumber}`, {
-                                        type: "state",
-                                        common: {
-                                            name: fileNameWithoutExtension,
-                                            type: "string",
-                                            role: "value",
-                                            read: true,
-                                            write: false,
-                                        },
-                                        native: {},
-                                    });
-                                    this.adapter.setState(`${objectPath}.${formattedNumber}`, { val: fileContentBase64, ack: true });
-                                }
-                                i++;
-                            }
-                        });
+            const packages = packageData.data.data;
+            for (const rr_package in packages) {
+                const vacuumModel = vacuumIDs[packages[rr_package].productid];
+                if (!vacuumModel)
+                    continue;
+                const zipUrl = packages[rr_package].url;
+                const version = packages[rr_package].version;
+                const imagePath = `./images/products/${vacuumModel}`;
+                const objectPath = `Devices.${duid}.images`;
+                const versionFilePath = imagePath + "/version";
+                if (!fs.existsSync("./lib/roborockPackage/"))
+                    fs.mkdirSync("./lib/roborockPackage/", { recursive: true });
+                try {
+                    if (!fs.existsSync(`./images/products/`))
+                        fs.mkdirSync(`./images/products/`, { recursive: true });
+                    if (!fs.existsSync(imagePath))
+                        fs.mkdirSync(imagePath, { recursive: true });
+                    await this.adapter.ensureFolder(objectPath);
+                    if (!fs.existsSync(versionFilePath)) {
+                        fs.writeFileSync(versionFilePath, "0");
                     }
-                    fs.writeFileSync(versionFilePath, version.toString());
+                    const currentVersion = fs.readFileSync(versionFilePath, "utf8");
+                    if (Number(packages[rr_package].version) > Number(currentVersion)) {
+                        this.adapter.log.info(`New version roborock package available: ${version} for ${vacuumModel}`);
+                        const response = await loginApi.get(zipUrl, { responseType: "arraybuffer" });
+                        const zip = await JSZip.loadAsync(response.data);
+                        const folder = zip.folder("drawable-mdpi"); // icon location
+                        if (folder) {
+                            let i = 0;
+                            const filePromises = [];
+                            folder.forEach((relativePath, file) => {
+                                filePromises.push((async () => {
+                                    if (!file.dir) {
+                                        const fileContent = await file.async("nodebuffer");
+                                        if (fileContent) {
+                                            fs.writeFileSync(`${imagePath}/${relativePath}`, fileContent);
+                                            const fileContentBase64 = fileContent.toString("base64");
+                                            const fileNameWithoutExtension = relativePath.slice(0, relativePath.lastIndexOf("."));
+                                            const formattedNumber = i.toString().padStart(3, "0");
+                                            await this.adapter.ensureState(`${objectPath}.${formattedNumber}`, {
+                                                name: fileNameWithoutExtension,
+                                                type: "string",
+                                                role: "value",
+                                                write: false,
+                                            });
+                                            await this.adapter.setState(`${objectPath}.${formattedNumber}`, { val: fileContentBase64, ack: true });
+                                        }
+                                        i++;
+                                    }
+                                })());
+                            });
+                            await Promise.all(filePromises);
+                        }
+                        fs.writeFileSync(versionFilePath, version.toString());
+                        this.adapter.log.info(`Updated assets for ${vacuumModel}`);
+                    }
+                    else {
+                        this.adapter.log.debug(`Assets for ${vacuumModel} are up to date (Version ${currentVersion}).`);
+                    }
+                }
+                catch (err) {
+                    this.adapter.log.error(`${err.stack} roborock_package_helper.updateProduct ${duid}`);
                 }
             }
-            catch (err) {
-                this.adapter.log.error(`${err.stack} roborock_package_helper.updateProduct ${productID}`);
-            }
         }
-    }
-    findProductIDinPackage(productID, list) {
-        if (list.model === productID) {
-            return list.id;
+        catch (e) {
+            this.adapter.log.error(`Failed to update product assets: ${e.message}`);
         }
     }
 }

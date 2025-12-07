@@ -23,6 +23,7 @@ export declare class FallbackBaseFeatures extends BaseDeviceFeatures {
     } | undefined;
     getFirmwareFeatureName(featureID: string | number): string;
 }
+import { VacuumProfile } from "./vacuum/baseVacuumFeatures";
 export declare class FallbackVacuumFeatures extends BaseVacuumFeatures {
-    constructor(deps: FeatureDependencies, duid: string, robotModel: string);
+    constructor(deps: FeatureDependencies, duid: string, robotModel: string, profile?: VacuumProfile);
 }

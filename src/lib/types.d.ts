@@ -15,6 +15,7 @@ declare global {
 			cameraPin: string;
 			hostname_ip?: string;
 			forceRuntimeDetectEveryTime?: boolean;
+			downloadRoborockImages?: boolean;
 		}
 	}
 }

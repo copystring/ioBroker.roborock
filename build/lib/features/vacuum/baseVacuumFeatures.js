@@ -14,6 +14,7 @@ const baseDeviceFeatures_1 = require("../baseDeviceFeatures");
 const features_enum_1 = require("../features.enum");
 const zod_1 = require("zod");
 const vacuumConstants_1 = require("./vacuumConstants");
+const productHelper_1 = require("../../productHelper");
 // --- Shared Constants ---
 exports.BASE_FAN = { 101: "Quiet", 102: "Balanced", 103: "Turbo", 104: "Max" };
 exports.BASE_WATER = { 200: "Off", 201: "Mild", 202: "Moderate", 203: "Intense" };
@@ -153,19 +154,26 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                 features.add(features_enum_1.Feature.isBackChargeAutoWashSupported);
             if (!!(newFeatureSetInt & 256))
                 features.add(features_enum_1.Feature.isCleanRouteFastModeSupported);
-            // Map FW Features Result to 'is...' Enum keys
+            // Check firmware features
             const fwResult = this.deps.http_api.getFwFeaturesResult(this.duid);
             if (fwResult) {
                 for (const id of fwResult) {
                     const featureName = BaseVacuumFeatures.CONSTANTS.firmwareFeatures[id];
                     if (featureName) {
-                        // Check if this feature name exists in our Feature enum
                         const featureEnum = features_enum_1.Feature[featureName];
                         if (featureEnum) {
                             features.add(featureEnum);
                         }
                     }
                 }
+            }
+            // Add features from product info
+            if (this.deps.http_api.productInfo) {
+                const deduced = productHelper_1.ProductHelper.deduceFeatures(this.deps.http_api.productInfo, this.robotModel);
+                for (const f of deduced) {
+                    features.add(f);
+                }
+                this.deps.log.silly(`[${this.duid}] ProductHelper deduced: ${[...deduced].join(", ")}`);
             }
         }
         catch (error) {
@@ -337,7 +345,25 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
     }
     getCommonDeviceStates(attribute) {
         const stateDef = BaseVacuumFeatures.CONSTANTS.deviceStates[attribute];
-        return stateDef;
+        if (!stateDef)
+            return undefined;
+        const result = { ...stateDef };
+        if (attribute === "fan_power" && this.profile.mappings.fan_power) {
+            result.states = this.profile.mappings.fan_power;
+        }
+        else if (attribute === "mop_mode" && this.profile.mappings.mop_mode) {
+            result.states = this.profile.mappings.mop_mode;
+        }
+        else if (attribute === "water_box_mode" && this.profile.mappings.water_box_mode) {
+            result.states = this.profile.mappings.water_box_mode;
+        }
+        else if (attribute === "error_code" && this.profile.mappings.error_code) {
+            result.states = this.profile.mappings.error_code;
+        }
+        else if (attribute === "state" && this.profile.mappings.state) {
+            result.states = this.profile.mappings.state;
+        }
+        return result;
     }
     getCommonCleaningInfo(attribute) {
         return BaseVacuumFeatures.CONSTANTS.cleaningInfo[attribute];
