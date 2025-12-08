@@ -287,7 +287,10 @@ class http_api {
             return null;
         try {
             const res = await this.loginApi.get(API_V5_PRODUCT);
-            return res.data;
+            if (res.data && res.data.data) {
+                return res.data;
+            }
+            return null;
         }
         catch (e) {
             this.adapter.log.warn(`getProductInfoV5 failed: ${e.message}`);

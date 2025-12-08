@@ -230,29 +230,33 @@ export class mqtt_api {
 				if (dps102) {
 					const pendingRequest = this.adapter.pendingRequests.get(dps102.id);
 
-					if (pendingRequest && (pendingRequest.method === "get_map_v1" || pendingRequest.method === "get_clean_record_map" || pendingRequest.method === "get_photo")) {
-						// This is a map or photo request.
-						const isSuccessOk = dps102.result === "ok" || (Array.isArray(dps102.result) && dps102.result[0] === "ok");
+					if (pendingRequest) {
+						if (pendingRequest.method === "get_map_v1" || pendingRequest.method === "get_clean_record_map" || pendingRequest.method === "get_photo") {
+							// This is a map or photo request.
+							const isSuccessOk = dps102.result === "ok" || (Array.isArray(dps102.result) && dps102.result[0] === "ok");
 
-						if (isSuccessOk) {
-							// This is the initial "ok". IGNORE IT. Do NOT resolve the promise.
-							// The real data will come via Protocol 300/301.
-							this.adapter.log.debug(`[MQTT] Received Map/Photo expectation (102) for ${pendingRequest.method} (ID: ${dps102.id}). Waiting for data.`);
-							// --- DO NOTHING HERE ---
-						} else {
-							// This is an ERROR for the request (e.g., "retry" or "locating")
-							if (Array.isArray(dps102.result) && dps102.result[0] === "retry") {
-								this.adapter.log.debug(`[MQTT] ${pendingRequest.method} request ${dps102.id} returned 'retry'.`);
+							if (isSuccessOk) {
+								// This is the initial "ok". IGNORE IT. Do NOT resolve the promise.
+								// The real data will come via Protocol 300/301.
+								this.adapter.log.debug(`[MQTT] Received Map/Photo expectation (102) for ${pendingRequest.method} (ID: ${dps102.id}). Waiting for data.`);
+								// --- DO NOTHING HERE ---
 							} else {
-								this.adapter.log.warn(`[MQTT] ${pendingRequest.method} request ${dps102.id} failed with: ${JSON.stringify(dps102.result)}`);
+								// This is an ERROR for the request (e.g., "retry" or "locating")
+								if (Array.isArray(dps102.result) && dps102.result[0] === "retry") {
+									this.adapter.log.debug(`[MQTT] ${pendingRequest.method} request ${dps102.id} returned 'retry'.`);
+								} else {
+									this.adapter.log.warn(`[MQTT] ${pendingRequest.method} request ${dps102.id} failed with: ${JSON.stringify(dps102.result)}`);
+								}
+								this.adapter.requestsHandler.resolvePendingRequest(dps102.id, dps102.result, data.protocol);
 							}
+						} else {
+							// This is a normal command (not a map or photo), resolve it.
+							// Log the result payload for debugging as requested
+							this.adapter.log.debug(`[MQTT] Command Response (102) for ${pendingRequest.method} (ID: ${dps102.id}): ${JSON.stringify(dps102.result)}`);
 							this.adapter.requestsHandler.resolvePendingRequest(dps102.id, dps102.result, data.protocol);
 						}
 					} else {
-						// This is a normal command (not a map or photo), resolve it.
-						// Log the result payload for debugging as requested
-						this.adapter.log.debug(`[MQTT] Command Response (102) for ${pendingRequest.method} (ID: ${dps102.id}): ${JSON.stringify(dps102.result)}`);
-						this.adapter.requestsHandler.resolvePendingRequest(dps102.id, dps102.result, data.protocol);
+						this.adapter.log.debug(`[MQTT] Received Protocol 102 message with ID ${dps102.id} but no matching pending request found.`);
 					}
 				}
 			} catch (e) {

@@ -176,6 +176,7 @@ export declare const VACUUM_CONSTANTS: {
             };
         };
         clean_percent: {
+            type: string;
             unit: string;
         };
         water_box_mode: {
@@ -194,6 +195,7 @@ export declare const VACUUM_CONSTANTS: {
             };
         };
         mop_mode: {
+            type: string;
             states: {
                 300: string;
                 301: string;
@@ -208,6 +210,7 @@ export declare const VACUUM_CONSTANTS: {
             };
         };
         carpet_clean_mode: {
+            type: string;
             states: {
                 '{"carpet_clean_mode":0}': string;
                 '{"carpet_clean_mode":1}': string;
@@ -395,36 +398,47 @@ export declare const VACUUM_CONSTANTS: {
     };
     consumables: {
         main_brush_work_time: {
+            type: string;
             unit: string;
         };
         side_brush_work_time: {
+            type: string;
             unit: string;
         };
         filter_work_time: {
+            type: string;
             unit: string;
         };
         filter_element_work_time: {
+            type: string;
             unit: string;
         };
         sensor_dirty_time: {
+            type: string;
             unit: string;
         };
         dust_collection_work_times: {
+            type: string;
             unit: string;
         };
         main_brush_life: {
+            type: string;
             unit: string;
         };
         side_brush_life: {
+            type: string;
             unit: string;
         };
         filter_life: {
+            type: string;
             unit: string;
         };
         strainer_work_times: {
+            type: string;
             unit: string;
         };
         cleaning_brush_work_times: {
+            type: string;
             unit: string;
         };
     };
@@ -528,16 +542,26 @@ export declare const VACUUM_CONSTANTS: {
     };
     cleaningInfo: {
         0: {
+            type: string;
             unit: string;
         };
         1: {
+            type: string;
             unit: string;
         };
         clean_time: {
+            type: string;
             unit: string;
         };
         clean_area: {
+            type: string;
             unit: string;
+        };
+        clean_count: {
+            type: string;
+        };
+        dust_collection_count: {
+            type: string;
         };
     };
     firmwareFeatures: {

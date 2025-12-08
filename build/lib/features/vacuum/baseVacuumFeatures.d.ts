@@ -234,6 +234,7 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
                 };
             };
             clean_percent: {
+                type: string;
                 unit: string;
             };
             water_box_mode: {
@@ -252,6 +253,7 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
                 };
             };
             mop_mode: {
+                type: string;
                 states: {
                     300: string;
                     301: string;
@@ -266,6 +268,7 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
                 };
             };
             carpet_clean_mode: {
+                type: string;
                 states: {
                     '{"carpet_clean_mode":0}': string;
                     '{"carpet_clean_mode":1}': string;
@@ -453,36 +456,47 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
         };
         consumables: {
             main_brush_work_time: {
+                type: string;
                 unit: string;
             };
             side_brush_work_time: {
+                type: string;
                 unit: string;
             };
             filter_work_time: {
+                type: string;
                 unit: string;
             };
             filter_element_work_time: {
+                type: string;
                 unit: string;
             };
             sensor_dirty_time: {
+                type: string;
                 unit: string;
             };
             dust_collection_work_times: {
+                type: string;
                 unit: string;
             };
             main_brush_life: {
+                type: string;
                 unit: string;
             };
             side_brush_life: {
+                type: string;
                 unit: string;
             };
             filter_life: {
+                type: string;
                 unit: string;
             };
             strainer_work_times: {
+                type: string;
                 unit: string;
             };
             cleaning_brush_work_times: {
+                type: string;
                 unit: string;
             };
         };
@@ -586,16 +600,26 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
         };
         cleaningInfo: {
             0: {
+                type: string;
                 unit: string;
             };
             1: {
+                type: string;
                 unit: string;
             };
             clean_time: {
+                type: string;
                 unit: string;
             };
             clean_area: {
+                type: string;
                 unit: string;
+            };
+            clean_count: {
+                type: string;
+            };
+            dust_collection_count: {
+                type: string;
             };
         };
         firmwareFeatures: {
@@ -625,9 +649,7 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
         unit?: string;
         type?: ioBroker.CommonType | undefined;
     } | undefined;
-    getCommonCleaningInfo(attribute: string | number): {
-        unit?: string;
-    } | undefined;
+    getCommonCleaningInfo(attribute: string | number): Partial<ioBroker.StateCommon> | undefined;
     getCommonCleaningRecords(attribute: string | number): Partial<ioBroker.StateCommon> | undefined;
     getFirmwareFeatureName(featureID: string | number): string;
     protected addAutoEmptyDockCommands(): void;

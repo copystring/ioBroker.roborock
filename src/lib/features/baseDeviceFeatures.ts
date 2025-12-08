@@ -514,9 +514,28 @@ export abstract class BaseDeviceFeatures {
 				await this.deps.ensureFolder(`Devices.${this.duid}.${folder}`);
 
 				for (const key in resultObj) {
-					const val = resultObj[key];
+					let val = resultObj[key];
 					// Determine common options (type, role, unit)
 					const common = this.getCommonDeviceStates(key) || { name: key, type: typeof val as ioBroker.CommonType, read: true, write: false };
+
+					// Handle Objects/Arrays by stringifying them so they don't crash the state
+					if (typeof val === "object" && val !== null) {
+						val = JSON.stringify(val);
+					}
+
+					// Formatting for specific keys (e.g. timestamps)
+					if (key === "last_clean_t" && typeof resultObj[key] === "number") {
+						val = new Date((resultObj[key] as number) * 1000).toString();
+					}
+
+					// Enforce type matching to keep the log clean
+					if (common.type === "string" && typeof val !== "string") {
+						val = String(val);
+					} else if (common.type === "number" && typeof val !== "number") {
+						val = Number(val);
+					} else if (common.type === "boolean" && typeof val !== "boolean") {
+						val = !!val;
+					}
 
 					await this.deps.ensureState(`Devices.${this.duid}.${folder}.${key}`, common);
 					await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.${folder}.${key}`, { val: val as ioBroker.StateValue, ack: true });

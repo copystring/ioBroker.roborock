@@ -434,11 +434,17 @@ class Roborock extends utils.Adapter {
         // Check if object exists AND if its type is different from what we need
         if (!oldObj || oldObj.common.type !== finalCommon.type) {
             if (oldObj) {
-                // Object exists, but type is wrong
+                // Object exists, but type is wrong - let's fix it
                 this.log.warn(`[ensureState] Correcting data type for "${path}". Old: "${oldObj.common.type}", New: "${finalCommon.type}".`);
-                // We must merge the old common object with our new type
+                // Safely merge common properties, ensuring type is updated
                 const newCommon = { ...oldObj.common, ...finalCommon };
+                // Force extension to apply changes
                 await this.extendObject(path, { common: newCommon });
+                // Verify update (optional but good for debugging race conditions)
+                // const verification = await this.getObjectAsync(path);
+                // if (verification && verification.common.type !== finalCommon.type) {
+                // 	 this.log.error(`[ensureState] Failed to update type for ${path}!`);
+                // }
             }
             else {
                 // Object does not exist, create it new

@@ -401,8 +401,8 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 
 		return result;
 	}
-	public getCommonCleaningInfo(attribute: string | number): { unit?: string } | undefined {
-		return BaseVacuumFeatures.CONSTANTS.cleaningInfo[attribute as keyof typeof BaseVacuumFeatures.CONSTANTS.cleaningInfo];
+	public getCommonCleaningInfo(attribute: string | number): Partial<ioBroker.StateCommon> | undefined {
+		return BaseVacuumFeatures.CONSTANTS.cleaningInfo[attribute as keyof typeof BaseVacuumFeatures.CONSTANTS.cleaningInfo] as Partial<ioBroker.StateCommon>;
 	}
 	public getCommonCleaningRecords(attribute: string | number): Partial<ioBroker.StateCommon> | undefined {
 		const spec = BaseVacuumFeatures.CONSTANTS.cleaningRecords[attribute as keyof typeof BaseVacuumFeatures.CONSTANTS.cleaningRecords];
