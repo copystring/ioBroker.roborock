@@ -17,6 +17,23 @@
 			"lg": 6,
 			"xl": 6
 		},
+		"region": {
+			"type": "select",
+			"label": "Region",
+			"options": [
+				{ "label": "Europe", "value": "eu" },
+				{ "label": "United States", "value": "us" },
+				{ "label": "China", "value": "cn" },
+				{ "label": "Asia", "value": "asia" }
+			],
+			"default": "eu",
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 6,
+			"lg": 6,
+			"xl": 6
+		},
 		"username": {
 			"type": "text",
 			"label": "Login",

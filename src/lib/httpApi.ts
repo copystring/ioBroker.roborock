@@ -5,12 +5,40 @@ import { ProductV5Response, LoginV4Response } from "./apiTypes";
 import { cryptoEngine } from "./cryptoEngine";
 
 // Constants
-const API_BASE_URL = "https://euiot.roborock.com";
 const API_V3_SIGN = "api/v3/key/sign";
 const API_V4_LOGIN_CODE = "api/v4/auth/email/login/code";
 const API_V4_LOGIN_PASSWORD = "api/v4/auth/email/login/pwd";
 const API_V4_EMAIL_CODE = "api/v4/email/code/send";
 const API_V5_PRODUCT = "api/v5/product";
+
+interface RegionConfig {
+	apiBaseUrl: string;
+	loginCountry: string;
+	loginCountryCode: string;
+}
+
+const REGION_CONFIG: Record<string, RegionConfig> = {
+	eu: {
+		apiBaseUrl: "https://euiot.roborock.com",
+		loginCountry: "DE",
+		loginCountryCode: "49",
+	},
+	us: {
+		apiBaseUrl: "https://usiot.roborock.com",
+		loginCountry: "US",
+		loginCountryCode: "1",
+	},
+	cn: {
+		apiBaseUrl: "https://cniot.roborock.com",
+		loginCountry: "CN",
+		loginCountryCode: "86",
+	},
+	asia: {
+		apiBaseUrl: "https://api.roborock.com", // Fallback/General based on bundle analysis
+		loginCountry: "SG", // Default to Singapore for general Asia
+		loginCountryCode: "65",
+	},
+};
 
 // --------------------
 // Interfaces & Types
@@ -89,8 +117,13 @@ export class http_api {
 	 */
 	async init(clientID: string): Promise<void> {
 		// Initialize the login API (needed to get access to the real API)
+		const region = this.adapter.config.region || "eu";
+		const regionConfig = REGION_CONFIG[region] || REGION_CONFIG["eu"];
+
+		this.adapter.log.info(`Initializing HTTP API with region: ${region} (${regionConfig.apiBaseUrl})`);
+
 		this.loginApi = axios.create({
-			baseURL: API_BASE_URL,
+			baseURL: regionConfig.apiBaseUrl,
 			headers: {
 				header_clientid: crypto.createHash("md5").update(this.adapter.config.username).update(clientID).digest().toString("base64"),
 				header_appversion: "4.54.02",
@@ -359,9 +392,12 @@ export class http_api {
 			// content-type application/x-www-form-urlencoded is default for axios with URLSearchParams
 		};
 
+		const region = this.adapter.config.region || "eu";
+		const regionConfig = REGION_CONFIG[region] || REGION_CONFIG["eu"];
+
 		const params = new URLSearchParams({
-			country: "DE", // Hardcoding for now based on dump - User verified success with these params
-			countryCode: "49",
+			country: regionConfig.loginCountry,
+			countryCode: regionConfig.loginCountryCode,
 			email: this.adapter.config.username,
 			code: code,
 			majorVersion: "14", // from dump

@@ -16,7 +16,9 @@ declare global {
 			cameraPin: string;
 			hostname_ip?: string;
 			forceRuntimeDetectEveryTime?: boolean;
+
 			downloadRoborockImages?: boolean;
+			region: "eu" | "us" | "cn" | "asia";
 		}
 	}
 }
