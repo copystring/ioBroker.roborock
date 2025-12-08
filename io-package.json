@@ -198,6 +198,7 @@
     "cameraPin"
   ],
   "native": {
+    "loginMethod": "email",
     "username": "",
     "password": "",
     "enable_map_creation": false,

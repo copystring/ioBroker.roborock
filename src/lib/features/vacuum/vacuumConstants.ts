@@ -102,6 +102,7 @@ export const VACUUM_CONSTANTS = {
 		water_box_mode: { type: "number", states: { 200: "Off", 201: "Mild", 202: "Moderate", 203: "Intense", 204: "Custom", 205: "Custom", 206: "Custom", 207: "Custom", 208: "Custom", 209: "Custom" } },
 		mop_mode: { type: "number", states: { 300: "Standard", 301: "Deep", 303: "Deep+", 304: "Fast" } },
 		carpet_mode: {
+			type: "string",
 			states: {
 				'[{"enable":0,"stall_time":10,"current_low":400,"current_high":500,"current_integral":450}]': "off",
 				'[{"enable":1,"stall_time":10,"current_low":400,"current_high":500,"current_integral":450}]': "on",
@@ -110,9 +111,9 @@ export const VACUUM_CONSTANTS = {
 		carpet_clean_mode: {
 			type: "number",
 			states: {
-				'{"carpet_clean_mode":0}': "Avoid",
-				'{"carpet_clean_mode":1}': "Rise",
-				'{"carpet_clean_mode":2}': "Ignore",
+				0: "Avoid",
+				1: "Rise",
+				2: "Ignore",
 			},
 		},
 		unsave_map_flag: { type: "number" },

@@ -2,6 +2,21 @@
 	"i18n": true,
 	"type": "panel",
 	"items": {
+		"loginMethod": {
+			"type": "select",
+			"label": "Login Method",
+			"options": [
+				{ "label": "Email + 2FA Code", "value": "email" },
+				{ "label": "Email + Password", "value": "password" }
+			],
+			"default": "email",
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 6,
+			"lg": 6,
+			"xl": 6
+		},
 		"username": {
 			"type": "text",
 			"label": "Login",
@@ -11,6 +26,17 @@
             "md": 6,
             "lg": 6,
             "xl": 6
+		},
+		"password": {
+			"type": "password",
+			"label": "Password",
+			"newLine": true,
+			"hidden": "data.loginMethod !== 'password'",
+			"xs": 12,
+			"sm": 12,
+			"md": 6,
+			"lg": 6,
+			"xl": 6
 		},
 		"enable_map_creation": {
 			"type": "checkbox",

@@ -7,6 +7,7 @@ declare global {
 	namespace ioBroker {
 		interface AdapterConfig {
 			// Add all fields from your io-package.json "native" section here
+			loginMethod: "email" | "password";
 			username: string;
 			password: string;
 			updateInterval: number;

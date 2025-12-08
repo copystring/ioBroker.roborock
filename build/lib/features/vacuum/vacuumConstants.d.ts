@@ -204,6 +204,7 @@ export declare const VACUUM_CONSTANTS: {
             };
         };
         carpet_mode: {
+            type: string;
             states: {
                 '[{"enable":0,"stall_time":10,"current_low":400,"current_high":500,"current_integral":450}]': string;
                 '[{"enable":1,"stall_time":10,"current_low":400,"current_high":500,"current_integral":450}]': string;
@@ -212,9 +213,9 @@ export declare const VACUUM_CONSTANTS: {
         carpet_clean_mode: {
             type: string;
             states: {
-                '{"carpet_clean_mode":0}': string;
-                '{"carpet_clean_mode":1}': string;
-                '{"carpet_clean_mode":2}': string;
+                0: string;
+                1: string;
+                2: string;
             };
         };
         unsave_map_flag: {

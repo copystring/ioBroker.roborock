@@ -464,8 +464,7 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
     async createMultiFloorStates() {
         await this.deps.ensureFolder(`Devices.${this.duid}.floors`);
         for (const feature of ["max_multi_map", "max_bak_map", "multi_map_count"]) {
-            // Use ensureState helper
-            await this.ensureState("floors", feature, { type: "number", role: "value", write: false });
+            await this.ensureState("floors", feature, { ...this.getCommonDeviceStates(feature), write: false });
         }
     }
     addAvoidCarpetCommands() {
@@ -473,55 +472,56 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
         this.addCommand("set_carpet_clean_mode", { type: "json", states: BaseVacuumFeatures.CONSTANTS.deviceStates.carpet_clean_mode.states });
     }
     async addAvoidCollisionStates() {
-        await this.ensureState("deviceStatus", "collision_avoid_status", { type: "number", role: "value", write: false });
-        await this.ensureState("deviceStatus", "avoid_count", { type: "number", role: "value", write: false });
+        await this.ensureState("deviceStatus", "collision_avoid_status", { ...this.getCommonDeviceStates("collision_avoid_status"), write: false });
+        await this.ensureState("deviceStatus", "avoid_count", { ...this.getCommonDeviceStates("avoid_count"), write: false });
     }
     async addMopForbiddenStates() {
-        await this.ensureState("deviceStatus", "mop_forbidden_enable", { type: "number", role: "value", write: false });
+        await this.ensureState("deviceStatus", "mop_forbidden_enable", { ...this.getCommonDeviceStates("mop_forbidden_enable"), write: false });
     }
     async addVoiceControlStates() {
-        await this.ensureState("deviceStatus", "voice_chat_status", { type: "number", role: "value", write: false });
+        await this.ensureState("deviceStatus", "voice_chat_status", { ...this.getCommonDeviceStates("voice_chat_status"), write: false });
     }
     async addCameraSettingsStates() {
-        await this.ensureState("deviceStatus", "camera_status", { type: "number", role: "value", write: false });
-        await this.ensureState("deviceStatus", "distance_off", { type: "number", role: "value", write: false });
+        await this.ensureState("deviceStatus", "camera_status", { ...this.getCommonDeviceStates("camera_status"), write: false });
+        await this.ensureState("deviceStatus", "distance_off", { ...this.getCommonDeviceStates("distance_off"), write: false });
     }
     async addSwitchMapModeState() {
-        await this.ensureState("deviceStatus", "switch_map_mode", { type: "number", role: "value", write: false });
+        await this.ensureState("deviceStatus", "switch_map_mode", { ...this.getCommonDeviceStates("switch_map_mode"), write: false });
     }
     async addCornerCleanModeState() {
-        await this.ensureState("deviceStatus", "corner_clean_mode", { type: "number", role: "value", write: false });
+        await this.ensureState("deviceStatus", "corner_clean_mode", { ...this.getCommonDeviceStates("corner_clean_mode"), write: false });
     }
     // --- State/Info Feature Handlers ---
-    async addMapFlagState() { await this.ensureState("deviceStatus", "map_flag", { type: "number", role: "value", write: false }); }
-    async addCommonStatusState() { await this.ensureState("deviceStatus", "common_status", { type: "number", role: "value", write: false }); }
-    async addDockErrorStatusState() { await this.ensureState("deviceStatus", "dock_error_status", { type: "number", role: "value", write: false }); }
-    async addBackTypeState() { await this.ensureState("deviceStatus", "back_type", { type: "number", role: "value", write: false }); }
-    async addSwitchStatusState() { await this.ensureState("deviceStatus", "switch_status", { type: "number", role: "value", write: false }); }
-    async addMonitorStatusState() { await this.ensureState("deviceStatus", "monitor_status", { type: "number", role: "value", write: false }); }
-    async addCleanPercentState() { await this.ensureState("deviceStatus", "clean_percent", { type: "number", role: "value", write: false, unit: "%" }); }
-    async addInWarmupState() { await this.ensureState("deviceStatus", "in_warmup", { type: "number", role: "value", write: false }); }
-    async addExitDockState() { await this.ensureState("deviceStatus", "exit_dock", { type: "number", role: "value", write: false }); }
-    async addExtraTimeState() { await this.ensureState("deviceStatus", "extra_time", { type: "number", role: "value", write: false }); }
-    async addLastCleanTimeState() { await this.ensureState("deviceStatus", "last_clean_t", { type: "string", role: "value", write: false }); }
-    async addChargeStatusState() { await this.ensureState("deviceStatus", "charge_status", { type: "number", role: "value", write: false }); }
-    async addCleaningInfoState() { await this.ensureState("deviceStatus", "cleaning_info", { type: "string", role: "value", write: false }); }
-    async addCleanRepeatState() { await this.ensureState("deviceStatus", "repeat", { type: "number", role: "value", write: false }); }
-    async addDssState() { await this.ensureState("deviceStatus", "dss", { type: "number", role: "value", write: false }); }
-    async addRssState() { await this.ensureState("deviceStatus", "rss", { type: "number", role: "value", write: false }); }
-    async addRobotStatusState() { await this.ensureState("deviceStatus", "state", { type: "number", role: "value", write: false }); }
-    async addKctState() { await this.ensureState("deviceStatus", "kct", { type: "number", role: "value", write: false }); }
-    async addCleanFluidState() { await this.ensureState("deviceStatus", "clean_fluid", { type: "number", role: "value", write: false }); }
-    async addRdtState() { await this.ensureState("deviceStatus", "rdt", { type: "number", role: "value", write: false }); }
-    async addReplenishModeState() { await this.ensureState("deviceStatus", "replenish_mode", { type: "number", role: "value", write: false }); }
-    async addCleanedAreaState() { await this.ensureState("deviceStatus", "cleaned_area", { type: "number", role: "value", write: false, unit: "m²" }); }
-    async addCleanTimesState() { await this.ensureState("deviceStatus", "clean_times", { type: "number", role: "value", write: false }); }
+    async addMapFlagState() { await this.ensureState("deviceStatus", "map_flag", { ...this.getCommonDeviceStates("map_flag"), write: false }); }
+    async addCommonStatusState() { await this.ensureState("deviceStatus", "common_status", { ...this.getCommonDeviceStates("common_status"), write: false }); }
+    async addDockErrorStatusState() { await this.ensureState("deviceStatus", "dock_error_status", { ...this.getCommonDeviceStates("dock_error_status"), write: false }); }
+    async addBackTypeState() { await this.ensureState("deviceStatus", "back_type", { ...this.getCommonDeviceStates("back_type"), write: false }); }
+    async addSwitchStatusState() { await this.ensureState("deviceStatus", "switch_status", { ...this.getCommonDeviceStates("switch_status"), write: false }); }
+    async addMonitorStatusState() { await this.ensureState("deviceStatus", "monitor_status", { ...this.getCommonDeviceStates("monitor_status"), write: false }); }
+    async addCleanPercentState() { await this.ensureState("deviceStatus", "clean_percent", { ...this.getCommonDeviceStates("clean_percent"), write: false }); }
+    async addInWarmupState() { await this.ensureState("deviceStatus", "in_warmup", { ...this.getCommonDeviceStates("in_warmup"), write: false }); }
+    async addExitDockState() { await this.ensureState("deviceStatus", "exit_dock", { ...this.getCommonDeviceStates("exit_dock"), write: false }); }
+    async addExtraTimeState() { await this.ensureState("deviceStatus", "extra_time", { ...this.getCommonDeviceStates("extra_time"), write: false }); }
+    async addLastCleanTimeState() { await this.ensureState("deviceStatus", "last_clean_t", { ...this.getCommonDeviceStates("last_clean_t"), write: false }); }
+    async addChargeStatusState() { await this.ensureState("deviceStatus", "charge_status", { ...this.getCommonDeviceStates("charge_status"), write: false }); }
+    async addCleaningInfoState() { await this.ensureState("deviceStatus", "cleaning_info", { ...this.getCommonDeviceStates("cleaning_info"), write: false }); }
+    async addCleanRepeatState() { await this.ensureState("deviceStatus", "repeat", { ...this.getCommonDeviceStates("repeat"), write: false }); }
+    async addDssState() { await this.ensureState("deviceStatus", "dss", { ...this.getCommonDeviceStates("dss"), write: false }); }
+    async addRssState() { await this.ensureState("deviceStatus", "rss", { ...this.getCommonDeviceStates("rss"), write: false }); }
+    async addRobotStatusState() { await this.ensureState("deviceStatus", "state", { ...this.getCommonDeviceStates("state"), write: false }); }
+    async addKctState() { await this.ensureState("deviceStatus", "kct", { ...this.getCommonDeviceStates("kct"), write: false }); }
+    async addCleanFluidState() { await this.ensureState("deviceStatus", "clean_fluid", { ...this.getCommonDeviceStates("clean_fluid"), write: false }); }
+    async addRdtState() { await this.ensureState("deviceStatus", "rdt", { ...this.getCommonDeviceStates("rdt"), write: false }); }
+    async addReplenishModeState() { await this.ensureState("deviceStatus", "replenish_mode", { ...this.getCommonDeviceStates("replenish_mode"), write: false }); }
+    async addCleanedAreaState() { await this.ensureState("deviceStatus", "cleaned_area", { ...this.getCommonDeviceStates("cleaned_area"), write: false }); }
+    async addCleanTimesState() { await this.ensureState("deviceStatus", "clean_times", { ...this.getCommonDeviceStates("clean_times"), write: false }); }
     async createCustomWaterDistanceState() {
         // Use ensureState helper
         await this.ensureState("commands", "set_water_box_distance_off", {
             type: "number",
             role: "level",
             write: true,
+            ...this.getCommonDeviceStates("distance_off"), // Use base def if available or fallback
             def: 1,
             min: 1,
             max: 30,

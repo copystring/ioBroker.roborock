@@ -521,8 +521,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     protected async createMultiFloorStates(): Promise<void> {
     	await this.deps.ensureFolder(`Devices.${this.duid}.floors`);
     	for (const feature of ["max_multi_map", "max_bak_map", "multi_map_count"]) {
-    		// Use ensureState helper
-    		await this.ensureState("floors", feature, { type: "number", role: "value", write: false });
+    		await this.ensureState("floors", feature, { ...this.getCommonDeviceStates(feature), write: false });
     	}
     }
 
@@ -535,105 +534,105 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 
     @BaseDeviceFeatures.DeviceFeature(Feature.isAvoidCollisionSupported)
     protected async addAvoidCollisionStates(): Promise<void> {
-    	await this.ensureState("deviceStatus", "collision_avoid_status", { type: "number", role: "value", write: false });
-    	await this.ensureState("deviceStatus", "avoid_count", { type: "number", role: "value", write: false });
+    	await this.ensureState("deviceStatus", "collision_avoid_status", { ...this.getCommonDeviceStates("collision_avoid_status"), write: false });
+    	await this.ensureState("deviceStatus", "avoid_count", { ...this.getCommonDeviceStates("avoid_count"), write: false });
     }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.MopForbidden)
     protected async addMopForbiddenStates(): Promise<void> {
-    	await this.ensureState("deviceStatus", "mop_forbidden_enable", { type: "number", role: "value", write: false });
+    	await this.ensureState("deviceStatus", "mop_forbidden_enable", { ...this.getCommonDeviceStates("mop_forbidden_enable"), write: false });
     }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.VoiceControl)
     protected async addVoiceControlStates(): Promise<void> {
-    	await this.ensureState("deviceStatus", "voice_chat_status", { type: "number", role: "value", write: false });
+    	await this.ensureState("deviceStatus", "voice_chat_status", { ...this.getCommonDeviceStates("voice_chat_status"), write: false });
     }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.Camera)
     protected async addCameraSettingsStates(): Promise<void> {
-    	await this.ensureState("deviceStatus", "camera_status", { type: "number", role: "value", write: false });
-    	await this.ensureState("deviceStatus", "distance_off", { type: "number", role: "value", write: false });
+    	await this.ensureState("deviceStatus", "camera_status", { ...this.getCommonDeviceStates("camera_status"), write: false });
+    	await this.ensureState("deviceStatus", "distance_off", { ...this.getCommonDeviceStates("distance_off"), write: false });
     }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.isSupportSetSwitchMapMode)
     protected async addSwitchMapModeState(): Promise<void> {
-    	await this.ensureState("deviceStatus", "switch_map_mode", { type: "number", role: "value", write: false });
+    	await this.ensureState("deviceStatus", "switch_map_mode", { ...this.getCommonDeviceStates("switch_map_mode"), write: false });
     }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.isCornerCleanModeSupported)
     protected async addCornerCleanModeState(): Promise<void> {
-    	await this.ensureState("deviceStatus", "corner_clean_mode", { type: "number", role: "value", write: false });
+    	await this.ensureState("deviceStatus", "corner_clean_mode", { ...this.getCommonDeviceStates("corner_clean_mode"), write: false });
     }
 
     // --- State/Info Feature Handlers ---
     @BaseDeviceFeatures.DeviceFeature(Feature.MapFlag)
-    protected async addMapFlagState(): Promise<void> { await this.ensureState("deviceStatus", "map_flag", { type: "number", role: "value", write: false }); }
+    protected async addMapFlagState(): Promise<void> { await this.ensureState("deviceStatus", "map_flag", { ...this.getCommonDeviceStates("map_flag"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.CommonStatus)
-    protected async addCommonStatusState(): Promise<void> { await this.ensureState("deviceStatus", "common_status", { type: "number", role: "value", write: false }); }
+    protected async addCommonStatusState(): Promise<void> { await this.ensureState("deviceStatus", "common_status", { ...this.getCommonDeviceStates("common_status"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.DockStatus)
-    protected async addDockErrorStatusState(): Promise<void> { await this.ensureState("deviceStatus", "dock_error_status", { type: "number", role: "value", write: false }); }
+    protected async addDockErrorStatusState(): Promise<void> { await this.ensureState("deviceStatus", "dock_error_status", { ...this.getCommonDeviceStates("dock_error_status"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.BackType)
-    protected async addBackTypeState(): Promise<void> { await this.ensureState("deviceStatus", "back_type", { type: "number", role: "value", write: false }); }
+    protected async addBackTypeState(): Promise<void> { await this.ensureState("deviceStatus", "back_type", { ...this.getCommonDeviceStates("back_type"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.SwitchStatus)
-    protected async addSwitchStatusState(): Promise<void> { await this.ensureState("deviceStatus", "switch_status", { type: "number", role: "value", write: false }); }
+    protected async addSwitchStatusState(): Promise<void> { await this.ensureState("deviceStatus", "switch_status", { ...this.getCommonDeviceStates("switch_status"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.MonitorStatus)
-    protected async addMonitorStatusState(): Promise<void> { await this.ensureState("deviceStatus", "monitor_status", { type: "number", role: "value", write: false }); }
+    protected async addMonitorStatusState(): Promise<void> { await this.ensureState("deviceStatus", "monitor_status", { ...this.getCommonDeviceStates("monitor_status"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.CleanPercent)
-    protected async addCleanPercentState(): Promise<void> { await this.ensureState("deviceStatus", "clean_percent", { type: "number", role: "value", write: false, unit: "%" }); }
+    protected async addCleanPercentState(): Promise<void> { await this.ensureState("deviceStatus", "clean_percent", { ...this.getCommonDeviceStates("clean_percent"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.InWarmup)
-    protected async addInWarmupState(): Promise<void> { await this.ensureState("deviceStatus", "in_warmup", { type: "number", role: "value", write: false }); }
+    protected async addInWarmupState(): Promise<void> { await this.ensureState("deviceStatus", "in_warmup", { ...this.getCommonDeviceStates("in_warmup"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.ExitDock)
-    protected async addExitDockState(): Promise<void> { await this.ensureState("deviceStatus", "exit_dock", { type: "number", role: "value", write: false }); }
+    protected async addExitDockState(): Promise<void> { await this.ensureState("deviceStatus", "exit_dock", { ...this.getCommonDeviceStates("exit_dock"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.ExtraTime)
-    protected async addExtraTimeState(): Promise<void> { await this.ensureState("deviceStatus", "extra_time", { type: "number", role: "value", write: false }); }
+    protected async addExtraTimeState(): Promise<void> { await this.ensureState("deviceStatus", "extra_time", { ...this.getCommonDeviceStates("extra_time"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.LastCleanTime)
-    protected async addLastCleanTimeState(): Promise<void> { await this.ensureState("deviceStatus", "last_clean_t", { type: "string", role: "value", write: false }); }
+    protected async addLastCleanTimeState(): Promise<void> { await this.ensureState("deviceStatus", "last_clean_t", { ...this.getCommonDeviceStates("last_clean_t"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.ChargeStatus)
-    protected async addChargeStatusState(): Promise<void> { await this.ensureState("deviceStatus", "charge_status", { type: "number", role: "value", write: false }); }
+    protected async addChargeStatusState(): Promise<void> { await this.ensureState("deviceStatus", "charge_status", { ...this.getCommonDeviceStates("charge_status"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.CleaningInfo)
-    protected async addCleaningInfoState(): Promise<void> { await this.ensureState("deviceStatus", "cleaning_info", { type: "string", role: "value", write: false }); }
+    protected async addCleaningInfoState(): Promise<void> { await this.ensureState("deviceStatus", "cleaning_info", { ...this.getCommonDeviceStates("cleaning_info"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.CleanRepeat)
-    protected async addCleanRepeatState(): Promise<void> { await this.ensureState("deviceStatus", "repeat", { type: "number", role: "value", write: false }); }
+    protected async addCleanRepeatState(): Promise<void> { await this.ensureState("deviceStatus", "repeat", { ...this.getCommonDeviceStates("repeat"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.Dss)
-    protected async addDssState(): Promise<void> { await this.ensureState("deviceStatus", "dss", { type: "number", role: "value", write: false }); }
+    protected async addDssState(): Promise<void> { await this.ensureState("deviceStatus", "dss", { ...this.getCommonDeviceStates("dss"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.Rss)
-    protected async addRssState(): Promise<void> { await this.ensureState("deviceStatus", "rss", { type: "number", role: "value", write: false }); }
+    protected async addRssState(): Promise<void> { await this.ensureState("deviceStatus", "rss", { ...this.getCommonDeviceStates("rss"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.RobotStatus)
-    protected async addRobotStatusState(): Promise<void> { await this.ensureState("deviceStatus", "state", { type: "number", role: "value", write: false }); }
+    protected async addRobotStatusState(): Promise<void> { await this.ensureState("deviceStatus", "state", { ...this.getCommonDeviceStates("state"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.Kct)
-    protected async addKctState(): Promise<void> { await this.ensureState("deviceStatus", "kct", { type: "number", role: "value", write: false }); }
+    protected async addKctState(): Promise<void> { await this.ensureState("deviceStatus", "kct", { ...this.getCommonDeviceStates("kct"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.CleanFluid)
-    protected async addCleanFluidState(): Promise<void> { await this.ensureState("deviceStatus", "clean_fluid", { type: "number", role: "value", write: false }); }
+    protected async addCleanFluidState(): Promise<void> { await this.ensureState("deviceStatus", "clean_fluid", { ...this.getCommonDeviceStates("clean_fluid"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.Rdt)
-    protected async addRdtState(): Promise<void> { await this.ensureState("deviceStatus", "rdt", { type: "number", role: "value", write: false }); }
+    protected async addRdtState(): Promise<void> { await this.ensureState("deviceStatus", "rdt", { ...this.getCommonDeviceStates("rdt"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.ReplenishMode)
-    protected async addReplenishModeState(): Promise<void> { await this.ensureState("deviceStatus", "replenish_mode", { type: "number", role: "value", write: false }); }
+    protected async addReplenishModeState(): Promise<void> { await this.ensureState("deviceStatus", "replenish_mode", { ...this.getCommonDeviceStates("replenish_mode"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.CleanedArea)
-    protected async addCleanedAreaState(): Promise<void> { await this.ensureState("deviceStatus", "cleaned_area", { type: "number", role: "value", write: false, unit: "m²" }); }
+    protected async addCleanedAreaState(): Promise<void> { await this.ensureState("deviceStatus", "cleaned_area", { ...this.getCommonDeviceStates("cleaned_area"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.CleanTimes)
-    protected async addCleanTimesState(): Promise<void> { await this.ensureState("deviceStatus", "clean_times", { type: "number", role: "value", write: false }); }
+    protected async addCleanTimesState(): Promise<void> { await this.ensureState("deviceStatus", "clean_times", { ...this.getCommonDeviceStates("clean_times"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.CustomWaterBoxDistance)
     protected async createCustomWaterDistanceState(): Promise<void> {
@@ -642,6 +641,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     		type: "number",
     		role: "level",
     		write: true,
+    		...this.getCommonDeviceStates("distance_off"), // Use base def if available or fallback
     		def: 1,
     		min: 1,
     		max: 30,

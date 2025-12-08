@@ -73,6 +73,7 @@ export declare class http_api {
         k: string;
     } | null>;
     loginWithCode(code: string, k: string, s: string): Promise<LoginV4Response>;
+    loginByPassword(password: string, k: string, s: string): Promise<LoginV4Response>;
     getProductInfoV5(): Promise<ProductV5Response | null>;
     downloadProductImages(): Promise<void>;
     /**

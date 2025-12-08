@@ -160,5 +160,14 @@ exports.cryptoEngine = {
         decipher.setAuthTag(tag);
         return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
     },
+    // ---------- Password Encryption (Login V4) ----------
+    encryptPassword(password, k) {
+        const derivedKey = k.slice(4) + k.slice(0, 4);
+        const cipher = crypto.createCipheriv("aes-128-ecb", Buffer.from(derivedKey, "utf-8"), null);
+        cipher.setAutoPadding(true);
+        let encrypted = cipher.update(password, "utf8", "base64");
+        encrypted += cipher.final("base64");
+        return encrypted;
+    },
 };
 //# sourceMappingURL=cryptoEngine.js.map

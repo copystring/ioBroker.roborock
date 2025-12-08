@@ -2,11 +2,13 @@ import { Roborock } from "../main";
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from "axios";
 import * as crypto from "crypto";
 import { ProductV5Response, LoginV4Response } from "./apiTypes";
+import { cryptoEngine } from "./cryptoEngine";
 
 // Constants
 const API_BASE_URL = "https://euiot.roborock.com";
 const API_V3_SIGN = "api/v3/key/sign";
 const API_V4_LOGIN_CODE = "api/v4/auth/email/login/code";
+const API_V4_LOGIN_PASSWORD = "api/v4/auth/email/login/pwd";
 const API_V4_EMAIL_CODE = "api/v4/email/code/send";
 const API_V5_PRODUCT = "api/v5/product";
 
@@ -118,7 +120,7 @@ export class http_api {
 					this.adapter.log.info("Restored persisted UserData.");
 				}
 			}
-		} catch (e) {
+		} catch {
 			this.adapter.log.debug(`No previous UserData found or invalid.`);
 		}
 	}
@@ -143,58 +145,93 @@ export class http_api {
 		}
 		if (!this.userData) {
 			try {
-				this.adapter.log.info("Starting Direct 2FA Login Flow...");
+				let usePasswordFlow = this.adapter.config.loginMethod === "password" && !!this.adapter.config.password;
 
-				// 1. Request Email Code
-				await this.requestEmailCode(this.adapter.config.username);
-
-				this.adapter.log.error("********************************************************************************");
-				this.adapter.log.error("ATTENTION: 2FA Code required!");
-				this.adapter.log.error(`An email has been sent to ${this.adapter.config.username}.`);
-				this.adapter.log.error("Please enter the 6-digit code into the state 'roborock.0.loginCode' immediately.");
-				this.adapter.log.error("********************************************************************************");
-
-				// State at root: roborock.0.loginCode
-				const stateId = "loginCode";
-				await this.adapter.ensureState(stateId, { name: "2FA Login Code", write: true, type: "string", def: "" });
-				await this.adapter.setState(stateId, { val: "", ack: true });
-
-				await this.adapter.subscribeStatesAsync(stateId);
-
-				// 2. Wait for Code
-				let code = "";
-				try {
-					code = await new Promise<string>((resolve, reject) => {
-						this.loginCodeResolver = resolve;
-						// Timeout after 15 minutes
-						setTimeout(() => {
-							if (this.loginCodeResolver) {
-								this.loginCodeResolver = null;
-								reject(new Error("Timeout waiting for 2FA code"));
-							}
-						}, 15 * 60 * 1000); // 15 min
-					});
-				} catch (e: any) {
-					throw e;
-				}
-
-				this.adapter.log.info(`Got 2FA code: ${code}`);
-				await this.adapter.unsubscribeStatesAsync(stateId);
-
-				// 3. Sign Request (Get K)
+				// 1. Sign Request (Get K) - needed for both password and code login (for password encryption or code verification)
 				// Use a random 16-char string for 's' (nonce/salt)
 				const s = crypto.randomBytes(12).toString("base64").substring(0, 16).replace(/\+/g, "X").replace(/\//g, "Y");
 				const signData = await this.signRequest(s);
 				if (!signData) throw new Error("Failed to obtain signature key k");
+				const k = signData.k;
 
-				// 4. Login with Code
-				const loginResult = await this.loginWithCode(code, signData.k, s);
+				if (usePasswordFlow) {
+					this.adapter.log.info("Starting Password Login Flow...");
+					try {
+						const loginResult = await this.loginByPassword(this.adapter.config.password, k, s);
+						if (loginResult.code === 200) {
+							this.userData = loginResult.data!;
+							this.adapter.log.info("Login with password successful.");
+						} else if (loginResult.code === 2031) {
+							this.adapter.log.warn("Password login requires 2FA (Code 2031). Falling back to 2FA flow.");
+							usePasswordFlow = false;
+						} else {
+							throw new Error(`Login with password failed: ${JSON.stringify(loginResult)}`);
+						}
+					} catch (e: any) {
+						this.adapter.log.error(`Password login error: ${e.message}`);
+						// If explicit 2031 (handled above) or other error, we might decide to fallback or fail.
+						// Current logic: if it was 2031, usePasswordFlow is set to false, so we fall through to 2FA.
+						// If it was another error (e.g. wrong password), we should probably stop?
+						// For safety/flexibility, if we flagged 'false' above, we continue. If we threw, we stop.
+						if (usePasswordFlow) throw e;
+					}
+				}
 
-				if (loginResult.code === 200) {
-					this.userData = loginResult.data!; // data IS UserData
+				// If not using password flow (or fell back)
+				if (!this.userData && !usePasswordFlow) {
+					this.adapter.log.info("Starting Direct 2FA Login Flow...");
+
+					// 1. Request Email Code
+					await this.requestEmailCode(this.adapter.config.username);
+
+					this.adapter.log.error("********************************************************************************");
+					this.adapter.log.error("ATTENTION: 2FA Code required!");
+					this.adapter.log.error(`An email has been sent to ${this.adapter.config.username}.`);
+					this.adapter.log.error("Please enter the 6-digit code into the state 'roborock.0.loginCode' immediately.");
+					this.adapter.log.error("********************************************************************************");
+
+					// State at root: roborock.0.loginCode
+					const stateId = "loginCode";
+					await this.adapter.ensureState(stateId, { name: "2FA Login Code", write: true, type: "string", def: "" });
 					await this.adapter.setState(stateId, { val: "", ack: true });
-				} else {
-					throw new Error(`Login with code failed: ${JSON.stringify(loginResult)}`);
+
+					await this.adapter.subscribeStatesAsync(stateId);
+
+					// 2. Wait for Code
+					let code = "";
+					try {
+						code = await new Promise<string>((resolve, reject) => {
+							this.loginCodeResolver = resolve;
+							// Timeout after 15 minutes
+							setTimeout(() => {
+								if (this.loginCodeResolver) {
+									this.loginCodeResolver = null;
+									reject(new Error("Timeout waiting for 2FA code"));
+								}
+							}, 15 * 60 * 1000); // 15 min
+						});
+					} catch (e: any) {
+						throw e;
+					}
+
+					this.adapter.log.info(`Got 2FA code: ${code}`);
+					await this.adapter.unsubscribeStatesAsync(stateId);
+
+					// 3. Login with Code
+					// Reuse k/s from strictly before if possible? No, 'signRequest' was likely called at start.
+					// However, the signature 's' and 'k' might expire or be one-time?
+					// The dump usage implies sign is called before login.
+					// We already called signRequest above. We should be able to reuse 'k' and 's' IF they are not one-time use or time-bound.
+					// Safest is to re-sign if we think it might have expired, but for now reuse.
+
+					const loginResult = await this.loginWithCode(code, k, s);
+
+					if (loginResult.code === 200) {
+						this.userData = loginResult.data!; // data IS UserData
+						await this.adapter.setState(stateId, { val: "", ack: true });
+					} else {
+						throw new Error(`Login with code failed: ${JSON.stringify(loginResult)}`);
+					}
 				}
 
 				if (!this.userData) {
@@ -336,6 +373,34 @@ export class http_api {
 			return res.data;
 		} catch (e: any) {
 			throw new Error(`Login with code failed: ${e.message}`);
+		}
+	}
+
+	async loginByPassword(password: string, k: string, s: string): Promise<LoginV4Response> {
+		if (!this.loginApi) throw new Error("loginApi not initialized");
+
+		const encryptedPassword = cryptoEngine.encryptPassword(password, k);
+
+		const headers = {
+			"x-mercy-k": k,
+			"x-mercy-ks": s
+		};
+
+		const params = new URLSearchParams({
+			email: this.adapter.config.username,
+			password: encryptedPassword,
+			majorVersion: "14",
+			minorVersion: "0"
+		});
+
+		try {
+			const res = await this.loginApi.post(API_V4_LOGIN_PASSWORD, params.toString(), { headers });
+			return res.data;
+		} catch (e: any) {
+			if (e.response && e.response.data) {
+				return e.response.data; // Return the error response payload (with code 2031 etc.) so caller can handle
+			}
+			throw new Error(`Login with password failed: ${e.message}`);
 		}
 	}
 
