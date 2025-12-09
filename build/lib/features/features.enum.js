@@ -17,6 +17,9 @@ var Feature;
     // --- Actions primarily creating States (non-command) ---
     Feature["LiveVideo"] = "LiveVideo";
     Feature["MultiFloor"] = "MultiFloor";
+    Feature["Consumables"] = "Consumables";
+    Feature["ResetConsumables"] = "ResetConsumables";
+    Feature["DockingStationStatus"] = "DockingStationStatus";
     Feature["NetworkInfo"] = "NetworkInfo";
     Feature["UpdateStatus"] = "UpdateStatus";
     // --- Static Flags (Defined by Model Class Config) ---

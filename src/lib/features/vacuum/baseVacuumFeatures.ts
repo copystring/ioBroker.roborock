@@ -311,6 +311,37 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 			}
 		}
 
+		// Dynamic DockingStationStatus
+		const dssSupportedDockTypes = [1, 2, 3, 6, 7, 8, 9, 10, 14, 15, 16, 17, 18];
+		const hasDssInStatus = validStatus.dss !== undefined;
+		const hasSupportedDock = validStatus.dock_type !== undefined && dssSupportedDockTypes.includes(validStatus.dock_type);
+
+		console.error(`[DSS-DEBUG] Robot ${this.duid} (${this.robotModel}): hasDssInStatus=${hasDssInStatus}, hasSupportedDock=${hasSupportedDock}, dock_type=${validStatus.dock_type}, dss=${validStatus.dss}, alreadyApplied=${this.appliedFeatures.has(Feature.DockingStationStatus)}`);
+
+		if ((hasDssInStatus || hasSupportedDock) && !this.appliedFeatures.has(Feature.DockingStationStatus)) {
+			console.error(`[DSS-DEBUG] Attempting to apply Feature.DockingStationStatus for ${this.duid}`);
+			if (await this.applyFeature(Feature.DockingStationStatus)) {
+				console.error(`[DSS-DEBUG] Successfully applied Feature.DockingStationStatus for ${this.duid}`);
+				changedByStatus = true;
+				appliedFeaturesList.push("DockingStationStatus");
+			} else {
+				console.error(`[DSS-DEBUG] FAILED to apply Feature.DockingStationStatus for ${this.duid}`);
+			}
+		} else {
+			console.error(`[DSS-DEBUG] Skipping DockingStationStatus for ${this.duid}: condition not met or already applied`);
+		}
+
+		// Ensure Consumables features are applied (standard for all vacuums really, but good to be explicit)
+		if (!this.appliedFeatures.has(Feature.Consumables)) {
+			if (await this.applyFeature(Feature.Consumables)) {
+				changedByStatus = true;
+				appliedFeaturesList.push("Consumables");
+			}
+		}
+		// ResetConsumables is now handled dynamically inside updateConsumables loop,
+		// but we might want to register the Feature if we attach commands to it in future.
+		// For now, the buttons are created in updateConsumables.
+
 		// Add more status-based detection rules here...
 
 		if (changedByStatus || changedOverall) {
@@ -346,20 +377,20 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 
 		this.deps.log.info(`[${this.duid}] Processing dock type ${dockType} for Vacuum`);
 		const dockFeatureMap: Record<number, Feature[]> = {
-			1: [Feature.AutoEmptyDock],
-			2: [Feature.MopWash],
-			3: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
+			1: [Feature.AutoEmptyDock, Feature.DockingStationStatus],
+			2: [Feature.MopWash, Feature.DockingStationStatus],
+			3: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry, Feature.DockingStationStatus],
 			5: [Feature.AutoEmptyDock],
-			6: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
-			7: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
-			8: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
-			9: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
-			14: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry], // Qrevo Master (a117)
-			15: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry], // Qrevo S (a104)
-			16: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry],
-			10: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry], // S7 MaxV/Pro
-			17: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry], // Qrevo Curv Series (a159)
-			18: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry], // S8 Pro
+			6: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry, Feature.DockingStationStatus],
+			7: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry, Feature.DockingStationStatus],
+			8: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry, Feature.DockingStationStatus],
+			9: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry, Feature.DockingStationStatus],
+			14: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry, Feature.DockingStationStatus], // Qrevo Master (a117)
+			15: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry, Feature.DockingStationStatus], // Qrevo S (a104)
+			16: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry, Feature.DockingStationStatus],
+			10: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry, Feature.DockingStationStatus], // S7 MaxV/Pro
+			17: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry, Feature.DockingStationStatus], // Qrevo Curv Series (a159)
+			18: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry, Feature.DockingStationStatus], // S8 Pro
 		};
 		const features = dockFeatureMap[dockType];
 
@@ -525,6 +556,46 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     	}
     }
 
+    public async updateConsumables(data?: any): Promise<void> {
+    	let resultObj: Record<string, any> | undefined;
+
+    	if (data) {
+    		resultObj = data;
+    	} else {
+    		const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_consumable", []);
+    		if (Array.isArray(result) && result.length > 0 && typeof result[0] === "object") {
+    			resultObj = result[0];
+    		} else if (typeof result === "object" && result !== null) {
+    			resultObj = result as Record<string, any>;
+    		}
+    	}
+
+    	if (resultObj) {
+    		await this.deps.ensureFolder(`Devices.${this.duid}.consumables`);
+    		await this.deps.ensureFolder(`Devices.${this.duid}.resetConsumables`);
+
+    		for (const key in resultObj) {
+    			const val = resultObj[key];
+    			const common = this.getCommonConsumable(key);
+    			const fullCommon = common ? { ...common, type: "number" as const, role: "value" as const, read: true, write: false, name: key }
+    				: { type: "number" as const, role: "value" as const, read: true, write: false, name: key };
+
+    			await this.deps.ensureState(`Devices.${this.duid}.consumables.${key}`, fullCommon as ioBroker.StateCommon);
+    			await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.consumables.${key}`, { val: Number(val), ack: true });
+
+    			if (BaseVacuumFeatures.CONSTANTS.resetConsumables.has(key)) {
+    				await this.ensureState("resetConsumables", key, {
+    					type: "boolean",
+    					role: "button",
+    					def: false,
+    					write: true,
+    					name: `Reset ${key}`
+    				});
+    			}
+    		}
+    	}
+    }
+
     @BaseDeviceFeatures.DeviceFeature(Feature.AvoidCarpet)
     @BaseDeviceFeatures.DeviceFeature(Feature.isCarpetSupported)
     protected addAvoidCarpetCommands(): void {
@@ -563,6 +634,8 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     protected async addCornerCleanModeState(): Promise<void> {
     	await this.ensureState("deviceStatus", "corner_clean_mode", { ...this.getCommonDeviceStates("corner_clean_mode"), write: false });
     }
+
+
 
     // --- State/Info Feature Handlers ---
     @BaseDeviceFeatures.DeviceFeature(Feature.MapFlag)
@@ -607,141 +680,160 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     @BaseDeviceFeatures.DeviceFeature(Feature.CleanRepeat)
     protected async addCleanRepeatState(): Promise<void> { await this.ensureState("deviceStatus", "repeat", { ...this.getCommonDeviceStates("repeat"), write: false }); }
 
-	@BaseDeviceFeatures.DeviceFeature(Feature.Dss)
-    protected async addDssState(): Promise<void> {
-    	// Only setup the breakdown folder, do not create deviceStatus.dss
-    	await this.setupDockingStationStatus();
+    @BaseDeviceFeatures.DeviceFeature(Feature.DockingStationStatus)
+    protected async createDockingStationStatusStates(): Promise<void> {
+    	console.error(`[DSS-DEBUG] createDockingStationStatusStates called for ${this.duid}`);
+    	try {
+    		await this.deps.ensureFolder(`Devices.${this.duid}.dockingStationStatus`);
+    		console.error(`[DSS-DEBUG] Created dockingStationStatus folder for ${this.duid}`);
+
+    		// Common states mapping for docking station status values (from original implementation)
+    		const commonStates = {
+    			0: "UNKNOWN",
+    			1: "ERROR",
+    			2: "OK"
+    		};
+
+    		// Create all docking station status states (original field names from working code)
+    		const stateDefinitions = [
+    			{ key: "cleanFluidStatus", name: "Clean Water Tank" },
+    			{ key: "waterBoxFilterStatus", name: "Water Box Filter" },
+    			{ key: "dustBagStatus", name: "Dust Bag" },
+    			{ key: "dirtyWaterBoxStatus", name: "Dirty Water Tank" },
+    			{ key: "clearWaterBoxStatus", name: "Clear Water Box" },
+    			{ key: "isUpdownWaterReady", name: "Water Ready Status" }
+    		];
+
+    		for (const stateDef of stateDefinitions) {
+    			await this.ensureState("dockingStationStatus", stateDef.key, {
+    				name: stateDef.name,
+    				type: "number",
+    				role: "value",
+    				read: true,
+    				write: false,
+    				states: commonStates
+    			});
+    			console.error(`[DSS-DEBUG] Created state: dockingStationStatus.${stateDef.key} for ${this.duid}`);
+    		}
+
+    		console.error(`[DSS-DEBUG] Successfully created all ${stateDefinitions.length} docking station status states for ${this.duid}`);
+    	} catch (error) {
+    		console.error(`[DSS-DEBUG] ERROR creating dockingStationStatus states for ${this.duid}:`, error);
+    		throw error;
+    	}
     }
 
-	protected async setupDockingStationStatus(): Promise<void> {
-		await this.deps.ensureFolder(`Devices.${this.duid}.dockingStationStatus`);
-		// States from proper logic (0=UNKNOWN, 1=ERROR, 2=OK)
-		const states = [
-			"cleanFluidStatus",
-			"waterBoxFilterStatus",
-			"dustBagStatus",
-			"dirtyWaterBoxStatus",
-			"clearWaterBoxStatus",
-			"isUpdownWaterReady"
-		];
+    public override async updateFirmwareFeatures(): Promise<void> {
+    	try {
+    		const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_fw_features", []);
+    		if (Array.isArray(result)) {
+    			// Store in http_api for getDynamicFeatures usage
+    			this.deps.http_api.storeFwFeaturesResult(this.duid, result);
 
-		const commonStates = {
-			0: "UNKNOWN",
-			1: "ERROR",
-			2: "OK"
-		};
+    			// Setup states
+    			await this.setupFirmwareFeatures(result);
+    		}
+    	} catch (e: any) {
+    		this.deps.log.warn(`[${this.duid}] Failed to update firmware features: ${e.message}`);
+    	}
+    }
 
-		for (const name of states) {
-			await this.ensureState("dockingStationStatus", name, {
-				name: name,
-				type: "number",
-				role: "value",
-				write: false,
-				states: commonStates
-			});
-		}
-	}
+    protected async setupFirmwareFeatures(features: number[]): Promise<void> {
+    	await this.deps.ensureFolder(`Devices.${this.duid}.firmwareFeatures`);
 
-	public override async updateFirmwareFeatures(): Promise<void> {
-		try {
-			const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_fw_features", []);
-			if (Array.isArray(result)) {
-				// Store in http_api for getDynamicFeatures usage
-				this.deps.http_api.storeFwFeaturesResult(this.duid, result);
+    	// Loop through all known features from CONSTANTS
+    	for (const [id, name] of Object.entries(BaseVacuumFeatures.CONSTANTS.firmwareFeatures)) {
+    		const isSupported = features.includes(Number(id));
+    		await this.ensureState("firmwareFeatures", name, {
+    			type: "boolean",
+    			role: "indicator",
+    			name: `${name} (ID: ${id})`,
+    			write: false
+    		});
+    		await this.deps.adapter.setStateChangedAsync(
+    			`Devices.${this.duid}.firmwareFeatures.${name}`,
+    			{ val: isSupported, ack: true }
+    		);
+    	}
+    }
 
-				// Setup states
-				await this.setupFirmwareFeatures(result);
-			}
-		} catch (e: any) {
-			this.deps.log.warn(`[${this.duid}] Failed to update firmware features: ${e.message}`);
-		}
-	}
+    // Override updateStatus to process dss breakdown
+    public override async updateStatus(): Promise<void> {
+    	// Re-implementing updateStatus for detailed handling
+    	try {
+    		const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_prop", ["get_status"]);
+    		let resultObj: Record<string, any> | undefined;
 
-	protected async setupFirmwareFeatures(features: number[]): Promise<void> {
-		await this.deps.ensureFolder(`Devices.${this.duid}.firmwareFeatures`);
+    		if (Array.isArray(result) && result.length > 0 && typeof result[0] === "object") {
+    			resultObj = result[0];
+    		} else if (typeof result === "object" && result !== null) {
+    			resultObj = result as Record<string, any>;
+    		}
 
-		// Loop through all known features from CONSTANTS
-		for (const [id, name] of Object.entries(BaseVacuumFeatures.CONSTANTS.firmwareFeatures)) {
-			const isSupported = features.includes(Number(id));
-			await this.ensureState("firmwareFeatures", name, {
-				type: "boolean",
-				role: "indicator",
-				name: `${name} (ID: ${id})`,
-				write: false
-			});
-			await this.deps.adapter.setStateChangedAsync(
-				`Devices.${this.duid}.firmwareFeatures.${name}`,
-				{ val: isSupported, ack: true }
-			);
-		}
-	}
+    		if (resultObj) {
+    			// Prioritize dock_type processing to ensure feature flags are set
+    			const dockType = resultObj["dock_type"];
+    			if (dockType !== undefined) {
+    				await this.processDockType(Number(dockType));
+    			}
 
-	// Override updateStatus to process dss breakdown
-	public override async updateStatus(): Promise<void> {
-		// Re-implementing updateStatus for detailed handling
-		try {
-			const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_prop", ["get_status"]);
-			let resultObj: Record<string, any> | undefined;
+    			// Handle docking station status separately
+    			const dssValue = resultObj["dss"];
+    			if (dssValue !== undefined) {
+    				delete resultObj["dss"];
+    				await this.updateDockingStationStatus(Number(dssValue));
+    			}
 
-			if (Array.isArray(result) && result.length > 0 && typeof result[0] === "object") {
-				resultObj = result[0];
-			} else if (typeof result === "object" && result !== null) {
-				resultObj = result as Record<string, any>;
-			}
+    			await this.deps.ensureFolder(`Devices.${this.duid}.deviceStatus`);
+    			for (const key in resultObj) {
+    				let val = resultObj[key];
+    				const common = this.getCommonDeviceStates(key) || { name: key, type: typeof val as ioBroker.CommonType, read: true, write: false };
 
-			if (resultObj) {
-				// Process dss if present
-				const dssValue = resultObj["dss"];
-				if (dssValue !== undefined) {
-					delete resultObj["dss"]; // Remove so it's not created in deviceStatus
-					await this.updateDockingStationStatus(Number(dssValue));
-				}
+    				// Serialize complex objects
+    				if (typeof val === "object" && val !== null) {
+    					val = JSON.stringify(val);
+    				}
 
-				await this.deps.ensureFolder(`Devices.${this.duid}.deviceStatus`);
-				for (const key in resultObj) {
-					let val = resultObj[key];
-					const common = this.getCommonDeviceStates(key) || { name: key, type: typeof val as ioBroker.CommonType, read: true, write: false };
+    				if (common.type === "string" && typeof val !== "string") {
+    					val = String(val);
+    				}
 
-					// Serialize complex objects to avoid state type mismatches
-					if (typeof val === "object" && val !== null) {
-						val = JSON.stringify(val);
-					}
+    				await this.deps.ensureState(`Devices.${this.duid}.deviceStatus.${key}`, common);
+    				await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.deviceStatus.${key}`, { val: val as ioBroker.StateValue, ack: true });
+    			}
+    		}
+    	} catch (e: any) {
+    		this.deps.log.warn(`[${this.duid}] Failed to update status: ${e.message}`);
+    	}
+    }
 
-					if (common.type === "string" && typeof val !== "string") {
-						val = String(val);
-					}
+    protected async updateDockingStationStatus(dss: number): Promise<void> {
+    	// Guard: Feature must be active
+    	if (!this.appliedFeatures.has(Feature.DockingStationStatus)) {
+    		return;
+    	}
 
-					await this.deps.ensureState(`Devices.${this.duid}.deviceStatus.${key}`, common);
-					await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.deviceStatus.${key}`, { val: val as ioBroker.StateValue, ack: true });
-				}
-			}
-		} catch (e: any) {
-			this.deps.log.warn(`[${this.duid}] Failed to update status: ${e.message}`);
-		}
-	}
+    	// Parse 2-bit status fields
+    	const status = {
+    		cleanFluidStatus: (dss >> 10) & 0b11,        // Bits 10-11: Clean water tank status
+    		waterBoxFilterStatus: (dss >> 8) & 0b11,     // Bits 8-9: Water box filter
+    		dustBagStatus: (dss >> 6) & 0b11,            // Bits 6-7: Dust bag (Staubbeutel)
+    		dirtyWaterBoxStatus: (dss >> 4) & 0b11,      // Bits 4-5: Dirty water tank
+    		clearWaterBoxStatus: (dss >> 2) & 0b11,      // Bits 2-3: Clear water box
+    		isUpdownWaterReady: dss & 0b11,              // Bits 0-1: Water ready status
+    	};
 
-	protected async updateDockingStationStatus(dss: number): Promise<void> {
-		// Parse 2-bit status fields from DSS integer
-		const status = {
-			cleanFluidStatus: (dss >> 10) & 0b11,
-			waterBoxFilterStatus: (dss >> 8) & 0b11,
-			dustBagStatus: (dss >> 6) & 0b11,
-			dirtyWaterBoxStatus: (dss >> 4) & 0b11,
-			clearWaterBoxStatus: (dss >> 2) & 0b11,
-			isUpdownWaterReady: dss & 0b11,
-		};
-
-		for (const [name, val] of Object.entries(status)) {
-			await this.deps.adapter.setStateChangedAsync(
-				`Devices.${this.duid}.dockingStationStatus.${name}`,
-				{ val: val, ack: true }
-			);
-		}
-	}
+    	for (const [name, val] of Object.entries(status)) {
+    		await this.deps.adapter.setStateChangedAsync(
+    			`Devices.${this.duid}.dockingStationStatus.${name}`,
+    			{ val: val, ack: true }
+    		);
+    	}
+    }
 
 
     @BaseDeviceFeatures.DeviceFeature(Feature.Rss)
-	protected async addRssState(): Promise<void> { await this.ensureState("deviceStatus", "rss", { ...this.getCommonDeviceStates("rss"), write: false }); }
+    protected async addRssState(): Promise<void> { await this.ensureState("deviceStatus", "rss", { ...this.getCommonDeviceStates("rss"), write: false }); }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.RobotStatus)
     protected async addRobotStatusState(): Promise<void> { await this.ensureState("deviceStatus", "state", { ...this.getCommonDeviceStates("state"), write: false }); }
@@ -772,35 +864,9 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     		role: "level",
     		write: true,
     		...this.getCommonDeviceStates("distance_off"),
-    		def: 1,
     		min: 1,
     		max: 30,
     	});
-    }
-
-    public async createResetConsumables(): Promise<void> {
-    	await this.deps.ensureFolder(`Devices.${this.duid}.resetConsumables`);
-    	for (const consumable of BaseVacuumFeatures.CONSTANTS.resetConsumables) {
-    		await this.ensureState("resetConsumables", consumable, {
-    			type: "boolean",
-    			role: "button",
-    			def: false,
-    			write: true,
-    			name: `Reset ${consumable}`
-    		});
-    	}
-    }
-
-    public async createConsumables(): Promise<void> {
-    	await this.deps.ensureFolder(`Devices.${this.duid}.consumables`);
-    	for (const [id, common] of Object.entries(BaseVacuumFeatures.CONSTANTS.consumables)) {
-    		await this.ensureState("consumables", id, {
-    			...common,
-    			type: "number",
-    			role: "value",
-    			write: false
-    		});
-    	}
     }
 
     @BaseDeviceFeatures.DeviceFeature(Feature.FanMaxPlus)
@@ -809,8 +875,6 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     	// Use set_custom_mode for fan power as per base commands
     	this.addCommand("set_custom_mode", { type: "number", def: 102, states: fanStates });
     }
-
-
 
     @BaseDeviceFeatures.DeviceFeature(Feature.NetworkInfo)
     protected async addNetworkInfoStates(): Promise<void> {
@@ -1081,6 +1145,50 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     @BaseDeviceFeatures.DeviceFeature(Feature.isVideoSettingSupported)
     @BaseDeviceFeatures.DeviceFeature(Feature.isPhotoUploadSupported)
     @BaseDeviceFeatures.DeviceFeature(Feature.isBackChargeAutoWashSupported)
+    public async updateMultiMapsList(): Promise<void> {
+    	try {
+    		const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_multi_maps_list", []);
+    		let mapInfo: any[] = [];
+
+    		if (Array.isArray(result) && result[0] && result[0].map_info) {
+    			mapInfo = result[0].map_info;
+    		} else if (typeof result === "object" && (result as any).map_info) {
+    			mapInfo = (result as any).map_info;
+    		}
+
+    		if (mapInfo.length > 0) {
+    			await this.deps.ensureFolder(`Devices.${this.duid}.floors`);
+
+    			for (const map of mapInfo) {
+    				const mapFlag = map.mapFlag;
+    				const name = map.name || `Map ${mapFlag}`;
+    				const formattedTime = map.add_time ? new Date(map.add_time * 1000).toLocaleString() : "Unknown";
+
+    				// Create folder for this floor (using mapFlag as stable ID)
+    				await this.deps.ensureFolder(`Devices.${this.duid}.floors.${mapFlag}`);
+
+    				// Create States
+    				await this.ensureState(`floors.${mapFlag}`, "name", { name: "Floor Name", type: "string", write: false });
+    				await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.floors.${mapFlag}.name`, { val: name, ack: true });
+
+    				await this.ensureState(`floors.${mapFlag}`, "mapFlag", { name: "Map Flag", type: "number", write: false });
+    				await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.floors.${mapFlag}.mapFlag`, { val: mapFlag, ack: true });
+
+    				await this.ensureState(`floors.${mapFlag}`, "add_time", { name: "Created At", type: "string", write: false });
+    				await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.floors.${mapFlag}.add_time`, { val: formattedTime, ack: true });
+
+    				// Load Button
+    				await this.ensureState(`floors.${mapFlag}`, "load", { name: "Load Map", type: "boolean", role: "button", write: true, def: false });
+    			}
+    		} else {
+    			// Fallback to default behavior if no map info (or empty)
+    			await super.updateMultiMapsList();
+    		}
+    	} catch (e: any) {
+    		this.deps.log.warn(`[${this.duid}] Failed to update floors/multi-maps: ${e.message}`);
+    	}
+    }
+
     @BaseDeviceFeatures.DeviceFeature(Feature.isSupportFDSEndPoint)
     @BaseDeviceFeatures.DeviceFeature(Feature.isSupportAutoSplitSegments)
     @BaseDeviceFeatures.DeviceFeature(Feature.isSupportOrderSegmentClean)

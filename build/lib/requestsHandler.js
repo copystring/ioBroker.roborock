@@ -199,6 +199,7 @@ class requestsHandler {
     mqttResetInterval = undefined;
     startupFinished = false;
     startupPromises = [];
+    finishedRequests = new Set();
     constructor(adapter) {
         this.adapter = adapter;
         // Offset ID by instance to avoid collisions
@@ -321,6 +322,11 @@ class requestsHandler {
             if (protocol) {
                 this.adapter.log.debug(`[resolvePendingRequest] Received response for request ${messageID} with protocol ${protocol}`);
             }
+            // Add to finished set to prevent race conditions with late responses (Protocol 102 after 301)
+            this.finishedRequests.add(messageID);
+            this.adapter.setTimeout(() => {
+                this.finishedRequests.delete(messageID);
+            }, 5000);
             if (req instanceof RoborockRequest) {
                 req.resolve(result);
             }
@@ -331,6 +337,9 @@ class requestsHandler {
                 }
             }
         }
+    }
+    isRequestRecentlyFinished(messageID) {
+        return this.finishedRequests.has(messageID);
     }
     clearQueue() {
         this.adapter.local_api.clearLocalDevicedTimeout();

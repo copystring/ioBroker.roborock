@@ -12,6 +12,7 @@ export class MockAdapter {
 	public instance: number = 0;
 	public pendingRequests: Map<number, any> = new Map();
 	public nonce: Buffer = Buffer.alloc(16);
+	public translations: Record<string, string> = {};
 	public catchError(error: any, attribute: string): void {
 		this.log.error(`[CatchError] ${attribute}: ${error}`);
 	}
@@ -42,6 +43,18 @@ export class MockAdapter {
 
 	public async extendObjectAsync(id: string, obj: any): Promise<void> {
 		this.objects[id] = { ...this.objects[id], ...obj };
+	}
+
+	public async extendObject(id: string, obj: any): Promise<void> {
+		this.objects[id] = { ...this.objects[id], ...obj };
+	}
+
+	public async getObjectAsync(id: string): Promise<any> {
+		return this.objects[id];
+	}
+
+	public async setObject(id: string, obj: any): Promise<void> {
+		this.objects[id] = obj;
 	}
 
 	public async setStateAsync(id: string, state: any): Promise<void> {

@@ -224,6 +224,7 @@ export class requestsHandler {
 
 	public startupFinished: boolean = false;
 	private startupPromises: Promise<void>[] = [];
+	private finishedRequests: Set<number> = new Set();
 
 	constructor(adapter: Roborock) {
 		this.adapter = adapter;
@@ -367,6 +368,12 @@ export class requestsHandler {
 				this.adapter.log.debug(`[resolvePendingRequest] Received response for request ${messageID} with protocol ${protocol}`);
 			}
 
+			// Add to finished set to prevent race conditions with late responses (Protocol 102 after 301)
+			this.finishedRequests.add(messageID);
+			this.adapter.setTimeout(() => {
+				this.finishedRequests.delete(messageID);
+			}, 5000);
+
 			if (req instanceof RoborockRequest) {
 				req.resolve(result);
 			} else {
@@ -376,6 +383,10 @@ export class requestsHandler {
 				}
 			}
 		}
+	}
+
+	isRequestRecentlyFinished(messageID: number): boolean {
+		return this.finishedRequests.has(messageID);
 	}
 
 	clearQueue() {

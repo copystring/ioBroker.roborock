@@ -25,6 +25,7 @@ export declare class requestsHandler {
     mqttResetInterval: ioBroker.Interval | undefined;
     startupFinished: boolean;
     private startupPromises;
+    private finishedRequests;
     constructor(adapter: Roborock);
     private scheduleMqttReset;
     waitForStartup(): Promise<void>;
@@ -37,6 +38,7 @@ export declare class requestsHandler {
     isCloudDevice(_duid: string): Promise<boolean>;
     isCloudRequest(_duid: string, _method: string): boolean;
     resolvePendingRequest(messageID: number, result: unknown, protocol?: unknown): void;
+    isRequestRecentlyFinished(messageID: number): boolean;
     clearQueue(): void;
 }
 export {};

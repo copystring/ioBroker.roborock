@@ -661,6 +661,7 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     protected addSmartPlanFeature(): void;
     protected createCameraStates(): Promise<void>;
     protected createMultiFloorStates(): Promise<void>;
+    updateConsumables(data?: any): Promise<void>;
     protected addAvoidCarpetCommands(): void;
     protected addAvoidCollisionStates(): Promise<void>;
     protected addMopForbiddenStates(): Promise<void>;
@@ -682,8 +683,7 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     protected addChargeStatusState(): Promise<void>;
     protected addCleaningInfoState(): Promise<void>;
     protected addCleanRepeatState(): Promise<void>;
-    protected addDssState(): Promise<void>;
-    protected setupDockingStationStatus(): Promise<void>;
+    protected createDockingStationStatusStates(): Promise<void>;
     updateFirmwareFeatures(): Promise<void>;
     protected setupFirmwareFeatures(features: number[]): Promise<void>;
     updateStatus(): Promise<void>;
@@ -697,8 +697,6 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     protected addCleanedAreaState(): Promise<void>;
     protected addCleanTimesState(): Promise<void>;
     protected createCustomWaterDistanceState(): Promise<void>;
-    createResetConsumables(): Promise<void>;
-    createConsumables(): Promise<void>;
     protected addFanMaxPlusCommand(): void;
     protected addNetworkInfoStates(): Promise<void>;
     protected addUpdateStatusStates(): Promise<void>;
@@ -710,5 +708,6 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     updateMap(): Promise<void>;
     updateExtraStatus(): Promise<void>;
     getPhoto(imgId: string, type: number): Promise<any>;
+    updateMultiMapsList(): Promise<void>;
     protected placeholderFeatures(): void;
 }

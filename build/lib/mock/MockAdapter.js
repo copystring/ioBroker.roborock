@@ -14,6 +14,7 @@ class MockAdapter {
     instance = 0;
     pendingRequests = new Map();
     nonce = Buffer.alloc(16);
+    translations = {};
     catchError(error, attribute) {
         this.log.error(`[CatchError] ${attribute}: ${error}`);
     }
@@ -40,6 +41,15 @@ class MockAdapter {
     }
     async extendObjectAsync(id, obj) {
         this.objects[id] = { ...this.objects[id], ...obj };
+    }
+    async extendObject(id, obj) {
+        this.objects[id] = { ...this.objects[id], ...obj };
+    }
+    async getObjectAsync(id) {
+        return this.objects[id];
+    }
+    async setObject(id, obj) {
+        this.objects[id] = obj;
     }
     async setStateAsync(id, state) {
         // Handle { val: ... } object or direct value

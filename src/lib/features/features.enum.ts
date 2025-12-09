@@ -15,6 +15,9 @@ export enum Feature {
 	// --- Actions primarily creating States (non-command) ---
 	LiveVideo = "LiveVideo", // Creates camera stream URL states
 	MultiFloor = "MultiFloor", // Creates multi-floor management states (max_map, etc.)
+    Consumables = "Consumables", // Creates consumables states
+    ResetConsumables = "ResetConsumables", // Creates reset consumables buttons
+    DockingStationStatus = "DockingStationStatus", // Creates docking station status states
 
     NetworkInfo = "NetworkInfo",
     UpdateStatus = "UpdateStatus",

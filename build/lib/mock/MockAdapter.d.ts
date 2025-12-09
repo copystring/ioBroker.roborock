@@ -10,6 +10,7 @@ export declare class MockAdapter {
     instance: number;
     pendingRequests: Map<number, any>;
     nonce: Buffer;
+    translations: Record<string, string>;
     catchError(error: any, attribute: string): void;
     setInterval(callback: (...args: any[]) => void, ms: number, ...args: any[]): any;
     clearInterval(intervalId: any): void;
@@ -19,6 +20,9 @@ export declare class MockAdapter {
     setObjectAsync(id: string, obj: any): Promise<void>;
     setObjectNotExistsAsync(id: string, obj: any): Promise<void>;
     extendObjectAsync(id: string, obj: any): Promise<void>;
+    extendObject(id: string, obj: any): Promise<void>;
+    getObjectAsync(id: string): Promise<any>;
+    setObject(id: string, obj: any): Promise<void>;
     setStateAsync(id: string, state: any): Promise<void>;
     setStateChangedAsync(id: string, state: any): Promise<void>;
     getStateAsync(id: string): Promise<any>;

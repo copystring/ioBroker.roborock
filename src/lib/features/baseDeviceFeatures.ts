@@ -204,9 +204,7 @@ export abstract class BaseDeviceFeatures {
 			this.deps.log.error(`[FeatureInit|${this.robotModel}|${this.duid}] Error applying model specifics: ${e.message} ${e.stack}`);
 		}
 
-		// 2. Runtime Detection (implemented by concrete base)
-
-		// 3. Process Dock Type (implemented by concrete base)
+		// 2. Runtime Detection & Dock Processing (implemented by concrete base)
 
 		// 4. Create/Update ioBroker Objects
 		try {
@@ -453,6 +451,28 @@ export abstract class BaseDeviceFeatures {
 				this.deps.log.warn(`[${this.duid}] Invalid type '${commonOptions.type}' in ensureState for ${path}, defaulting to 'string'.`);
 				commonOptions.type = "string";
 			}
+
+			// Check if object exists and needs update
+			const existingObj = await this.deps.adapter.getObjectAsync(path);
+			if (existingObj && existingObj.common) {
+				// Check if states mapping changed
+				const hasStatesMappingChanged =
+					(commonOptions.states && !existingObj.common.states) ||
+					(!commonOptions.states && existingObj.common.states) ||
+					(commonOptions.states && existingObj.common.states &&
+					 JSON.stringify(commonOptions.states) !== JSON.stringify(existingObj.common.states));
+
+				if (hasStatesMappingChanged) {
+					this.deps.log.debug(`[${this.duid}] Updating object definition for ${path} (states mapping changed)`);
+					await this.deps.adapter.extendObjectAsync(path, {
+						common: commonOptions as ioBroker.StateCommon,
+						native: native
+					});
+					return;
+				}
+			}
+
+			// Standard ensure (creates if not exists)
 			await this.deps.ensureState(path, commonOptions as ioBroker.StateCommon, native); // Cast after validation
 		} catch (e: any) {
 			this.deps.log.error(`[${this.duid}] Error in ensureState for ${path}: ${e.message}`);

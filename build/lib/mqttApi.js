@@ -225,10 +225,8 @@ class mqtt_api {
                             // This is a map or photo request.
                             const isSuccessOk = dps102.result === "ok" || (Array.isArray(dps102.result) && dps102.result[0] === "ok");
                             if (isSuccessOk) {
-                                // This is the initial "ok". IGNORE IT. Do NOT resolve the promise.
-                                // The real data will come via Protocol 300/301.
+                                // Initial confirmation. Real data follows via Protocol 300/301.
                                 this.adapter.log.debug(`[MQTT] Received Map/Photo expectation (102) for ${pendingRequest.method} (ID: ${dps102.id}). Waiting for data.`);
-                                // --- DO NOTHING HERE ---
                             }
                             else {
                                 // This is an ERROR for the request (e.g., "retry" or "locating")
@@ -249,7 +247,12 @@ class mqtt_api {
                         }
                     }
                     else {
-                        this.adapter.log.debug(`[MQTT] Received Protocol 102 message with ID ${dps102.id} but no matching pending request found.`);
+                        if (this.adapter.requestsHandler.isRequestRecentlyFinished(dps102.id)) {
+                            this.adapter.log.debug(`[MQTT] Received Protocol 102 message for already finished request ${dps102.id} (likely valid late response)`);
+                        }
+                        else {
+                            this.adapter.log.debug(`[MQTT] Received Protocol 102 message with ID ${dps102.id} but no matching pending request found.`);
+                        }
                     }
                 }
             }

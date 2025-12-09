@@ -52,13 +52,7 @@ function createFeaturesForModel(adapter: Roborock, duid: string, robotModel: str
 
 	if (ModelClass) {
 		adapter.log.debug(`[DeviceManager] Using specific feature handler for model: ${robotModel}`);
-		// Check if ModelClass accepts profile (it should if it extends BaseVacuumFeatures, but type safety might be tricky if BaseDeviceFeatures doesn't enforce it)
-		// For now, only FallbackVacuumFeatures is guaranteed to take it.
-		// If ModelClass extends BaseVacuumFeatures, it MIGHT accept it.
-		// Let's assume specific classes use their own internal profiles or can take this one.
-		// Actually, standard ModelClasses usually call super with a hardcoded profile.
-		// So passing it might not override it unless the class is designed to.
-		// But for Fallback, we control it.
+		// Specific model classes typically define their own profiles internally
 		return new ModelClass(dependencies, duid);
 	} else {
 		adapter.log.warn(`[DeviceManager] Model "${robotModel}" (Category: ${productCategory}) not registered. Using fallback.`);
@@ -110,7 +104,7 @@ export class DeviceManager {
 					// Store handler
 					this.deviceFeatureHandlers.set(duid, handler);
 
-					await this.adapter.setObjectNotExistsAsync(`Devices.${duid}`, {
+					await this.adapter.extendObjectAsync(`Devices.${duid}`, {
 						type: "device",
 						common: {
 							name: device.name || duid, // Use cloud name or DUID
@@ -133,24 +127,26 @@ export class DeviceManager {
 						this.adapter.log.debug(`[DeviceManager] Device ${duid} is offline. Initializing features without runtime data.`);
 					}
 
+
 					// --- Initialization sequence ---
 
-					// 1. Get initial status
+					// 1. Check dock type from cloud data and apply features FIRST
+					const cloudDockType = this.adapter.http_api.getDevices().find(d => d.duid === duid)?.deviceStatus?.dock_type;
+					if (device.online && cloudDockType !== undefined) {
+						await handler.processDockType(Number(cloudDockType));
+					}
+
+					// 2. Get initial status (now dockingStationStatus objects exist)
 					if (device.online) {
 						await handler.updateStatus();
 					}
 
-					// 2. Get firmware features
+					// 3. Get firmware features
 					if (device.online) {
 						await handler.updateFirmwareFeatures();
 					}
 
-					// Check dock type from state
-					const dockTypeState = await this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.dock_type`);
-					if (device.online && dockTypeState && dockTypeState.val !== null) {
-						await handler.processDockType(Number(dockTypeState.val));
-					}
-					// 5. Create command objects
+					// 4. Create command objects
 					await handler.createCommandObjects();
 
 					// 6. Initial Map & Data

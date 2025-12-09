@@ -277,6 +277,35 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                 appliedFeaturesList.push("MopWash");
             }
         }
+        // Dynamic DockingStationStatus
+        const dssSupportedDockTypes = [1, 2, 3, 6, 7, 8, 9, 10, 14, 15, 16, 17, 18];
+        const hasDssInStatus = validStatus.dss !== undefined;
+        const hasSupportedDock = validStatus.dock_type !== undefined && dssSupportedDockTypes.includes(validStatus.dock_type);
+        console.error(`[DSS-DEBUG] Robot ${this.duid} (${this.robotModel}): hasDssInStatus=${hasDssInStatus}, hasSupportedDock=${hasSupportedDock}, dock_type=${validStatus.dock_type}, dss=${validStatus.dss}, alreadyApplied=${this.appliedFeatures.has(features_enum_1.Feature.DockingStationStatus)}`);
+        if ((hasDssInStatus || hasSupportedDock) && !this.appliedFeatures.has(features_enum_1.Feature.DockingStationStatus)) {
+            console.error(`[DSS-DEBUG] Attempting to apply Feature.DockingStationStatus for ${this.duid}`);
+            if (await this.applyFeature(features_enum_1.Feature.DockingStationStatus)) {
+                console.error(`[DSS-DEBUG] Successfully applied Feature.DockingStationStatus for ${this.duid}`);
+                changedByStatus = true;
+                appliedFeaturesList.push("DockingStationStatus");
+            }
+            else {
+                console.error(`[DSS-DEBUG] FAILED to apply Feature.DockingStationStatus for ${this.duid}`);
+            }
+        }
+        else {
+            console.error(`[DSS-DEBUG] Skipping DockingStationStatus for ${this.duid}: condition not met or already applied`);
+        }
+        // Ensure Consumables features are applied (standard for all vacuums really, but good to be explicit)
+        if (!this.appliedFeatures.has(features_enum_1.Feature.Consumables)) {
+            if (await this.applyFeature(features_enum_1.Feature.Consumables)) {
+                changedByStatus = true;
+                appliedFeaturesList.push("Consumables");
+            }
+        }
+        // ResetConsumables is now handled dynamically inside updateConsumables loop,
+        // but we might want to register the Feature if we attach commands to it in future.
+        // For now, the buttons are created in updateConsumables.
         // Add more status-based detection rules here...
         if (changedByStatus || changedOverall) {
             this.deps.log.info(`[RuntimeDetect|${this.robotModel}|${this.duid}] Runtime detection applied new features/commands: ${appliedFeaturesList.join(", ")}`);
@@ -308,20 +337,20 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
         this.lastDockType = dockType;
         this.deps.log.info(`[${this.duid}] Processing dock type ${dockType} for Vacuum`);
         const dockFeatureMap = {
-            1: [features_enum_1.Feature.AutoEmptyDock],
-            2: [features_enum_1.Feature.MopWash],
-            3: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry],
+            1: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.DockingStationStatus],
+            2: [features_enum_1.Feature.MopWash, features_enum_1.Feature.DockingStationStatus],
+            3: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry, features_enum_1.Feature.DockingStationStatus],
             5: [features_enum_1.Feature.AutoEmptyDock],
-            6: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry],
-            7: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry],
-            8: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry],
-            9: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry],
-            14: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry], // Qrevo Master (a117)
-            15: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry], // Qrevo S (a104)
-            16: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry],
-            10: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry], // S7 MaxV/Pro
-            17: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry], // Qrevo Curv Series (a159)
-            18: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry], // S8 Pro
+            6: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry, features_enum_1.Feature.DockingStationStatus],
+            7: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry, features_enum_1.Feature.DockingStationStatus],
+            8: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry, features_enum_1.Feature.DockingStationStatus],
+            9: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry, features_enum_1.Feature.DockingStationStatus],
+            14: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry, features_enum_1.Feature.DockingStationStatus], // Qrevo Master (a117)
+            15: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry, features_enum_1.Feature.DockingStationStatus], // Qrevo S (a104)
+            16: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry, features_enum_1.Feature.DockingStationStatus],
+            10: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry, features_enum_1.Feature.DockingStationStatus], // S7 MaxV/Pro
+            17: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry, features_enum_1.Feature.DockingStationStatus], // Qrevo Curv Series (a159)
+            18: [features_enum_1.Feature.AutoEmptyDock, features_enum_1.Feature.MopWash, features_enum_1.Feature.MopDry, features_enum_1.Feature.DockingStationStatus], // S8 Pro
         };
         const features = dockFeatureMap[dockType];
         if (features) {
@@ -466,6 +495,42 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             await this.ensureState("floors", feature, { ...this.getCommonDeviceStates(feature), write: false });
         }
     }
+    async updateConsumables(data) {
+        let resultObj;
+        if (data) {
+            resultObj = data;
+        }
+        else {
+            const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_consumable", []);
+            if (Array.isArray(result) && result.length > 0 && typeof result[0] === "object") {
+                resultObj = result[0];
+            }
+            else if (typeof result === "object" && result !== null) {
+                resultObj = result;
+            }
+        }
+        if (resultObj) {
+            await this.deps.ensureFolder(`Devices.${this.duid}.consumables`);
+            await this.deps.ensureFolder(`Devices.${this.duid}.resetConsumables`);
+            for (const key in resultObj) {
+                const val = resultObj[key];
+                const common = this.getCommonConsumable(key);
+                const fullCommon = common ? { ...common, type: "number", role: "value", read: true, write: false, name: key }
+                    : { type: "number", role: "value", read: true, write: false, name: key };
+                await this.deps.ensureState(`Devices.${this.duid}.consumables.${key}`, fullCommon);
+                await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.consumables.${key}`, { val: Number(val), ack: true });
+                if (BaseVacuumFeatures.CONSTANTS.resetConsumables.has(key)) {
+                    await this.ensureState("resetConsumables", key, {
+                        type: "boolean",
+                        role: "button",
+                        def: false,
+                        write: true,
+                        name: `Reset ${key}`
+                    });
+                }
+            }
+        }
+    }
     addAvoidCarpetCommands() {
         this.addCommand("set_carpet_mode", { type: "json", states: BaseVacuumFeatures.CONSTANTS.deviceStates.carpet_mode.states });
         this.addCommand("set_carpet_clean_mode", { type: "json", states: BaseVacuumFeatures.CONSTANTS.deviceStates.carpet_clean_mode.states });
@@ -505,34 +570,42 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
     async addChargeStatusState() { await this.ensureState("deviceStatus", "charge_status", { ...this.getCommonDeviceStates("charge_status"), write: false }); }
     async addCleaningInfoState() { await this.ensureState("deviceStatus", "cleaning_info", { ...this.getCommonDeviceStates("cleaning_info"), write: false }); }
     async addCleanRepeatState() { await this.ensureState("deviceStatus", "repeat", { ...this.getCommonDeviceStates("repeat"), write: false }); }
-    async addDssState() {
-        // Only setup the breakdown folder, do not create deviceStatus.dss
-        await this.setupDockingStationStatus();
-    }
-    async setupDockingStationStatus() {
-        await this.deps.ensureFolder(`Devices.${this.duid}.dockingStationStatus`);
-        // States from proper logic (0=UNKNOWN, 1=ERROR, 2=OK)
-        const states = [
-            "cleanFluidStatus",
-            "waterBoxFilterStatus",
-            "dustBagStatus",
-            "dirtyWaterBoxStatus",
-            "clearWaterBoxStatus",
-            "isUpdownWaterReady"
-        ];
-        const commonStates = {
-            0: "UNKNOWN",
-            1: "ERROR",
-            2: "OK"
-        };
-        for (const name of states) {
-            await this.ensureState("dockingStationStatus", name, {
-                name: name,
-                type: "number",
-                role: "value",
-                write: false,
-                states: commonStates
-            });
+    async createDockingStationStatusStates() {
+        console.error(`[DSS-DEBUG] createDockingStationStatusStates called for ${this.duid}`);
+        try {
+            await this.deps.ensureFolder(`Devices.${this.duid}.dockingStationStatus`);
+            console.error(`[DSS-DEBUG] Created dockingStationStatus folder for ${this.duid}`);
+            // Common states mapping for docking station status values (from original implementation)
+            const commonStates = {
+                0: "UNKNOWN",
+                1: "ERROR",
+                2: "OK"
+            };
+            // Create all docking station status states (original field names from working code)
+            const stateDefinitions = [
+                { key: "cleanFluidStatus", name: "Clean Water Tank" },
+                { key: "waterBoxFilterStatus", name: "Water Box Filter" },
+                { key: "dustBagStatus", name: "Dust Bag" },
+                { key: "dirtyWaterBoxStatus", name: "Dirty Water Tank" },
+                { key: "clearWaterBoxStatus", name: "Clear Water Box" },
+                { key: "isUpdownWaterReady", name: "Water Ready Status" }
+            ];
+            for (const stateDef of stateDefinitions) {
+                await this.ensureState("dockingStationStatus", stateDef.key, {
+                    name: stateDef.name,
+                    type: "number",
+                    role: "value",
+                    read: true,
+                    write: false,
+                    states: commonStates
+                });
+                console.error(`[DSS-DEBUG] Created state: dockingStationStatus.${stateDef.key} for ${this.duid}`);
+            }
+            console.error(`[DSS-DEBUG] Successfully created all ${stateDefinitions.length} docking station status states for ${this.duid}`);
+        }
+        catch (error) {
+            console.error(`[DSS-DEBUG] ERROR creating dockingStationStatus states for ${this.duid}:`, error);
+            throw error;
         }
     }
     async updateFirmwareFeatures() {
@@ -576,17 +649,22 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                 resultObj = result;
             }
             if (resultObj) {
-                // Process dss if present
+                // Prioritize dock_type processing to ensure feature flags are set
+                const dockType = resultObj["dock_type"];
+                if (dockType !== undefined) {
+                    await this.processDockType(Number(dockType));
+                }
+                // Handle docking station status separately
                 const dssValue = resultObj["dss"];
                 if (dssValue !== undefined) {
-                    delete resultObj["dss"]; // Remove so it's not created in deviceStatus
+                    delete resultObj["dss"];
                     await this.updateDockingStationStatus(Number(dssValue));
                 }
                 await this.deps.ensureFolder(`Devices.${this.duid}.deviceStatus`);
                 for (const key in resultObj) {
                     let val = resultObj[key];
                     const common = this.getCommonDeviceStates(key) || { name: key, type: typeof val, read: true, write: false };
-                    // Serialize complex objects to avoid state type mismatches
+                    // Serialize complex objects
                     if (typeof val === "object" && val !== null) {
                         val = JSON.stringify(val);
                     }
@@ -603,14 +681,18 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
         }
     }
     async updateDockingStationStatus(dss) {
-        // Parse 2-bit status fields from DSS integer
+        // Guard: Feature must be active
+        if (!this.appliedFeatures.has(features_enum_1.Feature.DockingStationStatus)) {
+            return;
+        }
+        // Parse 2-bit status fields
         const status = {
-            cleanFluidStatus: (dss >> 10) & 0b11,
-            waterBoxFilterStatus: (dss >> 8) & 0b11,
-            dustBagStatus: (dss >> 6) & 0b11,
-            dirtyWaterBoxStatus: (dss >> 4) & 0b11,
-            clearWaterBoxStatus: (dss >> 2) & 0b11,
-            isUpdownWaterReady: dss & 0b11,
+            cleanFluidStatus: (dss >> 10) & 0b11, // Bits 10-11: Clean water tank status
+            waterBoxFilterStatus: (dss >> 8) & 0b11, // Bits 8-9: Water box filter
+            dustBagStatus: (dss >> 6) & 0b11, // Bits 6-7: Dust bag (Staubbeutel)
+            dirtyWaterBoxStatus: (dss >> 4) & 0b11, // Bits 4-5: Dirty water tank
+            clearWaterBoxStatus: (dss >> 2) & 0b11, // Bits 2-3: Clear water box
+            isUpdownWaterReady: dss & 0b11, // Bits 0-1: Water ready status
         };
         for (const [name, val] of Object.entries(status)) {
             await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.dockingStationStatus.${name}`, { val: val, ack: true });
@@ -630,33 +712,9 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             role: "level",
             write: true,
             ...this.getCommonDeviceStates("distance_off"),
-            def: 1,
             min: 1,
             max: 30,
         });
-    }
-    async createResetConsumables() {
-        await this.deps.ensureFolder(`Devices.${this.duid}.resetConsumables`);
-        for (const consumable of BaseVacuumFeatures.CONSTANTS.resetConsumables) {
-            await this.ensureState("resetConsumables", consumable, {
-                type: "boolean",
-                role: "button",
-                def: false,
-                write: true,
-                name: `Reset ${consumable}`
-            });
-        }
-    }
-    async createConsumables() {
-        await this.deps.ensureFolder(`Devices.${this.duid}.consumables`);
-        for (const [id, common] of Object.entries(BaseVacuumFeatures.CONSTANTS.consumables)) {
-            await this.ensureState("consumables", id, {
-                ...common,
-                type: "number",
-                role: "value",
-                write: false
-            });
-        }
     }
     addFanMaxPlusCommand() {
         const fanStates = this.profile.mappings.fan_power || vacuumConstants_1.VACUUM_CONSTANTS.deviceStates.fan_power.states;
@@ -900,6 +958,44 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
         };
         return this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_photo", requestParams, { priority: 0 });
     }
+    async updateMultiMapsList() {
+        try {
+            const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_multi_maps_list", []);
+            let mapInfo = [];
+            if (Array.isArray(result) && result[0] && result[0].map_info) {
+                mapInfo = result[0].map_info;
+            }
+            else if (typeof result === "object" && result.map_info) {
+                mapInfo = result.map_info;
+            }
+            if (mapInfo.length > 0) {
+                await this.deps.ensureFolder(`Devices.${this.duid}.floors`);
+                for (const map of mapInfo) {
+                    const mapFlag = map.mapFlag;
+                    const name = map.name || `Map ${mapFlag}`;
+                    const formattedTime = map.add_time ? new Date(map.add_time * 1000).toLocaleString() : "Unknown";
+                    // Create folder for this floor (using mapFlag as stable ID)
+                    await this.deps.ensureFolder(`Devices.${this.duid}.floors.${mapFlag}`);
+                    // Create States
+                    await this.ensureState(`floors.${mapFlag}`, "name", { name: "Floor Name", type: "string", write: false });
+                    await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.floors.${mapFlag}.name`, { val: name, ack: true });
+                    await this.ensureState(`floors.${mapFlag}`, "mapFlag", { name: "Map Flag", type: "number", write: false });
+                    await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.floors.${mapFlag}.mapFlag`, { val: mapFlag, ack: true });
+                    await this.ensureState(`floors.${mapFlag}`, "add_time", { name: "Created At", type: "string", write: false });
+                    await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.floors.${mapFlag}.add_time`, { val: formattedTime, ack: true });
+                    // Load Button
+                    await this.ensureState(`floors.${mapFlag}`, "load", { name: "Load Map", type: "boolean", role: "button", write: true, def: false });
+                }
+            }
+            else {
+                // Fallback to default behavior if no map info (or empty)
+                await super.updateMultiMapsList();
+            }
+        }
+        catch (e) {
+            this.deps.log.warn(`[${this.duid}] Failed to update floors/multi-maps: ${e.message}`);
+        }
+    }
     placeholderFeatures() {
         // No-op: These features are detected but require no specific initialization logic
         this.deps.log.silly(`[${this.duid}] Placeholder feature initialized.`);
@@ -1085,11 +1181,11 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], BaseVacuumFeatures.prototype, "addCleanRepeatState", null);
 __decorate([
-    baseDeviceFeatures_1.BaseDeviceFeatures.DeviceFeature(features_enum_1.Feature.Dss),
+    baseDeviceFeatures_1.BaseDeviceFeatures.DeviceFeature(features_enum_1.Feature.DockingStationStatus),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
-], BaseVacuumFeatures.prototype, "addDssState", null);
+], BaseVacuumFeatures.prototype, "createDockingStationStatusStates", null);
 __decorate([
     baseDeviceFeatures_1.BaseDeviceFeatures.DeviceFeature(features_enum_1.Feature.Rss),
     __metadata("design:type", Function),
@@ -1174,6 +1270,11 @@ __decorate([
     baseDeviceFeatures_1.BaseDeviceFeatures.DeviceFeature(features_enum_1.Feature.isVideoSettingSupported),
     baseDeviceFeatures_1.BaseDeviceFeatures.DeviceFeature(features_enum_1.Feature.isPhotoUploadSupported),
     baseDeviceFeatures_1.BaseDeviceFeatures.DeviceFeature(features_enum_1.Feature.isBackChargeAutoWashSupported),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], BaseVacuumFeatures.prototype, "updateMultiMapsList", null);
+__decorate([
     baseDeviceFeatures_1.BaseDeviceFeatures.DeviceFeature(features_enum_1.Feature.isSupportFDSEndPoint),
     baseDeviceFeatures_1.BaseDeviceFeatures.DeviceFeature(features_enum_1.Feature.isSupportAutoSplitSegments),
     baseDeviceFeatures_1.BaseDeviceFeatures.DeviceFeature(features_enum_1.Feature.isSupportOrderSegmentClean),

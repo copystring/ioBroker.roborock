@@ -182,6 +182,20 @@ class Roborock extends utils.Adapter {
         const duid = idParts[3];
         const folder = idParts[4];
         const command = idParts[5];
+        // Special handling for floors (deeply nested: Devices.duid.floors.mapFlag.load)
+        if (folder === "floors" && idParts.length >= 7 && idParts[6] === "load") {
+            const mapFlag = parseInt(idParts[5], 10);
+            if (state.val === true) {
+                const handler = this.deviceFeatureHandlers.get(duid);
+                if (handler) {
+                    this.log.info(`[onStateChange] Loading map ${mapFlag} for ${duid}`);
+                    await this.requestsHandler.command(handler, duid, "load_multi_map", [mapFlag]);
+                    // Reset button
+                    this.setTimeout(() => this.setState(id, false, true), 1000);
+                }
+            }
+            return;
+        }
         this.log.info(`[onStateChange] Processing command: ${command} for ${duid} in folder: ${folder}`);
         const handler = this.deviceFeatureHandlers.get(duid);
         if (!handler) {
@@ -262,9 +276,7 @@ class Roborock extends utils.Adapter {
                 }
             }
             finally {
-                // Reset button presses for boolean commands in the commands folder
-                // We do this in finally to ensure it resets even if the command fails
-                // Check if it was a "button" press (boolean true)
+                // Reset boolean command state
                 if ((typeof state.val === "boolean" && state.val === true) || state.val === "true" || state.val === 1) {
                     this.log.info(`[handleCommand] Scheduling reset for ${id}`);
                     this.commandTimeout = this.setTimeout(() => {
@@ -440,11 +452,6 @@ class Roborock extends utils.Adapter {
                 const newCommon = { ...oldObj.common, ...finalCommon };
                 // Force extension to apply changes
                 await this.extendObject(path, { common: newCommon });
-                // Verify update (optional but good for debugging race conditions)
-                // const verification = await this.getObjectAsync(path);
-                // if (verification && verification.common.type !== finalCommon.type) {
-                // 	 this.log.error(`[ensureState] Failed to update type for ${path}!`);
-                // }
             }
             else {
                 // Object does not exist, create it new

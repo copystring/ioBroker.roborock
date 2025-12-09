@@ -10,6 +10,9 @@ export declare enum Feature {
     CustomWaterBoxDistance = "CustomWaterBoxDistance",// Creates the special distance command state
     LiveVideo = "LiveVideo",// Creates camera stream URL states
     MultiFloor = "MultiFloor",// Creates multi-floor management states (max_map, etc.)
+    Consumables = "Consumables",// Creates consumables states
+    ResetConsumables = "ResetConsumables",// Creates reset consumables buttons
+    DockingStationStatus = "DockingStationStatus",// Creates docking station status states
     NetworkInfo = "NetworkInfo",
     UpdateStatus = "UpdateStatus",
     Camera = "Camera",// Model has a camera (static)
