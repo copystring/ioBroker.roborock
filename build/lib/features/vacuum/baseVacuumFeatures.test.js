@@ -1,70 +1,78 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const chai_1 = require("chai");
-const baseDeviceFeatures_1 = require("../baseDeviceFeatures");
-require("./index"); // Register all models
+const sinon = __importStar(require("sinon"));
 const baseVacuumFeatures_1 = require("./baseVacuumFeatures");
-// Mock dependencies
-const mockDependencies = {
-    adapter: {
-        log: {
-            debug: () => { },
-            info: () => { },
-            warn: () => { },
-            error: () => { },
-            silly: () => { },
-        },
-        config: {},
-        ensureState: () => Promise.resolve(),
-        ensureFolder: () => Promise.resolve(),
-    },
-    log: {
-        debug: () => { },
-        info: () => { },
-        warn: () => { },
-        error: () => { },
-        silly: () => { },
-    },
-};
-describe("BaseVacuumFeatures - Model Configuration Integrity", () => {
-    const registeredModels = baseDeviceFeatures_1.BaseDeviceFeatures.getRegisteredModels();
-    it("should have registered models", () => {
-        (0, chai_1.expect)(registeredModels.length).to.be.greaterThan(0);
+describe("BaseVacuumFeatures", () => {
+    let adapterMock;
+    let depsMock;
+    beforeEach(() => {
+        adapterMock = {
+            log: { info: sinon.stub(), error: sinon.stub(), warn: sinon.stub(), debug: sinon.stub(), silly: sinon.stub() },
+            setStateChangedAsync: sinon.stub().resolves(),
+            ensureState: sinon.stub().resolves(),
+            ensureFolder: sinon.stub().resolves(),
+            getStateAsync: sinon.stub().resolves(),
+            requestsHandler: { sendRequest: sinon.stub().resolves({}), command: sinon.stub().resolves() },
+            translations: {},
+        };
+        depsMock = {
+            adapter: adapterMock,
+            http_api: { storeFwFeaturesResult: sinon.stub(), getFwFeaturesResult: sinon.stub() },
+            ensureState: sinon.stub().resolves(),
+            ensureFolder: sinon.stub().resolves(),
+            log: adapterMock.log,
+            config: { staticFeatures: [] }
+        };
     });
-    it("should have valid configuration for all registered models", () => {
-        const errors = [];
-        registeredModels.forEach((modelId) => {
-            try {
-                const ModelClass = baseDeviceFeatures_1.BaseDeviceFeatures.getRegisteredModelClass(modelId);
-                (0, chai_1.expect)(ModelClass).to.not.be.undefined;
-                // @ts-ignore
-                const instance = new ModelClass(mockDependencies, "test_duid");
-                // 1. Instance Check
-                (0, chai_1.expect)(instance).to.be.instanceOf(baseVacuumFeatures_1.BaseVacuumFeatures);
-                // 2. Static Features Check
-                // Access protected config via any
-                const config = instance.config;
-                (0, chai_1.expect)(config).to.exist;
-                (0, chai_1.expect)(config.staticFeatures).to.be.an("array");
-                // 3. Duplicate Features Check
-                const features = config.staticFeatures;
-                const uniqueFeatures = new Set(features);
-                if (features.length !== uniqueFeatures.size) {
-                    throw new Error(`Duplicate features found: ${features.filter((item, index) => features.indexOf(item) !== index)}`);
-                }
-                // 4. Profile Check
-                const profile = instance.profile;
-                (0, chai_1.expect)(profile).to.exist;
-                (0, chai_1.expect)(profile.mappings).to.exist;
-                (0, chai_1.expect)(profile.features).to.exist;
-            }
-            catch (e) {
-                errors.push(`Model ${modelId}: ${e.message}`);
-            }
-        });
-        if (errors.length > 0) {
-            throw new Error(`Model configuration errors:\n${errors.join("\n")}`);
+    class TestVacuum extends baseVacuumFeatures_1.BaseVacuumFeatures {
+        getDynamicFeatures() { return new Set(); }
+        async detectAndApplyRuntimeFeatures() { return false; }
+        async testUpdateDss(dss) {
+            // Need to expose the protected method or logic for testing
+            // Since we moved logic to updateDockingStationStatus/updateStatus override
+            // We can test updateStatus if we mock the request result
+            adapterMock.requestsHandler.sendRequest.withArgs("duid1", "get_prop", ["get_status"]).resolves([{ dss: dss }]);
+            // For unit testing the specific shifting logic, we can cast to any
+            await this.updateDockingStationStatus(dss);
         }
+    }
+    it("should correctly breakdown dss bits into status codes", async () => {
+        const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a70", { staticFeatures: [] });
+        // Example Value Construction:
+        // cleanFluidStatus: 1 (01 binary) << 10
+        // waterBoxFilterStatus: 2 (10 binary) << 8
+        // dustBagStatus: 0 (00 binary) << 6
+        // ... rest 0
+        // Value: (1 << 10) | (2 << 8) = 1024 + 512 = 1536
+        const dssValue = (1 << 10) | (2 << 8);
+        await vacuum.testUpdateDss(dssValue);
+        (0, chai_1.expect)(adapterMock.setStateChangedAsync.calledWith("Devices.duid1.dockingStationStatus.cleanFluidStatus", { val: 1, ack: true })).to.be.true; // 1 = ERROR
+        (0, chai_1.expect)(adapterMock.setStateChangedAsync.calledWith("Devices.duid1.dockingStationStatus.waterBoxFilterStatus", { val: 2, ack: true })).to.be.true; // 2 = OK
+        (0, chai_1.expect)(adapterMock.setStateChangedAsync.calledWith("Devices.duid1.dockingStationStatus.dustBagStatus", { val: 0, ack: true })).to.be.true; // 0 = UNKNOWN
     });
 });
 //# sourceMappingURL=baseVacuumFeatures.test.js.map

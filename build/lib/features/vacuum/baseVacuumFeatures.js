@@ -72,7 +72,7 @@ exports.VacuumStatusSchema = zod_1.z
             return false;
         }
     }, { message: "carpet_clean_mode must be a valid JSON string or undefined" }),
-    water_box_custom_mode: zod_1.z.number().int().optional(), // Added for WaterBox detection
+    water_box_custom_mode: zod_1.z.number().int().optional(), // Required for WaterBox feature detection
     // Add other relevant vacuum status fields...
 })
     .passthrough(); // Allow fields not defined in the schema
@@ -272,7 +272,6 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
         }
         // MopWash
         if (validStatus.wash_status !== undefined && !this.appliedFeatures.has(features_enum_1.Feature.MopWash)) {
-            // this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected MopWash feature via 'wash_status' key.`);
             if (await this.applyFeature(features_enum_1.Feature.MopWash)) {
                 changedByStatus = true;
                 appliedFeaturesList.push("MopWash");
@@ -326,9 +325,9 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
         };
         const features = dockFeatureMap[dockType];
         if (features) {
-            this.deps.log.info(`[${this.duid}] Applying dock features for type ${dockType}: ${features.join(", ")}`); // Apply features sequentially to potentially handle dependencies/overwrites correctly
+            this.deps.log.info(`[${this.duid}] Applying dock features for type ${dockType}: ${features.join(", ")}`); // Apply features sequentially to handle dependencies
             for (const feature of features) {
-                await this.applyFeature(feature); // Use applyFeature helper which checks if already applied
+                await this.applyFeature(feature); // applyFeature handles de-duplication
             }
         }
         else if (dockType !== 0) {
@@ -373,7 +372,7 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
         return spec;
     }
     getFirmwareFeatureName(featureID) {
-        // Use the temporarily kept static map for lookup
+        // Retrieve feature name from static constants
         const name = BaseVacuumFeatures.CONSTANTS.firmwareFeatures[featureID];
         return name || `FeatureID_${featureID}`;
     }
@@ -506,7 +505,117 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
     async addChargeStatusState() { await this.ensureState("deviceStatus", "charge_status", { ...this.getCommonDeviceStates("charge_status"), write: false }); }
     async addCleaningInfoState() { await this.ensureState("deviceStatus", "cleaning_info", { ...this.getCommonDeviceStates("cleaning_info"), write: false }); }
     async addCleanRepeatState() { await this.ensureState("deviceStatus", "repeat", { ...this.getCommonDeviceStates("repeat"), write: false }); }
-    async addDssState() { await this.ensureState("deviceStatus", "dss", { ...this.getCommonDeviceStates("dss"), write: false }); }
+    async addDssState() {
+        // Only setup the breakdown folder, do not create deviceStatus.dss
+        await this.setupDockingStationStatus();
+    }
+    async setupDockingStationStatus() {
+        await this.deps.ensureFolder(`Devices.${this.duid}.dockingStationStatus`);
+        // States from proper logic (0=UNKNOWN, 1=ERROR, 2=OK)
+        const states = [
+            "cleanFluidStatus",
+            "waterBoxFilterStatus",
+            "dustBagStatus",
+            "dirtyWaterBoxStatus",
+            "clearWaterBoxStatus",
+            "isUpdownWaterReady"
+        ];
+        const commonStates = {
+            0: "UNKNOWN",
+            1: "ERROR",
+            2: "OK"
+        };
+        for (const name of states) {
+            await this.ensureState("dockingStationStatus", name, {
+                name: name,
+                type: "number",
+                role: "value",
+                write: false,
+                states: commonStates
+            });
+        }
+    }
+    async updateFirmwareFeatures() {
+        try {
+            const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_fw_features", []);
+            if (Array.isArray(result)) {
+                // Store in http_api for getDynamicFeatures usage
+                this.deps.http_api.storeFwFeaturesResult(this.duid, result);
+                // Setup states
+                await this.setupFirmwareFeatures(result);
+            }
+        }
+        catch (e) {
+            this.deps.log.warn(`[${this.duid}] Failed to update firmware features: ${e.message}`);
+        }
+    }
+    async setupFirmwareFeatures(features) {
+        await this.deps.ensureFolder(`Devices.${this.duid}.firmwareFeatures`);
+        // Loop through all known features from CONSTANTS
+        for (const [id, name] of Object.entries(BaseVacuumFeatures.CONSTANTS.firmwareFeatures)) {
+            const isSupported = features.includes(Number(id));
+            await this.ensureState("firmwareFeatures", name, {
+                type: "boolean",
+                role: "indicator",
+                name: `${name} (ID: ${id})`,
+                write: false
+            });
+            await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.firmwareFeatures.${name}`, { val: isSupported, ack: true });
+        }
+    }
+    // Override updateStatus to process dss breakdown
+    async updateStatus() {
+        // Re-implementing updateStatus for detailed handling
+        try {
+            const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_prop", ["get_status"]);
+            let resultObj;
+            if (Array.isArray(result) && result.length > 0 && typeof result[0] === "object") {
+                resultObj = result[0];
+            }
+            else if (typeof result === "object" && result !== null) {
+                resultObj = result;
+            }
+            if (resultObj) {
+                // Process dss if present
+                const dssValue = resultObj["dss"];
+                if (dssValue !== undefined) {
+                    delete resultObj["dss"]; // Remove so it's not created in deviceStatus
+                    await this.updateDockingStationStatus(Number(dssValue));
+                }
+                await this.deps.ensureFolder(`Devices.${this.duid}.deviceStatus`);
+                for (const key in resultObj) {
+                    let val = resultObj[key];
+                    const common = this.getCommonDeviceStates(key) || { name: key, type: typeof val, read: true, write: false };
+                    // Serialize complex objects to avoid state type mismatches
+                    if (typeof val === "object" && val !== null) {
+                        val = JSON.stringify(val);
+                    }
+                    if (common.type === "string" && typeof val !== "string") {
+                        val = String(val);
+                    }
+                    await this.deps.ensureState(`Devices.${this.duid}.deviceStatus.${key}`, common);
+                    await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.deviceStatus.${key}`, { val: val, ack: true });
+                }
+            }
+        }
+        catch (e) {
+            this.deps.log.warn(`[${this.duid}] Failed to update status: ${e.message}`);
+        }
+    }
+    async updateDockingStationStatus(dss) {
+        // Parse 2-bit status fields from DSS integer
+        const status = {
+            cleanFluidStatus: (dss >> 10) & 0b11,
+            waterBoxFilterStatus: (dss >> 8) & 0b11,
+            dustBagStatus: (dss >> 6) & 0b11,
+            dirtyWaterBoxStatus: (dss >> 4) & 0b11,
+            clearWaterBoxStatus: (dss >> 2) & 0b11,
+            isUpdownWaterReady: dss & 0b11,
+        };
+        for (const [name, val] of Object.entries(status)) {
+            await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.dockingStationStatus.${name}`, { val: val, ack: true });
+        }
+    }
     async addRssState() { await this.ensureState("deviceStatus", "rss", { ...this.getCommonDeviceStates("rss"), write: false }); }
     async addRobotStatusState() { await this.ensureState("deviceStatus", "state", { ...this.getCommonDeviceStates("state"), write: false }); }
     async addKctState() { await this.ensureState("deviceStatus", "kct", { ...this.getCommonDeviceStates("kct"), write: false }); }
@@ -516,12 +625,11 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
     async addCleanedAreaState() { await this.ensureState("deviceStatus", "cleaned_area", { ...this.getCommonDeviceStates("cleaned_area"), write: false }); }
     async addCleanTimesState() { await this.ensureState("deviceStatus", "clean_times", { ...this.getCommonDeviceStates("clean_times"), write: false }); }
     async createCustomWaterDistanceState() {
-        // Use ensureState helper
         await this.ensureState("commands", "set_water_box_distance_off", {
             type: "number",
             role: "level",
             write: true,
-            ...this.getCommonDeviceStates("distance_off"), // Use base def if available or fallback
+            ...this.getCommonDeviceStates("distance_off"),
             def: 1,
             min: 1,
             max: 30,

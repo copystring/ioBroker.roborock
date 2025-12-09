@@ -683,6 +683,11 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     protected addCleaningInfoState(): Promise<void>;
     protected addCleanRepeatState(): Promise<void>;
     protected addDssState(): Promise<void>;
+    protected setupDockingStationStatus(): Promise<void>;
+    updateFirmwareFeatures(): Promise<void>;
+    protected setupFirmwareFeatures(features: number[]): Promise<void>;
+    updateStatus(): Promise<void>;
+    protected updateDockingStationStatus(dss: number): Promise<void>;
     protected addRssState(): Promise<void>;
     protected addRobotStatusState(): Promise<void>;
     protected addKctState(): Promise<void>;

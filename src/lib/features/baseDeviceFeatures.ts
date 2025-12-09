@@ -198,6 +198,8 @@ export abstract class BaseDeviceFeatures {
 		// 1. Apply Model Specifics
 		try {
 			await this.applyModelSpecifics();
+			// Explicitly fetch FW features early, as they might be needed for dynamic detections
+			await this.updateFirmwareFeatures();
 		} catch (e: any) {
 			this.deps.log.error(`[FeatureInit|${this.robotModel}|${this.duid}] Error applying model specifics: ${e.message} ${e.stack}`);
 		}
