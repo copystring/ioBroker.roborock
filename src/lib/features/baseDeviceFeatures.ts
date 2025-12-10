@@ -505,6 +505,21 @@ export abstract class BaseDeviceFeatures {
 		return this.config.staticFeatures.includes(feature);
 	}
 
+
+
+	// --- Command Parameter Interception ---
+
+	/**
+	 * Allows feature handlers to provide/modify parameters for a command before sending.
+	 * Override this to implement logic like 'app_segment_clean' gathering segments from states.
+	 * @param method Command method name.
+	 * @param params Existing parameters passed from caller.
+	 */
+	public async getCommandParams(method: string, params?: unknown): Promise<unknown> {
+		void method;
+		return params;
+	}
+
 	// --- Data Update Methods (Unified Data Handling) ---
 
 	/**

@@ -703,6 +703,8 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     protected addSmartModeCommand(): void;
     private static readonly MAPPED_CLEAN_SUMMARY;
     private static readonly MAPPED_CLEANING_RECORD_ATTRIBUTE;
+    updateRoomMapping(): Promise<void>;
+    getCommandParams(method: string, params?: unknown): Promise<unknown>;
     updateCleanSummary(): Promise<void>;
     private getCleaningRecordMap;
     updateMap(): Promise<void>;

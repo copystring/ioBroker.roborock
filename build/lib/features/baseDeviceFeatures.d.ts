@@ -166,6 +166,13 @@ export declare abstract class BaseDeviceFeatures {
      */
     hasStaticFeature(feature: Feature): boolean;
     /**
+     * Allows feature handlers to provide/modify parameters for a command before sending.
+     * Override this to implement logic like 'app_segment_clean' gathering segments from states.
+     * @param method Command method name.
+     * @param params Existing parameters passed from caller.
+     */
+    getCommandParams(method: string, params?: unknown): Promise<unknown>;
+    /**
      * Fetch data and store in folder.
      * @param method API method.
      * @param params API parameters.

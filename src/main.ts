@@ -109,6 +109,7 @@ export class Roborock extends utils.Adapter {
 			this.subscribeStatesAsync("Devices.*.resetConsumables.*");
 			this.subscribeStatesAsync("Devices.*.programs.startProgram");
 			this.subscribeStatesAsync("Devices.*.deviceInfo.online");
+			this.subscribeStatesAsync("Devices.*.floors.*.load");
 
 			this.log.info(`Adapter startup finished. Let's go!`);
 			this.isInitializing = false;
@@ -182,11 +183,19 @@ export class Roborock extends utils.Adapter {
 		// Special handling for floors (deeply nested: Devices.duid.floors.mapFlag.load)
 		if (folder === "floors" && idParts.length >= 7 && idParts[6] === "load") {
 			const mapFlag = parseInt(idParts[5], 10);
-			if (state.val === true) {
+			if (state.val === true || state.val === "true" || state.val === 1) {
 				const handler = this.deviceFeatureHandlers.get(duid);
 				if (handler) {
 					this.log.info(`[onStateChange] Loading map ${mapFlag} for ${duid}`);
 					await this.requestsHandler.command(handler, duid, "load_multi_map", [mapFlag]);
+
+					// Trigger update of room mapping and map after switching floors
+					setTimeout(async () => {
+						this.log.info(`[onStateChange] Updating map and rooms after floor switch for ${duid}`);
+						await handler.updateRoomMapping();
+						await handler.updateMap();
+					}, 2000); // Small delay to let the robot process the switch
+
 					// Reset button
 					this.setTimeout(() => this.setState(id, false, true), 1000);
 				}

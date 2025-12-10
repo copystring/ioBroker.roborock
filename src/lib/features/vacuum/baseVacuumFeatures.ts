@@ -316,19 +316,11 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 		const hasDssInStatus = validStatus.dss !== undefined;
 		const hasSupportedDock = validStatus.dock_type !== undefined && dssSupportedDockTypes.includes(validStatus.dock_type);
 
-		console.error(`[DSS-DEBUG] Robot ${this.duid} (${this.robotModel}): hasDssInStatus=${hasDssInStatus}, hasSupportedDock=${hasSupportedDock}, dock_type=${validStatus.dock_type}, dss=${validStatus.dss}, alreadyApplied=${this.appliedFeatures.has(Feature.DockingStationStatus)}`);
-
 		if ((hasDssInStatus || hasSupportedDock) && !this.appliedFeatures.has(Feature.DockingStationStatus)) {
-			console.error(`[DSS-DEBUG] Attempting to apply Feature.DockingStationStatus for ${this.duid}`);
 			if (await this.applyFeature(Feature.DockingStationStatus)) {
-				console.error(`[DSS-DEBUG] Successfully applied Feature.DockingStationStatus for ${this.duid}`);
 				changedByStatus = true;
 				appliedFeaturesList.push("DockingStationStatus");
-			} else {
-				console.error(`[DSS-DEBUG] FAILED to apply Feature.DockingStationStatus for ${this.duid}`);
 			}
-		} else {
-			console.error(`[DSS-DEBUG] Skipping DockingStationStatus for ${this.duid}: condition not met or already applied`);
 		}
 
 		// Ensure Consumables features are applied (standard for all vacuums really, but good to be explicit)
@@ -682,10 +674,8 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 
     @BaseDeviceFeatures.DeviceFeature(Feature.DockingStationStatus)
     protected async createDockingStationStatusStates(): Promise<void> {
-    	console.error(`[DSS-DEBUG] createDockingStationStatusStates called for ${this.duid}`);
     	try {
     		await this.deps.ensureFolder(`Devices.${this.duid}.dockingStationStatus`);
-    		console.error(`[DSS-DEBUG] Created dockingStationStatus folder for ${this.duid}`);
 
     		// Common states mapping for docking station status values (from original implementation)
     		const commonStates = {
@@ -713,12 +703,9 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     				write: false,
     				states: commonStates
     			});
-    			console.error(`[DSS-DEBUG] Created state: dockingStationStatus.${stateDef.key} for ${this.duid}`);
     		}
 
-    		console.error(`[DSS-DEBUG] Successfully created all ${stateDefinitions.length} docking station status states for ${this.duid}`);
     	} catch (error) {
-    		console.error(`[DSS-DEBUG] ERROR creating dockingStationStatus states for ${this.duid}:`, error);
     		throw error;
     	}
     }
@@ -924,6 +911,131 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     	8: "finish_reason",
     	9: "dust_collection_status",
     };
+
+    public override async updateRoomMapping(): Promise<void> {
+    	try {
+    		const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_room_mapping", []);
+
+    		if (!Array.isArray(result) || result.length === 0) {
+    			return;
+    		}
+
+    		let mapStatus = 0;
+    		const mapStatusState = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.deviceStatus.map_status`);
+
+    		if (mapStatusState && typeof mapStatusState.val === "number") {
+    			mapStatus = mapStatusState.val;
+    		} else {
+    			const statusRes = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_prop", ["get_status"]);
+    			if (Array.isArray(statusRes) && statusRes[0] && typeof statusRes[0] === "object" && "map_status" in statusRes[0]) {
+    				mapStatus = Number((statusRes[0] as any)["map_status"]);
+    			}
+    		}
+
+    		const roomFloor = mapStatus >> 2;
+    		const roomIDs = this.deps.http_api.getMatchedRoomIDs(true);
+
+    		for (const item of result) {
+    			if (!Array.isArray(item) || item.length < 2) continue;
+    			const shortID = item[0];
+    			const roomID = String(item[1]);
+
+    			const room = roomIDs.find((r) => String(r.id) === roomID);
+    			const roomName = room ? room.name : `Room ${shortID}`;
+    			const pathName = `${roomFloor}.${shortID}`;
+
+    			await this.ensureState("floors", pathName, {
+    				name: roomName,
+    				type: "boolean",
+    				role: "value",
+    				def: true,
+    				write: true,
+    				read: true
+    			});
+
+    			// Only set to true if not already set? Old code set it always.
+    			// Start with true (selected)
+    			await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.floors.${pathName}`, { val: true, ack: true });
+    		}
+
+    		await this.ensureState("floors", "cleanCount", {
+    			name: "Clean count",
+    			type: "number",
+    			role: "value",
+    			def: 1,
+    			min: 1,
+    			max: 10,
+    			write: true,
+    			read: true
+    		});
+    	} catch (e: any) {
+    		this.deps.log.warn(`[${this.duid}] Failed to update room mapping: ${e.message}`);
+    	}
+    }
+
+
+
+    public override async getCommandParams(method: string, params?: unknown): Promise<unknown> {
+    	if (method === "app_segment_clean") {
+    		try {
+    			this.deps.log.debug(`[${this.duid}] Generating params for app_segment_clean...`);
+    			const roomList: { segments: number[]; repeat: number } = { segments: [], repeat: 1 };
+
+    			// 1. Get current map/floor
+    			const mapStatusState = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.deviceStatus.map_status`);
+    			let roomFloor = 0;
+    			if (mapStatusState && typeof mapStatusState.val === "number") {
+    				roomFloor = mapStatusState.val >> 2;
+    			} else {
+    				this.deps.log.warn(`[${this.duid}] app_segment_clean: map_status not available, assuming floor 0.`);
+    			}
+
+    			// 2. Get Room Mapping (to know which IDs to check)
+    			// We use the cached/latest mapping from API because looking up folders is harder without knowing IDs
+    			const mappedRoomList = (await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_room_mapping", [], { priority: 1 })) as any[];
+
+    			if (Array.isArray(mappedRoomList)) {
+    				for (const item of mappedRoomList) {
+    					// item: [shortID, roomID]
+    					if (!Array.isArray(item) || item.length < 1) continue;
+    					const shortID = item[0];
+
+    					// 3. Check 'floors.floor.shortID' state
+    					const statePath = `Devices.${this.duid}.floors.${roomFloor}.${shortID}`;
+    					const roomState = await this.deps.adapter.getStateAsync(statePath);
+
+    					if (roomState && roomState.val === true) {
+    						roomList.segments.push(shortID);
+    					}
+    				}
+    			}
+
+    			// 4. Get Repeat Count
+    			const cleanCountState = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.floors.cleanCount`);
+    			if (cleanCountState && typeof cleanCountState.val === "number") {
+    				roomList.repeat = cleanCountState.val;
+    			}
+
+    			// 5. Build Final Params
+    			if (roomList.segments.length === 0) {
+    				this.deps.log.warn(`[${this.duid}] app_segment_clean: No rooms selected! Command might be ignored by robot.`);
+    			} else {
+    				this.deps.log.info(`[${this.duid}] Starting segment clean for rooms: ${roomList.segments.join(", ")} (Repeat: ${roomList.repeat})`);
+    			}
+
+    			// Reset count to 1 after start (from legacy behavior)
+    			await this.deps.adapter.setStateAsync(`Devices.${this.duid}.floors.cleanCount`, { val: 1, ack: true });
+
+    			// Roborock expects array of objects? Legacy code: [roomList]
+    			return [roomList];
+
+    		} catch (e: any) {
+    			this.deps.log.error(`[${this.duid}] Failed to generate params for app_segment_clean: ${e.message}`);
+    			return params; // Fallback
+    		}
+    	}
+    	return params;
+    }
 
     public override async updateCleanSummary(): Promise<void> {
     	try {
@@ -1166,6 +1278,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 
     				// Create folder for this floor (using mapFlag as stable ID)
     				await this.deps.ensureFolder(`Devices.${this.duid}.floors.${mapFlag}`);
+    				await this.deps.adapter.extendObjectAsync(`Devices.${this.duid}.floors.${mapFlag}`, { common: { name } });
 
     				// Create States
     				await this.ensureState(`floors.${mapFlag}`, "name", { name: "Floor Name", type: "string", write: false });

@@ -301,7 +301,11 @@ class requestsHandler {
         return attempt(0);
     }
     async command(_handler, duid, method, params) {
-        const requestPromise = this.sendRequest(duid, method, params, { priority: 1 });
+        let finalParams = params;
+        if (_handler) {
+            finalParams = await _handler.getCommandParams(method, params);
+        }
+        const requestPromise = this.sendRequest(duid, method, finalParams, { priority: 1 });
         this._processResult(requestPromise, async () => {
             // Command success
         }, `command-${method}-${duid}`, duid);
