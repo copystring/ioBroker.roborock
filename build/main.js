@@ -17,23 +17,13 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -52,6 +42,7 @@ const mqttApi_1 = require("./lib/mqttApi");
 const socketHandler_1 = require("./lib/socketHandler");
 const deviceManager_1 = require("./lib/deviceManager");
 const features_enum_1 = require("./lib/features/features.enum");
+const buildInfo_1 = require("./lib/buildInfo");
 class Roborock extends utils.Adapter {
     // --- Public APIs (accessible by helpers) ---
     http_api;
@@ -62,7 +53,6 @@ class Roborock extends utils.Adapter {
     deviceManager;
     // --- Internal Properties ---
     deviceFeatureHandlers;
-    socket;
     nonce;
     pendingRequests;
     roborock_package_helper;
@@ -73,12 +63,7 @@ class Roborock extends utils.Adapter {
     instance = 0;
     constructor(options = {}) {
         super({ ...options, name: "roborock", useFormatDate: true });
-        this.on("ready", this.onReady.bind(this));
-        this.on("stateChange", this.onStateChange.bind(this));
-        this.on("message", this.onMessage.bind(this));
-        this.on("unload", this.onUnload.bind(this));
         this.instance = options.instance || 0;
-        this.socket = null;
         this.nonce = (0, crypto_1.randomBytes)(16);
         this.pendingRequests = new Map();
         this.http_api = new httpApi_1.http_api(this);
@@ -90,30 +75,49 @@ class Roborock extends utils.Adapter {
         this.deviceFeatureHandlers = this.deviceManager.deviceFeatureHandlers; // Reference DM's map
         this.roborock_package_helper = new roborock_package_helper_1.roborock_package_helper(this);
         this.isInitializing = true;
+        this.on("ready", this.onReady.bind(this));
+        this.on("stateChange", this.onStateChange.bind(this));
+        this.on("message", this.onMessage.bind(this));
+        this.on("unload", this.onUnload.bind(this));
     }
     /**
      * Adapter ready logic.
      */
     async onReady() {
         // Config properties are now type-safe thanks to types.d.ts
-        if (!this.config.username || !this.config.password) {
-            this.log.error("Username or password missing!");
+        if (!this.config.username) {
+            this.log.error("Username missing!");
             return;
         }
         this.sentryInstance = this.getPluginInstance("sentry");
         this.translations = require(`../admin/i18n/${this.language || "en"}/translations.json`);
         this.log.info(`Starting adapter. This might take a few minutes...`);
+        this.log.info(`Build Info: Date=${buildInfo_1.buildInfo.buildDate}, Commit=${buildInfo_1.buildInfo.commitHash}`);
         await this.setupBasicObjects();
         try {
             const clientID = await this.ensureClientID();
             await this.http_api.init(clientID);
             await this.mqtt_api.init();
             await this.http_api.updateHomeData();
+            if (this.config.downloadRoborockImages) {
+                this.log.info("Downloading Roborock images...");
+                await this.http_api.downloadProductImages();
+                // Download additional assets (icons, etc)
+                const devices = this.http_api.getDevices();
+                for (const device of devices) {
+                    await this.roborock_package_helper.updateProduct(device.duid);
+                }
+            }
             await this.local_api.startUdpDiscovery();
             await this.deviceManager.initializeDevices();
             await this.processScenes();
             this.deviceManager.startPolling();
             await this.start_go2rtc();
+            this.subscribeStatesAsync("Devices.*.commands.*");
+            this.subscribeStatesAsync("Devices.*.resetConsumables.*");
+            this.subscribeStatesAsync("Devices.*.programs.startProgram");
+            this.subscribeStatesAsync("Devices.*.deviceInfo.online");
+            this.subscribeStatesAsync("Devices.*.floors.*.load");
             this.log.info(`Adapter startup finished. Let's go!`);
             this.isInitializing = false;
         }
@@ -157,30 +161,78 @@ class Roborock extends utils.Adapter {
      * Is called if a subscribed state changes.
      */
     async onStateChange(id, state) {
-        if (!state || state.ack) {
-            if (state?.ack && id.endsWith(".online")) {
+        if (!state)
+            return;
+        if (state.ack) {
+            // ... (keep usage of id, state if needed, or previous code)
+            if (id.endsWith(".online")) {
                 this.log.info(`Device ${id.split(".")[3]} is now ${state.val ? "online" : "offline"}`);
             }
             return;
         }
+        // Split ID once
         const idParts = id.split(".");
+        // Check for root loginCode (roborock.0.loginCode)
+        if (idParts[2] === "loginCode" && state.val && String(state.val).length === 6) {
+            this.http_api.submitLoginCode(String(state.val));
+            return;
+        }
+        // Devices logic
+        if (idParts[2] !== "Devices")
+            return;
         const duid = idParts[3];
         const folder = idParts[4];
         const command = idParts[5];
-        this.log.debug(`onStateChange: ${command} for ${duid} with value: ${state.val}`);
+        // Special handling for floors (deeply nested: Devices.duid.floors.mapFlag.load)
+        if (folder === "floors" && idParts.length >= 7 && idParts[6] === "load") {
+            const mapFlag = parseInt(idParts[5], 10);
+            if (state.val === true || state.val === "true" || state.val === 1) {
+                const handler = this.deviceFeatureHandlers.get(duid);
+                if (handler) {
+                    this.log.info(`[onStateChange] Loading map ${mapFlag} for ${duid}`);
+                    await this.requestsHandler.command(handler, duid, "load_multi_map", [mapFlag]);
+                    // Trigger update of room mapping and map after switching floors
+                    setTimeout(async () => {
+                        this.log.info(`[onStateChange] Updating map and rooms after floor switch for ${duid}`);
+                        await handler.updateRoomMapping();
+                        await handler.updateMap();
+                    }, 2000); // Small delay to let the robot process the switch
+                    // Reset button
+                    this.setTimeout(() => this.setState(id, false, true), 1000);
+                }
+            }
+            return;
+        }
+        this.log.info(`[onStateChange] Processing command: ${command} for ${duid} in folder: ${folder}`);
         const handler = this.deviceFeatureHandlers.get(duid);
         if (!handler) {
             this.log.warn(`[onStateChange] Received command for unknown DUID: ${duid}`);
             return;
         }
         try {
-            if (folder === "resetConsumables" && state.val === true) {
-                await this.requestsHandler.command(handler, duid, "reset_consumable", command);
-            }
-            else if (folder === "programs" && command === "startProgram") {
-                await this.http_api.executeScene(state);
-            }
-            else if (folder === "commands") {
+            await this.handleCommand(duid, folder, command, state, handler, id);
+        }
+        catch (e) {
+            this.catchError(e, `onStateChange (${command})`, duid);
+        }
+    }
+    /**
+     * Handles commands from onStateChange.
+     */
+    async handleCommand(duid, folder, command, state, handler, id) {
+        if (folder === "resetConsumables" && state.val === true) {
+            await this.requestsHandler.command(handler, duid, "reset_consumable", command);
+            // Reset button
+            this.setTimeout(() => {
+                this.setState(id, false, true);
+            }, 1000);
+        }
+        else if (folder === "programs" && command === "startProgram") {
+            await this.http_api.executeScene(state);
+        }
+        else if (folder === "commands") {
+            this.log.info(`[handleCommand] Entering commands block for ${command}`);
+            try {
                 // Handle specific commands
                 switch (command) {
                     case "load_multi_map":
@@ -189,13 +241,19 @@ class Roborock extends utils.Adapter {
                     case "app_start":
                     case "app_charge":
                     case "app_spot":
-                        if (state.val === true) {
+                        this.log.info(`[handleCommand] Checking boolean command ${command}. Val: ${state.val}`);
+                        if (state.val === true || state.val === "true" || state.val === 1) {
+                            this.log.info(`[handleCommand] Triggering command ${command} for ${duid}`);
                             await this.requestsHandler.command(handler, duid, command);
+                        }
+                        else {
+                            this.log.info(`[handleCommand] Command ${command} NOT triggered because value is not true.`);
                         }
                         break;
                     case "app_segment_clean":
-                        if (state.val === true) {
+                        if (state.val === true || state.val === "true" || state.val === 1) {
                             // This command reads other states (selected rooms, count)
+                            this.log.info(`[handleCommand] Triggering app_segment_clean for ${duid}`);
                             await this.requestsHandler.command(handler, duid, command);
                         }
                         break;
@@ -206,24 +264,34 @@ class Roborock extends utils.Adapter {
                             const params = JSON.parse(state.val);
                             await this.requestsHandler.command(handler, duid, command, params);
                         }
-                        catch (e) {
+                        catch {
                             this.log.error(`Invalid JSON for ${command}: ${state.val}`);
                         }
                         break;
                     default:
                         // Default handler for simple set commands
-                        await this.requestsHandler.command(handler, duid, command, state.val);
+                        // If it's a boolean command (button), we only trigger on true (or truthy)
+                        if (typeof state.val === "boolean") {
+                            if (state.val === true) {
+                                await this.requestsHandler.command(handler, duid, command, state.val);
+                            }
+                        }
+                        else {
+                            // For non-boolean, just send the value
+                            await this.requestsHandler.command(handler, duid, command, state.val);
+                        }
                 }
             }
-            // Reset button presses
-            if (typeof state.val === "boolean" && state.val === true) {
-                this.commandTimeout = this.setTimeout(() => {
-                    this.setState(id, false, true);
-                }, 1000);
+            finally {
+                // Reset boolean command state
+                if ((typeof state.val === "boolean" && state.val === true) || state.val === "true" || state.val === 1) {
+                    this.log.info(`[handleCommand] Scheduling reset for ${id}`);
+                    this.commandTimeout = this.setTimeout(() => {
+                        this.log.info(`[handleCommand] Resetting ${id} to false`);
+                        this.setState(id, false, true);
+                    }, 1000);
+                }
             }
-        }
-        catch (e) {
-            this.catchError(e, `onStateChange (${command})`, duid);
         }
     }
     /**
@@ -231,7 +299,7 @@ class Roborock extends utils.Adapter {
      */
     async ensureClientID() {
         try {
-            const clientIDState = await this.getStateAsync("clientID"); // Use Async
+            const clientIDState = await this.getStateAsync("clientID"); // Revert to Async
             if (clientIDState?.val) {
                 this.log.info(`Loaded existing clientID: ${clientIDState.val}`);
                 return clientIDState.val.toString();
@@ -328,7 +396,7 @@ class Roborock extends utils.Adapter {
                     common.type = typeof value;
                 }
                 await this.ensureState(`Devices.${duid}.deviceInfo.${attr}`, common);
-                await this.setStateChangedAsync(`Devices.${duid}.deviceInfo.${attr}`, { val: value, ack: true });
+                await this.setStateChanged(`Devices.${duid}.deviceInfo.${attr}`, { val: value, ack: true });
             }
         }
     }
@@ -340,13 +408,18 @@ class Roborock extends utils.Adapter {
         if (!isLocal)
             return;
         try {
+            this.log.debug(`[checkForNewFirmware] Checking for firmware update for ${duid}...`);
             const update = await this.http_api.getFirmwareStates(duid);
+            this.log.debug(`[checkForNewFirmware] Result for ${duid}: ${JSON.stringify(update)}`);
             if (update.data.result) {
                 for (const state in update.data.result) {
                     const value = update.data.result[state];
                     await this.ensureState(`Devices.${duid}.updateStatus.${state}`, { type: typeof value });
-                    await this.setStateChangedAsync(`Devices.${duid}.updateStatus.${state}`, { val: value, ack: true });
+                    await this.setStateChanged(`Devices.${duid}.updateStatus.${state}`, { val: value, ack: true });
                 }
+            }
+            else {
+                this.log.warn(`[checkForNewFirmware] No result in firmware update response for ${duid}`);
             }
         }
         catch (error) {
@@ -374,21 +447,22 @@ class Roborock extends utils.Adapter {
         try {
             oldObj = await this.getObjectAsync(path);
         }
-        catch (e) {
+        catch {
             oldObj = null; // Does not exist
         }
         // Check if object exists AND if its type is different from what we need
         if (!oldObj || oldObj.common.type !== finalCommon.type) {
             if (oldObj) {
-                // Object exists, but type is wrong
+                // Object exists, but type is wrong - let's fix it
                 this.log.warn(`[ensureState] Correcting data type for "${path}". Old: "${oldObj.common.type}", New: "${finalCommon.type}".`);
-                // We must merge the old common object with our new type
+                // Safely merge common properties, ensuring type is updated
                 const newCommon = { ...oldObj.common, ...finalCommon };
+                // Force extension to apply changes
                 await this.extendObject(path, { common: newCommon });
             }
             else {
                 // Object does not exist, create it new
-                await this.setObjectAsync(path, {
+                await this.setObject(path, {
                     type: "state",
                     common: finalCommon,
                     native: native,
@@ -463,7 +537,7 @@ class Roborock extends utils.Adapter {
             this.log.warn(`[A01|${duid}] Invalid response: ${JSON.stringify(response)}`);
             return;
         }
-        this.log.debug(`[A01|${duid}] Processing: ${JSON.stringify(response.dps)}`);
+        this.log.debug(`[A01] Update for ${duid}: ${JSON.stringify(response.dps)}`);
         const determineType = (value) => {
             const t = typeof value;
             if (t === "number")
@@ -481,9 +555,9 @@ class Roborock extends utils.Adapter {
                     await processNested(path, value);
                 }
                 else {
-                    let val = typeof value === "object" || value === null ? JSON.stringify(value) : value;
+                    const val = typeof value === "object" || value === null ? JSON.stringify(value) : value;
                     await this.ensureState(path, { name: key, type: determineType(value), write: false });
-                    await this.setStateChangedAsync(path, { val, ack: true });
+                    await this.setStateChanged(path, { val, ack: true });
                 }
             }
         };
@@ -509,7 +583,7 @@ class Roborock extends utils.Adapter {
             else {
                 const path = `Devices.${duid}.deviceStatus.${id}`;
                 await this.ensureState(path, { name: stateName, type: determineType(value), write: false });
-                await this.setStateChangedAsync(path, { val: parsedValue, ack: true });
+                await this.setStateChanged(path, { val: parsedValue, ack: true });
             }
         }
     }

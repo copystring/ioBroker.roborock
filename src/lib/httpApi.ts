@@ -1,12 +1,44 @@
 import { Roborock } from "../main";
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from "axios";
-import crypto from "crypto";
+import * as crypto from "crypto";
+import { ProductV5Response, LoginV4Response } from "./apiTypes";
+import { cryptoEngine } from "./cryptoEngine";
 
-// Credits to rovo89 for the initial reverse engineering
-// https://gist.github.com/rovo89/dff47ed19fca0dfdda77503e66c2b7c7
+// Constants
+const API_V3_SIGN = "api/v3/key/sign";
+const API_V4_LOGIN_CODE = "api/v4/auth/email/login/code";
+const API_V4_LOGIN_PASSWORD = "api/v4/auth/email/login/pwd";
+const API_V4_EMAIL_CODE = "api/v4/email/code/send";
+const API_V5_PRODUCT = "api/v5/product";
 
-const API_BASE_URL = "https://euiot.roborock.com";
-const API_LOGIN_ENDPOINT = "api/v1/login";
+interface RegionConfig {
+	apiBaseUrl: string;
+	loginCountry: string;
+	loginCountryCode: string;
+}
+
+const REGION_CONFIG: Record<string, RegionConfig> = {
+	eu: {
+		apiBaseUrl: "https://euiot.roborock.com",
+		loginCountry: "DE",
+		loginCountryCode: "49",
+	},
+	us: {
+		apiBaseUrl: "https://usiot.roborock.com",
+		loginCountry: "US",
+		loginCountryCode: "1",
+	},
+	cn: {
+		apiBaseUrl: "https://cniot.roborock.com",
+		loginCountry: "CN",
+		loginCountryCode: "86",
+	},
+	asia: {
+		apiBaseUrl: "https://api.roborock.com", // Fallback/General based on bundle analysis
+		loginCountry: "SG", // Default to Singapore for general Asia
+		loginCountryCode: "65",
+	},
+};
 
 // --------------------
 // Interfaces & Types
@@ -23,10 +55,9 @@ interface RriotData {
 interface UserData {
 	token: string;
 	rriot: RriotData;
-	// ... other potential user fields
 }
 
-interface Device {
+export interface Device {
 	duid: string;
 	localKey: string;
 	productId: string;
@@ -67,22 +98,17 @@ function md5hex(str: string): string {
 
 export class http_api {
 	adapter: Roborock;
-	loginApi: AxiosInstance | null;
-	realApi: AxiosInstance | null;
-	userData: UserData | null;
-	homeData: HomeData | null;
-	homeID: string | null;
+	loginApi: AxiosInstance | null = null;
+	realApi: AxiosInstance | null = null;
+	userData: UserData | null = null;
+	homeData: HomeData | null = null;
+	homeID: number | null = null;
+	public productInfo: ProductV5Response | null = null;
 
 	private fwFeaturesCache = new Map<string, number[]>();
 
 	constructor(adapter: Roborock) {
 		this.adapter = adapter;
-
-		this.loginApi = null;
-		this.realApi = null;
-		this.userData = null;
-		this.homeData = null;
-		this.homeID = null;
 	}
 
 	/**
@@ -91,64 +117,175 @@ export class http_api {
 	 */
 	async init(clientID: string): Promise<void> {
 		// Initialize the login API (needed to get access to the real API)
+		const region = this.adapter.config.region || "eu";
+		const regionConfig = REGION_CONFIG[region] || REGION_CONFIG["eu"];
+
+		this.adapter.log.info(`Initializing HTTP API with region: ${region} (${regionConfig.apiBaseUrl})`);
+
 		this.loginApi = axios.create({
-			baseURL: API_BASE_URL,
+			baseURL: regionConfig.apiBaseUrl,
 			headers: {
 				header_clientid: crypto.createHash("md5").update(this.adapter.config.username).update(clientID).digest().toString("base64"),
+				header_appversion: "4.54.02",
+				header_clientlang: "de",  // Assuming DE based on dump, or use adapter.config.language/system lang
+				header_phonemodel: "Pixel 9 Pro XL", // Using dump value to mimic real device
+				header_phonesystem: "Android",
 			},
 		});
+
+		// Attempt to restore session
+		await this.loadUserData();
 
 		await this.initializeRealApi();
 		await this.getHomeID();
 	}
 
 	/**
+	 * Restores UserData from state.
+	 */
+	async loadUserData(): Promise<void> {
+		try {
+			const userDataState = await this.adapter.getStateAsync("UserData");
+			if (userDataState && userDataState.val) {
+				const data = JSON.parse(userDataState.val as string);
+				if (data && data.token && data.rriot) {
+					this.userData = data;
+					this.adapter.log.info("Restored persisted UserData.");
+				}
+			}
+		} catch {
+			this.adapter.log.debug(`No previous UserData found or invalid.`);
+		}
+	}
+
+	/**
 	 * Logs in (if necessary) and sets up the authenticated "Real API" with Hawk authentication.
 	 */
+	private loginCodeResolver: ((code: string) => void) | null = null;
+
+	public submitLoginCode(code: string): void {
+		if (this.loginCodeResolver) {
+			this.loginCodeResolver(code);
+			this.loginCodeResolver = null;
+		}
+	}
+
 	async initializeRealApi(): Promise<void> {
 		this.adapter.log.debug(`initialize http_api`);
 
 		if (!this.loginApi) {
 			throw new Error("loginApi is not initialized. Call init() first.");
 		}
-
-		// 1. Try to load existing userdata from ioBroker state
-		const storedUserData = await this.adapter.getStateAsync("UserData");
-		if (storedUserData && storedUserData.val && typeof storedUserData.val === "string") {
-			try {
-				this.userData = JSON.parse(storedUserData.val);
-			} catch (e) {
-				this.adapter.log.warn("Failed to parse stored UserData, will re-login.");
-				this.userData = null;
-			}
-		}
-
-		// 2. If no valid userdata, perform login
 		if (!this.userData) {
 			try {
-				this.userData = await this.loginApi
-					.post(
-						API_LOGIN_ENDPOINT,
-						new URLSearchParams({
-							username: this.adapter.config.username,
-							password: this.adapter.config.password,
-							needtwostepauth: "false",
-						}).toString()
-					)
-					.then((res) => res.data.data);
+				let usePasswordFlow = this.adapter.config.loginMethod === "password" && !!this.adapter.config.password;
+
+				// 1. Sign Request (Get K) - needed for both password and code login (for password encryption or code verification)
+				// Use a random 16-char string for 's' (nonce/salt)
+				const s = crypto.randomBytes(12).toString("base64").substring(0, 16).replace(/\+/g, "X").replace(/\//g, "Y");
+				const signData = await this.signRequest(s);
+				if (!signData) throw new Error("Failed to obtain signature key k");
+				const k = signData.k;
+
+				if (usePasswordFlow) {
+					this.adapter.log.info("Starting Password Login Flow...");
+					try {
+						const loginResult = await this.loginByPassword(this.adapter.config.password, k, s);
+						if (loginResult.code === 200) {
+							this.userData = loginResult.data!;
+							this.adapter.log.info("Login with password successful.");
+						} else if (loginResult.code === 2031) {
+							this.adapter.log.warn("Password login requires 2FA (Code 2031). Falling back to 2FA flow.");
+							usePasswordFlow = false;
+						} else {
+							throw new Error(`Login with password failed: ${JSON.stringify(loginResult)}`);
+						}
+					} catch (e: any) {
+						this.adapter.log.error(`Password login error: ${e.message}`);
+						// If explicit 2031 (handled above) or other error, we might decide to fallback or fail.
+						// Current logic: if it was 2031, usePasswordFlow is set to false, so we fall through to 2FA.
+						// If it was another error (e.g. wrong password), we should probably stop?
+						// For safety/flexibility, if we flagged 'false' above, we continue. If we threw, we stop.
+						if (usePasswordFlow) throw e;
+					}
+				}
+
+				// If not using password flow (or fell back)
+				if (!this.userData && !usePasswordFlow) {
+					this.adapter.log.info("Starting Direct 2FA Login Flow...");
+
+					// 1. Request Email Code
+					await this.requestEmailCode(this.adapter.config.username);
+
+					this.adapter.log.error("********************************************************************************");
+					this.adapter.log.error("ATTENTION: 2FA Code required!");
+					this.adapter.log.error(`An email has been sent to ${this.adapter.config.username}.`);
+					this.adapter.log.error("Please enter the 6-digit code into the state 'roborock.0.loginCode' immediately.");
+					this.adapter.log.error("********************************************************************************");
+
+					// State at root: roborock.0.loginCode
+					const stateId = "loginCode";
+					await this.adapter.ensureState(stateId, { name: "2FA Login Code", write: true, type: "string", def: "" });
+					await this.adapter.setState(stateId, { val: "", ack: true });
+
+					await this.adapter.subscribeStatesAsync(stateId);
+
+					// 2. Wait for Code
+					let code = "";
+					try {
+						code = await new Promise<string>((resolve, reject) => {
+							this.loginCodeResolver = resolve;
+							// Timeout after 15 minutes
+							setTimeout(() => {
+								if (this.loginCodeResolver) {
+									this.loginCodeResolver = null;
+									reject(new Error("Timeout waiting for 2FA code"));
+								}
+							}, 15 * 60 * 1000); // 15 min
+						});
+					} catch (e: any) {
+						throw e;
+					}
+
+					this.adapter.log.info(`Got 2FA code: ${code}`);
+					await this.adapter.unsubscribeStatesAsync(stateId);
+
+					// 3. Login with Code
+					// Reuse k/s from strictly before if possible? No, 'signRequest' was likely called at start.
+					// However, the signature 's' and 'k' might expire or be one-time?
+					// The dump usage implies sign is called before login.
+					// We already called signRequest above. We should be able to reuse 'k' and 's' IF they are not one-time use or time-bound.
+					// Safest is to re-sign if we think it might have expired, but for now reuse.
+
+					const loginResult = await this.loginWithCode(code, k, s);
+
+					if (loginResult.code === 200) {
+						this.userData = loginResult.data!; // data IS UserData
+						await this.adapter.setState(stateId, { val: "", ack: true });
+					} else {
+						throw new Error(`Login with code failed: ${JSON.stringify(loginResult)}`);
+					}
+				}
 
 				if (!this.userData) {
 					throw new Error("Login returned empty userdata.");
 				}
 
 				await this.adapter.setState("UserData", { val: JSON.stringify(this.userData), ack: true });
+
+				// Load product definitions (V5 API)
+				try {
+					this.productInfo = await this.getProductInfoV5();
+					if (this.productInfo) {
+						this.adapter.log.info(`Files downloaded: ${this.productInfo.data.productList.length} products found.`);
+						await this.adapter.setState("info.productInfo", { val: JSON.stringify(this.productInfo), ack: true });
+					}
+				} catch (err) {
+					this.adapter.log.warn(`Failed to get product info V5: ${err}`);
+				}
+
 			} catch (error: any) {
-				this.adapter.log.error(`Error in getUserData: ${error.message}. This is most likely due to too many reconnects. Emptying UserData & HomeData`);
-
-				await this.adapter.setState("HomeData", { val: null, ack: true });
-				await this.adapter.setState("UserData", { val: null, ack: true });
-
-				// Rethrow or handle gracefully? Rethrowing to stop init.
+				this.adapter.log.error(`Error in initializeRealApi: ${error.message}`);
 				throw error;
 			}
 		}
@@ -202,6 +339,152 @@ export class http_api {
 		} catch (error: any) {
 			this.adapter.log.error(`Error in initializeRealApi: ${error.stack}`);
 			await this.adapter.setState("info.connection", { val: false, ack: true });
+		}
+	}
+
+	async requestEmailCode(username: string): Promise<void> {
+		if (!this.loginApi) throw new Error("loginApi is not initialized.");
+
+		try {
+			// Match user dump: type=login&email=...&platform=
+			const params = new URLSearchParams();
+			params.append("type", "login");
+			params.append("email", username);
+			params.append("platform", ""); // empty in dump
+
+			const res = await this.loginApi.post(API_V4_EMAIL_CODE, params.toString());
+
+			if (res.data && res.data.code != 200) {
+				throw new Error(`Start 2FA failed: ${res.data.msg} (Code: ${res.data.code})`);
+			}
+		} catch (error: any) {
+			if (error.response && error.response.data) {
+				this.adapter.log.error(`Request email code failed with response: ${JSON.stringify(error.response.data)}`);
+			}
+			throw error; // Re-throw exact error to be caught by caller
+		}
+	}
+
+	async signRequest(s: string): Promise<{ k: string } | null> {
+		if (!this.loginApi) return null;
+
+		try {
+			// Dump shows POST to sign endpoint without body, params in URL.
+			// axios.post(url) works.
+			const res = await this.loginApi.post(`${API_V3_SIGN}?s=${s}`);
+			return res.data.data;
+		} catch (e: any) {
+			this.adapter.log.error(`SignRequest failed: ${e.message}`);
+			return null;
+		}
+	}
+
+	async loginWithCode(code: string, k: string, s: string): Promise<LoginV4Response> {
+		if (!this.loginApi) throw new Error("loginApi not initialized");
+
+		// Dump shows x-mercy headers and specific body
+		// NO HMAC 'h' in body shown in dump for this request!
+		// Headers: x-mercy-k, x-mercy-ks
+
+		const headers = {
+			"x-mercy-k": k,
+			"x-mercy-ks": s
+			// content-type application/x-www-form-urlencoded is default for axios with URLSearchParams
+		};
+
+		const region = this.adapter.config.region || "eu";
+		const regionConfig = REGION_CONFIG[region] || REGION_CONFIG["eu"];
+
+		const params = new URLSearchParams({
+			country: regionConfig.loginCountry,
+			countryCode: regionConfig.loginCountryCode,
+			email: this.adapter.config.username,
+			code: code,
+			majorVersion: "14", // from dump
+			minorVersion: "0"   // from dump
+		});
+
+		try {
+			const res = await this.loginApi.post(API_V4_LOGIN_CODE, params.toString(), { headers });
+			return res.data;
+		} catch (e: any) {
+			throw new Error(`Login with code failed: ${e.message}`);
+		}
+	}
+
+	async loginByPassword(password: string, k: string, s: string): Promise<LoginV4Response> {
+		if (!this.loginApi) throw new Error("loginApi not initialized");
+
+		const encryptedPassword = cryptoEngine.encryptPassword(password, k);
+
+		const headers = {
+			"x-mercy-k": k,
+			"x-mercy-ks": s
+		};
+
+		const params = new URLSearchParams({
+			email: this.adapter.config.username,
+			password: encryptedPassword,
+			majorVersion: "14",
+			minorVersion: "0"
+		});
+
+		try {
+			const res = await this.loginApi.post(API_V4_LOGIN_PASSWORD, params.toString(), { headers });
+			return res.data;
+		} catch (e: any) {
+			if (e.response && e.response.data) {
+				return e.response.data; // Return the error response payload (with code 2031 etc.) so caller can handle
+			}
+			throw new Error(`Login with password failed: ${e.message}`);
+		}
+	}
+
+	async getProductInfoV5(): Promise<ProductV5Response | null> {
+		if (!this.loginApi) return null;
+
+		try {
+			const res = await this.loginApi.get(API_V5_PRODUCT);
+			if (res.data && res.data.data) {
+				return res.data;
+			}
+			return null;
+		} catch (e: any) {
+			this.adapter.log.warn(`getProductInfoV5 failed: ${e.message}`);
+			return null;
+		}
+	}
+
+	async downloadProductImages() {
+		if (!this.adapter.config.downloadRoborockImages) return;
+		if (!this.productInfo?.data?.productList) return;
+
+		for (const p of this.productInfo.data.productList) {
+			if (p.picurl) {
+				try {
+					const safeId = p.model.replace(/\./g, "_");
+					const res = await axios.get(p.picurl, { responseType: "arraybuffer" });
+					if (res.status === 200) {
+						const base64 = Buffer.from(res.data, "binary").toString("base64");
+						const stateId = `Products.${safeId}.image`;
+
+						await this.adapter.setObjectNotExistsAsync(stateId, {
+							type: "state",
+							common: {
+								name: p.model + " Image",
+								type: "string",
+								role: "value",
+								read: true,
+								write: false
+							},
+							native: {}
+						});
+						await this.adapter.setStateAsync(stateId, { val: base64, ack: true });
+					}
+				} catch (e) {
+					this.adapter.log.warn(`Failed to download image for ${p.model}: ${e}`);
+				}
+			}
 		}
 	}
 

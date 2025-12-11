@@ -1,22 +1,28 @@
-// src/lib/features/vacuum/a19_features.ts
-// Features for Roborock S4 Max (roborock.vacuum.a19)
-
-import { BaseVacuumFeatures } from "./baseVacuumFeatures";
+import { BaseVacuumFeatures, VacuumProfile, BASE_FAN, BASE_WATER, BASE_MOP } from "./baseVacuumFeatures";
 import { RegisterModel, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
 
-// Define static features for the a19 model
-const a19Config: DeviceModelConfig = {
-    staticFeatures: [
-        Feature.ShakeMopStrength // Alias for WaterBox logic
-    ]
+const PROFILE_A19: VacuumProfile = {
+	name: "Roborock S4 Max (a19)",
+	features: {
+		maxSuctionValue: 104
+	},
+	mappings: {
+		fan_power: BASE_FAN,
+		water_box_mode: BASE_WATER,
+		mop_mode: BASE_MOP
+	}
 };
 
-@RegisterModel('roborock.vacuum.a19')
-export class A19Features extends BaseVacuumFeatures {
-    constructor(dependencies: FeatureDependencies, duid: string) {
-        super(dependencies, duid, 'roborock.vacuum.a19', a19Config);
-    }
+const a19Config: DeviceModelConfig = {
+	staticFeatures: [
+		Feature.ShakeMopStrength
+	]
+};
 
-    // No model-specific overrides needed currently
+@RegisterModel("roborock.vacuum.a19")
+export class A19Features extends BaseVacuumFeatures {
+	constructor(dependencies: FeatureDependencies, duid: string) {
+		super(dependencies, duid, "roborock.vacuum.a19", a19Config, PROFILE_A19);
+	}
 }

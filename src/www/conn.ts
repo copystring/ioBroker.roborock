@@ -3,20 +3,15 @@
 //
 "use strict";
 
-/* jshint browser:true */
-/* global document, console, session, window, location, setTimeout, clearTimeout, io, $, socketNamespace, socketUrl, socketSession, storage, socketForceWebSockets, app */
-/* jshint -W097 */ // jshint strict:false
-
 // Declare global variables from <script> tags for TypeScript
-declare var io: any; // Besser: npm install @types/socket.io-client
-declare var $: any; // Besser: npm install @types/jquery
-declare var session: { get: (key: string) => any };
-declare var storage: { get: (key: string) => any; set: (key: string, val: any) => void; empty: () => void };
-declare var socketNamespace: string | undefined;
-declare var socketUrl: string | undefined;
-declare var socketSession: string | undefined;
-declare var socketForceWebSockets: boolean | undefined;
-declare var app: {
+declare let io: any; // Besser: npm install @types/socket.io-client
+declare let $: any; // Besser: npm install @types/jquery
+declare let storage: { get: (key: string) => any; set: (key: string, val: any) => void; empty: () => void };
+declare let socketNamespace: string | undefined;
+declare let socketUrl: string | undefined;
+declare let socketSession: string | undefined;
+declare let socketForceWebSockets: boolean | undefined;
+declare let app: {
 	onConnChange: (isConnected: boolean) => void;
 	readLocalFile: (filename: string, callback: (err: any, data: string | null, mimeType?: string) => void) => void;
 };
@@ -55,10 +50,8 @@ export class Connection {
 	private _reconnectInterval: number = 10000;
 	private _reloadInterval: number = 30;
 	private _isSecure: boolean = false;
-	private _defaultMode: number = 0x644;
 	private _useStorage: boolean = false;
 	private _objects: Record<string, any> | null = null;
-	private _enums: Record<string, any> | null = null;
 
 	// Auth-Promise: Methods that require auth will await this promise.
 	private _authPromise: Promise<boolean> | null = null;
@@ -226,7 +219,7 @@ export class Connection {
 		this._isConnected = true;
 		if (this._connCallbacks.onConnChange) {
 			setTimeout(() => {
-				this._socket.emit("authEnabled", (auth: boolean, user: string) => {
+				this._socket.emit("authEnabled", (_auth: boolean, user: string) => {
 					this.user = user;
 					this._connCallbacks.onConnChange!(this._isConnected);
 					if (typeof app !== "undefined") app.onConnChange(this._isConnected);
@@ -377,7 +370,7 @@ export class Connection {
 	public async getVersion(): Promise<string> {
 		await this._checkReady("getVersion");
 		return new Promise((resolve) => {
-			this._socket.emit("getVersion", (err: any, version: string) => {
+			this._socket.emit("getVersion", (_err: any, version: string) => {
 				resolve(version);
 			});
 		});
@@ -512,11 +505,6 @@ export class Connection {
 				data[row.id] = row.value;
 			}
 
-			// Determine default mode
-			if (data[`system.adapter.${this.namespace}`]?.native?.defaultFileMode) {
-				this._defaultMode = data[`system.adapter.${this.namespace}`].native.defaultFileMode;
-			}
-
 			// 4. Get channels
 			const channelsRes = await this.getObjectView("system", "channel", { startkey: "", endkey: "\u9999" });
 			for (const row of channelsRes.rows) {
@@ -533,7 +521,6 @@ export class Connection {
 			if (this._useStorage) {
 				this._fillChildren(data);
 				this._objects = data;
-				this._enums = enums;
 				if (typeof storage !== "undefined") {
 					storage.set("objects", data);
 					storage.set("enums", enums);

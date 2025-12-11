@@ -10,13 +10,9 @@ export class FallbackBaseFeatures extends BaseDeviceFeatures {
 	}
 
 	// --- Implementation of abstract methods ---
-	protected registerFeatures(): void {
-		this.deps.log.warn(`[${this.duid}] Using fallback feature registration. No specific features registered.`);
-		// No features to register in the generic fallback
-	}
-
-	protected _getDynamicFeatures(): Set<Feature> {
-		this.deps.log.warn(`[${this.duid}] Using fallback _getDynamicFeatures. Returning empty set.`);
+	// --- Implementation of abstract methods ---
+	protected getDynamicFeatures(): Set<Feature> {
+		this.deps.log.warn(`[${this.duid}] Using fallback getDynamicFeatures. Returning empty set.`);
 		return new Set<Feature>(); // Fallback returns no dynamic features
 	}
 
@@ -62,9 +58,14 @@ export class FallbackBaseFeatures extends BaseDeviceFeatures {
 }
 
 // --- Specific Vacuum Fallback ---
+// ... imports
+import { VacuumProfile, DEFAULT_PROFILE } from "./vacuum/baseVacuumFeatures";
+
+// ...
+
 export class FallbackVacuumFeatures extends BaseVacuumFeatures {
-	constructor(deps: FeatureDependencies, duid: string, robotModel: string) {
-		super(deps, duid, robotModel, { staticFeatures: [] }); // Start with no static features
+	constructor(deps: FeatureDependencies, duid: string, robotModel: string, profile: VacuumProfile = DEFAULT_PROFILE) {
+		super(deps, duid, robotModel, { staticFeatures: [] }, profile);
 		this.deps.log.warn(`[${this.duid}] Using FallbackVacuumFeatures for model ${robotModel}. Runtime detection and base vacuum features active.`);
 	}
 	// No overrides needed here. It inherits:

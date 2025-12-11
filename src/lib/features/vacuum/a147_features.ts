@@ -1,24 +1,60 @@
-// src/lib/features/vacuum/a147_features.ts
-// Features for Roborock Saros 10 (roborock.vacuum.a147)
-
-import { BaseVacuumFeatures } from "./baseVacuumFeatures";
+import { BaseVacuumFeatures, VacuumProfile, BASE_FAN, BASE_WATER, BASE_MOP } from "./baseVacuumFeatures";
 import { RegisterModel, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
 
-// Define static features for the a147 model
-const a147Config: DeviceModelConfig = {
-    staticFeatures: [
-        Feature.SmartModeCommand,
-        Feature.ShakeMopStrength,
-        // Add other static features if known
-    ]
+const PROFILE_A147: VacuumProfile = {
+	name: "Roborock Saros 10 (a147)",
+	features: {
+		maxSuctionValue: 110,
+		hasSmartPlan: true
+	},
+	mappings: {
+		fan_power: { ...BASE_FAN, 110: "Max+" },
+		water_box_mode: { ...BASE_WATER, 209: "Ultra" },
+		mop_mode: { ...BASE_MOP, 306: "Intense/Smart" }
+	},
+	cleanMotorModePresets: {
+		'{"fan_power":110,"mop_mode":306,"water_box_mode":209}': "SmartPlan",
+		'{"fan_power":102,"mop_mode":300,"water_box_mode":200}': "Vacuum",
+		'{"fan_power":105,"mop_mode":300,"water_box_mode":202}': "Mop",
+		'{"fan_power":102,"mop_mode":300,"water_box_mode":202}': "Vac & Mop"
+	}
 };
 
-@RegisterModel('roborock.vacuum.a147')
-export class A147Features extends BaseVacuumFeatures {
-    constructor(dependencies: FeatureDependencies, duid: string) {
-        super(dependencies, duid, 'roborock.vacuum.a147', a147Config);
-    }
+const a147Config: DeviceModelConfig = {
+	staticFeatures: [
+		Feature.InWarmup,
+		Feature.CleanPercent,
+		Feature.ExtraTime,
+		Feature.RobotStatus,
+		Feature.CommonStatus,
+		Feature.SwitchStatus,
+		Feature.ExitDock,
+		Feature.ChargeStatus,
+		Feature.MapFlag,
+		Feature.CleaningInfo,
+		Feature.TaskId,
+		Feature.DockStatus,
+		Feature.LastCleanTime,
+		Feature.AutoEmptyDock,
+		Feature.MopWash,
+		Feature.MopDry,
+		Feature.LiveVideo,
+		Feature.Camera,
+		Feature.MopForbidden,
+		Feature.AvoidCarpet,
+		Feature.WaterBox,
+		Feature.SmartPlan,
+		Feature.FanMaxPlus,
+		Feature.SmartModeCommand,
+		Feature.CleanRepeat,
+		Feature.CleanedArea
+	]
+};
 
-    // No model-specific overrides needed currently
+@RegisterModel("roborock.vacuum.a147")
+export class A147Features extends BaseVacuumFeatures {
+	constructor(dependencies: FeatureDependencies, duid: string) {
+		super(dependencies, duid, "roborock.vacuum.a147", a147Config, PROFILE_A147);
+	}
 }

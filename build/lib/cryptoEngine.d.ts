@@ -1,6 +1,6 @@
 export declare const cryptoEngine: {
     /**
-     * Generate RSA keypair only when needed.
+     * Generates an RSA keypair if one does not already exist.
      */
     ensureRsaKeys(): {
         public: {
@@ -24,4 +24,5 @@ export declare const cryptoEngine: {
     decryptA01(payload: Buffer, localKey: string, random: number): Buffer;
     encryptL01(payload: Buffer | string, localKey: string, ts: number, seq: number, random: number, connectNonce: number, ackNonce?: number): Buffer;
     decryptL01(payload: Buffer, localKey: string, ts: number, seq: number, random: number, connectNonce: number, ackNonce?: number): Buffer;
+    encryptPassword(password: string, k: string): string;
 };

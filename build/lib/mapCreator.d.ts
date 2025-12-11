@@ -21,18 +21,29 @@ export declare class MapCreator {
     constructor(adapter: Roborock);
     private getX;
     private getY;
-    private robotXtoPixelX;
-    private robotYtoPixelY;
-    private rotateCanvas;
-    private drawLineBresenham;
+    private robotXtoCanvasX;
+    private robotYtoCanvasY;
     /**
-     * Builds the adjacency matrix for room coloring.
+     * Creates a pre-rendered sprite for a single carpet tile.
+     * Logic matches renderCarpetTest.js exactly.
      */
+    private createCarpetSprite;
     private buildAdjacencyMatrix;
-    canvasMap(mapdata: any, params?: CanvasMapOptions): Promise<[string, string]>;
+    private drawPathSegments;
+    canvasMap(mapdata: any, params?: CanvasMapOptions): Promise<[string, string, string]>;
+    private applyOptions;
+    private loadImages;
+    private drawFloorAndWalls;
+    private drawSegments;
+    private getCleanMapBase64;
+    private drawCarpet;
     private drawPaths;
-    private tracePathSegment;
+    private drawActiveZones;
+    private drawPredictedPath;
+    private drawObstacles;
+    private drawRobotChargerTarget;
+    private drawRoomNames;
+    private cropMap;
     private drawRestrictedAreas;
-    private roundRect;
 }
 export {};

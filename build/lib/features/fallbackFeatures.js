@@ -10,12 +10,9 @@ class FallbackBaseFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
         super(deps, duid, robotModel, { staticFeatures: [] });
     }
     // --- Implementation of abstract methods ---
-    registerFeatures() {
-        this.deps.log.warn(`[${this.duid}] Using fallback feature registration. No specific features registered.`);
-        // No features to register in the generic fallback
-    }
-    _getDynamicFeatures() {
-        this.deps.log.warn(`[${this.duid}] Using fallback _getDynamicFeatures. Returning empty set.`);
+    // --- Implementation of abstract methods ---
+    getDynamicFeatures() {
+        this.deps.log.warn(`[${this.duid}] Using fallback getDynamicFeatures. Returning empty set.`);
         return new Set(); // Fallback returns no dynamic features
     }
     async processDockType(dockType) {
@@ -53,9 +50,12 @@ class FallbackBaseFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
 }
 exports.FallbackBaseFeatures = FallbackBaseFeatures;
 // --- Specific Vacuum Fallback ---
+// ... imports
+const baseVacuumFeatures_2 = require("./vacuum/baseVacuumFeatures");
+// ...
 class FallbackVacuumFeatures extends baseVacuumFeatures_1.BaseVacuumFeatures {
-    constructor(deps, duid, robotModel) {
-        super(deps, duid, robotModel, { staticFeatures: [] }); // Start with no static features
+    constructor(deps, duid, robotModel, profile = baseVacuumFeatures_2.DEFAULT_PROFILE) {
+        super(deps, duid, robotModel, { staticFeatures: [] }, profile);
         this.deps.log.warn(`[${this.duid}] Using FallbackVacuumFeatures for model ${robotModel}. Runtime detection and base vacuum features active.`);
     }
 }

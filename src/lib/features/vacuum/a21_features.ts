@@ -1,26 +1,46 @@
-// src/lib/features/vacuum/a21_features.ts
-// Features for Roborock Qrevo Slim (roborock.vacuum.a21)
-
-import { BaseVacuumFeatures } from "./baseVacuumFeatures";
+import { BaseVacuumFeatures, VacuumProfile, BASE_FAN, BASE_WATER, BASE_MOP } from "./baseVacuumFeatures";
 import { RegisterModel, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
 
-// Define static features for the a21 model
-const a21Config: DeviceModelConfig = {
-    staticFeatures: [
-        Feature.MopForbidden,
-        Feature.WaterBox,
-        Feature.AvoidCarpet,
-        Feature.LiveVideo          // Action feature triggered by isVideoLiveCallSupported
-        // Add Feature.Camera if applicable
-    ]
+const PROFILE_A21: VacuumProfile = {
+	name: "Roborock Qrevo Slim (a21)",
+	features: {
+		maxSuctionValue: 108,
+		hasSmartPlan: true
+	},
+	mappings: {
+		fan_power: { ...BASE_FAN, 108: "Max+" },
+		water_box_mode: BASE_WATER,
+		mop_mode: BASE_MOP
+	}
 };
 
-@RegisterModel('roborock.vacuum.a21')
-export class A21Features extends BaseVacuumFeatures {
-    constructor(dependencies: FeatureDependencies, duid: string) {
-        super(dependencies, duid, 'roborock.vacuum.a21', a21Config);
-    }
+const a21Config: DeviceModelConfig = {
+	staticFeatures: [
+		Feature.MopForbidden,
+		Feature.WaterBox,
+		Feature.AvoidCarpet,
+		Feature.LiveVideo,
+		Feature.FanMaxPlus,
+		Feature.SmartModeCommand,
+		Feature.MapFlag,
+		Feature.ReplenishMode,
+		Feature.TaskId,
+		Feature.MonitorStatus,
+		Feature.InWarmup,
+		Feature.ChargeStatus,
+		Feature.CleanPercent,
+		Feature.DockStatus,
+		Feature.RobotStatus,
+		Feature.CommonStatus,
+		Feature.SwitchStatus,
+		Feature.LastCleanTime
+	]
+};
 
-    // No model-specific overrides needed currently
+@RegisterModel("roborock.vacuum.a21")
+export class A21Features extends BaseVacuumFeatures {
+	constructor(dependencies: FeatureDependencies, duid: string) {
+		super(dependencies, duid, "roborock.vacuum.a21", a21Config, PROFILE_A21);
+	}
 }

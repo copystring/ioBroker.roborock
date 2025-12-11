@@ -1,16 +1,33 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.mqtt_api = void 0;
-const mqtt_1 = __importDefault(require("mqtt"));
-const crypto_1 = __importDefault(require("crypto"));
+const crypto = __importStar(require("crypto"));
+const mqtt = __importStar(require("mqtt"));
 const binary_parser_1 = require("binary-parser");
-const zlib_1 = __importDefault(require("zlib"));
-// --------------------
-// Parsers
-// --------------------
+const zlib = __importStar(require("zlib"));
 // Parser for protocol 301 messages (often Map Data)
 const protocol301Parser = new binary_parser_1.Parser()
     .endianess("little")
@@ -82,7 +99,7 @@ class mqtt_api {
         }
         const rriot = this.adapter.http_api.get_rriot();
         this.adapter.log.info(`Connecting to MQTT Broker at ${rriot.r.m}...`);
-        const client = mqtt_1.default.connect(rriot.r.m, this.mqttOptions);
+        const client = mqtt.connect(rriot.r.m, this.mqttOptions);
         this.client = client;
         try {
             // Set up listeners and subscriptions
@@ -103,12 +120,12 @@ class mqtt_api {
      */
     async subscribe_mqtt_events(client) {
         const rriot = this.adapter.http_api.get_rriot();
-        client.on("connect", (packet) => {
+        client.on("connect", () => {
             this.connected = true;
             this.adapter.log.info(`MQTT connection established.`);
             // Subscribe to the specific topic for this user
             const topic = `rr/m/o/${rriot.u}/${this.mqttUser}/#`;
-            client.subscribe(topic, (err, granted) => {
+            client.subscribe(topic, (err) => {
                 if (err) {
                     this.adapter.log.error(`Failed to subscribe to ${topic}! Error: ${err}`);
                 }
@@ -159,7 +176,7 @@ class mqtt_api {
                     return;
                 }
                 // Decode the Roborock binary message wrapper
-                const dataArr = this.adapter.requestsHandler.messageParser._decodeMsg(message, duid);
+                const dataArr = this.adapter.requestsHandler.messageParser.decodeMsg(message, duid);
                 const allMessages = Array.isArray(dataArr) ? dataArr : dataArr ? [dataArr] : [];
                 for (const data of allMessages) {
                     await this.handleDecodedMessage(duid, data, endpoint);
@@ -203,24 +220,39 @@ class mqtt_api {
                 }
                 if (dps102) {
                     const pendingRequest = this.adapter.pendingRequests.get(dps102.id);
-                    if (pendingRequest && (pendingRequest.method === "get_map_v1" || pendingRequest.method === "get_clean_record_map")) {
-                        // This is a map request.
-                        const isSuccessOk = dps102.result === "ok" || (Array.isArray(dps102.result) && dps102.result[0] === "ok");
-                        if (isSuccessOk) {
-                            // This is the initial "ok". IGNORE IT. Do NOT resolve the promise.
-                            // The real data will come via Protocol 301.
-                            this.adapter.log.debug(`[MQTT] Received 'ok' for map request ${dps102.id}. Waiting for 301 data block.`);
-                            // --- DO NOTHING HERE ---
+                    if (pendingRequest) {
+                        if (pendingRequest.method === "get_map_v1" || pendingRequest.method === "get_clean_record_map" || pendingRequest.method === "get_photo") {
+                            // This is a map or photo request.
+                            const isSuccessOk = dps102.result === "ok" || (Array.isArray(dps102.result) && dps102.result[0] === "ok");
+                            if (isSuccessOk) {
+                                // Initial confirmation. Real data follows via Protocol 300/301.
+                                this.adapter.log.debug(`[MQTT] Received Map/Photo expectation (102) for ${pendingRequest.method} (ID: ${dps102.id}). Waiting for data.`);
+                            }
+                            else {
+                                // This is an ERROR for the request (e.g., "retry" or "locating")
+                                if (Array.isArray(dps102.result) && dps102.result[0] === "retry") {
+                                    this.adapter.log.debug(`[MQTT] ${pendingRequest.method} request ${dps102.id} returned 'retry'.`);
+                                }
+                                else {
+                                    this.adapter.log.warn(`[MQTT] ${pendingRequest.method} request ${dps102.id} failed with: ${JSON.stringify(dps102.result)}`);
+                                }
+                                this.adapter.requestsHandler.resolvePendingRequest(dps102.id, dps102.result, data.protocol);
+                            }
                         }
                         else {
-                            // This is an ERROR for the map request (e.g., "retry" or "locating")
-                            this.adapter.log.warn(`[MQTT] Map request ${dps102.id} (Method: ${pendingRequest.method}) failed with: ${JSON.stringify(dps102.result)}`);
+                            // This is a normal command (not a map or photo), resolve it.
+                            // Log the result payload for debugging as requested
+                            this.adapter.log.debug(`[MQTT] Command Response (102) for ${pendingRequest.method} (ID: ${dps102.id}): ${JSON.stringify(dps102.result)}`);
                             this.adapter.requestsHandler.resolvePendingRequest(dps102.id, dps102.result, data.protocol);
                         }
                     }
                     else {
-                        // This is a normal command (not a map), resolve it.
-                        this.adapter.requestsHandler.resolvePendingRequest(dps102.id, dps102.result, data.protocol);
+                        if (this.adapter.requestsHandler.isRequestRecentlyFinished(dps102.id)) {
+                            this.adapter.log.debug(`[MQTT] Received Protocol 102 message for already finished request ${dps102.id} (likely valid late response)`);
+                        }
+                        else {
+                            this.adapter.log.debug(`[MQTT] Received Protocol 102 message with ID ${dps102.id} but no matching pending request found.`);
+                        }
                     }
                 }
             }
@@ -276,7 +308,7 @@ class mqtt_api {
             // Protocol 300: First chunk of a photo
             const photoData = photoParser.parse(payloadBuf);
             if (this.adapter.pendingRequests.has(photoData.id)) {
-                this.adapter.log.debug(`[MQTT] First photo gzip chunk detected for ReqID ${photoData.id}`);
+                this.adapter.log.debug(`[MQTT] Photo Data (300) Chunk 1 received for ReqID ${photoData.id}`);
                 this.pendingPhotoRequests[photoData.id] = {
                     chunks: [payloadBuf.subarray(56)], // Skip header
                 };
@@ -295,7 +327,7 @@ class mqtt_api {
                     // It seems we need to parse again to get ID if header is present
                     const photoData = photoParser.parse(payloadBuf);
                     if (this.pendingPhotoRequests[photoData.id]?.chunks) {
-                        this.adapter.log.debug(`[MQTT] Second photo gzip chunk detected for ReqID ${photoData.id}`);
+                        this.adapter.log.debug(`[MQTT] Photo Data (301) Chunk 2 received for ReqID ${photoData.id}`);
                         this.pendingPhotoRequests[photoData.id].chunks.push(payloadBuf);
                         // Combine and resolve
                         const totalBuffer = Buffer.concat(this.pendingPhotoRequests[photoData.id].chunks);
@@ -311,7 +343,7 @@ class mqtt_api {
             // Case B: Single Packet Photo (Header present)
             if (isRoborockHeader) {
                 const photoData = photoParser.parse(payloadBuf);
-                this.adapter.log.debug(`[MQTT] Single packet photo received for ReqID ${photoData.id}`);
+                this.adapter.log.debug(`[MQTT] Single Packet Photo (301) received for ReqID ${photoData.id}`);
                 this.adapter.requestsHandler.resolvePendingRequest(photoData.id, payloadBuf.subarray(56), data.protocol);
                 return;
             }
@@ -321,10 +353,10 @@ class mqtt_api {
                 if (endpoint.startsWith(parsedHeader.endpoint)) {
                     // Decrypt and Decompress Map Data
                     const iv = Buffer.alloc(16, 0);
-                    const decipher = crypto_1.default.createDecipheriv("aes-128-cbc", this.adapter.nonce, iv);
+                    const decipher = crypto.createDecipheriv("aes-128-cbc", this.adapter.nonce, iv);
                     let decrypted = decipher.update(payloadBuf.subarray(24));
                     decrypted = Buffer.concat([decrypted, decipher.final()]);
-                    const unzipped = zlib_1.default.gunzipSync(decrypted);
+                    const unzipped = zlib.gunzipSync(decrypted);
                     // Resolve pending map request
                     this.adapter.requestsHandler.resolvePendingRequest(parsedHeader.id, unzipped, data.protocol);
                 }
@@ -388,13 +420,13 @@ class mqtt_api {
      * Helper: Calculate MD5 hex string.
      */
     md5hex(str) {
-        return crypto_1.default.createHash("md5").update(str).digest("hex");
+        return crypto.createHash("md5").update(str).digest("hex");
     }
     /**
      * Helper: Calculate MD5 binary buffer.
      */
     md5bin(str) {
-        return crypto_1.default.createHash("md5").update(str).digest();
+        return crypto.createHash("md5").update(str).digest();
     }
     /**
      * Clears internal state (e.g. pending partial downloads).

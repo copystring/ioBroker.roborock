@@ -1,48 +1,25 @@
-// src/lib/mapCreator.ts
 import { Roborock } from "../main";
-import { createCanvas, loadImage, Image, ImageData, type Canvas, type CanvasRenderingContext2D } from "@napi-rs/canvas";
-// Use the new simplified room coloring
+import { createCanvas, loadImage, Image, type Canvas, type CanvasRenderingContext2D } from "@napi-rs/canvas";
 import { assignRoborockRoomColorsToHex } from "./roomColoring";
-// Import all images from your new file
 import * as Images from "./images";
+import { processPaths, type PathResult, type PathPoint } from "./pathProcessor.js";
+import * as fs from "fs";
+import * as path from "path";
 
-// --------------------
-// Constants & Config
-// --------------------
+// -----------------------------------------------------------------------------
+// Constants & Interfaces
+// -----------------------------------------------------------------------------
 
 const OFFSET = 60;
 const MAX_BLOCK_NUM = 32;
+const VISUAL_BLOCK_SIZE = 3; // Replaces fixed map_scale with 3
 
-// Colors for "newmap = true" (Roborock App Style)
-const ORG_COLORS = [
-	"#C05A41", // 0
-	"#4579B5", // 1
-	"#017E82", // 2
-	"#BD7B00", // 3
-	"#434242", // 4 wall
-	"#dfdfdf", // 5 deselected floor
-];
+const ORG_COLORS = ["#C05A41", "#4579B5", "#017E82", "#BD7B00", "#434242", "#dfdfdf"];
 
-// Colors for "newmap = false" (Legacy Style)
 const LEGACY_COLORS = {
 	floor: "#23465e",
 	obstacle: "#2b2e30",
-	path: "rgba(255,255,255,0.5)",
-};
-
-const OBSTACLE_TITLES: Record<number, string> = {
-	0: "Wire",
-	1: "Pet waste",
-	2: "Footwear",
-	3: "Pedestal",
-	4: "Pedestal",
-	5: "Power strip",
-	9: "Scale",
-	10: "Fabric",
-	18: "Dustpan",
-	25: "Dustpan",
-	26: "Bar",
-	27: "Bar",
+	path: "#FFFFFF",
 };
 
 interface CanvasMapOptions {
@@ -61,6 +38,17 @@ interface Dimensions {
 	width: number;
 	height: number;
 }
+
+// Define a custom interface to handle missing type definitions in @napi-rs/canvas
+interface ExtendedContext2D extends CanvasRenderingContext2D {
+	drawImage(image: Image | Canvas, dx: number, dy: number, dw?: number, dh?: number): void;
+	canvas: Canvas;
+	antialias?: string;
+}
+
+// -----------------------------------------------------------------------------
+// Map Creator Class
+// -----------------------------------------------------------------------------
 
 export class MapCreator {
 	adapter: Roborock;
@@ -81,73 +69,58 @@ export class MapCreator {
 	// --------------------
 
 	private getX(dimensions: Dimensions, px: number): number {
-		return (px * this.adapter.config.map_scale) % dimensions.width;
+		return (px * VISUAL_BLOCK_SIZE) % dimensions.width;
 	}
 
 	private getY(dimensions: Dimensions, px: number): number {
-		return dimensions.height - Math.floor(px / (dimensions.width / this.adapter.config.map_scale)) * this.adapter.config.map_scale - this.adapter.config.map_scale;
+		return dimensions.height - Math.floor(px / (dimensions.width / VISUAL_BLOCK_SIZE)) * VISUAL_BLOCK_SIZE - VISUAL_BLOCK_SIZE;
 	}
 
-	private robotXtoPixelX(image: any, robotCoord: number): number {
-		return (robotCoord - image.position.left) * this.adapter.config.map_scale + 1;
+	private robotXtoCanvasX(image: any, robotCoord: number): number {
+		return (robotCoord - image.position.left) * VISUAL_BLOCK_SIZE;
 	}
 
-	private robotYtoPixelY(image: any, robotCoord: number): number {
-		return (image.dimensions.height / this.adapter.config.map_scale + image.position.top - robotCoord) * this.adapter.config.map_scale - 1;
+	private robotYtoCanvasY(image: any, robotCoord: number): number {
+		return (image.dimensions.height / VISUAL_BLOCK_SIZE + image.position.top - robotCoord) * VISUAL_BLOCK_SIZE;
 	}
 
 	// --------------------
 	// Drawing Helpers
 	// --------------------
 
-	private rotateCanvas(img: Image, angleInDegrees: number): Canvas {
-		const canvas = createCanvas(img.width, img.height);
-		const ctx = canvas.getContext("2d");
-		const angleOffset = 90;
-		let angleInRadians = ((angleInDegrees - angleOffset) * Math.PI) / 180;
-		angleInRadians = ((angleInRadians + Math.PI) % (2 * Math.PI)) - Math.PI;
+	/**
+	 * Creates a pre-rendered sprite for a single carpet tile.
+	 * Logic matches renderCarpetTest.js exactly.
+	 */
+	private createCarpetSprite(): Canvas {
+		// Create a tiny canvas just for one tile (3x3)
+		const spriteCanvas = createCanvas(VISUAL_BLOCK_SIZE, VISUAL_BLOCK_SIZE);
+		const ctx = spriteCanvas.getContext("2d") as unknown as ExtendedContext2D;
 
-		ctx.translate(img.width / 2, img.height / 2);
-		ctx.rotate(-angleInRadians);
-		ctx.translate(-img.width / 2, -img.height / 2);
-		ctx.drawImage(img, 0, 0);
+		// Disable AA for the sprite generation too
+		ctx.imageSmoothingEnabled = false;
+		if ("antialias" in ctx) ctx.antialias = "none";
 
-		return canvas;
-	}
+		// Carpet color (semi-transparent dark)
+		ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
 
-	private drawLineBresenham(imageData: ImageData, x1: number, y1: number, x2: number, y2: number) {
-		const pixels = imageData.data;
-		const dx = Math.abs(x2 - x1);
-		const dy = Math.abs(y2 - y1);
-		const sx = x1 < x2 ? 1 : -1;
-		const sy = y1 < y2 ? 1 : -1;
-		let err = dx - dy;
+		const STRIDE = 3;
 
-		while (true) {
-			if (x1 >= 0 && x1 < imageData.width && y1 >= 0 && y1 < imageData.height) {
-				const index = (x1 + y1 * imageData.width) * 4;
-				pixels[index] = 128; // r
-				pixels[index + 1] = 128; // g
-				pixels[index + 2] = 128; // b
-				pixels[index + 3] = 128; // a (semi-transparent gray)
-			}
-
-			if (x1 === x2 && y1 === y2) break;
-			const e2 = 2 * err;
-			if (e2 > -dy) {
-				err -= dy;
-				x1 += sx;
-			}
-			if (e2 < dx) {
-				err += dx;
-				y1 += sy;
+		// Draw the pattern ONCE here
+		for (let dx = 0; dx < VISUAL_BLOCK_SIZE; dx++) {
+			for (let dy = 0; dy < VISUAL_BLOCK_SIZE; dy++) {
+				const sum = dx + dy;
+				// Diagonal pattern logic: x + y = k
+				// We use offset 2 to center the diagonal line in a typical 3x3 block
+				if (sum % STRIDE === 2) {
+					ctx.fillRect(dx, dy, 1, 1);
+				}
 			}
 		}
+
+		return spriteCanvas;
 	}
 
-	/**
-	 * Builds the adjacency matrix for room coloring.
-	 */
 	private buildAdjacencyMatrix(segmentPixels: number[], width: number, height: number, maxIdFromCaller: number): number[][] {
 		let maxSegInPixels = 0;
 		for (const px of segmentPixels) {
@@ -170,15 +143,11 @@ export class MapCreator {
 		for (let i = 0; i < segMap.length; i++) {
 			const segA = segMap[i];
 			if (segA < 0) continue;
-
 			const x = i % width;
 			const y = Math.floor(i / width);
 
-			if (segA < size) {
-				matrix[segA][segA] = 1; // Mark segment as existing
-			}
+			if (segA < size) matrix[segA][segA] = 1;
 
-			// Check top neighbor
 			if (y > 0) {
 				const segB = segMap[i - width];
 				if (segB >= 0 && segA !== segB && segA < size && segB < size) {
@@ -186,7 +155,6 @@ export class MapCreator {
 					matrix[segB][segA] = 1;
 				}
 			}
-			// Check left neighbor
 			if (x > 0) {
 				const segB = segMap[i - 1];
 				if (segB >= 0 && segA !== segB && segA < size && segB < size) {
@@ -198,29 +166,131 @@ export class MapCreator {
 		return matrix;
 	}
 
+	private drawPathSegments(
+		mainCtx: ExtendedContext2D,
+		tempCtx: CanvasRenderingContext2D,
+		pathSegments: PathPoint[][],
+		color: string,
+		width: number,
+		opacity: number,
+		dashed: boolean = false
+	) {
+		if (!pathSegments || pathSegments.length === 0) return;
+
+		const offsetX = 4;
+		const offsetY = -4;
+
+		const w = (tempCtx as any).canvas.width;
+		const h = (tempCtx as any).canvas.height;
+
+		tempCtx.clearRect(0, 0, w, h);
+
+		tempCtx.strokeStyle = color;
+		tempCtx.lineWidth = width;
+		tempCtx.lineCap = "round";
+		tempCtx.lineJoin = "round";
+
+		if (dashed) {
+			tempCtx.setLineDash([VISUAL_BLOCK_SIZE, 2 * VISUAL_BLOCK_SIZE]);
+		} else {
+			tempCtx.setLineDash([]);
+		}
+
+		tempCtx.beginPath();
+		pathSegments.forEach((segment) => {
+			if (segment.length > 0) {
+				tempCtx.moveTo(segment[0].x + offsetX, segment[0].y + offsetY);
+				for (let i = 1; i < segment.length; i++) {
+					tempCtx.lineTo(segment[i].x + offsetX, segment[i].y + offsetY);
+				}
+			}
+		});
+		tempCtx.stroke();
+
+		mainCtx.save();
+		mainCtx.globalAlpha = opacity;
+		mainCtx.drawImage((tempCtx as any).canvas, 0, 0);
+		mainCtx.restore();
+	}
+
 	// --------------------
 	// Main Map Generation
 	// --------------------
 
-	public async canvasMap(mapdata: any, params: CanvasMapOptions = {}): Promise<[string, string]> {
-		const { selectedMap = null, mappedRooms = null, options = {} } = params;
+	public async canvasMap(mapdata: any, params: CanvasMapOptions = {}): Promise<[string, string, string]> {
+		const { mappedRooms = null, options = {} } = params;
 
-		// --- CRASH GUARD ---
 		if (!mapdata || !mapdata.IMAGE || !mapdata.IMAGE.dimensions) {
 			this.adapter.log.warn(`[MapCreator] Received invalid or empty map data, cannot generate map.`);
-			return [createCanvas(1, 1).toDataURL(), createCanvas(1, 1).toDataURL()];
+			const errorCanvas = createCanvas(1, 1).toDataURL();
+			return [errorCanvas, errorCanvas, errorCanvas];
 		}
 
-		// 1. Configure Colors & Images
+		this.applyOptions(options);
+
+		const [imgRobot, imgCharger, imgGoToPin] = await this.loadImages(options.ROBOT);
+
+		// Use VISUAL_BLOCK_SIZE for scaling logic
+		mapdata.IMAGE.dimensions.width *= VISUAL_BLOCK_SIZE;
+		mapdata.IMAGE.dimensions.height *= VISUAL_BLOCK_SIZE;
+
+		const canvas = createCanvas(mapdata.IMAGE.dimensions.width, mapdata.IMAGE.dimensions.height);
+		const ctx = canvas.getContext("2d") as unknown as ExtendedContext2D;
+
+		// 1. Draw Floor & Walls
+		const bounds = this.drawFloorAndWalls(ctx, mapdata.IMAGE);
+
+		// 2. Draw Segments
+		const segmentsData = this.drawSegments(ctx, mapdata.IMAGE, mapdata.CURRENTLY_CLEANED_BLOCKS);
+
+		// --- SAVE CLEAN MAP (WITHOUT CARPET) ---
+		const cleanMapUncroppedBase64 = this.getCleanMapBase64(canvas);
+
+		// 3. Draw Carpet
+		this.drawCarpet(ctx, mapdata.CARPET_MAP, mapdata.IMAGE);
+
+		// 4. Draw Paths
+		this.drawPaths(ctx, mapdata);
+
+		// 5. Draw Active Zones
+		this.drawActiveZones(ctx, mapdata.CURRENTLY_CLEANED_ZONES, mapdata.IMAGE);
+
+		// 6. Draw Restricted Areas
+		this.drawRestrictedAreas(ctx, mapdata);
+
+		// 7. Draw Predicted Path
+		this.drawPredictedPath(ctx, mapdata.GOTO_PREDICTED_PATH, mapdata.IMAGE);
+
+		// 8. Draw Obstacles
+		await this.drawObstacles(ctx, mapdata.OBSTACLES2, mapdata.IMAGE);
+
+		// 9. Draw Robot & Charger & Target
+		this.drawRobotChargerTarget(ctx, mapdata, imgRobot, imgCharger, imgGoToPin);
+
+		// 10. Draw Room Names
+		this.drawRoomNames(ctx, segmentsData, mappedRooms);
+
+		// --- Get full uncropped map (INCLUDES Carpet) ---
+		const fullMapUncroppedBase64 = canvas.toDataURL();
+
+		// 11. Crop & Return
+		const croppedMapBase64 = this.cropMap(canvas, ctx, bounds);
+
+		return [cleanMapUncroppedBase64, fullMapUncroppedBase64, croppedMapBase64];
+	}
+
+	private applyOptions(options: any) {
 		if (options) {
 			if (options.FLOORCOLOR) this.colors.floor = options.FLOORCOLOR;
 			if (options.WALLCOLOR) this.colors.obstacle = options.WALLCOLOR;
 			if (options.PATHCOLOR) this.colors.path = options.PATHCOLOR;
 			this.colors.newmap = options.newmap ?? true;
 		}
+	}
 
+	private async loadImages(robotType?: string) {
 		let robotImgSource = Images.IMG_ROBOT_ORIGINAL;
-		switch (options.ROBOT) {
+		switch (robotType) {
 			case "robot":
 				robotImgSource = Images.IMG_ROBOT_DEFAULT;
 				break;
@@ -237,39 +307,28 @@ export class MapCreator {
 				robotImgSource = Images.IMG_ROBOT_2;
 				break;
 		}
+		return Promise.all([loadImage(robotImgSource), loadImage(Images.IMG_CHARGER), loadImage(Images.IMG_GO_TO_PIN)]);
+	}
 
-		const [imgRobot, imgCharger, imgGoToPin] = await Promise.all([loadImage(robotImgSource), loadImage(Images.IMG_CHARGER), loadImage(Images.IMG_GO_TO_PIN)]);
-
-		// 2. Setup Dimensions
-		mapdata.IMAGE.dimensions.width *= this.adapter.config.map_scale;
-		mapdata.IMAGE.dimensions.height *= this.adapter.config.map_scale;
-
-		const canvas = createCanvas(mapdata.IMAGE.dimensions.width, mapdata.IMAGE.dimensions.height);
-		const ctx = canvas.getContext("2d");
-
+	private drawFloorAndWalls(ctx: ExtendedContext2D, image: any) {
 		let maxtop = 0,
 			maxleft = 0,
-			minleft = mapdata.IMAGE.dimensions.width,
-			mintop = mapdata.IMAGE.dimensions.height;
+			minleft = image.dimensions.width,
+			mintop = image.dimensions.height;
 
-		// 3. Draw Base Floor & Walls
-		if (mapdata.IMAGE.pixels.floor && mapdata.IMAGE.pixels.floor.length > 0) {
-			if (typeof mapdata.IMAGE.pixels.floor[0] === "number") {
-				minleft = mapdata.IMAGE.pixels.floor[0] % mapdata.IMAGE.dimensions.width;
-				mintop = mapdata.IMAGE.dimensions.height - 1 - Math.floor(mapdata.IMAGE.pixels.floor[0] / mapdata.IMAGE.dimensions.width);
+		if (image.pixels.floor && image.pixels.floor.length > 0) {
+			if (typeof image.pixels.floor[0] === "number") {
+				minleft = image.pixels.floor[0] % image.dimensions.width;
+				mintop = image.dimensions.height - 1 - Math.floor(image.pixels.floor[0] / image.dimensions.width);
 			}
-
 			["floor", "obstacle"].forEach((key) => {
-				if (!mapdata.IMAGE.pixels[key]) return;
+				if (!image.pixels[key]) return;
 				ctx.beginPath();
-				mapdata.IMAGE.pixels[key].forEach((px) => {
-					const x = this.getX(mapdata.IMAGE.dimensions, px);
-					const y = this.getY(mapdata.IMAGE.dimensions, px);
-
+				image.pixels[key].forEach((px: any) => {
+					const x = this.getX(image.dimensions, px);
+					const y = this.getY(image.dimensions, px);
 					ctx.fillStyle = key === "obstacle" ? (this.colors.newmap ? ORG_COLORS[4] : this.colors.obstacle) : this.colors.newmap ? ORG_COLORS[5] : this.colors.floor;
-
-					ctx.rect(x, y, this.adapter.config.map_scale, this.adapter.config.map_scale);
-
+					ctx.rect(x, y, VISUAL_BLOCK_SIZE, VISUAL_BLOCK_SIZE);
 					maxtop = Math.max(maxtop, y);
 					maxleft = Math.max(maxleft, x);
 					minleft = Math.min(minleft, x);
@@ -278,23 +337,19 @@ export class MapCreator {
 				ctx.fill();
 			});
 		}
+		return { minleft, mintop, maxleft, maxtop };
+	}
 
-		// 4. Draw Segments (Rooms)
+	private drawSegments(ctx: ExtendedContext2D, image: any, currentlyCleanedBlocks: number[]) {
 		const segmentsData: Record<number, any> = {};
-
-		if (mapdata.IMAGE.pixels.segments && this.colors.newmap) {
-			// Step 4.1: Collect pixel data for each segment
-			mapdata.IMAGE.pixels.segments.forEach((px) => {
+		if (image.pixels.segments && this.colors.newmap) {
+			image.pixels.segments.forEach((px: any) => {
 				const segnum = px >> 21;
 				const pixelIndex = px & 0x1fffff;
 				if (segnum >= MAX_BLOCK_NUM) return;
-
-				const x = this.getX(mapdata.IMAGE.dimensions, pixelIndex);
-				const y = this.getY(mapdata.IMAGE.dimensions, pixelIndex);
-
-				if (!segmentsData[segnum]) {
-					segmentsData[segnum] = { points: [], minX: x, maxX: x, minY: y, maxY: y };
-				}
+				const x = this.getX(image.dimensions, pixelIndex);
+				const y = this.getY(image.dimensions, pixelIndex);
+				if (!segmentsData[segnum]) segmentsData[segnum] = { points: [], minX: x, maxX: x, minY: y, maxY: y };
 				const segment = segmentsData[segnum];
 				segment.points.push({ x, y });
 				segment.minX = Math.min(segment.minX, x);
@@ -303,21 +358,15 @@ export class MapCreator {
 				segment.maxY = Math.max(segment.maxY, y);
 			});
 
-			// Step 4.2: Calculate room colors using the (now external) coloring algorithm
 			const segmentNums = Object.keys(segmentsData).map(Number);
 			const maxId = segmentNums.length ? Math.max(...segmentNums) : 0;
 			const matrixSize = MAX_BLOCK_NUM;
-
-			const adjacencyMatrix = this.buildAdjacencyMatrix(mapdata.IMAGE.pixels.segments, mapdata.IMAGE.dimensions.width, mapdata.IMAGE.dimensions.height, maxId);
-
+			const adjacencyMatrix = this.buildAdjacencyMatrix(image.pixels.segments, image.dimensions.width, image.dimensions.height, maxId);
 			const pointsCount = new Array(matrixSize).fill(0);
 			for (const segStr of Object.keys(segmentsData)) {
 				const seg = Number(segStr);
-				if (seg >= 0 && seg < matrixSize) {
-					pointsCount[seg] = segmentsData[seg].points.length;
-				}
+				if (seg >= 0 && seg < matrixSize) pointsCount[seg] = segmentsData[seg].points.length;
 			}
-
 			const neighborInfo = new Array(matrixSize * matrixSize).fill(0);
 			for (let i = 0; i < matrixSize; i++) {
 				for (let j = 0; j < matrixSize; j++) {
@@ -325,39 +374,27 @@ export class MapCreator {
 				}
 				if (pointsCount[i] > 0) neighborInfo[i * matrixSize + i] = 1;
 			}
+			const coloring = assignRoborockRoomColorsToHex({ maxBlockNum: matrixSize, neighborInfo, pointsCount }, { oneBased: true });
 
-			// Use the new simplified 'assignRoborockRoomColorsToHex'
-			const coloring = assignRoborockRoomColorsToHex(
-				{ maxBlockNum: matrixSize, neighborInfo, pointsCount },
-				{ oneBased: true } // 'oneBased: true' assumes segment IDs start at 1 (0 is 'no segment')
-			);
-
-			// Step 4.3: Draw the segments with the calculated colors
 			Object.keys(segmentsData).forEach((segStr) => {
 				const segnum = Number(segStr);
 				if (segnum < 0 || segnum >= matrixSize) return;
-
-				const isCurrentlyCleaned = mapdata.CURRENTLY_CLEANED_BLOCKS?.includes(segnum);
-
+				const isCurrentlyCleaned = currentlyCleanedBlocks?.includes(segnum);
 				let fillColor = coloring.colorHex?.[segnum] || "#CCCCCC";
-				if (isCurrentlyCleaned) {
-					fillColor = segnum >= 0 && segnum < ORG_COLORS.length ? ORG_COLORS[segnum] : "#AA0000";
-				}
-
+				if (isCurrentlyCleaned) fillColor = segnum >= 0 && segnum < ORG_COLORS.length ? ORG_COLORS[segnum] : "#AA0000";
 				ctx.fillStyle = fillColor;
 				ctx.beginPath();
-				segmentsData[segnum].points.forEach((p) => {
-					ctx.rect(p.x, p.y, this.adapter.config.map_scale, this.adapter.config.map_scale);
+				segmentsData[segnum].points.forEach((p: any) => {
+					ctx.rect(p.x, p.y, VISUAL_BLOCK_SIZE, VISUAL_BLOCK_SIZE);
 				});
 				ctx.fill();
 			});
-		} else if (mapdata.IMAGE.pixels.segments) {
-			// Fallback for 'newmap = false' or if only actively cleaned blocks should be shown
-			let segnum, lastcolor;
+		} else if (image.pixels.segments) {
+			let segnum: number, lastcolor: number | undefined;
 			ctx.beginPath();
-			mapdata.IMAGE.pixels.segments.forEach((px) => {
+			image.pixels.segments.forEach((px: any) => {
 				segnum = px >> 21;
-				if (mapdata.CURRENTLY_CLEANED_BLOCKS?.includes(segnum)) {
+				if (currentlyCleanedBlocks?.includes(segnum)) {
 					if (segnum !== lastcolor) {
 						ctx.fill();
 						ctx.beginPath();
@@ -365,40 +402,72 @@ export class MapCreator {
 						lastcolor = segnum;
 					}
 					px = px & 0xfffff;
-					ctx.rect(this.getX(mapdata.IMAGE.dimensions, px), this.getY(mapdata.IMAGE.dimensions, px), this.adapter.config.map_scale, this.adapter.config.map_scale);
+					ctx.rect(this.getX(image.dimensions, px), this.getY(image.dimensions, px), VISUAL_BLOCK_SIZE, VISUAL_BLOCK_SIZE);
 				}
 			});
 			ctx.fill();
 		}
+		return segmentsData;
+	}
 
-		// 5. Draw Carpet
-		if (mapdata.CARPET_MAP) {
-			// Guard against zero-dimension maps (e.g., new or uninitialized maps)
-			if (mapdata.IMAGE.dimensions.width <= 0 || mapdata.IMAGE.dimensions.height <= 0) {
-				this.adapter.log.debug("[MapCreator] Skipping carpet drawing, map dimensions are 0.");
-			} else {
-				const offset = 8 * this.adapter.config.map_scale;
-				const imageData = ctx.getImageData(0, 0, mapdata.IMAGE.dimensions.width, mapdata.IMAGE.dimensions.height);
+	private getCleanMapBase64(canvas: Canvas) {
+		const cleanCanvas = createCanvas(canvas.width, canvas.height);
+		const ctx = cleanCanvas.getContext("2d") as unknown as ExtendedContext2D;
+		ctx.drawImage(canvas, 0, 0);
+		return cleanCanvas.toDataURL();
+	}
 
-				mapdata.CARPET_MAP.forEach((px) => {
-					const x2 = this.getX(mapdata.IMAGE.dimensions, px) - offset;
-					const y1 = this.getY(mapdata.IMAGE.dimensions, px);
-					const x1 = x2 + this.adapter.config.map_scale - 1;
-					const y2 = y1 + this.adapter.config.map_scale - 1;
-					this.drawLineBresenham(imageData, x1, y1, x2, y2);
-				});
-				ctx.putImageData(imageData, 0, 0);
-			}
+	private drawCarpet(ctx: ExtendedContext2D, carpetMap: any, image: any) {
+		if (carpetMap && image.dimensions.width > 0) {
+			ctx.imageSmoothingEnabled = false;
+			if ("antialias" in ctx) ctx.antialias = "none";
+
+			const carpetSprite = this.createCarpetSprite();
+
+			carpetMap.forEach((px: any) => {
+				const x_pos = this.getX(image.dimensions, px);
+				const y_pos = this.getY(image.dimensions, px);
+				ctx.drawImage(carpetSprite, x_pos, y_pos);
+			});
 		}
+	}
 
-		// 6. Draw Active Zones
-		if (mapdata.CURRENTLY_CLEANED_ZONES?.[0]) {
-			mapdata.CURRENTLY_CLEANED_ZONES.forEach((coord) => {
-				const x = this.robotXtoPixelX(mapdata.IMAGE, coord[0] / 50);
-				const y = this.robotYtoPixelY(mapdata.IMAGE, coord[1] / 50);
-				const w = this.robotXtoPixelX(mapdata.IMAGE, coord[2] / 50) - x;
-				const h = this.robotYtoPixelY(mapdata.IMAGE, coord[3] / 50) - y;
+	private drawPaths(ctx: ExtendedContext2D, mapdata: any) {
+		const robotToScaledPixel = (robotCoord: [number, number], img: any): PathPoint => {
+			return {
+				x: this.robotXtoCanvasX(img, robotCoord[0] / 50),
+				y: this.robotYtoCanvasY(img, robotCoord[1] / 50),
+			};
+		};
 
+		const pathSegments: PathResult = (mapdata.PATH?.points && mapdata.MOP_PATH)
+			? processPaths(mapdata.PATH.points, mapdata.MOP_PATH, robotToScaledPixel, VISUAL_BLOCK_SIZE, mapdata.IMAGE)
+			: {
+				mainPath: [[]],
+				backwashPath: [[]],
+				pureCleanPath: [[]],
+				mopPath: [[]],
+				mainPathD: "",
+				backwashPathD: "",
+				pureCleanPathD: "",
+				mopPathD: "",
+			};
+
+		const lwMain = Math.max(1, VISUAL_BLOCK_SIZE / 2);
+
+		const tempCanvas = createCanvas(ctx.canvas.width, ctx.canvas.height);
+		const tempCtx = tempCanvas.getContext("2d");
+
+		this.drawPathSegments(ctx, tempCtx, pathSegments.mainPath, LEGACY_COLORS.path, lwMain, 0.5);
+	}
+
+	private drawActiveZones(ctx: ExtendedContext2D, zones: any, image: any) {
+		if (zones?.[0]) {
+			zones.forEach((coord: any) => {
+				const x = this.robotXtoCanvasX(image, coord[0] / 50);
+				const y = this.robotYtoCanvasY(image, coord[1] / 50);
+				const w = this.robotXtoCanvasX(image, coord[2] / 50) - x;
+				const h = this.robotYtoCanvasY(image, coord[3] / 50) - y;
 				ctx.fillStyle = "rgba(46,139,87,0.1)";
 				ctx.fillRect(x, y, w, h);
 				ctx.strokeStyle = "#2e8b57";
@@ -406,27 +475,23 @@ export class MapCreator {
 				ctx.strokeRect(x, y, w, h);
 			});
 		}
+	}
 
-		// 7. Draw Paths (Mop & Standard)
-		this.drawPaths(ctx, mapdata);
-
-		// 8. Draw Predicted Path
-		if (mapdata.GOTO_PREDICTED_PATH?.points?.length) {
-			ctx.lineWidth = (3 * this.adapter.config.map_scale) / 2;
+	private drawPredictedPath(ctx: ExtendedContext2D, predictedPath: any, image: any) {
+		if (predictedPath?.points?.length) {
+			ctx.lineWidth = (3 * VISUAL_BLOCK_SIZE) / 2;
 			ctx.strokeStyle = "rgba(255, 255, 255, 1)";
-			ctx.setLineDash([3 * this.adapter.config.map_scale, 3 * this.adapter.config.map_scale]);
+			ctx.setLineDash([3 * VISUAL_BLOCK_SIZE, 3 * VISUAL_BLOCK_SIZE]);
 			ctx.lineCap = "round";
 			ctx.beginPath();
-
 			let lastX = -1,
 				lastY = -1;
-			mapdata.GOTO_PREDICTED_PATH.points.forEach((coord, index) => {
-				const x = this.robotXtoPixelX(mapdata.IMAGE, coord[0] / 50);
-				const y = this.robotYtoPixelY(mapdata.IMAGE, coord[1] / 50);
-
+			predictedPath.points.forEach((coord: any, index: number) => {
+				const x = this.robotXtoCanvasX(image, coord[0] / 50);
+				const y = this.robotYtoCanvasY(image, coord[1] / 50);
 				if (index === 0) {
 					ctx.fillStyle = "rgba(255, 255, 255, 1)";
-					ctx.fillRect(x, y, (1 * this.adapter.config.map_scale) / 2, (1 * this.adapter.config.map_scale) / 2);
+					ctx.fillRect(x, y, (1 * VISUAL_BLOCK_SIZE) / 2, (1 * VISUAL_BLOCK_SIZE) / 2);
 					ctx.moveTo(x, y);
 				} else if (x !== lastX || y !== lastY) {
 					ctx.lineTo(x, y);
@@ -438,95 +503,134 @@ export class MapCreator {
 			ctx.setLineDash([]);
 			ctx.lineCap = "butt";
 		}
+	}
 
-		// 9. Draw Forbidden Zones / Virtual Walls / No Mop Zones
-		this.drawRestrictedAreas(ctx, mapdata);
+	private async drawObstacles(ctx: ExtendedContext2D, obstacles: any, image: any) {
+		const OBSTACLE_MAPPING: Record<number, string> = {
+			"-99": "99",
+			0: "0",
+			1: "1",
+			2: "2",
+			3: "3",
+			4: "3",
+			5: "5_cn",
+			9: "9",
+			10: "10",
+			18: "18",
+			25: "25",
+			26: "26",
+			27: "26",
+			34: "10",
+			42: "18",
+			48: "48",
+			49: "49",
+			50: "50",
+			51: "51",
+			54: "54",
+			65: "65",
+			67: "67",
+			69: "69",
+			70: "70",
+			99: "99",
+		};
 
-		// 10. Draw Obstacles
-		if (mapdata.OBSTACLES2) {
-			mapdata.OBSTACLES2.forEach((obstacle) => {
+		if (obstacles) {
+			for (const obstacle of obstacles) {
 				const type = obstacle[2];
-				const title = OBSTACLE_TITLES[type] || "Unknown";
-				const confidence = Math.round(obstacle[3] / 100);
-				const text = title + (OBSTACLE_TITLES[type] ? `(${confidence}%)` : "");
+				const x = this.robotXtoCanvasX(image, obstacle[0] / 50) + VISUAL_BLOCK_SIZE / 2;
+				const y = this.robotYtoCanvasY(image, obstacle[1] / 50) + VISUAL_BLOCK_SIZE / 2;
 
-				const x = this.robotXtoPixelX(mapdata.IMAGE, obstacle[0] / 50);
-				const y = this.robotYtoPixelY(mapdata.IMAGE, obstacle[1] / 50);
+				const suffix = OBSTACLE_MAPPING[type] || "18";
+				const imagePath = path.join(__dirname, `../../www/images/projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`);
 
-				ctx.fillStyle = "red";
+				if (!fs.existsSync(imagePath)) {
+					this.adapter.log.warn(`[MapCreator] Could not find obstacle image for type ${type} (mapped to ${suffix}). Path: ${imagePath}`);
+				}
+
+				// Draw background circle (Grey with white border)
+				const radius = VISUAL_BLOCK_SIZE * 3.5; // Reduced radius
 				ctx.beginPath();
-				ctx.arc(x, y, 5, 0, 2 * Math.PI);
+				ctx.arc(x, y, radius, 0, 2 * Math.PI);
+				ctx.fillStyle = "rgba(100, 100, 100, 0.2)"; // Grey, more transparent
 				ctx.fill();
+				ctx.lineWidth = 0.5; // Thinner border
+				ctx.strokeStyle = "white";
+				ctx.stroke();
 
-				ctx.font = "14px sans-serif";
-				const textWidth = ctx.measureText(text).width;
-				const textHeight = 14;
-				const padding = 5;
-				const rectX = x - textWidth / 2 - padding;
-				const rectY = y + 5 + padding / 2;
-				const rectW = textWidth + 2 * padding;
-				const rectH = textHeight + padding;
+				if (fs.existsSync(imagePath)) {
+					try {
+						const obstacleImg = await loadImage(imagePath);
+						const size = VISUAL_BLOCK_SIZE * 5; // Reduced icon size
+						ctx.drawImage(obstacleImg, x - size / 2, y - size / 2, size, size);
+					} catch (e) {
+						this.adapter.log.error(`[MapCreator] Failed to load image ${imagePath}: ${e}`);
+					}
+				}
+			}
+		}
+	}
 
-				ctx.fillStyle = "red";
-				this.roundRect(ctx, rectX, rectY, rectW, rectH, 5);
-				ctx.fill();
-
-				ctx.fillStyle = "white";
-				ctx.textAlign = "center";
-				ctx.textBaseline = "middle";
-				ctx.fillText(text, x, y + 5 + padding + textHeight / 2);
-			});
+	private drawRobotChargerTarget(ctx: ExtendedContext2D, mapdata: any, imgRobot: Image, imgCharger: Image, imgGoToPin: Image) {
+		if (mapdata.CHARGER_LOCATION) {
+			const pos = mapdata.CHARGER_LOCATION.position;
+			if (pos?.[0] && pos?.[1]) {
+				const x = this.robotXtoCanvasX(mapdata.IMAGE, pos[0] / 50);
+				const y = this.robotYtoCanvasY(mapdata.IMAGE, pos[1] / 50);
+				const w = VISUAL_BLOCK_SIZE * 3;
+				const h = VISUAL_BLOCK_SIZE * 3;
+				ctx.drawImage(imgCharger, x - w / 2, y - h / 2, w, h);
+			}
 		}
 
-		// 11. Draw Robot & Target
 		if (mapdata.ROBOT_POSITION) {
 			const pos = mapdata.ROBOT_POSITION.position;
-			const angle = mapdata.PATH?.current_angle ?? mapdata.ROBOT_POSITION.angle;
+			const angle = mapdata.ROBOT_POSITION.angle ?? 0;
+			const drawAngle = -angle + 90;
 
 			if (pos?.[0] && pos?.[1]) {
-				const imgRotated = this.rotateCanvas(imgRobot, angle);
-				const x = this.robotXtoPixelX(mapdata.IMAGE, pos[0] / 50) - imgRobot.width / 4;
-				const y = this.robotYtoPixelY(mapdata.IMAGE, pos[1] / 50) - imgRobot.height / 4;
-				ctx.drawImage(imgRotated, x, y, imgRotated.width / 2, imgRotated.height / 2);
+				const x = this.robotXtoCanvasX(mapdata.IMAGE, pos[0] / 50);
+				const y = this.robotYtoCanvasY(mapdata.IMAGE, pos[1] / 50);
+				const robotSize = VISUAL_BLOCK_SIZE * 5;
+
+				ctx.save();
+				ctx.translate(x, y);
+				ctx.rotate((drawAngle * Math.PI) / 180);
+				ctx.drawImage(imgRobot, -robotSize / 2, -robotSize / 2, robotSize, robotSize);
+				ctx.restore();
 			}
 		}
 
 		if (mapdata.GOTO_TARGET?.[0] && mapdata.GOTO_TARGET?.[1]) {
+			const pinW = VISUAL_BLOCK_SIZE * 3;
+			const pinH = (pinW / 29) * 24;
 			ctx.drawImage(
 				imgGoToPin,
-				this.robotXtoPixelX(mapdata.IMAGE, mapdata.GOTO_TARGET[0] / 50) - imgGoToPin.width / 2,
-				this.robotYtoPixelY(mapdata.IMAGE, mapdata.GOTO_TARGET[1] / 50) - (imgGoToPin.height + 6),
-				imgGoToPin.width,
-				imgGoToPin.height
+				this.robotXtoCanvasX(mapdata.IMAGE, mapdata.GOTO_TARGET[0] / 50) - pinW / 2,
+				this.robotYtoCanvasY(mapdata.IMAGE, mapdata.GOTO_TARGET[1] / 50) - (pinH + VISUAL_BLOCK_SIZE / 2),
+				pinW,
+				pinH
 			);
 		}
+	}
 
-		// 12. Draw Room Names
-		// This block only runs if we have segment data AND (critically) mappedRooms was passed
+	private drawRoomNames(ctx: ExtendedContext2D, segmentsData: any, mappedRooms: any) {
 		if (segmentsData && mappedRooms) {
 			const roomIDsAll = this.adapter.http_api.getMatchedRoomIDs(false);
-
 			Object.keys(segmentsData).forEach((segnumStr) => {
 				const segnum = parseInt(segnumStr);
-				if (segnum === 0) return; // Skip non-room area
-
-				const segment = segmentsData[segnum];
+				if (segnum === 0) return;
+				const mapping = mappedRooms.find(([id]: [string]) => parseInt(id) === segnum);
 				let roomName = "";
-
-				// This check is the key: mappedRooms is the result of get_room_mapping.
-				// For history maps, we pass mappedRooms=null, so this block is skipped.
-				const mapping = mappedRooms.find(([id]) => parseInt(id) === segnum);
 				if (mapping) {
 					const roomID = mapping[1];
 					const roomObj = roomIDsAll.find((r) => String(r.id) === String(roomID));
 					roomName = roomObj?.name || "";
 				}
-
 				if (roomName) {
+					const segment = segmentsData[segnum];
 					const centerX = segment.minX + (segment.maxX - segment.minX) / 2;
 					const centerY = segment.minY + (segment.maxY - segment.minY) / 2;
-
-					ctx.font = `bold ${this.adapter.config.map_scale * 6}px Arial`;
+					ctx.font = `bold ${VISUAL_BLOCK_SIZE * 6}px Arial`;
 					ctx.textAlign = "center";
 					ctx.textBaseline = "middle";
 					ctx.lineWidth = 1;
@@ -537,208 +641,62 @@ export class MapCreator {
 				}
 			});
 		}
+	}
 
-		// 13. Crop & Return
+	private cropMap(canvas: Canvas, ctx: ExtendedContext2D, bounds: { minleft: number; mintop: number; maxleft: number; maxtop: number }) {
+		const { minleft, mintop, maxleft, maxtop } = bounds;
 		const cropW = maxleft - minleft + 2 * OFFSET;
 		const cropH = maxtop - mintop + 2 * OFFSET;
 
 		if (cropW <= 0 || cropH <= 0 || !isFinite(cropW) || !isFinite(cropH)) {
-			this.adapter.log.warn(`[MapCreator] Invalid crop dimensions calculated. Returning full map.`);
-			return [canvas.toDataURL(), canvas.toDataURL()];
+			return canvas.toDataURL();
 		}
-
-		const canvasTrimmed = createCanvas(cropW, cropH);
-		const ctxTrimmed = canvasTrimmed.getContext("2d");
 
 		const sx = Math.max(0, minleft - OFFSET);
 		const sy = Math.max(0, mintop - OFFSET);
 		const maxWidth = canvas.width - sx;
 		const maxHeight = canvas.height - sy;
-
 		const finalCropW = Math.min(cropW, maxWidth);
 		const finalCropH = Math.min(cropH, maxHeight);
 
-		const trimmedData = ctx.getImageData(sx, sy, finalCropW, finalCropH);
+		const canvasTrimmedFull = createCanvas(finalCropW, finalCropH);
+		const ctxTrimmedFull = canvasTrimmedFull.getContext("2d");
+		const trimmedDataFull = ctx.getImageData(sx, sy, finalCropW, finalCropH);
+		ctxTrimmedFull.putImageData(trimmedDataFull, 0, 0);
 
-		ctxTrimmed.putImageData(trimmedData, 0, 0);
-
-		return [canvas.toDataURL(), canvasTrimmed.toDataURL()];
+		return canvasTrimmedFull.toDataURL();
 	}
 
-	// --------------------
-	// Sub-drawing Routines
-	// --------------------
-
-	private drawPaths(ctx: CanvasRenderingContext2D, mapdata: any) {
-		if (!mapdata.PATH?.points || !mapdata.MOP_PATH) return;
-
-		const scale = this.adapter.config.map_scale;
-		const points = mapdata.PATH.points;
-		const mops = mapdata.MOP_PATH;
-		const mopOffset = -12;
-
-		// 1. Mop Path (Thick transparent trace)
-		ctx.lineWidth = 7 * scale;
-		ctx.lineCap = "round";
-		ctx.lineJoin = "round";
-		ctx.strokeStyle = "rgba(255,255,255,0.18)";
-		ctx.beginPath();
-
-		let lastIdx = -1;
-		let segmentStarted = false;
-
-		for (let i = 0; i < points.length; i++) {
-			const mopIdx = i + mopOffset;
-			if (mops?.[mopIdx] & 1) {
-				const x = this.robotXtoPixelX(mapdata.IMAGE, points[i][0] / 50);
-				const y = this.robotYtoPixelY(mapdata.IMAGE, points[i][1] / 50);
-
-				if (!segmentStarted) {
-					ctx.moveTo(x, y);
-					segmentStarted = true;
-				} else {
-					this.tracePathSegment(ctx, x, y, i, lastIdx, points, mapdata);
-				}
-				lastIdx = i;
-			} else {
-				segmentStarted = false;
-			}
-		}
-		ctx.stroke();
-
-		// 2. Main Line
-		ctx.lineWidth = Math.max(1, scale / 2);
-		ctx.strokeStyle = this.colors.path;
-		ctx.beginPath();
-		ctx.setLineDash([]);
-
-		lastIdx = -1;
-		for (let i = 0; i < points.length; i++) {
-			const idx = i + mopOffset;
-			const isBackwash = idx >= 0 && idx < mops.length && ((mops[idx] >> 3) & 1) === 1;
-
-			if (!isBackwash) {
-				const x = this.robotXtoPixelX(mapdata.IMAGE, points[i][0] / 50);
-				const y = this.robotYtoPixelY(mapdata.IMAGE, points[i][1] / 50);
-				this.tracePathSegment(ctx, x, y, i, lastIdx, points, mapdata);
-				lastIdx = i;
-			} else {
-				lastIdx = -1;
-			}
-		}
-		ctx.stroke();
-
-		// 3. Backwash (Dashed)
-		ctx.lineWidth = 0.5 * scale;
-		ctx.strokeStyle = "rgba(255,255,255,0.2)";
-		ctx.setLineDash([4, 8]);
-		ctx.beginPath();
-
-		lastIdx = -1;
-		for (let i = 0; i < points.length; i++) {
-			const idx = i + mopOffset;
-			const isBackwash = idx >= 0 && idx < mops.length && ((mops[idx] >> 3) & 1) === 1;
-
-			if (isBackwash) {
-				const x = this.robotXtoPixelX(mapdata.IMAGE, points[i][0] / 50);
-				const y = this.robotYtoPixelY(mapdata.IMAGE, points[i][1] / 50);
-				this.tracePathSegment(ctx, x, y, i, lastIdx, points, mapdata);
-				lastIdx = i;
-			} else {
-				lastIdx = -1;
-			}
-		}
-		ctx.stroke();
-		ctx.setLineDash([]);
-	}
-
-	private tracePathSegment(ctx: CanvasRenderingContext2D, x: number, y: number, currIdx: number, lastIdx: number, points: number[][], mapdata: any) {
-		const scale = this.adapter.config.map_scale;
-		const threshold = 10 * scale;
-
-		if (lastIdx < 0) {
-			ctx.moveTo(x, y);
-		} else {
-			const last = points[lastIdx];
-			const lx = this.robotXtoPixelX(mapdata.IMAGE, last[0] / 50);
-			const ly = this.robotYtoPixelY(mapdata.IMAGE, last[1] / 50);
-
-			if (Math.hypot(x - lx, y - ly) > threshold || currIdx !== lastIdx + 1) {
-				ctx.moveTo(x, y);
-			} else {
-				ctx.lineTo(x, y);
-			}
-		}
-	}
-
-	private drawRestrictedAreas(ctx: CanvasRenderingContext2D, mapdata: any) {
+	private drawRestrictedAreas(ctx: ExtendedContext2D, mapdata: any) {
 		const drawRectArea = (zones: number[][], fill: string, stroke: string) => {
 			if (!zones) return;
 			zones.forEach((zone) => {
-				const x1 = this.robotXtoPixelX(mapdata.IMAGE, Math.min(zone[0], zone[2], zone[4], zone[6]) / 50);
-				const y1 = this.robotYtoPixelY(mapdata.IMAGE, Math.max(zone[1], zone[3], zone[5], zone[7]) / 50);
-				const x2 = this.robotXtoPixelX(mapdata.IMAGE, Math.max(zone[0], zone[2], zone[4], zone[6]) / 50);
-				const y2 = this.robotYtoPixelY(mapdata.IMAGE, Math.min(zone[1], zone[3], zone[5], zone[7]) / 50);
-
+				const x1 = this.robotXtoCanvasX(mapdata.IMAGE, Math.min(zone[0], zone[2], zone[4], zone[6]) / 50);
+				const y1 = this.robotYtoCanvasY(mapdata.IMAGE, Math.max(zone[1], zone[3], zone[5], zone[7]) / 50);
+				const x2 = this.robotXtoCanvasX(mapdata.IMAGE, Math.max(zone[0], zone[2], zone[4], zone[6]) / 50);
+				const y2 = this.robotYtoCanvasY(mapdata.IMAGE, Math.min(zone[1], zone[3], zone[5], zone[7]) / 50);
 				const minX = Math.min(x1, x2);
 				const minY = Math.min(y1, y2);
 				const maxX = Math.max(x1, x2);
 				const maxY = Math.max(y1, y2);
-				const w = maxX - minX;
-				const h = maxY - minY;
-
 				ctx.fillStyle = fill;
-				ctx.fillRect(minX, minY, w, h);
+				ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
 				ctx.strokeStyle = stroke;
-				ctx.lineWidth = (1 * this.adapter.config.map_scale) / 2;
-				ctx.strokeRect(minX, minY, w, h);
+				ctx.lineWidth = (1 * VISUAL_BLOCK_SIZE) / 2;
+				ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
 			});
 		};
-
 		drawRectArea(mapdata.FORBIDDEN_ZONES, "rgba(255, 0, 0, 0.5)", "rgba(255, 0, 0, 1)");
 		drawRectArea(mapdata.NO_MOP_ZONE, "rgba(0, 0, 255, 0.5)", "rgba(0, 0, 255, 1)");
-
 		if (mapdata.VIRTUAL_WALLS) {
 			ctx.strokeStyle = "rgba(255, 0, 0, 1)";
-			const lineWidth = 1 * this.adapter.config.map_scale;
-			ctx.lineWidth = lineWidth;
-
+			ctx.lineWidth = 1 * VISUAL_BLOCK_SIZE;
 			ctx.beginPath();
-			mapdata.VIRTUAL_WALLS.forEach((wall) => {
-				const startX = this.robotXtoPixelX(mapdata.IMAGE, wall[0] / 50);
-				const startY = this.robotYtoPixelY(mapdata.IMAGE, wall[1] / 50);
-				const endX = this.robotXtoPixelX(mapdata.IMAGE, wall[2] / 50);
-				const endY = this.robotYtoPixelY(mapdata.IMAGE, wall[3] / 50);
-
-				let vecX = endX - startX;
-				let vecY = endY - startY;
-				const len = Math.sqrt(vecX * vecX + vecY * vecY);
-				vecX /= len;
-				vecY /= len;
-
-				const adjustedStartX = startX + vecX * (lineWidth / 2);
-				const adjustedStartY = startY + vecY * (lineWidth / 2);
-				const adjustedEndX = endX - vecX * (lineWidth / 2);
-				const adjustedEndY = endY - vecY * (lineWidth / 2);
-
-				ctx.moveTo(adjustedStartX, adjustedStartY);
-				ctx.lineTo(adjustedEndX, adjustedEndY);
+			mapdata.VIRTUAL_WALLS.forEach((wall: any) => {
+				ctx.moveTo(this.robotXtoCanvasX(mapdata.IMAGE, wall[0] / 50), this.robotYtoCanvasY(mapdata.IMAGE, wall[1] / 50));
+				ctx.lineTo(this.robotXtoCanvasX(mapdata.IMAGE, wall[2] / 50), this.robotYtoCanvasY(mapdata.IMAGE, wall[3] / 50));
 			});
 			ctx.stroke();
 		}
-	}
-
-	private roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
-		ctx.beginPath();
-		ctx.moveTo(x + radius, y);
-		ctx.lineTo(x + width - radius, y);
-		ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-		ctx.lineTo(x + width, y + height - radius);
-		ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-		ctx.lineTo(x + radius, y + height);
-		ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-		ctx.lineTo(x, y + radius);
-		ctx.quadraticCurveTo(x, y, x + radius, y);
-		ctx.closePath();
 	}
 }

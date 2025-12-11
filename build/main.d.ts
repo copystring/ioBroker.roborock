@@ -1,5 +1,4 @@
 import * as utils from "@iobroker/adapter-core";
-import ws from "ws";
 import { roborock_package_helper } from "./lib/roborock_package_helper";
 import { requestsHandler } from "./lib/requestsHandler";
 import { http_api } from "./lib/httpApi";
@@ -7,7 +6,7 @@ import { local_api } from "./lib/localApi";
 import { mqtt_api } from "./lib/mqttApi";
 import { socketHandler } from "./lib/socketHandler";
 import { DeviceManager } from "./lib/deviceManager";
-import type { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
+import { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
 export declare class Roborock extends utils.Adapter {
     http_api: http_api;
     local_api: local_api;
@@ -16,14 +15,8 @@ export declare class Roborock extends utils.Adapter {
     socketHandler: socketHandler;
     deviceManager: DeviceManager;
     deviceFeatureHandlers: Map<string, BaseDeviceFeatures>;
-    socket: ws | null;
     nonce: Buffer;
-    pendingRequests: Map<number, {
-        method: string;
-        resolve: (value: any) => void;
-        reject: (reason?: any) => void;
-        timeout: ioBroker.Timeout | undefined;
-    }>;
+    pendingRequests: Map<number, any>;
     roborock_package_helper: roborock_package_helper;
     isInitializing: boolean;
     sentryInstance: any;
@@ -47,6 +40,10 @@ export declare class Roborock extends utils.Adapter {
      * Is called if a subscribed state changes.
      */
     onStateChange(id: string, state: ioBroker.State | null | undefined): Promise<void>;
+    /**
+     * Handles commands from onStateChange.
+     */
+    private handleCommand;
     /**
      * Ensures a ClientID exists.
      */

@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "target": "ES2022",
+    "module": "ES2022",
+    "outDir": "./www",
+    "rootDir": "./src/www",
+    "composite": true,
+    "tsBuildInfoFile": "./www/tsconfig.web.tsbuildinfo",
+    "allowJs": false,
+    "checkJs": false
+  },
+  "include": ["src/www/**/*.ts"],
+  "exclude": ["node_modules", "**/*.test.ts"]
+}

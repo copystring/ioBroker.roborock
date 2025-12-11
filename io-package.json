@@ -198,6 +198,7 @@
     "cameraPin"
   ],
   "native": {
+    "loginMethod": "email",
     "username": "",
     "password": "",
     "enable_map_creation": false,
@@ -205,7 +206,8 @@
     "map_scale": 2,
     "updateInterval": 60,
     "hostname_ip": "iobroker",
-    "cameraPin": 1234
+    "cameraPin": 1234,
+    "region": "eu"
   },
   "objects": [],
   "instanceObjects": [

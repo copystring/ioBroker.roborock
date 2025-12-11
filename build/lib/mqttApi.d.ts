@@ -1,5 +1,4 @@
 import type { Roborock } from "../main";
-import { type MqttClient, type IClientOptions } from "mqtt";
 interface PhotoRequestData {
     chunks: Buffer[];
 }
@@ -7,10 +6,10 @@ export declare class mqtt_api {
     adapter: Roborock;
     mqttUser: string;
     mqttPassword: string;
-    client: MqttClient | null;
+    client: any;
     connected: boolean;
     pendingPhotoRequests: Record<string, PhotoRequestData>;
-    mqttOptions: IClientOptions | null;
+    mqttOptions: any;
     constructor(adapter: Roborock);
     /**
      * Initializes the MQTT API by setting up credentials and connecting.
@@ -28,12 +27,12 @@ export declare class mqtt_api {
      * Subscribes to MQTT client events (connect, error, offline, etc.).
      * @param client - The MQTT client instance.
      */
-    subscribe_mqtt_events(client: MqttClient): Promise<void>;
+    subscribe_mqtt_events(client: any): Promise<void>;
     /**
      * Sets up the listener for incoming MQTT messages.
      * @param client - The MQTT client instance.
      */
-    subscribe_mqtt_message(client: MqttClient): Promise<void>;
+    subscribe_mqtt_message(client: any): Promise<void>;
     /**
      * Processes a single decoded Roborock message frame.
      */

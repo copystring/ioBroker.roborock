@@ -3,7 +3,6 @@
 
 import * as utils from "@iobroker/adapter-core";
 import { randomBytes } from "crypto";
-import ws from "ws";
 import { spawn } from "child_process";
 import go2rtcPath from "go2rtc-static";
 
@@ -16,7 +15,8 @@ import { mqtt_api } from "./lib/mqttApi";
 import { socketHandler } from "./lib/socketHandler";
 import { DeviceManager } from "./lib/deviceManager";
 import { Feature } from "./lib/features/features.enum";
-import type { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
+import { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
+import { buildInfo } from "./lib/buildInfo";
 
 export class Roborock extends utils.Adapter {
 	// --- Public APIs (accessible by helpers) ---
@@ -29,45 +29,40 @@ export class Roborock extends utils.Adapter {
 
 	// --- Internal Properties ---
 	public deviceFeatureHandlers: Map<string, BaseDeviceFeatures>;
-	public socket: ws | null;
 	public nonce: Buffer;
-	public pendingRequests: Map<
-		number,
-		{
-			method: string; // The method name (e.g., "get_map_v1")
-			resolve: (value: any) => void;
-			reject: (reason?: any) => void;
-			timeout: ioBroker.Timeout | undefined;
-		}
-	>;
+	public pendingRequests: Map<number, any>;
 	public roborock_package_helper: roborock_package_helper;
+
 	public isInitializing: boolean;
 	public sentryInstance: any;
 	public translations: Record<string, string> = {};
 
 	private commandTimeout: ioBroker.Timeout | undefined = undefined;
 	public instance: number = 0;
+
 	constructor(options: Partial<utils.AdapterOptions> = {}) {
 		super({ ...options, name: "roborock", useFormatDate: true });
-		this.on("ready", this.onReady.bind(this));
-		this.on("stateChange", this.onStateChange.bind(this));
-		this.on("message", this.onMessage.bind(this));
-		this.on("unload", this.onUnload.bind(this));
 
 		this.instance = options.instance || 0;
-		this.socket = null;
 		this.nonce = randomBytes(16);
 		this.pendingRequests = new Map();
 		this.http_api = new http_api(this);
 		this.local_api = new local_api(this);
 		this.mqtt_api = new mqtt_api(this);
 		this.requestsHandler = new requestsHandler(this);
+
 		this.deviceManager = new DeviceManager(this);
 		this.socketHandler = new socketHandler(this);
 		this.deviceFeatureHandlers = this.deviceManager.deviceFeatureHandlers; // Reference DM's map
 
 		this.roborock_package_helper = new roborock_package_helper(this);
+
 		this.isInitializing = true;
+
+		this.on("ready", this.onReady.bind(this));
+		this.on("stateChange", this.onStateChange.bind(this));
+		this.on("message", this.onMessage.bind(this));
+		this.on("unload", this.onUnload.bind(this));
 	}
 
 	/**
@@ -75,8 +70,8 @@ export class Roborock extends utils.Adapter {
 	 */
 	async onReady() {
 		// Config properties are now type-safe thanks to types.d.ts
-		if (!this.config.username || !this.config.password) {
-			this.log.error("Username or password missing!");
+		if (!this.config.username) {
+			this.log.error("Username missing!");
 			return;
 		}
 
@@ -84,7 +79,7 @@ export class Roborock extends utils.Adapter {
 		this.translations = require(`../admin/i18n/${this.language || "en"}/translations.json`);
 
 		this.log.info(`Starting adapter. This might take a few minutes...`);
-
+		this.log.info(`Build Info: Date=${buildInfo.buildDate}, Commit=${buildInfo.commitHash}`);
 		await this.setupBasicObjects();
 
 		try {
@@ -92,11 +87,29 @@ export class Roborock extends utils.Adapter {
 			await this.http_api.init(clientID);
 			await this.mqtt_api.init();
 			await this.http_api.updateHomeData();
+
+			if (this.config.downloadRoborockImages) {
+				this.log.info("Downloading Roborock images...");
+				await this.http_api.downloadProductImages();
+
+				// Download additional assets (icons, etc)
+				const devices = this.http_api.getDevices();
+				for (const device of devices) {
+					await this.roborock_package_helper.updateProduct(device.duid);
+				}
+			}
+
 			await this.local_api.startUdpDiscovery();
 			await this.deviceManager.initializeDevices();
 			await this.processScenes();
 			this.deviceManager.startPolling();
 			await this.start_go2rtc();
+
+			this.subscribeStatesAsync("Devices.*.commands.*");
+			this.subscribeStatesAsync("Devices.*.resetConsumables.*");
+			this.subscribeStatesAsync("Devices.*.programs.startProgram");
+			this.subscribeStatesAsync("Devices.*.deviceInfo.online");
+			this.subscribeStatesAsync("Devices.*.floors.*.load");
 
 			this.log.info(`Adapter startup finished. Let's go!`);
 			this.isInitializing = false;
@@ -141,19 +154,56 @@ export class Roborock extends utils.Adapter {
 	 * Is called if a subscribed state changes.
 	 */
 	async onStateChange(id: string, state: ioBroker.State | null | undefined) {
-		if (!state || state.ack) {
-			if (state?.ack && id.endsWith(".online")) {
+		if (!state) return;
+
+		if (state.ack) {
+			// ... (keep usage of id, state if needed, or previous code)
+			if (id.endsWith(".online")) {
 				this.log.info(`Device ${id.split(".")[3]} is now ${state.val ? "online" : "offline"}`);
 			}
 			return;
 		}
 
+		// Split ID once
 		const idParts = id.split(".");
+
+		// Check for root loginCode (roborock.0.loginCode)
+		if (idParts[2] === "loginCode" && state.val && String(state.val).length === 6) {
+			this.http_api.submitLoginCode(String(state.val));
+			return;
+		}
+
+		// Devices logic
+		if (idParts[2] !== "Devices") return;
+
 		const duid = idParts[3];
 		const folder = idParts[4];
 		const command = idParts[5];
 
-		this.log.debug(`onStateChange: ${command} for ${duid} with value: ${state.val}`);
+		// Special handling for floors (deeply nested: Devices.duid.floors.mapFlag.load)
+		if (folder === "floors" && idParts.length >= 7 && idParts[6] === "load") {
+			const mapFlag = parseInt(idParts[5], 10);
+			if (state.val === true || state.val === "true" || state.val === 1) {
+				const handler = this.deviceFeatureHandlers.get(duid);
+				if (handler) {
+					this.log.info(`[onStateChange] Loading map ${mapFlag} for ${duid}`);
+					await this.requestsHandler.command(handler, duid, "load_multi_map", [mapFlag]);
+
+					// Trigger update of room mapping and map after switching floors
+					setTimeout(async () => {
+						this.log.info(`[onStateChange] Updating map and rooms after floor switch for ${duid}`);
+						await handler.updateRoomMapping();
+						await handler.updateMap();
+					}, 2000); // Small delay to let the robot process the switch
+
+					// Reset button
+					this.setTimeout(() => this.setState(id, false, true), 1000);
+				}
+			}
+			return;
+		}
+
+		this.log.info(`[onStateChange] Processing command: ${command} for ${duid} in folder: ${folder}`);
 
 		const handler = this.deviceFeatureHandlers.get(duid);
 		if (!handler) {
@@ -162,11 +212,27 @@ export class Roborock extends utils.Adapter {
 		}
 
 		try {
-			if (folder === "resetConsumables" && state.val === true) {
-				await this.requestsHandler.command(handler, duid, "reset_consumable", command);
-			} else if (folder === "programs" && command === "startProgram") {
-				await this.http_api.executeScene(state as any);
-			} else if (folder === "commands") {
+			await this.handleCommand(duid, folder, command, state, handler, id);
+		} catch (e: any) {
+			this.catchError(e, `onStateChange (${command})`, duid);
+		}
+	}
+
+	/**
+	 * Handles commands from onStateChange.
+	 */
+	private async handleCommand(duid: string, folder: string, command: string, state: ioBroker.State, handler: BaseDeviceFeatures, id: string) {
+		if (folder === "resetConsumables" && state.val === true) {
+			await this.requestsHandler.command(handler, duid, "reset_consumable", command);
+			// Reset button
+			this.setTimeout(() => {
+				this.setState(id, false, true);
+			}, 1000);
+		} else if (folder === "programs" && command === "startProgram") {
+			await this.http_api.executeScene(state as any);
+		} else if (folder === "commands") {
+			this.log.info(`[handleCommand] Entering commands block for ${command}`);
+			try {
 				// Handle specific commands
 				switch (command) {
 					case "load_multi_map":
@@ -175,13 +241,18 @@ export class Roborock extends utils.Adapter {
 					case "app_start":
 					case "app_charge":
 					case "app_spot":
-						if (state.val === true) {
+						this.log.info(`[handleCommand] Checking boolean command ${command}. Val: ${state.val}`);
+						if (state.val === true || state.val === "true" || state.val === 1) {
+							this.log.info(`[handleCommand] Triggering command ${command} for ${duid}`);
 							await this.requestsHandler.command(handler, duid, command);
+						} else {
+							this.log.info(`[handleCommand] Command ${command} NOT triggered because value is not true.`);
 						}
 						break;
 					case "app_segment_clean":
-						if (state.val === true) {
+						if (state.val === true || state.val === "true" || state.val === 1) {
 							// This command reads other states (selected rooms, count)
+							this.log.info(`[handleCommand] Triggering app_segment_clean for ${duid}`);
 							await this.requestsHandler.command(handler, duid, command);
 						}
 						break;
@@ -191,24 +262,32 @@ export class Roborock extends utils.Adapter {
 						try {
 							const params = JSON.parse(state.val as string);
 							await this.requestsHandler.command(handler, duid, command, params);
-						} catch (e) {
+						} catch {
 							this.log.error(`Invalid JSON for ${command}: ${state.val}`);
 						}
 						break;
 					default:
 						// Default handler for simple set commands
-						await this.requestsHandler.command(handler, duid, command, state.val);
+						// If it's a boolean command (button), we only trigger on true (or truthy)
+						if (typeof state.val === "boolean") {
+							if (state.val === true) {
+								await this.requestsHandler.command(handler, duid, command, state.val);
+							}
+						} else {
+							// For non-boolean, just send the value
+							await this.requestsHandler.command(handler, duid, command, state.val);
+						}
+				}
+			} finally {
+				// Reset boolean command state
+				if ((typeof state.val === "boolean" && state.val === true) || state.val === "true" || state.val === 1) {
+					this.log.info(`[handleCommand] Scheduling reset for ${id}`);
+					this.commandTimeout = this.setTimeout(() => {
+						this.log.info(`[handleCommand] Resetting ${id} to false`);
+						this.setState(id, false, true);
+					}, 1000);
 				}
 			}
-
-			// Reset button presses
-			if (typeof state.val === "boolean" && state.val === true) {
-				this.commandTimeout = this.setTimeout(() => {
-					this.setState(id, false, true);
-				}, 1000);
-			}
-		} catch (e: any) {
-			this.catchError(e, `onStateChange (${command})`, duid);
 		}
 	}
 
@@ -217,7 +296,7 @@ export class Roborock extends utils.Adapter {
 	 */
 	async ensureClientID(): Promise<string> {
 		try {
-			const clientIDState = await this.getStateAsync("clientID"); // Use Async
+			const clientIDState = await this.getStateAsync("clientID"); // Revert to Async
 			if (clientIDState?.val) {
 				this.log.info(`Loaded existing clientID: ${clientIDState.val}`);
 				return clientIDState.val.toString();
@@ -321,7 +400,7 @@ export class Roborock extends utils.Adapter {
 				}
 
 				await this.ensureState(`Devices.${duid}.deviceInfo.${attr}`, common);
-				await this.setStateChangedAsync(`Devices.${duid}.deviceInfo.${attr}`, { val: value, ack: true });
+				await this.setStateChanged(`Devices.${duid}.deviceInfo.${attr}`, { val: value, ack: true });
 			}
 		}
 	}
@@ -334,23 +413,32 @@ export class Roborock extends utils.Adapter {
 		if (!isLocal) return;
 
 		try {
+			this.log.debug(`[checkForNewFirmware] Checking for firmware update for ${duid}...`);
 			const update = await this.http_api.getFirmwareStates(duid);
+			this.log.debug(`[checkForNewFirmware] Result for ${duid}: ${JSON.stringify(update)}`);
+
 			if (update.data.result) {
 				for (const state in update.data.result) {
 					const value = update.data.result[state];
 					await this.ensureState(`Devices.${duid}.updateStatus.${state}`, { type: typeof value as ioBroker.CommonType });
-					await this.setStateChangedAsync(`Devices.${duid}.updateStatus.${state}`, { val: value, ack: true });
+					await this.setStateChanged(`Devices.${duid}.updateStatus.${state}`, { val: value, ack: true });
 				}
+			} else {
+				this.log.warn(`[checkForNewFirmware] No result in firmware update response for ${duid}`);
 			}
 		} catch (error) {
 			this.log.warn(`Failed to check for new firmware: ${error}`);
 		}
 	}
 
+
+
 	/**
 	 * Creates a state if it doesn't exist, applying translations.
 	 */
 	public async ensureState(path: string, commonOptions: Partial<ioBroker.StateCommon>, native: Record<string, any> = {}) {
+
+
 		const stateName = path.split(".").pop() || path;
 		const translatedName = commonOptions.name || this.translations[stateName] || stateName;
 
@@ -370,21 +458,24 @@ export class Roborock extends utils.Adapter {
 		let oldObj: ioBroker.Object | null | undefined;
 		try {
 			oldObj = await this.getObjectAsync(path);
-		} catch (e) {
+		} catch {
 			oldObj = null; // Does not exist
 		}
 
 		// Check if object exists AND if its type is different from what we need
 		if (!oldObj || oldObj.common.type !== finalCommon.type) {
 			if (oldObj) {
-				// Object exists, but type is wrong
+				// Object exists, but type is wrong - let's fix it
 				this.log.warn(`[ensureState] Correcting data type for "${path}". Old: "${oldObj.common.type}", New: "${finalCommon.type}".`);
-				// We must merge the old common object with our new type
+
+				// Safely merge common properties, ensuring type is updated
 				const newCommon = { ...oldObj.common, ...finalCommon };
+
+				// Force extension to apply changes
 				await this.extendObject(path, { common: newCommon });
 			} else {
 				// Object does not exist, create it new
-				await this.setObjectAsync(path, {
+				await this.setObject(path, {
 					type: "state",
 					common: finalCommon,
 					native: native,
@@ -397,6 +488,8 @@ export class Roborock extends utils.Adapter {
 	 * Creates a folder if it doesn't exist, applying translations.
 	 */
 	async ensureFolder(path: string) {
+
+
 		const attribute = path.split(".").pop() || path;
 		await this.setObjectNotExistsAsync(path, {
 			type: "folder",
@@ -431,7 +524,7 @@ export class Roborock extends utils.Adapter {
 		const go2rtcConfig = {
 			server: { listen: `:${port}` },
 			rtsp: { listen: `:${rtspPort}` },
-			streams: {},
+			streams: {} as Record<string, string>,
 		};
 		let cameraCount = 0;
 
@@ -469,7 +562,7 @@ export class Roborock extends utils.Adapter {
 			return;
 		}
 
-		this.log.debug(`[A01|${duid}] Processing: ${JSON.stringify(response.dps)}`);
+		this.log.debug(`[A01] Update for ${duid}: ${JSON.stringify(response.dps)}`);
 
 		const determineType = (value: any): ioBroker.CommonType => {
 			const t = typeof value;
@@ -486,9 +579,9 @@ export class Roborock extends utils.Adapter {
 					await this.ensureFolder(path);
 					await processNested(path, value);
 				} else {
-					let val = typeof value === "object" || value === null ? JSON.stringify(value) : value;
+					const val = typeof value === "object" || value === null ? JSON.stringify(value) : value;
 					await this.ensureState(path, { name: key, type: determineType(value), write: false });
-					await this.setStateChangedAsync(path, { val, ack: true });
+					await this.setStateChanged(path, { val, ack: true });
 				}
 			}
 		};
@@ -515,7 +608,7 @@ export class Roborock extends utils.Adapter {
 			} else {
 				const path = `Devices.${duid}.deviceStatus.${id}`;
 				await this.ensureState(path, { name: stateName, type: determineType(value), write: false });
-				await this.setStateChangedAsync(path, { val: parsedValue, ack: true });
+				await this.setStateChanged(path, { val: parsedValue, ack: true });
 			}
 		}
 	}

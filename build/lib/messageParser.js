@@ -1,16 +1,35 @@
 "use strict";
-// src/lib/messageParser.ts
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.messageParser = void 0;
-const cryptoEngine_1 = require("./cryptoEngine");
-const crc_32_1 = __importDefault(require("crc-32"));
-const binary_parser_1 = require("binary-parser");
 const zod_1 = require("zod");
+const binary_parser_1 = require("binary-parser");
+const crc32 = __importStar(require("crc-32"));
+const cryptoEngine_1 = require("./cryptoEngine");
 const SUPPORTED_VERSIONS = ["1.0", "A01", "L01"];
-// Define the structure of a parsed frame using Zod for runtime validation
+// Zod schema for runtime frame validation
 const FrameSchema = zod_1.z.object({
     version: zod_1.z.string(),
     seq: zod_1.z.number(),
@@ -26,7 +45,7 @@ const FrameSchema = zod_1.z.object({
 // --------------------
 const HEADER_LEN = 3 + 4 + 4 + 4 + 2 + 2; // version(3) + seq(4) + random(4) + timestamp(4) + protocol(2) + payloadLen(2)
 const CRC32_LEN = 4;
-// Global sequence and random counters (persisted as long as the module is loaded)
+// Persistent global sequence and random counters
 let seq = 1;
 let random = 4711;
 // --------------------
@@ -46,20 +65,17 @@ const frameParser = new binary_parser_1.Parser()
 // CRC Utilities
 // --------------------
 /**
- * Validates the CRC32 checksum of a given buffer.
- * Expects the last 4 bytes to contain the checksum.
+ * Validates CRC32 checksum.
  */
 function validateCrc(buf) {
-    // Calculate CRC of the buffer excluding the last 4 bytes
-    const crc = crc_32_1.default.buf(buf.subarray(0, buf.length - 4)) >>> 0;
-    // Compare with the CRC stored in the last 4 bytes
+    const crc = crc32.buf(buf.subarray(0, buf.length - 4)) >>> 0;
     return crc === buf.readUInt32BE(buf.length - 4);
 }
 /**
- * Calculates the CRC32 checksum and writes it to the last 4 bytes of the buffer.
+ * Appends CRC32 checksum to the buffer.
  */
 function appendCrc(buf) {
-    const crc = crc_32_1.default.buf(buf.subarray(0, buf.length - 4)) >>> 0;
+    const crc = crc32.buf(buf.subarray(0, buf.length - 4)) >>> 0;
     buf.writeUInt32BE(crc, buf.length - 4);
 }
 // --------------------
@@ -84,28 +100,23 @@ class messageParser {
         this.adapter = adapter;
     }
     /**
-     * Decodes a buffer containing one or more Roborock protocol messages.
-     * @param message The raw buffer received from the network.
-     * @param duid The Device Unique ID (DUID) associated with the message.
-     * @returns A single Frame, an array of Frames, or null if no valid frames were found.
+     * Decodes a buffer containing Roborock protocol messages.
      */
-    _decodeMsg(message, duid) {
+    decodeMsg(message, duid) {
         const decoded = [];
         let offset = 0;
         while (offset + 3 <= message.length) {
-            // Check protocol version (first 3 bytes)
+            // Check protocol version
             const version = message.toString("latin1", offset, offset + 3);
             if (!SUPPORTED_VERSIONS.includes(version)) {
                 this.adapter.log.error(`[decodeMsg] Unsupported version "${version}" at offset ${offset}`);
-                // Advance by the minimal known message length to stop the byte-by-byte error cascade.
-                // This ensures we jump over the entire corrupted/unknown message block.
+                // Skip corrupted message block
                 const MIN_MSG_LENGTH = 23;
                 offset += MIN_MSG_LENGTH;
                 continue;
             }
             let raw;
             try {
-                // Parse the binary structure
                 raw = frameParser.parse(message.subarray(offset));
             }
             catch (err) {
@@ -114,7 +125,6 @@ class messageParser {
             }
             let data;
             try {
-                // Validate structure using Zod
                 data = FrameSchema.parse(raw);
                 data.version = version;
             }
@@ -122,7 +132,6 @@ class messageParser {
                 this.adapter.log.error(`[decodeMsg] Validation failed: ${err}`);
                 break;
             }
-            // Calculate total message length
             const msgLen = HEADER_LEN + data.payloadLen + CRC32_LEN;
             if (msgLen <= 0 || offset + msgLen > message.length)
                 break;
@@ -133,14 +142,14 @@ class messageParser {
                 offset += msgLen;
                 continue;
             }
-            // Retrieve the local key (token) for decryption
+            // Get local key
             const localKey = this.adapter.http_api.getMatchedLocalKeys().get(duid);
             if (!localKey) {
                 this.adapter.log.error(`[decodeMsg] No localKey found for DUID ${duid}`);
                 offset += msgLen;
                 continue;
             }
-            // Attempt decryption based on protocol version
+            // Decrypt
             try {
                 if (version === "L01") {
                     const dev = this.adapter.local_api.localDevices[duid];
@@ -167,22 +176,20 @@ class messageParser {
         return decoded.length === 1 ? decoded[0] : decoded;
     }
     /**
-     * Builds the JSON payload string for a device command.
-     * Handles special security parameters for specific methods (like photo/map requests).
+     * Builds JSON payload for device command.
      */
-    async buildPayload(duid, protocol, messageID, method, params, version) {
+    async buildPayload(protocol, messageID, method, params, version) {
         const timestamp = Math.floor(Date.now() / 1000);
         const endpoint = await this.adapter.mqtt_api.ensureEndpoint();
-        // Protocol A01 uses a simplified payload structure
+        // Protocol A01 simplified payload
         if (version === "A01") {
             return JSON.stringify({ dps: { [method]: params }, t: timestamp });
         }
-        // Standard payload structure
+        // Standard payload
         const inner = { id: messageID, method, params };
-        // Add security/endpoint details for specific commands
+        // Add security context
         if (method === "get_photo") {
             const kp = cryptoEngine_1.cryptoEngine.ensureRsaKeys();
-            // Modifying params in place (legacy behavior maintained)
             params.endpoint = endpoint;
             params.security = { cipher_suite: 0, pub_key: kp.public };
         }
@@ -195,8 +202,7 @@ class messageParser {
         return JSON.stringify({ dps: { [protocol]: JSON.stringify(inner) }, t: timestamp });
     }
     /**
-     * Builds the complete Roborock binary frame (Header + Encrypted Payload + CRC).
-     * @returns The Buffer to send, or false if encryption is not possible (e.g., missing key).
+     * Builds complete Roborock binary frame.
      */
     async buildRoborockMessage(duid, protocol, timestamp, payload, version) {
         const s = seq++ >>> 0;
@@ -204,7 +210,7 @@ class messageParser {
         const localKey = this.adapter.http_api.getMatchedLocalKeys().get(duid);
         if (!localKey)
             return false;
-        // Special case: Protocol 1 (Handshake/Hello) - No payload encryption
+        // Protocol 1 (Handshake)
         if (protocol === 1) {
             const msg = Buffer.alloc(HEADER_LEN + CRC32_LEN);
             msg.write(version);
@@ -212,18 +218,17 @@ class messageParser {
             msg.writeUInt32BE(r, 7);
             msg.writeUInt32BE(timestamp >>> 0, 11);
             msg.writeUInt16BE(protocol, 15);
-            msg.writeUInt16BE(0, 17); // Payload length 0
+            msg.writeUInt16BE(0, 17); // Payload 0
             appendCrc(msg);
             return msg;
         }
         let encrypted;
         const payloadBuf = Buffer.isBuffer(payload) ? payload : Buffer.from(payload, "utf-8");
-        // Encrypt payload based on version
+        // Encrypt
         if (version === "L01") {
             const connectNonce = this.adapter.local_api.localDevices[duid]?.connectNonce;
             const ackNonce = this.adapter.local_api.localDevices[duid]?.ackNonce;
             this.adapter.log.debug(`[buildRoborockMessage] Using connectNonce=${connectNonce} ackNonce=${ackNonce}`);
-            // Ensure nonces are present for L01
             if (!connectNonce || ackNonce == null)
                 return false;
             encrypted = encryptors.L01(payloadBuf, localKey, timestamp, s, r, connectNonce, ackNonce);
@@ -235,11 +240,11 @@ class messageParser {
             encrypted = encryptors.A01(payloadBuf, localKey, r);
         }
         else {
-            return false; // Unsupported version
+            return false; // Unsupported
         }
-        // Assemble final message
+        // Assemble message
         const msg = Buffer.alloc(HEADER_LEN + encrypted.length + CRC32_LEN);
-        msg.write(version); // 3 bytes
+        msg.write(version);
         msg.writeUInt32BE(s, 3);
         msg.writeUInt32BE(r, 7);
         msg.writeUInt32BE(timestamp >>> 0, 11);

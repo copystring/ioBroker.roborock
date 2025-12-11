@@ -1,20 +1,40 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.local_api = void 0;
-const crypto_1 = __importDefault(require("crypto"));
+const crypto = __importStar(require("crypto"));
 const binary_parser_1 = require("binary-parser");
-const ping_1 = __importDefault(require("ping"));
-const net_1 = __importDefault(require("net"));
-const dgram_1 = __importDefault(require("dgram"));
-const crc_32_1 = __importDefault(require("crc-32"));
+const ping = __importStar(require("ping"));
+const net_1 = require("net");
+const dgram = __importStar(require("dgram"));
+const crc32 = __importStar(require("crc-32"));
 const UDP_DISCOVERY_PORT = 58866;
 const TCP_CONNECTION_PORT = 58867;
 // The static key used for broadcast discovery decryption
 const BROADCAST_TOKEN = Buffer.from("qWKYcdQWrbm9hPqe", "utf8");
-class EnhancedSocket extends net_1.default.Socket {
+class EnhancedSocket extends net_1.Socket {
     connected;
     chunkBuffer;
     constructor(options) {
@@ -166,7 +186,7 @@ class local_api {
                             }
                             else {
                                 // Decode standard data message
-                                const dataArr = this.adapter.requestsHandler.messageParser._decodeMsg(currentBuffer, duid);
+                                const dataArr = this.adapter.requestsHandler.messageParser.decodeMsg(currentBuffer, duid);
                                 const allMessages = Array.isArray(dataArr) ? dataArr : dataArr ? [dataArr] : [];
                                 for (const data of allMessages) {
                                     // Protocol 4: Device Status Update
@@ -180,7 +200,7 @@ class local_api {
                                             const parsed_102 = JSON.parse(JSON.parse(_102));
                                             const id = parsed_102.id;
                                             const result = parsed_102.result;
-                                            this.adapter.requestsHandler.resolvePendingRequest(id, result, data.protocol);
+                                            this.adapter.requestsHandler.resolvePendingRequest(id, result, String(data.protocol));
                                         }
                                     }
                                 }
@@ -240,7 +260,7 @@ class local_api {
      * Checks if an IP is reachable via ICMP Ping.
      */
     async isLocallyReachable(ip) {
-        const res = await ping_1.default.promise.probe(ip, { timeout: 2 });
+        const res = await ping.promise.probe(ip, { timeout: 2 });
         return res.alive;
     }
     /**
@@ -288,8 +308,8 @@ class local_api {
         const devices = {};
         // Create UDP socket
         const socketOptions = process.platform === "win32" ? { type: "udp4", reuseAddr: true } : { type: "udp4", reusePort: true };
-        this.discoveryServer = dgram_1.default.createSocket(socketOptions);
-        this.discoveryServer.on("message", async (msg, rinfo) => {
+        this.discoveryServer = dgram.createSocket(socketOptions);
+        this.discoveryServer.on("message", async (msg) => {
             this.adapter.log.debug(`[LocalAPI] UDP message received: ${msg.toString("hex")}`);
             let decodedMessage = null;
             let parsedMessage; // Structure depends on version
@@ -360,7 +380,7 @@ class local_api {
                 this.discoveryServer.removeAllListeners();
                 this.discoveryServer.close();
             }
-            catch (e) {
+            catch {
                 // ignore close errors
             }
             this.discoveryServer = null;
@@ -400,7 +420,7 @@ class local_api {
         msg.writeUInt32BE(timestamp, 11);
         msg.writeUInt16BE(protocol, 15);
         msg.writeUInt16BE(payloadLen, 17);
-        const crc = crc_32_1.default.buf(msg.subarray(0, msg.length - 4)) >>> 0;
+        const crc = crc32.buf(msg.subarray(0, msg.length - 4)) >>> 0;
         msg.writeUInt32BE(crc, msg.length - 4);
         // Prepend length of the message (4 bytes)
         const lenBuf = Buffer.alloc(4);
@@ -430,7 +450,7 @@ class local_api {
      */
     decryptECB(encrypted) {
         const input = Buffer.isBuffer(encrypted) ? encrypted : Buffer.from(encrypted, "binary");
-        const decipher = crypto_1.default.createDecipheriv("aes-128-ecb", BROADCAST_TOKEN, null);
+        const decipher = crypto.createDecipheriv("aes-128-ecb", BROADCAST_TOKEN, null);
         decipher.setAutoPadding(false);
         try {
             let decrypted = decipher.update(input);
@@ -438,8 +458,9 @@ class local_api {
             return this.removePadding(decrypted.toString("utf8"));
         }
         catch (e) {
-            this.adapter.log.error(`[decryptECB] Failed to decrypt! Error: ${e.message} encrypted (hex): ${input.toString("hex")}`);
-            throw e;
+            // Log warning instead of error to avoid spamming if it's just a bad packet
+            this.adapter.log.warn(`[decryptECB] Failed to decrypt packet: ${e.message}`);
+            return "";
         }
     }
     /**
@@ -454,7 +475,7 @@ class local_api {
         // Validate CRC32
         const crcFromPacket = packet.readUInt32BE(packet.length - 4);
         const packetWithoutCrc = packet.subarray(0, packet.length - 4);
-        if (crc_32_1.default.buf(packetWithoutCrc) >>> 0 !== crcFromPacket) {
+        if (crc32.buf(packetWithoutCrc) >>> 0 !== crcFromPacket) {
             this.adapter.log.error("[LocalAPI] CRC validation failed");
             return null;
         }
@@ -462,13 +483,13 @@ class local_api {
         const payloadLength = packet.readUInt16BE(9);
         const payload = packet.subarray(11, 11 + payloadLength);
         // Key derivation for discovery is fixed to SHA256 of the BROADCAST_TOKEN
-        const key = crypto_1.default.createHash("sha256").update(BROADCAST_TOKEN).digest();
+        const key = crypto.createHash("sha256").update(BROADCAST_TOKEN).digest();
         const digestInput = packet.subarray(0, 9);
-        const digest = crypto_1.default.createHash("sha256").update(digestInput).digest();
+        const digest = crypto.createHash("sha256").update(digestInput).digest();
         const iv = digest.subarray(0, 12);
         const tag = payload.subarray(payload.length - 16);
         const ciphertext = payload.subarray(0, payload.length - 16);
-        const decipher = crypto_1.default.createDecipheriv("aes-256-gcm", key, iv);
+        const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
         decipher.setAuthTag(tag);
         try {
             const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);

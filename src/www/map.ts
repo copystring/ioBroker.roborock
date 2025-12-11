@@ -1,15 +1,42 @@
 import { Connection } from "./conn.js";
 import * as d3 from "d3";
-import { go_to_pin_image } from "./images.js";
+import { IMG_GO_TO_PIN, IMG_CHARGER, IMG_ROBOT_ORIGINAL } from "./images.js";
 import { localCoordsToRobotCoords, robotCoordsToLocalCoords } from "./coords.js";
+import { processPaths, type PathResult } from "./pathProcessor.js";
 
-// --- TypeScript Interfaces ---
+// Interfaces
+// -----------------------------------------------------------------------------
+
 interface MapData {
 	IMAGE: {
 		position: { left: number; top: number };
-		dimensions: { height: number };
+		dimensions: { height: number; width: number };
+		segments: {
+			list: SegmentInfo[];
+		};
 	};
-	OBSTACLES2?: Array<[number, number, ...any]>; // Obstacle data array
+	ROBOT_POSITION?: PositionBlock;
+	CHARGER_LOCATION?: PositionBlock;
+	PATH?: PathBlock;
+	MOP_PATH?: number[];
+	OBSTACLES2?: Array<[number, number, ...any]>;
+	CARPET_MAP?: number[];
+}
+
+interface PositionBlock {
+	position: [number, number];
+	angle: number;
+}
+
+interface PathBlock {
+	current_angle: number;
+	points: [number, number][];
+}
+
+interface SegmentInfo {
+	id: number;
+	name: string;
+	center: [number, number]; // Robot coordinates
 }
 
 interface Robot {
@@ -17,13 +44,11 @@ interface Robot {
 	name: string;
 }
 
-// Simple X/Y point
 interface Point {
 	x: number;
 	y: number;
 }
 
-// Describes a cleaning zone rectangle for D3
 interface Rect {
 	id: number; // Unique ID for D3 data binding
 	x: number;
@@ -32,10 +57,9 @@ interface Rect {
 	height: number;
 }
 
-// Local interface for connection callbacks (used by Connection.init)
 interface ConnCallbacks {
 	onConnChange?: (isConnected: boolean) => void;
-	onUpdate?: (id: string, state: ioBroker.State | null | undefined) => void;
+	onUpdate?: (id: string, state: any | null | undefined) => void;
 	onRefresh?: ((...args: any[]) => any) | null;
 	onAuth?: ((...args: any[]) => any) | null;
 	onCommand?: (instance: string, command: string, data: any) => any;
@@ -43,1021 +67,1212 @@ interface ConnCallbacks {
 	onObjectChange?: (id: string, obj: any) => void;
 }
 
-// --- Global Application State ---
-let connection: Connection;
-let instanceId: string;
-let currentRobotDuid: string | null = null;
-let onStateChange: ((id: string, state: ioBroker.State | null | undefined) => void) | null = null;
-let currentMapSubscriptions: string[] = [];
+interface MapParams {
+	scaleFactor: number;
+	left: number;
+	topMap: number;
+	mapMaxY: number;
+	imageHeight: number;
+	imageWidth: number;
+}
 
-// --- Map State ---
-let map: MapData;
-let left: number, topMap: number, mapMinX: number, mapMinY: number, mapSizeX: number, mapSizeY: number, mapMaxY: number;
-let scaleFactor: number | null = null; // Perfect like this (null so we know it hasn't been loaded yet)
-let goToTarget = false;
-let zoomLevel = 0.55;
+// -----------------------------------------------------------------------------
+// Constants
+// -----------------------------------------------------------------------------
 
-// --- D3 & SVG State ---
-const image = new Image(); // Global image object for performance
-let initialTransform: d3.ZoomTransform;
-let svg: any;
-let svgContainer: any;
-let mainGroup: d3.Selection<SVGGElement, unknown, null, undefined>;
-let mapImageElement: d3.Selection<SVGImageElement, unknown, null, undefined>;
-let zoneGroup: d3.Selection<SVGGElement, unknown, null, undefined>;
-let obstacleGroup: d3.Selection<SVGGElement, unknown, null, undefined>;
-let pinGroup: d3.Selection<SVGGElement, unknown, null, undefined>;
-let zoom: any;
+const VISUAL_BLOCK_SIZE = 3; // Scale factor for visualization
+const UI_CONSTANTS = {
+	ROBOT_SIZE_BASE: 5,
+	CHARGER_SIZE_BASE: 3,
+	OBSTACLE_RADIUS_BASE: 3,
+	ZONE_STROKE_BASE: 1.5,
+	ZONE_HANDLE_RADIUS_BASE: 5,
+	PIN_WIDTH_BASE: 29,
+	PIN_HEIGHT_BASE: 24,
+	PIN_Y_OFFSET_BASE: 5,
+	PATH_MOP_WIDTH_BASE: 7,
+	PATH_MAIN_WIDTH_RATIO_BASE: 0.5,
+	PATH_BACKWASH_WIDTH_BASE: 0.5,
+};
 
-let wheelZoom = 1;
-const minZoom = 0.1;
-const maxZoom = 10;
+// -----------------------------------------------------------------------------
+// Map Application Class
+// -----------------------------------------------------------------------------
 
-// --- UI State ---
-let popupTimeout: number | null;
-let popupX: number, popupY: number;
-let selectedObstacleID: any;
-let rects: Rect[] = []; // Data array for zones
-let zones: number[][] = []; // Formatted zones for the robot
-let selectedRect: Rect | null = null;
-let rectCounter = 0; // To create unique zone IDs
+class MapApplication {
+	// State
+	private connection: Connection;
+	private instanceId: string = "";
+	private currentRobotDuid: string | null = null;
+	private onStateChange: ((id: string, state: any | null | undefined) => void) | null = null;
+	private currentMapSubscriptions: string[] = [];
 
-let popup: HTMLElement;
-let popupImage: HTMLImageElement;
-let triangle: HTMLElement;
-let largePhoto: HTMLElement;
-let largePhotoImage: HTMLImageElement;
+	// Map Data
+	private map: MapData | undefined;
+	private mapImage: MapData["IMAGE"] | undefined;
+	private mapMinX: number = 0;
+	private mapMinY: number = 0;
+	private mapSizeX: number = 0;
+	private mapSizeY: number = 0;
+	private mapMaxY: number = 0;
+	private goToTarget = false;
+	private zoomLevel = 0.55;
 
-// =================================================================================
-// --- Application Functions (Defined globally) ---
-// =================================================================================
+	// D3 & SVG State
+	private image = new Image();
+	private initialTransform: d3.ZoomTransform | undefined;
+	private svg: d3.Selection<d3.BaseType, unknown, HTMLElement, any>;
+	private svgContainer: d3.Selection<d3.BaseType, unknown, HTMLElement, any>;
+	private mainGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
+	private mapImageElement: d3.Selection<SVGImageElement, unknown, HTMLElement, any>;
 
-/**
- * Fetches the list of robots from the ioBroker object database.
- * This works even if the adapter is not running.
- */
-function fetchRobotList() {
-	console.log("Fetching robot list via getObjectView...");
+	// Layers
+	private carpetGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
+	private pathGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
+	private mopPathGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
+	private backwashPathGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
+	private pureCleanPathGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
 
-	const startKey = `${instanceId}.Devices.`;
-	const endKey = `${instanceId}.Devices.\u9999`; // \u9999 is a marker for "everything after this"
+	// Element Groups
+	private chargerGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
+	private robotGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
+	private roomNameGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
+	private zoneGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
+	private obstacleGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
+	private pinGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
+	private zoom: d3.ZoomBehavior<Element, unknown>;
 
-	connection
-		.getObjectView("system", "device", { startkey: startKey, endkey: endKey })
-		.then((res: { rows: { id: string; value: any }[] }) => {
-			const robots: Robot[] = [];
-			if (res && res.rows) {
-				console.log(`getObjectView found ${res.rows.length} devices.`);
-				res.rows.forEach((row) => {
-					// The ID is e.g. "roborock.0.Devices.12345"
-					// We need the last part as the duid
-					const idParts = row.id.split(".");
-					const duid = idParts[idParts.length - 1];
+	private wheelZoom = 1;
+	private readonly minZoom = 0.1;
+	private readonly maxZoom = 10;
 
-					// The name is in common.name
-					const name = row.value && row.value.common && row.value.common.name ? row.value.common.name : duid; // Fallback, if no name is set
+	// UI Interaction State
+	private popupTimeout: number | null = null;
+	private popupX: number = 0;
+	private popupY: number = 0;
+	private selectedObstacleID: any;
+	private rects: Rect[] = [];
+	private zones: number[][] = [];
+	private rectCounter = 0;
 
-					if (duid) {
-						robots.push({ duid: duid, name: name });
+	// DOM Elements
+	private popup!: HTMLElement;
+	private popupImage!: HTMLImageElement;
+	private triangle!: HTMLElement;
+	private largePhoto!: HTMLElement;
+	private largePhotoImage!: HTMLImageElement;
+	private robotSelect!: HTMLSelectElement;
+	private deleteButton!: HTMLButtonElement;
+	private addButton!: HTMLButtonElement;
+	private startButton!: HTMLButtonElement;
+	private pauseButton!: HTMLButtonElement;
+	private stopButton!: HTMLButtonElement;
+	private dockButton!: HTMLButtonElement;
+	private goToButton!: HTMLButtonElement;
+	private resetZoomButton!: HTMLButtonElement;
+
+	constructor() {
+		this.connection = new Connection();
+		// Initialize D3 selections with empty selections initially or in init()
+		// We will initialize them properly in init() after DOM is ready
+		this.svg = d3.select(null) as any;
+		this.svgContainer = d3.select(null) as any;
+		this.mainGroup = d3.select(null) as any;
+		this.mapImageElement = d3.select(null) as any;
+		this.carpetGroup = d3.select(null) as any;
+		this.pathGroup = d3.select(null) as any;
+		this.mopPathGroup = d3.select(null) as any;
+		this.backwashPathGroup = d3.select(null) as any;
+		this.pureCleanPathGroup = d3.select(null) as any;
+		this.chargerGroup = d3.select(null) as any;
+		this.robotGroup = d3.select(null) as any;
+		this.roomNameGroup = d3.select(null) as any;
+		this.zoneGroup = d3.select(null) as any;
+		this.obstacleGroup = d3.select(null) as any;
+		this.pinGroup = d3.select(null) as any;
+		this.zoom = d3.zoom();
+	}
+
+	public async init() {
+		this.bindDomElements();
+		this.setupD3();
+		this.setupConnection();
+		this.bindUiEvents();
+	}
+
+	private bindDomElements() {
+		const getElement = <T extends HTMLElement>(id: string): T => {
+			const el = document.getElementById(id);
+			if (!el) throw new Error(`Missing DOM element: ${id}`);
+			return el as T;
+		};
+
+		this.popup = getElement("popup");
+		this.popupImage = getElement("popup-image");
+		this.triangle = getElement("triangle");
+		this.largePhoto = getElement("largePhoto");
+		this.largePhotoImage = getElement("largePhoto-image");
+		this.robotSelect = getElement("robotSelect");
+		this.deleteButton = getElement("deleteButton");
+		this.addButton = getElement("addButton");
+		this.startButton = getElement("startButton");
+		this.pauseButton = getElement("pauseButton");
+		this.stopButton = getElement("stopButton");
+		this.dockButton = getElement("dockButton");
+		this.goToButton = getElement("goToButton");
+		this.resetZoomButton = getElement("resetZoomButton");
+	}
+
+	private setupD3() {
+		this.svgContainer = d3.select("#mapSvgContainer");
+		this.svg = d3.select("#mapSvg");
+		this.mainGroup = this.svg.append("g").attr("class", "main-group");
+		this.mapImageElement = this.mainGroup.append("image").attr("class", "map-image");
+
+		// Add carpet layer (Vector SVG)
+		this.carpetGroup = this.mainGroup.append("g").attr("class", "carpet");
+
+		const pathOffsetX = 4;
+		const pathOffsetY = -4;
+
+		this.mopPathGroup = this.mainGroup
+			.append("g")
+			.attr("class", "mop-paths")
+			.style("opacity", 0.18)
+			.attr("transform", `translate(${pathOffsetX}, ${pathOffsetY})`);
+		this.pathGroup = this.mainGroup
+			.append("g")
+			.attr("class", "paths")
+			.style("opacity", 0.5)
+			.attr("transform", `translate(${pathOffsetX}, ${pathOffsetY})`);
+		this.backwashPathGroup = this.mainGroup
+			.append("g")
+			.attr("class", "backwash-paths")
+			.style("opacity", 0.2)
+			.attr("transform", `translate(${pathOffsetX}, ${pathOffsetY})`);
+		this.pureCleanPathGroup = this.mainGroup
+			.append("g")
+			.attr("class", "pure-clean-paths")
+			.attr("transform", `translate(${pathOffsetX}, ${pathOffsetY})`);
+
+		this.chargerGroup = this.mainGroup.append("g").attr("class", "charger");
+		this.obstacleGroup = this.mainGroup.append("g").attr("class", "obstacles");
+		this.zoneGroup = this.mainGroup.append("g").attr("class", "zones");
+		this.robotGroup = this.mainGroup.append("g").attr("class", "robot");
+		this.pinGroup = this.mainGroup.append("g").attr("class", "pins");
+		this.roomNameGroup = this.svg.append("g").attr("class", "room-names");
+
+		this.pinGroup
+			.append("image")
+			.attr("class", "goto-pin")
+			.attr("href", IMG_GO_TO_PIN)
+			.attr("width", 29)
+			.attr("height", 24)
+			.style("opacity", 0)
+			.style("display", "none")
+			.style("pointer-events", "none");
+
+		this.zoom = d3
+			.zoom()
+			.scaleExtent([this.minZoom, this.maxZoom])
+			.on("zoom", (event: any) => this.handleZoom(event));
+
+		this.svgContainer.call(this.zoom as any);
+	}
+
+	private setupConnection() {
+		console.log("--- DEBUG START ---");
+		console.log(`Page loaded from: ${window.location.protocol}//${window.location.hostname}:${window.location.port}`);
+
+		const instance = this.getQueryParam("instance");
+		if (instance === null) {
+			document.body.innerHTML = "<h1>Error: No instance specified in URL.</h1>";
+			return;
+		}
+		this.instanceId = `roborock.${instance}`;
+		console.log(`Initializing instance: ${this.instanceId}`);
+
+		const connCallbacks: ConnCallbacks = {
+			onConnChange: async (isConnected: boolean) => {
+				console.log("Connection state changed: " + isConnected);
+				if (isConnected) {
+					this.fetchRobotList();
+				}
+			},
+			onUpdate: (id, state) => {
+				if (this.onStateChange) this.onStateChange(id, state as any);
+			},
+			onError: (err) => {
+				console.error("Connection error:", err);
+			},
+		};
+
+		const socketUrl = `${window.location.protocol}//${window.location.hostname}:${window.location.port}`;
+		console.log(`Forcing socket.io connection to: ${socketUrl}`);
+
+		this.connection.init({ name: this.instanceId, connLink: socketUrl }, connCallbacks, true);
+	}
+
+	private fetchRobotList() {
+		console.log("Fetching robot list via getObjectView...");
+		const startKey = `${this.instanceId}.Devices.`;
+		const endKey = `${this.instanceId}.Devices.\u9999`;
+
+		this.connection
+			.getObjectView("system", "device", { startkey: startKey, endkey: endKey })
+			.then((res: { rows: { id: string; value: any }[] }) => {
+				const robots: Robot[] = [];
+				if (res && res.rows) {
+					console.log(`getObjectView found ${res.rows.length} devices.`);
+					res.rows.forEach((row) => {
+						const idParts = row.id.split(".");
+						const duid = idParts[idParts.length - 1];
+						const name = row.value && row.value.common && row.value.common.name ? row.value.common.name : duid;
+						if (duid) robots.push({ duid: duid, name: name });
+					});
+				}
+
+				if (robots.length === 0) {
+					console.warn("No devices found via getObjectView.");
+					const instanceDuid = this.getQueryParam("instance");
+					if (instanceDuid) {
+						this.robotSelect.innerHTML = "";
+						const option = document.createElement("option");
+						option.value = instanceDuid;
+						option.text = `Roborock (Instance ${instanceDuid})`;
+						this.robotSelect.appendChild(option);
+						this.currentRobotDuid = instanceDuid;
+						this.setupSocketListeners(instanceDuid);
 					}
-				});
-			}
+					return;
+				}
 
-			popup = document.getElementById("popup") as HTMLElement;
-			popupImage = document.getElementById("popup-image") as HTMLImageElement;
-			triangle = document.getElementById("triangle") as HTMLElement;
-			largePhoto = document.getElementById("largePhoto") as HTMLElement;
-			largePhotoImage = document.getElementById("largePhoto-image") as HTMLImageElement;
-
-			const robotSelect = document.getElementById("robotSelect") as HTMLSelectElement;
-			if (robots.length === 0) {
-				console.warn("Did not find any devices via getObjectView. Using fallback.");
-				// Fallback (e.g., if no devices are available)
-				const instanceDuid = getQueryParam("instance");
-				if (instanceDuid) {
-					robotSelect.innerHTML = ""; // Clear dropdown
+				this.robotSelect.innerHTML = "";
+				robots.forEach((robot: Robot) => {
 					const option = document.createElement("option");
-					option.value = instanceDuid;
-					// The 'instance' parameter is not the DUID, but we use it as a fallback
-					option.text = `Roborock (Instance ${instanceDuid})`;
-					robotSelect.appendChild(option);
-					currentRobotDuid = instanceDuid;
-					setupSocketListeners(instanceDuid);
-				} else {
-					console.error("No robots found and no instance ID available.");
+					option.value = robot.duid;
+					option.text = robot.name;
+					this.robotSelect.appendChild(option);
+				});
+
+				if (robots.length > 0) {
+					const duid = robots[0].duid;
+					this.currentRobotDuid = duid;
+					this.robotSelect.value = duid;
+					this.setupSocketListeners(duid);
+				}
+			})
+			.catch((err) => console.error("Error fetching robot list:", err));
+	}
+
+	private setupSocketListeners(duid: string) {
+		if (this.onStateChange && this.currentMapSubscriptions.length > 0) {
+			this.currentMapSubscriptions.forEach((id) => {
+				this.connection.unsubscribeState(id);
+			});
+			this.currentMapSubscriptions = [];
+		}
+
+		this.map = undefined;
+		this.mapImage = undefined;
+		this.mapImageElement.attr("href", null);
+		this.carpetGroup.selectAll("*").remove();
+		this.obstacleGroup.selectAll("*").remove();
+		this.pinGroup.select("image.goto-pin").style("display", "none").style("opacity", 0);
+		this.robotGroup.selectAll("*").remove();
+		this.chargerGroup.selectAll("*").remove();
+		this.roomNameGroup.selectAll("*").remove();
+		this.pathGroup.selectAll("*").remove();
+		this.mopPathGroup.selectAll("*").remove();
+		this.backwashPathGroup.selectAll("*").remove();
+		this.pureCleanPathGroup.selectAll("*").remove();
+		this.rects = [];
+		this.drawZones();
+		this.deleteButton.disabled = true;
+		this.addButton.disabled = false;
+
+		const mapBase64StateId = `${this.instanceId}.Devices.${duid}.map.mapBase64Clean`;
+		const mapDataStateId = `${this.instanceId}.Devices.${duid}.map.mapData`;
+		this.currentMapSubscriptions = [mapBase64StateId, mapDataStateId];
+
+		this.onStateChange = (id: string, state: any | null | undefined) => {
+			if (!state || !state.val) {
+				if (id === mapBase64StateId) {
+					this.mapImageElement.attr("href", null);
+				}
+				if (id === mapDataStateId) {
+					this.map = undefined;
+					this.robotGroup.selectAll("*").remove();
 				}
 				return;
 			}
 
-			// Standard logic: We have a list of robots
-			console.log("Received robot list from objects:", robots);
-			robotSelect.innerHTML = ""; // Clear dropdown
+			switch (id) {
+				case mapBase64StateId:
+					console.log(`Received new CLEAN map Base64 for ${duid}`);
+					this.pinGroup.select("image.goto-pin").style("display", "none").style("opacity", 0);
+					this.drawBackgroundImage(state.val as string);
+					break;
 
-			robots.forEach((robot: Robot) => {
-				const option = document.createElement("option");
-				option.value = robot.duid;
-				option.text = robot.name;
-				robotSelect.appendChild(option);
-			});
-
-			// Select the first robot by default
-			if (robots.length > 0) {
-				const duid = robots[0].duid;
-				currentRobotDuid = duid;
-				robotSelect.value = duid;
-				setupSocketListeners(duid); // Start listener for the first robot
+				case mapDataStateId:
+					try {
+						this.map = typeof state.val === "string" ? JSON.parse(state.val) : state.val;
+						console.log("Map Data:", this.map);
+						if (this.map && this.map.IMAGE) {
+							this.mapImage = this.map.IMAGE;
+							this.drawRobotAndCharger(this.map.ROBOT_POSITION, this.map.CHARGER_LOCATION);
+							this.drawPaths(this.map.PATH, this.map.MOP_PATH);
+							this.drawObstacles(this.map.OBSTACLES2);
+							this.drawRoomNames(this.map.IMAGE.segments.list);
+							this.drawCarpet(this.map.CARPET_MAP);
+						}
+					} catch (e) {
+						console.error("Failed to parse map data JSON:", state.val, e);
+					}
+					break;
 			}
-		})
-		.catch((err) => {
-			console.error("Error fetching robot list via getObjectView, using fallback:", err);
-			// Fallback for an error (e.g., getObjectView not added in conn.js)
-			const robotSelect = document.getElementById("robotSelect") as HTMLSelectElement;
-			const instanceDuid = getQueryParam("instance");
-			if (instanceDuid) {
-				robotSelect.innerHTML = "";
-				const option = document.createElement("option");
-				option.value = instanceDuid;
-				option.text = `Roborock (Instance ${instanceDuid})`;
-				robotSelect.appendChild(option);
-				currentRobotDuid = instanceDuid;
-				setupSocketListeners(instanceDuid);
-			}
+		};
+
+		this.connection.subscribeState(mapBase64StateId);
+		this.connection.subscribeState(mapDataStateId);
+
+		this.connection.getStates([mapBase64StateId, mapDataStateId]).then((states: Record<string, any | null | undefined>) => {
+			if (!this.onStateChange) return;
+			this.onStateChange(mapBase64StateId, states[mapBase64StateId]);
+			this.onStateChange(mapDataStateId, states[mapDataStateId]);
 		});
-}
-
-function getMapParams() {
-	if (!image.width || !image.height || left === undefined || topMap === undefined || scaleFactor === null || mapMaxY === undefined) {
-		console.error("getMapParams called before all map data was loaded.");
-		return null;
-	}
-	return {
-		scaleFactor: scaleFactor,
-		left: left,
-		topMap: topMap,
-		mapMaxY: mapMaxY,
-		imageHeight: image.height,
-	};
-}
-
-/**
- * Unsubscribes from old map states and subscribes to the new robot's map states.
- * Fetches the initial map data to draw it.
- * @param duid The DUID of the newly selected robot.
- */
-function setupSocketListeners(duid: string) {
-	// 1. UNSUBSCRIBE OLD STATES (IMPORTANT!)
-	if (onStateChange && currentMapSubscriptions.length > 0) {
-		currentMapSubscriptions.forEach((id) => {
-			connection.unsubscribeState(id);
-		});
-
-		currentMapSubscriptions = [];
 	}
 
-	// 2. Clear old map data from UI
-	map = undefined as any;
-	mapImageElement.attr("href", null);
-	obstacleGroup.selectAll("*").remove();
-	pinGroup.selectAll("*").remove();
-	rects = [];
-	drawZones(); // Re-draw (which will clear zones)
-	(document.getElementById("deleteButton") as HTMLButtonElement).disabled = true;
-	(document.getElementById("addButton") as HTMLButtonElement).disabled = false;
+	// -----------------------------------------------------------------------------
+	// Drawing Methods
+	// -----------------------------------------------------------------------------
 
-	// 3. Define new state IDs (Case-sensitive!)
-	const mapBase64StateId = `${instanceId}.Devices.${duid}.map.mapBase64`;
-	const mapDataStateId = `${instanceId}.Devices.${duid}.map.mapData`;
-
-	// We save the new IDs so that we can unsubscribe them on the next switch
-	currentMapSubscriptions = [mapBase64StateId, mapDataStateId];
-
-	// 4. Create the new state change handler
-	onStateChange = (id: string, state: ioBroker.State | null | undefined) => {
-		if (!state || !state.val) {
-			// Handle null/empty states (e.g., map deleted)
-			if (id === mapBase64StateId) {
-				mapImageElement.attr("href", null);
-			}
-			if (id === mapDataStateId) {
-				map = undefined as any;
-				obstacleGroup.selectAll("*").remove();
-			}
+	private drawBackgroundImage(mapBase64: string) {
+		if (!mapBase64) {
+			this.mapImageElement.attr("href", null);
 			return;
 		}
 
-		switch (id) {
-			case mapBase64StateId:
-				console.log(`Received new map Base64 for ${duid}`);
-				drawBackgroundImage(state.val as string);
-				break;
+		this.image.src = mapBase64;
+		this.image.onload = () => {
+			const tempCanvas = document.createElement("canvas");
+			const tempCtx = tempCanvas.getContext("2d", { willReadFrequently: true });
+			if (!tempCtx) return;
 
-			case mapDataStateId:
-				try {
-					// Map data is often stored as a JSON string
-					map = typeof state.val === "string" ? JSON.parse(state.val) : state.val;
+			tempCanvas.width = this.image.width;
+			tempCanvas.height = this.image.height;
+			tempCtx.imageSmoothingEnabled = false;
+			tempCtx.drawImage(this.image, 0, 0);
 
-					if (map && map.IMAGE) {
-						left = map.IMAGE.position.left;
-						topMap = map.IMAGE.position.top;
+			let mapMaxX = 0;
+			this.mapMaxY = 0;
+			this.mapMinX = this.image.width;
+			this.mapMinY = this.image.height;
 
-						console.log(`Received new map Data for ${duid}:`, map);
-						// We must have the base64 image *before* we can calculate boundaries
-						// drawBackgroundImage will be called by mapBase64StateId's handler
-					} else {
-						console.warn("Received invalid map data structure:", map);
-					}
-				} catch (e) {
-					console.error("Failed to parse map data JSON:", state.val, e);
-					map = undefined as any;
+			const imageData = tempCtx.getImageData(0, 0, this.image.width, this.image.height);
+			const pixels = imageData.data;
+			for (let i = 0; i < pixels.length; i += 4) {
+				const alpha = pixels[i + 3];
+				if (alpha > 0) {
+					const x = (i / 4) % this.image.width;
+					const y = Math.floor(i / 4 / this.image.width);
+					this.mapMinX = Math.min(this.mapMinX, x);
+					this.mapMinY = Math.min(this.mapMinY, y);
+					mapMaxX = Math.max(mapMaxX, x);
+					this.mapMaxY = Math.max(this.mapMaxY, y);
 				}
-				break;
-		}
-	};
-
-	// 5. Subscribe to new states
-	connection.subscribeState(mapBase64StateId);
-	connection.subscribeState(mapDataStateId);
-
-	// 6. Fetch initial values for immediate draw
-	connection.getStates([mapBase64StateId, mapDataStateId]).then((states: Record<string, ioBroker.State | null | undefined>) => {
-		console.log(`Fetched initial states for ${duid}:`, states);
-		if (!onStateChange) return; // Handler might have been cleared by another quick change
-		// Manually trigger the handler to process initial data
-		onStateChange(mapDataStateId, states[mapDataStateId]);
-		onStateChange(mapBase64StateId, states[mapBase64StateId]);
-	});
-}
-
-/**
- * Converts screen-space coordinates (e.g., mouse click) to world-space (map pixel) coordinates.
- * @param x The screen X coordinate.
- * @param y The screen Y coordinate.
- */
-function screenToWorldCoords(x: number, y: number): Point {
-	if (mapMinX === undefined || mapMinY === undefined) return { x: 0, y: 0 };
-	const transform = d3.zoomTransform(svgContainer.node() as Element);
-	const inverted = transform.invert([x, y]);
-	// Convert D3's inverted coordinates to our map's world system
-	return { x: inverted[0] + mapMinX, y: inverted[1] + mapMinY };
-}
-
-/**
- * Converts world-space (map pixel) coordinates back to SVG-space (for D3 positioning).
- * @param x The world X coordinate.
- * @param y The world Y coordinate.
- */
-function worldToSvgCoords(x: number, y: number): Point {
-	if (mapMinX === undefined || mapMinY === undefined) return { x: 0, y: 0 };
-	return { x: x - mapMinX, y: y - mapMinY };
-}
-
-/**
- * Draws the map image onto the SVG.
- * Calculates map boundaries and applies the initial zoom.
- * @param mapBase64 The base64 string of the map image.
- */
-function drawBackgroundImage(mapBase64: string) {
-	if (!mapBase64) {
-		mapImageElement.attr("href", null);
-		return;
-	}
-
-	image.src = mapBase64;
-	image.onload = () => {
-		// Use a temporary canvas to find the map boundaries
-		const tempCanvas = document.createElement("canvas");
-		const tempCtx = tempCanvas.getContext("2d", { willReadFrequently: true });
-		if (!tempCtx) return;
-
-		let mapMaxX = 0;
-		mapMaxY = 0;
-		mapMinX = image.width;
-		mapMinY = image.height;
-		tempCanvas.width = image.width;
-		tempCanvas.height = image.height;
-		tempCtx.drawImage(image, 0, 0);
-
-		const imageData = tempCtx.getImageData(0, 0, image.width, image.height);
-		const pixels = imageData.data;
-		for (let i = 0; i < pixels.length; i += 4) {
-			const alpha = pixels[i + 3];
-			if (alpha > 0) {
-				// Find non-transparent pixels
-				const x = (i / 4) % image.width;
-				const y = Math.floor(i / 4 / image.width);
-				mapMinX = Math.min(mapMinX, x);
-				mapMinY = Math.min(mapMinY, y);
-				mapMaxX = Math.max(mapMaxX, x);
-				mapMaxY = Math.max(mapMaxY, y);
 			}
-		}
-		mapMinX--;
-		mapMinY--;
-		mapMaxX++;
-		mapMaxY++;
-		mapSizeX = mapMaxX - mapMinX;
-		mapSizeY = mapMaxY - mapMinY;
+			this.mapMinX--;
+			this.mapMinY--;
+			mapMaxX++;
+			this.mapMaxY++;
+			this.mapSizeX = mapMaxX - this.mapMinX;
+			this.mapSizeY = this.mapMaxY - this.mapMinY;
 
-		// Update the D3 <image> element
-		mapImageElement
-			.attr("href", mapBase64)
-			.attr("x", 0)
-			.attr("y", 0)
-			.attr("width", image.width)
-			.attr("height", image.height)
-			.attr("transform", `translate(${-mapMinX}, ${-mapMinY})`);
+			const transformStr = `translate(${-this.mapMinX}, ${-this.mapMinY})`;
 
-		// Calculate initial zoom to fit the map
-		const svgWidth = parseFloat(svg.attr("width"));
-		const svgHeight = parseFloat(svg.attr("height"));
-		const aspectRatio = svgWidth / svgHeight;
-		const contentAspectRatio = mapSizeX / mapSizeY;
+			this.mapImageElement
+				.attr("href", mapBase64)
+				.attr("x", 0)
+				.attr("y", 0)
+				.attr("width", this.image.width)
+				.attr("height", this.image.height)
+				.attr("transform", transformStr)
+				.style("image-rendering", "pixelated");
 
-		if (contentAspectRatio > aspectRatio) {
-			zoomLevel = roundTwoDecimals((svgWidth * 100) / mapSizeX) / 100;
-		} else {
-			zoomLevel = roundTwoDecimals((svgHeight * 100) / mapSizeY) / 100;
-		}
+			this.carpetGroup.attr("transform", transformStr);
 
-		// Apply the initial centered zoom
-		initialTransform = d3.zoomIdentity.translate((svgWidth - mapSizeX * zoomLevel) / 2, (svgHeight - mapSizeY * zoomLevel) / 2).scale(zoomLevel);
-		svgContainer.call(zoom.transform, initialTransform);
+			const svgWidth = parseFloat(this.svg.attr("width"));
+			const svgHeight = parseFloat(this.svg.attr("height"));
+			const aspectRatio = svgWidth / svgHeight;
+			const contentAspectRatio = this.mapSizeX / this.mapSizeY;
 
-		drawObstacles();
-	};
-	image.onerror = () => {
-		console.error("Failed to load map image from base64 string.");
-	};
-}
+			if (contentAspectRatio > aspectRatio) {
+				this.zoomLevel = this.roundTwoDecimals((svgWidth * 100) / this.mapSizeX) / 100;
+			} else {
+				this.zoomLevel = this.roundTwoDecimals((svgHeight * 100) / this.mapSizeY) / 100;
+			}
 
-/**
- * Draws obstacle markers on the map using D3 data binding.
- */
+			this.initialTransform = d3.zoomIdentity
+				.translate((svgWidth - this.mapSizeX * this.zoomLevel) / 2, (svgHeight - this.mapSizeY * this.zoomLevel) / 2)
+				.scale(this.zoomLevel);
+			this.svgContainer.call(this.zoom.transform as any, this.initialTransform);
 
-function drawObstacles() {
-	const params = getMapParams();
-	if (!params) {
-		console.error("Cannot update obstacles, map params not ready.");
-		return;
+			if (this.map) {
+				this.drawRobotAndCharger(this.map.ROBOT_POSITION, this.map.CHARGER_LOCATION);
+				this.drawPaths(this.map.PATH, this.map.MOP_PATH);
+				this.drawObstacles(this.map.OBSTACLES2);
+				this.drawRoomNames(this.map.IMAGE.segments.list);
+				this.drawCarpet(this.map.CARPET_MAP);
+			}
+		};
 	}
 
-	if (!map || !map.OBSTACLES2) {
-		obstacleGroup.selectAll("circle.obstacle-marker").remove(); // Clear old ones
-		return;
+	private drawRobotAndCharger(robotPos?: PositionBlock, chargerPos?: PositionBlock) {
+		const params = this.getMapParams();
+		if (!params) {
+			this.chargerGroup.selectAll("image.charger").remove();
+			this.robotGroup.selectAll("image.robot").remove();
+			return;
+		}
+
+		const scaledChargerSize = this.rescaler.chargerSize();
+		const scaledRobotSize = this.rescaler.robotSize();
+
+		// Charger
+		const chargerData = chargerPos ? [chargerPos] : [];
+		const charger = this.chargerGroup.selectAll("image.charger").data(chargerData);
+		charger.exit().remove();
+		charger
+			.enter()
+			.append("image")
+			.attr("class", "charger")
+			.attr("href", IMG_CHARGER)
+			.merge(charger as any)
+			.attr("width", scaledChargerSize)
+			.attr("height", scaledChargerSize)
+			.attr("x", (d) => this.robotToSvg({ x: d.position[0], y: d.position[1] }, params).x - scaledChargerSize / 2)
+			.attr("y", (d) => this.robotToSvg({ x: d.position[0], y: d.position[1] }, params).y - scaledChargerSize / 2);
+
+		// Robot
+		const robotData = robotPos ? [robotPos] : [];
+		const robot = this.robotGroup.selectAll("image.robot").data(robotData);
+		robot.exit().remove();
+		robot
+			.enter()
+			.append("image")
+			.attr("class", "robot")
+			.attr("href", IMG_ROBOT_ORIGINAL)
+			.merge(robot as any)
+			.attr("width", scaledRobotSize)
+			.attr("height", scaledRobotSize)
+			.attr("transform", (d) => {
+				const svgCoords = this.robotToSvg({ x: d.position[0], y: d.position[1] }, params);
+				const angle = -(d.angle ?? 0) + 90;
+				return `translate(${svgCoords.x}, ${svgCoords.y}) rotate(${angle}) translate(${-scaledRobotSize / 2}, ${-scaledRobotSize / 2})`;
+			});
 	}
 
-	const markers = obstacleGroup.selectAll("circle.obstacle-marker").data(map.OBSTACLES2);
+	private drawRoomNames(segmentsList: SegmentInfo[]) {
+		const params = this.getMapParams();
+		if (!params || !segmentsList) {
+			this.roomNameGroup.selectAll("text.room-name").remove();
+			return;
+		}
+		const baseFontSize = 12;
+		const baseStrokeWidth = 2.5;
 
-	// EXIT (remove old markers)
-	markers.exit().remove();
+		const textElements = this.roomNameGroup.selectAll("text.room-name").data(segmentsList, (d: any) => d.id);
+		textElements.exit().remove();
+		textElements
+			.enter()
+			.append("text")
+			.attr("class", "room-name")
+			.attr("text-anchor", "middle")
+			.attr("dominant-baseline", "middle")
+			.style("fill", "#000")
+			.style("stroke", "white")
+			.style("pointer-events", "none")
+			.style("font-weight", "900")
+			.style("font-size", `${baseFontSize}px`)
+			.style("stroke-width", `${baseStrokeWidth}px`)
+			.style("paint-order", "stroke")
+			.attr("shape-rendering", "geometricPrecision")
+			.merge(textElements as any)
+			.attr("data-x", (d) => {
+				if (d.center && typeof d.center[0] === "number" && !isNaN(d.center[0]))
+					return this.robotToSvg({ x: d.center[0], y: d.center[1] }, params).x;
+				return -1000;
+			})
+			.attr("data-y", (d) => {
+				if (d.center && typeof d.center[1] === "number" && !isNaN(d.center[1]))
+					return this.robotToSvg({ x: d.center[0], y: d.center[1] }, params).y;
+				return -1000;
+			})
+			.text((d) => d.name)
+			.attr("x", null)
+			.attr("y", null);
 
-	// ENTER (add new markers)
-	markers
-		.enter()
-		.append("circle")
-		.attr("class", "obstacle-marker")
-		.attr("r", (1 * params.scaleFactor) / wheelZoom)
-		.on("click", (event: MouseEvent, d: any) => {
-			// NOTE: We do NOT use getMapParams() or robotCoordsToLocalCoords()
-			// because the obstacle data uses a different coordinate system.
+		const transform = d3.zoomTransform(this.svgContainer.node() as Element);
+		this.repositionText(transform);
+	}
 
-			if (!currentRobotDuid) {
-				console.warn("Obstacle clicked but no robot selected");
+	private repositionText(transform: d3.ZoomTransform) {
+		this.roomNameGroup.selectAll("text.room-name").attr("transform", function () {
+			const baseX = parseFloat(d3.select(this).attr("data-x"));
+			const baseY = parseFloat(d3.select(this).attr("data-y"));
+			const [scaledX, scaledY] = transform.apply([baseX, baseY]);
+			return `translate(${scaledX}, ${scaledY})`;
+		});
+	}
+
+	private drawPaths(pathData?: PathBlock, mopData?: number[]) {
+		const params = this.getMapParams();
+		if (!params || !pathData?.points || !mopData) {
+			this.pathGroup.selectAll("*").remove();
+			this.mopPathGroup.selectAll("*").remove();
+			this.backwashPathGroup.selectAll("*").remove();
+			this.pureCleanPathGroup.selectAll("*").remove();
+			return;
+		}
+
+		const scale = VISUAL_BLOCK_SIZE;
+
+		const paths: PathResult = processPaths(
+			pathData.points,
+			mopData,
+			(robotPoint, p) => this.robotToSvg({ x: robotPoint[0], y: robotPoint[1] }, p),
+			scale,
+			params
+		);
+
+		const scaledMopWidth = this.rescaler.pathMopWidth();
+		const scaledPathWidth = this.rescaler.pathMainWidth();
+		const scaledBackwashWidth = this.rescaler.pathBackwashWidth();
+
+		// 1. Main Path
+		const mainPath = this.pathGroup.selectAll("path.main-path").data(paths.mainPathD ? [paths.mainPathD] : []);
+		mainPath.exit().remove();
+		mainPath
+			.enter()
+			.append("path")
+			.attr("class", "main-path")
+			.merge(mainPath as any)
+			.attr("d", (d) => d)
+			.style("fill", "none")
+			.style("stroke", "rgba(255,255,255,1.0)")
+			.style("stroke-width", `${scaledPathWidth}px`)
+			.style("stroke-linecap", "round")
+			.style("stroke-linejoin", "round");
+
+		// 2. Backwash Path
+		const backwashPath = this.backwashPathGroup.selectAll("path.backwash-path").data(paths.backwashPathD ? [paths.backwashPathD] : []);
+		backwashPath.exit().remove();
+		backwashPath
+			.enter()
+			.append("path")
+			.attr("class", "backwash-path")
+			.merge(backwashPath as any)
+			.attr("d", (d) => d)
+			.style("fill", "none")
+			.style("stroke", "rgba(255,255,255,1.0)")
+			.style("stroke-width", `${scaledBackwashWidth}px`)
+			.style("stroke-dasharray", `${4}, ${8}`)
+			.style("stroke-linecap", "round")
+			.style("stroke-linejoin", "round");
+
+		// 3. PureClean Path
+		const pureCleanPath = this.pureCleanPathGroup.selectAll("path.pure-clean-path").data(paths.pureCleanPathD ? [paths.pureCleanPathD] : []);
+		pureCleanPath.exit().remove();
+		pureCleanPath
+			.enter()
+			.append("path")
+			.attr("class", "pure-clean-path")
+			.merge(pureCleanPath as any)
+			.attr("d", (d) => d)
+			.style("fill", "none")
+			.style("stroke", "rgba(255,255,255,1.0)")
+			.style("stroke-width", `${scaledBackwashWidth}px`)
+			.style("stroke-linecap", "round")
+			.style("stroke-linejoin", "round");
+
+		// 4. Mop Path
+		const mopPath = this.mopPathGroup.selectAll("path.mop-path").data(paths.mopPathD ? [paths.mopPathD] : []);
+		mopPath.exit().remove();
+		mopPath
+			.enter()
+			.append("path")
+			.attr("class", "mop-path")
+			.merge(mopPath as any)
+			.attr("d", (d) => d)
+			.style("fill", "none")
+			.style("stroke", "rgba(255,255,255,1.0)")
+			.style("stroke-width", `${scaledMopWidth}px`)
+			.style("stroke-linecap", "round")
+			.style("stroke-linejoin", "round");
+	}
+
+	private drawObstacles(obstaclesData?: Array<[number, number, ...any]>) {
+		const params = this.getMapParams();
+		if (!params || !obstaclesData) {
+			this.obstacleGroup.selectAll(".obstacle-group").remove();
+			return;
+		}
+		const fixedRadius = this.rescaler.scale() * UI_CONSTANTS.OBSTACLE_RADIUS_BASE;
+		const bgRadius = fixedRadius * 1.1;
+		const imageSize = fixedRadius * 1.8;
+
+		const OBSTACLE_MAPPING: Record<number, string> = {
+			"-99": "99",
+			0: "0",
+			1: "1",
+			2: "2",
+			3: "3",
+			4: "3",
+			5: "5_cn",
+			9: "9",
+			10: "10",
+			18: "18",
+			25: "25",
+			26: "26",
+			27: "26",
+			34: "10",
+			42: "18",
+			48: "48",
+			49: "49",
+			50: "50",
+			51: "51",
+			54: "54",
+			65: "65",
+			67: "67",
+			69: "69",
+			70: "70",
+			99: "99",
+		};
+
+		const groups = this.obstacleGroup.selectAll(".obstacle-group").data(obstaclesData);
+
+		groups.exit().remove();
+
+		const enterGroups = groups
+			.enter()
+			.append("g")
+			.attr("class", "obstacle-group")
+			.style("cursor", "default")
+			.on("click", (event: MouseEvent, d: any) => {
+				if (!this.currentRobotDuid) return;
+				event.stopPropagation();
+				this.selectedObstacleID = d[6];
+				const robotPoint = { x: d[0], y: d[1] };
+				const worldPoint = robotCoordsToLocalCoords(robotPoint, params!);
+				this.popupX = worldPoint.x;
+				this.popupY = worldPoint.y;
+
+				if (this.popupTimeout) clearTimeout(this.popupTimeout);
+
+				this.connection
+					.sendTo(this.instanceId, "get_obstacle_image", { obstacleId: this.selectedObstacleID, duid: this.currentRobotDuid, type: 1 })
+					.then((response) => {
+						if (response && (response as any).image) {
+							let imageData = (response as any).image as string;
+							if (typeof imageData === "string" && !imageData.startsWith("data:image/")) imageData = "data:image/png;base64," + imageData;
+							this.popupImage.src = imageData;
+							this.popup.style.display = "block";
+							this.triangle.style.display = "block";
+							this.updatePopupPosition();
+							this.popupTimeout = window.setTimeout(() => {
+								this.popup.style.display = "none";
+								this.triangle.style.display = "none";
+								this.popupTimeout = null;
+							}, 3000);
+						}
+					})
+					.catch((err) => console.error("Error getting obstacle image:", err));
+				this.updatePopupPosition();
+			});
+
+		enterGroups
+			.append("circle")
+			.attr("class", "obstacle-bg")
+			.attr("r", bgRadius)
+			.attr("fill", "rgba(100, 100, 100, 0.2)") // More transparent
+			.attr("stroke", "white")
+			.attr("stroke-width", 0.5); // Thinner border
+
+		enterGroups
+			.append("image")
+			.attr("class", "obstacle-icon")
+			.attr("width", imageSize)
+			.attr("height", imageSize)
+			.attr("x", -imageSize / 2)
+			.attr("y", -imageSize / 2)
+			.on("error", function () {
+				d3.select(this).attr("href", "images/projects_comroborocktanos_resources_obstacle_new_p18.png");
+			});
+
+		const allGroups = enterGroups.merge(groups as any);
+
+		allGroups.attr("transform", (d: any) => {
+			const pos = this.robotToSvg({ x: d[0] + 25, y: d[1] + 25 }, params);
+			return `translate(${pos.x}, ${pos.y})`;
+		});
+
+		allGroups
+			.select("image")
+			.attr("href", (d: any) => {
+				const type = d[2];
+				const suffix = OBSTACLE_MAPPING[type] || "18";
+				return `images/projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`;
+			});
+	}
+
+	private drawCarpet(carpetMap?: number[]) {
+		if (!carpetMap || !this.mapImage || !this.mapImage.dimensions) {
+			this.carpetGroup.selectAll("*").remove();
+			return;
+		}
+
+		const scaledWidth = this.mapImage.dimensions.width;
+		const scaledHeight = this.mapImage.dimensions.height;
+		const gridWidth = scaledWidth / VISUAL_BLOCK_SIZE;
+		const gridHeight = scaledHeight / VISUAL_BLOCK_SIZE;
+		const stride = 3;
+
+		const pathCoords: string[] = [];
+
+		carpetMap.forEach((px) => {
+			const col = px % gridWidth;
+			const row = Math.floor(px / gridWidth);
+			const invertedRow = gridHeight - row - 1;
+
+			const baseX = col * VISUAL_BLOCK_SIZE;
+			const baseY = invertedRow * VISUAL_BLOCK_SIZE;
+
+			for (let dx = 0; dx < VISUAL_BLOCK_SIZE; dx++) {
+				for (let dy = 0; dy < VISUAL_BLOCK_SIZE; dy++) {
+					if ((dx + dy) % stride === 2) {
+						pathCoords.push(`M${baseX + dx} ${baseY + dy}h1v1h-1z`);
+					}
+				}
+			}
+		});
+
+		const combinedPathData = pathCoords.join("");
+
+		const pathSelection = this.carpetGroup.selectAll("path.carpet-path").data([combinedPathData]);
+		pathSelection.exit().remove();
+		pathSelection
+			.enter()
+			.append("path")
+			.attr("class", "carpet-path")
+			.style("fill", "rgba(0, 0, 0, 0.4)")
+			.attr("shape-rendering", "crispEdges")
+			.merge(pathSelection as any)
+			.attr("d", (d) => d);
+	}
+
+	private drawZones() {
+		const dragHandler = d3
+			.drag<SVGGElement, Rect>()
+			.on("start", (event: any) => {
+				const element = event.sourceEvent.target.closest("g.zone");
+				if (element) d3.select(element).raise().style("cursor", "grabbing");
+				this.deleteButton.disabled = false;
+			})
+			.on("drag", (event: any, d: Rect) => {
+				if (!this.mapImage) return;
+				const minBoundX = this.mapMinX,
+					minBoundY = this.mapMinY,
+					maxBoundX = this.mapMinX + this.mapSizeX,
+					maxBoundY = this.mapMinY + this.mapSizeY;
+				let newX = Math.max(minBoundX, d.x + event.dx);
+				let newY = Math.max(minBoundY, d.y + event.dy);
+				if (newX + d.width > maxBoundX) newX = maxBoundX - d.width;
+				if (newY + d.height > maxBoundY) newY = maxBoundY - d.height;
+				d.x = newX;
+				d.y = newY;
+				const element = event.sourceEvent.target.closest("g.zone");
+				if (element) d3.select(element).attr("transform", `translate(${d.x - this.mapMinX}, ${d.y - this.mapMinY})`);
+			})
+			.on("end", (event: any) => {
+				const element = event.sourceEvent.target.closest("g.zone");
+				if (element) d3.select(element).style("cursor", "move");
+				this.updateRobotZones();
+			});
+
+		const resizeHandler = d3
+			.drag<SVGCircleElement, Rect>()
+			.on("start", (event: any) => {
+				event.sourceEvent.stopPropagation();
+				const element = event.sourceEvent.target;
+				if (element) d3.select(element).raise();
+			})
+			.on("drag", (event: any, d: Rect) => {
+				if (!this.mapImage) return;
+				const maxBoundX = this.mapMinX + this.mapSizeX,
+					maxBoundY = this.mapMinY + this.mapSizeY;
+				let newWidth = Math.max(d.width + event.dx, 20);
+				let newHeight = Math.max(d.height + event.dy, 20);
+				if (d.x + newWidth > maxBoundX) newWidth = maxBoundX - d.x;
+				if (d.y + newHeight > maxBoundY) newHeight = maxBoundY - d.y;
+				d.width = newWidth;
+				d.height = newHeight;
+				const element = event.sourceEvent.target;
+				if (element) {
+					const parentGroup = d3.select(element.parentNode as SVGGElement);
+					parentGroup.select("rect").attr("width", d.width).attr("height", d.height);
+					parentGroup.select("circle.zone-handle").attr("cx", d.width).attr("cy", d.height);
+				}
+			})
+			.on("end", () => this.updateRobotZones());
+
+		const selection = this.zoneGroup.selectAll("g.zone").data(this.rects, (d: any) => d.id);
+		selection.exit().remove();
+		const enterGroup = selection.enter().append("g").attr("class", "zone").call(dragHandler as any);
+		enterGroup.append("rect").attr("class", "zone-rect").attr("x", 0).attr("y", 0).style("stroke-width", this.rescaler.zoneStrokeWidth());
+		enterGroup.append("circle").attr("class", "zone-handle").attr("r", this.rescaler.zoneHandleRadius()).call(resizeHandler as any);
+		const mergedSelection = selection.merge(enterGroup as any);
+		mergedSelection.attr("transform", (d: Rect) => `translate(${d.x - this.mapMinX}, ${d.y - this.mapMinY})`);
+		mergedSelection
+			.select("rect")
+			.attr("width", (d: Rect) => d.width)
+			.attr("height", (d: Rect) => d.height)
+			.style("stroke-width", this.rescaler.zoneStrokeWidth());
+		mergedSelection
+			.select("circle.zone-handle")
+			.attr("cx", (d: Rect) => d.width)
+			.attr("cy", (d: Rect) => d.height)
+			.attr("r", this.rescaler.zoneHandleRadius());
+	}
+
+	// -----------------------------------------------------------------------------
+	// Helper Methods
+	// -----------------------------------------------------------------------------
+
+	private updateRobotZones() {
+		const params = this.getMapParams();
+		if (!params) return;
+		const cleanCountInput = document.getElementById("cleanCount") as HTMLInputElement;
+		this.zones = [];
+		const cleanCount = parseInt(cleanCountInput.value) || 1;
+		for (const rect of this.rects) {
+			const p1 = { x: rect.x, y: rect.y };
+			const p2 = { x: rect.x + rect.width, y: rect.y + rect.height };
+			const coords1 = localCoordsToRobotCoords(p1, params);
+			const coords2 = localCoordsToRobotCoords(p2, params);
+			this.zones.push([
+				Math.min(coords1.x, coords2.x),
+				Math.min(coords1.y, coords2.y),
+				Math.max(coords1.x, coords2.x),
+				Math.max(coords1.y, coords2.y),
+				cleanCount,
+			]);
+		}
+		console.log("Zones updated:", JSON.stringify(this.zones));
+	}
+
+	private updatePopupPosition() {
+		if (this.popup.style.display === "block" && this.popupX !== undefined && this.popupY !== undefined) {
+			const transform = d3.zoomTransform(this.svgContainer.node() as Element);
+			const svgCoords = this.worldToSvgCoords(this.popupX, this.popupY);
+			const screenCoords = transform.apply([svgCoords.x, svgCoords.y]);
+			this.popup.style.left = `${screenCoords[0]}px`;
+			this.popup.style.top = `${screenCoords[1]}px`;
+		}
+	}
+
+	private handleZoom(event: any) {
+		const transform = event.transform;
+		this.mainGroup.attr("transform", transform);
+		this.wheelZoom = transform.k;
+
+		this.zoneGroup.selectAll("rect.zone-rect").style("stroke-width", this.rescaler.zoneStrokeWidth());
+		this.zoneGroup.selectAll("circle.zone-handle").attr("r", this.rescaler.zoneHandleRadius());
+
+		const scaledRobotSize = this.rescaler.robotSize();
+		this.robotGroup
+			.selectAll("image.robot")
+			.attr("width", scaledRobotSize)
+			.attr("height", scaledRobotSize)
+			.attr("transform", (d: any) => {
+				const params = this.getMapParams();
+				if (!params) return "";
+				const svgCoords = this.robotToSvg({ x: d.position[0], y: d.position[1] }, params);
+				const angle = -(d.angle ?? 0) + 90;
+				return `translate(${svgCoords.x}, ${svgCoords.y}) rotate(${angle}) translate(${-scaledRobotSize / 2}, ${-scaledRobotSize / 2})`;
+			});
+
+		const scaledChargerSize = this.rescaler.chargerSize();
+		this.chargerGroup
+			.selectAll("image.charger")
+			.attr("width", scaledChargerSize)
+			.attr("height", scaledChargerSize)
+			.attr("x", (d: any) => {
+				const params = this.getMapParams();
+				if (!params) return 0;
+				return this.robotToSvg({ x: d.position[0], y: d.position[1] }, params).x - scaledChargerSize / 2;
+			})
+			.attr("y", (d: any) => {
+				const params = this.getMapParams();
+				if (!params) return 0;
+				return this.robotToSvg({ x: d.position[0], y: d.position[1] }, params).y - scaledChargerSize / 2;
+			});
+
+		this.repositionText(transform);
+
+		this.pathGroup.selectAll("path.main-path").style("stroke-width", `${this.rescaler.pathMainWidth()}px`);
+		this.backwashPathGroup.selectAll("path.backwash-path").style("stroke-width", `${this.rescaler.pathBackwashWidth()}px`);
+		this.mopPathGroup.selectAll("path.mop-path").style("stroke-width", `${this.rescaler.pathMopWidth()}px`);
+		this.pureCleanPathGroup.selectAll("path.pure-clean-path").style("stroke-width", `${this.rescaler.pathBackwashWidth()}px`);
+
+		const scaledPinWidth = this.rescaler.pinWidth();
+		const scaledPinHeight = this.rescaler.pinHeight();
+		const scaledPinYOffset = this.rescaler.pinYOffset();
+		this.pinGroup
+			.selectAll("image.goto-pin")
+			.attr("width", scaledPinWidth)
+			.attr("height", scaledPinHeight)
+			.attr("x", function () {
+				const centerX = d3.select(this).attr("data-center-x");
+				return (parseFloat(centerX) || 0) - scaledPinWidth / 2;
+			})
+			.attr("y", function () {
+				const centerY = d3.select(this).attr("data-center-y");
+				return (parseFloat(centerY) || 0) - (scaledPinHeight - scaledPinYOffset);
+			});
+
+		this.updatePopupPosition();
+	}
+
+	private getMapParams(): MapParams | null {
+		if (!this.mapImage || !this.mapImage.dimensions || this.mapMaxY === undefined) {
+			return null;
+		}
+		return {
+			scaleFactor: VISUAL_BLOCK_SIZE,
+			left: this.mapImage.position.left,
+			topMap: this.mapImage.position.top,
+			mapMaxY: this.mapMaxY,
+			imageHeight: this.mapImage.dimensions.height,
+			imageWidth: this.mapImage.dimensions.width,
+		};
+	}
+
+	private screenToWorldCoords(x: number, y: number): Point {
+		if (this.mapMinX === undefined || this.mapMinY === undefined) return { x: 0, y: 0 };
+		const transform = d3.zoomTransform(this.svgContainer.node() as Element);
+		const inverted = transform.invert([x, y]);
+		return { x: inverted[0] + this.mapMinX, y: inverted[1] + this.mapMinY };
+	}
+
+	private worldToSvgCoords(x: number, y: number): Point {
+		if (this.mapMinX === undefined || this.mapMinY === undefined) return { x: 0, y: 0 };
+		return { x: x - this.mapMinX, y: y - this.mapMinY };
+	}
+
+	private robotToSvg(robotPoint: Point, params: any): Point {
+		const worldPoint = robotCoordsToLocalCoords(robotPoint, params);
+		return this.worldToSvgCoords(worldPoint.x, worldPoint.y);
+	}
+
+	private roundTwoDecimals(number: number): number {
+		return Math.round(number * 100) / 100;
+	}
+
+	private getQueryParam(param: string): string | null {
+		const urlParams = new URLSearchParams(window.location.search);
+		return urlParams.get(param);
+	}
+
+	private bindUiEvents() {
+		this.robotSelect.addEventListener("change", () => {
+			const newDuid = this.robotSelect.value;
+			if (newDuid && newDuid !== this.currentRobotDuid) {
+				this.currentRobotDuid = newDuid;
+				this.setupSocketListeners(newDuid);
+			}
+		});
+
+		this.deleteButton.addEventListener("click", () => {
+			if (this.rects.length > 0) {
+				this.rects.pop();
+				this.drawZones();
+				if (this.rects.length < 5) this.addButton.disabled = false;
+				if (this.rects.length < 1) this.deleteButton.disabled = true;
+			}
+		});
+
+		this.addButton.addEventListener("click", () => {
+			if (this.goToTarget) {
+				this.goToTarget = false;
+				this.svg.style("cursor", "grab");
+				this.svgContainer.on("mousemove.gototarget", null);
+				this.svgContainer.on("click.gototarget", null);
+				this.pinGroup.select("image.goto-pin").style("display", "none").style("opacity", 0);
+				this.goToButton.textContent = "GoTo Point";
 				return;
 			}
-			event.stopPropagation(); // Prevents map panning
+			const svgWidth = parseFloat(this.svg.attr("width"));
+			const svgHeight = parseFloat(this.svg.attr("height"));
+			const centerWorld = this.screenToWorldCoords(svgWidth / 2, svgHeight / 2);
+			const params = this.getMapParams();
+			if (!params) return;
 
-			selectedObstacleID = d[6];
+			this.rects.push({
+				id: this.rectCounter++,
+				x: centerWorld.x - 25 * params.scaleFactor,
+				y: centerWorld.y - 25 * params.scaleFactor,
+				width: 50 * params.scaleFactor,
+				height: 50 * params.scaleFactor,
+			});
+			this.drawZones();
+			if (this.rects.length > 0) this.deleteButton.disabled = false;
+			if (this.rects.length > 4) this.addButton.disabled = true;
+			this.updateRobotZones();
+		});
 
-			const robotPoint = { x: d[0], y: d[1] };
-			const worldPoint = robotCoordsToLocalCoords(robotPoint, params!);
-			popupX = worldPoint.x;
-			popupY = worldPoint.y;
+		this.startButton.addEventListener("click", () => {
+			if (!this.currentRobotDuid) return;
+			this.updateRobotZones();
+			const command = this.zones.length > 0 ? "app_zoned_clean" : "app_start";
+			const parameters = this.zones.length > 0 ? { zones: this.zones, duid: this.currentRobotDuid } : { duid: this.currentRobotDuid };
+			this.connection.sendTo(this.instanceId, command, parameters).catch((err) => console.error("Error sending command:", err));
+			this.rects = [];
+			this.drawZones();
+			this.deleteButton.disabled = true;
+			this.addButton.disabled = false;
+			this.startButton.style.display = "none";
+			this.pauseButton.style.display = "inline-block";
+		});
 
-			if (popupTimeout) clearTimeout(popupTimeout);
+		this.pauseButton.addEventListener("click", () => {
+			if (!this.currentRobotDuid) return;
+			this.connection.sendTo(this.instanceId, "app_pause", { duid: this.currentRobotDuid });
+			this.startButton.style.display = "inline-block";
+			this.pauseButton.style.display = "none";
+		});
 
-			const command = "get_obstacle_image";
-			const parameters = { obstacleId: selectedObstacleID, duid: currentRobotDuid };
-			connection
-				.sendTo(instanceId, command, parameters)
-				.then((response) => {
-					if (response && (response as any).image) {
-						let imageData = (response as any).image as string;
+		this.stopButton.addEventListener("click", () => {
+			if (!this.currentRobotDuid) return;
+			this.connection.sendTo(this.instanceId, "app_stop", { duid: this.currentRobotDuid });
+			this.startButton.style.display = "inline-block";
+			this.pauseButton.style.display = "none";
+		});
 
-						console.log("Empfangene Bild-Daten (komplett):");
-						console.log(imageData);
+		this.dockButton.addEventListener("click", () => {
+			if (!this.currentRobotDuid) return;
+			this.connection.sendTo(this.instanceId, "app_charge", { duid: this.currentRobotDuid });
+		});
 
-						if (typeof imageData === "string" && !imageData.startsWith("data:image/")) {
-							console.log("Data-URL-Prefix fehlt, füge ihn hinzu...");
-							imageData = "data:image/png;base64," + imageData;
-						}
+		this.goToButton.addEventListener("click", () => {
+			if (this.goToTarget) {
+				this.goToTarget = false;
+				this.svg.style("cursor", "grab");
+				this.svgContainer.on("mousemove.gototarget", null);
+				this.svgContainer.on("click.gototarget", null);
+				this.pinGroup.select("image.goto-pin").style("display", "none").style("opacity", 0);
+				this.goToButton.textContent = "GoTo Point";
+				return;
+			}
+			this.goToTarget = true;
+			this.svg.style("cursor", "none");
+			this.goToButton.textContent = "Cancel";
+			const transform = d3.zoomTransform(this.svgContainer.node() as Element);
+			const svgWidth = parseFloat(this.svg.attr("width"));
+			const svgHeight = parseFloat(this.svg.attr("height"));
+			const [initialX, initialY] = transform.invert([svgWidth / 2, svgHeight / 2]);
+			const scaledPinWidth = this.rescaler.pinWidth();
+			const scaledPinHeight = this.rescaler.pinHeight();
+			const scaledPinYOffset = this.rescaler.pinYOffset();
+			const pin = this.pinGroup.select("image.goto-pin");
+			pin
+				.style("display", "block")
+				.style("opacity", 0.7)
+				.attr("data-center-x", initialX)
+				.attr("data-center-y", initialY)
+				.attr("x", initialX - scaledPinWidth / 2)
+				.attr("y", initialY - (scaledPinHeight - scaledPinYOffset));
 
-						// Now assign the correct URL
-						popupImage.src = imageData;
-						largePhotoImage.src = imageData;
+			this.svgContainer.on("mousemove.gototarget", (event: MouseEvent) => {
+				const [mouseX, mouseY] = d3.pointer(event, this.mainGroup.node());
+				const scaledW = this.rescaler.pinWidth();
+				const scaledH = this.rescaler.pinHeight();
+				const scaledOff = this.rescaler.pinYOffset();
+				pin
+					.attr("data-center-x", mouseX)
+					.attr("data-center-y", mouseY)
+					.attr("x", mouseX - scaledW / 2)
+					.attr("y", mouseY - (scaledH - scaledOff));
+			});
 
-						popup.style.display = "block";
-						triangle.style.display = "block";
-						updatePopupPosition();
+			this.svgContainer.on("click.gototarget", (event: MouseEvent) => {
+				event.stopImmediatePropagation();
+				const params = this.getMapParams();
+				if (!this.currentRobotDuid || !params) return;
+				const [mouseX, mouseY] = d3.pointer(event, this.mainGroup.node());
+				const worldX = mouseX + this.mapMinX;
+				const worldY = mouseY + this.mapMinY;
+				const point = localCoordsToRobotCoords({ x: worldX, y: worldY }, params);
+				this.connection.sendTo(this.instanceId, "app_goto_target", { points: [point.x, point.y], duid: this.currentRobotDuid });
+				pin.style("opacity", 1.0);
+				this.goToTarget = false;
+				this.svg.style("cursor", "grab");
+				this.svgContainer.on("mousemove.gototarget", null);
+				this.svgContainer.on("click.gototarget", null);
+				this.goToButton.textContent = "GoTo Point";
+			});
+		});
 
-						popupTimeout = window.setTimeout(() => {
-							popup.style.display = "none";
-							triangle.style.display = "none";
-							popupTimeout = null;
-						}, 3000);
-					} else {
-						console.warn("Got no image for obstacle", selectedObstacleID, response);
-					}
+		this.resetZoomButton.addEventListener("click", () => {
+			if (this.initialTransform) {
+				this.svgContainer.transition().duration(750).call(this.zoom.transform as any, this.initialTransform);
+			}
+		});
+
+		this.popupImage.addEventListener("click", () => {
+			this.largePhoto.style.display = "block";
+			this.popup.style.display = "none";
+			this.triangle.style.display = "none";
+			if (this.popupTimeout) clearTimeout(this.popupTimeout);
+			this.popupTimeout = null;
+			if (!this.currentRobotDuid || !this.selectedObstacleID) return;
+			this.largePhotoImage.src = "";
+			this.connection
+				.sendTo(this.instanceId, "get_obstacle_image", { obstacleId: this.selectedObstacleID, duid: this.currentRobotDuid, type: 0 })
+				.then((response: any) => {
+					if (response && typeof response.image === "string") this.largePhotoImage.src = response.image.replace(/\s/g, "");
 				})
-				.catch((err) => console.error("Error getting obstacle image:", err));
-			updatePopupPosition();
-		})
-		.merge(markers as any)
-		.attr("cx", (d: any) => {
-			if (!params) return 0; // Called too early
-
-			const robotPoint = { x: d[0], y: d[1] };
-			const worldPoint = robotCoordsToLocalCoords(robotPoint, params);
-			return worldPoint.x - mapMinX;
-		})
-		.attr("cy", (d: any) => {
-			if (!params) return 0; // Called too early
-
-			const robotPoint = { x: d[0], y: d[1] };
-			const worldPoint = robotCoordsToLocalCoords(robotPoint, params);
-			return worldPoint.y - mapMinY;
-		});
-}
-
-/**
- * Draws interactive cleaning zones using D3 data binding.
- */
-function drawZones() {
-	const deleteButton = document.getElementById("deleteButton") as HTMLButtonElement;
-
-	// --- Drag Handler for moving the zone ---
-	const dragHandler = d3
-		.drag<SVGGElement, Rect>()
-		.on("start", function (this: SVGGElement, event: any, d: Rect) {
-			d3.select(this).raise().style("cursor", "grabbing");
-			selectedRect = d;
-			deleteButton.disabled = false;
-		})
-		.on("drag", function (this: SVGGElement, event: any, d: Rect) {
-			if (!image.width) return; // Prevent dragging before map loaded
-
-			// Map boundaries
-			const minBoundX = mapMinX;
-			const minBoundY = mapMinY;
-			const maxBoundX = mapMinX + mapSizeX;
-			const maxBoundY = mapMinY + mapSizeY;
-
-			// Apply delta to data
-			let newX = d.x + event.dx;
-			let newY = d.y + event.dy;
-
-			// Clamp position (top-left corner)
-			newX = Math.max(minBoundX, newX);
-			newY = Math.max(minBoundY, newY);
-
-			// Clamp position (bottom-right corner)
-			if (newX + d.width > maxBoundX) {
-				newX = maxBoundX - d.width;
-			}
-			if (newY + d.height > maxBoundY) {
-				newY = maxBoundY - d.height;
-			}
-
-			// Apply clamped position to data
-			d.x = newX;
-			d.y = newY;
-
-			// Move the <g> element
-			d3.select(this).attr("transform", `translate(${d.x - mapMinX}, ${d.y - mapMinY})`);
-		})
-		.on("end", function (this: SVGGElement, event: any, d: Rect) {
-			d3.select(this).style("cursor", "move");
-			updateRobotZones();
+				.catch((err) => console.error("Error getting large obstacle image:", err));
 		});
 
-	// --- Drag Handler for resizing the zone ---
-	const resizeHandler = d3
-		.drag<SVGCircleElement, Rect>()
-		.on("start", function (this: SVGCircleElement, event: any, d: Rect) {
-			event.sourceEvent.stopPropagation(); // Stop parent drag handler
-			d3.select(this).raise();
-		})
-		.on("drag", function (this: SVGCircleElement, event: any, d: Rect) {
-			if (!image.width) return;
-
-			const maxBoundX = mapMinX + mapSizeX;
-			const maxBoundY = mapMinY + mapSizeY;
-
-			// Update data dimensions
-			let newWidth = d.width + event.dx;
-			let newHeight = d.height + event.dy;
-
-			// Clamp minimum size
-			newWidth = Math.max(newWidth, 20);
-			newHeight = Math.max(newHeight, 20);
-
-			// Clamp maximum size (map edge)
-			if (d.x + newWidth > maxBoundX) {
-				newWidth = maxBoundX - d.x;
-			}
-			if (d.y + newHeight > maxBoundY) {
-				newHeight = maxBoundY - d.y;
-			}
-
-			d.width = newWidth;
-			d.height = newHeight;
-
-			// Update the visual <rect> and <circle>
-			const parentGroup = d3.select(this.parentNode as SVGGElement);
-			parentGroup.select("rect").attr("width", d.width).attr("height", d.height);
-			parentGroup.select("circle.zone-handle").attr("cx", d.width).attr("cy", d.height);
-		})
-		.on("end", function (this: SVGCircleElement, event: any, d: Rect) {
-			updateRobotZones(); // Update coordinates for robot
+		this.largePhoto.addEventListener("click", () => {
+			this.largePhoto.style.display = "none";
 		});
-
-	// --- D3 Enter/Update/Exit Pattern ---
-
-	// 1. Bind data
-	const selection = zoneGroup.selectAll("g.zone").data(rects, (d: any) => d.id);
-
-	// 2. EXIT (Remove elements no longer in data)
-	selection.exit().remove();
-
-	// 3. ENTER (Create new elements)
-	const enterGroup = selection
-		.enter()
-		.append("g")
-		.attr("class", "zone")
-		.call(dragHandler as any); // Attach drag handler to the group
-
-	// Add the rectangle
-	enterGroup
-		.append("rect")
-		.attr("class", "zone-rect")
-		.attr("x", 0)
-		.attr("y", 0)
-		.style("stroke-width", 1.5 / wheelZoom); // Set initial scaled stroke
-
-	// Add the resize handle
-	const baseRadius = 5;
-	enterGroup
-		.append("circle")
-		.attr("class", "zone-handle")
-		.attr("r", baseRadius / wheelZoom) // Set initial scaled radius
-		.call(resizeHandler as any); // Attach resize handler
-
-	// 4. UPDATE (Apply attributes to all elements, new and old)
-	const mergedSelection = selection.merge(enterGroup as any);
-	mergedSelection.attr("transform", (d: Rect) => `translate(${d.x - mapMinX}, ${d.y - mapMinY})`); // Position the group
-
-	mergedSelection
-		.select("rect") // Update rect size
-		.attr("width", (d: Rect) => d.width)
-		.attr("height", (d: Rect) => d.height)
-		.style("stroke-width", 1.5 / wheelZoom); // Update stroke on zoom/drag
-
-	mergedSelection
-		.select("circle.zone-handle") // Update handle position and size
-		.attr("cx", (d: Rect) => d.width)
-		.attr("cy", (d: Rect) => d.height)
-		.attr("r", baseRadius / wheelZoom);
-}
-
-/**
- * Converts the visual D3 `rects` data into the robot-specific coordinate array.
- */
-function updateRobotZones() {
-	const params = getMapParams();
-	if (!params) {
-		console.error("Cannot update robot zones, map params not ready.");
-		return;
 	}
-	const cleanCountInput = document.getElementById("cleanCount") as HTMLInputElement;
-	zones = [];
-	const cleanCount = parseInt(cleanCountInput.value) || 1;
 
-	for (const rect of rects) {
-		const p1 = { x: rect.x, y: rect.y };
-		const p2 = { x: rect.x + rect.width, y: rect.y + rect.height };
-
-		const coords1 = localCoordsToRobotCoords(p1, params);
-		const coords2 = localCoordsToRobotCoords(p2, params);
-
-		const zone: number[] = [Math.min(coords1.x, coords2.x), Math.min(coords1.y, coords2.y), Math.max(coords1.x, coords2.x), Math.max(coords1.y, coords2.y), cleanCount];
-		zones.push(zone);
+	// Rescaler Helper
+	private get rescaler() {
+		return {
+			scale: () => VISUAL_BLOCK_SIZE,
+			robotSize: () => VISUAL_BLOCK_SIZE * UI_CONSTANTS.ROBOT_SIZE_BASE,
+			chargerSize: () => VISUAL_BLOCK_SIZE * UI_CONSTANTS.CHARGER_SIZE_BASE,
+			zoneStrokeWidth: () => UI_CONSTANTS.ZONE_STROKE_BASE / this.wheelZoom,
+			zoneHandleRadius: () => UI_CONSTANTS.ZONE_HANDLE_RADIUS_BASE / this.wheelZoom,
+			pinWidth: () => UI_CONSTANTS.PIN_WIDTH_BASE / this.wheelZoom,
+			pinHeight: () => UI_CONSTANTS.PIN_HEIGHT_BASE / this.wheelZoom,
+			pinYOffset: () => UI_CONSTANTS.PIN_Y_OFFSET_BASE / this.wheelZoom,
+			pathMopWidth: () => UI_CONSTANTS.PATH_MOP_WIDTH_BASE * VISUAL_BLOCK_SIZE,
+			pathMainWidth: () => Math.max(1, VISUAL_BLOCK_SIZE * UI_CONSTANTS.PATH_MAIN_WIDTH_RATIO_BASE),
+			pathBackwashWidth: () => UI_CONSTANTS.PATH_BACKWASH_WIDTH_BASE * VISUAL_BLOCK_SIZE,
+		};
 	}
-	console.log("Zones (for robot) updated: " + JSON.stringify(zones));
-}
-
-/**
- * Repositions the HTML obstacle popup based on map pan/zoom.
- */
-function updatePopupPosition() {
-	if (popup.style.display === "block" && popupX !== undefined && popupY !== undefined) {
-		// Convert the stored world coordinates to screen coordinates
-		const transform = d3.zoomTransform(svgContainer.node() as Element);
-		const svgCoords = worldToSvgCoords(popupX, popupY);
-		const screenCoords = transform.apply([svgCoords.x, svgCoords.y]);
-
-		// Position the HTML popup
-		popup.style.left = `${screenCoords[0]}px`;
-		popup.style.top = `${screenCoords[1]}px`;
-	}
-}
-
-/**
- * Rounds a number to two decimal places.
- */
-function roundTwoDecimals(number: number): number {
-	return Math.round(number * 100) / 100;
-}
-
-/**
- * Gets a URL query parameter by name.
- * @param param The name of the parameter (e.g., "instance").
- */
-function getQueryParam(param: string): string | null {
-	const urlParams = new URLSearchParams(window.location.search);
-	return urlParams.get(param);
 }
 
 // =================================================================================
-// --- Application Entry Point ---
+// --- Main Entry Point ---
 // =================================================================================
 
 window.onload = async () => {
-	// --- 1. Get DOM Elements ---
-	const popup = document.getElementById("popup") as HTMLElement;
-	const popupImage = document.getElementById("popup-image") as HTMLImageElement;
-	const triangle = document.getElementById("triangle") as HTMLElement;
-	const largePhoto = document.getElementById("largePhoto") as HTMLElement;
-	const largePhotoImage = document.getElementById("largePhoto-image") as HTMLImageElement;
-	const robotSelect = document.getElementById("robotSelect") as HTMLSelectElement;
-	const deleteButton = document.getElementById("deleteButton") as HTMLButtonElement;
-	const addButton = document.getElementById("addButton") as HTMLButtonElement;
-	const startButton = document.getElementById("startButton") as HTMLButtonElement;
-	const pauseButton = document.getElementById("pauseButton") as HTMLButtonElement;
-	const stopButton = document.getElementById("stopButton") as HTMLButtonElement;
-	const dockButton = document.getElementById("dockButton") as HTMLButtonElement;
-	const goToButton = document.getElementById("goToButton") as HTMLButtonElement;
-	const resetZoomButton = document.getElementById("resetZoomButton") as HTMLButtonElement;
-
-	console.log("--- DEBUG START ---");
-	console.log(`Page loaded from: ${window.location.protocol}//${window.location.hostname}:${window.location.port}`);
-
-	// --- 2. Initialize Instance & Connection ---
-	const instance = getQueryParam("instance");
-	if (instance === null) {
-		document.body.innerHTML = "<h1>Error: No instance specified in URL.</h1>";
-		console.error("No instance found in URL (?instance=...)");
-		return;
-	}
-	instanceId = `roborock.${instance}`;
-	console.log(`Initializing instance: ${instanceId}`);
-
-	// Create the connection object (now an instance of the class)
-	// connection = new Connection({ port: 8084});
-	connection = new Connection();
-
-	// 2. Define the callbacks
-	const connCallbacks: ConnCallbacks = {
-		onConnChange: async (isConnected: boolean) => {
-			// 'async' is important
-			console.log("Connection state changed: " + isConnected);
-			if (isConnected) {
-				try {
-					// 1. Load the adapter configuration
-					const configObjectId = `system.adapter.${instanceId}`;
-					console.log(`Fetching config object: ${configObjectId}`);
-					const configObj = await connection.getObject(configObjectId);
-
-					// CORRECTION: We use your key 'map_scale'
-					if (configObj && configObj.native && configObj.native.map_scale !== undefined) {
-						scaleFactor = parseFloat(configObj.native.map_scale);
-						console.log(`Successfully fetched map_scale from config: ${scaleFactor}`);
-
-						// Safety check in case the value is invalid
-						if (isNaN(scaleFactor) || scaleFactor === 0) {
-							console.warn(`map_scale is invalid ('${configObj.native.map_scale}'). Using fallback 8.`);
-							scaleFactor = 8; // Your fallback value
-						}
-					} else {
-						// Fallback, if the 'map_scale' field is missing
-						console.warn(`Could not find 'native.map_scale' in config. Using fallback value 8.`);
-						scaleFactor = 8;
-					}
-				} catch (err) {
-					console.error("Error fetching adapter config:", err);
-					console.warn("Using fallback mapScale value 8.");
-					scaleFactor = 8; // Fallback bei Fehler
-				}
-
-				// 2. Now that we have the scaleFactor, load the robot list
-				fetchRobotList();
-			}
-		},
-		onUpdate: (id, state) => {
-			if (onStateChange) {
-				onStateChange(id, state as ioBroker.State);
-			}
-		},
-		onError: (err) => {
-			console.error("Connection error:", err);
-		},
-	};
-
-	// 3. Initialize the connection
-	const socketUrl = `${window.location.protocol}//${window.location.hostname}:${window.location.port}`;
-	console.log(`Forcing socket.io connection to: ${socketUrl}`);
-
-	connection.init(
-		{ name: instanceId, connLink: socketUrl },
-		connCallbacks,
-		true // objectsRequired
-	);
-
-	// --- 3. D3 & SVG Setup ---
-	svgContainer = d3.select("#mapSvgContainer");
-	svg = d3.select("#mapSvg");
-
-	// Create layer groups in order
-	mainGroup = svg.append("g").attr("class", "main-group");
-	mapImageElement = mainGroup.append("image").attr("class", "map-image");
-	obstacleGroup = mainGroup.append("g").attr("class", "obstacles");
-	zoneGroup = mainGroup.append("g").attr("class", "zones");
-	pinGroup = mainGroup.append("g").attr("class", "pins");
-
-	// --- 4. D3 Zoom Setup ---
-	zoom = d3
-		.zoom()
-		.scaleExtent([minZoom, maxZoom])
-		.on("zoom", (event: any) => {
-			const transform = event.transform;
-			mainGroup.attr("transform", transform);
-
-			// Store global transform values
-			// panOffsetX = transform.x; // Not used, can be removed if not needed elsewhere
-			// panOffsetY = transform.y; // Not used
-			wheelZoom = transform.k; // 'k' is the zoom factor
-
-			// Dynamically scale strokes and handles
-			const baseStrokeWidth = 1.5;
-			zoneGroup.selectAll("rect.zone-rect").style("stroke-width", baseStrokeWidth / wheelZoom);
-
-			const baseRadius = 5;
-			zoneGroup.selectAll("circle.zone-handle").attr("r", baseRadius / wheelZoom);
-
-			const obstacleBaseRadius = 1 * (scaleFactor || 8);
-			obstacleGroup.selectAll("circle.obstacle-marker").attr("r", obstacleBaseRadius / wheelZoom);
-
-			updatePopupPosition();
-		});
-
-	svgContainer.call(zoom);
-
-	// --- 5. Bind All Event Listeners ---
-
-	// Robot selection
-	robotSelect.addEventListener("change", () => {
-		const newDuid = robotSelect.value;
-		if (newDuid && newDuid !== currentRobotDuid) {
-			console.log(`Robot selection changed to: ${newDuid}`);
-			currentRobotDuid = newDuid;
-			setupSocketListeners(newDuid); // Switch map data to new robot
-		}
-	});
-
-	// Zone buttons
-	deleteButton.addEventListener("click", () => {
-		if (rects.length > 0) {
-			rects.pop(); // Remove last zone from data
-			selectedRect = null;
-			drawZones(); // Re-draw
-			if (rects.length < 5) addButton.disabled = false;
-			if (rects.length < 1) deleteButton.disabled = true;
-		}
-	});
-
-	addButton.addEventListener("click", () => {
-		if (goToTarget) {
-			// If in GoTo mode, cancel it
-			goToTarget = false;
-			svg.style("cursor", "grab");
-			svgContainer.on("mousemove.gototarget", null);
-			svgContainer.on("click.gototarget", null);
-			pinGroup.selectAll("image.goto-pin").remove();
-			return;
-		}
-
-		// Add a new zone in the center of the current view
-		const svgWidth = parseFloat(svg.attr("width"));
-		const svgHeight = parseFloat(svg.attr("height"));
-		const centerWorld = screenToWorldCoords(svgWidth / 2, svgHeight / 2);
-
-		const params = getMapParams();
-		if (!params) {
-			console.error("Cannot add zone, map params not ready.");
-			return;
-		}
-
-		const newRect: Rect = {
-			id: rectCounter++,
-			// Center the zone and scale it using the scaleFactor
-			x: centerWorld.x - 25 * params.scaleFactor,
-			y: centerWorld.y - 25 * params.scaleFactor,
-			width: 50 * params.scaleFactor,
-			height: 50 * params.scaleFactor,
-		};
-		rects.push(newRect);
-		drawZones(); // Re-draw
-
-		if (rects.length > 0) deleteButton.disabled = false;
-		if (rects.length > 4) addButton.disabled = true;
-		updateRobotZones();
-	});
-
-	// Robot command buttons
-	startButton.addEventListener("click", () => {
-		if (!currentRobotDuid) {
-			console.warn("Start clicked but no robot selected");
-			return;
-		}
-		updateRobotZones(); // Finalize zone coordinates
-		let command: string;
-		let parameters: any;
-
-		if (zones.length > 0) {
-			command = "app_zoned_clean";
-			parameters = { zones: zones, duid: currentRobotDuid };
-		} else {
-			command = "app_start";
-			parameters = { duid: currentRobotDuid };
-		}
-
-		console.log(`Sending command "${command}" to ${instanceId}`, parameters);
-		connection
-			.sendTo(instanceId, command, parameters)
-			.then((response) => console.log("Adapter response:", response))
-			.catch((err) => console.error("Error sending command:", err));
-
-		// Clear zones after starting
-		rects = [];
-		drawZones();
-		deleteButton.disabled = true;
-		addButton.disabled = false;
-		startButton.style.display = "none";
-		pauseButton.style.display = "inline-block";
-	});
-
-	pauseButton.addEventListener("click", () => {
-		if (!currentRobotDuid) return;
-		connection.sendTo(instanceId, "app_pause", { duid: currentRobotDuid }).catch((err) => console.error("Error sending command (pause):", err));
-		startButton.style.display = "inline-block";
-		pauseButton.style.display = "none";
-	});
-
-	stopButton.addEventListener("click", () => {
-		if (!currentRobotDuid) return;
-		connection.sendTo(instanceId, "app_stop", { duid: currentRobotDuid }).catch((err) => console.error("Error sending command (stop):", err));
-		startButton.style.display = "inline-block";
-		pauseButton.style.display = "none";
-	});
-
-	dockButton.addEventListener("click", () => {
-		if (!currentRobotDuid) return;
-		connection.sendTo(instanceId, "app_charge", { duid: currentRobotDuid }).catch((err) => console.error("Error sending command (dock):", err));
-	});
-
-	// GoTo button
-	goToButton.addEventListener("click", () => {
-		goToTarget = true;
-		svg.style("cursor", "crosshair");
-
-		// Add the pin image that follows the mouse
-		const pin = pinGroup
-			.append("image")
-			.attr("class", "goto-pin")
-			.attr("href", go_to_pin_image)
-			.attr("width", 29)
-			.attr("height", 24)
-			.style("opacity", 0.7)
-			.style("pointer-events", "none");
-
-		// Mousemove listener to move the pin
-		svgContainer.on("mousemove.gototarget", (event: MouseEvent) => {
-			const [mouseX, mouseY] = d3.pointer(event, mainGroup.node());
-			pin.attr("x", mouseX - 29 / 2).attr("y", mouseY - 24);
-		});
-
-		// Click listener to send the command
-		svgContainer.on("click.gototarget", (event: MouseEvent) => {
-			event.stopImmediatePropagation();
-			const params = getMapParams();
-
-			if (!currentRobotDuid) {
-				console.warn("GoTo clicked but no robot selected");
-			} else if (!params) {
-				console.error("GoTo clicked, but map params not ready.");
-			} else {
-				const [mouseX, mouseY] = d3.pointer(event, mainGroup.node());
-				const worldX = mouseX + mapMinX;
-				const worldY = mouseY + mapMinY;
-				const point = localCoordsToRobotCoords({ x: worldX, y: worldY }, params);
-
-				console.log("GoTo Robot coords: " + JSON.stringify([point.x, point.y]));
-
-				const parameters = { points: [point.x, point.y], duid: currentRobotDuid };
-				connection.sendTo(instanceId, "app_goto_target", parameters).catch((err) => console.error("Error sending command (goto):", err));
-
-				// Leave the pin at the clicked location
-				pin.style("opacity", 1.0);
-			}
-
-			// Clean up GoTo mode
-			goToTarget = false;
-			svg.style("cursor", "grab");
-			svgContainer.on("mousemove.gototarget", null);
-			svgContainer.on("click.gototarget", null);
-
-			// If we didn't send a command, remove the floating pin
-			if (!currentRobotDuid) {
-				pinGroup.selectAll("image.goto-pin").remove();
-			}
-		});
-	});
-
-	// Coordinate test listener (optional)
-	svgContainer.on("click.coordtest", (event: MouseEvent) => {
-		if (goToTarget) return;
-
-		try {
-			const params = getMapParams();
-			if (!params) return; // Data not loaded yet
-
-			const [svgX, svgY] = d3.pointer(event, mainGroup.node());
-			const worldPoint_IN = { x: svgX + mapMinX, y: svgY + mapMinY };
-
-			const robotPoint_OUT = localCoordsToRobotCoords(worldPoint_IN, params);
-
-			console.log(`--- Coord Test ---`);
-			console.log(`World: x=${worldPoint_IN.x.toFixed(2)}, y=${worldPoint_IN.y.toFixed(2)}`);
-			console.log(`Robot: x=${robotPoint_OUT.x}, y=${robotPoint_OUT.y}`);
-		} catch (error) {
-			console.error("Fehler im Koordinaten-Test:", error);
-		}
-	});
-
-	// Reset zoom button
-	resetZoomButton.addEventListener("click", () => {
-		if (initialTransform) {
-			svgContainer.transition().duration(750).call(zoom.transform, initialTransform);
-		}
-	});
-
-	// Popup image click
-	popupImage.addEventListener("click", () => {
-		largePhoto.style.display = "block"; // Show large popup window
-		popup.style.display = "none";
-		triangle.style.display = "none";
-		if (popupTimeout) clearTimeout(popupTimeout);
-		popupTimeout = null;
-
-		if (!currentRobotDuid || !selectedObstacleID) {
-			console.error("Cannot fetch large image, DUID or ObstacleID is missing.");
-			return;
-		}
-
-		console.log(`Requesting large photo (type 0) for obstacle: ${selectedObstacleID}`);
-		largePhotoImage.src = "";
-
-		const command = "get_obstacle_image";
-		const parameters = {
-			obstacleId: selectedObstacleID,
-			duid: currentRobotDuid,
-			type: 0, // 0 = large image
-		};
-
-		connection
-			.sendTo(instanceId, command, parameters)
-			.then((response: { image?: string; error?: string } | any) => {
-				if (response && typeof response.image === "string") {
-					largePhotoImage.src = response.image;
-				} else if (response && response.error) {
-					console.error("Failed to get large obstacle image (Backend Error):", response.error);
-				} else {
-					console.warn("Got no large image or invalid response", selectedObstacleID, response);
-				}
-			})
-			.catch((err) => console.error("Error getting large obstacle image (Frontend Error):", err));
-	});
-
-	largePhoto.addEventListener("click", () => {
-		largePhoto.style.display = "none";
-	});
+	const app = new MapApplication();
+	app.init().catch((err) => console.error("Failed to initialize Map Application:", err));
 };

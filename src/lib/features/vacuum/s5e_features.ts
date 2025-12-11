@@ -1,24 +1,30 @@
-// src/lib/features/vacuum/s5e_features.ts
-// Features for Roborock S5 Max (roborock.vacuum.s5e)
-
-import { BaseVacuumFeatures } from "./baseVacuumFeatures";
+import { BaseVacuumFeatures, VacuumProfile, BASE_FAN, BASE_WATER, BASE_MOP } from "./baseVacuumFeatures";
 import { RegisterModel, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
 
-// Define static features for the s5e model
-const s5eConfig: DeviceModelConfig = {
-    staticFeatures: [
-        Feature.MopForbidden,
-        Feature.ShakeMopStrength, // Alias for WaterBox logic
-        Feature.WaterBox
-    ]
+const PROFILE_S5E: VacuumProfile = {
+	name: "Roborock S5 Max",
+	features: {
+		maxSuctionValue: 104
+	},
+	mappings: {
+		fan_power: BASE_FAN,
+		water_box_mode: BASE_WATER,
+		mop_mode: BASE_MOP
+	}
 };
 
-@RegisterModel('roborock.vacuum.s5e')
-export class S5eFeatures extends BaseVacuumFeatures {
-    constructor(dependencies: FeatureDependencies, duid: string) {
-        super(dependencies, duid, 'roborock.vacuum.s5e', s5eConfig);
-    }
+const s5eConfig: DeviceModelConfig = {
+	staticFeatures: [
+		Feature.MopForbidden,
+		Feature.ShakeMopStrength,
+		Feature.WaterBox
+	]
+};
 
-    // No model-specific overrides needed currently
+@RegisterModel("roborock.vacuum.s5e")
+export class S5eFeatures extends BaseVacuumFeatures {
+	constructor(dependencies: FeatureDependencies, duid: string) {
+		super(dependencies, duid, "roborock.vacuum.s5e", s5eConfig, PROFILE_S5E);
+	}
 }

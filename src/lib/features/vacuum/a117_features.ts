@@ -1,26 +1,49 @@
-// src/lib/features/vacuum/a117_features.ts
-// Features for Roborock Qrevo Master (roborock.vacuum.a117)
-
-import { BaseVacuumFeatures } from "./baseVacuumFeatures";
+import { BaseVacuumFeatures, VacuumProfile, BASE_FAN, BASE_WATER, BASE_MOP } from "./baseVacuumFeatures";
 import { RegisterModel, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
 
-// Define static features for the a117 model
-const a117Config: DeviceModelConfig = {
-    staticFeatures: [
-        Feature.MopForbidden,
-        Feature.WaterBox,
-        Feature.AvoidCarpet,
-        Feature.LiveVideo          // Action feature triggered by isVideoLiveCallSupported
-        // Add Feature.Camera if applicable
-    ]
+const PROFILE_A117: VacuumProfile = {
+	name: "Roborock Qrevo Master (a117)",
+	features: {
+		maxSuctionValue: 108,
+		hasSmartPlan: true
+	},
+	mappings: {
+		fan_power: { ...BASE_FAN, 108: "Max+" },
+		water_box_mode: BASE_WATER,
+		mop_mode: BASE_MOP
+	}
 };
 
-@RegisterModel('roborock.vacuum.a117')
-export class A117Features extends BaseVacuumFeatures {
-    constructor(dependencies: FeatureDependencies, duid: string) {
-        super(dependencies, duid, 'roborock.vacuum.a117', a117Config);
-    }
+const a117Config: DeviceModelConfig = {
+	staticFeatures: [
+		Feature.WaterBox,
+		Feature.AvoidCarpet,
+		Feature.LiveVideo,
+		Feature.Camera,
+		Feature.CommonStatus,
+		Feature.DockStatus,
+		Feature.RobotStatus,
+		Feature.CleanPercent,
+		Feature.ChargeStatus,
+		Feature.InWarmup,
+		Feature.MapFlag,
+		Feature.TaskId,
+		Feature.LastCleanTime,
+		Feature.SwitchStatus,
+		Feature.CleaningInfo,
+		Feature.AutoEmptyDock,
+		Feature.MopWash,
+		Feature.MopDry,
+		Feature.FanMaxPlus,
+		Feature.SmartModeCommand,
+		Feature.CleanRepeat
+	]
+};
 
-    // No model-specific overrides needed currently
+@RegisterModel("roborock.vacuum.a117")
+export class A117Features extends BaseVacuumFeatures {
+	constructor(dependencies: FeatureDependencies, duid: string) {
+		super(dependencies, duid, "roborock.vacuum.a117", a117Config, PROFILE_A117);
+	}
 }

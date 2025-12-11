@@ -10,9 +10,9 @@ exports.assignRoborockRoomColorsToHex = assignRoborockRoomColorsToHex;
 exports.ROBOROCK_PALETTE = [
     "#DFDFDFff", // 0: Default (background/no color)
     "#50A4FF", // 1: Blue
-    "#F5AF10", // 2: Yellow
+    "#FF744D", // 2: Orange
     "#008FA8", // 3: Cyan
-    "#FF744D", // 4: Orange
+    "#F5AF10", // 4: Yellow
     "#E9E9E9ff", // 5: Reserve/Fallback
 ];
 /**

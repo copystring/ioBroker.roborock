@@ -4,22 +4,22 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.socketHandler = void 0;
 class socketHandler {
     adapter;
-    // A map to route commands to specific handler functions
+    // Command routing map
     commandHandlers;
     constructor(adapterInstance) {
         this.adapter = adapterInstance;
-        // Initialize the command routing map
+        // Initialize command map
         this.commandHandlers = new Map();
         this.commandHandlers.set("getDeviceList", () => this.handleGetDeviceList());
-        this.commandHandlers.set("app_start", (msg) => this.handleAppStart(msg));
-        this.commandHandlers.set("app_zoned_clean", (msg) => this.handleAppZonedClean(msg));
-        // Add other simple commands here...
-        // this.commandHandlers.set("app_pause", (msg) => this.handleSimpleCommand(msg.duid, "app_pause"));
-        // this.commandHandlers.set("app_stop", (msg) => this.handleSimpleCommand(msg.duid, "app_stop"));
-        // this.commandHandlers.set("app_charge", (msg) => this.handleSimpleCommand(msg.duid, "app_charge"));
+        this.commandHandlers.set("app_start", (msg) => this.handleSimpleCommand(msg.duid, "app_start"));
+        this.commandHandlers.set("app_pause", (msg) => this.handleSimpleCommand(msg.duid, "app_pause"));
+        this.commandHandlers.set("app_stop", (msg) => this.handleSimpleCommand(msg.duid, "app_stop"));
+        this.commandHandlers.set("app_charge", (msg) => this.handleSimpleCommand(msg.duid, "app_charge"));
+        this.commandHandlers.set("app_goto_target", (msg) => this.handleGotoTarget(msg));
+        this.commandHandlers.set("app_zoned_clean", (msg) => this.handleZonedClean(msg));
     }
     /**
-     * Handles all incoming messages from 'sendTo' (e.g., from Admin or Vis).
+     * Handles incoming 'sendTo' messages.
      * Routes commands to the appropriate handler using the commandHandlers map.
      * @param obj The message object
      */
@@ -28,12 +28,12 @@ class socketHandler {
             this.adapter.log.warn("[SocketHandler] Received invalid message object.");
             return;
         }
-        // --- Special Handlers (that manage their own response) ---
-        // get_obstacle_image is complex and has its own try/catch and response logic
+        // --- Special Handlers ---
+        // get_obstacle_image has custom logic
         if (obj.command === "get_obstacle_image") {
             return this.handleGetObstacleImage(obj);
         }
-        // --- Standard Handlers (that return data) ---
+        // --- Standard Handlers ---
         const handler = this.commandHandlers.get(obj.command);
         if (!handler) {
             this.adapter.log.warn(`[SocketHandler] Unknown command received: ${obj.command}`);
@@ -42,8 +42,9 @@ class socketHandler {
             }
             return;
         }
-        // Centralized try/catch and response
+        // Centralized error handling
         try {
+            // Extract message payload
             const result = await handler(obj.message);
             if (obj.callback) {
                 this.adapter.sendTo(obj.from, obj.command, result, obj.callback);
@@ -57,8 +58,7 @@ class socketHandler {
         }
     }
     /**
-     * Handles the 'get_obstacle_image' command.
-     * This method manages its own try/catch and response due to its complexity.
+     * Handles 'get_obstacle_image' command.
      */
     async handleGetObstacleImage(msg) {
         const { duid, obstacleId } = msg.message;
@@ -69,7 +69,7 @@ class socketHandler {
             }
             return;
         }
-        // Use type 0 (full image) if specified, otherwise default to 1 (preview)
+        // Use type 0 (full) or 1 (preview)
         const imageType = msg.message.type === 0 ? 0 : 1;
         this.adapter.log.info(`[SocketHandler] Requesting obstacle image type: ${imageType}`);
         try {
@@ -80,13 +80,7 @@ class socketHandler {
             if (!handler) {
                 throw new Error(`No device handler found for DUID ${duid}`);
             }
-            const requestParams = {
-                data_filter: {
-                    img_id: obstacleId,
-                    type: imageType,
-                },
-            };
-            const photoResponse = await this.adapter.requestsHandler.getParameter(handler, duid, "get_photo", requestParams);
+            const photoResponse = await handler.getPhoto(obstacleId, imageType);
             if (msg.callback) {
                 this.adapter.sendTo(msg.from, msg.command, photoResponse, msg.callback);
             }
@@ -100,15 +94,14 @@ class socketHandler {
         }
     }
     /**
-     * Fetches the list of robot devices from the adapter's objects.
+     * Fetches robot list.
      */
     async handleGetDeviceList() {
         this.adapter.log.debug("[SocketHandler] Executing handleGetDeviceList...");
         let devices;
         try {
             const adapterObjects = await this.adapter.getAdapterObjectsAsync();
-            // Filter all objects to find only those that are 'device'
-            // AND are inside the 'Devices' folder
+            // Filter for devices in 'Devices' folder
             devices = Object.values(adapterObjects).filter((obj) => obj && typeof obj === "object" && obj.type === "device" && obj._id.startsWith(this.adapter.namespace + ".Devices."));
         }
         catch (e) {
@@ -121,7 +114,7 @@ class socketHandler {
         }
         const robotList = devices
             .map((dev) => {
-            // e.g., "roborock.0.Devices.ABCDEFG"
+            // e.g. "roborock.0.Devices.ABCDEFG"
             const idParts = dev._id.split(".");
             const duid = idParts.pop();
             const name = dev.common.name ? String(dev.common.name) : "Unknown Robot";
@@ -136,23 +129,46 @@ class socketHandler {
         return robotList;
     }
     /**
-     * Handles 'app_start' command.
+     * Handles simple commands.
      */
-    async handleAppStart(message) {
-        const { duid } = message;
-        this.adapter.log.info(`[SocketHandler] Received 'app_start' for DUID: ${duid}`);
-        // TODO: Call your actual adapter logic here
-        // e.g.: await this.adapter.requestsHandler.command(handler, duid, "app_start");
+    async handleSimpleCommand(duid, command) {
+        if (!duid)
+            throw new Error(`Invalid message: '${command}' requires a 'duid'.`);
+        this.adapter.log.info(`[SocketHandler] Received '${command}' for DUID: ${duid}`);
+        const handler = this.adapter.deviceFeatureHandlers.get(duid);
+        if (!handler)
+            throw new Error(`No handler for DUID ${duid}`);
+        await this.adapter.requestsHandler.command(handler, duid, command);
         return { result: "ok" };
     }
     /**
-     * Handles 'app_zoned_clean' command.
+     * Handles 'app_goto_target'.
      */
-    async handleAppZonedClean(message) {
+    async handleGotoTarget(message) {
+        const { duid, points } = message;
+        if (!duid || !points || !Array.isArray(points) || points.length !== 2) {
+            throw new Error("Invalid 'app_goto_target' message: requires 'duid' and 'points' array [x, y]");
+        }
+        this.adapter.log.info(`[SocketHandler] Received 'app_goto_target' for DUID: ${duid} with points: ${JSON.stringify(points)}`);
+        const handler = this.adapter.deviceFeatureHandlers.get(duid);
+        if (!handler)
+            throw new Error(`No handler for DUID ${duid}`);
+        await this.adapter.requestsHandler.command(handler, duid, "app_goto_target", points);
+        return { result: "ok" };
+    }
+    /**
+     * Handles 'app_zoned_clean'.
+     */
+    async handleZonedClean(message) {
         const { duid, zones } = message;
+        if (!duid || !zones || !Array.isArray(zones)) {
+            throw new Error("Invalid 'app_zoned_clean' message: requires 'duid' and 'zones' array");
+        }
         this.adapter.log.info(`[SocketHandler] Received 'app_zoned_clean' for DUID: ${duid} with zones: ${JSON.stringify(zones)}`);
-        // TODO: Call your actual adapter logic here
-        // e.g.: await this.adapter.requestsHandler.command(handler, duid, "app_zoned_clean", zones);
+        const handler = this.adapter.deviceFeatureHandlers.get(duid);
+        if (!handler)
+            throw new Error(`No handler for DUID ${duid}`);
+        await this.adapter.requestsHandler.command(handler, duid, "app_zoned_clean", zones);
         return { result: "ok" };
     }
 }

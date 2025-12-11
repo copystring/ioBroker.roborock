@@ -1,15 +1,15 @@
 import type { Roborock } from "../main";
-import net from "net";
+import { Socket, SocketConstructorOpts } from "net";
 interface LocalDevice {
     ip: string;
     version: string;
     connectNonce?: number;
     ackNonce?: number;
 }
-declare class EnhancedSocket extends net.Socket {
+declare class EnhancedSocket extends Socket {
     connected: boolean;
     chunkBuffer: Buffer;
-    constructor(options?: net.SocketConstructorOpts);
+    constructor(options?: SocketConstructorOpts);
 }
 export declare class local_api {
     adapter: Roborock;

@@ -2,35 +2,18 @@
   "version": "2.0.0",
   "tasks": [
     {
-      // --- TASK 1: BACKEND (Build & Mocha Tests) ---
-      "label": "1. Backend (Build & Test)",
+      "label": "Unified Development Mode",
       "type": "npm",
-      "script": "dev", // Runs "npm run dev" (watch + test:watch)
+      "script": "dev",
       "isBackground": true,
-      "problemMatcher": "$tsc-watch", // Highlights TypeScript errors in the editor
+      "problemMatcher": "$tsc-watch",
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",
         "group": "dev"
       },
       "runOptions": {
-        "runOn": "folderOpen" // Starts automatically when VS Code opens
-      }
-    },
-    {
-      // --- TASK 2: FRONTEND (Vitest www) ---
-      "label": "2. Frontend (www Tests)",
-      "type": "npm",
-      "script": "dev:www", // Runs "npm run dev:www" (Vitest watch)
-      "isBackground": true,
-      "problemMatcher": [], // No standard problem matcher for Vitest needed here
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "group": "dev"
-      },
-      "runOptions": {
-        "runOn": "folderOpen" // Starts automatically when VS Code opens
+        "runOn": "folderOpen"
       }
     }
   ]

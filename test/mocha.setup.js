@@ -1,4 +1,5 @@
 // Don't silently swallow unhandled rejections
+
 process.on("unhandledRejection", (e) => {
 	throw e;
 });
@@ -11,4 +12,4 @@ const { should, use } = require("chai");
 
 should();
 use(sinonChai);
-use(chaiAsPromised);
+use(chaiAsPromised.default || chaiAsPromised);

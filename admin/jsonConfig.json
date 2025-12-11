@@ -2,6 +2,38 @@
 	"i18n": true,
 	"type": "panel",
 	"items": {
+		"loginMethod": {
+			"type": "select",
+			"label": "Login Method",
+			"options": [
+				{ "label": "Email + 2FA Code", "value": "email" },
+				{ "label": "Email + Password", "value": "password" }
+			],
+			"default": "email",
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 6,
+			"lg": 6,
+			"xl": 6
+		},
+		"region": {
+			"type": "select",
+			"label": "Region",
+			"options": [
+				{ "label": "Europe", "value": "eu" },
+				{ "label": "United States", "value": "us" },
+				{ "label": "China", "value": "cn" },
+				{ "label": "Asia", "value": "asia" }
+			],
+			"default": "eu",
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 6,
+			"lg": 6,
+			"xl": 6
+		},
 		"username": {
 			"type": "text",
 			"label": "Login",
@@ -15,11 +47,13 @@
 		"password": {
 			"type": "password",
 			"label": "Password",
+			"newLine": true,
+			"hidden": "data.loginMethod !== 'password'",
 			"xs": 12,
 			"sm": 12,
-            "md": 6,
-            "lg": 6,
-            "xl": 6
+			"md": 6,
+			"lg": 6,
+			"xl": 6
 		},
 		"enable_map_creation": {
 			"type": "checkbox",
