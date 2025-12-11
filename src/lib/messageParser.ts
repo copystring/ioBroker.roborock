@@ -108,9 +108,11 @@ export class messageParser {
 			const version = message.toString("latin1", offset, offset + 3) as ProtocolVersion;
 
 			if (!SUPPORTED_VERSIONS.includes(version)) {
-				this.adapter.log.error(`[decodeMsg] Unsupported version "${version}" at offset ${offset}`);
+				// Log unknown version with hex dump
+				const remaining = message.subarray(offset);
+				this.adapter.log.error(`[decodeMsg] Unsupported version "${version}" from ${duid} at offset ${offset}. Hex: ${remaining.toString("hex")}`);
 
-				// Skip corrupted message block
+				// Skip corrupted message block or unknown protocol
 				const MIN_MSG_LENGTH = 23;
 				offset += MIN_MSG_LENGTH;
 				continue;
@@ -168,6 +170,7 @@ export class messageParser {
 				decoded.push(data);
 			} catch (err: any) {
 				this.adapter.log.error(`[_decodeMsg] Decryption failed for duid=${duid} at offset ${offset}: ${err}`);
+				this.adapter.log.error(`[_decodeMsg] Failed Payload Hex: ${data.payload.toString("hex")}`);
 			}
 
 			offset += msgLen;
