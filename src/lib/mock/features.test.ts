@@ -9,15 +9,15 @@ import { Feature } from "../features/features.enum";
 class TestVacuumFeatures extends BaseVacuumFeatures {
 	public getDescriptor(): any { return {}; }
 	public getDynamicFeatures(): Set<Feature> { return new Set(); }
-	public async detectAndApplyRuntimeFeatures(_status: any): Promise<boolean> { return false; }
+	public async detectAndApplyRuntimeFeatures(): Promise<boolean> { return false; }
 
 	// Abstract getters implementation - minimal valid return for test
-	public getCommonConsumable(_attribute: any): any { return {}; }
-	public isResetableConsumable(_consumable: any): boolean { return false; }
-	public getCommonDeviceStates(_attribute: any): any { return {}; }
-	public getCommonCleaningRecords(_attribute: any): any { return {}; }
-	public getFirmwareFeatureName(_featureID: any): string { return ""; }
-	public getCommonCleaningInfo(_attribute: any): any { return {}; }
+	public getCommonConsumable(): any { return {}; }
+	public isResetableConsumable(): boolean { return false; }
+	public getCommonDeviceStates(): any { return {}; }
+	public getCommonCleaningRecords(): any { return {}; }
+	public getFirmwareFeatureName(): string { return ""; }
+	public getCommonCleaningInfo(): any { return {}; }
 
 	// Expose protected method for testing
 	public async publicApplyFeature(feature: Feature): Promise<boolean> {

@@ -9,14 +9,14 @@ const features_enum_1 = require("../features/features.enum");
 class TestVacuumFeatures extends baseVacuumFeatures_1.BaseVacuumFeatures {
     getDescriptor() { return {}; }
     getDynamicFeatures() { return new Set(); }
-    async detectAndApplyRuntimeFeatures(_status) { return false; }
+    async detectAndApplyRuntimeFeatures() { return false; }
     // Abstract getters implementation - minimal valid return for test
-    getCommonConsumable(_attribute) { return {}; }
-    isResetableConsumable(_consumable) { return false; }
-    getCommonDeviceStates(_attribute) { return {}; }
-    getCommonCleaningRecords(_attribute) { return {}; }
-    getFirmwareFeatureName(_featureID) { return ""; }
-    getCommonCleaningInfo(_attribute) { return {}; }
+    getCommonConsumable() { return {}; }
+    isResetableConsumable() { return false; }
+    getCommonDeviceStates() { return {}; }
+    getCommonCleaningRecords() { return {}; }
+    getFirmwareFeatureName() { return ""; }
+    getCommonCleaningInfo() { return {}; }
     // Expose protected method for testing
     async publicApplyFeature(feature) {
         return this.applyFeature(feature);
