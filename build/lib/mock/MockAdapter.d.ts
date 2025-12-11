@@ -1,0 +1,29 @@
+export declare class MockAdapter {
+    objects: Record<string, any>;
+    states: Record<string, any>;
+    log: any;
+    config: any;
+    requestsHandler: any;
+    mqtt_api: any;
+    local_api: any;
+    http_api: any;
+    instance: number;
+    pendingRequests: Map<number, any>;
+    nonce: Buffer;
+    translations: Record<string, string>;
+    catchError(error: any, attribute: string): void;
+    setInterval(callback: (...args: any[]) => void, ms: number, ...args: any[]): any;
+    clearInterval(intervalId: any): void;
+    clearTimeout(timeoutId: any): void;
+    getDeviceProtocolVersion(): Promise<string>;
+    constructor();
+    setObjectAsync(id: string, obj: any): Promise<void>;
+    setObjectNotExistsAsync(id: string, obj: any): Promise<void>;
+    extendObjectAsync(id: string, obj: any): Promise<void>;
+    extendObject(id: string, obj: any): Promise<void>;
+    getObjectAsync(id: string): Promise<any>;
+    setObject(id: string, obj: any): Promise<void>;
+    setStateAsync(id: string, state: any): Promise<void>;
+    setStateChangedAsync(id: string, state: any): Promise<void>;
+    getStateAsync(id: string): Promise<any>;
+}
