@@ -8,7 +8,7 @@ declare const FrameSchema: z.ZodObject<{
     timestamp: z.ZodNumber;
     protocol: z.ZodNumber;
     payloadLen: z.ZodNumber;
-    payload: z.ZodCustom<Buffer, Buffer>;
+    payload: z.ZodCustom<Buffer<ArrayBufferLike>, Buffer<ArrayBufferLike>>;
     crc32: z.ZodNumber;
 }, z.core.$strip>;
 export type Frame = z.infer<typeof FrameSchema> & {

@@ -15,17 +15,28 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 const chai_1 = require("chai");
 const sinon = __importStar(require("sinon"));
 const baseVacuumFeatures_1 = require("./baseVacuumFeatures");
+const features_enum_1 = require("../features.enum");
 describe("BaseVacuumFeatures", () => {
     let adapterMock;
     let depsMock;
@@ -74,6 +85,8 @@ describe("BaseVacuumFeatures", () => {
         // ... rest 0
         // Value: (1 << 10) | (2 << 8) = 1024 + 512 = 1536
         const dssValue = (1 << 10) | (2 << 8);
+        // Manually apply feature to pass guard
+        vacuum.appliedFeatures.add(features_enum_1.Feature.DockingStationStatus);
         await vacuum.testUpdateDss(dssValue);
         (0, chai_1.expect)(adapterMock.setStateChangedAsync.calledWith("Devices.duid1.dockingStationStatus.cleanFluidStatus", { val: 1, ack: true })).to.be.true; // 1 = ERROR
         (0, chai_1.expect)(adapterMock.setStateChangedAsync.calledWith("Devices.duid1.dockingStationStatus.waterBoxFilterStatus", { val: 2, ack: true })).to.be.true; // 2 = OK
@@ -99,12 +112,13 @@ describe("BaseVacuumFeatures", () => {
         (0, chai_1.expect)(depsMock.ensureFolder.calledWith("Devices.duid1.floors.1")).to.be.true;
         // Check States
         // Floor 0
-        (0, chai_1.expect)(adapterMock.setStateChangedAsync.calledWithMatch("Devices.duid1.floors.0.name", { val: "Ground Floor" })).to.be.true;
-        (0, chai_1.expect)(adapterMock.setStateChangedAsync.calledWithMatch("Devices.duid1.floors.0.mapFlag", { val: 0 })).to.be.true;
+        sinon.assert.calledWithMatch(adapterMock.setStateChangedAsync, "Devices.duid1.floors.0.name", { val: "Ground Floor" });
+        sinon.assert.calledWithMatch(adapterMock.setStateChangedAsync, "Devices.duid1.floors.0.mapFlag", { val: 0 });
         // Floor 1 (Name fallback)
-        (0, chai_1.expect)(adapterMock.setStateChangedAsync.calledWithMatch("Devices.duid1.floors.1.name", { val: "Map 1" })).to.be.true;
+        sinon.assert.calledWithMatch(adapterMock.setStateChangedAsync, "Devices.duid1.floors.1.name", { val: "Map 1" });
         // Load button existence
-        (0, chai_1.expect)(depsMock.ensureState.calledWithMatch("floors.0", "load", { role: "button" })).to.be.true;
+        // ensureState in BaseDeviceFeatures calls deps.ensureState(id, common) -> 2 args
+        sinon.assert.calledWithMatch(depsMock.ensureState, "floors.0.load", { role: "button" });
     });
 });
 //# sourceMappingURL=baseVacuumFeatures.test.js.map

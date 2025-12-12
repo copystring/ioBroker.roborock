@@ -65,6 +65,7 @@ class BaseDeviceFeatures {
     static DeviceFeature(feature) {
         return function (target, propertyKey) {
             // 'target' is the prototype
+            // console.log(`[DEBUG] Decorator called for ${Feature[feature]} on ${propertyKey}`);
             let registry = target[BaseDeviceFeatures.FEATURE_METADATA_KEY];
             if (!registry) {
                 registry = new Map();
@@ -72,6 +73,7 @@ class BaseDeviceFeatures {
                 target[BaseDeviceFeatures.FEATURE_METADATA_KEY] = registry;
             }
             registry.set(feature, propertyKey);
+            // console.log(`[DEBUG] Registry size: ${registry.size} for ${target.constructor.name}`);
         };
     }
     // --- Feature Registry (Instance Based via Metadata) ---

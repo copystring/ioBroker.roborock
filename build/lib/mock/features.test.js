@@ -49,8 +49,8 @@ describe("Features - State Creation", () => {
                 info: console.log,
                 warn: console.warn,
                 error: console.error,
-                debug: console.debug,
-                silly: () => { },
+                debug: console.log,
+                silly: console.log,
             },
             http_api: {},
             config: {},
@@ -66,8 +66,8 @@ describe("Features - State Creation", () => {
         // We simulate the feature application logic which would happen in detectAndApplyRuntimeFeatures
         await features.publicApplyFeature(features_enum_1.Feature.DockingStationStatus);
         // This should fail currently because implementation is missing
-        (0, chai_1.expect)(mockAdapter.objects).to.have.property(dssFolder, "dockingStationStatus folder missing after feature applied");
-        (0, chai_1.expect)(mockAdapter.objects).to.have.property(cleanFluid, "cleanFluidStatus state missing after feature applied");
+        (0, chai_1.expect)(mockAdapter.objects, "dockingStationStatus folder missing after feature applied").to.have.property(dssFolder);
+        (0, chai_1.expect)(mockAdapter.objects, "cleanFluidStatus state missing after feature applied").to.have.property(cleanFluid);
     });
     it("should dynamically create resetConsumables states based on data", async () => {
         // In this test, we need to mock the sendRequest to return our consumable data
