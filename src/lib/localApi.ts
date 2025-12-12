@@ -153,7 +153,7 @@ export class local_api {
 			});
 
 			// Handle incoming data
-			client.on("data", async (message) => {
+			client.on("data", async (message: Buffer) => {
 				try {
 					// Buffering logic
 					if (client.chunkBuffer.length === 0) {
@@ -163,7 +163,7 @@ export class local_api {
 						client.chunkBuffer = message;
 					} else {
 						this.adapter.log.debug(`[LocalAPI] Appending to chunk buffer`);
-						client.chunkBuffer = Buffer.concat([client.chunkBuffer, message]);
+						client.chunkBuffer = Buffer.concat([client.chunkBuffer, message] as Uint8Array[]);
 					}
 
 					let offset = 0;
@@ -473,7 +473,7 @@ export class local_api {
 		const lenBuf = Buffer.alloc(4);
 		lenBuf.writeUInt32BE(msg.length, 0);
 
-		const wrapped = Buffer.concat([lenBuf, msg]);
+		const wrapped = Buffer.concat([lenBuf, msg] as Uint8Array[]);
 
 		this.sendMessage(duid, wrapped);
 

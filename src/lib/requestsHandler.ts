@@ -193,7 +193,7 @@ class RoborockRequest {
 		} else {
 			const lengthBuffer = Buffer.alloc(4);
 			lengthBuffer.writeUInt32BE(roborockMessage.length, 0);
-			const fullMessage = Buffer.concat([lengthBuffer, roborockMessage]);
+			const fullMessage = Buffer.concat([lengthBuffer, roborockMessage] as Uint8Array[]);
 			this.adapter.local_api.sendMessage(this.duid, fullMessage);
 			this.adapter.log.debug(`[SendRequest] ${this.method} to ${this.duid} via Local (Seq: ${this.messageID})`);
 		}

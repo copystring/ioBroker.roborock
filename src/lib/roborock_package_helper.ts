@@ -87,7 +87,7 @@ export class roborock_package_helper {
 									if (!file.dir) {
 										const fileContent = await file.async("nodebuffer");
 										if (fileContent) {
-											fs.writeFileSync(`${imagePath}/${relativePath}`, fileContent);
+											fs.writeFileSync(`${imagePath}/${relativePath}`, fileContent as Uint8Array);
 
 											const fileContentBase64 = fileContent.toString("base64");
 											const fileNameWithoutExtension = relativePath.slice(0, relativePath.lastIndexOf("."));

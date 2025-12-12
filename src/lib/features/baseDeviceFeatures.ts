@@ -118,6 +118,7 @@ export abstract class BaseDeviceFeatures {
 	public static DeviceFeature(feature: Feature) {
 		return function (target: any, propertyKey: string) {
 			// 'target' is the prototype
+			// console.log(`[DEBUG] Decorator called for ${Feature[feature]} on ${propertyKey}`);
 			let registry: Map<Feature, string> = target[BaseDeviceFeatures.FEATURE_METADATA_KEY];
 			if (!registry) {
 				registry = new Map();
@@ -125,6 +126,7 @@ export abstract class BaseDeviceFeatures {
 				target[BaseDeviceFeatures.FEATURE_METADATA_KEY] = registry;
 			}
 			registry.set(feature, propertyKey);
+			// console.log(`[DEBUG] Registry size: ${registry.size} for ${target.constructor.name}`);
 		};
 	}
 

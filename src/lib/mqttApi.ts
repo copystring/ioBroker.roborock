@@ -364,10 +364,10 @@ export class mqtt_api {
 					// Decrypt and Decompress Map Data
 					const iv = Buffer.alloc(16, 0);
 					const decipher = crypto.createDecipheriv("aes-128-cbc", this.adapter.nonce, iv);
-					let decrypted = decipher.update(payloadBuf.subarray(24));
-					decrypted = Buffer.concat([decrypted, decipher.final()]);
+					let decrypted = decipher.update(payloadBuf.subarray(24) as Uint8Array);
+					decrypted = Buffer.concat([decrypted as Uint8Array, decipher.final()]);
 
-					const unzipped = zlib.gunzipSync(decrypted);
+					const unzipped = zlib.gunzipSync(decrypted as Uint8Array);
 
 					// Resolve pending map request
 					this.adapter.requestsHandler.resolvePendingRequest(parsedHeader.id, unzipped, data.protocol);

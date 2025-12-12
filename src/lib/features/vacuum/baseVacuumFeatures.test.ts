@@ -57,6 +57,9 @@ describe("BaseVacuumFeatures", () => {
 		// Value: (1 << 10) | (2 << 8) = 1024 + 512 = 1536
 		const dssValue = (1 << 10) | (2 << 8);
 
+		// Manually apply feature to pass guard
+		(vacuum as any).appliedFeatures.add(Feature.DockingStationStatus);
+
 		await vacuum.testUpdateDss(dssValue);
 
 		expect(adapterMock.setStateChangedAsync.calledWith("Devices.duid1.dockingStationStatus.cleanFluidStatus", { val: 1, ack: true })).to.be.true; // 1 = ERROR
@@ -89,13 +92,14 @@ describe("BaseVacuumFeatures", () => {
 
 		// Check States
 		// Floor 0
-		expect(adapterMock.setStateChangedAsync.calledWithMatch("Devices.duid1.floors.0.name", { val: "Ground Floor" })).to.be.true;
-		expect(adapterMock.setStateChangedAsync.calledWithMatch("Devices.duid1.floors.0.mapFlag", { val: 0 })).to.be.true;
+		sinon.assert.calledWithMatch(adapterMock.setStateChangedAsync, "Devices.duid1.floors.0.name", { val: "Ground Floor" });
+		sinon.assert.calledWithMatch(adapterMock.setStateChangedAsync, "Devices.duid1.floors.0.mapFlag", { val: 0 });
 
 		// Floor 1 (Name fallback)
-		expect(adapterMock.setStateChangedAsync.calledWithMatch("Devices.duid1.floors.1.name", { val: "Map 1" })).to.be.true;
+		sinon.assert.calledWithMatch(adapterMock.setStateChangedAsync, "Devices.duid1.floors.1.name", { val: "Map 1" });
 
 		// Load button existence
-		expect(depsMock.ensureState.calledWithMatch("floors.0", "load", { role: "button" })).to.be.true;
+		// ensureState in BaseDeviceFeatures calls deps.ensureState(id, common) -> 2 args
+		sinon.assert.calledWithMatch(depsMock.ensureState, "floors.0.load", { role: "button" });
 	});
 });
