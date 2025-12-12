@@ -10,6 +10,7 @@
     "declaration": true,
     "composite": true,
     "tsBuildInfoFile": "./build/tsconfig.tsbuildinfo",
+    "newLine": "lf",
 
     // Module Resolution
     "target": "ES2022",
