@@ -855,6 +855,12 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                 return params; // Fallback
             }
         }
+        if (method === "set_water_box_custom_mode" || method === "set_custom_mode" || method === "set_clean_motor_mode") {
+            // These commands require parameters to be wrapped in an array [val]
+            if (params !== undefined && !Array.isArray(params)) {
+                return [params];
+            }
+        }
         return params;
     }
     async updateCleanSummary() {
