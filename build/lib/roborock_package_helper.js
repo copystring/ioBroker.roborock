@@ -47,12 +47,10 @@ class roborock_package_helper {
             this.adapter.log.error("loginApi not initialized in roborock_package_helper");
             return;
         }
-        // Use existing V5 product info to get the ID
-        const productInfo = this.adapter.http_api.productInfo;
         const devices = this.adapter.http_api.getDevices();
         const device = devices.find(d => d.duid === duid);
-        if (!productInfo || !device) {
-            this.adapter.log.warn(`Cannot update product for ${duid}: Missing product info or device not found.`);
+        if (!device) {
+            this.adapter.log.warn(`Cannot update product for ${duid}: Device not found.`);
             return;
         }
         const appPluginRequest = {
