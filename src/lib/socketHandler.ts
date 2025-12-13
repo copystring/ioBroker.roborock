@@ -189,7 +189,7 @@ export class socketHandler {
 		const handler = this.adapter.deviceFeatureHandlers.get(duid);
 		if (!handler) throw new Error(`No handler for DUID ${duid}`);
 
-		await this.adapter.requestsHandler.command(handler, duid, "app_goto_target", points);
+		await this.adapter.requestsHandler.command(handler, duid, "app_goto_target", [points]);
 		return { result: "ok" };
 	}
 
