@@ -93,6 +93,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 
 	// --- Vacuum-specific Constants ---
 	protected static readonly CONSTANTS = VACUUM_CONSTANTS;
+	protected mappedRooms: any[] | null = null;
 
 	constructor(
 		dependencies: FeatureDependencies,
@@ -915,6 +916,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     public override async updateRoomMapping(): Promise<void> {
     	try {
     		const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_room_mapping", []);
+    		this.mappedRooms = result as any[];
 
     		if (!Array.isArray(result) || result.length === 0) {
     			return;
@@ -1198,7 +1200,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     			}
     		}
 
-    		const mapData = await this.deps.adapter.requestsHandler.mapParser.parsedata(mapBuf, null);
+    		const mapData = await this.deps.adapter.requestsHandler.mapParser.parsedata(mapBuf, this.mappedRooms);
     		if (mapData) {
     			// Update map states
     			await this.deps.ensureState(`Devices.${this.duid}.map.mapData`, { name: "Map Data", type: "string", role: "json" });
@@ -1206,8 +1208,8 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 
     			const [mapBase64Clean, mapBase64] = await this.deps.adapter.requestsHandler.mapCreator.canvasMap(mapData);
 
-			await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64Clean`, { name: "Map Image (Clean)", type: "string", role: "text.png" });
-			await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapBase64Clean`, { val: mapBase64Clean, ack: true });
+    			await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64Clean`, { name: "Map Image (Clean)", type: "string", role: "text.png" });
+    			await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapBase64Clean`, { val: mapBase64Clean, ack: true });
     			await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64`, { name: "Map Image", type: "string", role: "text.png" });
     			await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapBase64`, { val: mapBase64, ack: true });
     		}

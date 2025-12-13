@@ -80,6 +80,7 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
     profile;
     // --- Vacuum-specific Constants ---
     static CONSTANTS = vacuumConstants_1.VACUUM_CONSTANTS;
+    mappedRooms = null;
     constructor(dependencies, duid, robotModel, config, profile = exports.DEFAULT_PROFILE) {
         // Add default features that should be present on all vacuums
         const defaultFeatures = [
@@ -751,6 +752,7 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
     async updateRoomMapping() {
         try {
             const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_room_mapping", []);
+            this.mappedRooms = result;
             if (!Array.isArray(result) || result.length === 0) {
                 return;
             }
@@ -1002,7 +1004,7 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                     return;
                 }
             }
-            const mapData = await this.deps.adapter.requestsHandler.mapParser.parsedata(mapBuf, null);
+            const mapData = await this.deps.adapter.requestsHandler.mapParser.parsedata(mapBuf, this.mappedRooms);
             if (mapData) {
                 // Update map states
                 await this.deps.ensureState(`Devices.${this.duid}.map.mapData`, { name: "Map Data", type: "string", role: "json" });
