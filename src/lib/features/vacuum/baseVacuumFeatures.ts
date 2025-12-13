@@ -1204,7 +1204,10 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     			await this.deps.ensureState(`Devices.${this.duid}.map.mapData`, { name: "Map Data", type: "string", role: "json" });
     			await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapData`, { val: JSON.stringify(mapData), ack: true });
 
-    			const [, mapBase64] = await this.deps.adapter.requestsHandler.mapCreator.canvasMap(mapData);
+    			const [mapBase64Clean, mapBase64] = await this.deps.adapter.requestsHandler.mapCreator.canvasMap(mapData);
+
+			await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64Clean`, { name: "Map Image (Clean)", type: "string", role: "text.png" });
+			await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapBase64Clean`, { val: mapBase64Clean, ack: true });
     			await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64`, { name: "Map Image", type: "string", role: "text.png" });
     			await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapBase64`, { val: mapBase64, ack: true });
     		}
