@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
 
     steps:
       - name: Checkout code
@@ -22,6 +23,7 @@ jobs:
         with:
           # Checkout the branch that triggered the workflow
           ref: ${{ github.ref }}
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -34,18 +36,17 @@ jobs:
       - name: Build Project
         run: npm run build
 
-      - name: Commit and Push Build Artifacts
+      - name: Stage Build Artifacts
         run: |
-          git config --global user.name "GitHub Actions Bot"
-          git config --global user.email "actions@github.com"
-
           # Force add build folder because it is in .gitignore
           git add -f build/
 
-          # Check if there are changes to commit
-          if ! git diff --staged --quiet; then
-            git commit -m "chore(build): update build artifacts [skip ci]"
-            git push origin HEAD:${{ github.ref }}
-          else
-            echo "No changes in build artifacts, skipping commit."
-          fi
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore(build): update build artifacts [skip ci]"
+          title: "chore(build): update build artifacts"
+          body: "Auto-generated PR to update build artifacts."
+          branch: "auto-build/update-artifacts"
+          delete-branch: true
+          base: ${{ github.ref_name }}
