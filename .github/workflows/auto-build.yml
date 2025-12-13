@@ -38,6 +38,8 @@ jobs:
 
       - name: Stage Build Artifacts
         run: |
+          # Remove tsbuildinfo if it exists to ensure it's not added
+          rm -f build/tsconfig.tsbuildinfo
           # Force add build folder because it is in .gitignore
           git add -f build/
 
