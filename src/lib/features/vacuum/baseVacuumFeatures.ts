@@ -1089,9 +1089,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 
     						cleaningRecordsJSON[parseInt(cleaningRecord)] = cleaningRecordAttributes;
 
-    						const cleaningRecordCommon = this.getCommonCleaningRecords(mappedAttribute);
-    						if (cleaningRecordCommon) {
-    							for (const cleaningRecordAttribute in cleaningRecordAttributes) {
+						for (const cleaningRecordAttribute in cleaningRecordAttributes) {
     								const mappedRecordAttribute = BaseVacuumFeatures.MAPPED_CLEANING_RECORD_ATTRIBUTE[cleaningRecordAttribute] || cleaningRecordAttribute;
     								let val = cleaningRecordAttributes[cleaningRecordAttribute];
 
@@ -1103,13 +1101,15 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     									val = Number(((val as number) / 1000000).toFixed(2));
     								}
 
-    								await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, cleaningRecordCommon);
-    								await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, {
-    									val: val as ioBroker.StateValue,
-    									ack: true,
-    								});
+    								const cleaningRecordCommon = this.getCommonCleaningRecords(mappedRecordAttribute);
+    								if (cleaningRecordCommon) {
+    									await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, cleaningRecordCommon);
+    									await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, {
+    										val: val as ioBroker.StateValue,
+    										ack: true,
+    									});
+    								}
     							}
-    						}
 
     						if (this.deps.config.enable_map_creation == true) {
     							const mapArray = await this.getCleaningRecordMap(recordsList[cleaningRecord]);

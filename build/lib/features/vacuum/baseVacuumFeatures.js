@@ -902,20 +902,20 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                             const cleaningRecordAttributesArr = (await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_clean_record", [cleaningRecordID], { priority: 0 }));
                             const cleaningRecordAttributes = cleaningRecordAttributesArr[0];
                             cleaningRecordsJSON[parseInt(cleaningRecord)] = cleaningRecordAttributes;
-                            const cleaningRecordCommon = this.getCommonCleaningRecords(mappedAttribute);
-                            if (cleaningRecordCommon) {
-                                for (const cleaningRecordAttribute in cleaningRecordAttributes) {
-                                    const mappedRecordAttribute = BaseVacuumFeatures.MAPPED_CLEANING_RECORD_ATTRIBUTE[cleaningRecordAttribute] || cleaningRecordAttribute;
-                                    let val = cleaningRecordAttributes[cleaningRecordAttribute];
-                                    if (["begin", "end"].includes(mappedRecordAttribute)) {
-                                        val = new Date(val * 1000).toString();
-                                    }
-                                    else if (mappedRecordAttribute == "duration") {
-                                        val = Math.round(val / 60);
-                                    }
-                                    else if (mappedRecordAttribute == "area") {
-                                        val = Number((val / 1000000).toFixed(2));
-                                    }
+                            for (const cleaningRecordAttribute in cleaningRecordAttributes) {
+                                const mappedRecordAttribute = BaseVacuumFeatures.MAPPED_CLEANING_RECORD_ATTRIBUTE[cleaningRecordAttribute] || cleaningRecordAttribute;
+                                let val = cleaningRecordAttributes[cleaningRecordAttribute];
+                                if (["begin", "end"].includes(mappedRecordAttribute)) {
+                                    val = new Date(val * 1000).toString();
+                                }
+                                else if (mappedRecordAttribute == "duration") {
+                                    val = Math.round(val / 60);
+                                }
+                                else if (mappedRecordAttribute == "area") {
+                                    val = Number((val / 1000000).toFixed(2));
+                                }
+                                const cleaningRecordCommon = this.getCommonCleaningRecords(mappedRecordAttribute);
+                                if (cleaningRecordCommon) {
                                     await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, cleaningRecordCommon);
                                     await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, {
                                         val: val,
