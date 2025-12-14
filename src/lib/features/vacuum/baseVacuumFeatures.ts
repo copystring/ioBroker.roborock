@@ -1089,7 +1089,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 
     						cleaningRecordsJSON[parseInt(cleaningRecord)] = cleaningRecordAttributes;
 
-						for (const cleaningRecordAttribute in cleaningRecordAttributes) {
+    						for (const cleaningRecordAttribute in cleaningRecordAttributes) {
     								const mappedRecordAttribute = BaseVacuumFeatures.MAPPED_CLEANING_RECORD_ATTRIBUTE[cleaningRecordAttribute] || cleaningRecordAttribute;
     								let val = cleaningRecordAttributes[cleaningRecordAttribute];
 
@@ -1097,7 +1097,9 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     									val = new Date((val as number) * 1000).toString();
     								} else if (mappedRecordAttribute == "duration") {
     									val = Math.round((val as number) / 60);
-    								} else if (mappedRecordAttribute == "area") {
+    								} else if (mappedRecordAttribute == "duration") {
+    									val = Math.round((val as number) / 60);
+    								} else if (mappedRecordAttribute == "area" || mappedRecordAttribute == "cleaned_area") {
     									val = Number(((val as number) / 1000000).toFixed(2));
     								}
 

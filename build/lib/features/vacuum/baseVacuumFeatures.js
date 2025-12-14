@@ -911,7 +911,10 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                                 else if (mappedRecordAttribute == "duration") {
                                     val = Math.round(val / 60);
                                 }
-                                else if (mappedRecordAttribute == "area") {
+                                else if (mappedRecordAttribute == "duration") {
+                                    val = Math.round(val / 60);
+                                }
+                                else if (mappedRecordAttribute == "area" || mappedRecordAttribute == "cleaned_area") {
                                     val = Number((val / 1000000).toFixed(2));
                                 }
                                 const cleaningRecordCommon = this.getCommonCleaningRecords(mappedRecordAttribute);
