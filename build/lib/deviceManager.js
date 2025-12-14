@@ -253,6 +253,10 @@ class DeviceManager {
                         const isActive = this.isActiveState(currentState);
                         const wasActive = this.isActiveState(lastState);
                         this.adapter.log.debug(`[DeviceManager] ${duid} State: ${lastState} -> ${currentState} | Active: ${wasActive} -> ${isActive}`);
+                        // Determine if we need to update the map (Active = polling map)
+                        if (isActive) {
+                            await handler.updateMap();
+                        }
                         // Transition: Active -> Inactive
                         if (wasActive && !isActive) {
                             this.adapter.log.info(`[DeviceManager] Activity finished for ${duid} (State ${lastState} -> ${currentState}). Fetching full data...`);
