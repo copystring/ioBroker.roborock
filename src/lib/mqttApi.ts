@@ -224,7 +224,6 @@ export class mqtt_api {
 								inner = JSON.parse(inner);
 							} catch (e) {
 								this.adapter.log.warn(`[MQTT] Failed to parse B01 nested string payload: ${e}`);
-								// Continue to processA01 just in case
 							}
 						}
 

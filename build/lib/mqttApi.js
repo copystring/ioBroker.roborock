@@ -225,7 +225,6 @@ class mqtt_api {
                             }
                             catch (e) {
                                 this.adapter.log.warn(`[MQTT] Failed to parse B01 nested string payload: ${e}`);
-                                // Continue to processA01 just in case
                             }
                         }
                         // Verify typical response fields (msgId or id) to map back to the original request
