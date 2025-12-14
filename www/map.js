@@ -738,7 +738,7 @@ class MapApplication {
             d.y = newY;
             const element = event.sourceEvent.target.closest("g.zone");
             if (element)
-                d3.select(element).attr("transform", `translate(${d.x - this.mapMinX}, ${d.y - this.mapMinY})`);
+                d3.select(element).attr("transform", `translate(${d.x}, ${d.y})`);
         })
             .on("end", (event) => {
             const element = event.sourceEvent.target.closest("g.zone");
@@ -780,7 +780,7 @@ class MapApplication {
         enterGroup.append("rect").attr("class", "zone-rect").attr("x", 0).attr("y", 0).style("stroke-width", this.rescaler.zoneStrokeWidth());
         enterGroup.append("circle").attr("class", "zone-handle").attr("r", this.rescaler.zoneHandleRadius()).call(resizeHandler);
         const mergedSelection = selection.merge(enterGroup);
-        mergedSelection.attr("transform", (d) => `translate(${d.x - this.mapMinX}, ${d.y - this.mapMinY})`);
+        mergedSelection.attr("transform", (d) => `translate(${d.x}, ${d.y})`);
         mergedSelection
             .select("rect")
             .attr("width", (d) => d.width)
@@ -901,7 +901,7 @@ class MapApplication {
             return { x: 0, y: 0 };
         const transform = d3.zoomTransform(this.svgContainer.node());
         const inverted = transform.invert([x, y]);
-        return { x: inverted[0] + this.mapMinX, y: inverted[1] + this.mapMinY };
+        return { x: inverted[0], y: inverted[1] };
     }
     worldToSvgCoords(x, y) {
         // Since we no longer translate the background image (it sits at 0,0),
@@ -1048,8 +1048,8 @@ class MapApplication {
                 if (!this.currentRobotDuid || !params)
                     return;
                 const [mouseX, mouseY] = d3.pointer(event, this.mainGroup.node());
-                const worldX = mouseX + this.mapMinX;
-                const worldY = mouseY + this.mapMinY;
+                const worldX = mouseX;
+                const worldY = mouseY;
                 const point = localCoordsToRobotCoords({ x: worldX, y: worldY }, params);
                 this.connection.sendTo(this.instanceId, "app_goto_target", { points: [point.x, point.y], duid: this.currentRobotDuid });
                 pin.style("opacity", 1.0);
