@@ -568,10 +568,14 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     		await this.deps.ensureFolder(`Devices.${this.duid}.resetConsumables`);
 
     		for (const key in resultObj) {
-    			const val = resultObj[key];
+    			let val = resultObj[key];
     			const common = this.getCommonConsumable(key);
     			const fullCommon = common ? { ...common, type: "number" as const, role: "value" as const, read: true, write: false, name: key }
     				: { type: "number" as const, role: "value" as const, read: true, write: false, name: key };
+
+    			if (fullCommon.unit === "h" && typeof val === "number") {
+    				val = Number((val / 3600).toFixed(1));
+    			}
 
     			await this.deps.ensureState(`Devices.${this.duid}.consumables.${key}`, fullCommon as ioBroker.StateCommon);
     			await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.consumables.${key}`, { val: Number(val), ack: true });
