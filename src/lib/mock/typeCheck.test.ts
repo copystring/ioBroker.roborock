@@ -76,6 +76,6 @@ describe("Adapter Type Verification", () => {
 	it("should process clean summary and verify types", async () => {
 		await vacuumFeatures.initialize();
 		await vacuumFeatures.updateCleanSummary();
-		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.clean_time`]).to.equal(441361);
+		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.clean_time`]).to.equal(122.6);
 	});
 });

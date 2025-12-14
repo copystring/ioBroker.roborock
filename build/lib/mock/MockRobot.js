@@ -39,7 +39,7 @@ class MockRobot {
             case "get_fw_features":
                 return this.features;
             case "get_consumable":
-                return [mockData_1.MOCK_ROBOT_DATA.consumables];
+                return [this.consumables];
             case "get_network_info":
                 return mockData_1.MOCK_ROBOT_DATA.networkInfo;
             case "get_clean_summary":
