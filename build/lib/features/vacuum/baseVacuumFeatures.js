@@ -655,6 +655,14 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                     if (typeof val === "object" && val !== null) {
                         val = JSON.stringify(val);
                     }
+                    if (["clean_time", "clean_area", "cleaned_area"].includes(key)) {
+                        if (key === "clean_time") {
+                            val = Math.round(val / 60);
+                        }
+                        else if (key === "clean_area" || key === "cleaned_area") {
+                            val = Number((val / 1000000).toFixed(2));
+                        }
+                    }
                     if (common.type === "string" && typeof val !== "string") {
                         val = String(val);
                     }
@@ -867,11 +875,18 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                 const mappedAttribute = BaseVacuumFeatures.MAPPED_CLEAN_SUMMARY[cleaningAttribute] || cleaningAttribute;
                 const cleaningAttributeCommon = this.getCommonCleaningInfo(mappedAttribute);
                 if (["clean_time", "clean_area", "clean_count"].includes(mappedAttribute)) {
+                    let val = cleaningAttributes[cleaningAttribute];
+                    if (mappedAttribute === "clean_time") {
+                        val = Number((val / 3600).toFixed(2));
+                    }
+                    else if (mappedAttribute === "clean_area") {
+                        val = Number((val / 1000000).toFixed(2));
+                    }
                     if (cleaningAttributeCommon)
                         cleaningAttributeCommon.type = "number";
                     await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.${mappedAttribute}`, cleaningAttributeCommon || {});
                     await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.${mappedAttribute}`, {
-                        val: cleaningAttributes[cleaningAttribute],
+                        val: val,
                         ack: true,
                     });
                 }
@@ -887,17 +902,23 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                             const cleaningRecordAttributesArr = (await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_clean_record", [cleaningRecordID], { priority: 0 }));
                             const cleaningRecordAttributes = cleaningRecordAttributesArr[0];
                             cleaningRecordsJSON[parseInt(cleaningRecord)] = cleaningRecordAttributes;
-                            const cleaningRecordCommon = this.getCommonCleaningRecords(mappedAttribute);
-                            if (cleaningRecordCommon) {
-                                for (const cleaningRecordAttribute in cleaningRecordAttributes) {
-                                    const mappedRecordAttribute = BaseVacuumFeatures.MAPPED_CLEANING_RECORD_ATTRIBUTE[cleaningRecordAttribute] || cleaningRecordAttribute;
-                                    let val = cleaningRecordAttributes[cleaningRecordAttribute];
-                                    if (["begin", "end"].includes(mappedRecordAttribute)) {
-                                        val = new Date(val * 1000).toString();
-                                    }
-                                    else if (mappedRecordAttribute == "duration") {
-                                        val = Math.round(val / 60);
-                                    }
+                            for (const cleaningRecordAttribute in cleaningRecordAttributes) {
+                                const mappedRecordAttribute = BaseVacuumFeatures.MAPPED_CLEANING_RECORD_ATTRIBUTE[cleaningRecordAttribute] || cleaningRecordAttribute;
+                                let val = cleaningRecordAttributes[cleaningRecordAttribute];
+                                if (["begin", "end"].includes(mappedRecordAttribute)) {
+                                    val = new Date(val * 1000).toString();
+                                }
+                                else if (mappedRecordAttribute == "duration") {
+                                    val = Math.round(val / 60);
+                                }
+                                else if (mappedRecordAttribute == "duration") {
+                                    val = Math.round(val / 60);
+                                }
+                                else if (mappedRecordAttribute == "area" || mappedRecordAttribute == "cleaned_area") {
+                                    val = Number((val / 1000000).toFixed(2));
+                                }
+                                const cleaningRecordCommon = this.getCommonCleaningRecords(mappedRecordAttribute);
+                                if (cleaningRecordCommon) {
                                     await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, cleaningRecordCommon);
                                     await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, {
                                         val: val,
