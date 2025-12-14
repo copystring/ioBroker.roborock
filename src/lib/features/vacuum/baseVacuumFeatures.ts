@@ -782,6 +782,14 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     					val = JSON.stringify(val);
     				}
 
+    				if (["clean_time", "clean_area", "cleaned_area"].includes(key)) {
+    					if (key === "clean_time") {
+    						val = Math.round((val as number) / 60);
+    					} else if (key === "clean_area" || key === "cleaned_area") {
+    						val = Number(((val as number) / 1000000).toFixed(2));
+    					}
+    				}
+
     				if (common.type === "string" && typeof val !== "string") {
     					val = String(val);
     				}
@@ -1049,11 +1057,19 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     			const cleaningAttributeCommon = this.getCommonCleaningInfo(mappedAttribute);
 
     			if (["clean_time", "clean_area", "clean_count"].includes(mappedAttribute)) {
+    				let val = cleaningAttributes[cleaningAttribute] as number;
+
+    				if (mappedAttribute === "clean_time") {
+    					val = Number((val / 3600).toFixed(2));
+    				} else if (mappedAttribute === "clean_area") {
+    					val = Number((val / 1000000).toFixed(2));
+    				}
+
     				if (cleaningAttributeCommon) (cleaningAttributeCommon as ioBroker.StateCommon).type = "number";
 
     				await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.${mappedAttribute}`, cleaningAttributeCommon || {});
     				await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.${mappedAttribute}`, {
-    					val: cleaningAttributes[cleaningAttribute] as ioBroker.StateValue,
+    					val: val as ioBroker.StateValue,
     					ack: true,
     				});
     			} else if (mappedAttribute == "records") {
@@ -1083,6 +1099,8 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     									val = new Date((val as number) * 1000).toString();
     								} else if (mappedRecordAttribute == "duration") {
     									val = Math.round((val as number) / 60);
+    								} else if (mappedRecordAttribute == "area") {
+    									val = Number(((val as number) / 1000000).toFixed(2));
     								}
 
     								await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, cleaningRecordCommon);
