@@ -505,10 +505,13 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             await this.deps.ensureFolder(`Devices.${this.duid}.consumables`);
             await this.deps.ensureFolder(`Devices.${this.duid}.resetConsumables`);
             for (const key in resultObj) {
-                const val = resultObj[key];
+                let val = resultObj[key];
                 const common = this.getCommonConsumable(key);
                 const fullCommon = common ? { ...common, type: "number", role: "value", read: true, write: false, name: key }
                     : { type: "number", role: "value", read: true, write: false, name: key };
+                if (fullCommon.unit === "h" && typeof val === "number") {
+                    val = Math.round(val / 3600);
+                }
                 await this.deps.ensureState(`Devices.${this.duid}.consumables.${key}`, fullCommon);
                 await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.consumables.${key}`, { val: Number(val), ack: true });
                 if (BaseVacuumFeatures.CONSTANTS.resetConsumables.has(key)) {
