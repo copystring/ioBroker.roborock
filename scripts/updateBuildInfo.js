@@ -7,13 +7,11 @@ const buildInfoPath = path.join(__dirname, "../src/lib/buildInfo.ts");
 let commitHash = "unknown";
 let buildDate = new Date().toLocaleString("de-DE", { timeZone: "Europe/Berlin" });
 
-try {
-	commitHash = execSync("git rev-parse --short HEAD").toString().trim();
-	const commitDateStr = execSync("git show -s --format=%ci HEAD").toString().trim();
+	// Use package.json version and its last commit date for deterministic builds that only change on version bumps
+	const packageJson = require("../package.json");
+	commitHash = packageJson.version;
+	const commitDateStr = execSync("git log -1 --format=%ci package.json").toString().trim();
 	buildDate = new Date(commitDateStr).toLocaleString("de-DE", { timeZone: "Europe/Berlin" });
-} catch (e) {
-	console.warn("Could not get git commit hash", e);
-}
 
 const content = `export const buildInfo = {
 	buildDate: "${buildDate}",
