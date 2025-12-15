@@ -855,7 +855,15 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                 return params; // Fallback
             }
         }
-        if (method === "set_water_box_custom_mode" || method === "set_custom_mode" || method === "set_clean_motor_mode") {
+        if (method === "set_water_box_custom_mode" ||
+            method === "set_custom_mode" ||
+            method === "set_clean_motor_mode" ||
+            method === "set_mop_mode" ||
+            method === "set_smart_wash_params" ||
+            method === "set_carpet_mode" ||
+            method === "set_carpet_clean_mode" ||
+            method === "set_dust_collection_mode" ||
+            method === "set_water_box_distance_off") {
             // These commands require parameters to be wrapped in an array [val]
             if (params !== undefined && !Array.isArray(params)) {
                 return [params];
