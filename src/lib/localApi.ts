@@ -157,13 +157,13 @@ export class local_api {
 				try {
 					// Buffering logic
 					if (client.chunkBuffer.length === 0) {
-						if (!this.checkComplete(message)) {
+						if (!this.checkComplete(message as Buffer)) {
 							this.adapter.log.debug(`[LocalAPI] Starting new chunk buffer`);
 						}
-						client.chunkBuffer = message;
+						client.chunkBuffer = message as Buffer;
 					} else {
 						this.adapter.log.debug(`[LocalAPI] Appending to chunk buffer`);
-						client.chunkBuffer = Buffer.concat([client.chunkBuffer, message]);
+						client.chunkBuffer = Buffer.concat([client.chunkBuffer, message as Buffer]);
 					}
 
 					let offset = 0;
