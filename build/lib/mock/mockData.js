@@ -80,11 +80,11 @@ exports.MOCK_ROBOT_DATA = {
         seq_type: 0
     },
     consumables: {
-        main_brush_work_time: 55395,
-        side_brush_work_time: 441810,
-        filter_work_time: 20144,
+        main_brush_work_time: 3600, // 1 hour
+        side_brush_work_time: 441810, // Keep original large value (~123h)
+        filter_work_time: 7500, // 2.08 hours -> rounds to 2
         filter_element_work_time: 0,
-        sensor_dirty_time: 17684,
+        sensor_dirty_time: 1800, // 0.5 hours -> rounds to 1
         strainer_work_times: 15,
         dust_collection_work_times: 179,
         cleaning_brush_work_times: 15
