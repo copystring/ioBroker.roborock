@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildInfo = void 0;
 exports.buildInfo = {
-    buildDate: "12.12.2025, 01:06:52",
-    commitHash: "55af9ca",
+    buildDate: "16.12.2025, 00:14:38",
+    commitHash: "82d8769",
 };
 //# sourceMappingURL=buildInfo.js.map
