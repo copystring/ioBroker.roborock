@@ -394,9 +394,9 @@ class Roborock extends utils.Adapter {
                 const common = {};
                 let value = device[attr];
                 if (attr === "activeTime") {
-                    value = Math.round(value / 3600000); // ms to hours
-                    common.unit = "h";
-                    common.type = "number";
+                    value = new Date(value * 1000).toLocaleString();
+                    common.unit = "";
+                    common.type = "string";
                 }
                 else if (attr === "createTime") {
                     value = new Date(value * 1000).toLocaleString();
