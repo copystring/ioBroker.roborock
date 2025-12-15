@@ -389,6 +389,7 @@ export class Roborock extends utils.Adapter {
 				let value = device[attr];
 
 				if (attr === "activeTime") {
+					this.log.info(`[updateDeviceInfo] activeTime raw value for ${duid}: ${value}`);
 					value = Math.round(value / 3600000); // ms to hours
 					common.unit = "h";
 					common.type = "number";
