@@ -39,6 +39,7 @@ export declare class requestsHandler {
     isCloudRequest(duid: string, method: string): boolean;
     resolvePendingRequest(messageID: number, result: unknown, protocol?: unknown): void;
     isRequestRecentlyFinished(messageID: number): boolean;
+    redoPendingRequests(): Promise<void>;
     clearQueue(): void;
 }
 export {};

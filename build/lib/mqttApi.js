@@ -133,6 +133,8 @@ class mqtt_api {
         client.on("connect", () => {
             this.connected = true;
             this.adapter.log.info(`MQTT connection established.`);
+            // Re-send any pending requests (in case they were lost during disconnect/reset)
+            this.adapter.requestsHandler.redoPendingRequests();
             // Subscribe to the specific topic for this user
             const topic = `rr/m/o/${rriot.u}/${this.mqttUser}/#`;
             client.subscribe(topic, (err) => {

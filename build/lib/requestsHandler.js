@@ -371,6 +371,23 @@ class requestsHandler {
     isRequestRecentlyFinished(messageID) {
         return this.finishedRequests.has(messageID);
     }
+    async redoPendingRequests() {
+        this.adapter.log.info(`[RequestsHandler] Re-sending ${this.adapter.pendingRequests.size} pending requests...`);
+        for (const [id, req] of this.adapter.pendingRequests) {
+            if (req instanceof RoborockRequest) {
+                try {
+                    this.adapter.log.debug(`[RequestsHandler] Re-sending request ${id} (${req.method})`);
+                    // We do not await the result of the request (it returns the promise that resolves on reply)
+                    // We only await the sync/async preparation steps if any.
+                    // Since req.send returns existing promise, we suppress strict await behavior by catching locally to avoid unhandled rejections if send throws synchronously.
+                    req.send().catch(() => { });
+                }
+                catch (e) {
+                    this.adapter.log.warn(`[RequestsHandler] Failed to re-send request ${id}: ${e}`);
+                }
+            }
+        }
+    }
     clearQueue() {
         this.adapter.local_api.clearLocalDevicedTimeout();
         this.adapter.mqtt_api.clearIntervals();

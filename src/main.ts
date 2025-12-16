@@ -111,13 +111,16 @@ export class Roborock extends utils.Adapter {
 			this.subscribeStatesAsync("Devices.*.deviceInfo.online");
 			this.subscribeStatesAsync("Devices.*.floors.*.load");
 
-			// Schedule MQTT API reset every hour (legacy behavior to prevent stale connections)
-			this.setInterval(async () => {
-				await this.resetMqttApi();
-			}, 3600 * 1000);
+
 
 			this.log.info(`Adapter startup finished. Let's go!`);
 			this.isInitializing = false;
+
+			// Schedule MQTT API reset every hour (legacy behavior to prevent stale connections)
+			this.setInterval(async () => {
+				this.log.debug("Running scheduled MQTT reconnect...");
+				await this.resetMqttApi();
+			}, 3600 * 1000);
 		} catch (e: any) {
 			this.log.error(`Failed to initialize adapter: ${e.message}`);
 			this.catchError(e, "onReady");
@@ -625,7 +628,7 @@ export class Roborock extends utils.Adapter {
 		this.log.info("Resetting MQTT API instance...");
 		if (this.mqtt_api) {
 			this.mqtt_api.cleanup();
-			this.requestsHandler.clearQueue(); // Prevents pending promises
+			// this.requestsHandler.clearQueue(); // Removed to allow pending requests to survive reconnect
 		}
 		// Create a new MQTT API instance and initialize it
 		this.mqtt_api = new mqtt_api(this);
