@@ -1,6 +1,7 @@
 import type { Roborock } from "../main";
 interface PhotoRequestData {
     chunks: Buffer[];
+    timeout?: any;
 }
 export declare class mqtt_api {
     adapter: Roborock;
