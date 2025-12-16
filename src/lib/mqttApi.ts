@@ -154,12 +154,8 @@ export class mqtt_api {
 
 		client.on("reconnect", () => {
 			this.adapter.log.info(`MQTT attempting to reconnect...`);
-			// Subscription is usually handled automatically by MQTT client on reconnect if clean=false,
-			// but if we need to re-subscribe manually:
-			const topic = `rr/m/o/${rriot.u}/${this.mqttUser}/#`;
-			client.subscribe(topic, (err: Error | null) => {
-				if (err) this.adapter.log.error(`Failed to re-subscribe during reconnect: ${err}`);
-			});
+			// Subscription is handled automatically by MQTT client or on 'connect' event.
+			// No need to explicitly subscribe here as connection is not yet established.
 		});
 
 		client.on("offline", () => {
@@ -370,10 +366,15 @@ export class mqtt_api {
 					let decrypted = decipher.update(payloadBuf.subarray(24) as Uint8Array);
 					decrypted = Buffer.concat([decrypted as Uint8Array, decipher.final()]);
 
-					const unzipped = zlib.gunzipSync(decrypted as Uint8Array);
-
-					// Resolve pending map request
-					this.adapter.requestsHandler.resolvePendingRequest(parsedHeader.id, unzipped, data.protocol);
+					// Async gunzip to prevent event loop blocking
+					zlib.gunzip(decrypted, (err, unzipped) => {
+						if (err) {
+							this.adapter.log.error(`[MQTT] Failed to unzip map data: ${err}`);
+							return;
+						}
+						// Resolve pending map request
+						this.adapter.requestsHandler.resolvePendingRequest(parsedHeader.id, unzipped, data.protocol);
+					});
 				}
 			} catch (e) {
 				// Not a valid map header or decryption failed
