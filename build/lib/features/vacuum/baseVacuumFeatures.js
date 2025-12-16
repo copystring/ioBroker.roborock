@@ -880,9 +880,23 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             method === "set_carpet_mode" ||
             method === "set_carpet_clean_mode" ||
             method === "set_dust_collection_mode" ||
-            method === "set_water_box_distance_off") {
+            method === "set_water_box_distance_off" ||
+            method === "app_set_dryer_setting" ||
+            method === "set_wash_towel_mode" ||
+            method === "set_dust_collection_switch_status") {
             // These commands require parameters to be wrapped in an array [val]
             if (params !== undefined && !Array.isArray(params)) {
+                // If params is a string (ioBroker JSON state), try to parse it first
+                if (typeof params === "string") {
+                    try {
+                        const parsed = JSON.parse(params);
+                        return [parsed];
+                    }
+                    catch {
+                        // Not JSON, wrap as is
+                        return [params];
+                    }
+                }
                 return [params];
             }
         }
