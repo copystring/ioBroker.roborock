@@ -111,6 +111,11 @@ export class Roborock extends utils.Adapter {
 			this.subscribeStatesAsync("Devices.*.deviceInfo.online");
 			this.subscribeStatesAsync("Devices.*.floors.*.load");
 
+			// Schedule MQTT API reset every hour (legacy behavior to prevent stale connections)
+			this.setInterval(async () => {
+				await this.resetMqttApi();
+			}, 3600 * 1000);
+
 			this.log.info(`Adapter startup finished. Let's go!`);
 			this.isInitializing = false;
 		} catch (e: any) {

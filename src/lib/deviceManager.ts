@@ -130,10 +130,32 @@ export class DeviceManager {
 
 					// --- Initialization sequence ---
 
+
 					// 1. Check dock type from cloud data and apply features FIRST
 					const cloudDockType = this.adapter.http_api.getDevices().find(d => d.duid === duid)?.deviceStatus?.dock_type;
 					if (device.online && cloudDockType !== undefined) {
 						await handler.processDockType(Number(cloudDockType));
+					}
+
+					// 1.5 Get Network Info & fallback for Local API
+					if (device.online) {
+						await handler.updateNetworkInfo();
+
+						const ipState = await this.adapter.getStateAsync(`Devices.${duid}.networkInfo.ip`);
+						if (ipState && ipState.val) {
+							const ip = String(ipState.val);
+							// If not found via UDP yet, seed it from Cloud data
+							if (!this.adapter.local_api.localDevices[duid] && ip && ip !== "0.0.0.0") {
+								const pv = device.pv || "1.0";
+								this.adapter.log.info(`[DeviceManager] Seeding local API with Cloud IP for ${duid}: ${ip} (Proto: ${pv})`);
+								this.adapter.local_api.localDevices[duid] = {
+									ip: ip,
+									version: pv
+								};
+								// Explicitly try to connect via TCP since UDP failed
+								await this.adapter.local_api.initiateClient(duid);
+							}
+						}
 					}
 
 					// 2. Get initial status (now dockingStationStatus objects exist)
@@ -151,6 +173,10 @@ export class DeviceManager {
 
 					// 6. Initial Map & Data
 					if (device.online) {
+						// updateDeviceData includes updateNetworkInfo, but we did it early.
+						// To avoid double call, we could split updateDeviceData or just accept the redundancy (safe).
+						// For optimization, we can comment it out in updateDeviceData or just leave it.
+						// Redundancy is acceptable for robustness.
 						await this.updateDeviceData(handler, duid);
 						await this.updateConsumablesPercent(duid);
 						await handler.updateMap();
@@ -214,6 +240,7 @@ export class DeviceManager {
 
 	// Track previous state
 	private lastStateCode = new Map<string, number>();
+	private lastMapStatus = new Map<string, number>();
 
 	/**
 	 * Get current state code.
@@ -224,6 +251,17 @@ export class DeviceManager {
 			return Number(state.val);
 		}
 		return 0; // Unknown
+	}
+
+	/**
+	 * Get current map status.
+	 */
+	private async getDeviceMapStatus(duid: string): Promise<number> {
+		const state = await this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.map_status`);
+		if (state && state.val !== null) {
+			return Number(state.val);
+		}
+		return -1; // Unknown
 	}
 
 	/**
@@ -260,12 +298,33 @@ export class DeviceManager {
 		this.mainUpdateInterval = this.adapter.setInterval(async () => {
 			mainUpdateCount++;
 
+			// --- Fast Loop (Map Updates) ---
+			// Update map if robot is active (cleaning, etc.)
+			try {
+				const devices = this.adapter.http_api.getDevices();
+				for (const device of devices) {
+					if (!device.online) continue;
+
+					const duid = device.duid;
+					const handler = this.deviceFeatureHandlers.get(duid);
+
+					if (handler) {
+						const currentState = await this.getDeviceState(duid);
+						if (this.isActiveState(currentState)) {
+							await handler.updateMap();
+						}
+					}
+				}
+			} catch (e: any) {
+				this.adapter.log.error(`[DeviceManager] Error in fast loop: ${e.message}`);
+			}
+
 			// --- Slow Loop ---
 			if (mainUpdateCount >= mainPollInterval) {
 				mainUpdateCount = 0;
 				this.adapter.log.debug("[DeviceManager] Running scheduled main device update...");
 
-				await this.adapter.http_api.updateHomeData();
+				// await this.adapter.http_api.updateHomeData(); // We DO NOT update HomeData on interval to avoid bans.
 				const cloudDevices = this.adapter.http_api.getDevices();
 
 				for (const device of cloudDevices) {
@@ -282,7 +341,7 @@ export class DeviceManager {
 						await this.adapter.updateDeviceInfo(duid, cloudDevices);
 						const version = await this.adapter.getDeviceProtocolVersion(duid);
 
-						// 1. Update Status (fast)
+						// 1. Update Status
 						if (version === "A01") {
 							await handler.updateStatus();
 						} else {
@@ -295,18 +354,32 @@ export class DeviceManager {
 							}
 						}
 
-						// 2. Check State Transitions
+						// 2. Map Status Change Detection
+						const currentMapStatus = await this.getDeviceMapStatus(duid);
+						const lastMapStatus = this.lastMapStatus.get(duid);
+
+						if (lastMapStatus !== undefined && currentMapStatus !== lastMapStatus) {
+							this.adapter.log.info(`[DeviceManager] Map changed for ${duid} (${lastMapStatus} -> ${currentMapStatus}). Updating device data (rooms, etc.)...`);
+							await this.updateDeviceData(handler, duid);
+							// Also update consumables as they might be stale
+							await this.updateConsumablesPercent(duid);
+							// Trigger map update immediately
+							await handler.updateMap();
+						}
+						this.lastMapStatus.set(duid, currentMapStatus);
+
+						// 3. Periodic Consumables Update (Optional? User said "only map change". But consumables change dynamically)
+						// Keeping consumables updated is generally safe and low-cost.
+						// But strictly sticking to "only map change" for heavy data.
+						// We'll update consumables on activity finish or map change. Consumables don't change fast.
+
+						// 4. Check State Transitions
 						const currentState = await this.getDeviceState(duid);
 						const lastState = this.lastStateCode.get(duid) || 0;
 						const isActive = this.isActiveState(currentState);
 						const wasActive = this.isActiveState(lastState);
 
 						this.adapter.log.debug(`[DeviceManager] ${duid} State: ${lastState} -> ${currentState} | Active: ${wasActive} -> ${isActive}`);
-
-						// Determine if we need to update the map (Active = polling map)
-						if (isActive) {
-							await handler.updateMap();
-						}
 
 						// Transition: Active -> Inactive
 						if (wasActive && !isActive) {
@@ -315,6 +388,8 @@ export class DeviceManager {
 							// Trigger full update
 							await this.updateDeviceData(handler, duid);
 							await this.updateConsumablesPercent(duid);
+							// CRITICAL: Fetch status (including Docking Station Status) immediately after cleaning
+							await handler.updateStatus();
 							await handler.updateCleanSummary();
 							await handler.updateMap();
 						}

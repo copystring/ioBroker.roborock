@@ -15,10 +15,15 @@ export declare class DeviceManager {
      */
     private cleanupOrphanedDevices;
     private lastStateCode;
+    private lastMapStatus;
     /**
      * Get current state code.
      */
     private getDeviceState;
+    /**
+     * Get current map status.
+     */
+    private getDeviceMapStatus;
     /**
      * Check if robot is active.
      */
