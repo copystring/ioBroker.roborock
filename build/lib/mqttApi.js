@@ -316,8 +316,19 @@ class mqtt_api {
             const photoData = photoParser.parse(payloadBuf);
             if (this.adapter.pendingRequests.has(photoData.id)) {
                 this.adapter.log.debug(`[MQTT] Photo Data (300) Chunk 1 received for ReqID ${photoData.id}`);
+                // Clear existing timeout if any (though unlikely for same ID)
+                if (this.pendingPhotoRequests[photoData.id]?.timeout) {
+                    this.adapter.clearTimeout(this.pendingPhotoRequests[photoData.id].timeout);
+                }
+                const timeout = this.adapter.setTimeout(() => {
+                    if (this.pendingPhotoRequests[photoData.id]) {
+                        this.adapter.log.warn(`[MQTT] Photo request ${photoData.id} timed out. Cleaning up.`);
+                        delete this.pendingPhotoRequests[photoData.id];
+                    }
+                }, 60000); // 60s timeout
                 this.pendingPhotoRequests[photoData.id] = {
                     chunks: [payloadBuf.subarray(56)], // Skip header
+                    timeout: timeout,
                 };
             }
         }
@@ -338,6 +349,9 @@ class mqtt_api {
                         this.pendingPhotoRequests[photoData.id].chunks.push(payloadBuf);
                         // Combine and resolve
                         const totalBuffer = Buffer.concat(this.pendingPhotoRequests[photoData.id].chunks);
+                        if (this.pendingPhotoRequests[photoData.id].timeout) {
+                            this.adapter.clearTimeout(this.pendingPhotoRequests[photoData.id].timeout);
+                        }
                         this.adapter.requestsHandler.resolvePendingRequest(photoData.id, totalBuffer, data.protocol);
                         delete this.pendingPhotoRequests[photoData.id]; // Cleanup
                     }
@@ -445,6 +459,12 @@ class mqtt_api {
      * Clears internal state (e.g. pending partial downloads).
      */
     clearIntervals() {
+        // Clear all timeouts
+        for (const id in this.pendingPhotoRequests) {
+            if (this.pendingPhotoRequests[id].timeout) {
+                this.adapter.clearTimeout(this.pendingPhotoRequests[id].timeout);
+            }
+        }
         this.pendingPhotoRequests = {};
     }
     /**
