@@ -308,17 +308,43 @@ class requestsHandler {
         const requestPromise = this.sendRequest(duid, method, finalParams, { priority: 1 });
         this._processResult(requestPromise, async () => {
             // Command success
+            if (method === "load_multi_map") {
+                this.adapter.log.info(`[requestsHandler] load_multi_map executed. Triggering immediate map/room update for ${duid}...`);
+                // Trigger update via DeviceManager
+                if (this.adapter.deviceManager) {
+                    const handler = this.adapter.deviceManager.deviceFeatureHandlers.get(duid);
+                    if (handler) {
+                        // CRITICAL: Update status FIRST to get new map_status (Floor ID)
+                        await handler.updateStatus();
+                        // Then update rooms using the new status
+                        await this.adapter.deviceManager.updateDeviceData(handler, duid);
+                        await handler.updateMap();
+                    }
+                }
+            }
         }, `command-${method}-${duid}`, duid);
     }
-    isCloudDevice(_duid) {
-        void _duid;
-        return Promise.resolve(true);
+    isCloudDevice(duid) {
+        return Promise.resolve(!this.adapter.local_api.isConnected(duid));
     }
-    isCloudRequest(_duid, _method) {
-        void _duid;
-        void _method;
-        // Force cloud request (Protocol 101) to fix ID mismatch
-        return true;
+    isCloudRequest(duid, method) {
+        // Legacy Logic:
+        // Methods that require secure connection or are cloud-only
+        const cloudOnlyMethods = [
+            "get_map_v1", // Legacy passed secure=true
+            "get_network_info", // Legacy explicitly checked this
+            "get_photo",
+            "get_server_timer", // Often cloud dependent
+            "get_timer",
+        ];
+        if (cloudOnlyMethods.includes(method)) {
+            return true;
+        }
+        // If not locally connected, it must be a cloud request
+        if (!this.adapter.local_api.isConnected(duid)) {
+            return true;
+        }
+        return false;
     }
     resolvePendingRequest(messageID, result, protocol) {
         const req = this.adapter.pendingRequests.get(messageID);
@@ -344,6 +370,23 @@ class requestsHandler {
     }
     isRequestRecentlyFinished(messageID) {
         return this.finishedRequests.has(messageID);
+    }
+    async redoPendingRequests() {
+        this.adapter.log.info(`[RequestsHandler] Re-sending ${this.adapter.pendingRequests.size} pending requests...`);
+        for (const [id, req] of this.adapter.pendingRequests) {
+            if (req instanceof RoborockRequest) {
+                try {
+                    this.adapter.log.debug(`[RequestsHandler] Re-sending request ${id} (${req.method})`);
+                    // We do not await the result of the request (it returns the promise that resolves on reply)
+                    // We only await the sync/async preparation steps if any.
+                    // Since req.send returns existing promise, we suppress strict await behavior by catching locally to avoid unhandled rejections if send throws synchronously.
+                    req.send().catch(() => { });
+                }
+                catch (e) {
+                    this.adapter.log.warn(`[RequestsHandler] Failed to re-send request ${id}: ${e}`);
+                }
+            }
+        }
     }
     clearQueue() {
         this.adapter.local_api.clearLocalDevicedTimeout();
