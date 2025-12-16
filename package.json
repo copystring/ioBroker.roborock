@@ -66,6 +66,8 @@
     "chai-as-promised": "^8.0.0",
     "eslint": "9.39.1",
     "globals": "^16.4.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "mocha": "^10.2.0",
     "proxyquire": "^2.1.3",
     "rimraf": "6.1.2",
@@ -107,10 +109,16 @@
     "dev:www": "npm run copy:pathProcessor && vitest watch src/www",
     "test:www": "npm run copy:pathProcessor && vitest run src/www",
     "test:all": "npm run test && npm run test:www",
-    "verify": "npm run lint && tsc --noEmit -p tsconfig.json"
+    "verify": "npm run lint && tsc --noEmit -p tsconfig.json",
+    "prepare": "husky"
   },
   "bugs": {
     "url": "https://github.com/copystring/ioBroker.roborock/issues"
   },
-  "readmeFilename": "README.md"
+  "readmeFilename": "README.md",
+  "lint-staged": {
+    "*.{ts,js,tsx,jsx}": [
+      "eslint --fix"
+    ]
+  }
 }
