@@ -187,7 +187,7 @@ class http_api {
                     this.adapter.log.error("********************************************************************************");
                     this.adapter.log.error("ATTENTION: 2FA Code required!");
                     this.adapter.log.error(`An email has been sent to ${this.adapter.config.username}.`);
-                    this.adapter.log.error("Please enter the 6-digit code into the state 'roborock.0.loginCode' immediately.");
+                    this.adapter.log.error("Please go to the 'Objects' tab in ioBroker, find the state 'roborock.0.loginCode', and enter the 6-digit code into the 'Value' column.");
                     this.adapter.log.error("********************************************************************************");
                     // State at root: roborock.0.loginCode
                     const stateId = "loginCode";
