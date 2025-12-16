@@ -93,6 +93,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 
 	// --- Vacuum-specific Constants ---
 	protected static readonly CONSTANTS = VACUUM_CONSTANTS;
+	protected mappedRooms: any[] | null = null;
 
 	constructor(
 		dependencies: FeatureDependencies,
@@ -567,10 +568,14 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     		await this.deps.ensureFolder(`Devices.${this.duid}.resetConsumables`);
 
     		for (const key in resultObj) {
-    			const val = resultObj[key];
+    			let val = resultObj[key];
     			const common = this.getCommonConsumable(key);
     			const fullCommon = common ? { ...common, type: "number" as const, role: "value" as const, read: true, write: false, name: key }
     				: { type: "number" as const, role: "value" as const, read: true, write: false, name: key };
+
+    			if (fullCommon.unit === "h" && typeof val === "number") {
+    				val = Math.round(val / 3600);
+    			}
 
     			await this.deps.ensureState(`Devices.${this.duid}.consumables.${key}`, fullCommon as ioBroker.StateCommon);
     			await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.consumables.${key}`, { val: Number(val), ack: true });
@@ -781,6 +786,14 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     					val = JSON.stringify(val);
     				}
 
+    				if (["clean_time", "clean_area", "cleaned_area"].includes(key)) {
+    					if (key === "clean_time") {
+    						val = Math.round((val as number) / 60);
+    					} else if (key === "clean_area" || key === "cleaned_area") {
+    						val = Number(((val as number) / 1000000).toFixed(2));
+    					}
+    				}
+
     				if (common.type === "string" && typeof val !== "string") {
     					val = String(val);
     				}
@@ -915,6 +928,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     public override async updateRoomMapping(): Promise<void> {
     	try {
     		const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_room_mapping", []);
+    		this.mappedRooms = result as any[];
 
     		if (!Array.isArray(result) || result.length === 0) {
     			return;
@@ -1065,11 +1079,19 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     			const cleaningAttributeCommon = this.getCommonCleaningInfo(mappedAttribute);
 
     			if (["clean_time", "clean_area", "clean_count"].includes(mappedAttribute)) {
+    				let val = cleaningAttributes[cleaningAttribute] as number;
+
+    				if (mappedAttribute === "clean_time") {
+    					val = Number((val / 3600).toFixed(2));
+    				} else if (mappedAttribute === "clean_area") {
+    					val = Number((val / 1000000).toFixed(2));
+    				}
+
     				if (cleaningAttributeCommon) (cleaningAttributeCommon as ioBroker.StateCommon).type = "number";
 
     				await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.${mappedAttribute}`, cleaningAttributeCommon || {});
     				await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.${mappedAttribute}`, {
-    					val: cleaningAttributes[cleaningAttribute] as ioBroker.StateValue,
+    					val: val as ioBroker.StateValue,
     					ack: true,
     				});
     			} else if (mappedAttribute == "records") {
@@ -1089,9 +1111,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 
     						cleaningRecordsJSON[parseInt(cleaningRecord)] = cleaningRecordAttributes;
 
-    						const cleaningRecordCommon = this.getCommonCleaningRecords(mappedAttribute);
-    						if (cleaningRecordCommon) {
-    							for (const cleaningRecordAttribute in cleaningRecordAttributes) {
+    						for (const cleaningRecordAttribute in cleaningRecordAttributes) {
     								const mappedRecordAttribute = BaseVacuumFeatures.MAPPED_CLEANING_RECORD_ATTRIBUTE[cleaningRecordAttribute] || cleaningRecordAttribute;
     								let val = cleaningRecordAttributes[cleaningRecordAttribute];
 
@@ -1099,15 +1119,21 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     									val = new Date((val as number) * 1000).toString();
     								} else if (mappedRecordAttribute == "duration") {
     									val = Math.round((val as number) / 60);
+    								} else if (mappedRecordAttribute == "duration") {
+    									val = Math.round((val as number) / 60);
+    								} else if (mappedRecordAttribute == "area" || mappedRecordAttribute == "cleaned_area") {
+    									val = Number(((val as number) / 1000000).toFixed(2));
     								}
 
-    								await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, cleaningRecordCommon);
-    								await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, {
-    									val: val as ioBroker.StateValue,
-    									ack: true,
-    								});
+    								const cleaningRecordCommon = this.getCommonCleaningRecords(mappedRecordAttribute);
+    								if (cleaningRecordCommon) {
+    									await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, cleaningRecordCommon);
+    									await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, {
+    										val: val as ioBroker.StateValue,
+    										ack: true,
+    									});
+    								}
     							}
-    						}
 
     						if (this.deps.config.enable_map_creation == true) {
     							const mapArray = await this.getCleaningRecordMap(recordsList[cleaningRecord]);
@@ -1216,13 +1242,16 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     			}
     		}
 
-    		const mapData = await this.deps.adapter.requestsHandler.mapParser.parsedata(mapBuf, null);
+    		const mapData = await this.deps.adapter.requestsHandler.mapParser.parsedata(mapBuf, this.mappedRooms);
     		if (mapData) {
     			// Update map states
     			await this.deps.ensureState(`Devices.${this.duid}.map.mapData`, { name: "Map Data", type: "string", role: "json" });
     			await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapData`, { val: JSON.stringify(mapData), ack: true });
 
-    			const [, mapBase64] = await this.deps.adapter.requestsHandler.mapCreator.canvasMap(mapData);
+    			const [mapBase64Clean, mapBase64] = await this.deps.adapter.requestsHandler.mapCreator.canvasMap(mapData);
+
+    			await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64Clean`, { name: "Map Image (Clean)", type: "string", role: "text.png" });
+    			await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapBase64Clean`, { val: mapBase64Clean, ack: true });
     			await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64`, { name: "Map Image", type: "string", role: "text.png" });
     			await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapBase64`, { val: mapBase64, ack: true });
     		}

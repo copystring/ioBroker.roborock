@@ -16,7 +16,7 @@ const UI_CONSTANTS = {
     PIN_WIDTH_BASE: 29,
     PIN_HEIGHT_BASE: 24,
     PIN_Y_OFFSET_BASE: 5,
-    PATH_MOP_WIDTH_BASE: 7,
+    PATH_MOP_WIDTH_BASE: 6.5,
     PATH_MAIN_WIDTH_RATIO_BASE: 0.5,
     PATH_BACKWASH_WIDTH_BASE: 0.5,
 };
@@ -143,33 +143,27 @@ class MapApplication {
         this.mapImageElement = this.mainGroup.append("image").attr("class", "map-image");
         // Add carpet layer (Vector SVG)
         this.carpetGroup = this.mainGroup.append("g").attr("class", "carpet");
-        const pathOffsetX = 4;
-        const pathOffsetY = -4;
         this.mopPathGroup = this.mainGroup
             .append("g")
             .attr("class", "mop-paths")
-            .style("opacity", 0.18)
-            .attr("transform", `translate(${pathOffsetX}, ${pathOffsetY})`);
+            .style("opacity", 0.18);
         this.pathGroup = this.mainGroup
             .append("g")
             .attr("class", "paths")
-            .style("opacity", 0.5)
-            .attr("transform", `translate(${pathOffsetX}, ${pathOffsetY})`);
+            .style("opacity", 0.5);
         this.backwashPathGroup = this.mainGroup
             .append("g")
             .attr("class", "backwash-paths")
-            .style("opacity", 0.2)
-            .attr("transform", `translate(${pathOffsetX}, ${pathOffsetY})`);
+            .style("opacity", 0.2);
         this.pureCleanPathGroup = this.mainGroup
             .append("g")
-            .attr("class", "pure-clean-paths")
-            .attr("transform", `translate(${pathOffsetX}, ${pathOffsetY})`);
+            .attr("class", "pure-clean-paths");
         this.chargerGroup = this.mainGroup.append("g").attr("class", "charger");
         this.obstacleGroup = this.mainGroup.append("g").attr("class", "obstacles");
         this.zoneGroup = this.mainGroup.append("g").attr("class", "zones");
         this.robotGroup = this.mainGroup.append("g").attr("class", "robot");
         this.pinGroup = this.mainGroup.append("g").attr("class", "pins");
-        this.roomNameGroup = this.svg.append("g").attr("class", "room-names");
+        this.roomNameGroup = this.mainGroup.append("g").attr("class", "room-names");
         this.pinGroup
             .append("image")
             .attr("class", "goto-pin")
@@ -186,18 +180,14 @@ class MapApplication {
         this.svgContainer.call(this.zoom);
     }
     setupConnection() {
-        console.log("--- DEBUG START ---");
-        console.log(`Page loaded from: ${window.location.protocol}//${window.location.hostname}:${window.location.port}`);
         const instance = this.getQueryParam("instance");
         if (instance === null) {
             document.body.innerHTML = "<h1>Error: No instance specified in URL.</h1>";
             return;
         }
         this.instanceId = `roborock.${instance}`;
-        console.log(`Initializing instance: ${this.instanceId}`);
         const connCallbacks = {
             onConnChange: async (isConnected) => {
-                console.log("Connection state changed: " + isConnected);
                 if (isConnected) {
                     this.fetchRobotList();
                 }
@@ -211,11 +201,9 @@ class MapApplication {
             },
         };
         const socketUrl = `${window.location.protocol}//${window.location.hostname}:${window.location.port}`;
-        console.log(`Forcing socket.io connection to: ${socketUrl}`);
         this.connection.init({ name: this.instanceId, connLink: socketUrl }, connCallbacks, true);
     }
     fetchRobotList() {
-        console.log("Fetching robot list via getObjectView...");
         const startKey = `${this.instanceId}.Devices.`;
         const endKey = `${this.instanceId}.Devices.\u9999`;
         this.connection
@@ -223,7 +211,6 @@ class MapApplication {
             .then((res) => {
             const robots = [];
             if (res && res.rows) {
-                console.log(`getObjectView found ${res.rows.length} devices.`);
                 res.rows.forEach((row) => {
                     const idParts = row.id.split(".");
                     const duid = idParts[idParts.length - 1];
@@ -233,7 +220,6 @@ class MapApplication {
                 });
             }
             if (robots.length === 0) {
-                console.warn("No devices found via getObjectView.");
                 const instanceDuid = this.getQueryParam("instance");
                 if (instanceDuid) {
                     this.robotSelect.innerHTML = "";
@@ -302,16 +288,15 @@ class MapApplication {
             }
             switch (id) {
                 case mapBase64StateId:
-                    console.log(`Received new CLEAN map Base64 for ${duid}`);
                     this.pinGroup.select("image.goto-pin").style("display", "none").style("opacity", 0);
                     this.drawBackgroundImage(state.val);
                     break;
                 case mapDataStateId:
                     try {
                         this.map = typeof state.val === "string" ? JSON.parse(state.val) : state.val;
-                        console.log("Map Data:", this.map);
                         if (this.map && this.map.IMAGE) {
                             this.mapImage = this.map.IMAGE;
+                            this.updateMapImageSize();
                             this.drawRobotAndCharger(this.map.ROBOT_POSITION, this.map.CHARGER_LOCATION);
                             this.drawPaths(this.map.PATH, this.map.MOP_PATH);
                             this.drawObstacles(this.map.OBSTACLES2);
@@ -337,6 +322,19 @@ class MapApplication {
     // -----------------------------------------------------------------------------
     // Drawing Methods
     // -----------------------------------------------------------------------------
+    updateMapImageSize() {
+        if (!this.image.naturalWidth || !this.image.naturalHeight)
+            return;
+        // Use natural size of the image (1:1 scale)
+        const displayWidth = this.image.naturalWidth;
+        const displayHeight = this.image.naturalHeight;
+        this.mapImageElement
+            .attr("href", this.image.src)
+            .attr("width", displayWidth)
+            .attr("height", displayHeight)
+            .attr("transform", null)
+            .style("image-rendering", "pixelated");
+    }
     drawBackgroundImage(mapBase64) {
         if (!mapBase64) {
             this.mapImageElement.attr("href", null);
@@ -360,44 +358,55 @@ class MapApplication {
             const pixels = imageData.data;
             for (let i = 0; i < pixels.length; i += 4) {
                 const alpha = pixels[i + 3];
-                if (alpha > 0) {
+                if (alpha > 50) {
                     const x = (i / 4) % this.image.width;
                     const y = Math.floor(i / 4 / this.image.width);
-                    this.mapMinX = Math.min(this.mapMinX, x);
-                    this.mapMinY = Math.min(this.mapMinY, y);
-                    mapMaxX = Math.max(mapMaxX, x);
-                    this.mapMaxY = Math.max(this.mapMaxY, y);
+                    if (x < this.mapMinX)
+                        this.mapMinX = x;
+                    if (x > mapMaxX)
+                        mapMaxX = x;
+                    if (y < this.mapMinY)
+                        this.mapMinY = y;
+                    if (y > this.mapMaxY)
+                        this.mapMaxY = y;
                 }
             }
-            this.mapMinX--;
-            this.mapMinY--;
-            mapMaxX++;
-            this.mapMaxY++;
+            if (this.mapMinX > mapMaxX) {
+                this.mapMinX = 0;
+                mapMaxX = this.image.width;
+                this.mapMinY = 0;
+                this.mapMaxY = this.image.height;
+            }
+            // Calculate content dimensions based on detected pixels
             this.mapSizeX = mapMaxX - this.mapMinX;
             this.mapSizeY = this.mapMaxY - this.mapMinY;
-            const transformStr = `translate(${-this.mapMinX}, ${-this.mapMinY})`;
-            this.mapImageElement
-                .attr("href", mapBase64)
-                .attr("x", 0)
-                .attr("y", 0)
-                .attr("width", this.image.width)
-                .attr("height", this.image.height)
-                .attr("transform", transformStr)
-                .style("image-rendering", "pixelated");
-            this.carpetGroup.attr("transform", transformStr);
-            const svgWidth = parseFloat(this.svg.attr("width"));
-            const svgHeight = parseFloat(this.svg.attr("height"));
+            // Sanity check
+            if (this.mapSizeX <= 0)
+                this.mapSizeX = this.image.width;
+            if (this.mapSizeY <= 0)
+                this.mapSizeY = this.image.height;
+            this.updateMapImageSize();
+            this.carpetGroup.attr("transform", null);
+            const svgWidth = parseFloat(this.svg.attr("width")) || 800;
+            const svgHeight = parseFloat(this.svg.attr("height")) || 600;
+            // Zoom-to-fit calculations
             const aspectRatio = svgWidth / svgHeight;
             const contentAspectRatio = this.mapSizeX / this.mapSizeY;
             if (contentAspectRatio > aspectRatio) {
-                this.zoomLevel = this.roundTwoDecimals((svgWidth * 100) / this.mapSizeX) / 100;
+                this.zoomLevel = this.roundTwoDecimals((svgWidth * 0.95) / this.mapSizeX); // 95% fit
             }
             else {
-                this.zoomLevel = this.roundTwoDecimals((svgHeight * 100) / this.mapSizeY) / 100;
+                this.zoomLevel = this.roundTwoDecimals((svgHeight * 0.95) / this.mapSizeY);
             }
+            if (this.zoomLevel < 0.1)
+                this.zoomLevel = 0.1;
+            // Center the content within the SVG
+            const contentCenterX = this.mapMinX + this.mapSizeX / 2;
+            const contentCenterY = this.mapMinY + this.mapSizeY / 2;
             this.initialTransform = d3.zoomIdentity
-                .translate((svgWidth - this.mapSizeX * this.zoomLevel) / 2, (svgHeight - this.mapSizeY * this.zoomLevel) / 2)
-                .scale(this.zoomLevel);
+                .translate(svgWidth / 2, svgHeight / 2)
+                .scale(this.zoomLevel)
+                .translate(-contentCenterX, -contentCenterY);
             this.svgContainer.call(this.zoom.transform, this.initialTransform);
             if (this.map) {
                 this.drawRobotAndCharger(this.map.ROBOT_POSITION, this.map.CHARGER_LOCATION);
@@ -409,12 +418,13 @@ class MapApplication {
         };
     }
     drawRobotAndCharger(robotPos, chargerPos) {
-        const params = this.getMapParams();
-        if (!params) {
-            this.chargerGroup.selectAll("image.charger").remove();
-            this.robotGroup.selectAll("image.robot").remove();
+        this.robotGroup.selectAll("image.robot").remove();
+        this.chargerGroup.selectAll("image.charger").remove();
+        if (!robotPos && !chargerPos)
             return;
-        }
+        const params = this.getMapParams();
+        if (!params)
+            return;
         const scaledChargerSize = this.rescaler.chargerSize();
         const scaledRobotSize = this.rescaler.robotSize();
         // Charger
@@ -474,28 +484,16 @@ class MapApplication {
             .style("paint-order", "stroke")
             .attr("shape-rendering", "geometricPrecision")
             .merge(textElements)
-            .attr("data-x", (d) => {
+            .text((d) => d.name)
+            .attr("x", (d) => {
             if (d.center && typeof d.center[0] === "number" && !isNaN(d.center[0]))
                 return this.robotToSvg({ x: d.center[0], y: d.center[1] }, params).x;
             return -1000;
         })
-            .attr("data-y", (d) => {
+            .attr("y", (d) => {
             if (d.center && typeof d.center[1] === "number" && !isNaN(d.center[1]))
                 return this.robotToSvg({ x: d.center[0], y: d.center[1] }, params).y;
             return -1000;
-        })
-            .text((d) => d.name)
-            .attr("x", null)
-            .attr("y", null);
-        const transform = d3.zoomTransform(this.svgContainer.node());
-        this.repositionText(transform);
-    }
-    repositionText(transform) {
-        this.roomNameGroup.selectAll("text.room-name").attr("transform", function () {
-            const baseX = parseFloat(d3.select(this).attr("data-x"));
-            const baseY = parseFloat(d3.select(this).attr("data-y"));
-            const [scaledX, scaledY] = transform.apply([baseX, baseY]);
-            return `translate(${scaledX}, ${scaledY})`;
         });
     }
     drawPaths(pathData, mopData) {
@@ -664,7 +662,7 @@ class MapApplication {
         });
         const allGroups = enterGroups.merge(groups);
         allGroups.attr("transform", (d) => {
-            const pos = this.robotToSvg({ x: d[0] + 25, y: d[1] + 25 }, params);
+            const pos = this.robotToSvg({ x: d[0] + 25, y: d[1] + 25 }, params); // Added +25 offset for obstacle center?
             return `translate(${pos.x}, ${pos.y})`;
         });
         allGroups
@@ -680,18 +678,23 @@ class MapApplication {
             this.carpetGroup.selectAll("*").remove();
             return;
         }
-        const scaledWidth = this.mapImage.dimensions.width;
-        const scaledHeight = this.mapImage.dimensions.height;
-        const gridWidth = scaledWidth / VISUAL_BLOCK_SIZE;
-        const gridHeight = scaledHeight / VISUAL_BLOCK_SIZE;
+        // mapData provides UNSCALED dimensions (raw grid size)
+        // We do NOT divide by VISUAL_BLOCK_SIZE here because dimensions IS the grid size.
+        const gridWidth = this.mapImage.dimensions.width;
+        const gridHeight = this.mapImage.dimensions.height;
         const stride = 3;
         const pathCoords = [];
+        // Consistent Offsets with Coords.ts
+        // For grid-based elements (Carpet), we align to the grid cell (0,0), not the center (1.5, 1.5).
+        // Paths use 1.5 to be in the center of the cell. Carpets fill the cell.
+        const offsetX = 0;
+        const offsetY = 0;
         carpetMap.forEach((px) => {
             const col = px % gridWidth;
             const row = Math.floor(px / gridWidth);
             const invertedRow = gridHeight - row - 1;
-            const baseX = col * VISUAL_BLOCK_SIZE;
-            const baseY = invertedRow * VISUAL_BLOCK_SIZE;
+            const baseX = col * VISUAL_BLOCK_SIZE + offsetX;
+            const baseY = invertedRow * VISUAL_BLOCK_SIZE + offsetY;
             for (let dx = 0; dx < VISUAL_BLOCK_SIZE; dx++) {
                 for (let dy = 0; dy < VISUAL_BLOCK_SIZE; dy++) {
                     if ((dx + dy) % stride === 2) {
@@ -735,7 +738,7 @@ class MapApplication {
             d.y = newY;
             const element = event.sourceEvent.target.closest("g.zone");
             if (element)
-                d3.select(element).attr("transform", `translate(${d.x - this.mapMinX}, ${d.y - this.mapMinY})`);
+                d3.select(element).attr("transform", `translate(${d.x}, ${d.y})`);
         })
             .on("end", (event) => {
             const element = event.sourceEvent.target.closest("g.zone");
@@ -777,7 +780,7 @@ class MapApplication {
         enterGroup.append("rect").attr("class", "zone-rect").attr("x", 0).attr("y", 0).style("stroke-width", this.rescaler.zoneStrokeWidth());
         enterGroup.append("circle").attr("class", "zone-handle").attr("r", this.rescaler.zoneHandleRadius()).call(resizeHandler);
         const mergedSelection = selection.merge(enterGroup);
-        mergedSelection.attr("transform", (d) => `translate(${d.x - this.mapMinX}, ${d.y - this.mapMinY})`);
+        mergedSelection.attr("transform", (d) => `translate(${d.x}, ${d.y})`);
         mergedSelection
             .select("rect")
             .attr("width", (d) => d.width)
@@ -859,7 +862,6 @@ class MapApplication {
                 return 0;
             return this.robotToSvg({ x: d.position[0], y: d.position[1] }, params).y - scaledChargerSize / 2;
         });
-        this.repositionText(transform);
         this.pathGroup.selectAll("path.main-path").style("stroke-width", `${this.rescaler.pathMainWidth()}px`);
         this.backwashPathGroup.selectAll("path.backwash-path").style("stroke-width", `${this.rescaler.pathBackwashWidth()}px`);
         this.mopPathGroup.selectAll("path.mop-path").style("stroke-width", `${this.rescaler.pathMopWidth()}px`);
@@ -899,12 +901,15 @@ class MapApplication {
             return { x: 0, y: 0 };
         const transform = d3.zoomTransform(this.svgContainer.node());
         const inverted = transform.invert([x, y]);
-        return { x: inverted[0] + this.mapMinX, y: inverted[1] + this.mapMinY };
+        return { x: inverted[0], y: inverted[1] };
     }
     worldToSvgCoords(x, y) {
-        if (this.mapMinX === undefined || this.mapMinY === undefined)
-            return { x: 0, y: 0 };
-        return { x: x - this.mapMinX, y: y - this.mapMinY };
+        // Since we no longer translate the background image (it sits at 0,0),
+        // we should not subtract mapMinX from the coordinates.
+        // However, World Coordinates (from coords.ts) are 0-based relative to the Grid.
+        // And the Image starts at Grid 0.
+        // So WorldX = SvgX.
+        return { x: x, y: y };
     }
     robotToSvg(robotPoint, params) {
         const worldPoint = robotCoordsToLocalCoords(robotPoint, params);
@@ -1043,8 +1048,8 @@ class MapApplication {
                 if (!this.currentRobotDuid || !params)
                     return;
                 const [mouseX, mouseY] = d3.pointer(event, this.mainGroup.node());
-                const worldX = mouseX + this.mapMinX;
-                const worldY = mouseY + this.mapMinY;
+                const worldX = mouseX;
+                const worldY = mouseY;
                 const point = localCoordsToRobotCoords({ x: worldX, y: worldY }, params);
                 this.connection.sendTo(this.instanceId, "app_goto_target", { points: [point.x, point.y], duid: this.currentRobotDuid });
                 pin.style("opacity", 1.0);

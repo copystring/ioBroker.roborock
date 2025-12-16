@@ -55,8 +55,8 @@ describe("Features - State Creation", () => {
 				info: console.log,
 				warn: console.warn,
 				error: console.error,
-				debug: console.debug,
-				silly: () => {},
+				debug: console.log,
+				silly: console.log,
 			} as any,
 			http_api: {} as any,
 			config: {} as any,
@@ -76,8 +76,8 @@ describe("Features - State Creation", () => {
 		await features.publicApplyFeature(Feature.DockingStationStatus);
 
 		// This should fail currently because implementation is missing
-		expect(mockAdapter.objects).to.have.property(dssFolder, "dockingStationStatus folder missing after feature applied");
-		expect(mockAdapter.objects).to.have.property(cleanFluid, "cleanFluidStatus state missing after feature applied");
+		expect(mockAdapter.objects, "dockingStationStatus folder missing after feature applied").to.have.property(dssFolder);
+		expect(mockAdapter.objects, "cleanFluidStatus state missing after feature applied").to.have.property(cleanFluid);
 	});
 
 	it("should dynamically create resetConsumables states based on data", async () => {

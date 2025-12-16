@@ -72,13 +72,13 @@ export const cryptoEngine = {
 	encryptV1(payload: Buffer | string, localKey: string, ts: number): Buffer {
 		const key = md5bin(encodeTimestamp(ts) + localKey + SALT);
 		const cipher = crypto.createCipheriv("aes-128-ecb", key, null);
-		return Buffer.concat([cipher.update(toBuffer(payload)), cipher.final()]);
+		return Buffer.concat([cipher.update(toBuffer(payload) as Uint8Array), cipher.final()]);
 	},
 
 	decryptV1(payload: Buffer, localKey: string, ts: number): Buffer {
 		const key = md5bin(encodeTimestamp(ts) + localKey + SALT);
 		const decipher = crypto.createDecipheriv("aes-128-ecb", key, null);
-		return Buffer.concat([decipher.update(payload), decipher.final()]);
+		return Buffer.concat([decipher.update(payload as Uint8Array), decipher.final()]);
 	},
 
 	// ---------- A01 (AES-128-CBC) ----------
@@ -93,10 +93,10 @@ export const cryptoEngine = {
 
 		// PKCS7 Padding
 		const pad = 16 - (buf.length % 16);
-		const padded = Buffer.concat([buf, Buffer.alloc(pad, pad)]);
+		const padded = Buffer.concat([buf, Buffer.alloc(pad, pad)] as Uint8Array[]);
 
 		const cipher = crypto.createCipheriv("aes-128-cbc", key, iv);
-		return Buffer.concat([cipher.update(padded), cipher.final()]);
+		return Buffer.concat([cipher.update(padded as Uint8Array), cipher.final()]);
 	},
 
 	decryptA01(payload: Buffer, localKey: string, random: number): Buffer {
@@ -107,7 +107,7 @@ export const cryptoEngine = {
 		const iv = Buffer.from(ivHex, "utf-8");
 
 		const decipher = crypto.createDecipheriv("aes-128-cbc", key, iv);
-		return Buffer.concat([decipher.update(payload), decipher.final()]);
+		return Buffer.concat([decipher.update(payload as Uint8Array), decipher.final()]);
 	},
 
 	// ---------- L01 (AES-256-GCM) ----------
@@ -137,7 +137,7 @@ export const cryptoEngine = {
 		cipher.setAAD(aad);
 
 		const buf = toBuffer(payload);
-		const ciphertext = Buffer.concat([cipher.update(buf), cipher.final()]);
+		const ciphertext = Buffer.concat([cipher.update(buf as Uint8Array), cipher.final()]);
 		const tag = cipher.getAuthTag();
 
 		return Buffer.concat([ciphertext, tag]);
@@ -171,7 +171,7 @@ export const cryptoEngine = {
 		decipher.setAAD(aad);
 		decipher.setAuthTag(tag);
 
-		return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+		return Buffer.concat([decipher.update(ciphertext as Uint8Array), decipher.final()]);
 	},
 	// ---------- Password Encryption (Login V4) ----------
 

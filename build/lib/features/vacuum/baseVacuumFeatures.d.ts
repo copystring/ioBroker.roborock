@@ -635,6 +635,7 @@ export declare abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
             readonly 125: "isRemoteSupported";
         };
     };
+    protected mappedRooms: any[] | null;
     constructor(dependencies: FeatureDependencies, duid: string, robotModel: string, config: DeviceModelConfig, profile?: VacuumProfile);
     protected applyCleanMotorModePresets(): void;
     protected getDynamicFeatures(): Set<Feature>;

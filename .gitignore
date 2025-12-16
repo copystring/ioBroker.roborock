@@ -27,5 +27,4 @@ src/www/pathProcessor.ts
 
 # Build artifacts
 *.tsbuildinfo
-build/
 

@@ -5,17 +5,13 @@ const { execSync } = require("child_process");
 const buildInfoPath = path.join(__dirname, "../src/lib/buildInfo.ts");
 
 let commitHash = "unknown";
-const buildDate = new Date().toLocaleString("de-DE", { timeZone: "Europe/Berlin" });
+let buildDate = new Date().toLocaleString("de-DE", { timeZone: "Europe/Berlin" });
 
-try {
-	commitHash = execSync("git rev-parse --short HEAD").toString().trim();
-	const isDirty = execSync("git status --porcelain src/").toString().trim().length > 0;
-	if (isDirty) {
-		commitHash += " (local changes)";
-	}
-} catch (e) {
-	console.warn("Could not get git commit hash", e);
-}
+// Use package.json version and its last commit date for deterministic builds that only change on version bumps
+const packageJson = require("../package.json");
+commitHash = packageJson.version;
+const commitDateStr = execSync("git log -1 --format=%ci package.json").toString().trim();
+buildDate = new Date(commitDateStr).toLocaleString("de-DE", { timeZone: "Europe/Berlin" });
 
 const content = `export const buildInfo = {
 	buildDate: "${buildDate}",
@@ -23,5 +19,17 @@ const content = `export const buildInfo = {
 };
 `;
 
-fs.writeFileSync(buildInfoPath, content);
-console.log(`Updated buildInfo.ts with date: ${buildDate} and hash: ${commitHash}`);
+// Only write if changed to preserve file mtime and avoid unnecessary rebuilds/syncs
+let currentContent = "";
+try {
+	currentContent = fs.readFileSync(buildInfoPath, "utf-8");
+} catch {
+	// File doesn't exist yet
+}
+
+if (currentContent !== content) {
+	fs.writeFileSync(buildInfoPath, content);
+	console.log(`Updated buildInfo.ts with date: ${buildDate} and hash: ${commitHash}`);
+} else {
+	console.log(`buildInfo.ts is up to date (hash: ${commitHash})`);
+}

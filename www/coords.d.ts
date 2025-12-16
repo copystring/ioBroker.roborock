@@ -8,6 +8,8 @@ interface MapParams {
     topMap: number;
     imageHeight: number;
 }
+export declare const VISUAL_BLOCK_SIZE = 3;
+export declare const GRID_CENTER_OFFSET: number;
 /**
  * Converts LOCAL "world" pixel coordinates (px, Y-down) back to ROBOT coordinates (mm).
  * Used for Click-Tests, GoTo, and Zones.

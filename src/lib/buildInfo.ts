@@ -1,4 +1,4 @@
 export const buildInfo = {
-	buildDate: "11.12.2025, 19:50:58",
-	commitHash: "a2ed8bcf (local changes)",
+	buildDate: "12.12.2025, 08:04:48",
+	commitHash: "0.6.19",
 };

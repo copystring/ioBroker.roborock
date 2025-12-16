@@ -77,11 +77,17 @@ export class MapCreator {
 	}
 
 	private robotXtoCanvasX(image: any, robotCoord: number): number {
-		return (robotCoord - image.position.left) * VISUAL_BLOCK_SIZE;
+		// Calculate base X
+		const x = (robotCoord - image.position.left) * VISUAL_BLOCK_SIZE;
+		// Add centering offset (+1.5px) to align with pixel center
+		return x + VISUAL_BLOCK_SIZE / 2;
 	}
 
 	private robotYtoCanvasY(image: any, robotCoord: number): number {
-		return (image.dimensions.height / VISUAL_BLOCK_SIZE + image.position.top - robotCoord) * VISUAL_BLOCK_SIZE;
+		// Calculate base Y
+		const y = (image.dimensions.height / VISUAL_BLOCK_SIZE + image.position.top - robotCoord) * VISUAL_BLOCK_SIZE;
+		// Add centering offset (-1.5px) to align with pixel center
+		return y - VISUAL_BLOCK_SIZE / 2;
 	}
 
 	// --------------------
@@ -177,8 +183,9 @@ export class MapCreator {
 	) {
 		if (!pathSegments || pathSegments.length === 0) return;
 
-		const offsetX = 4;
-		const offsetY = -4;
+		// No additional offsets required
+		const offsetX = 0;
+		const offsetY = 0;
 
 		const w = (tempCtx as any).canvas.width;
 		const h = (tempCtx as any).canvas.height;
@@ -458,7 +465,8 @@ export class MapCreator {
 		const tempCanvas = createCanvas(ctx.canvas.width, ctx.canvas.height);
 		const tempCtx = tempCanvas.getContext("2d");
 
-		this.drawPathSegments(ctx, tempCtx, pathSegments.mainPath, LEGACY_COLORS.path, lwMain, 0.5);
+		this.drawPathSegments(ctx, tempCtx, pathSegments.mopPath, "rgba(255, 255, 255, 1)", 6.5 * VISUAL_BLOCK_SIZE, 0.18);
+		this.drawPathSegments(ctx, tempCtx, pathSegments.mainPath, LEGACY_COLORS.path, lwMain, 1.0);
 	}
 
 	private drawActiveZones(ctx: ExtendedContext2D, zones: any, image: any) {
