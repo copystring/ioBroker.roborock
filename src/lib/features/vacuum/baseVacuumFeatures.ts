@@ -574,7 +574,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     				: { type: "number" as const, role: "value" as const, read: true, write: false, name: key };
 
     			if (fullCommon.unit === "h" && typeof val === "number") {
-    				val = Number((val / 3600).toFixed(1));
+    				val = Math.round(val / 3600);
     			}
 
     			await this.deps.ensureState(`Devices.${this.duid}.consumables.${key}`, fullCommon as ioBroker.StateCommon);
