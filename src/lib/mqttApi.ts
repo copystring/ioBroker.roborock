@@ -154,12 +154,8 @@ export class mqtt_api {
 
 		client.on("reconnect", () => {
 			this.adapter.log.info(`MQTT attempting to reconnect...`);
-			// Subscription is usually handled automatically by MQTT client on reconnect if clean=false,
-			// but if we need to re-subscribe manually:
-			const topic = `rr/m/o/${rriot.u}/${this.mqttUser}/#`;
-			client.subscribe(topic, (err: Error | null) => {
-				if (err) this.adapter.log.error(`Failed to re-subscribe during reconnect: ${err}`);
-			});
+			// Subscription is handled automatically by MQTT client or on 'connect' event.
+			// No need to explicitly subscribe here as connection is not yet established.
 		});
 
 		client.on("offline", () => {
