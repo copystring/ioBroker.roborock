@@ -140,7 +140,7 @@ class RoborockRequest {
             return this.promise;
         }
         // this.adapter.log.debug(`duid: ${this.duid}, mqtt: ${mqttConnectionState}, local: ${localConnectionState}, remote: ${remoteConnection}`);
-        if (!mqttConnectionState && remoteConnection) {
+        if (!mqttConnectionState && (remoteConnection || this.handler.isCloudRequest(this.duid, this.method))) {
             const errorMsg = `Cloud connection not available. Not sending for method ${this.method} request!`;
             this.adapter.log.debug(errorMsg);
             this.rejectPromise(new Error(errorMsg));
