@@ -1,10 +1,10 @@
-import type { Roborock } from "../main";
-import * as crypto from "crypto";
 import { Parser } from "binary-parser";
-import * as ping from "ping";
-import { Socket, SocketConstructorOpts } from "net";
-import * as dgram from "dgram";
 import * as crc32 from "crc-32";
+import * as crypto from "crypto";
+import * as dgram from "dgram";
+import { Socket, SocketConstructorOpts } from "net";
+import * as ping from "ping";
+import type { Roborock } from "../main";
 
 const UDP_DISCOVERY_PORT = 58866;
 const TCP_CONNECTION_PORT = 58867;
@@ -422,6 +422,7 @@ export class local_api {
 								decodedMessage = this.decryptECB(parsedMessage.payload);
 							} catch {
 								this.adapter.rLog("UDP", null, "Debug", "B01", undefined, `B01 discovery decryption failed for both GCM and ECB`, "debug");
+
 							}
 						}
 						break;
