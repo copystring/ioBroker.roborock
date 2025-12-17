@@ -10,6 +10,7 @@ trigger: always_on
 3.  **ioBroker Specific**: Use 'getState' instead of the deprecated 'getStateAsync' where possible/standard.
 4.  **Formatting**: Use **tabs** (not spaces) for indentation.
 5.  **Environment**: Assume Windows 11 CLI.
+6.  **Code Quality**: Unused variables and '_' prefixed parameters (e.g., '_param') are **STRICTLY FORBIDDEN**. Remove them completely instead of silencing them.
 
 ## 2. Git Operations
 *   **Stage All**: Always use 'git add .' to commit all files. Never cherry-pick single files.
