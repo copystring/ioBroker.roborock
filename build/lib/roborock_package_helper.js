@@ -54,7 +54,7 @@ class roborock_package_helper {
             return;
         }
         const appPluginRequest = {
-            apilevel: 99999, // safe high value for latest assets
+            apilevel: 1000, // Reduced from 99999 to fix parameter error (1002)
             productids: [device.productId],
             type: 2, // Android
         };

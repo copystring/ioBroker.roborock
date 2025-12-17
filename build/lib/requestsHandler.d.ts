@@ -36,7 +36,7 @@ export declare class requestsHandler {
     }): Promise<unknown>;
     command(_handler: BaseDeviceFeatures, duid: string, method: string, params?: unknown): Promise<void>;
     isCloudDevice(_duid: string): Promise<boolean>;
-    isCloudRequest(_duid: string, _method: string): boolean;
+    isCloudRequest(_duid: string, method: string, version?: string): boolean;
     resolvePendingRequest(messageID: number, result: unknown, protocol?: unknown): void;
     isRequestRecentlyFinished(messageID: number): boolean;
     clearQueue(): void;

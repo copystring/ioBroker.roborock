@@ -208,19 +208,44 @@ export class local_api {
 								const allMessages = Array.isArray(dataArr) ? dataArr : dataArr ? [dataArr] : [];
 								for (const data of allMessages) {
 									// Protocol 4: Device Status Update
-									if (data.protocol === 4) {
-										// Parse nested JSON in 'dps'
-										const dps = JSON.parse(data.payload.toString()).dps;
+									if (data.protocol === 4 || data.version === "B01") {
+										const payloadStr = data.payload.toString();
+										let parsedPayload;
+										try {
+											parsedPayload = JSON.parse(payloadStr);
+										} catch (e) {
+											this.adapter.log.warn(`[LocalAPI] Failed to parse ${data.version} payload: ${e}`);
+											continue;
+										}
 
-										if (dps) {
-											// ID 102 contains the result of a request
-											const _102 = JSON.stringify(dps["102"]);
-											// Double parse required because 102 is a stringified JSON inside JSON
-											const parsed_102 = JSON.parse(JSON.parse(_102));
-											const id = parsed_102.id;
-											const result = parsed_102.result;
-
-											this.adapter.requestsHandler.resolvePendingRequest(id, result, String(data.protocol));
+										if (data.version === "B01") {
+											const dps = parsedPayload.dps;
+											if (dps?.["10001"]) {
+												let inner = dps["10001"];
+												if (typeof inner === "string") {
+													try {
+														inner = JSON.parse(inner);
+													} catch (e) {
+														this.adapter.log.warn(`[LocalAPI] Failed to parse B01 nested string response: ${e}`);
+														continue;
+													}
+												}
+												const id = inner.msgId || inner.id;
+												const result = inner.code === 0 ? inner.data : (inner.error || inner.result);
+												if (id) {
+													this.adapter.requestsHandler.resolvePendingRequest(id, result, `Local-${data.version}`);
+												}
+											}
+										} else if (data.protocol === 4) {
+											// Standard protocol 4 nested JSON in 'dps'
+											const dps = parsedPayload.dps;
+											if (dps) {
+												const _102 = JSON.stringify(dps["102"]);
+												const parsed_102 = JSON.parse(JSON.parse(_102));
+												const id = parsed_102.id;
+												const result = parsed_102.result;
+												this.adapter.requestsHandler.resolvePendingRequest(id, result, String(data.protocol));
+											}
 										}
 									}
 								}

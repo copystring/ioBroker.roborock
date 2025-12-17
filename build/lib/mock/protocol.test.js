@@ -84,7 +84,7 @@ describe("Protocol Deep Dive (messageParser)", () => {
         // In decodeMsg: Validate CRC -> Get Key -> Decrypt.
         // So checking logs for "Decryption failed" vs "CRC mismatch" separates the two.
         let logError = "";
-        mockAdapter.log.error = (msg) => { logError = msg; };
+        mockAdapter.log.error = (msg) => { logError += msg + "\n"; };
         parser.decodeMsg(buf, "duid");
         // If passed CRC, it proceeds to decryption.
         (0, chai_1.expect)(logError).to.include("Decryption");

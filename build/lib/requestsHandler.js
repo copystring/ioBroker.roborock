@@ -121,7 +121,7 @@ class RoborockRequest {
         let protocol = 101;
         const version = await this.adapter.getDeviceProtocolVersion(this.duid);
         const timestamp = Math.floor(Date.now() / 1000);
-        if (!this.handler.isCloudRequest(this.duid, this.method)) {
+        if (!this.handler.isCloudRequest(this.duid, this.method, version)) {
             protocol = 4;
         }
         const payload = await this.handler.messageParser.buildPayload(protocol, this.messageID, this.method, this.params, version);
@@ -166,7 +166,7 @@ class RoborockRequest {
             }, { once: true });
         }
         // Send
-        if (this.handler.isCloudRequest(this.duid, this.method) || !localConnectionState) {
+        if (this.handler.isCloudRequest(this.duid, this.method, version) || !localConnectionState) {
             this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage);
             this.adapter.log.debug(`[SendRequest] ${this.method} to ${this.duid} via Cloud (Seq: ${this.messageID})`);
         }
@@ -314,11 +314,27 @@ class requestsHandler {
         void _duid;
         return Promise.resolve(true);
     }
-    isCloudRequest(_duid, _method) {
-        void _duid;
-        void _method;
-        // Force cloud request (Protocol 101) to fix ID mismatch
-        return true;
+    isCloudRequest(_duid, method, version) {
+        // Some methods should always go via cloud
+        if (["get_network_info"].includes(method)) {
+            return true;
+        }
+        // B01 protocol is cloud-only (MQTT)
+        if (version === "B01") {
+            return true;
+        }
+        // A01 is also local-capable
+        if (version === "A01") {
+            return false;
+        }
+        // Default to cloud for L01/1.0 if we had issues before,
+        // but since we want to favor local, we return false here too if we want to try local first.
+        // However, the previous comment said it was forced to true to fix ID mismatch.
+        // For L01, the ID mismatch might be real.
+        if (version === "L01" || version === "1.0") {
+            return true;
+        }
+        return false;
     }
     resolvePendingRequest(messageID, result, protocol) {
         const req = this.adapter.pendingRequests.get(messageID);
