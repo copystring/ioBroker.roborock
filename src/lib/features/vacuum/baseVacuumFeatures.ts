@@ -948,12 +948,16 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 
     			// Only set to true if not already set? Old code set it always.
     			// Start with true (selected)
+<<<<<<< HEAD
     			const fullStateId = `Devices.${this.duid}.floors.${pathName}`;
     			const currentState = await this.deps.adapter.getStateAsync(fullStateId);
 
     			if (!currentState || currentState.val === null) {
     				await this.deps.adapter.setState(fullStateId, { val: true, ack: true });
     			}
+=======
+    			await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.floors.${pathName}`, { val: true, ack: true });
+>>>>>>> 1311bda3 (feat: Implement B01 protocol support (verified))
     		}
 
     		await this.ensureState("floors", "cleanCount", {

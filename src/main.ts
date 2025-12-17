@@ -115,8 +115,6 @@ export class Roborock extends utils.Adapter {
 			this.subscribeStatesAsync("Devices.*.deviceInfo.online");
 			this.subscribeStatesAsync("Devices.*.floors.*.load");
 
-
-
 			this.log.info(`Adapter startup finished. Let's go!`);
 			this.isInitializing = false;
 
@@ -668,7 +666,7 @@ export class Roborock extends utils.Adapter {
 		this.log.info("Resetting MQTT API instance...");
 		if (this.mqtt_api) {
 			this.mqtt_api.cleanup();
-			// this.requestsHandler.clearQueue(); // Removed to allow pending requests to survive reconnect
+			this.requestsHandler.clearQueue(); // Prevents pending promises
 		}
 		// Create a new MQTT API instance and initialize it
 		this.mqtt_api = new mqtt_api(this);

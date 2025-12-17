@@ -4,9 +4,9 @@ import * as crc32 from "crc-32";
 import { Roborock } from "../main";
 import { cryptoEngine } from "./cryptoEngine";
 
-export type ProtocolVersion = "1.0" | "A01" | "L01";
+export type ProtocolVersion = "1.0" | "A01" | "L01" | "B01";
 
-const SUPPORTED_VERSIONS: ProtocolVersion[] = ["1.0", "A01", "L01"] as const;
+const SUPPORTED_VERSIONS: ProtocolVersion[] = ["1.0", "A01", "L01", "B01"] as const;
 
 // Zod schema for runtime frame validation
 const FrameSchema = z.object({
@@ -77,17 +77,17 @@ const decryptors: Record<ProtocolVersion, (...args: any[]) => Buffer> = {
 	"1.0": (payload, key, timestamp) => cryptoEngine.decryptV1(payload, key, timestamp),
 	A01: (payload, key, random) => cryptoEngine.decryptA01(payload, key, random),
 	L01: (payload, key, timestamp, seq, random, connectNonce, ackNonce) => cryptoEngine.decryptL01(payload, key, timestamp, seq, random, connectNonce, ackNonce),
+	B01: (payload, key, random) => cryptoEngine.decryptB01(payload, key, random),
 };
 
 const encryptors: Record<ProtocolVersion, (...args: any[]) => Buffer> = {
 	"1.0": (payload, key, timestamp) => cryptoEngine.encryptV1(payload, key, timestamp),
 	A01: (payload, key, random) => cryptoEngine.encryptA01(payload, key, random),
 	L01: (payload, key, timestamp, seq, random, connectNonce, ackNonce) => cryptoEngine.encryptL01(payload, key, timestamp, seq, random, connectNonce, ackNonce),
+	B01: (payload, key, random) => cryptoEngine.encryptB01(payload, key, random),
 };
 
-// --------------------
-// Message Parser Class
-// --------------------
+
 
 export class messageParser {
 	adapter: Roborock;
@@ -109,6 +109,7 @@ export class messageParser {
 
 			if (!SUPPORTED_VERSIONS.includes(version)) {
 				this.adapter.log.error(`[decodeMsg] Unsupported version "${version}" at offset ${offset}`);
+				this.adapter.log.error(`[decodeMsg] Hex Dump: ${message.toString("hex")}`);
 
 				// Skip corrupted message block
 				const MIN_MSG_LENGTH = 23;
@@ -164,10 +165,13 @@ export class messageParser {
 					data.payload = decryptors["1.0"](data.payload, localKey, data.timestamp);
 				} else if (version === "A01") {
 					data.payload = decryptors.A01(data.payload, localKey, data.random);
+				} else if (version === "B01") {
+					data.payload = decryptors.B01(data.payload, localKey, data.random);
 				}
 				decoded.push(data);
 			} catch (err: any) {
 				this.adapter.log.error(`[_decodeMsg] Decryption failed for duid=${duid} at offset ${offset}: ${err}`);
+				this.adapter.log.error(`[decodeMsg] Hex Dump: ${message.toString("hex")}`);
 			}
 
 			offset += msgLen;
@@ -202,6 +206,11 @@ export class messageParser {
 				endpoint,
 				nonce: this.adapter.nonce.toString("hex").toUpperCase(),
 			};
+		}
+
+		// B01 payload (Nested Object, key "10000" refers to the control endpoint)
+		if (version === "B01") {
+			return JSON.stringify({ dps: { "10000": JSON.stringify(inner) }, t: timestamp });
 		}
 
 		return JSON.stringify({ dps: { [protocol]: JSON.stringify(inner) }, t: timestamp });
@@ -246,6 +255,8 @@ export class messageParser {
 			encrypted = encryptors["1.0"](payloadBuf, localKey, timestamp);
 		} else if (version === "A01") {
 			encrypted = encryptors.A01(payloadBuf, localKey, r);
+		} else if (version === "B01") {
+			encrypted = encryptors.B01(payloadBuf, localKey, r);
 		} else {
 			return false; // Unsupported
 		}

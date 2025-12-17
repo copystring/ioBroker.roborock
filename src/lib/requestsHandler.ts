@@ -160,7 +160,7 @@ class RoborockRequest {
 
 		// this.adapter.log.debug(`duid: ${this.duid}, mqtt: ${mqttConnectionState}, local: ${localConnectionState}, remote: ${remoteConnection}`);
 
-		if (!mqttConnectionState && (remoteConnection || this.handler.isCloudRequest(this.duid, this.method))) {
+		if (!mqttConnectionState && remoteConnection) {
 			const errorMsg = `Cloud connection not available. Not sending for method ${this.method} request!`;
 			this.adapter.log.debug(errorMsg);
 			this.rejectPromise(new Error(errorMsg));
@@ -345,20 +345,6 @@ export class requestsHandler {
 			requestPromise,
 			async () => {
 				// Command success
-				if (method === "load_multi_map") {
-					this.adapter.log.info(`[requestsHandler] load_multi_map executed. Triggering immediate map/room update for ${duid}...`);
-					// Trigger update via DeviceManager
-					if (this.adapter.deviceManager) {
-						const handler = this.adapter.deviceManager.deviceFeatureHandlers.get(duid);
-						if (handler) {
-							// CRITICAL: Update status FIRST to get new map_status (Floor ID)
-							await handler.updateStatus();
-							// Then update rooms using the new status
-							await this.adapter.deviceManager.updateDeviceData(handler, duid);
-							await handler.updateMap();
-						}
-					}
-				}
 			},
 			`command-${method}-${duid}`,
 			duid
@@ -367,31 +353,16 @@ export class requestsHandler {
 
 
 
-	isCloudDevice(duid: string): Promise<boolean> {
-		return Promise.resolve(!this.adapter.local_api.isConnected(duid));
+	isCloudDevice(_duid: string): Promise<boolean> {
+		void _duid;
+		return Promise.resolve(true);
 	}
 
-	isCloudRequest(duid: string, method: string): boolean {
-		// Legacy Logic:
-		// Methods that require secure connection or are cloud-only
-		const cloudOnlyMethods = [
-			"get_map_v1", // Legacy passed secure=true
-			"get_network_info", // Legacy explicitly checked this
-			"get_photo",
-			"get_server_timer", // Often cloud dependent
-			"get_timer",
-		];
-
-		if (cloudOnlyMethods.includes(method)) {
-			return true;
-		}
-
-		// If not locally connected, it must be a cloud request
-		if (!this.adapter.local_api.isConnected(duid)) {
-			return true;
-		}
-
-		return false;
+	isCloudRequest(_duid: string, _method: string): boolean {
+		void _duid;
+		void _method;
+		// Force cloud request (Protocol 101) to fix ID mismatch
+		return true;
 	}
 
 	resolvePendingRequest(messageID: number, result: unknown, protocol?: unknown) {
@@ -420,23 +391,6 @@ export class requestsHandler {
 
 	isRequestRecentlyFinished(messageID: number): boolean {
 		return this.finishedRequests.has(messageID);
-	}
-
-	public async redoPendingRequests(): Promise<void> {
-		this.adapter.log.info(`[RequestsHandler] Re-sending ${this.adapter.pendingRequests.size} pending requests...`);
-		for (const [id, req] of this.adapter.pendingRequests) {
-			if (req instanceof RoborockRequest) {
-				try {
-					this.adapter.log.debug(`[RequestsHandler] Re-sending request ${id} (${req.method})`);
-					// We do not await the result of the request (it returns the promise that resolves on reply)
-					// We only await the sync/async preparation steps if any.
-					// Since req.send returns existing promise, we suppress strict await behavior by catching locally to avoid unhandled rejections if send throws synchronously.
-					req.send().catch(() => {});
-				} catch (e) {
-					this.adapter.log.warn(`[RequestsHandler] Failed to re-send request ${id}: ${e}`);
-				}
-			}
-		}
 	}
 
 	clearQueue() {
