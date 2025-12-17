@@ -368,14 +368,14 @@ export class local_api {
 						try {
 							parsedMessage = vL01_Parser.parse(msg.slice(3));
 							decodedMessage = this.decryptGCM(msg.toString("hex"));
-						} catch (e) { /* ignore */ }
+						} catch { /* ignore */ }
 
 						if (!decodedMessage) {
 							// Fallback to 1.0 (ECB)
 							try {
 								parsedMessage = v1_0_Parser.parse(msg.slice(3));
 								decodedMessage = this.decryptECB(parsedMessage.payload);
-							} catch (e) {
+							} catch {
 								this.adapter.log.debug(`[LocalAPI] B01 discovery decryption failed for both GCM and ECB`);
 							}
 						}
