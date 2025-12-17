@@ -2,7 +2,6 @@
 .*/
 !.vscode/
 !.github/
-!.husky/
 
 *.code-workspace
 node_modules

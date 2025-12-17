@@ -35,11 +35,10 @@ export declare class requestsHandler {
         priority?: number;
     }): Promise<unknown>;
     command(_handler: BaseDeviceFeatures, duid: string, method: string, params?: unknown): Promise<void>;
-    isCloudDevice(duid: string): Promise<boolean>;
-    isCloudRequest(duid: string, method: string): boolean;
+    isCloudDevice(_duid: string): Promise<boolean>;
+    isCloudRequest(_duid: string, _method: string): boolean;
     resolvePendingRequest(messageID: number, result: unknown, protocol?: unknown): void;
     isRequestRecentlyFinished(messageID: number): boolean;
-    redoPendingRequests(): Promise<void>;
     clearQueue(): void;
 }
 export {};

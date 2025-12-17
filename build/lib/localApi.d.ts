@@ -48,13 +48,13 @@ export declare class local_api {
     startUdpDiscovery(timeoutMs?: number): Promise<void>;
     stopUdpDiscovery(): void;
     /**
-     * Initializes connection for L01 protocol devices (Handshake).
+     * Initializes connection for L01/B01 protocol devices (Handshake).
      */
-    initL01(duid: string): Promise<void>;
+    initHandshake(duid: string, version: string): Promise<void>;
     /**
-     * Sends the Hello packet (Step 1 of L01 Handshake).
+     * Sends the Hello packet (Step 1 of Handshake).
      */
-    sendHello(duid: string, connectNonce: number): Promise<void>;
+    sendHello(duid: string, connectNonce: number, version: string): Promise<void>;
     isLocalDevice(duid: string): boolean;
     getIpForDuid(duid: string): string | null;
     getLocalProtocolVersion(duid: string): string | null;

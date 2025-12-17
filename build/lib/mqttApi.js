@@ -133,8 +133,6 @@ class mqtt_api {
         client.on("connect", () => {
             this.connected = true;
             this.adapter.log.info(`MQTT connection established.`);
-            // Re-send any pending requests (in case they were lost during disconnect/reset)
-            this.adapter.requestsHandler.redoPendingRequests();
             // Subscribe to the specific topic for this user
             const topic = `rr/m/o/${rriot.u}/${this.mqttUser}/#`;
             client.subscribe(topic, (err) => {
@@ -160,8 +158,13 @@ class mqtt_api {
         });
         client.on("reconnect", () => {
             this.adapter.log.info(`MQTT attempting to reconnect...`);
-            // Subscription is handled automatically by MQTT client or on 'connect' event.
-            // No need to explicitly subscribe here as connection is not yet established.
+            // Subscription is usually handled automatically by MQTT client on reconnect if clean=false,
+            // but if we need to re-subscribe manually:
+            const topic = `rr/m/o/${rriot.u}/${this.mqttUser}/#`;
+            client.subscribe(topic, (err) => {
+                if (err)
+                    this.adapter.log.error(`Failed to re-subscribe during reconnect: ${err}`);
+            });
         });
         client.on("offline", () => {
             this.adapter.log.warn("MQTT connection went offline.");
@@ -199,15 +202,59 @@ class mqtt_api {
      * Processes a single decoded Roborock message frame.
      */
     async handleDecodedMessage(duid, data, endpoint) {
-        // 1. Protocol A01 (Tuya-like / JSON payload)
-        if (data.version === "A01") {
+        // 1. Protocol A01 / B01 (Tuya-like / JSON payload)
+        if (data.version === "A01" || data.version === "B01") {
             try {
-                const parsedPayload = JSON.parse(data.payload.toString());
-                this.adapter.log.debug(`[MQTT] A01 Message from ${duid}: ${JSON.stringify(parsedPayload)}`);
+                const parserPayloadStr = data.payload.toString();
+                const parsedPayload = JSON.parse(parserPayloadStr);
+                // Log B01 messages at INFO level for debugging purposes (temporary/beta)
+                if (data.version === "B01") {
+                    this.adapter.log.info(`[MQTT] B01 Payload from ${duid}: ${parserPayloadStr}`);
+                }
+                else {
+                    this.adapter.log.debug(`[MQTT] ${data.version} Message from ${duid}: ${JSON.stringify(parsedPayload)}`);
+                }
+                // B01: Extract nested response from key "10001"
+                if (data.version === "B01") {
+                    if (parsedPayload.dps?.["10001"]) {
+                        let inner = parsedPayload.dps["10001"];
+                        // B01 payloads contain nested JSON strings
+                        if (typeof inner === "string") {
+                            try {
+                                inner = JSON.parse(inner);
+                            }
+                            catch (e) {
+                                this.adapter.log.warn(`[MQTT] Failed to parse B01 nested string payload: ${e}`);
+                                // Continue to processA01 just in case
+                            }
+                        }
+                        // Verify typical response fields (msgId or id) to map back to the original request
+                        const reqId = inner.msgId || inner.id;
+                        if (reqId) {
+                            if (this.adapter.pendingRequests.has(reqId)) {
+                                const pending = this.adapter.pendingRequests.get(reqId);
+                                this.adapter.log.info(`[MQTT] B01 Nested Response for ${pending.method} (ID: ${reqId})`);
+                                // Map the response 'data' (on success) or fallback to 'result'/'error'
+                                const result = inner.code === 0 ? inner.data : (inner.error || inner.result);
+                                this.adapter.requestsHandler.resolvePendingRequest(reqId, result, "B01");
+                            }
+                            else {
+                                this.adapter.log.debug(`[MQTT] B01 Response ID ${reqId} not found in pending requests.`);
+                            }
+                        }
+                        else {
+                            this.adapter.log.warn(`[MQTT] B01 Message on 10001 has no ID: ${JSON.stringify(inner)}`);
+                        }
+                    }
+                    else {
+                        // Log if we have B01 but NO 10001 key (unexpected?)
+                        this.adapter.log.info(`[MQTT] B01 Message without 10001 key. Keys: ${Object.keys(parsedPayload.dps || {}).join(", ")}`);
+                    }
+                }
                 await this.adapter.processA01(duid, parsedPayload);
             }
             catch (e) {
-                this.adapter.log.error(`[MQTT] Failed to parse A01 payload: ${e}`);
+                this.adapter.log.error(`[MQTT] Failed to parse ${data.version} payload: ${e}`);
             }
             return;
         }
@@ -316,19 +363,8 @@ class mqtt_api {
             const photoData = photoParser.parse(payloadBuf);
             if (this.adapter.pendingRequests.has(photoData.id)) {
                 this.adapter.log.debug(`[MQTT] Photo Data (300) Chunk 1 received for ReqID ${photoData.id}`);
-                // Clear existing timeout if any (though unlikely for same ID)
-                if (this.pendingPhotoRequests[photoData.id]?.timeout) {
-                    this.adapter.clearTimeout(this.pendingPhotoRequests[photoData.id].timeout);
-                }
-                const timeout = this.adapter.setTimeout(() => {
-                    if (this.pendingPhotoRequests[photoData.id]) {
-                        this.adapter.log.warn(`[MQTT] Photo request ${photoData.id} timed out. Cleaning up.`);
-                        delete this.pendingPhotoRequests[photoData.id];
-                    }
-                }, 60000); // 60s timeout
                 this.pendingPhotoRequests[photoData.id] = {
                     chunks: [payloadBuf.subarray(56)], // Skip header
-                    timeout: timeout,
                 };
             }
         }
@@ -349,9 +385,6 @@ class mqtt_api {
                         this.pendingPhotoRequests[photoData.id].chunks.push(payloadBuf);
                         // Combine and resolve
                         const totalBuffer = Buffer.concat(this.pendingPhotoRequests[photoData.id].chunks);
-                        if (this.pendingPhotoRequests[photoData.id].timeout) {
-                            this.adapter.clearTimeout(this.pendingPhotoRequests[photoData.id].timeout);
-                        }
                         this.adapter.requestsHandler.resolvePendingRequest(photoData.id, totalBuffer, data.protocol);
                         delete this.pendingPhotoRequests[photoData.id]; // Cleanup
                     }
@@ -377,15 +410,9 @@ class mqtt_api {
                     const decipher = crypto.createDecipheriv("aes-128-cbc", this.adapter.nonce, iv);
                     let decrypted = decipher.update(payloadBuf.subarray(24));
                     decrypted = Buffer.concat([decrypted, decipher.final()]);
-                    // Async gunzip to prevent event loop blocking
-                    zlib.gunzip(decrypted, (err, unzipped) => {
-                        if (err) {
-                            this.adapter.log.error(`[MQTT] Failed to unzip map data: ${err}`);
-                            return;
-                        }
-                        // Resolve pending map request
-                        this.adapter.requestsHandler.resolvePendingRequest(parsedHeader.id, unzipped, data.protocol);
-                    });
+                    const unzipped = zlib.gunzipSync(decrypted);
+                    // Resolve pending map request
+                    this.adapter.requestsHandler.resolvePendingRequest(parsedHeader.id, unzipped, data.protocol);
                 }
             }
             catch (e) {
@@ -459,12 +486,6 @@ class mqtt_api {
      * Clears internal state (e.g. pending partial downloads).
      */
     clearIntervals() {
-        // Clear all timeouts
-        for (const id in this.pendingPhotoRequests) {
-            if (this.pendingPhotoRequests[id].timeout) {
-                this.adapter.clearTimeout(this.pendingPhotoRequests[id].timeout);
-            }
-        }
         this.pendingPhotoRequests = {};
     }
     /**

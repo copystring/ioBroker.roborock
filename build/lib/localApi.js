@@ -146,8 +146,9 @@ class local_api {
                     this.reconnectPlanned.delete(duid);
                     const version = this.getLocalProtocolVersion(duid);
                     if (version === "L01") {
-                        await this.initL01(duid);
+                        await this.initHandshake(duid, version);
                     }
+                    // B01 is stateless TCP, no handshake needed
                     resolve();
                 });
             });
@@ -301,8 +302,13 @@ class local_api {
         }
     }
     isConnected(duid) {
-        if (this.deviceSockets[duid]) {
-            return this.deviceSockets[duid].connected;
+        if (this.deviceSockets[duid] && this.deviceSockets[duid].connected) {
+            const dev = this.localDevices[duid];
+            if (dev && dev.version === "L01") {
+                return dev.ackNonce !== undefined;
+            }
+            // For 1.0, B01, or generic TCP - connected socket is enough
+            return true;
         }
         return false;
     }
@@ -329,6 +335,24 @@ class local_api {
                     case "L01":
                         parsedMessage = vL01_Parser.parse(msg.slice(3));
                         decodedMessage = this.decryptGCM(msg.toString("hex"));
+                        break;
+                    case "B01":
+                        // Try L01 (GCM) first
+                        try {
+                            parsedMessage = vL01_Parser.parse(msg.slice(3));
+                            decodedMessage = this.decryptGCM(msg.toString("hex"));
+                        }
+                        catch (e) { /* ignore */ }
+                        if (!decodedMessage) {
+                            // Fallback to 1.0 (ECB)
+                            try {
+                                parsedMessage = v1_0_Parser.parse(msg.slice(3));
+                                decodedMessage = this.decryptECB(parsedMessage.payload);
+                            }
+                            catch (e) {
+                                this.adapter.log.debug(`[LocalAPI] B01 discovery decryption failed for both GCM and ECB`);
+                            }
+                        }
                         break;
                     case "1.0":
                         parsedMessage = v1_0_Parser.parse(msg.slice(3));
@@ -398,33 +422,35 @@ class local_api {
         }
     }
     /**
-     * Initializes connection for L01 protocol devices (Handshake).
+     * Initializes connection for L01/B01 protocol devices (Handshake).
      */
-    async initL01(duid) {
+    async initHandshake(duid, version) {
         const dev = this.localDevices[duid];
         if (!dev) {
-            this.adapter.log.warn(`[LocalAPI] initL01: no local device found for ${duid}`);
+            this.adapter.log.warn(`[LocalAPI] initHandshake: no local device found for ${duid}`);
             return;
         }
         try {
             const connectNonce = Math.floor(Math.random() * 1e9);
             dev.connectNonce = connectNonce;
-            await this.sendHello(duid, connectNonce);
+            dev.ackNonce = undefined; // Reset for new handshake
+            await this.sendHello(duid, connectNonce, version);
         }
         catch (err) {
-            this.adapter.log.warn(`[LocalAPI] initL01 failed for ${duid}: ${err.message || err}`);
+            this.adapter.log.warn(`[LocalAPI] initHandshake failed for ${duid}: ${err.message || err}`);
         }
     }
     /**
-     * Sends the Hello packet (Step 1 of L01 Handshake).
+     * Sends the Hello packet (Step 1 of Handshake).
      */
-    async sendHello(duid, connectNonce) {
+    async sendHello(duid, connectNonce, version) {
         const seq = 1;
         const timestamp = Math.floor(Date.now() / 1000);
         const protocol = 0; // 0 = Hello Request
         const payloadLen = 0;
         const msg = Buffer.alloc(23); // 3(Ver) + 4(Seq) + 4(Nonce) + 4(TS) + 2(Proto) + 2(Len) + 4(CRC)
-        msg.write("L01");
+        // Write dynamic version (L01 or B01)
+        msg.write(version);
         msg.writeUInt32BE(seq, 3);
         msg.writeUInt32BE(connectNonce, 7);
         msg.writeUInt32BE(timestamp, 11);
@@ -437,7 +463,7 @@ class local_api {
         lenBuf.writeUInt32BE(msg.length, 0);
         const wrapped = Buffer.concat([lenBuf, msg]);
         this.sendMessage(duid, wrapped);
-        this.adapter.log.debug(`[LocalAPI] Hello (TCP) sent to ${duid} with connectNonce=${connectNonce}`);
+        this.adapter.log.debug(`[LocalAPI] Hello (${version}) sent to ${duid} with connectNonce=${connectNonce}`);
     }
     isLocalDevice(duid) {
         return duid in this.deviceSockets;
