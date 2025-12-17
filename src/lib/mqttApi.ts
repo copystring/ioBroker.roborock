@@ -303,6 +303,12 @@ export class mqtt_api {
 						// B01 payloads contain nested JSON strings
 						if (typeof inner === "string") {
 							try {
+								// Also trim trailing garbage from the nested string if needed
+								const lastBraceInner = inner.lastIndexOf("}");
+								if (lastBraceInner !== -1) {
+									inner = inner.substring(0, lastBraceInner + 1);
+								}
+
 								inner = JSON.parse(inner);
 							} catch (e) {
 								this.adapter.rLog("MQTT", duid, "Error", "B01", undefined, `Failed to parse B01 nested string payload: ${e}`, "warn");

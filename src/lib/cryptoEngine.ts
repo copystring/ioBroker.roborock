@@ -217,6 +217,7 @@ export const cryptoEngine = {
 		const hash = crypto.createHash("md5").update(rStr + salt).digest("hex");
 		const ivStr = hash.substring(9, 25);
 		return Buffer.from(ivStr, "utf8");
+
 	},
 	// ---------- Password Encryption (Login V4) ----------
 

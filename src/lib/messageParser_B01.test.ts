@@ -85,7 +85,10 @@ describe("messageParser (B01)", () => {
 		expect(decoded).to.be.ok;
 		expect(decoded.version).to.equal("B01");
 
-		const json = JSON.parse(decoded.payload.toString());
+		const jsonBuf = decoded.payload;
+		const jsonStr = jsonBuf.toString();
+
+		const json = JSON.parse(jsonStr);
 		expect(json.t).to.be.a("number"); // 1758215849
 		expect(json.dps["10001"]).to.be.ok; // Response uses 10001
 

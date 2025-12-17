@@ -233,6 +233,7 @@ export class local_api {
 														inner = JSON.parse(inner);
 													} catch (e) {
 														this.adapter.rLog("TCP", duid, "Error", "B01", undefined, `Nested JSON Parse Error | ${e}`, "warn");
+
 														continue;
 													}
 												}
@@ -245,6 +246,7 @@ export class local_api {
 													this.adapter.requestsHandler.resolvePendingRequest(id, result, `Local-${data.version}`, duid, "TCP");
 												} else {
 													this.adapter.rLog("TCP", duid, "<-", "B01", undefined, `Recieved B01 message without ID.`, "warn");
+
 												}
 											}
 										} else if (data.protocol === 4) {
