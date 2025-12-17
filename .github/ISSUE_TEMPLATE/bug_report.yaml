@@ -31,15 +31,38 @@ body:
   - type: markdown
     attributes:
       value: |
-        ## Screenshots & Logfiles (Required)
-        To help us understand and fix the issue, please upload relevant screenshots and the debug log. You can paste the log content below or manually attach the file by clicking on "Attach files by dragging & dropping, selecting or pasting them."
+        ## ⚠️ Debug Log Required (Strictly .txt only!)
+        To analyze this issue, we **MUST** have a full debug log from the start of the adapter.
 
-  - type: textarea
-    id: debug_log
+        ### 📖 How to get a clean debug log:
+        1. Go to the "Instances" tab in ioBroker.
+        2. Set the "Log level" of your Roborock instance to **debug**.
+        3. Go to the "Log" tab in ioBroker.
+        4. Clear the current log.
+        5. **Restart the Roborock adapter instance.**
+        6. Wait at least **3 minutes** while the adapter starts up and the error occurs.
+        7. Download the log file or copy the relevant part.
+        8. **Save it as a `.txt` file.** (e.g., `debuglog.txt`)
+
+        > [!IMPORTANT]
+        > **Pasting the log directly into this issue description is FORBIDDEN.**
+        > Upload the `.txt` file using the button below.
+
+  - type: checkboxes
+    id: log_confirmation
     attributes:
-      label: "Debug Log"
-      description: "Enable debug logging on instance of the adapter and post a debug log as .txt file from the start of the adapter up to two minutes after that."
-      placeholder: "Enable debug logging on instance of the adapter and post a debug log as .txt file from the start of the adapter up to two minutes after that."
+      label: "Log Confirmation"
+      options:
+        - label: "I have restarted the adapter in 'debug' mode and collected a log of at least 3 minutes."
+          required: true
+        - label: "I have saved the log as a `.txt` file and attached it below (NOT pasted into a field)."
+          required: true
+
+  - type: file
+    id: debug_log_file
+    attributes:
+      label: "Debug Log File (.txt)"
+      description: "Upload your debug log as a .txt file here. NO OTHER FORMATS ALLOWED."
     validations:
       required: true
 
