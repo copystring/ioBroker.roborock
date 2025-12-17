@@ -38,6 +38,7 @@ export class Roborock extends utils.Adapter {
 	public translations: Record<string, string> = {};
 
 	private commandTimeout: ioBroker.Timeout | undefined = undefined;
+	private mqttReconnectInterval: ioBroker.Interval | undefined = undefined;
 	public instance: number = 0;
 
 	constructor(options: Partial<utils.AdapterOptions> = {}) {
@@ -117,7 +118,7 @@ export class Roborock extends utils.Adapter {
 			this.isInitializing = false;
 
 			// Schedule MQTT API reset every hour (legacy behavior to prevent stale connections)
-			this.setInterval(async () => {
+			this.mqttReconnectInterval = this.setInterval(async () => {
 				this.log.debug("Running scheduled MQTT reconnect...");
 				await this.resetMqttApi();
 			}, 3600 * 1000);
@@ -148,6 +149,9 @@ export class Roborock extends utils.Adapter {
 	 */
 	onUnload(callback: () => void) {
 		try {
+			if (this.mqttReconnectInterval) {
+				this.clearInterval(this.mqttReconnectInterval);
+			}
 			this.clearTimersAndIntervals();
 			this.local_api.stopUdpDiscovery();
 			this.setState("info.connection", { val: false, ack: true });

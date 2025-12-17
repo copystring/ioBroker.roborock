@@ -70,6 +70,7 @@ class Roborock extends utils.Adapter {
     sentryInstance;
     translations = {};
     commandTimeout = undefined;
+    mqttReconnectInterval = undefined;
     instance = 0;
     constructor(options = {}) {
         super({ ...options, name: "roborock", useFormatDate: true });
@@ -131,7 +132,7 @@ class Roborock extends utils.Adapter {
             this.log.info(`Adapter startup finished. Let's go!`);
             this.isInitializing = false;
             // Schedule MQTT API reset every hour (legacy behavior to prevent stale connections)
-            this.setInterval(async () => {
+            this.mqttReconnectInterval = this.setInterval(async () => {
                 this.log.debug("Running scheduled MQTT reconnect...");
                 await this.resetMqttApi();
             }, 3600 * 1000);
@@ -162,6 +163,9 @@ class Roborock extends utils.Adapter {
      */
     onUnload(callback) {
         try {
+            if (this.mqttReconnectInterval) {
+                this.clearInterval(this.mqttReconnectInterval);
+            }
             this.clearTimersAndIntervals();
             this.local_api.stopUdpDiscovery();
             this.setState("info.connection", { val: false, ack: true });
