@@ -46,7 +46,7 @@ body:
 
         > [!IMPORTANT]
         > **Pasting the log directly into this issue description is FORBIDDEN.**
-        > Upload the `.txt` file using the button below.
+        > Upload the `.txt` file using the field below.
 
   - type: checkboxes
     id: log_confirmation
@@ -63,7 +63,7 @@ body:
     attributes:
       label: "Debug Log Upload (Drag & Drop .txt file here)"
       description: "DO NOT PASTE! Just drag and drop your .txt file into this field."
-      placeholder: "Drag & drop file here. DO NOT PASTE!"
+      placeholder: "Drag & drop file here (No pasting allowed!)."
     validations:
       required: true
 
