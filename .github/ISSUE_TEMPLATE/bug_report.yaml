@@ -55,14 +55,15 @@ body:
       options:
         - label: "I have restarted the adapter in 'debug' mode and collected a log of at least 3 minutes."
           required: true
-        - label: "I have saved the log as a `.txt` file and attached it below (NOT pasted into a field)."
+        - label: "I have saved the log as a `.txt` file and attached it below (DON'T PASTE!)."
           required: true
 
-  - type: file
-    id: debug_log_file
+  - type: textarea
+    id: debug_log_upload
     attributes:
-      label: "Debug Log File (.txt)"
-      description: "Upload your debug log as a .txt file here. NO OTHER FORMATS ALLOWED."
+      label: "Debug Log Upload (Drag & Drop .txt file here)"
+      description: "DO NOT PASTE! Just drag and drop your .txt file into this field."
+      placeholder: "Drag & drop file here. DO NOT PASTE!"
     validations:
       required: true
 
