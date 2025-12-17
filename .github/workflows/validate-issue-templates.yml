@@ -1,0 +1,27 @@
+name: Validate Issue Templates
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/ISSUE_TEMPLATE/*.yaml'
+      - '.github/ISSUE_TEMPLATE/*.yml'
+  pull_request:
+    paths:
+      - '.github/ISSUE_TEMPLATE/*.yaml'
+      - '.github/ISSUE_TEMPLATE/*.yml'
+
+jobs:
+  validate-schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install check-jsonschema
+        run: pip install check-jsonschema
+
+      - name: Validate GitHub Issue Forms
+        run: |
+          check-jsonschema --schemafile https://json.schemastore.org/github-issue-forms.json .github/ISSUE_TEMPLATE/*.yaml
+          check-jsonschema --schemafile https://json.schemastore.org/github-issue-forms.json .github/ISSUE_TEMPLATE/*.yml || true
