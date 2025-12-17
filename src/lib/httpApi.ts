@@ -1,7 +1,7 @@
-import { Roborock } from "../main";
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from "axios";
 import * as crypto from "crypto";
-import { ProductV5Response, LoginV4Response } from "./apiTypes";
+import { Roborock } from "../main";
+import { LoginV4Response, ProductV5Response } from "./apiTypes";
 import { cryptoEngine } from "./cryptoEngine";
 
 // Constants
@@ -67,6 +67,7 @@ export interface Device {
 	online: boolean;
 	deviceStatus: any;
 	pv: string;
+	sn?: string;
 }
 
 interface Product {
@@ -120,7 +121,7 @@ export class http_api {
 		const region = this.adapter.config.region || "eu";
 		const regionConfig = REGION_CONFIG[region] || REGION_CONFIG["eu"];
 
-		this.adapter.log.info(`Initializing HTTP API with region: ${region} (${regionConfig.apiBaseUrl})`);
+		this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, `Initializing HTTP API with region: ${region} (${regionConfig.apiBaseUrl})`, "info");
 
 		this.loginApi = axios.create({
 			baseURL: regionConfig.apiBaseUrl,
@@ -150,11 +151,11 @@ export class http_api {
 				const data = JSON.parse(userDataState.val as string);
 				if (data && data.token && data.rriot) {
 					this.userData = data;
-					this.adapter.log.info("Restored persisted UserData.");
+					this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, "Restored persisted UserData.", "info");
 				}
 			}
 		} catch {
-			this.adapter.log.debug(`No previous UserData found or invalid.`);
+			this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, "No previous UserData found or invalid.", "debug");
 		}
 	}
 
@@ -171,7 +172,7 @@ export class http_api {
 	}
 
 	async initializeRealApi(): Promise<void> {
-		this.adapter.log.debug(`initialize http_api`);
+		this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, "Initializing Real API (Hawk Auth)", "debug");
 
 		if (!this.loginApi) {
 			throw new Error("loginApi is not initialized. Call init() first.");
@@ -188,20 +189,20 @@ export class http_api {
 				const k = signData.k;
 
 				if (usePasswordFlow) {
-					this.adapter.log.info("Starting Password Login Flow...");
+					this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, "Starting Password Login Flow...", "info");
 					try {
 						const loginResult = await this.loginByPassword(this.adapter.config.password, k, s);
 						if (loginResult.code === 200) {
 							this.userData = loginResult.data!;
-							this.adapter.log.info("Login with password successful.");
+							this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, "Login with password successful.", "info");
 						} else if (loginResult.code === 2031) {
-							this.adapter.log.warn("Password login requires 2FA (Code 2031). Falling back to 2FA flow.");
+							this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "Password login requires 2FA (Code 2031). Falling back to 2FA flow.", "warn");
 							usePasswordFlow = false;
 						} else {
 							throw new Error(`Login with password failed: ${JSON.stringify(loginResult)}`);
 						}
 					} catch (e: any) {
-						this.adapter.log.error(`Password login error: ${e.message}`);
+						this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Password login error: ${e.message}`, "error");
 						// If explicit 2031 (handled above) or other error, we might decide to fallback or fail.
 						// Current logic: if it was 2031, usePasswordFlow is set to false, so we fall through to 2FA.
 						// If it was another error (e.g. wrong password), we should probably stop?
@@ -212,16 +213,20 @@ export class http_api {
 
 				// If not using password flow (or fell back)
 				if (!this.userData && !usePasswordFlow) {
-					this.adapter.log.info("Starting Direct 2FA Login Flow...");
+					this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, "Starting Direct 2FA Login Flow...", "info");
 
 					// 1. Request Email Code
 					await this.requestEmailCode(this.adapter.config.username);
 
-					this.adapter.log.error("********************************************************************************");
-					this.adapter.log.error("ATTENTION: 2FA Code required!");
-					this.adapter.log.error(`An email has been sent to ${this.adapter.config.username}.`);
-					this.adapter.log.error("Please enter the 6-digit code into the state 'roborock.0.loginCode' immediately.");
-					this.adapter.log.error("********************************************************************************");
+					const warning = [
+						"********************************************************************************",
+						"ATTENTION: 2FA Code required!",
+						`An email has been sent to ${this.adapter.config.username}.`,
+						"Please enter the 6-digit code into the state 'roborock.0.loginCode' immediately.",
+						"********************************************************************************"
+					].join("\n");
+
+					this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, warning, "error");
 
 					// State at root: roborock.0.loginCode
 					const stateId = "loginCode";
@@ -247,7 +252,7 @@ export class http_api {
 						throw e;
 					}
 
-					this.adapter.log.info(`Got 2FA code: ${code}`);
+					this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, "2FA code received. Proceeding with login...", "info");
 					await this.adapter.unsubscribeStatesAsync(stateId);
 
 					// 3. Login with Code
@@ -277,15 +282,21 @@ export class http_api {
 				try {
 					this.productInfo = await this.getProductInfoV5();
 					if (this.productInfo) {
-						this.adapter.log.info(`Files downloaded: ${this.productInfo.data.productList.length} products found.`);
+						let count = 0;
+						if (this.productInfo.data && this.productInfo.data.categoryDetailList) {
+							for (const cat of this.productInfo.data.categoryDetailList) {
+								if (cat.productList) count += cat.productList.length;
+							}
+						}
+						this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, `V5 Product Info fetched. ${count} products available.`, "info");
 						await this.adapter.setState("info.productInfo", { val: JSON.stringify(this.productInfo), ack: true });
 					}
 				} catch (err) {
-					this.adapter.log.warn(`Failed to get product info V5: ${err}`);
+					this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `Failed to get product info V5: ${err}`, "warn");
 				}
 
 			} catch (error: any) {
-				this.adapter.log.error(`Error in initializeRealApi: ${error.message}`);
+				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error in initializeRealApi: ${error.message}`, "error");
 				throw error;
 			}
 		}
@@ -337,7 +348,7 @@ export class http_api {
 
 			await this.adapter.setState("info.connection", { val: true, ack: true });
 		} catch (error: any) {
-			this.adapter.log.error(`Error in initializeRealApi: ${error.stack}`);
+			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error in initializeRealApi: ${error.stack}`, "error");
 			await this.adapter.setState("info.connection", { val: false, ack: true });
 		}
 	}
@@ -359,7 +370,7 @@ export class http_api {
 			}
 		} catch (error: any) {
 			if (error.response && error.response.data) {
-				this.adapter.log.error(`Request email code failed with response: ${JSON.stringify(error.response.data)}`);
+				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Request email code failed with response: ${JSON.stringify(error.response.data)}`, "error");
 			}
 			throw error; // Re-throw exact error to be caught by caller
 		}
@@ -374,7 +385,7 @@ export class http_api {
 			const res = await this.loginApi.post(`${API_V3_SIGN}?s=${s}`);
 			return res.data.data;
 		} catch (e: any) {
-			this.adapter.log.error(`SignRequest failed: ${e.message}`);
+			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `SignRequest failed: ${e.message}`, "error");
 			return null;
 		}
 	}
@@ -415,6 +426,8 @@ export class http_api {
 	async loginByPassword(password: string, k: string, s: string): Promise<LoginV4Response> {
 		if (!this.loginApi) throw new Error("loginApi not initialized");
 
+		this.adapter.rLog("HTTP", null, "->", "Cloud", undefined, `Attempting Password Login for user: ${this.adapter.config.username}`, "info");
+
 		const encryptedPassword = cryptoEngine.encryptPassword(password, k);
 
 		const headers = {
@@ -434,7 +447,9 @@ export class http_api {
 			return res.data;
 		} catch (e: any) {
 			if (e.response && e.response.data) {
-				return e.response.data; // Return the error response payload (with code 2031 etc.) so caller can handle
+				const errData = e.response.data;
+				this.adapter.rLog("HTTP", null, "<-", "Cloud", undefined, `Login Failed. Code: ${errData.code}, Msg: ${errData.msg}`, "error");
+				return errData;
 			}
 			throw new Error(`Login with password failed: ${e.message}`);
 		}
@@ -445,44 +460,61 @@ export class http_api {
 
 		try {
 			const res = await this.loginApi.get(API_V5_PRODUCT);
+
 			if (res.data && res.data.data) {
+				this.productInfo = res.data; // Store it
 				return res.data;
 			}
 			return null;
 		} catch (e: any) {
-			this.adapter.log.warn(`getProductInfoV5 failed: ${e.message}`);
+			this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `getProductInfoV5 failed: ${e.message}`, "warn");
 			return null;
+		}
+	}
+
+	async ensureProductInfo(): Promise<void> {
+		if (!this.productInfo) {
+			this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, "ProductInfo not present. Fetching V5 Product Info...", "debug");
+			await this.getProductInfoV5();
 		}
 	}
 
 	async downloadProductImages() {
 		if (!this.adapter.config.downloadRoborockImages) return;
-		if (!this.productInfo?.data?.productList) return;
+		await this.ensureProductInfo();
 
-		for (const p of this.productInfo.data.productList) {
-			if (p.picurl) {
-				try {
-					const safeId = p.model.replace(/\./g, "_");
-					const res = await axios.get(p.picurl, { responseType: "arraybuffer" });
-					if (res.status === 200) {
-						const base64 = Buffer.from(res.data, "binary").toString("base64");
-						const stateId = `Products.${safeId}.image`;
+		if (!this.productInfo?.data?.categoryDetailList) {
+			this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "Cannot download images: categoryDetailList missing.", "warn");
+			return;
+		}
 
-						await this.adapter.setObjectNotExistsAsync(stateId, {
-							type: "state",
-							common: {
-								name: p.model + " Image",
-								type: "string",
-								role: "value",
-								read: true,
-								write: false
-							},
-							native: {}
-						});
-						await this.adapter.setState(stateId, { val: base64, ack: true });
+		for (const cat of this.productInfo.data.categoryDetailList) {
+			if (!cat.productList) continue;
+			for (const p of cat.productList) {
+				if (p.picurl) {
+					try {
+						const safeId = p.model.replace(/\./g, "_");
+						const res = await axios.get(p.picurl, { responseType: "arraybuffer" });
+						if (res.status === 200) {
+							const base64 = Buffer.from(res.data, "binary").toString("base64");
+							const stateId = `Products.${safeId}.image`;
+
+							await this.adapter.setObjectNotExistsAsync(stateId, {
+								type: "state",
+								common: {
+									name: p.model + " Image",
+									type: "string",
+									role: "value",
+									read: true,
+									write: false
+								},
+								native: {}
+							});
+							await this.adapter.setStateAsync(stateId, { val: base64, ack: true });
+						}
+					} catch (e) {
+						this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `Failed to download image for ${p.model}: ${e}`, "warn");
 					}
-				} catch (e) {
-					this.adapter.log.warn(`Failed to download image for ${p.model}: ${e}`);
 				}
 			}
 		}
@@ -499,14 +531,14 @@ export class http_api {
 		try {
 			const response = await this.loginApi.get("api/v1/getHomeDetail");
 			if (response.data.data) {
-				this.adapter.log.debug(`getHomeDetail: ${JSON.stringify(response.data)}`);
+				this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, `getHomeDetail: ${JSON.stringify(response.data)}`, "debug");
 				this.homeID = response.data.data.rrHomeId;
-				this.adapter.log.debug(`this.homeID: ${this.homeID}`);
+				this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, `this.homeID: ${this.homeID}`, "debug");
 			} else {
-				this.adapter.log.error(`failed to get getHomeDetail: ${response.data.msg}`);
+				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `failed to get getHomeDetail: ${response.data.msg}`, "error");
 			}
 		} catch (error: any) {
-			this.adapter.log.error(`Error getting HomeID: ${error.message}`);
+			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error getting HomeID: ${error.message}`, "error");
 		}
 	}
 
@@ -518,7 +550,7 @@ export class http_api {
 		if (!this.realApi) throw new Error("realApi is not initialized. Call initializeRealApi() first");
 
 		if (this.homeID) {
-			this.adapter.log.debug(`Getting HomeData with homeId: ${this.homeID}`);
+			this.adapter.rLog("HTTP", null, "->", "Cloud", undefined, `Fetching Home Data (HomeID: ${this.homeID})...`, "debug");
 			try {
 				// Fetch home details from V2 API
 				const resV2 = await this.realApi.get(`v2/user/homes/${this.homeID}`);
@@ -526,17 +558,19 @@ export class http_api {
 
 				// Fetch home details from V3 API
 				try {
-					this.adapter.log.debug(`Attempting to fetch V3 HomeData...`);
+					this.adapter.rLog("HTTP", null, "->", "Cloud", undefined, `Attempting to fetch V3 HomeData...`, "debug");
 					const resV3 = await this.realApi.get(`v3/user/homes/${this.homeID}`);
 
 					if (resV3.data.success && resV3.data.result) {
 						const v3Data = resV3.data.result as HomeData;
-						this.adapter.log.debug(`Fetched V3 HomeData. Merging...`);
+						this.adapter.rLog("HTTP", null, "<-", "Cloud", undefined, `Fetched V3 HomeData. Merging...`, "debug");
 
 						// Merge arrays ensuring unique items by key
-						const mergeUnique = (arr1: any[], arr2: any[], key: string) => {
-							const initial = arr1 || [];
-							const additional = arr2 || [];
+						// Prioritize V3 data (additional) as it contains 'pv' and other new fields.
+						// mergeUnique takes (initial, additional). We want V3 to be 'initial' so it wins.
+						const mergeUnique = (priority: any[], secondary: any[], key: string) => {
+							const initial = priority || [];
+							const additional = secondary || [];
 							const map = new Map(initial.map((item) => [item[key], item]));
 
 							for (const item of additional) {
@@ -548,30 +582,29 @@ export class http_api {
 						};
 
 						if (this.homeData) {
-							this.homeData.devices = mergeUnique(this.homeData.devices, v3Data.devices, "duid");
-							this.homeData.receivedDevices = mergeUnique(this.homeData.receivedDevices, v3Data.receivedDevices, "duid");
-							this.homeData.products = mergeUnique(this.homeData.products, v3Data.products, "id");
+							// Pass v3Data first so it takes precedence
+							this.homeData.devices = mergeUnique(v3Data.devices, this.homeData.devices, "duid");
+							this.homeData.receivedDevices = mergeUnique(v3Data.receivedDevices, this.homeData.receivedDevices, "duid");
+							this.homeData.products = mergeUnique(v3Data.products, this.homeData.products, "id");
 							// Rooms usually don't need merging (mostly UI), but we can if needed.
-							// Usually V3 has the same rooms or superset. Use V3 rooms if available?
-							// Let's merge purely additive for now.
-							this.homeData.rooms = mergeUnique(this.homeData.rooms, v3Data.rooms, "id");
+							this.homeData.rooms = mergeUnique(v3Data.rooms, this.homeData.rooms, "id");
 						} else {
 							this.homeData = v3Data;
 						}
-						this.adapter.log.debug(`V3 Merge complete. Total Devices: ${this.homeData?.devices?.length}`);
+						this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, `V3 Merge complete. Total Devices: ${this.homeData?.devices?.length}`, "debug");
 					}
 				} catch (e3: any) {
 					// V3 might fail on older accounts/regions? Log debug but don't crash main init.
-					this.adapter.log.debug(`Failed to fetch V3 HomeData (optional): ${e3.message}`);
+					this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `Failed to fetch V3 HomeData (optional): ${e3.message}`, "warn");
 				}
 
 				await this.adapter.setState("HomeData", { val: JSON.stringify(this.homeData), ack: true });
 			} catch (e: any) {
-				this.adapter.log.error(`Error updating HomeData: ${e?.stack || e}`);
+				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error updating HomeData: ${e?.stack || e}`, "error");
 				this.homeData = null;
 			}
 		} else {
-			this.adapter.log.error(`No homeId found`);
+			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `No homeId found`, "error");
 		}
 	}
 
@@ -583,6 +616,31 @@ export class http_api {
 			throw new Error("this.userData is not initialized. Call updateHomeData() first");
 		}
 		return this.userData.rriot;
+	}
+
+	/**
+	 * Resolves the numeric Product ID for a given model.
+	 * Tries V3 HomeData first, then V5 ProductInfo.
+	 */
+	getProductIdByModel(modelName: string): number | null {
+		// 1. Try V5 ProductInfo
+		if (this.productInfo && this.productInfo.data && Array.isArray(this.productInfo.data.categoryDetailList)) {
+			for (const detail of this.productInfo.data.categoryDetailList) {
+				if (detail.productList && Array.isArray(detail.productList)) {
+					const productV5 = detail.productList.find((p) => p.model === modelName);
+					if (productV5) {
+						return Number(productV5.id);
+					}
+				}
+			}
+		}
+
+		// Log if we have info but can't find model
+		if (this.productInfo) {
+			this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `Model ${modelName} not found in V5 ProductInfo.`, "warn");
+		}
+
+		return null;
 	}
 
 	/**
@@ -610,9 +668,9 @@ export class http_api {
 	public storeFwFeaturesResult(duid: string, featureIds: number[]): void {
 		if (Array.isArray(featureIds)) {
 			this.fwFeaturesCache.set(duid, featureIds);
-			this.adapter.log.debug(`[HTTP_API|${duid}] Stored FW features result: ${JSON.stringify(featureIds)}`);
+			this.adapter.rLog("HTTP", duid, "Debug", "Cloud", undefined, `Stored FW features result: ${JSON.stringify(featureIds)}`, "debug");
 		} else {
-			this.adapter.log.warn(`[HTTP_API|${duid}] Invalid data received for storing FW features: ${JSON.stringify(featureIds)}`);
+			this.adapter.rLog("HTTP", duid, "Warn", "Cloud", undefined, `Invalid data received for storing FW features: ${JSON.stringify(featureIds)}`, "warn");
 		}
 	}
 
@@ -648,7 +706,7 @@ export class http_api {
 	 */
 	getDevices(): Device[] {
 		if (!this.homeData) {
-			this.adapter.log.warn("homeData not initialized, returning empty devices list");
+			this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "homeData not initialized, returning empty devices list", "warn");
 			return [];
 		}
 		return [...(this.homeData.devices || []), ...(this.homeData.receivedDevices || [])];
@@ -675,7 +733,7 @@ export class http_api {
 	getMatchedRoomIDs(assignFallbackNames = false): { id: number; name: string }[] {
 		if (!this.homeData || !Array.isArray(this.homeData.rooms)) {
 			// Not throwing an error here anymore, just logging warning to prevent crashes if rooms are missing
-			this.adapter.log.warn("getMatchedRoomIDs: this.homeData.rooms is missing or invalid.");
+			this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "getMatchedRoomIDs: this.homeData.rooms is missing or invalid.", "warn");
 			return [];
 		}
 
@@ -695,7 +753,7 @@ export class http_api {
 		});
 
 		if (assignFallbackNames) {
-			this.adapter.log.info(`Matched ${matchedRooms.length} rooms (fallback names included)`);
+			this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, `Matched ${matchedRooms.length} rooms (fallback names included)`, "info");
 		}
 
 		return matchedRooms;
@@ -727,14 +785,14 @@ export class http_api {
 
 			const device = devices.find((d) => d.duid === duid);
 			if (!device) {
-				this.adapter.log.error(`device ${duid} not found in devices`);
+				this.adapter.rLog("HTTP", duid, "Error", "Cloud", undefined, "Device not found in local homeData", "error");
 				return null;
 			}
 
 			const product = products.find((p) => p.id === device.productId);
 			return product ? product.model : null;
 		} catch (error: any) {
-			this.adapter.log.error(`Error in getRobotModel: ${error.message}`);
+			this.adapter.rLog("HTTP", duid, "Error", "Cloud", undefined, `Error in getRobotModel: ${error.message}`, "error");
 			return null;
 		}
 	}
@@ -753,7 +811,7 @@ export class http_api {
 			const product = products.find((p) => p.id == device.productId);
 			return product ? product.category : null;
 		} catch (error: any) {
-			this.adapter.log.error(`Error in getProductCategory: ${error.message}`);
+			this.adapter.rLog("HTTP", duid, "Error", "Cloud", undefined, `Error in getProductCategory: ${error.message}`, "error");
 			return null;
 		}
 	}

@@ -31,7 +31,9 @@ async function main() {
 			console.log("ℹ️ No staged changes. Determining push range...");
 			try {
 				// Try getting the upstream branch
-				const upstream = execSync("git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>NUL || echo origin/main").toString().trim();
+				const isWindows = process.platform === "win32";
+const nullDevice = isWindows ? "NUL" : "/dev/null";
+const upstream = execSync(`git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>${nullDevice} || echo origin/main`).toString().trim();
 				console.log(`ℹ️ Comparing HEAD against upstream: ${upstream}`);
 
 				stagedFiles = getStagedFiles(`git diff --name-only ${upstream}...HEAD`);

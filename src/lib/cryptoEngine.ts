@@ -209,16 +209,14 @@ export const cryptoEngine = {
 	 * Salt source: librrcodec.so (hardcoded)
 	 */
 	deriveB01IV(ivInput: number): Buffer {
-		// 1. Convert random number to 4-byte Big Endian Buffer
-		const prefix = Buffer.alloc(4);
-		prefix.writeUInt32BE(ivInput);
+		const salt = "5wwh9ikChRjASpMU8cxg7o1d2E";
+		const randomBuffer = Buffer.alloc(4);
+		randomBuffer.writeUInt32BE(ivInput, 0); // Use Big-Endian per protocol specification
 
-		// 2. Append the B01 salt (Confirmed via test_salt.js: 5wwh... is correct with Raw derivation)
-		const suffix = Buffer.from("5wwh9ikChRjASpMU8cxg7o1d2E", "utf8");
-
-		// 3. MD5 hash (Raw buffer -> 16 bytes)
-		const hash = crypto.createHash("md5").update(Buffer.concat([prefix, suffix])).digest();
-		return hash;
+		const rStr = randomBuffer.toString("hex").toLowerCase();
+		const hash = crypto.createHash("md5").update(rStr + salt).digest("hex");
+		const ivStr = hash.substring(9, 25);
+		return Buffer.from(ivStr, "utf8");
 	},
 	// ---------- Password Encryption (Login V4) ----------
 

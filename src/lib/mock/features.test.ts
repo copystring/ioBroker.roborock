@@ -1,12 +1,12 @@
-
+﻿
 import { expect } from "chai";
 import { MockAdapter } from "./MockAdapter";
 import { MockRobot } from "./MockRobot";
-import { BaseVacuumFeatures } from "../features/vacuum/baseVacuumFeatures";
+import { V1VacuumFeatures } from "../features/vacuum/v1VacuumFeatures";
 import { Feature } from "../features/features.enum";
 
-// We need a concrete implementation of abstract BaseVacuumFeatures to test it
-class TestVacuumFeatures extends BaseVacuumFeatures {
+// We need a concrete implementation of abstract V1VacuumFeatures to test it
+class TestVacuumFeatures extends V1VacuumFeatures {
 	public getDescriptor(): any { return {}; }
 	public getDynamicFeatures(): Set<Feature> { return new Set(); }
 	public async detectAndApplyRuntimeFeatures(): Promise<boolean> { return false; }
@@ -19,6 +19,7 @@ class TestVacuumFeatures extends BaseVacuumFeatures {
 	public getFirmwareFeatureName(): string { return ""; }
 	public getCommonCleaningInfo(): any { return {}; }
 
+	// Expose protected method for testing
 	// Expose protected method for testing
 	public async publicApplyFeature(feature: Feature): Promise<boolean> {
 		return this.applyFeature(feature);
@@ -64,6 +65,11 @@ describe("Features - State Creation", () => {
 			ensureState: async (id: string, common: any) => mockAdapter.setObjectNotExistsAsync(id, { type: "state", common } as any),
 		};
 
+		// Double-ensure setState is present even if class binding fails
+		if (!deps.adapter.setState) {
+			deps.adapter.setState = mockAdapter.setState;
+		}
+
 		const features = new TestVacuumFeatures(deps as any, mockRobot.duid, mockRobot.model, { staticFeatures: [] } as any);
 
 		// 1. Initial State: No DSS features applied
@@ -105,13 +111,18 @@ describe("Features - State Creation", () => {
 		};
 
 		// Patch the adapter request handler to return our data
-		(deps.adapter as any).requestsHandler = {
+		deps.adapter.requestsHandler = {
 			sendRequest: async (_duid: string, method: string) => {
 				if (method === "get_consumable") return mockConsumableData;
 				return {};
 			}
 		};
-
+		// Ensure setState is present
+		if (!deps.adapter.setState) {
+			console.log("[TestDiag] setState missing on adapter, patching...");
+			deps.adapter.setState = mockAdapter.setState;
+		}
+		console.log("[TestDiag] Adapter methods:", Object.getOwnPropertyNames(Object.getPrototypeOf(deps.adapter)));
 		const features = new TestVacuumFeatures(deps as any, mockRobot.duid, mockRobot.model, { staticFeatures: [] } as any);
 
 		// 1. Initial: No reset buttons
@@ -128,16 +139,15 @@ describe("Features - State Creation", () => {
 		// Check for RESET buttons - Main Key Checks
 		// We know resetConsumables contains: main_brush_work_time, side_brush_work_time, filter_work_time, etc.
 		const duid = mockRobot.duid; // Use duid from mockRobot
-		const resetMainBrushPath = `Devices.${duid}.resetConsumables.main_brush_work_time`;
-		const resetSideBrush = `Devices.${duid}.resetConsumables.side_brush_work_time`;
-		const resetFilter = `Devices.${duid}.resetConsumables.filter_work_time`;
+		const resetMainBrushPath = `Devices.${duid}.resetConsumables.main_brush`;
+		const resetSideBrush = `Devices.${duid}.resetConsumables.side_brush`;
+		const resetFilter = `Devices.${duid}.resetConsumables.filter`;
 		const resetUnknown = `Devices.${duid}.resetConsumables.unknown_consumable`;
 
 		expect(mockAdapter.objects).to.have.property(resetMainBrushPath);
 		expect(mockAdapter.objects).to.have.property(resetSideBrush);
 		expect(mockAdapter.objects).to.have.property(resetFilter);
-
-		// Should NOT create reset button for unknown consumable
+		// Should NOT create reset button for unknown consumable (only work_time/dirty_time suffixes)
 		expect(mockAdapter.objects).to.not.have.property(resetUnknown);
 
 		// Verify object properties for a created button
@@ -147,3 +157,4 @@ describe("Features - State Creation", () => {
 		expect(btnObj.common.write).to.equal(true);
 	});
 });
+

@@ -28,17 +28,16 @@
     "@napi-rs/canvas": "0.1.85",
     "axios": "1.13.2",
     "binary-parser": "^2.3.0",
-    "canvas2svg": "^1.0.16",
     "crc-32": "^1.2.2",
     "d3": "^7.9.0",
     "go2rtc-static": "^1.2.0",
     "image-size": "^2.0.2",
     "jszip": "^3.10.1",
-    "marching-squares": "^1.0.0",
     "mqtt": "5.14.1",
     "node-forge": "^1.3.3",
     "p-queue": "^9.0.1",
     "ping": "^1.0.0",
+    "protobufjs": "^8.0.0",
     "uuid": "13.0.0",
     "zod": "^4.3.5"
   },
@@ -50,7 +49,8 @@
     "@iobroker/adapter-dev": "^1.5.0",
     "@iobroker/eslint-config": "^2.2.0",
     "@iobroker/testing": "5.2.2",
-    "@tsconfig/node18": "^18.2.6",
+    "@tsconfig/node18": "^18.2.4",
+    "@types/binary-parser": "^1.5.5",
     "@types/chai": "^4.3.11",
     "@types/chai-as-promised": "^8.0.0",
     "@types/d3": "^7.4.3",
@@ -94,7 +94,8 @@
   "scripts": {
     "clean": "rimraf build",
     "copy:pathProcessor": "shx cp src/lib/pathProcessor.ts src/www/pathProcessor.ts",
-    "build": "npm run clean && node scripts/updateBuildInfo.js && tsc -b tsconfig.json",
+    "copy:protocols": "shx mkdir -p build/src/lib/protocols && shx cp src/lib/protocols/q7_dataset.json build/src/lib/protocols/",
+    "build": "npm run clean && node scripts/updateBuildInfo.js && npm run copy:protocols && tsc -b tsconfig.json && npm run build:www",
     "build:www": "npm run copy:pathProcessor && tsc -b tsconfig.web.json",
     "build:all": "npm run build",
     "watch": "npm run clean && tsc -b tsconfig.json --watch",
@@ -104,7 +105,7 @@
     "test:package": "npx mocha test/package test/validate_configs --exit",
     "test:integration": "npx mocha test/integration --exit",
     "test:watch": "npx mocha --watch --config test/mocharc.custom.json \"build/!(www)/**/*.test.js\"",
-    "test": "npm run test:js && npm run test:package",
+    "test": "npm run lint && npm run test:js && npm run test:package",
     "check": "tsc -b tsconfig.json --dry",
     "predev": "npm run copy:pathProcessor",
     "dev": "node dev-server.js",
@@ -125,5 +126,8 @@
   "bugs": {
     "url": "https://github.com/copystring/ioBroker.roborock/issues"
   },
-  "readmeFilename": "README.md"
+  "readmeFilename": "README.md",
+  "lint-staged": {
+    "*.{js,ts}": "eslint --fix"
+  }
 }

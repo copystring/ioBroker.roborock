@@ -6,16 +6,19 @@ import unicorn from "eslint-plugin-unicorn";
 import globals from "globals";
 
 export default [
+	// Global ignores
+	{
+		ignores: ["**/*.d.ts", "**/build/**", "**/admin/**", "**/test/**", "www/**", "scripts/**", "**/.antigravityignore/**"],
+	},
 	// 1. Project standard rules
 	{
 		...iobroker.backend,
 		files: ["**/*.js", "**/*.ts"],
-		ignores: ["**/*.d.ts", "**/build/**", "**/admin/**", "**/test/**", "www/**", "scripts/**"],
 	},
 	// 2. Logic Guardrails
 	{
 		files: ["**/*.js", "**/*.ts"],
-		ignores: ["**/*.d.ts", "**/build/**", "**/admin/**", "**/test/**", "www/**", "scripts/**"],
+		ignores: ["**/*.d.ts", "**/build/**", "**/admin/**", "**/test/**", "www/**", "scripts/**", "**/.antigravityignore/**"],
 		languageOptions: {
 			parser: tsParser,
 			ecmaVersion: 2020,

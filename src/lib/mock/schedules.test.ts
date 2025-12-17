@@ -1,11 +1,11 @@
-
+﻿
 import { expect } from "chai";
 import { MockAdapter } from "./MockAdapter";
 import { MockRobot } from "./MockRobot";
-import { BaseVacuumFeatures } from "../features/vacuum/baseVacuumFeatures";
+import { V1VacuumFeatures } from "../features/vacuum/v1VacuumFeatures";
 import { Feature } from "../features/features.enum";
 
-class TestVacuum extends BaseVacuumFeatures {
+class TestVacuum extends V1VacuumFeatures {
 	protected getDynamicFeatures(): Set<Feature> {
 		return new Set();
 	}
@@ -36,7 +36,8 @@ describe("Schedule (Timer) Verification", () => {
 			config: { staticFeatures: [] },
 			http_api: {
 				getFwFeaturesResult: () => mockRobot.features,
-				storeFwFeaturesResult: () => {}
+				storeFwFeaturesResult: () => {},
+				getRobotModel: () => mockRobot.model
 			},
 			requestsHandler: {
 				sendRequest: async (duid: string, method: string, params: any[]) => {
@@ -47,13 +48,14 @@ describe("Schedule (Timer) Verification", () => {
 			}
 		};
 		mockAdapter.requestsHandler = depsMock.requestsHandler;
+		mockAdapter.http_api = depsMock.http_api;
 
 		vacuumFeatures = new TestVacuum(depsMock, mockRobot.duid, mockRobot.model, { staticFeatures: [] });
 		await vacuumFeatures.initialize();
 	});
 
 	it("should process timers and create schedule states", async () => {
-		// BaseVacuumFeatures currently doesn't implement 'updateTimers' or 'setupTimers' in a generic way
+		// V1VacuumFeatures currently doesn't implement 'updateTimers' or 'setupTimers' in a generic way
 		// that's easily exposed unless `Feature.SimpleTimer` or similar is detected/used?
 		// Wait, looking at baseVacuumFeatures (or user log): `get_timer` is a command.
 
@@ -89,3 +91,4 @@ describe("Schedule (Timer) Verification", () => {
 		expect(timers[0][2][0]).to.contain("0 14 * * 5"); // CRON check
 	});
 });
+

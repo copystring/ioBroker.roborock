@@ -34,6 +34,6 @@
     "types": ["mocha", "node", "@iobroker/adapter-core"],
     "lib": ["ESNext", "DOM", "DOM.Iterable"]
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.json"],
   "exclude": ["node_modules", "src/www"]
 }

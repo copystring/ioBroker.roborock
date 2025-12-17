@@ -1,12 +1,12 @@
-
+﻿
 import { expect } from "chai";
 import { MockAdapter } from "./MockAdapter";
 import { MockRobot } from "./MockRobot";
-import { BaseVacuumFeatures } from "../features/vacuum/baseVacuumFeatures";
+import { V1VacuumFeatures } from "../features/vacuum/v1VacuumFeatures";
 import { Feature } from "../features/features.enum";
 
 // Concrete implementation for testing
-class TestVacuum extends BaseVacuumFeatures {
+class TestVacuum extends V1VacuumFeatures {
 	protected getDynamicFeatures(): Set<Feature> {
 		return new Set();
 	}
@@ -37,7 +37,8 @@ describe("Command Verification", () => {
 			config: { staticFeatures: [] },
 			http_api: {
 				getFwFeaturesResult: () => mockRobot.features,
-				storeFwFeaturesResult: () => {}
+				storeFwFeaturesResult: () => {},
+				getRobotModel: () => mockRobot.model
 			},
 			requestsHandler: {
 				sendRequest: async (duid: string, method: string, params: any[]) => {
@@ -48,6 +49,7 @@ describe("Command Verification", () => {
 			}
 		};
 		mockAdapter.requestsHandler = depsMock.requestsHandler;
+		mockAdapter.http_api = depsMock.http_api;
 
 		vacuumFeatures = new TestVacuum(depsMock, mockRobot.duid, mockRobot.model, { staticFeatures: [] });
 		await vacuumFeatures.initialize();
@@ -65,7 +67,7 @@ describe("Command Verification", () => {
 		// Simulate state change trigger
 		// In real adapter, stateChange listener calls processStateChange.
 		// Here we call the command handler directly via feature, or simulate the flow if possible.
-		// BaseVacuumFeatures doesn't have a direct 'onStateChange'.
+		// V1VacuumFeatures doesn't have a direct 'onStateChange'.
 		// However, it registers triggers. For testing, we can manually look up the command definition
 		// and invoke the internal logic, OR better: verify the command configuration exists and test the payload generation.
 
@@ -131,3 +133,4 @@ describe("Command Verification", () => {
 		expect(lastParams[0]).to.deep.equal(complexMode);
 	});
 });
+
