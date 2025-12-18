@@ -198,14 +198,15 @@ exports.cryptoEngine = {
      * Salt source: librrcodec.so (hardcoded)
      */
     deriveB01IV(ivInput) {
-        // 1. Convert random number to 4-byte Big Endian Buffer
-        const prefix = Buffer.alloc(4);
-        prefix.writeUInt32BE(ivInput);
-        // 2. Append the B01 salt (Confirmed via test_salt.js: 5wwh... is correct with Raw derivation)
-        const suffix = Buffer.from("5wwh9ikChRjASpMU8cxg7o1d2E", "utf8");
-        // 3. MD5 hash (Raw buffer -> 16 bytes)
-        const hash = crypto.createHash("md5").update(Buffer.concat([prefix, suffix])).digest();
-        return hash;
+        // B01 IV Derivation:
+        // 1. Random Number as Hex String (lowercase, padded to 8 chars)
+        const randomHex = ivInput.toString(16).padStart(8, "0").toLowerCase();
+        // 2. Append the B01 salt (Confirmed via test_salt.js and reverse engineering)
+        const suffix = "5wwh9ikChRjASpMU8cxg7o1d2E";
+        // 3. MD5 hash of the string
+        const hashHex = crypto.createHash("md5").update(randomHex + suffix).digest("hex");
+        // 4. IV is the 16 bytes starting at offset 9 (Empirically verified)
+        return Buffer.from(hashHex.substring(9, 25), "utf8");
     },
     // ---------- Password Encryption (Login V4) ----------
     encryptPassword(password, k) {

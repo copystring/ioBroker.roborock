@@ -49,7 +49,6 @@ describe("messageParser (B01)", () => {
         (0, chai_1.expect)(decodedPayload.method).to.equal("get_status");
         (0, chai_1.expect)(decodedPayload.id).to.equal(123);
     });
-<<<<<<< HEAD
     // Test case: B01 protocol verification with known binary dump
     // Uses real-world captured data to verify AES-128-CBC decryption and payload parsing
     it("should verify against REAL B01 binary dump", () => {
@@ -67,7 +66,9 @@ describe("messageParser (B01)", () => {
         const decoded = parser.decodeMsg(message, "real-device-duid");
         (0, chai_1.expect)(decoded).to.be.ok;
         (0, chai_1.expect)(decoded.version).to.equal("B01");
-        const json = JSON.parse(decoded.payload.toString());
+        const jsonBuf = decoded.payload;
+        const jsonStr = jsonBuf.toString();
+        const json = JSON.parse(jsonStr);
         (0, chai_1.expect)(json.t).to.be.a("number"); // 1758215849
         (0, chai_1.expect)(json.dps["10001"]).to.be.ok; // Response uses 10001
         const innerStr = json.dps["10001"];
@@ -79,8 +80,6 @@ describe("messageParser (B01)", () => {
         (0, chai_1.expect)(inner.msgId).to.equal(expectedInnerId);
         (0, chai_1.expect)(inner.data.status).to.equal(4);
     });
-=======
->>>>>>> 473d689e (chore: commit all files including build artifacts as requested)
     it("should build correct payload structure for B01 (Nested Object)", async () => {
         const payload = await parser.buildPayload(101, 123, "get_prop", ["status"], "B01");
         const parsed = JSON.parse(payload);
