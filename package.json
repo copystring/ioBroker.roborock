@@ -64,7 +64,7 @@
     "@typescript-eslint/parser": "^8.50.0",
     "chai": "^4.4.1",
     "chai-as-promised": "^8.0.0",
-    "eslint": "9.39.1",
+    "eslint": "9.39.2",
     "globals": "^16.4.0",
     "mocha": "^10.2.0",
     "proxyquire": "^2.1.3",
