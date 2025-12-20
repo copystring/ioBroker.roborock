@@ -969,12 +969,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 
     			// Only set to true if not already set? Old code set it always.
     			// Start with true (selected)
-    			const fullStateId = `Devices.${this.duid}.floors.${pathName}`;
-    			const currentState = await this.deps.adapter.getStateAsync(fullStateId);
-
-    			if (!currentState || currentState.val === null) {
-    				await this.deps.adapter.setStateAsync(fullStateId, { val: true, ack: true });
-    			}
+    			await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.floors.${pathName}`, { val: true, ack: true });
     		}
 
     		await this.ensureState("floors", "cleanCount", {
@@ -1053,37 +1048,6 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     			return params; // Fallback
     		}
     	}
-
-    	if (
-    		method === "set_water_box_custom_mode" ||
-    		method === "set_custom_mode" ||
-    		method === "set_clean_motor_mode" ||
-    		method === "set_mop_mode" ||
-    		method === "set_smart_wash_params" ||
-    		method === "set_carpet_mode" ||
-    		method === "set_carpet_clean_mode" ||
-    		method === "set_dust_collection_mode" ||
-    		method === "set_water_box_distance_off" ||
-    		method === "app_set_dryer_setting" ||
-    		method === "set_wash_towel_mode" ||
-    		method === "set_dust_collection_switch_status"
-    	) {
-    		// These commands require parameters to be wrapped in an array [val]
-    		if (params !== undefined && !Array.isArray(params)) {
-    			// If params is a string (ioBroker JSON state), try to parse it first
-    			if (typeof params === "string") {
-    				try {
-    					const parsed = JSON.parse(params);
-    					return [parsed];
-    				} catch {
-    					// Not JSON, wrap as is
-    					return [params];
-    				}
-    			}
-    			return [params];
-    		}
-    	}
-
     	return params;
     }
 

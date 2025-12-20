@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Roborock } from "../main";
-export type ProtocolVersion = "1.0" | "A01" | "L01";
+export type ProtocolVersion = "1.0" | "A01" | "L01" | "B01";
 declare const FrameSchema: z.ZodObject<{
     version: z.ZodString;
     seq: z.ZodNumber;

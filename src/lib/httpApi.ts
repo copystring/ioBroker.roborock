@@ -220,7 +220,7 @@ export class http_api {
 					this.adapter.log.error("********************************************************************************");
 					this.adapter.log.error("ATTENTION: 2FA Code required!");
 					this.adapter.log.error(`An email has been sent to ${this.adapter.config.username}.`);
-					this.adapter.log.error("Please go to the 'Objects' tab in ioBroker, find the state 'roborock.0.loginCode', and enter the 6-digit code into the 'Value' column.");
+					this.adapter.log.error("Please enter the 6-digit code into the state 'roborock.0.loginCode' immediately.");
 					this.adapter.log.error("********************************************************************************");
 
 					// State at root: roborock.0.loginCode
@@ -520,8 +520,50 @@ export class http_api {
 		if (this.homeID) {
 			this.adapter.log.debug(`Getting HomeData with homeId: ${this.homeID}`);
 			try {
-				const res = await this.realApi.get(`v2/user/homes/${this.homeID}`);
-				this.homeData = res.data.result;
+				// Fetch home details from V2 API
+				const resV2 = await this.realApi.get(`v2/user/homes/${this.homeID}`);
+				this.homeData = resV2.data.result;
+
+				// Fetch home details from V3 API
+				try {
+					this.adapter.log.debug(`Attempting to fetch V3 HomeData...`);
+					const resV3 = await this.realApi.get(`v3/user/homes/${this.homeID}`);
+
+					if (resV3.data.success && resV3.data.result) {
+						const v3Data = resV3.data.result as HomeData;
+						this.adapter.log.debug(`Fetched V3 HomeData. Merging...`);
+
+						// Merge arrays ensuring unique items by key
+						const mergeUnique = (arr1: any[], arr2: any[], key: string) => {
+							const initial = arr1 || [];
+							const additional = arr2 || [];
+							const map = new Map(initial.map((item) => [item[key], item]));
+
+							for (const item of additional) {
+								if (!map.has(item[key])) {
+									map.set(item[key], item);
+								}
+							}
+							return Array.from(map.values());
+						};
+
+						if (this.homeData) {
+							this.homeData.devices = mergeUnique(this.homeData.devices, v3Data.devices, "duid");
+							this.homeData.receivedDevices = mergeUnique(this.homeData.receivedDevices, v3Data.receivedDevices, "duid");
+							this.homeData.products = mergeUnique(this.homeData.products, v3Data.products, "id");
+							// Rooms usually don't need merging (mostly UI), but we can if needed.
+							// Usually V3 has the same rooms or superset. Use V3 rooms if available?
+							// Let's merge purely additive for now.
+							this.homeData.rooms = mergeUnique(this.homeData.rooms, v3Data.rooms, "id");
+						} else {
+							this.homeData = v3Data;
+						}
+						this.adapter.log.debug(`V3 Merge complete. Total Devices: ${this.homeData?.devices?.length}`);
+					}
+				} catch (e3: any) {
+					// V3 might fail on older accounts/regions? Log debug but don't crash main init.
+					this.adapter.log.debug(`Failed to fetch V3 HomeData (optional): ${e3.message}`);
+				}
 
 				await this.adapter.setState("HomeData", { val: JSON.stringify(this.homeData), ack: true });
 			} catch (e: any) {

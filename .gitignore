@@ -2,7 +2,6 @@
 .*/
 !.vscode/
 !.github/
-!.husky/
 
 *.code-workspace
 node_modules
@@ -27,5 +26,9 @@ src/www/pathProcessor.ts
 
 
 # Build artifacts
+<<<<<<< HEAD
 *.tsbuildinfo
 
+=======
+*.tsbuildinfo
+>>>>>>> 473d689e (chore: commit all files including build artifacts as requested)

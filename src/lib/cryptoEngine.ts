@@ -36,10 +36,9 @@ function toBuffer(input: string | Buffer): Buffer {
 	return Buffer.isBuffer(input) ? input : Buffer.from(input, "utf-8");
 }
 
-/*
- * Crypto implementations based on community research:
- * - 1.0: Credits to rovo89
- * - L01: Credits to Kenny (Homey project)
+/**
+ * Cryptographic engine compatible with various Roborock protocol versions.
+ * Supports legacy 1.0, A01 (AES-CBC), L01 (AES-GCM), and B01 modes.
  */
 export const cryptoEngine = {
 	/**
@@ -172,6 +171,56 @@ export const cryptoEngine = {
 		decipher.setAuthTag(tag);
 
 		return Buffer.concat([decipher.update(ciphertext as Uint8Array), decipher.final()]);
+	},
+
+	// ---------- B01 (AES-128-CBC with custom IV) ----------
+
+	/**
+	 * Encrypts a payload for the B01 protocol using AES-128-CBC.
+	 * The IV is derived from the random seed and a static salt.
+	 */
+	encryptB01(payload: Buffer | string, localKey: string, ivInput: number): Buffer {
+		const key = toBuffer(localKey);
+		const iv = this.deriveB01IV(ivInput);
+
+		const cipher = crypto.createCipheriv("aes-128-cbc", key, iv);
+		cipher.setAutoPadding(true);
+
+		const data = Buffer.isBuffer(payload) ? payload : Buffer.from(payload, "utf8");
+		return Buffer.concat([cipher.update(data), cipher.final()]);
+	},
+
+	/**
+	 * Decrypts a B01 payload.
+	 */
+	decryptB01(payload: Buffer, localKey: string, ivInput: number): Buffer {
+		const key = toBuffer(localKey);
+		const iv = this.deriveB01IV(ivInput);
+
+		const decipher = crypto.createDecipheriv("aes-128-cbc", key, iv);
+		decipher.setAutoPadding(true);
+
+		return Buffer.concat([decipher.update(payload as Uint8Array), decipher.final()]);
+	},
+
+	/**
+	 * Derives the initial vector (IV) specifically for B01 protocol encryption.
+	 * Computes MD5(hex(random) + salt) and extracts the middle 16 bytes.
+	 * Salt source: librrcodec.so (hardcoded)
+	 */
+	deriveB01IV(ivInput: number): Buffer {
+		// B01 IV Derivation:
+		// 1. Random Number as Hex String (lowercase, padded to 8 chars)
+		const randomHex = ivInput.toString(16).padStart(8, "0").toLowerCase();
+
+		// 2. Append the B01 salt (Confirmed via test_salt.js and reverse engineering)
+		const suffix = "5wwh9ikChRjASpMU8cxg7o1d2E";
+
+		// 3. MD5 hash of the string
+		const hashHex = crypto.createHash("md5").update(randomHex + suffix).digest("hex");
+
+		// 4. IV is the 16 bytes starting at offset 9 (Empirically verified)
+		return Buffer.from(hashHex.substring(9, 25), "utf8");
 	},
 	// ---------- Password Encryption (Login V4) ----------
 
