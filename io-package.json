@@ -163,8 +163,7 @@
         "pl": "Roborock",
         "zh-cn": "Roborock"
       },
-      "link": "%web_protocol%://%ip%:%web_port%/roborock/index.html?instance=%instance%",
-      "fa-icon": "</i><img style='width:24px;margin-bottom:-6px;' src='/adapter/admin/roborock.png'><i>"
+      "link": "%web_protocol%://%ip%:%web_port%/roborock/index.html?instance=%instance%"
     },
     "localLinks": {
       "_default": "%web_protocol%://%ip%:%web_port%/roborock/index.html?instance=%instance%"
