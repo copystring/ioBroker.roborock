@@ -407,7 +407,7 @@ This feature only works when map creation is enabled in the adapter options!
 ## License
 MIT License
 
-Copyright (c) 2025 copystring <copystring@gmail.com>
+Copyright (c) 2025-2026 copystring <copystring@gmail.com>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
