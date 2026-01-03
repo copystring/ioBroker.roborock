@@ -6,41 +6,11 @@ const module519Path = "C:\\iobroker\\iobroker.roborock\\Roborock Q7 Series\\outp
 const module518Path = "C:\\iobroker\\iobroker.roborock\\Roborock Q7 Series\\output\\module_518.js";
 const outputDir = "C:\\iobroker\\iobroker.roborock\\docs\\protocols\\Q7";
 
-function extractObject(content, keyName) {
-	const mapping = {};
-	const assignRegex = new RegExp(`r3\\['${keyName}'\\]\\s*=\\s*([a-z0-9]+);`);
-	const assignMatch = content.match(assignRegex);
-	if (!assignMatch) return null;
-
-	const varName = assignMatch[1];
-	const assignIndex = assignMatch.index;
-	const beforeContent = content.substring(0, assignIndex);
-	const lastDefMatch = beforeContent.match(new RegExp(`${varName}\\s*=\\s*({[^;]*?});`, "g"));
-
-	if (lastDefMatch && lastDefMatch.length > 0) {
-		const lastMatch = lastDefMatch[lastDefMatch.length - 1];
-		const innerContentMatch = lastMatch.match(/{([\s\S]*?)}/);
-		if (innerContentMatch) {
-			const inner = innerContentMatch[1];
-			const entryRegex = /'([a-zA-Z0-9_]+)'\s*:\s*(\d+|null|'[a-zA-Z0-9_]+')/g;
-			let m;
-			while ((m = entryRegex.exec(inner)) !== null) {
-				let val = m[2];
-				if (val.startsWith("'")) val = val.substring(1, val.length -1);
-				mapping[m[1]] = val;
-			}
-		}
-	}
-	return mapping;
-}
-
-
 function extractFaultCodes() {
 	console.log("Reading module_519.js...");
 	const content = fs.readFileSync(module519Path, "utf8");
 
 	// Extract symbolic Mappings (Name -> ID)
-	// Find assignment: r3['FAULT_STATUS'] = r6;
 	const faultAssign = "r3['FAULT_STATUS'] = r6;";
 	const assignIdx = content.indexOf(faultAssign);
 
@@ -48,7 +18,6 @@ function extractFaultCodes() {
 	const seenIds = new Set();
 
 	if (assignIdx !== -1) {
-		// Search backwards for r6 = {
 		const startR6 = content.lastIndexOf("r6 = {", assignIdx);
 		if (startR6 !== -1) {
 			const endR6 = content.indexOf("};", startR6);
@@ -68,8 +37,6 @@ function extractFaultCodes() {
 		}
 	}
 
-
-	// Also scan for post-block assignments like r6['F_2100'] = 2100;
 	const extraRegex = /r6\['([a-zA-Z0-9_]+)'\]\s*=\s*(\d+);/g;
 	let m2;
 	while ((m2 = extraRegex.exec(content)) !== null) {
@@ -81,11 +48,9 @@ function extractFaultCodes() {
 		}
 	}
 
-	// Device States
 	const deviceStates = [];
 	const subtitleMatch = content.match(/r3\['SUBTITLE_STATUS'\]\s*=\s*r6;/);
 	if(subtitleMatch) {
-		// Search backwards for r6 = { ... }
 		const endIdx = subtitleMatch.index;
 		const startR6 = content.lastIndexOf("r6 = {", endIdx);
 		if (startR6 !== -1) {
@@ -98,8 +63,6 @@ function extractFaultCodes() {
 		}
 	}
 
-
-	// Robot Modes
 	const robotModes = [];
 	const robotTypeMatch = content.match(/r3\['ROBOT_TYPE'\]\s*=\s*r6;/);
 	if(robotTypeMatch) {
@@ -115,17 +78,13 @@ function extractFaultCodes() {
 		}
 	}
 
-
 	return { faults, deviceStates, robotModes };
 }
-
 
 function extractTranslations() {
 	console.log("Reading module_518.js...");
 	const content518 = fs.readFileSync(module518Path, "utf8");
-
 	const translations = {};
-
 	const languages = [];
 
 	const langRegex = /r1\['([a-zA-Z_-]+)'\]\s*=\s*r0;/g;
@@ -137,7 +96,6 @@ function extractTranslations() {
 
 	for (const lang of languages) {
 		translations[lang] = {};
-
 		const marker = `r1['${lang}'] = r0;`;
 		const markerIndex = content518.indexOf(marker);
 		if (markerIndex === -1) continue;
@@ -147,12 +105,10 @@ function extractTranslations() {
 		if (startIndex === -1) continue;
 
 		const block = content518.substring(startIndex, markerIndex);
-
-		const translationsMap = {}; // Generic translations
-		const faultMap = {}; // cKey -> { title, summary }
-
+		const translationsMap = {};
+		const faultMap = {};
 		const ranges = [];
-		const specifics = {}; // key -> { title, summary }
+		const specifics = {};
 
 		const allKeyRegex = /'([a-zA-Z0-9_]+)'\s*:\s*(['"])(.*?)\2/g;
 		let m;
@@ -163,8 +119,6 @@ function extractTranslations() {
 			if (fullKey.startsWith("fault_")) {
 				const core = fullKey.replace("fault_title_", "").replace("fault_summery_", "");
 				const isTitle = fullKey.startsWith("fault_title_");
-
-				// Check for X_Y pattern
 				const parts = core.split("_");
 				if (parts.length === 2 && /^\d+$/.test(parts[0]) && /^\d+$/.test(parts[1])) {
 					ranges.push({ start: parseInt(parts[0]), end: parseInt(parts[1]), text, isTitle });
@@ -178,25 +132,21 @@ function extractTranslations() {
 			}
 		}
 
-		// 1. Apply Ranges (In Order of Appearance, so later ranges overwrite earlier ones)
 		for (const r of ranges) {
 			for (let c = r.start; c <= r.end; c++) {
 				const cKey = String(c);
 				if (!faultMap[cKey]) faultMap[cKey] = {};
-
 				if (r.isTitle) faultMap[cKey].title = r.text;
 				else faultMap[cKey].summary = r.text;
 			}
 		}
 
-		// 2. Apply Specifics (Always Override Ranges)
 		for (const [cKey, data] of Object.entries(specifics)) {
 			if (!faultMap[cKey]) faultMap[cKey] = {};
 			if (data.title) faultMap[cKey].title = data.title;
 			if (data.summary) faultMap[cKey].summary = data.summary;
 		}
 
-		// Store back to main translations object
 		translations[lang] = translationsMap;
 		for (const [cKey, data] of Object.entries(faultMap)) {
 			if (data.title) translations[lang][`fault_title_${cKey}`] = data.title;
@@ -206,79 +156,139 @@ function extractTranslations() {
 	return { translations, languages };
 }
 
-
 function main() {
-	console.log("Reading module_519.js...");
-	// const content519 is read inside extractFaultCodes now, or strictly speaking extractFaultCodes reads it itself.
-	// Wait, extractFaultCodes() takes NO arguments in my new definition.
+	let faults, deviceStates, robotModes, translations, languages;
 
-	// 1. Extract Protocol Definitions
-	const { faults, deviceStates, robotModes } = extractFaultCodes();
+	const jsFilesExist = fs.existsSync(module519Path) && fs.existsSync(module518Path);
+	const datasetPath = path.join("C:\\iobroker\\iobroker.roborock\\src\\lib\\protocols", "q7_dataset.json");
+	const datasetExists = fs.existsSync(datasetPath);
 
-	// 2. Extract Translations
-	const { translations, languages } = extractTranslations();
+	if (jsFilesExist) {
+		console.log("Found source JS files. Extracting fresh data...");
+		const extracted = extractFaultCodes();
+		faults = extracted.faults;
+		deviceStates = extracted.deviceStates;
+		robotModes = extracted.robotModes;
 
-	// 3. Generate Index
-	let indexMd = "# Q7 Protocol Values - Index\n\n";
-	indexMd += "Select a language to view the complete mapped protocol values and translations.\n\n";
-	indexMd += "| Language | File |\n|---|---|\n";
+		const trans = extractTranslations();
+		translations = trans.translations;
+		languages = trans.languages;
 
-	// 4. Generate Language Files
+		const dataset = {
+			meta: {
+				languages,
+				generated: new Date().toISOString()
+			},
+			fault_codes: {},
+			device_states: deviceStates,
+			robot_modes: robotModes
+		};
+
+		faults.forEach(f => {
+			dataset.fault_codes[f.code] = { internal: f.internal };
+			languages.forEach(lang => {
+				const title = translations[lang][`fault_title_${f.code}`];
+				const summary = translations[lang][`fault_summery_${f.code}`];
+				if (title || summary) {
+					if (!dataset.fault_codes[f.code][lang]) dataset.fault_codes[f.code][lang] = {};
+					if (title) dataset.fault_codes[f.code][lang].title = title;
+					if (summary) dataset.fault_codes[f.code][lang].summary = summary;
+				}
+			});
+		});
+
+		fs.writeFileSync(datasetPath, JSON.stringify(dataset, null, 2));
+		console.log(`Updated ${datasetPath}`);
+	} else if (datasetExists) {
+		console.log("Source JS files not found. Using q7_dataset.json as source...");
+		const dataset = JSON.parse(fs.readFileSync(datasetPath, "utf8"));
+		languages = dataset.meta.languages;
+		deviceStates = dataset.device_states;
+		robotModes = dataset.robot_modes;
+
+		faults = Object.entries(dataset.fault_codes).map(([code, data]) => ({
+			code,
+			internal: data.internal
+		}));
+
+		translations = {};
+		languages.forEach(lang => {
+			translations[lang] = {};
+			Object.entries(dataset.fault_codes).forEach(([code, data]) => {
+				if (data[lang]) {
+					if (data[lang].title) translations[lang][`fault_title_${code}`] = data[lang].title;
+					if (data[lang].summary) translations[lang][`fault_summery_${code}`] = data[lang].summary;
+				}
+			});
+		});
+	} else {
+		console.error("Critical Error: Neither source JS files nor q7_dataset.json found!");
+		process.exit(1);
+	}
+
+	let indexMd = "# 📚 Q7 Protocol Values - Index\n\n";
+	indexMd += "This index provides a comprehensive mapping of internal protocol values to human-readable translations for the Q7 series.\n\n";
+	indexMd += "### 🌍 Select a Language\n\n";
+	indexMd += "| Language | Documentation |\n| :--- | :--- |\n";
+
 	for (const lang of languages) {
 		const fileName = `Q7_Values_${lang.toUpperCase()}.md`;
-		indexMd += `| ${lang} | [Link](./${fileName}) |\n`;
+		indexMd += `| **${lang}** | [📖 View ${lang.toUpperCase()}](./${fileName}) |\n`;
 
-		let md = `# Roborock Q7 Values (${lang.toUpperCase()})\n\n`;
+		let md = `# 🤖 Roborock Q7 Protocol Values (${lang.toUpperCase()})\n\n`;
+		md += "This document contains the complete translation mapping and internal constants for the Q7 series protocol.\n\n";
+		md += "---\n\n";
 
-		// Definitions Section (Shared)
-		md += "## Protocol Definitions (Constants)\n\n";
+		md += "## ⚙️ Protocol Definitions (Constants)\n\n";
 
 		if (deviceStates && deviceStates.length > 0) {
-			md += "### Device States (SUBTITLE_STATUS)\n";
-			md += "| State | Value |\n|---|---|\n";
+			md += "### 🚦 Device States (`SUBTITLE_STATUS`)\n";
+			md += "| State Name | Internal Value |\n| :--- | :--- |\n";
 			deviceStates.sort((a,b) => a.value - b.value).forEach(item => {
-				md += `| ${item.name} | ${item.value} |\n`;
-			});
-			md += "\n";
-		}
-		if (robotModes && robotModes.length > 0) {
-			md += "### Robot Modes (ROBOT_TYPE)\n";
-			md += "| Mode | Value |\n|---|---|\n";
-			robotModes.sort((a,b) => a.value - b.value).forEach(item => {
-				md += `| ${item.name} | ${item.value} |\n`;
+				md += `| \`${item.name}\` | \`${item.value}\` |\n`;
 			});
 			md += "\n";
 		}
 
-		// Fault Codes
-		md += "## Fault Codes\n\n";
-		md += "| Code | Internal | Title | Summary |\n|---|---|---|---|\n";
+		md += "---\n\n";
+
+		if (robotModes && robotModes.length > 0) {
+			md += "### 🕹️ Robot Modes (`ROBOT_TYPE`)\n";
+			md += "| Mode Name | Internal Value |\n| :--- | :--- |\n";
+			robotModes.sort((a,b) => a.value - b.value).forEach(item => {
+				md += `| \`${item.name}\` | \`${item.value}\` |\n`;
+			});
+			md += "\n";
+		}
+
+		md += "---\n\n";
+
+		md += "## ⚠️ Fault Codes\n\n";
+		md += "> [!NOTE]\n";
+		md += "> Fault codes are reported via the `fault` status property. Use the table below to map the numeric ID to a localized message.\n\n";
+
+		md += "| ID | Internal Key | Title | Detailed Summary |\n| :--- | :--- | :--- | :--- |\n";
 
 		const langData = translations[lang] || {};
 		const handledKeys = new Set();
 
-		// faults is array of { code, internal }
-		faults.sort((a,b) => a.code - b.code).forEach(item => {
+		faults.sort((a,b) => parseInt(a.code) - parseInt(b.code)).forEach(item => {
 			const code = item.code;
 			const internal = item.internal;
-
 			const titleKey = `fault_title_${code}`;
-			const summaryKey = `fault_summery_${code}`; // Note: typo 'summery' in original file
-
+			const summaryKey = `fault_summery_${code}`;
 			const title = langData[titleKey] || "-";
 			const summary = langData[summaryKey] || "-";
 
-			md += `| ${code} | ${internal} | ${title} | ${summary.replace(/\n/g, "<br>")} |\n`;
-
+			md += `| **${code}** | \`${internal}\` | ${title} | ${summary.replace(/\n/g, "<br>")} |\n`;
 			handledKeys.add(titleKey);
 			handledKeys.add(summaryKey);
 		});
 
-		md += "\n";
+		md += "\n---\n\n";
 
-		// Other Translations
-		md += "## All Other Translations\n\n";
-		md += "| Key | Value |\n|---|---|\n";
+		md += "## 🌐 General Translations\n\n";
+		md += "| Key | Localized Value |\n| :--- | :--- |\n";
 		Object.entries(langData).sort().forEach(([k, v]) => {
 			if (!k.startsWith("fault_") && !handledKeys.has(k)) {
 				md += `| \`${k}\` | ${v.replace(/\n/g, "<br>")} |\n`;
@@ -294,4 +304,3 @@ function main() {
 }
 
 main();
-

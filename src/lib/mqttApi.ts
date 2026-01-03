@@ -233,7 +233,7 @@ export class mqtt_api {
 						// Payload is typically a Hex string in the JSON
 						const payloadBuf = Buffer.from(response.payload, "hex");
 
-						// Decrypt/Decode if specific formats detected (jmXv, i8sz, 1BxT, etc.)
+						// Decrypt/Decode the B01 payload (handles nested encryption and compression)
 						const finalPayload = this.decryptB01Payload(payloadBuf, duid);
 
 						// Determine if success based on if we got data
