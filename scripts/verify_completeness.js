@@ -4,8 +4,8 @@ const fs = require("fs");
 function verify() {
 	console.log("Verifying documentation completeness...");
 
-	const module519Path = "C:\\iobroker\\iobroker.roborock\\Roborock Q7 Series\\output\\module_519.js";
-	const generatedDocPath = "C:\\iobroker\\iobroker.roborock\\docs\\protocols\\Q7\\Q7_Values_EN.md";
+	const module519Path = path.join(__dirname, "..", "Roborock Q7 Series", "output", "module_519.js");
+	const generatedDocPath = path.join(__dirname, "..", "docs", "protocols", "Q7", "Q7_Values_EN.md");
 
 	// 1. Get Expected IDs from module_519.js
 	const content519 = fs.readFileSync(module519Path, "utf8");

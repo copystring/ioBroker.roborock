@@ -2,7 +2,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const baseDir = "C:\\iobroker\\iobroker.roborock";
+const baseDir = path.join(__dirname, "..");
 const module519Path = path.join(baseDir, "Roborock Q7 Series", "output", "module_519.js");
 const module518Path = path.join(baseDir, "Roborock Q7 Series", "output", "module_518.js");
 const datasetPath = path.join(baseDir, "src", "lib", "protocols", "q7_dataset.json");
