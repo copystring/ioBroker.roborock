@@ -2,18 +2,23 @@
 const fs = require("fs");
 const path = require("path");
 
-const module519Path = "C:\\iobroker\\iobroker.roborock\\Roborock Q7 Series\\output\\module_519.js";
-const module518Path = "C:\\iobroker\\iobroker.roborock\\Roborock Q7 Series\\output\\module_518.js";
-const outputDir = "C:\\iobroker\\iobroker.roborock\\docs\\protocols\\Q7";
+const baseDir = "C:\\iobroker\\iobroker.roborock";
+const module519Path = path.join(baseDir, "Roborock Q7 Series", "output", "module_519.js");
+const module518Path = path.join(baseDir, "Roborock Q7 Series", "output", "module_518.js");
+const datasetPath = path.join(baseDir, "src", "lib", "protocols", "q7_dataset.json");
+const outputDir = path.join(baseDir, "docs", "protocols", "Q7");
+
+if (!fs.existsSync(outputDir)) {
+	fs.mkdirSync(outputDir, { recursive: true });
+}
 
 function extractFaultCodes() {
-	console.log("Reading module_519.js...");
+	if (!fs.existsSync(module519Path)) return { faults: [], deviceStates: [], robotModes: [] };
+	console.log(`Reading ${module519Path}...`);
 	const content = fs.readFileSync(module519Path, "utf8");
 
-	// Extract symbolic Mappings (Name -> ID)
 	const faultAssign = "r3['FAULT_STATUS'] = r6;";
 	const assignIdx = content.indexOf(faultAssign);
-
 	const faults = [];
 	const seenIds = new Set();
 
@@ -82,7 +87,8 @@ function extractFaultCodes() {
 }
 
 function extractTranslations() {
-	console.log("Reading module_518.js...");
+	if (!fs.existsSync(module518Path)) return { translations: {}, languages: [] };
+	console.log(`Reading ${module518Path}...`);
 	const content518 = fs.readFileSync(module518Path, "utf8");
 	const translations = {};
 	const languages = [];
@@ -147,11 +153,11 @@ function extractTranslations() {
 			if (data.summary) faultMap[cKey].summary = data.summary;
 		}
 
-		translations[lang] = translationsMap;
-		for (const [cKey, data] of Object.entries(faultMap)) {
-			if (data.title) translations[lang][`fault_title_${cKey}`] = data.title;
-			if (data.summary) translations[lang][`fault_summery_${cKey}`] = data.summary;
-		}
+		// Store both general and faults
+		translations[lang] = {
+			general: translationsMap,
+			faults: faultMap
+		};
 	}
 	return { translations, languages };
 }
@@ -160,8 +166,6 @@ function main() {
 	let faults, deviceStates, robotModes, translations, languages;
 
 	const jsFilesExist = fs.existsSync(module519Path) && fs.existsSync(module518Path);
-	const datasetPath = path.join("C:\\iobroker\\iobroker.roborock\\src\\lib\\protocols", "q7_dataset.json");
-	const datasetExists = fs.existsSync(datasetPath);
 
 	if (jsFilesExist) {
 		console.log("Found source JS files. Extracting fresh data...");
@@ -174,32 +178,34 @@ function main() {
 		translations = trans.translations;
 		languages = trans.languages;
 
+		// Save to dataset
 		const dataset = {
-			meta: {
-				languages,
-				generated: new Date().toISOString()
-			},
+			meta: { languages, generated: new Date().toISOString() },
 			fault_codes: {},
 			device_states: deviceStates,
-			robot_modes: robotModes
+			robot_modes: robotModes,
+			general_translations: {}
 		};
 
 		faults.forEach(f => {
 			dataset.fault_codes[f.code] = { internal: f.internal };
 			languages.forEach(lang => {
-				const title = translations[lang][`fault_title_${f.code}`];
-				const summary = translations[lang][`fault_summery_${f.code}`];
-				if (title || summary) {
+				const fData = translations[lang].faults[f.code];
+				if (fData) {
 					if (!dataset.fault_codes[f.code][lang]) dataset.fault_codes[f.code][lang] = {};
-					if (title) dataset.fault_codes[f.code][lang].title = title;
-					if (summary) dataset.fault_codes[f.code][lang].summary = summary;
+					if (fData.title) dataset.fault_codes[f.code][lang].title = fData.title;
+					if (fData.summary) dataset.fault_codes[f.code][lang].summary = fData.summary;
 				}
 			});
 		});
 
+		languages.forEach(lang => {
+			dataset.general_translations[lang] = translations[lang].general;
+		});
+
 		fs.writeFileSync(datasetPath, JSON.stringify(dataset, null, 2));
 		console.log(`Updated ${datasetPath}`);
-	} else if (datasetExists) {
+	} else if (fs.existsSync(datasetPath)) {
 		console.log("Source JS files not found. Using q7_dataset.json as source...");
 		const dataset = JSON.parse(fs.readFileSync(datasetPath, "utf8"));
 		languages = dataset.meta.languages;
@@ -213,19 +219,25 @@ function main() {
 
 		translations = {};
 		languages.forEach(lang => {
-			translations[lang] = {};
+			translations[lang] = {
+				general: dataset.general_translations?.[lang] || {},
+				faults: {}
+			};
 			Object.entries(dataset.fault_codes).forEach(([code, data]) => {
 				if (data[lang]) {
-					if (data[lang].title) translations[lang][`fault_title_${code}`] = data[lang].title;
-					if (data[lang].summary) translations[lang][`fault_summery_${code}`] = data[lang].summary;
+					translations[lang].faults[code] = {
+						title: data[lang].title,
+						summary: data[lang].summary
+					};
 				}
 			});
 		});
 	} else {
-		console.error("Critical Error: Neither source JS files nor q7_dataset.json found!");
+		console.error("Critical Error: Neither source JS files nor dataset found!");
 		process.exit(1);
 	}
 
+	// Generate MD Files
 	let indexMd = "# 📚 Q7 Protocol Values - Index\n\n";
 	indexMd += "This index provides a comprehensive mapping of internal protocol values to human-readable translations for the Q7 series.\n\n";
 	indexMd += "### 🌍 Select a Language\n\n";
@@ -269,30 +281,24 @@ function main() {
 
 		md += "| ID | Internal Key | Title | Detailed Summary |\n| :--- | :--- | :--- | :--- |\n";
 
-		const langData = translations[lang] || {};
-		const handledKeys = new Set();
-
+		const langData = translations[lang] || { faults: {}, general: {} };
 		faults.sort((a,b) => parseInt(a.code) - parseInt(b.code)).forEach(item => {
 			const code = item.code;
 			const internal = item.internal;
-			const titleKey = `fault_title_${code}`;
-			const summaryKey = `fault_summery_${code}`;
-			const title = langData[titleKey] || "-";
-			const summary = langData[summaryKey] || "-";
+			const fData = langData.faults[code] || {};
+			const title = fData.title || "-";
+			const summary = fData.summary || "-";
 
 			md += `| **${code}** | \`${internal}\` | ${title} | ${summary.replace(/\n/g, "<br>")} |\n`;
-			handledKeys.add(titleKey);
-			handledKeys.add(summaryKey);
 		});
 
 		md += "\n---\n\n";
 
 		md += "## 🌐 General Translations\n\n";
 		md += "| Key | Localized Value |\n| :--- | :--- |\n";
-		Object.entries(langData).sort().forEach(([k, v]) => {
-			if (!k.startsWith("fault_") && !handledKeys.has(k)) {
-				md += `| \`${k}\` | ${v.replace(/\n/g, "<br>")} |\n`;
-			}
+		const general = langData.general || {};
+		Object.entries(general).sort().forEach(([k, v]) => {
+			md += `| \`${k}\` | ${v.replace(/\n/g, "<br>")} |\n`;
 		});
 
 		fs.writeFileSync(path.join(outputDir, fileName), md);
