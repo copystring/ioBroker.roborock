@@ -389,10 +389,18 @@ export class requestsHandler {
 
 	async command(_handler: BaseDeviceFeatures, duid: string, method: string, params?: unknown) {
 		let finalParams = params;
+		let finalMethod = method;
+
 		if (_handler) {
-			finalParams = await _handler.getCommandParams(method, params);
+			const intercepted = await _handler.getCommandParams(method, params);
+			if (typeof intercepted === "object" && intercepted !== null && "method" in intercepted && "params" in intercepted) {
+				finalMethod = (intercepted as any).method;
+				finalParams = (intercepted as any).params;
+			} else {
+				finalParams = intercepted;
+			}
 		}
-		const requestPromise = this.sendRequest(duid, method, finalParams, { priority: 1 });
+		const requestPromise = this.sendRequest(duid, finalMethod, finalParams, { priority: 1 });
 
 		this._processResult(
 			requestPromise,
