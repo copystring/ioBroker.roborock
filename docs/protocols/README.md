@@ -1,24 +1,33 @@
-# Roborock Protocol Documentation
+# 🤖 Roborock Protocol Documentation
 
-This directory contains technical documentation for the various communication protocols used by Roborock devices.
+This directory serves as the technical hub for reverse-engineered Roborock communication protocols. Use these documents to understand how the adapter interacts with different device generations.
 
-## Available Protocols
+---
 
-*   **[B01 (MQTT/Cloud)](./B01.md)**: Reverse-engineered command structure for B01 devices (e.g., Q Revo series).
-*   **[Q7 Protocol Values (All Languages)](./Q7/README.md)**: Comprehensive index of Fault Codes, States, and Mode definitions for the Q7 Series.
+## 📂 Available Protocols
 
-## Adding a New Protocol
+| Protocol | Description | Documentation |
+| :--- | :--- | :--- |
+| **B01** | Modern MQTT/Cloud protocol for newer devices (Q Revo, etc.) | [📖 View Docs](./B01.md) |
+| **Q7 Series** | Comprehensive dataset for Faults, States, and Settings | [📖 View Index](./Q7/README.md) |
 
-To add documentation for a new protocol (e.g., S7, G10), please create a new markdown file (e.g., `S7.md`) following this template:
+---
 
-### Template Structure
+## 🛠️ Adding a New Protocol
+
+If you've analyzed a new protocol (e.g., S8, P10), please follow the structure below to maintain consistency.
+
+### Protocol Template
+
+> [!TIP]
+> Use clear tables for commands and code blocks for JSON examples. Emojis help distinguish different sections.
 
 ```markdown
 # [Protocol Version] Protocol Documentation
 
-**Status:** [Analyzing / Complete / Experimental]
+**Status:** 🟡 Analyzing / 🟢 Complete / 🧪 Experimental
 **Protocol Version:** [e.g. S7_roborock]
-**Transport:** [MQTT / UDP / TCP]
+**Transport:** 🌐 MQTT / 🔌 UDP / 🔗 TCP
 
 ## 1. Overview
 Brief description of the protocol and which devices use it.
@@ -36,8 +45,9 @@ List the main methods (e.g. `app_start`, `app_stop`).
 Methods for changing settings (fan power, water level).
 
 ## 3. Command Sequence
-Describe the typical flow of messages (e.g. Set Preference -> Send Command -> Receive Push).
+Typical flow: Set Preference -> Send Command -> Receive Push.
 
-## 4. Derived Data (Analysis Notes)
-Any notes on encryption, standard headers, or specific quirks.
+## 4. Technical Notes
+Encryption, standard headers, or specific quirks.
 ```
+
