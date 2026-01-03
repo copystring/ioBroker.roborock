@@ -18,6 +18,9 @@ concurrency:
   group: ${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  HUSKY: 0
+
 jobs:
   # Performs quick checks before the expensive test runs
   check-and-lint:
@@ -26,6 +29,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
       - uses: ioBroker/testing-action-check@v1
         with:
           node-version: '22.x'
@@ -44,12 +52,18 @@ jobs:
         os: [ubuntu-latest, windows-latest]
 
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
       - uses: ioBroker/testing-action-adapter@v1
         with:
           node-version: ${{ matrix.node-version }}
           os: ${{ matrix.os }}
           # Uncomment the following line if your adapter cannot be installed using 'npm ci'
           # install-command: 'npm install'
+          package-cache: 'npm'
 
   # Deploys the final package to NPM
   deploy:
