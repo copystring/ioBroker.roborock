@@ -478,16 +478,19 @@ export class B01VacuumFeatures extends V1VacuumFeatures {
 		}
 	}
 
-	public override async detectAndApplyRuntimeFeatures(_statusData: Readonly<Record<string, any>>): Promise<boolean> {
-		return false; // B01 features are statically defined
+	public override async detectAndApplyRuntimeFeatures(statusData: Readonly<Record<string, any>>): Promise<boolean> {
+		// B01 features are statically defined, parameter unused but required by signature
+		void statusData;
+		return false;
 	}
 
 	protected override getDynamicFeatures(): Set<Feature> {
 		return new Set<Feature>(); // B01 does not use bitfield feature flags
 	}
 
-	public override async processDockType(_dockType: number): Promise<void> {
-		// B01 dock features are handled via static command definitions
+	public override async processDockType(dockType: number): Promise<void> {
+		// B01 dock features are handled via static command definitions, parameter unused but required by signature
+		void dockType;
 	}
 
 }
