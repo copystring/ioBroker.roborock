@@ -1,12 +1,12 @@
-
+﻿
 import { expect } from "chai";
 import { MockAdapter } from "./MockAdapter";
 import { MockRobot } from "./MockRobot";
-import { BaseVacuumFeatures } from "../features/vacuum/baseVacuumFeatures";
+import { V1VacuumFeatures } from "../features/vacuum/v1VacuumFeatures";
 import { Feature } from "../features/features.enum";
 
-// We need a concrete implementation of abstract BaseVacuumFeatures to test it
-class TestVacuumFeatures extends BaseVacuumFeatures {
+// We need a concrete implementation of abstract V1VacuumFeatures to test it
+class TestVacuumFeatures extends V1VacuumFeatures {
 	public getDescriptor(): any { return {}; }
 	public getDynamicFeatures(): Set<Feature> { return new Set(); }
 	public async detectAndApplyRuntimeFeatures(): Promise<boolean> { return false; }
@@ -147,3 +147,4 @@ describe("Features - State Creation", () => {
 		expect(btnObj.common.write).to.equal(true);
 	});
 });
+

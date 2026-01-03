@@ -65,13 +65,14 @@ export interface ProductInfo {
     picurl: string;
     productTags: ProductTag[];
 }
+export interface CategoryDetail {
+    category: ProductCategory;
+    productList: ProductInfo[];
+}
 export interface ProductV5Response {
     code: number;
     msg: string;
     data: {
-        categoryDetailList: {
-            category: ProductCategory;
-        }[];
-        productList: ProductInfo[];
+        categoryDetailList: CategoryDetail[];
     };
 }

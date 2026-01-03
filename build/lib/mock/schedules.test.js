@@ -3,8 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const chai_1 = require("chai");
 const MockAdapter_1 = require("./MockAdapter");
 const MockRobot_1 = require("./MockRobot");
-const baseVacuumFeatures_1 = require("../features/vacuum/baseVacuumFeatures");
-class TestVacuum extends baseVacuumFeatures_1.BaseVacuumFeatures {
+const v1VacuumFeatures_1 = require("../features/vacuum/v1VacuumFeatures");
+class TestVacuum extends v1VacuumFeatures_1.V1VacuumFeatures {
     getDynamicFeatures() {
         return new Set();
     }
@@ -48,7 +48,7 @@ describe("Schedule (Timer) Verification", () => {
         await vacuumFeatures.initialize();
     });
     it("should process timers and create schedule states", async () => {
-        // BaseVacuumFeatures currently doesn't implement 'updateTimers' or 'setupTimers' in a generic way
+        // V1VacuumFeatures currently doesn't implement 'updateTimers' or 'setupTimers' in a generic way
         // that's easily exposed unless `Feature.SimpleTimer` or similar is detected/used?
         // Wait, looking at baseVacuumFeatures (or user log): `get_timer` is a command.
         // Is there robust timer handling in the current baseVacuumFeatures?

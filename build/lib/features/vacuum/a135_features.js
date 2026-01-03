@@ -10,7 +10,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.A135Features = void 0;
-const baseVacuumFeatures_1 = require("./baseVacuumFeatures");
+const v1VacuumFeatures_1 = require("./v1VacuumFeatures");
 const baseDeviceFeatures_1 = require("../baseDeviceFeatures");
 const features_enum_1 = require("../features.enum");
 const PROFILE_A135 = {
@@ -20,9 +20,9 @@ const PROFILE_A135 = {
         hasSmartPlan: true
     },
     mappings: {
-        fan_power: { ...baseVacuumFeatures_1.BASE_FAN, 108: "Max+" },
-        water_box_mode: baseVacuumFeatures_1.BASE_WATER,
-        mop_mode: baseVacuumFeatures_1.BASE_MOP
+        fan_power: { ...v1VacuumFeatures_1.BASE_FAN, 108: "Max+" },
+        water_box_mode: v1VacuumFeatures_1.BASE_WATER,
+        mop_mode: v1VacuumFeatures_1.BASE_MOP
     },
     cleanMotorModePresets: {
         '{"fan_power":102,"mop_mode":300,"water_box_mode":200}': "Vacuum",
@@ -62,7 +62,7 @@ const a135Config = {
         features_enum_1.Feature.CleanRepeat
     ]
 };
-let A135Features = class A135Features extends baseVacuumFeatures_1.BaseVacuumFeatures {
+let A135Features = class A135Features extends v1VacuumFeatures_1.V1VacuumFeatures {
     constructor(dependencies, duid) {
         super(dependencies, duid, "roborock.vacuum.a135", a135Config, PROFILE_A135);
     }

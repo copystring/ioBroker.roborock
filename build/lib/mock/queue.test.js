@@ -23,7 +23,7 @@ describe("Queue Deep Dive (requestsHandler)", () => {
         // Mock message parser to avoid overhead
         handler.messageParser.buildPayload = async () => "payload";
         handler.messageParser.buildRoborockMessage = async () => Buffer.from("msg");
-        const manager = handler.getManager(duid);
+        const manager = handler["globalManager"];
         // We hijack manager.add to count executions
         const originalAdd = manager.add.bind(manager);
         manager.add = (id, _task, priority) => {
@@ -46,14 +46,13 @@ describe("Queue Deep Dive (requestsHandler)", () => {
         (0, chai_1.expect)(manager.queue.pending).to.be.above(0); // Should have items waiting
     });
     it("should prioritize high-priority requests", async () => {
-        const duid = "duid_prio";
         // Force concurrency 1 to strictly test priority/serialization
         // Need to import RequestManager class or mock it?
         // RequestManager is not exported from requestsHandler.ts?
         // It is NOT exported.
         // So we cannot instantiate it easily.
         // We can however modify the existing one.
-        const manager = handler.getManager(duid);
+        const manager = handler["globalManager"];
         manager.queue.concurrency = 1;
         const executionOrder = [];
         // Mock message parser to avoid overhead
@@ -75,18 +74,18 @@ describe("Queue Deep Dive (requestsHandler)", () => {
         // sendRequest generates an ID, so we can't easily control the name unless we mock sendRequest or params?
         // Let's use manager.add directly for this test as we want to test PQueue behavior wrapper in Manager
         // Blocker
-        handler.getManager(duid).add("req_blocker", async () => {
+        handler["globalManager"].add("req_blocker", async () => {
             await new Promise(res => setTimeout(res, 50));
             executionOrder.push("blocker");
             return "ok";
         }, 0);
         // Low Priority
-        handler.getManager(duid).add("req_low", async () => {
+        handler["globalManager"].add("req_low", async () => {
             executionOrder.push("low");
             return "ok";
         }, 0);
         // High Priority
-        handler.getManager(duid).add("req_high", async () => {
+        handler["globalManager"].add("req_high", async () => {
             executionOrder.push("high");
             return "ok";
         }, 10);

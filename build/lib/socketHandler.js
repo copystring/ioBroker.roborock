@@ -25,7 +25,7 @@ class socketHandler {
      */
     async handleMessage(obj) {
         if (!obj || !obj.command) {
-            this.adapter.log.warn("[SocketHandler] Received invalid message object.");
+            this.adapter.rLog("System", null, "Warn", undefined, undefined, "Received invalid message object.", "warn");
             return;
         }
         // --- Special Handlers ---
@@ -36,7 +36,7 @@ class socketHandler {
         // --- Standard Handlers ---
         const handler = this.commandHandlers.get(obj.command);
         if (!handler) {
-            this.adapter.log.warn(`[SocketHandler] Unknown command received: ${obj.command}`);
+            this.adapter.rLog("System", null, "Warn", undefined, undefined, `Unknown command received: ${obj.command}`, "warn");
             if (obj.callback) {
                 this.adapter.sendTo(obj.from, obj.command, { error: "Unknown command" }, obj.callback);
             }
@@ -51,7 +51,7 @@ class socketHandler {
             }
         }
         catch (error) {
-            this.adapter.log.error(`[SocketHandler] Error handling command '${obj.command}': ${error.message}`);
+            this.adapter.rLog("System", null, "Error", undefined, undefined, `Error handling command '${obj.command}': ${error.message}`, "error");
             if (obj.callback) {
                 this.adapter.sendTo(obj.from, obj.command, { error: error.message || "Failed" }, obj.callback);
             }
@@ -63,7 +63,7 @@ class socketHandler {
     async handleGetObstacleImage(msg) {
         const { duid, obstacleId } = msg.message;
         if (!duid || !obstacleId) {
-            this.adapter.log.warn(`[SocketHandler] 'get_obstacle_image' missing duid or obstacleId.`);
+            this.adapter.rLog("MapManager", duid, "Warn", undefined, undefined, "'get_obstacle_image' missing duid or obstacleId.", "warn");
             if (msg.callback) {
                 this.adapter.sendTo(msg.from, msg.command, { error: "Missing duid or obstacleId" }, msg.callback);
             }
@@ -71,7 +71,7 @@ class socketHandler {
         }
         // Use type 0 (full) or 1 (preview)
         const imageType = msg.message.type === 0 ? 0 : 1;
-        this.adapter.log.info(`[SocketHandler] Requesting obstacle image type: ${imageType}`);
+        this.adapter.rLog("MapManager", duid, "Info", undefined, undefined, `Requesting obstacle image type: ${imageType}`, "info");
         try {
             if (!this.adapter.requestsHandler) {
                 throw new Error("RequestHandler is not available");
@@ -86,7 +86,7 @@ class socketHandler {
             }
         }
         catch (error) {
-            this.adapter.log.error(`[SocketHandler] Failed to get obstacle image ${obstacleId}: ${error.message}`);
+            this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, `Failed to get obstacle image ${obstacleId}: ${error.message}`, "error");
             this.adapter.catchError(error, "handleGetObstacleImage", duid);
             if (msg.callback) {
                 this.adapter.sendTo(msg.from, msg.command, { error: error.message || "Failed" }, msg.callback);
@@ -97,7 +97,7 @@ class socketHandler {
      * Fetches robot list.
      */
     async handleGetDeviceList() {
-        this.adapter.log.debug("[SocketHandler] Executing handleGetDeviceList...");
+        this.adapter.rLog("System", null, "Debug", undefined, undefined, "Executing handleGetDeviceList...", "debug");
         let devices;
         try {
             const adapterObjects = await this.adapter.getAdapterObjectsAsync();
@@ -105,11 +105,11 @@ class socketHandler {
             devices = Object.values(adapterObjects).filter((obj) => obj && typeof obj === "object" && obj.type === "device" && obj._id.startsWith(this.adapter.namespace + ".Devices."));
         }
         catch (e) {
-            this.adapter.log.error(`[SocketHandler] Error getting adapter objects: ${e.message}`);
+            this.adapter.rLog("System", null, "Error", undefined, undefined, `Error getting adapter objects: ${e.message}`, "error");
             return []; // Return empty list on error
         }
         if (devices.length === 0) {
-            this.adapter.log.warn("[SocketHandler] No device objects found under 'Devices' folder.");
+            this.adapter.rLog("System", null, "Warn", undefined, undefined, "No device objects found under 'Devices' folder.", "warn");
             return [];
         }
         const robotList = devices
@@ -119,13 +119,13 @@ class socketHandler {
             const duid = idParts.pop();
             const name = dev.common.name ? String(dev.common.name) : "Unknown Robot";
             if (!duid) {
-                this.adapter.log.warn(`[SocketHandler] Could not parse DUID from _id: ${dev._id}`);
+                this.adapter.rLog("System", null, "Warn", undefined, undefined, `Could not parse DUID from _id: ${dev._id}`, "warn");
                 return null;
             }
             return { duid, name };
         })
             .filter((robot) => robot !== null); // Filter out any nulls
-        this.adapter.log.debug(`[SocketHandler] Returning robot list: ${JSON.stringify(robotList)}`);
+        this.adapter.rLog("System", null, "Debug", undefined, undefined, `Returning robot list: ${JSON.stringify(robotList)}`, "debug");
         return robotList;
     }
     /**
@@ -134,7 +134,7 @@ class socketHandler {
     async handleSimpleCommand(duid, command) {
         if (!duid)
             throw new Error(`Invalid message: '${command}' requires a 'duid'.`);
-        this.adapter.log.info(`[SocketHandler] Received '${command}' for DUID: ${duid}`);
+        this.adapter.rLog("System", duid, "Info", undefined, undefined, `Received '${command}'`, "info");
         const handler = this.adapter.deviceFeatureHandlers.get(duid);
         if (!handler)
             throw new Error(`No handler for DUID ${duid}`);
@@ -149,7 +149,7 @@ class socketHandler {
         if (!duid || !points || !Array.isArray(points) || points.length !== 2) {
             throw new Error("Invalid 'app_goto_target' message: requires 'duid' and 'points' array [x, y]");
         }
-        this.adapter.log.info(`[SocketHandler] Received 'app_goto_target' for DUID: ${duid} with points: ${JSON.stringify(points)}`);
+        this.adapter.rLog("System", duid, "Info", undefined, undefined, `Received 'app_goto_target' with points: ${JSON.stringify(points)}`, "info");
         const handler = this.adapter.deviceFeatureHandlers.get(duid);
         if (!handler)
             throw new Error(`No handler for DUID ${duid}`);
@@ -164,7 +164,7 @@ class socketHandler {
         if (!duid || !zones || !Array.isArray(zones)) {
             throw new Error("Invalid 'app_zoned_clean' message: requires 'duid' and 'zones' array");
         }
-        this.adapter.log.info(`[SocketHandler] Received 'app_zoned_clean' for DUID: ${duid} with zones: ${JSON.stringify(zones)}`);
+        this.adapter.rLog("System", duid, "Info", undefined, undefined, `Received 'app_zoned_clean' with zones: ${JSON.stringify(zones)}`, "info");
         const handler = this.adapter.deviceFeatureHandlers.get(duid);
         if (!handler)
             throw new Error(`No handler for DUID ${duid}`);

@@ -34,13 +34,33 @@ export declare class mqtt_api {
      */
     subscribe_mqtt_message(client: any): Promise<void>;
     /**
+     * Helper to decrypt B01 payload if needed using device keys
+     */
+    private decryptB01Payload;
+    /**
+     * Helper to process the inner JSON of a B01 response.
+     */
+    private handleB01Response;
+    /**
      * Processes a single decoded Roborock message frame.
      */
-    handleDecodedMessage(duid: string, data: any, endpoint: string): Promise<void>;
+    handleDecodedMessage(duid: string, data: any, endpoint: string, topicEndpoint?: string): Promise<void>;
     /**
      * Handles binary data messages (Protocol 300/301) for Photos or Maps.
      */
-    handlePhotoOrMapData(data: any, endpoint: string): void;
+    handlePhotoOrMapData(duid: string, data: any, endpoint: string, topicEndpoint?: string): Promise<void>;
+    /**
+     * Handles V1 Map Data (Standard Encryption with 24-byte header)
+     */
+    private handleV1Map;
+    /**
+     * Handles B01 Map Data (JSON Wrapped or Raw Encrypted with MapKey)
+     */
+    private handleB01Map;
+    /**
+     * Fallback logic if PV is unknown (Original mixed sniffing logic)
+     */
+    private fallbackMapHandling;
     /**
      * Ensures that a valid endpoint string exists for this adapter instance.
      * Generates one if missing.

@@ -44,13 +44,14 @@ const crypto_1 = require("crypto");
 const child_process_1 = require("child_process");
 const go2rtc_static_1 = __importDefault(require("go2rtc-static"));
 // --- API & Helper Imports ---
-const roborock_package_helper_1 = require("./lib/roborock_package_helper");
+const AppPluginManager_1 = require("./lib/AppPluginManager");
 const requestsHandler_1 = require("./lib/requestsHandler");
 const httpApi_1 = require("./lib/httpApi");
 const localApi_1 = require("./lib/localApi");
 const mqttApi_1 = require("./lib/mqttApi");
 const socketHandler_1 = require("./lib/socketHandler");
 const deviceManager_1 = require("./lib/deviceManager");
+const MapManager_1 = require("./lib/map/MapManager"); // Add import
 const features_enum_1 = require("./lib/features/features.enum");
 const buildInfo_1 = require("./lib/buildInfo");
 class Roborock extends utils.Adapter {
@@ -61,11 +62,12 @@ class Roborock extends utils.Adapter {
     requestsHandler;
     socketHandler;
     deviceManager;
+    mapManager; // Add property
     // --- Internal Properties ---
     deviceFeatureHandlers;
     nonce;
     pendingRequests;
-    roborock_package_helper;
+    appPluginManager;
     isInitializing;
     sentryInstance;
     translations = {};
@@ -81,15 +83,23 @@ class Roborock extends utils.Adapter {
         this.local_api = new localApi_1.local_api(this);
         this.mqtt_api = new mqttApi_1.mqtt_api(this);
         this.requestsHandler = new requestsHandler_1.requestsHandler(this);
+        this.mapManager = new MapManager_1.MapManager(this); // Initialize
         this.deviceManager = new deviceManager_1.DeviceManager(this);
         this.socketHandler = new socketHandler_1.socketHandler(this);
         this.deviceFeatureHandlers = this.deviceManager.deviceFeatureHandlers; // Reference DM's map
-        this.roborock_package_helper = new roborock_package_helper_1.roborock_package_helper(this);
+        this.appPluginManager = new AppPluginManager_1.AppPluginManager(this);
         this.isInitializing = true;
         this.on("ready", this.onReady.bind(this));
         this.on("stateChange", this.onStateChange.bind(this));
         this.on("message", this.onMessage.bind(this));
         this.on("unload", this.onUnload.bind(this));
+        // Global Error Handlers
+        process.on("uncaughtException", (err) => {
+            this.rLog("System", null, "Error", undefined, undefined, `Uncaught Exception: ${err.message}\n${err.stack}`, "error");
+        });
+        process.on("unhandledRejection", (reason) => {
+            this.rLog("System", null, "Error", undefined, undefined, `Unhandled Rejection: ${reason}`, "error");
+        });
     }
     /**
      * Adapter ready logic.
@@ -97,27 +107,33 @@ class Roborock extends utils.Adapter {
     async onReady() {
         // Config properties are now type-safe thanks to types.d.ts
         if (!this.config.username) {
-            this.log.error("Username missing!");
+            this.rLog("System", null, "Error", undefined, undefined, "Username missing!", "error");
             return;
         }
         this.sentryInstance = this.getPluginInstance("sentry");
         this.translations = require(`../admin/i18n/${this.language || "en"}/translations.json`);
-        this.log.info(`Starting adapter. This might take a few minutes...`);
-        this.log.info(`Build Info: Date=${buildInfo_1.buildInfo.buildDate}, Commit=${buildInfo_1.buildInfo.commitHash}`);
+        this.rLog("System", null, "Info", undefined, undefined, "Starting adapter. This might take a few minutes...", "info");
+        this.rLog("System", null, "Info", undefined, undefined, `Build Info: Date=${buildInfo_1.buildInfo.buildDate}, Commit=${buildInfo_1.buildInfo.commitHash}`, "info");
+        // Log redacted config
+        const configSummary = {
+            ...this.config,
+            password: this.config.password ? "******" : "NOT_SET",
+            cameraPin: this.config.cameraPin ? "******" : undefined,
+        };
+        this.rLog("System", null, "Info", undefined, undefined, `Config: ${JSON.stringify(configSummary)}`, "info");
         await this.setupBasicObjects();
         try {
             const clientID = await this.ensureClientID();
             await this.http_api.init(clientID);
             await this.mqtt_api.init();
             await this.http_api.updateHomeData();
-            if (this.config.downloadRoborockImages) {
-                this.log.info("Downloading Roborock images...");
-                await this.http_api.downloadProductImages();
-                // Download additional assets (icons, etc)
-                const devices = this.http_api.getDevices();
-                for (const device of devices) {
-                    await this.roborock_package_helper.updateProduct(device.duid);
-                }
+            // Download Roborock images (Assets)
+            this.rLog("System", null, "Info", undefined, undefined, "Ensuring product images are available...", "info");
+            await this.http_api.downloadProductImages();
+            // Always check for App Plugin (assets) updates
+            const devices = this.http_api.getDevices();
+            for (const device of devices) {
+                await this.appPluginManager.updateProduct(device.duid);
             }
             await this.local_api.startUdpDiscovery();
             await this.deviceManager.initializeDevices();
@@ -129,16 +145,16 @@ class Roborock extends utils.Adapter {
             this.subscribeStatesAsync("Devices.*.programs.startProgram");
             this.subscribeStatesAsync("Devices.*.deviceInfo.online");
             this.subscribeStatesAsync("Devices.*.floors.*.load");
-            this.log.info(`Adapter startup finished. Let's go!`);
+            this.rLog("System", null, "Info", undefined, undefined, "Adapter startup finished. Let's go!", "info");
             this.isInitializing = false;
             // Schedule MQTT API reset every hour (legacy behavior to prevent stale connections)
             this.mqttReconnectInterval = this.setInterval(async () => {
-                this.log.debug("Running scheduled MQTT reconnect...");
+                this.rLog("System", null, "Debug", undefined, undefined, "Running scheduled MQTT reconnect...", "debug");
                 await this.resetMqttApi();
             }, 3600 * 1000);
         }
         catch (e) {
-            this.log.error(`Failed to initialize adapter: ${e.message}`);
+            this.rLog("System", null, "Error", undefined, undefined, `Failed to initialize adapter: ${e.message}`, "error");
             this.catchError(e, "onReady");
         }
     }
@@ -148,12 +164,12 @@ class Roborock extends utils.Adapter {
     async onMessage(obj) {
         if (obj && obj.command && obj.callback) {
             try {
-                this.log.debug(`[SocketHandler] Received message: ${JSON.stringify(obj)}`);
+                this.rLog("Requests", null, "Debug", undefined, undefined, `Received message: ${JSON.stringify(obj)}`, "debug");
                 // Forward to the dedicated handler
                 await this.socketHandler.handleMessage(obj);
             }
             catch (err) {
-                this.log.error(`[SocketHandler] Failed to execute command ${obj.command}: ${err.message}`);
+                this.rLog("Requests", null, "Error", undefined, undefined, `Failed to execute command ${obj.command}: ${err.message}`, "error");
                 this.sendTo(obj.from, obj.command, { error: err.message }, obj.callback);
             }
         }
@@ -172,7 +188,7 @@ class Roborock extends utils.Adapter {
             callback();
         }
         catch (e) {
-            this.log.error(`Failed to unload adapter: ${e.stack}`);
+            this.rLog("System", null, "Error", undefined, undefined, `Failed to unload adapter: ${e.stack}`, "error");
             callback();
         }
     }
@@ -182,15 +198,15 @@ class Roborock extends utils.Adapter {
     async onStateChange(id, state) {
         if (!state)
             return;
+        // Split ID once
+        const idParts = id.split(".");
         if (state.ack) {
             // ... (keep usage of id, state if needed, or previous code)
             if (id.endsWith(".online")) {
-                this.log.info(`Device ${id.split(".")[3]} is now ${state.val ? "online" : "offline"}`);
+                this.rLog("System", idParts[3], "Info", undefined, undefined, `Device is now ${state.val ? "online" : "offline"}`, "info");
             }
             return;
         }
-        // Split ID once
-        const idParts = id.split(".");
         // Check for root loginCode (roborock.0.loginCode)
         if (idParts[2] === "loginCode" && state.val && String(state.val).length === 6) {
             this.http_api.submitLoginCode(String(state.val));
@@ -505,11 +521,16 @@ class Roborock extends utils.Adapter {
      */
     async getDeviceProtocolVersion(duid) {
         const tcpConnected = this.local_api.isConnected(duid);
+        let version = "1.0";
         if (tcpConnected && !this.requestsHandler.isCloudDevice(duid)) {
-            return this.local_api.getLocalProtocolVersion(duid) || "1.0";
+            version = this.local_api.getLocalProtocolVersion(duid) || "1.0";
         }
-        const device = this.http_api.getDevices().find((d) => d.duid == duid);
-        return device?.pv || "1.0";
+        else {
+            const device = this.http_api.getDevices().find((d) => d.duid == duid);
+            version = device?.pv || "1.0";
+        }
+        return version;
+        return version;
     }
     /**
      * Starts the go2rtc process if cameras are present.
@@ -556,7 +577,7 @@ class Roborock extends utils.Adapter {
             this.log.warn(`[A01|${duid}] Invalid response: ${JSON.stringify(response)}`);
             return;
         }
-        this.log.debug(`[A01] Update for ${duid}: ${JSON.stringify(response.dps)}`);
+        // this.log.debug(`[A01] Update for ${duid}: ${JSON.stringify(response.dps)}`);
         const determineType = (value) => {
             const t = typeof value;
             if (t === "number")
@@ -634,6 +655,30 @@ class Roborock extends utils.Adapter {
             if (this.sentryInstance) {
                 this.sentryInstance.getSentryObject().captureException(error);
             }
+        }
+    }
+    /**
+     * Centralized Logging Function for Protocol Messages
+     * Format: [Connection] [duid] direction (PV: version) (Protocol: protocol) payload
+     */
+    rLog(connection, duid, direction, version, protocol, message, level = "debug") {
+        const duidStr = duid ? `[${duid}] ` : "";
+        const versionStr = version ? ` (PV: ${version})` : "";
+        const protoStr = protocol ? ` (P: ${protocol})` : "";
+        const logMsg = `[${connection}] ${duidStr}${direction}${versionStr}${protoStr} ${message}`;
+        switch (level) {
+            case "debug":
+                this.log.debug(logMsg);
+                break;
+            case "info":
+                this.log.info(logMsg);
+                break;
+            case "warn":
+                this.log.warn(logMsg);
+                break;
+            case "error":
+                this.log.error(logMsg);
+                break;
         }
     }
 }

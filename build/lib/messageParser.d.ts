@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Roborock } from "../main";
-export type ProtocolVersion = "1.0" | "A01" | "L01" | "B01";
+export type ProtocolVersion = "1.0" | "A01" | "L01" | "B01" | "\x81S\x19";
 declare const FrameSchema: z.ZodObject<{
     version: z.ZodString;
     seq: z.ZodNumber;
@@ -28,6 +28,6 @@ export declare class messageParser {
     /**
      * Builds complete Roborock binary frame.
      */
-    buildRoborockMessage(duid: string, protocol: number, timestamp: number, payload: string | Buffer, version: string): Promise<Buffer | false>;
+    buildRoborockMessage(duid: string, protocol: number, timestamp: number, payload: string | Buffer, version: string, sequenceId?: number): Promise<Buffer | false>;
 }
 export {};

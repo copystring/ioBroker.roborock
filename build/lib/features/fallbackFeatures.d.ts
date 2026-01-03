@@ -1,5 +1,5 @@
 import { BaseDeviceFeatures, FeatureDependencies } from "./baseDeviceFeatures";
-import { BaseVacuumFeatures } from "./vacuum/baseVacuumFeatures";
+import { V1VacuumFeatures } from "./vacuum/v1VacuumFeatures";
 import { Feature } from "./features.enum";
 export declare class FallbackBaseFeatures extends BaseDeviceFeatures {
     constructor(deps: FeatureDependencies, duid: string, robotModel: string);
@@ -23,7 +23,7 @@ export declare class FallbackBaseFeatures extends BaseDeviceFeatures {
     } | undefined;
     getFirmwareFeatureName(featureID: string | number): string;
 }
-import { VacuumProfile } from "./vacuum/baseVacuumFeatures";
-export declare class FallbackVacuumFeatures extends BaseVacuumFeatures {
+import { VacuumProfile } from "./vacuum/v1VacuumFeatures";
+export declare class FallbackVacuumFeatures extends V1VacuumFeatures {
     constructor(deps: FeatureDependencies, duid: string, robotModel: string, profile?: VacuumProfile);
 }

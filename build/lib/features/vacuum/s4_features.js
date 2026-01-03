@@ -10,7 +10,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.S4Features = void 0;
-const baseVacuumFeatures_1 = require("./baseVacuumFeatures");
+const v1VacuumFeatures_1 = require("./v1VacuumFeatures");
 const baseDeviceFeatures_1 = require("../baseDeviceFeatures");
 const PROFILE_S4 = {
     name: "Roborock S4",
@@ -18,9 +18,9 @@ const PROFILE_S4 = {
         maxSuctionValue: 104
     },
     mappings: {
-        fan_power: baseVacuumFeatures_1.BASE_FAN,
-        water_box_mode: baseVacuumFeatures_1.BASE_WATER,
-        mop_mode: baseVacuumFeatures_1.BASE_MOP
+        fan_power: v1VacuumFeatures_1.BASE_FAN,
+        water_box_mode: v1VacuumFeatures_1.BASE_WATER,
+        mop_mode: v1VacuumFeatures_1.BASE_MOP
     }
 };
 const s4Config = {
@@ -28,7 +28,7 @@ const s4Config = {
     // No specific static features listed in old definition
     ]
 };
-let S4Features = class S4Features extends baseVacuumFeatures_1.BaseVacuumFeatures {
+let S4Features = class S4Features extends v1VacuumFeatures_1.V1VacuumFeatures {
     constructor(dependencies, duid) {
         super(dependencies, duid, "roborock.vacuum.s4", s4Config, PROFILE_S4);
     }

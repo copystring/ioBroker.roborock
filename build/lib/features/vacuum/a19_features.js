@@ -10,7 +10,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.A19Features = void 0;
-const baseVacuumFeatures_1 = require("./baseVacuumFeatures");
+const v1VacuumFeatures_1 = require("./v1VacuumFeatures");
 const baseDeviceFeatures_1 = require("../baseDeviceFeatures");
 const features_enum_1 = require("../features.enum");
 const PROFILE_A19 = {
@@ -19,9 +19,9 @@ const PROFILE_A19 = {
         maxSuctionValue: 104
     },
     mappings: {
-        fan_power: baseVacuumFeatures_1.BASE_FAN,
-        water_box_mode: baseVacuumFeatures_1.BASE_WATER,
-        mop_mode: baseVacuumFeatures_1.BASE_MOP
+        fan_power: v1VacuumFeatures_1.BASE_FAN,
+        water_box_mode: v1VacuumFeatures_1.BASE_WATER,
+        mop_mode: v1VacuumFeatures_1.BASE_MOP
     }
 };
 const a19Config = {
@@ -29,7 +29,7 @@ const a19Config = {
         features_enum_1.Feature.ShakeMopStrength
     ]
 };
-let A19Features = class A19Features extends baseVacuumFeatures_1.BaseVacuumFeatures {
+let A19Features = class A19Features extends v1VacuumFeatures_1.V1VacuumFeatures {
     constructor(dependencies, duid) {
         super(dependencies, duid, "roborock.vacuum.a19", a19Config, PROFILE_A19);
     }

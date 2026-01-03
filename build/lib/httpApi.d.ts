@@ -25,6 +25,7 @@ export interface Device {
     online: boolean;
     deviceStatus: any;
     pv: string;
+    sn?: string;
 }
 interface Product {
     id: string;
@@ -75,6 +76,7 @@ export declare class http_api {
     loginWithCode(code: string, k: string, s: string): Promise<LoginV4Response>;
     loginByPassword(password: string, k: string, s: string): Promise<LoginV4Response>;
     getProductInfoV5(): Promise<ProductV5Response | null>;
+    ensureProductInfo(): Promise<void>;
     downloadProductImages(): Promise<void>;
     /**
      * Retrieves the Home ID from the API.
@@ -88,6 +90,11 @@ export declare class http_api {
      * Returns the RRIOT authentication data.
      */
     get_rriot(): RriotData;
+    /**
+     * Resolves the numeric Product ID for a given model.
+     * Tries V3 HomeData first, then V5 ProductInfo.
+     */
+    getProductIdByModel(modelName: string): number | null;
     /**
      * Retrieves scenes for the current home.
      */

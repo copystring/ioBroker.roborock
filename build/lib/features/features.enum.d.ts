@@ -15,6 +15,12 @@ export declare enum Feature {
     DockingStationStatus = "DockingStationStatus",// Creates docking station status states
     NetworkInfo = "NetworkInfo",
     UpdateStatus = "UpdateStatus",
+    Timers = "Timers",
+    FirmwareInfo = "FirmwareInfo",
+    MultiMap = "MultiMap",
+    RoomMapping = "RoomMapping",
+    Map = "Map",
+    CleanSummary = "CleanSummary",
     Camera = "Camera",// Model has a camera (static)
     MopForbidden = "MopForbidden",// Model supports mop forbidden zones (static)
     AvoidCarpet = "AvoidCarpet",// Model supports avoid carpet mode (static)

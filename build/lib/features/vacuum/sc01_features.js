@@ -10,36 +10,29 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SC01Features = void 0;
-const baseVacuumFeatures_1 = require("./baseVacuumFeatures");
+const v1VacuumFeatures_1 = require("./v1VacuumFeatures");
+const b01VacuumFeatures_1 = require("./b01VacuumFeatures");
 const baseDeviceFeatures_1 = require("../baseDeviceFeatures");
-const features_enum_1 = require("../features.enum");
 const PROFILE_SC01 = {
-    name: "Roborock Q7 (sc01)",
+    name: "Roborock Q7 L5 (sc01)",
     features: {
         maxSuctionValue: 108
     },
     mappings: {
-        fan_power: { ...baseVacuumFeatures_1.BASE_FAN, 108: "Max+" },
-        water_box_mode: baseVacuumFeatures_1.BASE_WATER,
-        mop_mode: baseVacuumFeatures_1.BASE_MOP
+        fan_power: { ...v1VacuumFeatures_1.BASE_FAN, 108: "Max+" },
+        water_box_mode: v1VacuumFeatures_1.BASE_WATER,
+        mop_mode: v1VacuumFeatures_1.BASE_MOP
     }
 };
 const sc01Config = {
-    staticFeatures: [
-        features_enum_1.Feature.MopForbidden,
-        features_enum_1.Feature.WaterBox,
-        features_enum_1.Feature.AvoidCarpet,
-        features_enum_1.Feature.FanMaxPlus,
-        features_enum_1.Feature.MapFlag,
-        features_enum_1.Feature.ChargeStatus,
-        features_enum_1.Feature.UpdateStatus,
-        features_enum_1.Feature.RobotStatus,
-        features_enum_1.Feature.NetworkInfo
-    ]
+    // B01 devices should strict to B01 protocol capabilities only.
+    // We clear these to prevent standard Vacuum logic from adding incompatible commands.
+    staticFeatures: []
 };
-let SC01Features = class SC01Features extends baseVacuumFeatures_1.BaseVacuumFeatures {
+let SC01Features = class SC01Features extends b01VacuumFeatures_1.B01VacuumFeatures {
     constructor(dependencies, duid) {
         super(dependencies, duid, "roborock.vacuum.sc01", sc01Config, PROFILE_SC01);
+        dependencies.adapter.rLog("System", duid, "Info", "SC01", undefined, `Constructing SC01Features`, "info");
     }
 };
 exports.SC01Features = SC01Features;

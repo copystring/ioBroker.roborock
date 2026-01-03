@@ -3,9 +3,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const chai_1 = require("chai");
 const MockAdapter_1 = require("./MockAdapter");
 const MockRobot_1 = require("./MockRobot");
-const baseVacuumFeatures_1 = require("../features/vacuum/baseVacuumFeatures");
+const v1VacuumFeatures_1 = require("../features/vacuum/v1VacuumFeatures");
 // Concrete implementation for testing
-class TestVacuum extends baseVacuumFeatures_1.BaseVacuumFeatures {
+class TestVacuum extends v1VacuumFeatures_1.V1VacuumFeatures {
     getDynamicFeatures() {
         return new Set();
     }
@@ -59,7 +59,7 @@ describe("Command Verification", () => {
         // Simulate state change trigger
         // In real adapter, stateChange listener calls processStateChange.
         // Here we call the command handler directly via feature, or simulate the flow if possible.
-        // BaseVacuumFeatures doesn't have a direct 'onStateChange'.
+        // V1VacuumFeatures doesn't have a direct 'onStateChange'.
         // However, it registers triggers. For testing, we can manually look up the command definition
         // and invoke the internal logic, OR better: verify the command configuration exists and test the payload generation.
         // Actually, integration tests usually invoke the method that handles the command.

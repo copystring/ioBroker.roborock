@@ -21,6 +21,12 @@ export enum Feature {
 
     NetworkInfo = "NetworkInfo",
     UpdateStatus = "UpdateStatus",
+    Timers = "Timers",
+    FirmwareInfo = "FirmwareInfo",
+    MultiMap = "MultiMap",
+    RoomMapping = "RoomMapping",
+    Map = "Map",
+    CleanSummary = "CleanSummary",
 
 	// --- Static Flags (Defined by Model Class Config) ---
 	Camera = "Camera", // Model has a camera (static)

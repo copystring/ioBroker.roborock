@@ -1,11 +1,11 @@
-
+﻿
 import { expect } from "chai";
 import { MockAdapter } from "./MockAdapter";
 import { MockRobot } from "./MockRobot";
-import { BaseVacuumFeatures } from "../features/vacuum/baseVacuumFeatures";
+import { V1VacuumFeatures } from "../features/vacuum/v1VacuumFeatures";
 import { Feature } from "../features/features.enum";
 
-class TestVacuum extends BaseVacuumFeatures {
+class TestVacuum extends V1VacuumFeatures {
 	protected getDynamicFeatures(): Set<Feature> {
 		return new Set();
 	}
@@ -82,3 +82,4 @@ describe("State Machine Deep Dive", () => {
 		expect(mockAdapter.states[`Devices.${mockRobot.duid}.deviceStatus.error_code`]).to.equal(0);
 	});
 });
+

@@ -23,12 +23,4 @@ lib/go2rtc/go2rtc_win64.zip
 images/products/
 .commitinfo
 src/www/pathProcessor.ts
-
-
-# Build artifacts
-<<<<<<< HEAD
-*.tsbuildinfo
-
-=======
-*.tsbuildinfo
->>>>>>> 473d689e (chore: commit all files including build artifacts as requested)
+www/assets

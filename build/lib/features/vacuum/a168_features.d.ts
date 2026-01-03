@@ -1,5 +1,5 @@
-import { BaseVacuumFeatures } from "./baseVacuumFeatures";
+import { V1VacuumFeatures } from "./v1VacuumFeatures";
 import { FeatureDependencies } from "../baseDeviceFeatures";
-export declare class A168Features extends BaseVacuumFeatures {
+export declare class A168Features extends V1VacuumFeatures {
     constructor(dependencies: FeatureDependencies, duid: string);
 }

@@ -5,12 +5,14 @@ exports.DeviceManager = void 0;
 // Import BaseDeviceFeatures value
 const baseDeviceFeatures_1 = require("./features/baseDeviceFeatures");
 const fallbackFeatures_1 = require("./features/fallbackFeatures");
-const baseVacuumFeatures_1 = require("./features/vacuum/baseVacuumFeatures");
+const v1VacuumFeatures_1 = require("./features/vacuum/v1VacuumFeatures");
 const productHelper_1 = require("./productHelper");
 // Import indices to trigger decorators
 require("./features/vacuum/index");
-function createFeaturesForModel(adapter, duid, robotModel, productCategory) {
-    adapter.log.debug(`[DeviceManager] Looking for feature handler for model: ${robotModel} (Category: ${productCategory})`);
+// Import B01VacuumFeatures
+const b01VacuumFeatures_1 = require("./features/vacuum/b01VacuumFeatures");
+function createFeaturesForModel(adapter, duid, robotModel, productCategory, protocolVersion) {
+    adapter.rLog("System", duid, "Debug", undefined, undefined, `Looking for feature handler for model: ${robotModel} (Category: ${productCategory}, Protocol: ${protocolVersion})`, "debug");
     const dependencies = {
         adapter: adapter,
         config: adapter.config,
@@ -20,7 +22,7 @@ function createFeaturesForModel(adapter, duid, robotModel, productCategory) {
         log: adapter.log,
     };
     // dynamic profile creation
-    let dynamicProfile = baseVacuumFeatures_1.DEFAULT_PROFILE;
+    let dynamicProfile = v1VacuumFeatures_1.DEFAULT_PROFILE;
     const productInfo = adapter.http_api.productInfo;
     if (productInfo) {
         const fanMappings = productHelper_1.ProductHelper.getStateDefinitions(productInfo, robotModel, "fan_power");
@@ -29,28 +31,35 @@ function createFeaturesForModel(adapter, duid, robotModel, productCategory) {
         const errorMappings = productHelper_1.ProductHelper.getStateDefinitions(productInfo, robotModel, "error");
         const stateMappings = productHelper_1.ProductHelper.getStateDefinitions(productInfo, robotModel, "state");
         if (fanMappings || mopMappings || waterMappings || errorMappings || stateMappings) {
-            adapter.log.debug(`[DeviceManager] Applied dynamic state mappings for ${robotModel}`);
+            adapter.rLog("System", duid, "Debug", undefined, undefined, `Applied dynamic state mappings for ${robotModel}`, "debug");
             dynamicProfile = {
-                ...baseVacuumFeatures_1.DEFAULT_PROFILE,
+                ...v1VacuumFeatures_1.DEFAULT_PROFILE,
                 mappings: {
-                    fan_power: fanMappings || baseVacuumFeatures_1.DEFAULT_PROFILE.mappings.fan_power,
-                    mop_mode: mopMappings || baseVacuumFeatures_1.DEFAULT_PROFILE.mappings.mop_mode,
-                    water_box_mode: waterMappings || baseVacuumFeatures_1.DEFAULT_PROFILE.mappings.water_box_mode,
+                    fan_power: fanMappings || v1VacuumFeatures_1.DEFAULT_PROFILE.mappings.fan_power,
+                    mop_mode: mopMappings || v1VacuumFeatures_1.DEFAULT_PROFILE.mappings.mop_mode,
+                    water_box_mode: waterMappings || v1VacuumFeatures_1.DEFAULT_PROFILE.mappings.water_box_mode,
                     error_code: errorMappings || undefined,
                     state: stateMappings || undefined,
                 }
             };
         }
     }
+    // B01 Detection: Prioritize Protocol Version over Registered Model Class
+    // This ensures that B01 devices always get the B01 feature handler, even if they share a model ID with a V1 device.
+    if (protocolVersion === "B01") {
+        // Dynamic B01 Detection
+        adapter.rLog("System", duid, "Debug", undefined, undefined, `B01 Protocol Detected. Using B01VacuumFeatures.`, "debug");
+        return new b01VacuumFeatures_1.B01VacuumFeatures(dependencies, duid, robotModel, { staticFeatures: [] }, dynamicProfile);
+    }
     // Get registered model class
     const ModelClass = baseDeviceFeatures_1.BaseDeviceFeatures.getRegisteredModelClass(robotModel);
     if (ModelClass) {
-        adapter.log.debug(`[DeviceManager] Using specific feature handler for model: ${robotModel}`);
+        adapter.rLog("System", duid, "Debug", undefined, undefined, `Using specific feature handler for model: ${robotModel}`, "debug");
         // Specific model classes typically define their own profiles internally
         return new ModelClass(dependencies, duid);
     }
     else {
-        adapter.log.warn(`[DeviceManager] Model "${robotModel}" (Category: ${productCategory}) not registered. Using fallback.`);
+        adapter.rLog("System", duid, "Warn", undefined, undefined, `Model "${robotModel}" (Category: ${productCategory}) not registered. Using fallback.`, "warn");
         if (productCategory === "robot.vacuum.cleaner" || productCategory === "roborock.vacuum") {
             return new fallbackFeatures_1.FallbackVacuumFeatures(dependencies, duid, robotModel, dynamicProfile);
         }
@@ -59,6 +68,8 @@ function createFeaturesForModel(adapter, duid, robotModel, productCategory) {
         }
     }
 }
+// ... inside DeviceManager ...
+// const handler = createFeaturesForModel(this.adapter, duid, model, category, version);
 class DeviceManager {
     adapter;
     // Interval handle
@@ -72,7 +83,7 @@ class DeviceManager {
      */
     async initializeDevices() {
         const devices = this.adapter.http_api.getDevices();
-        this.adapter.log.info(`[DeviceManager] Initializing ${devices.length} devices...`);
+        this.adapter.rLog("System", null, "Info", undefined, undefined, `Initializing ${devices.length} devices...`, "info");
         const initPromises = [];
         const cleanSummaryHandlers = [];
         for (const device of devices) {
@@ -83,10 +94,11 @@ class DeviceManager {
                     const category = this.adapter.http_api.getProductCategory(duid);
                     // Ensure model exists
                     if (!model) {
-                        this.adapter.log.warn(`[DeviceManager] Could not find model for duid ${duid}. Skipping init.`);
+                        this.adapter.rLog("System", duid, "Warn", undefined, undefined, "Could not find model. Skipping init.", "warn");
                         return;
                     }
-                    const handler = createFeaturesForModel(this.adapter, duid, model, category);
+                    const version = await this.adapter.getDeviceProtocolVersion(duid);
+                    const handler = createFeaturesForModel(this.adapter, duid, model, category, version);
                     // Store handler
                     this.deviceFeatureHandlers.set(duid, handler);
                     await this.adapter.extendObjectAsync(`Devices.${duid}`, {
@@ -105,40 +117,15 @@ class DeviceManager {
                         },
                     });
                     // Apply static features
-                    await handler.applyModelSpecifics();
-                    if (!device.online) {
-                        this.adapter.log.debug(`[DeviceManager] Device ${duid} is offline. Initializing features without runtime data.`);
-                    }
-                    // --- Initialization sequence ---
-                    // 1. Check dock type from cloud data and apply features FIRST
-                    const cloudDockType = this.adapter.http_api.getDevices().find(d => d.duid === duid)?.deviceStatus?.dock_type;
-                    if (device.online && cloudDockType !== undefined) {
-                        await handler.processDockType(Number(cloudDockType));
-                    }
-                    // 2. Get initial status (now dockingStationStatus objects exist)
+                    await handler.initialize(device.online);
                     if (device.online) {
-                        await handler.updateStatus();
-                    }
-                    // 3. Get firmware features
-                    if (device.online) {
-                        await handler.updateFirmwareFeatures();
-                    }
-                    // 4. Create command objects
-                    await handler.createCommandObjects();
-                    // 6. Initial Map & Data
-                    if (device.online) {
-                        await this.updateDeviceData(handler, duid);
-                        await this.updateConsumablesPercent(duid);
-                        await handler.updateMap();
                         // Fire cleaning summary (background)
-                        // handler.updateCleanSummary();
-                        // Collect for later execution
                         cleanSummaryHandlers.push(handler);
                     }
                     handler.printSummary();
                 }
                 catch (error) {
-                    this.adapter.log.warn(`[DeviceManager] Failed initial poll for ${duid}: ${error.message}`);
+                    this.adapter.rLog("System", duid, "Warn", undefined, undefined, `Failed initial poll: ${error.message}`, "warn");
                 }
             };
             initPromises.push(initTask());
@@ -146,11 +133,11 @@ class DeviceManager {
         await Promise.all(initPromises);
         // Wait for startup requests
         await this.adapter.requestsHandler.waitForStartup();
-        this.adapter.log.info(`[DeviceManager] Processing ${cleanSummaryHandlers.length} clean summaries...`);
+        this.adapter.rLog("System", null, "Info", undefined, undefined, `Processing ${cleanSummaryHandlers.length} clean summaries...`, "info");
         for (const handler of cleanSummaryHandlers) {
-            handler.updateCleanSummary();
+            handler.updateCleanSummary().catch(e => this.adapter.log.warn(`Background summary update failed for ${handler.duid}: ${e.message}`));
         }
-        this.adapter.log.info("[DeviceManager] All devices initialized.");
+        this.adapter.rLog("System", null, "Info", undefined, undefined, "All devices initialized.", "info");
         // Cleanup orphaned devices
         await this.cleanupOrphanedDevices(devices.map((d) => d.duid));
     }
@@ -167,13 +154,13 @@ class DeviceManager {
             for (const folderId of deviceFolders) {
                 const duid = folderId.split(".").pop();
                 if (duid && !activeDuidSet.has(duid)) {
-                    this.adapter.log.info(`[DeviceManager] Deleting orphaned device folder: ${folderId}`);
+                    this.adapter.rLog("System", duid, "Info", undefined, undefined, `Deleting orphaned device folder: ${folderId}`, "info");
                     await this.adapter.delObjectAsync(folderId, { recursive: true });
                 }
             }
         }
         catch (error) {
-            this.adapter.log.error(`[DeviceManager] Failed to cleanup orphaned devices: ${error.message}`);
+            this.adapter.rLog("System", null, "Error", undefined, undefined, `Failed to cleanup orphaned devices: ${error.message}`, "error");
         }
     }
     // Track previous state
@@ -213,20 +200,20 @@ class DeviceManager {
      */
     startPolling() {
         const mainPollInterval = this.adapter.config.updateInterval; // e.g. 60s
-        this.adapter.log.info(`[DeviceManager] Starting main poll (every ${mainPollInterval}s). Heavy data updates only after activity finishes.`);
+        this.adapter.rLog("System", null, "Info", undefined, undefined, `Starting main poll (every ${mainPollInterval}s). Heavy data updates only after activity finishes.`, "info");
         let mainUpdateCount = mainPollInterval; // Slow loop counter
         this.mainUpdateInterval = this.adapter.setInterval(async () => {
             mainUpdateCount++;
             // --- Slow Loop ---
             if (mainUpdateCount >= mainPollInterval) {
                 mainUpdateCount = 0;
-                this.adapter.log.debug("[DeviceManager] Running scheduled main device update...");
+                this.adapter.rLog("System", null, "Debug", undefined, undefined, "Running scheduled main device update...", "debug");
                 await this.adapter.http_api.updateHomeData();
                 const cloudDevices = this.adapter.http_api.getDevices();
                 for (const device of cloudDevices) {
                     const duid = device.duid;
                     if (!device.online) {
-                        this.adapter.log.debug(`[DeviceManager] Device ${duid} is offline. Skipping poll.`);
+                        this.adapter.rLog("System", duid, "Debug", undefined, undefined, "Device is offline. Skipping poll.", "debug");
                         continue;
                     }
                     const handler = this.deviceFeatureHandlers.get(duid);
@@ -235,39 +222,20 @@ class DeviceManager {
                     try {
                         await this.adapter.updateDeviceInfo(duid, cloudDevices);
                         const version = await this.adapter.getDeviceProtocolVersion(duid);
-                        // 1. Update Status (fast)
-                        if (version === "A01") {
-                            await handler.updateStatus();
+                        // Switch on version for separate polling paths
+                        switch (version) {
+                            case "B01":
+                                await this.pollB01Device(handler, duid);
+                                break;
+                            case "A01":
+                                await this.pollA01Device(handler, duid);
+                                break;
+                            case "1.0":
+                                await this.pollV1Device(handler, duid);
+                                break;
+                            default:
+                                this.adapter.rLog("System", duid, "Warn", version, undefined, "Unknown protocol version. Skipping poll.", "warn");
                         }
-                        else {
-                            await handler.updateStatus();
-                            // Check Dock Type
-                            const dockTypeState = await this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.dock_type`);
-                            if (dockTypeState && dockTypeState.val !== null) {
-                                await handler.processDockType(Number(dockTypeState.val));
-                            }
-                        }
-                        // 2. Check State Transitions
-                        const currentState = await this.getDeviceState(duid);
-                        const lastState = this.lastStateCode.get(duid) || 0;
-                        const isActive = this.isActiveState(currentState);
-                        const wasActive = this.isActiveState(lastState);
-                        this.adapter.log.debug(`[DeviceManager] ${duid} State: ${lastState} -> ${currentState} | Active: ${wasActive} -> ${isActive}`);
-                        // Determine if we need to update the map (Active = polling map)
-                        if (isActive) {
-                            await handler.updateMap();
-                        }
-                        // Transition: Active -> Inactive
-                        if (wasActive && !isActive) {
-                            this.adapter.log.info(`[DeviceManager] Activity finished for ${duid} (State ${lastState} -> ${currentState}). Fetching full data...`);
-                            // Trigger full update
-                            await this.updateDeviceData(handler, duid);
-                            await this.updateConsumablesPercent(duid);
-                            await handler.updateCleanSummary();
-                            await handler.updateMap();
-                        }
-                        // Update state tracker
-                        this.lastStateCode.set(duid, currentState);
                     }
                     catch (error) {
                         this.adapter.catchError(error, "mainUpdateInterval", duid);
@@ -277,6 +245,92 @@ class DeviceManager {
         }, 1000); // 1s ticker
     }
     /**
+     * Polling logic for B01 devices.
+     */
+    async pollB01Device(handler, duid) {
+        // 1. Update Status (fast)
+        await handler.updateStatus();
+        // 2. Check State Transitions
+        const currentState = await this.getDeviceState(duid);
+        const lastState = this.lastStateCode.get(duid) || 0;
+        const isActive = this.isActiveState(currentState);
+        const wasActive = this.isActiveState(lastState);
+        this.adapter.rLog("System", duid, "Debug", "B01", undefined, `State: ${lastState} -> ${currentState} | Active: ${wasActive} -> ${isActive}`, "debug");
+        // Determine if we need to update the map (Active = polling map)
+        if (isActive) {
+            await handler.updateMap();
+        }
+        // Transition: Active -> Inactive
+        if (wasActive && !isActive) {
+            this.adapter.rLog("System", duid, "Info", "B01", undefined, `Activity finished (State ${lastState} -> ${currentState}). Fetching B01 data...`, "info");
+            // Trigger B01-specific data update
+            await handler.initializeDeviceData();
+            await handler.updateCleanSummary();
+            await handler.updateMap();
+        }
+        // Update state tracker
+        this.lastStateCode.set(duid, currentState);
+    }
+    /**
+     * Polling logic for A01 devices.
+     */
+    async pollA01Device(handler, duid) {
+        // 1. Update Status (fast)
+        await handler.updateStatus();
+        // 2. Check State Transitions
+        const currentState = await this.getDeviceState(duid);
+        const lastState = this.lastStateCode.get(duid) || 0;
+        const isActive = this.isActiveState(currentState);
+        const wasActive = this.isActiveState(lastState);
+        this.adapter.rLog("System", duid, "Debug", "A01", undefined, `State: ${lastState} -> ${currentState} | Active: ${wasActive} -> ${isActive}`, "debug");
+        // Determine if we need to update the map (Active = polling map)
+        if (isActive) {
+            await handler.updateMap();
+        }
+        // Transition: Active -> Inactive
+        if (wasActive && !isActive) {
+            this.adapter.rLog("System", duid, "Info", "A01", undefined, `Activity finished (State ${lastState} -> ${currentState}). Fetching full data...`, "info");
+            // Trigger full update
+            await handler.initializeDeviceData();
+            await handler.updateCleanSummary();
+            await handler.updateMap();
+        }
+        // Update state tracker
+        this.lastStateCode.set(duid, currentState);
+    }
+    /**
+     * Polling logic for V1 (Legacy) devices.
+     */
+    async pollV1Device(handler, duid) {
+        // 1. Update Status (fast)
+        await handler.updateStatus();
+        // Check Dock Type
+        const dockTypeState = await this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.dock_type`);
+        if (dockTypeState && dockTypeState.val !== null) {
+            await handler.processDockType(Number(dockTypeState.val));
+        }
+        // 2. Check State Transitions
+        const currentState = await this.getDeviceState(duid);
+        const lastState = this.lastStateCode.get(duid) || 0;
+        const isActive = this.isActiveState(currentState);
+        const wasActive = this.isActiveState(lastState);
+        this.adapter.rLog("System", duid, "Debug", "V1", undefined, `State: ${lastState} -> ${currentState} | Active: ${wasActive} -> ${isActive}`, "debug");
+        // Determine if we need to update the map (Active = polling map)
+        if (isActive) {
+            await handler.updateMap();
+        }
+        // Transition: Active -> Inactive
+        if (wasActive && !isActive) {
+            this.adapter.rLog("System", duid, "Info", "V1", undefined, `Activity finished (State ${lastState} -> ${currentState}). Fetching full data...`, "info");
+            // Trigger full update
+            await handler.initializeDeviceData();
+            await handler.updateCleanSummary();
+            await handler.updateMap();
+        }
+        // Update state tracker
+        this.lastStateCode.set(duid, currentState);
+    }
+    /**
      * Stops polling.
      */
     stopPolling() {
@@ -284,49 +338,6 @@ class DeviceManager {
             // Cast to any for ioBroker interval
             this.adapter.clearInterval(this.mainUpdateInterval);
             this.mainUpdateInterval = undefined;
-        }
-    }
-    /**
-     * Fetches non-status data.
-     */
-    async updateDeviceData(handler, duid) {
-        await Promise.all([
-            handler.updateFirmwareFeatures(),
-            handler.updateMultiMapsList(),
-            handler.updateRoomMapping(),
-            handler.updateConsumables(),
-            handler.updateTimers(),
-            handler.updateNetworkInfo(),
-        ]);
-        await this.adapter.checkForNewFirmware(duid);
-        // Model-specific requests
-        await handler.updateExtraStatus();
-    }
-    /**
-     * Fetches consumable percentages.
-     */
-    async updateConsumablesPercent(duid) {
-        const handler = this.deviceFeatureHandlers.get(duid);
-        if (!handler)
-            return;
-        const device = this.adapter.http_api.getDevices().find((d) => d.duid === duid);
-        if (!device?.deviceStatus)
-            return; // 'deviceStatus' exists on Device type
-        const status = device.deviceStatus;
-        const consumableMap = {
-            "125": "main_brush_life",
-            "126": "side_brush_life",
-            "127": "filter_life",
-        };
-        for (const [attribute, value] of Object.entries(status)) {
-            // Cloud consumable percentages
-            if (attribute === "125" || attribute === "126" || attribute === "127") {
-                const val = value >= 0 && value <= 100 ? value : 0;
-                const mappedName = consumableMap[attribute];
-                const common = handler.getCommonConsumable(mappedName); // Use mapped name
-                await this.adapter.ensureState(`Devices.${duid}.consumables.${mappedName}`, common || {});
-                await this.adapter.setStateChangedAsync(`Devices.${duid}.consumables.${mappedName}`, { val, ack: true });
-            }
         }
     }
 }

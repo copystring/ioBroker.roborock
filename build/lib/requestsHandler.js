@@ -3,12 +3,18 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.requestsHandler = void 0;
-const mapCreator_1 = require("./mapCreator");
-const mapDataParser_1 = require("./mapDataParser");
+exports.requestsHandler = exports.RequestPriority = void 0;
+const MapParser_1 = require("./map/v1/MapParser");
+const MapBuilder_1 = require("./map/v1/MapBuilder");
 const p_queue_1 = __importDefault(require("p-queue"));
 const messageParser_1 = require("./messageParser");
 const REQUEST_TIMEOUT = 30000;
+var RequestPriority;
+(function (RequestPriority) {
+    RequestPriority[RequestPriority["LOW"] = -10] = "LOW";
+    RequestPriority[RequestPriority["NORMAL"] = 0] = "NORMAL";
+    RequestPriority[RequestPriority["HIGH"] = 10] = "HIGH";
+})(RequestPriority || (exports.RequestPriority = RequestPriority = {}));
 // ============================================================
 // AbortSignal polyfill for Node < 20
 // ============================================================
@@ -41,39 +47,53 @@ class RequestManager {
     queue;
     timeoutMs;
     tasks;
-    constructor(concurrency = 10, timeoutMs = 30000) {
+    activeBackgroundTasks = 0;
+    MAX_BACKGROUND = 10; // Reserve slots for normal/high priority
+    constructor(concurrency = 20, timeoutMs = 30000) {
         this.queue = new p_queue_1.default({ concurrency });
         this.timeoutMs = timeoutMs;
         this.tasks = new Map();
     }
-    add(id, taskFunction, priority = 0) {
+    async add(id, taskFunction, priority = RequestPriority.NORMAL) {
         const manualController = new AbortController();
         this.tasks.set(id, manualController);
-        return this.queue.add(async () => {
-            try {
-                if (manualController.signal.aborted) {
-                    throw new Error("ADAPTER_STOPPED");
-                }
-                const tSignal = timeoutSignal(this.timeoutMs);
-                const combinedSignal = anySignal([manualController.signal, tSignal]);
-                const result = await taskFunction(combinedSignal);
-                return result;
+        const isBackground = priority <= RequestPriority.LOW;
+        if (isBackground) {
+            while (this.activeBackgroundTasks >= this.MAX_BACKGROUND) {
+                // Wait for a slot to free up. Check every 100ms.
+                // This happens OUTSIDE the queue.add to avoid blocking all slots.
+                await new Promise(resolve => setTimeout(resolve, 100));
+                if (manualController.signal.aborted)
+                    throw new Error("CANCELLED_BY_USER");
             }
-            catch (error) {
-                if (manualController.signal.aborted || (error instanceof Error && error.message === "CANCELLED_BY_USER")) {
-                    throw new Error(`Task ${id} was cancelled manually.`);
+            this.activeBackgroundTasks++;
+        }
+        try {
+            return await this.queue.add(async () => {
+                try {
+                    if (manualController.signal.aborted) {
+                        throw new Error("ADAPTER_STOPPED");
+                    }
+                    // The 30s timeout is now handled INSIDE RoborockRequest.send()
+                    // This signal is only for manual cancellation (adapter stop)
+                    return await taskFunction(manualController.signal);
                 }
-                else if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
-                    throw new Error(`Task ${id} timed out after ${this.timeoutMs}ms.`);
+                catch (error) {
+                    if (manualController.signal.aborted || (error instanceof Error && error.message === "CANCELLED_BY_USER")) {
+                        throw new Error(`Task ${id} was cancelled manually.`);
+                    }
+                    else {
+                        throw error;
+                    }
                 }
-                else {
-                    throw error;
-                }
+            }, { priority });
+        }
+        finally {
+            if (isBackground) {
+                this.activeBackgroundTasks--;
             }
-            finally {
-                this.tasks.delete(id);
-            }
-        }, { priority });
+            this.tasks.delete(id);
+        }
     }
     cancel(id) {
         const controller = this.tasks.get(id);
@@ -102,6 +122,7 @@ class RoborockRequest {
     resolvePromise;
     rejectPromise;
     promise;
+    startTime;
     constructor(handler, duid, method, params, messageID) {
         this.handler = handler;
         this.adapter = handler.adapter;
@@ -109,6 +130,7 @@ class RoborockRequest {
         this.method = method;
         this.params = params;
         this.messageID = messageID;
+        this.startTime = Date.now();
         this.promise = new Promise((resolve, reject) => {
             this.resolvePromise = resolve;
             this.rejectPromise = reject;
@@ -124,9 +146,36 @@ class RoborockRequest {
         if (!this.handler.isCloudRequest(this.duid, this.method, version)) {
             protocol = 4;
         }
+        // --- Start precision 30s timeout NOW (at dispatch) ---
+        const tSignal = timeoutSignal(REQUEST_TIMEOUT);
+        const combinedSignal = signal ? anySignal([signal, tSignal]) : tSignal;
+        combinedSignal.addEventListener("abort", () => {
+            // Check if it was a timeout or manual cancel
+            if (tSignal.aborted) {
+                this.rejectPromise(new Error(`Task ${this.messageID} timed out after ${REQUEST_TIMEOUT}ms.`));
+            }
+            else if (signal?.aborted) {
+                this.rejectPromise(new Error(`Task ${this.messageID} was cancelled manually.`));
+            }
+            else {
+                this.rejectPromise(new Error("Aborted"));
+            }
+        }, { once: true });
         const payload = await this.handler.messageParser.buildPayload(protocol, this.messageID, this.method, this.params, version);
-        const roborockMessage = await this.handler.messageParser.buildRoborockMessage(this.duid, protocol, timestamp, payload, version);
+        const isMapRequest = this.method.includes("map");
         const mqttConnectionState = this.adapter.mqtt_api.isConnected();
+        // Connection inference
+        const connectionType = (mqttConnectionState && (await this.handler.isCloudRequest(this.duid, this.method, version))) ? "MQTT" : "TCP";
+        const logPayload = (isMapRequest && payload.length > 500) || payload.length > 5000 ? payload.substring(0, 500) + `... [truncated ${payload.length - 500} chars]` : payload;
+        if (connectionType === "MQTT") {
+            // Log Request (Method + inner JSON potentially)
+            this.adapter.rLog("MQTT", this.duid, "->", `${version}`, protocol, `Request (ID: ${this.messageID}) ${this.method}: ${logPayload}`, "info");
+        }
+        else {
+            this.adapter.rLog("TCP", this.duid, "->", `${version}`, protocol, `Send ${this.method} (ID: ${this.messageID}) | ${logPayload}`, "debug");
+        }
+        const roborockMessage = await this.handler.messageParser.buildRoborockMessage(this.duid, protocol, timestamp, payload, version, this.messageID);
+        // mqttConnectionState is already defined above
         const localConnectionState = this.adapter.local_api.isConnected(this.duid);
         if (!roborockMessage) {
             const errorMsg = "Failed to build buildRoborockMessage!";
@@ -139,49 +188,41 @@ class RoborockRequest {
             this.resolvePromise(null);
             return this.promise;
         }
-        // this.adapter.log.debug(`duid: ${this.duid}, mqtt: ${mqttConnectionState}, local: ${localConnectionState}, remote: ${remoteConnection}`);
         if (!mqttConnectionState && remoteConnection) {
             const errorMsg = `Cloud connection not available. Not sending for method ${this.method} request!`;
-            this.adapter.log.debug(errorMsg);
+            this.adapter.rLog("System", this.duid, "Debug", "N/A", undefined, errorMsg, "debug");
             this.rejectPromise(new Error(errorMsg));
             return this.promise;
         }
         else if (!localConnectionState && !mqttConnectionState && this.method != "get_network_info") {
             const errorMsg = `Adapter locally or remotely not connected to robot ${this.duid}. Sending request for ${this.method} not possible!`;
-            this.adapter.log.debug(errorMsg);
+            this.adapter.rLog("System", this.duid, "Debug", "N/A", undefined, errorMsg, "debug");
             this.rejectPromise(new Error(errorMsg));
             return this.promise;
         }
         // Register in pendingRequests
         this.adapter.pendingRequests.set(this.messageID, this);
-        // Handle AbortSignal
-        if (signal) {
-            signal.addEventListener("abort", () => {
-                if (signal.reason) {
-                    this.rejectPromise(signal.reason);
-                }
-                else {
-                    this.rejectPromise(new Error("Aborted by RequestManager"));
-                }
-            }, { once: true });
-        }
         // Send
         if (this.handler.isCloudRequest(this.duid, this.method, version) || !localConnectionState) {
             this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage);
-            this.adapter.log.debug(`[SendRequest] ${this.method} to ${this.duid} via Cloud (Seq: ${this.messageID})`);
         }
         else {
             const lengthBuffer = Buffer.alloc(4);
             lengthBuffer.writeUInt32BE(roborockMessage.length, 0);
             const fullMessage = Buffer.concat([lengthBuffer, roborockMessage]);
             this.adapter.local_api.sendMessage(this.duid, fullMessage);
-            this.adapter.log.debug(`[SendRequest] ${this.method} to ${this.duid} via Local (Seq: ${this.messageID})`);
         }
         return this.promise;
     }
-    resolve(result) {
+    resolve(result, version) {
         this.adapter.pendingRequests.delete(this.messageID);
-        this.resolvePromise(result);
+        // Return an object if version is present, otherwise just the result
+        if (version) {
+            this.resolvePromise({ data: result, version: version });
+        }
+        else {
+            this.resolvePromise(result);
+        }
     }
     reject(reason) {
         this.adapter.pendingRequests.delete(this.messageID);
@@ -192,7 +233,8 @@ class requestsHandler {
     adapter;
     idCounter;
     photoIdCounter;
-    deviceManagers;
+    lastB01Id; // For B01 timestamp-based IDs
+    globalManager;
     messageParser;
     mapParser;
     mapCreator;
@@ -205,26 +247,27 @@ class requestsHandler {
         // Offset ID by instance to avoid collisions
         this.idCounter = (this.adapter.instance * 20000) + 300;
         this.photoIdCounter = 0;
-        this.deviceManagers = new Map();
+        this.lastB01Id = 0;
+        this.globalManager = new RequestManager(10, REQUEST_TIMEOUT);
         this.messageParser = new messageParser_1.messageParser(this.adapter);
-        this.mapParser = new mapDataParser_1.MapDataParser(this.adapter);
-        this.mapCreator = new mapCreator_1.MapCreator(this.adapter);
+        this.mapParser = new MapParser_1.MapParser(this.adapter);
+        this.mapCreator = new MapBuilder_1.MapBuilder(this.adapter);
         this.scheduleMqttReset();
     }
     scheduleMqttReset() {
         if (this.mqttResetInterval)
             this.adapter.clearInterval(this.mqttResetInterval);
         this.mqttResetInterval = this.adapter.setInterval(() => {
-            this.adapter.log.debug("Resetting MQTT message ID counter");
+            this.adapter.rLog("System", null, "Debug", "N/A", undefined, "Resetting MQTT message ID counter", "debug");
             this.idCounter = 300;
         }, 24 * 60 * 60 * 1000); // 24h
     }
     async waitForStartup() {
-        this.adapter.log.info(`[Startup] Waiting for ${this.startupPromises.length} initial requests to finish...`);
+        this.adapter.rLog("System", null, "Info", "Startup", undefined, `[Startup] Waiting for ${this.startupPromises.length} initial requests to finish...`, "info");
         await Promise.all(this.startupPromises);
         this.startupFinished = true;
         this.startupPromises = [];
-        this.adapter.log.info("[Startup] All initial requests finished. Adapter is ready.");
+        this.adapter.rLog("System", null, "Info", "Startup", undefined, "[Startup] All initial requests finished. Adapter is ready.", "info");
     }
     _processResult(requestPromise, callback, identifier, duid, alwaysBackground = false) {
         const executionWrapper = async () => {
@@ -239,10 +282,11 @@ class requestsHandler {
                     const idMatch = errorMsg.match(/Task (req_\d+_\d+)/);
                     const reqId = idMatch ? idMatch[1] : "unknown";
                     if (errorMsg.includes("ADAPTER_STOPPED")) {
-                        this.adapter.log.warn(`[${identifier}] Request cancelled (Adapter stopped). ID: ${reqId}`);
+                        this.adapter.rLog("System", duid, "Warn", "N/A", undefined, `[${identifier}] Request cancelled (Adapter stopped). ID: ${reqId}`, "warn");
                     }
                     else {
-                        this.adapter.log.warn(`[${identifier}] Request timed out. ID: ${reqId}`);
+                        // Standardized Timeout Log
+                        this.adapter.rLog("System", duid, "Warn", "Timeout", undefined, `Request ${identifier} timed out after 30000ms. ID: ${reqId}`, "warn");
                     }
                 }
                 else {
@@ -261,16 +305,9 @@ class requestsHandler {
             promise.catch(() => { });
         }
     }
-    getManager(duid) {
-        if (!this.deviceManagers.has(duid)) {
-            // Default concurrency and timeout
-            this.deviceManagers.set(duid, new RequestManager(10, REQUEST_TIMEOUT));
-        }
-        return this.deviceManagers.get(duid);
-    }
     async sendRequest(duid, method, params, options = {}) {
-        const manager = this.getManager(duid);
-        const priority = options.priority || 0;
+        const manager = this.globalManager;
+        const priority = options.priority ?? RequestPriority.NORMAL;
         const attempt = async (retryCount) => {
             let messageID;
             if (method === "get_photo") {
@@ -278,17 +315,32 @@ class requestsHandler {
                 messageID = this.photoIdCounter;
             }
             else {
-                const minId = (this.adapter.instance * 20000) + 300;
-                const maxId = (this.adapter.instance * 20000) + 20000;
-                this.idCounter = this.idCounter > maxId ? minId : this.idCounter + 1;
-                messageID = this.idCounter;
+                // Detect version to determine ID strategy
+                const version = await this.adapter.getDeviceProtocolVersion(duid);
+                if (version === "B01") {
+                    // B01 uses timestamp-based IDs (e.g. 1766102306357)
+                    messageID = Date.now();
+                    // Ensure uniqueness if multiple requests happen in same ms
+                    if (messageID <= this.lastB01Id) {
+                        messageID = this.lastB01Id + 1;
+                    }
+                    this.lastB01Id = messageID;
+                }
+                else {
+                    // Legacy/Standard uses sequential small integer
+                    const minId = (this.adapter.instance * 20000) + 300;
+                    const maxId = (this.adapter.instance * 20000) + 20000;
+                    this.idCounter = this.idCounter > maxId ? minId : this.idCounter + 1;
+                    messageID = this.idCounter;
+                }
             }
             const req = new RoborockRequest(this, duid, method, params, messageID);
             const taskId = `req_${messageID}_${Date.now()}`;
             try {
+                this.adapter.rLog("System", duid, "Debug", "Queue", undefined, `Queuing task ${taskId} (Method: ${method})`, "debug");
                 const result = await manager.add(taskId, (signal) => req.send(signal), priority);
                 if (Array.isArray(result) && result[0] === "retry" && retryCount < 3) {
-                    this.adapter.log.debug(`[sendRequest] Received 'retry' for ${method} on ${duid}. Retrying (${retryCount + 1}/3)...`);
+                    this.adapter.rLog("System", duid, "Debug", "Retry", undefined, `[sendRequest] Received 'retry' for ${method} on ${duid}. Retrying (${retryCount + 1}/3)...`, "debug");
                     await new Promise((resolve) => setTimeout(resolve, 1000));
                     return attempt(retryCount + 1);
                 }
@@ -327,34 +379,53 @@ class requestsHandler {
         if (version === "A01") {
             return false;
         }
-        // Default to cloud for L01/1.0 if we had issues before,
-        // but since we want to favor local, we return false here too if we want to try local first.
-        // However, the previous comment said it was forced to true to fix ID mismatch.
-        // For L01, the ID mismatch might be real.
+        // For L01/1.0, favor Cloud to avoid potential local ID mismatch issues issues observed in past versions.
+        // TODO: Re-evaluate local preference for L01 once stable.
         if (version === "L01" || version === "1.0") {
             return true;
         }
         return false;
     }
-    resolvePendingRequest(messageID, result, protocol) {
+    resolvePendingRequest(messageID, result, protocol, duid, connectionType = "Unknown", version) {
         const req = this.adapter.pendingRequests.get(messageID);
         if (req) {
             if (protocol) {
-                this.adapter.log.debug(`[resolvePendingRequest] Received response for request ${messageID} with protocol ${protocol}`);
+                const reqDuid = req.duid || (duid || "unknown");
+                // resolvePendingRequest caller usually knows protocol (from MQTT/Local).
+                // We can just log what we have.
+                let extraInfo = "";
+                if (Buffer.isBuffer(result)) {
+                    extraInfo = `Buffer Len: ${result.length}`;
+                }
+                else if (typeof result === "object") {
+                    extraInfo = "Object";
+                }
+                else {
+                    extraInfo = String(result);
+                }
+                const duration = req instanceof RoborockRequest ? Date.now() - req.startTime : 0;
+                const durationStr = duration > 0 ? `Duration: ${duration}ms` : "";
+                this.adapter.rLog(connectionType, reqDuid, "<-", String(protocol), messageID, `Received response. ${extraInfo}. ${durationStr} (Detected: ${version || "Any"})`, "debug");
             }
-            // Add to finished set to prevent race conditions with late responses (Protocol 102 after 301)
+            // Add to finished set to prevent race conditions
             this.finishedRequests.add(messageID);
             this.adapter.setTimeout(() => {
                 this.finishedRequests.delete(messageID);
-            }, 5000);
-            if (req instanceof RoborockRequest) {
-                req.resolve(result);
+            }, 60000);
+            if (typeof req.resolve === "function") {
+                req.resolve(result, version);
             }
             else {
-                // Legacy handling
-                if (typeof req.resolve === "function") {
-                    req.resolve(result);
+                // Fallback for cases where resolve is not a method (rare in current codebase)
+                if (req instanceof RoborockRequest) {
+                    req.resolve(result, version);
                 }
+            }
+            this.adapter.pendingRequests.delete(messageID);
+        }
+        else {
+            if (!this.finishedRequests.has(messageID)) {
+                this.adapter.rLog("System", duid || null, "<-", String(protocol), messageID, `Request not found in pending requests`, "debug");
             }
         }
     }
@@ -364,9 +435,8 @@ class requestsHandler {
     clearQueue() {
         this.adapter.local_api.clearLocalDevicedTimeout();
         this.adapter.mqtt_api.clearIntervals();
-        // Clear map queues
-        this.deviceManagers.forEach((m) => m.clear());
-        this.deviceManagers.clear();
+        // Clear global queue
+        this.globalManager.clear();
         // Reject pending requests
         this.adapter.pendingRequests.forEach((req) => {
             if (req instanceof RoborockRequest) {
