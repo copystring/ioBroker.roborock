@@ -86,7 +86,8 @@
   "scripts": {
     "clean": "rimraf build",
     "copy:pathProcessor": "shx cp src/lib/pathProcessor.ts src/www/pathProcessor.ts",
-    "build": "npm run clean && node scripts/updateBuildInfo.js && tsc -b tsconfig.json && npm run build:www",
+    "copy:protocols": "shx mkdir -p build/src/lib/protocols && shx cp src/lib/protocols/q7_dataset.json build/src/lib/protocols/",
+    "build": "npm run clean && node scripts/updateBuildInfo.js && npm run copy:protocols && tsc -b tsconfig.json && npm run build:www",
     "build:www": "npm run copy:pathProcessor && tsc -b tsconfig.web.json",
     "build:all": "npm run build",
     "watch": "npm run clean && tsc -b tsconfig.json --watch",

@@ -725,6 +725,7 @@ export declare abstract class V1VacuumFeatures extends BaseDeviceFeatures {
     protected mappedRooms: any[] | null;
     protected mapManager: MapManager;
     constructor(dependencies: FeatureDependencies, duid: string, robotModel: string, config: DeviceModelConfig, profile?: VacuumProfile);
+    protected applyLocalizedMappings(): void;
     setupProtocolFeatures(): Promise<void>;
     initializeDeviceData(): Promise<void>;
     protected updateConsumablesPercent(): Promise<void>;

@@ -318,8 +318,9 @@ class Roborock extends utils.Adapter {
                 }
             }
             finally {
-                // Reset boolean command state
-                if ((typeof state.val === "boolean" && state.val === true) || state.val === "true" || state.val === 1) {
+                // Reset button command state if it was a trigger
+                // We only reset boolean states to false. Number states (like enums) should keep their value.
+                if (typeof state.val === "boolean" && state.val === true) {
                     this.log.info(`[handleCommand] Scheduling reset for ${id}`);
                     this.commandTimeout = this.setTimeout(() => {
                         this.log.info(`[handleCommand] Resetting ${id} to false`);

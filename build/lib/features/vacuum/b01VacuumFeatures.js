@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.B01VacuumFeatures = void 0;
 const v1VacuumFeatures_1 = require("./v1VacuumFeatures");
-const features_enum_1 = require("../features.enum");
 class B01VacuumFeatures extends v1VacuumFeatures_1.V1VacuumFeatures {
     constructor(dependencies, duid, robotModel, config, profile) {
         super(dependencies, duid, robotModel, config, profile);
@@ -11,17 +10,9 @@ class B01VacuumFeatures extends v1VacuumFeatures_1.V1VacuumFeatures {
     // Override updateStatus to use strict B01 prop.get
     async setupProtocolFeatures() {
         this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, "Configuring B01 Command Set...", "debug");
-        // 1. Blacklist/Clear static features to prevent auto-re-population
-        // B01 devices typically don't use the standard Vacuum features like 'Timers' or 'Consumables' in the same way,
-        // or at least we don't want the standard commands for them.
-        // We explicitly allow only what we implemented or know works.
-        const allowedFeatures = [
-            features_enum_1.Feature.FirmwareInfo, // Used for FW version
-            features_enum_1.Feature.MultiMap, // Used for floor list
-            features_enum_1.Feature.RoomMapping // Used for room names
-        ];
-        this.config.staticFeatures = this.config.staticFeatures.filter(f => allowedFeatures.includes(f));
-        // 3. Add B01 Specific Protocol Commands
+        // 1. CLEAR all inherited base commands. B01 uses its own protocol.
+        this.commands = {};
+        // 2. Add properties for prop.get
         const properties = [
             "wind", "water", "clean_mode", "status", "error_code", "battery",
             "clean_time", "clean_area", "map_status", "dock_status", "water_box_level_off", "dust_collection_status"
@@ -35,40 +26,164 @@ class B01VacuumFeatures extends v1VacuumFeatures_1.V1VacuumFeatures {
             def: "status",
             states: propStates
         });
-        this.addCommand("prop.set", {
-            type: "json",
-            role: "json",
-            name: "Direct Property Set",
-            def: '{"status": 1}',
+        // 3. Status Control (Start / Stop / Charge)
+        this.addCommand("status", {
+            type: "number",
+            role: "value",
+            name: "Status Control",
+            def: 1,
             states: {
-                '{"status": 1}': "Start Cleaning",
-                '{"status": 2}': "Pause",
-                '{"status": 3}': "Stop",
-                '{"status": 4}': "Return to Dock",
-                '{"wind": 101}': "Fan: Quiet",
-                '{"wind": 102}': "Fan: Balanced",
-                '{"wind": 103}': "Fan: Turbo",
-                '{"wind": 104}': "Fan: Max",
-                '{"water": 201}': "Water: Mild",
-                '{"water": 202}': "Water: Moderate",
-                '{"water": 203}': "Water: Intense"
+                1: this.deps.adapter.translations["app_start"] || "Start Cleaning",
+                2: this.deps.adapter.translations["app_pause"] || "Pause",
+                3: this.deps.adapter.translations["app_stop"] || "Stop",
+                4: this.deps.adapter.translations["app_charge"] || "Return to Dock"
             }
         });
-        this.addCommand("service", {
-            type: "json",
-            role: "json",
-            name: "Direct Service Call",
-            def: '{"method": "upload_by_maptype", "params": {"force": 1, "map_type": 0}}',
+        // 4. Fan Power (wind)
+        this.addCommand("wind", {
+            type: "number",
+            role: "value",
+            name: "Fan Power",
+            def: 2,
             states: {
-                '{"method": "upload_by_maptype", "params": {"force": 1, "map_type": 0}}': "Update Map",
-                '{"method": "reset_consumable", "params": {"main_brush_life": 100}}': "Reset Main Brush",
-                '{"method": "reset_consumable", "params": {"side_brush_life": 100}}': "Reset Side Brush",
-                '{"method": "reset_consumable", "params": {"filter_life": 100}}': "Reset Filter",
-                '{"method": "get_custom_voice", "params": {}}': "Get Custom Voice Info"
+                1: "Quiet",
+                2: "Balanced",
+                3: "Turbo",
+                4: "Max"
             }
         });
+        // 5. Water Level (water)
+        this.addCommand("water", {
+            type: "number",
+            role: "value",
+            name: "Water Level",
+            def: 1,
+            states: {
+                1: "Low",
+                2: "Medium",
+                3: "High"
+            }
+        });
+        // 6. Work Mode
+        this.addCommand("work_mode", {
+            type: "number",
+            role: "value",
+            name: "Work Mode",
+            def: 0,
+            states: {
+                0: "Standard",
+                1: "Custom",
+                2: "Silent"
+            }
+        });
+        // 7. Dust Collection Frequency
+        this.addCommand("dust_frequency", {
+            type: "number",
+            role: "value",
+            name: "Dust Collection Frequency",
+            def: 0,
+            states: {
+                0: "Smart",
+                1: "Low",
+                2: "Medium",
+                3: "High",
+                4: "Never"
+            }
+        });
+        // 8. Clean Path Preference
+        this.addCommand("clean_path_preference", {
+            type: "number",
+            role: "value",
+            name: "Clean Path Preference",
+            def: 0,
+            states: {
+                0: "Standard",
+                1: "Fast"
+            }
+        });
+        // 9. Build Map
+        this.addCommand("build_map", {
+            type: "number",
+            role: "value",
+            name: "Build Map",
+            def: 1,
+            states: {
+                0: "Off",
+                1: "On"
+            }
+        });
+        // 10. Robot Mode
+        this.addCommand("mode", {
+            type: "number",
+            role: "value",
+            name: "Robot Mode",
+            def: 0,
+            states: {
+                0: "Vacuum",
+                1: "Mop",
+                2: "Vacuum & Mop"
+            }
+        });
+        // 11. Custom Mode
+        this.addCommand("custom_type", {
+            type: "number",
+            role: "value",
+            name: "Custom Mode",
+            def: 0,
+            states: {
+                0: "Off",
+                1: "On"
+            }
+        });
+        // 12. Service Commands (as individual buttons)
+        const services = {
+            "update_map": "Update Map",
+            "start_recharge": "Start Charging",
+            "stop_recharge": "Stop Charging",
+            "start_dust_collection": "Start Emptying",
+            "stop_dust_collection": "Stop Emptying",
+            "reset_main_brush": "Reset Main Brush",
+            "reset_side_brush": "Reset Side Brush",
+            "reset_filter": "Reset Filter"
+        };
+        for (const [srv, srvName] of Object.entries(services)) {
+            this.addCommand(srv, {
+                type: "boolean",
+                role: "button",
+                name: srvName,
+                def: false
+            });
+        }
         const cmds = Object.keys(this.commands);
         this.deps.adapter.rLog("System", this.duid, "Info", "B01", undefined, `B01 Protocol Enforced. Commands in memory: ${cmds.join(", ")}`, "info");
+    }
+    /**
+     * Allows feature handlers to provide/modify parameters for a command before sending.
+     * B01 uses this to map individual command states to prop.set or service calls.
+     */
+    async getCommandParams(method, params) {
+        // Intercept individual commands and route to prop.set or service
+        if (["status", "wind", "water", "work_mode", "dust_frequency", "clean_path_preference", "build_map", "mode", "custom_type"].includes(method)) {
+            return {
+                method: "prop.set",
+                params: { [method]: params }
+            };
+        }
+        // Service calls
+        const serviceMap = {
+            "update_map": { method: "service", params: { "method": "upload_by_maptype", "params": { "force": 1, "map_type": 0 } } },
+            "start_recharge": { method: "service", params: { "method": "start_recharge", "params": {} } },
+            "stop_recharge": { method: "service", params: { "method": "stop_recharge", "params": {} } },
+            "start_dust_collection": { method: "service", params: { "method": "start_dust_collection", "params": {} } },
+            "stop_dust_collection": { method: "service", params: { "method": "stop_dust_collection", "params": {} } },
+            "reset_main_brush": { method: "service", params: { "method": "reset_consumable", "params": { "main_brush_life": 100 } } },
+            "reset_side_brush": { method: "service", params: { "method": "reset_consumable", "params": { "side_brush_life": 100 } } },
+            "reset_filter": { method: "service", params: { "method": "reset_consumable", "params": { "filter_life": 100 } } }
+        };
+        if (serviceMap[method]) {
+            return serviceMap[method];
+        }
+        return params;
     }
     async initializeDeviceData() {
         await this.updateStatus();
@@ -128,6 +243,81 @@ class B01VacuumFeatures extends v1VacuumFeatures_1.V1VacuumFeatures {
         }
         if (resultObj) {
             await this.processConsumables(resultObj);
+        }
+    }
+    // Override processStatus to apply B01 specific conversions (dm² to m²)
+    async processStatus(resultObj) {
+        // Prioritize dock_type processing to ensure feature flags are set
+        const dockType = resultObj["dock_type"];
+        if (dockType !== undefined) {
+            await this.processDockType(Number(dockType));
+        }
+        // Handle docking station status separately
+        const dssValue = resultObj["dss"];
+        if (dssValue !== undefined) {
+            delete resultObj["dss"];
+            await this.updateDockingStationStatus(Number(dssValue));
+        }
+        // Map B01 specific keys to standard ioBroker states for compatibility
+        // Map B01 specific keys to standard ioBroker states for compatibility
+        await this.deps.ensureFolder(`Devices.${this.duid}.deviceStatus`);
+        for (const key in resultObj) {
+            let val = resultObj[key];
+            // Get definition or create default
+            const def = this.getCommonDeviceStates(key);
+            const common = def ? { ...def } : { name: key, type: typeof val, role: "value", read: true, write: false };
+            // Enrich with defaults if missing
+            if (!common.name)
+                common.name = key;
+            if (!common.role)
+                common.role = "value";
+            if (common.read === undefined)
+                common.read = true;
+            if (common.write === undefined)
+                common.write = false;
+            // Manual Metadata Overrides for B01 specific fields
+            if (key === "clean_finish") {
+                common.name = "Clean Finish Timestamp";
+                common.role = "value.time";
+                common.unit = null; // Ensure no unit residue
+            }
+            else if (key === "cleaning_time" || key === "real_clean_time") {
+                common.name = key === "cleaning_time" ? "Cleaning Time" : "Real Cleaning Time";
+                common.role = "value.interval";
+                common.unit = key === "cleaning_time" ? "min" : "s";
+            }
+            else if (key === "cleaning_area") {
+                common.name = "Cleaning Area";
+            }
+            // Serialize complex objects
+            if (typeof val === "object" && val !== null) {
+                val = JSON.stringify(val);
+            }
+            // Debug clean_finish value
+            if (key === "clean_finish") {
+                this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `clean_finish raw: ${val}`, "debug");
+            }
+            // B01 Area/Time Conversion
+            if (["clean_time", "cleaning_time"].includes(key)) {
+                // sniffs show 'cleaning_time: 25' for 25 min -> already in minutes. No conversion needed.
+                // last_clean_t might be timestamp or duration? usually timestamp if clean_finish.
+                val = Number(val);
+            }
+            else if (["cleaning_area", "cleaning_area", "last_clean_area"].includes(key)) {
+                // B01 sends dm² (e.g. 2129 -> 21.29 m²)
+                val = Number((val / 100).toFixed(2));
+            }
+            if (common.type === "string" && typeof val !== "string") {
+                val = String(val);
+            }
+            // Force object update to ensure units/states are applied
+            // extendObject ensures that if the object exists, it gets updated with new common properties
+            await this.deps.adapter.extendObject(`Devices.${this.duid}.deviceStatus.${key}`, {
+                type: "state",
+                common: common
+            });
+            await this.deps.ensureState(`Devices.${this.duid}.deviceStatus.${key}`, common);
+            await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.deviceStatus.${key}`, { val: val, ack: true });
         }
     }
     // Override updateMap to use B01 service call
@@ -434,6 +624,403 @@ class B01VacuumFeatures extends v1VacuumFeatures_1.V1VacuumFeatures {
     async processDockType(dockType) {
         // B01 dock features are handled via static command definitions, parameter unused but required by signature
         void dockType;
+    }
+    getCommonDeviceStates(attribute) {
+        // Map B01 properties to readable states
+        // 1. Fan Power (wind) - User confirmed 101-104 but B01/Q7 sends 1-4
+        if (attribute === "wind" || attribute === "fan_power") {
+            return {
+                type: "number",
+                states: {
+                    1: "Quiet",
+                    2: "Balanced",
+                    3: "Turbo",
+                    4: "Max",
+                    101: "Quiet",
+                    102: "Balanced",
+                    103: "Turbo",
+                    104: "Max",
+                    105: "Off"
+                }
+            };
+        }
+        // 2. Water Level (water) - Standard 200-203 but B01/Q7 sends 1-3
+        if (attribute === "water" || attribute === "water_box_mode") {
+            return {
+                type: "number",
+                states: {
+                    0: "Off",
+                    1: "Low",
+                    2: "Medium",
+                    3: "High",
+                    200: "Off",
+                    201: "Low",
+                    202: "Medium",
+                    203: "High"
+                }
+            };
+        }
+        // 3. Status - General Robot State
+        if (attribute === "status" || attribute === "state") {
+            return {
+                type: "number",
+                states: {
+                    0: "Unknown",
+                    1: "Initiating",
+                    2: "Sleeping",
+                    3: "Idle",
+                    4: "Remote Control",
+                    5: "Cleaning",
+                    6: "Returning Dock",
+                    7: "Manual Mode",
+                    8: "Charging",
+                    9: "Charging Error",
+                    10: "Paused",
+                    11: "Spot Cleaning",
+                    12: "In Error",
+                    13: "Shutting Down",
+                    14: "Updating",
+                    15: "Docking",
+                    16: "Go To",
+                    17: "Zone Clean",
+                    18: "Room Clean",
+                    22: "Emptying Dust Container",
+                    23: "Washing Mop",
+                    26: "Going to Wash Lov",
+                    28: "In Call",
+                    29: "Mapping",
+                    100: "Fully Charged"
+                }
+            };
+        }
+        // 3.1 Cleaning Stats Units
+        if (attribute === "clean_time" || attribute === "cleaning_time") {
+            return {
+                type: "number",
+                unit: "min"
+            };
+        }
+        if (attribute === "clean_area" || attribute === "cleaning_area" || attribute === "last_clean_area") {
+            return {
+                type: "number",
+                unit: "m²"
+            };
+        }
+        if (attribute === "battery" || attribute === "quantity") {
+            return {
+                type: "number",
+                unit: "%"
+            };
+        }
+        if (attribute === "real_clean_time") {
+            return {
+                type: "number",
+                unit: "s"
+            };
+        }
+        if (attribute === "clean_finish") {
+            return {
+                type: "number"
+            };
+        }
+        if (attribute === "last_clean_t") {
+            return {
+                type: "string"
+            };
+        }
+        // 4. Error Codes - Populate from q7_dataset if available, else generic
+        if (attribute === "error_code" || attribute === "fault") {
+            // We can generate a states object from the imported Q7Data if we want 'states' mapping in object
+            // This might be large, but useful.
+            // However, Q7Data is imported in v1VacuumFeatures only?
+            // Let's rely on base implementation for dynamic lookup OR return a basic set.
+            // Base implementation usually sets the text state 'error_text'.
+            // But for the numeric 'error_code' state, we can add common ones.
+            return {
+                type: "number",
+                states: {
+                    0: "No Error",
+                    1: "LiDAR Blocked",
+                    2: "Bumper Stuck",
+                    3: "Wheels Suspended",
+                    4: "Cliff Sensor Error",
+                    5: "Main Brush Jammed",
+                    6: "Side Brush Jammed",
+                    7: "Wheels Jammed",
+                    8: "Robot Trapped",
+                    9: "No Dustbin",
+                    10: "Filter Wet/Blocked",
+                    11: "Magnetic Field Detected",
+                    12: "Low Battery",
+                    13: "Charging Error",
+                    14: "Battery Error",
+                    15: "Wall Sensor Dirty",
+                    16: "Robot Tilted",
+                    17: "Side Brush Error",
+                    18: "Fan Error",
+                    100: "Sensor Dirty"
+                }
+            };
+        }
+        // 5. Dock Status
+        if (attribute === "dock_status") {
+            return {
+                type: "number",
+                states: {
+                    0: "Undocked",
+                    1: "Docking",
+                    2: "Docked",
+                    3: "Leaving Dock",
+                    255: "Unknown"
+                }
+            };
+        }
+        // 6. Dust Collection Status
+        if (attribute === "dust_collection_status") {
+            return {
+                type: "number",
+                states: {
+                    0: "Idle",
+                    1: "Collecting",
+                    2: "Collection Weaker",
+                    3: "Collection Failed",
+                    4: "Dustbin Full"
+                }
+            };
+        }
+        // 7. Map Status
+        if (attribute === "map_status") {
+            return {
+                type: "number",
+                states: {
+                    0: "Unmapped",
+                    1: "Mapped",
+                    2: "Mapping",
+                    3: "Loading"
+                }
+            };
+        }
+        // 8. Charge Status
+        if (attribute === "charge_status") {
+            return {
+                type: "number",
+                states: {
+                    0: "Not Charging",
+                    1: "Charging",
+                    2: "Fully Charged",
+                    3: "Charge Failed"
+                }
+            };
+        }
+        // 9. Work Mode
+        if (attribute === "work_mode") {
+            return {
+                type: "number",
+                states: {
+                    0: "Standard",
+                    1: "Custom",
+                    2: "Silent"
+                }
+            };
+        }
+        // 10. Tank State (Water Box)
+        if (attribute === "tank_state") {
+            return {
+                type: "number",
+                states: {
+                    0: "Installed",
+                    1: "Removed",
+                    2: "Empty",
+                    3: "Unknown"
+                }
+            };
+        }
+        // 11. Sweep Type (Mop Route)
+        if (attribute === "sweep_type" || attribute === "mop_mode") {
+            return {
+                type: "number",
+                states: {
+                    0: "Standard",
+                    1: "Deep",
+                    2: "Deep+"
+                }
+            };
+        }
+        // 12. Cloth State (Mop Pad)
+        if (attribute === "cloth_state") {
+            return {
+                type: "number",
+                states: {
+                    0: "Installed",
+                    1: "Removed",
+                    2: "Dirty"
+                }
+            };
+        }
+        // 13. Multi Floor
+        if (attribute === "multi_floor") {
+            return {
+                type: "number",
+                states: {
+                    0: "Disabled",
+                    1: "Enabled"
+                }
+            };
+        }
+        // 14. Quiet Is Open (DND Mode)
+        if (attribute === "quiet_is_open") {
+            return {
+                type: "number",
+                states: {
+                    0: "Off",
+                    1: "On"
+                }
+            };
+        }
+        // 15. Dust Collection Frequency
+        if (attribute === "dust_frequency") {
+            return {
+                type: "number",
+                states: {
+                    0: "Smart",
+                    1: "Low",
+                    2: "Medium",
+                    3: "High",
+                    4: "Never"
+                }
+            };
+        }
+        // 16. Clean Path Preference
+        if (attribute === "clean_path_preference") {
+            return {
+                type: "number",
+                states: {
+                    0: "Standard",
+                    1: "Fast"
+                }
+            };
+        }
+        // 17. Repeat State
+        if (attribute === "repeat_state") {
+            return {
+                type: "number",
+                states: {
+                    0: "Off",
+                    1: "On"
+                }
+            };
+        }
+        // 18. Dust Action
+        if (attribute === "dust_action") {
+            return {
+                type: "number",
+                states: {
+                    0: "Idle",
+                    1: "Emptying"
+                }
+            };
+        }
+        // 19. Build Map
+        if (attribute === "build_map") {
+            return {
+                type: "number",
+                states: {
+                    0: "Off",
+                    1: "On"
+                }
+            };
+        }
+        // 20. Map Num
+        if (attribute === "map_num") {
+            return {
+                type: "number",
+                unit: "maps"
+            };
+        }
+        // 21. Mode
+        if (attribute === "mode") {
+            return {
+                type: "number",
+                states: {
+                    0: "Vacuum",
+                    1: "Mop",
+                    2: "Vacuum & Mop"
+                }
+            };
+        }
+        // 22. Custom Type
+        if (attribute === "custom_type") {
+            return {
+                type: "number",
+                states: {
+                    0: "Off",
+                    1: "On"
+                }
+            };
+        }
+        // 8. Charge State (Fixed key from charge_status)
+        if (attribute === "charge_state") {
+            return {
+                type: "number",
+                states: {
+                    0: "Charging",
+                    1: "Not Charging",
+                    2: "Fully Charged",
+                    3: "Charge Failed"
+                }
+            };
+        }
+        // 23. Add Sweep Status
+        if (attribute === "add_sweep_status") {
+            return {
+                type: "number",
+                states: {
+                    "-1": "Unknown",
+                    0: "Off",
+                    1: "On"
+                }
+            };
+        }
+        // 24. Language
+        if (attribute === "language") {
+            return {
+                type: "number",
+                states: {
+                    0: "Chinese",
+                    1: "English",
+                    2: "Other",
+                    4: "German", // Guessed based on 4 in DE context
+                }
+            };
+        }
+        return undefined;
+    }
+    async updateNetworkInfo() {
+        try {
+            // B01: Request via service.get_net_info? Or just rely on prop.get("net_status")?
+            // prop.get "net_status" usually just gives connected state.
+            // Let's try service.get_network_info first as it's common.
+            const res = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "service.get_net_info", {});
+            if (res) {
+                // Typically returns { ssid, ip, mac, rssi... }
+                const info = Array.isArray(res) ? res[0] : res;
+                if (info) {
+                    await this.deps.ensureFolder(`Devices.${this.duid}.networkInfo`);
+                    for (const key in info) {
+                        await this.deps.ensureState(`Devices.${this.duid}.networkInfo.${key}`, {
+                            name: key,
+                            type: typeof info[key],
+                            read: true,
+                            write: false
+                        });
+                        await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.networkInfo.${key}`, { val: info[key], ack: true });
+                    }
+                }
+            }
+        }
+        catch (e) {
+            this.deps.adapter.rLog("System", this.duid, "Warn", "B01", undefined, `Failed to update network info: ${e.message}`, "warn");
+        }
     }
 }
 exports.B01VacuumFeatures = B01VacuumFeatures;

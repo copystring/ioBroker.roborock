@@ -354,10 +354,18 @@ class requestsHandler {
     }
     async command(_handler, duid, method, params) {
         let finalParams = params;
+        let finalMethod = method;
         if (_handler) {
-            finalParams = await _handler.getCommandParams(method, params);
+            const intercepted = await _handler.getCommandParams(method, params);
+            if (typeof intercepted === "object" && intercepted !== null && "method" in intercepted && "params" in intercepted) {
+                finalMethod = intercepted.method;
+                finalParams = intercepted.params;
+            }
+            else {
+                finalParams = intercepted;
+            }
         }
-        const requestPromise = this.sendRequest(duid, method, finalParams, { priority: 1 });
+        const requestPromise = this.sendRequest(duid, finalMethod, finalParams, { priority: 1 });
         this._processResult(requestPromise, async () => {
             // Command success
         }, `command-${method}-${duid}`, duid);

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { VACUUM_CONSTANTS } from "./vacuumConstants";
 import { ProductHelper } from "../../productHelper";
 import { MapManager } from "../../map/MapManager";
+import * as Q7Data from "../../protocols/q7_dataset.json";
 
 
 // --- Shared Constants ---
@@ -124,6 +125,8 @@ export abstract class V1VacuumFeatures extends BaseDeviceFeatures {
 		super(dependencies, duid, robotModel, mergedConfig);
 		this.profile = profile;
 
+		this.applyLocalizedMappings();
+
 		// Populate dynamic states map references
 		V1VacuumFeatures.CONSTANTS.deviceStates.dock_type.states = V1VacuumFeatures.CONSTANTS.dockTypes;
 		V1VacuumFeatures.CONSTANTS.deviceStates.error_code.states = V1VacuumFeatures.CONSTANTS.errorCodes;
@@ -134,6 +137,49 @@ export abstract class V1VacuumFeatures extends BaseDeviceFeatures {
 		// Deduplicate static features
 		this.config.staticFeatures = [...new Set(this.config.staticFeatures)];
 	}
+
+	protected applyLocalizedMappings(): void {
+		try {
+			// Determine system language, default to 'en'
+			// @ts-ignore - 'language' property might not be typed on adapter config correctly or needs access
+			const sysLang = (this.deps.adapter.config && this.deps.adapter.config.language) ? this.deps.adapter.config.language : "en";
+
+			// Check if there is data for fault codes
+			if (Q7Data && Q7Data.fault_codes) {
+				const errorMapping: Record<number, string> = {};
+
+				for (const [codeStr, data] of Object.entries(Q7Data.fault_codes)) {
+					const code = Number(codeStr);
+					const entry = data as any;
+
+					// Try exact language match, simplified match (e.g. en-US -> en), or english fallback
+					let trans = entry[sysLang];
+					if (!trans && sysLang.includes("-")) {
+						const shortLang = sysLang.split("-")[0];
+						trans = entry[shortLang];
+					}
+					if (!trans) trans = entry["en"];
+
+					if (trans && trans.title) {
+						errorMapping[code] = trans.title;
+					} else if (entry.internal) {
+						errorMapping[code] = entry.internal;
+					}
+				}
+
+				// Override/Merge into profile mappings
+				if (Object.keys(errorMapping).length > 0) {
+					this.profile.mappings.error_code = {
+						...this.profile.mappings.error_code,
+						...errorMapping
+					};
+				}
+			}
+		} catch (e) {
+			this.deps.adapter.log.error(`Failed to apply localized mappings: ${e}`);
+		}
+	}
+
 
 	public override async setupProtocolFeatures(): Promise<void> {
 		await super.setupProtocolFeatures();
