@@ -1,18 +1,16 @@
 
 const fs = require("fs");
-const path = require("path");
-
-const module519Path = "C:\\iobroker\\iobroker.roborock\\Roborock Q7 Series\\output\\module_519.js";
-const generatedDocPath = "C:\\iobroker\\iobroker.roborock\\docs\\protocols\\Q7\\Q7_Values_EN.md";
 
 function verify() {
 	console.log("Verifying documentation completeness...");
 
+	const module519Path = "C:\\iobroker\\iobroker.roborock\\Roborock Q7 Series\\output\\module_519.js";
+	const generatedDocPath = "C:\\iobroker\\iobroker.roborock\\docs\\protocols\\Q7\\Q7_Values_EN.md";
 
 	// 1. Get Expected IDs from module_519.js
 	const content519 = fs.readFileSync(module519Path, "utf8");
 
-	// Look for assignment r3['FAULT_STATUS'] = r6;
+	// Look for assignment r3["FAULT_STATUS"] = r6;
 	// Then search backwards/around for r6 = { ... }
 
 	// Simplification: Just find the large object containing F_0, F_407, etc.
@@ -33,11 +31,6 @@ function verify() {
 
 	// Also check for separate assignments like r6['F_2017'] = 2017;
 	// These appear after the main block.
-	// We can search the whole file for r6['F_XXXX'] = XXXX
-	// But since r6 is reused, we should be careful.
-	// Actually the file structure shows they are right after.
-	// Let's just grep the whole file for 'F_(\d+)'
-
 	const allIdsRegex = /'F_(\d+)'/g;
 	let m2;
 	while ((m2 = allIdsRegex.exec(content519)) !== null) {
@@ -64,8 +57,6 @@ function verify() {
 		documentedIds.push(id);
 
 		if (title === "-" || title === "" || summary === "-" || summary === "") {
-			// Some might legitimately be empty if source is empty, but let's flag them
-			// actually my script puts '-' if undefined.
 			if (title === "-" && summary === "-") {
 				missingTranslations.push(id);
 			}
@@ -84,7 +75,7 @@ function verify() {
 	}
 
 	if (missingTranslations.length > 0) {
-		console.log("\nWARNING: The following codes are present but have NO Translation (Title/Summary are '-'):");
+		console.log("\nWARNING: The following codes are present but have NO Translation (Title/Summary are \"-\"):");
 		// Filter out 0 (No error) as it might remain empty
 		const realMissing = missingTranslations.filter(id => id !== "0");
 		if (realMissing.length > 0) console.log(realMissing.join(", "));
