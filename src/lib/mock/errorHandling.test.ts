@@ -36,7 +36,8 @@ describe("Error Resilience", () => {
 			config: { staticFeatures: [] },
 			http_api: {
 				getFwFeaturesResult: () => mockRobot.features,
-				storeFwFeaturesResult: () => {}
+				storeFwFeaturesResult: () => {},
+				getRobotModel: () => mockRobot.model
 			},
 			requestsHandler: {
 				sendRequest: async (duid: string, method: string, params: any[]) => {
@@ -51,6 +52,7 @@ describe("Error Resilience", () => {
 			}
 		};
 		mockAdapter.requestsHandler = depsMock.requestsHandler;
+		mockAdapter.http_api = depsMock.http_api;
 
 		vacuumFeatures = new TestVacuum(depsMock, mockRobot.duid, mockRobot.model, { staticFeatures: [] });
 		await vacuumFeatures.initialize();
@@ -67,7 +69,7 @@ describe("Error Resilience", () => {
 
 		const originalSendRequest = depsMock.requestsHandler.sendRequest;
 		depsMock.requestsHandler.sendRequest = async (duid: string, method: string, params: any[]) => {
-			if (method === "get_prop" && params[0] === "get_status") {
+			if (method === "get_status") {
 				throw new Error("Network Error");
 			}
 			return originalSendRequest(duid, method, params);

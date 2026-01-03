@@ -12,6 +12,7 @@ const mockAdapter: any = {
 	http_api: {
 		getMatchedRoomIDs: () => [],
 	},
+	rLog: () => {},
 };
 
 describe("MapParser", () => {

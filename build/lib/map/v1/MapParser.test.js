@@ -13,6 +13,7 @@ const mockAdapter = {
     http_api: {
         getMatchedRoomIDs: () => [],
     },
+    rLog: () => { },
 };
 describe("MapParser", () => {
     let parser;

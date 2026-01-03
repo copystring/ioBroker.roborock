@@ -15,7 +15,8 @@ export declare class MockAdapter {
     setInterval(callback: (...args: any[]) => void, ms: number, ...args: any[]): any;
     clearInterval(intervalId: any): void;
     clearTimeout(timeoutId: any): void;
-    getDeviceProtocolVersion(): Promise<string>;
+    getDeviceProtocolVersion: () => Promise<string>;
+    rLog: (type: string, id: string | undefined | null, level: string, protocol: any, version: any, message: string, loglevel?: string) => void;
     constructor();
     setObjectAsync(id: string, obj: any): Promise<void>;
     setObjectNotExistsAsync(id: string, obj: any): Promise<void>;
@@ -23,7 +24,8 @@ export declare class MockAdapter {
     extendObject(id: string, obj: any): Promise<void>;
     getObjectAsync(id: string): Promise<any>;
     setObject(id: string, obj: any): Promise<void>;
-    setStateAsync(id: string, state: any): Promise<void>;
-    setStateChangedAsync(id: string, state: any): Promise<void>;
+    setState: (id: string, state: any, ack?: boolean | ((err?: any) => void), callback?: (err?: any) => void) => void;
+    setStateAsync: (id: string, state: any) => Promise<void>;
+    setStateChangedAsync: (id: string, state: any) => Promise<void>;
     getStateAsync(id: string): Promise<any>;
 }

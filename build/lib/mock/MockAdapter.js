@@ -21,8 +21,20 @@ class MockAdapter {
     setInterval(callback, ms, ...args) { return setInterval(callback, ms, ...args); }
     clearInterval(intervalId) { clearInterval(intervalId); }
     clearTimeout(timeoutId) { clearTimeout(timeoutId); }
-    async getDeviceProtocolVersion() { return "1.0"; }
+    getDeviceProtocolVersion = async () => {
+        // console.log("[MockAdapter] getDeviceProtocolVersion called");
+        return "1.0";
+    };
+    rLog = (type, id, level, protocol, version, message, loglevel = "info") => {
+        void level;
+        void protocol;
+        void version;
+        if (this.log[loglevel]) {
+            this.log[loglevel](`[${type}|${id}] ${message}`);
+        }
+    };
     constructor() {
+        console.log("[MockAdapter] Constructor called");
         this.log = {
             info: (msg) => console.log(`[INFO] ${msg}`),
             warn: (msg) => console.warn(`[WARN] ${msg}`),
@@ -30,6 +42,9 @@ class MockAdapter {
             debug: () => { },
             silly: () => { }
         };
+        this.setState = this.setState.bind(this);
+        this.setStateAsync = this.setStateAsync.bind(this);
+        this.setStateChangedAsync = this.setStateChangedAsync.bind(this);
     }
     async setObjectAsync(id, obj) {
         this.objects[id] = obj;
@@ -51,7 +66,21 @@ class MockAdapter {
     async setObject(id, obj) {
         this.objects[id] = obj;
     }
-    async setStateAsync(id, state) {
+    setState = (id, state, ack, callback) => {
+        if (typeof ack === "function") {
+            callback = ack;
+            ack = undefined;
+        }
+        // Fire and forget / callback style
+        this.setStateAsync(id, state).then(() => {
+            if (callback)
+                callback();
+        }).catch((e) => {
+            if (callback)
+                callback(e);
+        });
+    };
+    setStateAsync = async (id, state) => {
         // Handle { val: ... } object or direct value
         let val = state;
         if (typeof state === "object" && state !== null && "val" in state) {
@@ -82,10 +111,10 @@ class MockAdapter {
                 throw new Error(`Type mismatch for ${id}. Expected ${expectedType}, got ${actualType} (${val})`);
             }
         }
-    }
-    async setStateChangedAsync(id, state) {
+    };
+    setStateChangedAsync = async (id, state) => {
         return this.setStateAsync(id, state);
-    }
+    };
     async getStateAsync(id) {
         return { val: this.states[id], ack: true };
     }

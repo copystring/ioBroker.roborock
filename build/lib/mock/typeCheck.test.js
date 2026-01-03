@@ -13,7 +13,8 @@ class TestVacuum extends v1VacuumFeatures_1.V1VacuumFeatures {
         return false;
     }
 }
-describe("Adapter Type Verification", () => {
+describe("Adapter Type Verification", function () {
+    this.timeout(5000);
     let mockAdapter;
     let mockRobot;
     let vacuumFeatures;

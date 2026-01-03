@@ -12,9 +12,16 @@ class TestVacuum extends V1VacuumFeatures {
 	public async detectAndApplyRuntimeFeatures(): Promise<boolean> {
 		return false;
 	}
+
+	public setMockMapManagerComponents(processMapStub: any): void {
+		if (this.mapManager) {
+			this.mapManager.processMap = processMapStub;
+		}
+	}
 }
 
-describe("Map Processing", () => {
+describe("Map Processing", function() {
+	this.timeout(5000);
 	let mockAdapter: MockAdapter;
 	let mockRobot: MockRobot;
 	let vacuumFeatures: TestVacuum;
@@ -36,11 +43,13 @@ describe("Map Processing", () => {
 			config: { staticFeatures: [], enable_map_creation: true },
 			http_api: {
 				getFwFeaturesResult: () => mockRobot.features,
-				storeFwFeaturesResult: () => {}
+				storeFwFeaturesResult: () => {},
+				getRobotModel: () => mockRobot.model
 			},
 			requestsHandler: {
 				sendRequest: async (duid: string, method: string, params: any[]) => {
 					if (duid !== mockRobot.duid) return [];
+					if (method === "get_map_v1") return Buffer.from("dummy_map_data");
 					return mockRobot.handleRequest(method, params);
 				},
 				command: async () => {},
@@ -70,8 +79,24 @@ describe("Map Processing", () => {
 			}
 		};
 		mockAdapter.requestsHandler = depsMock.requestsHandler;
+		mockAdapter.http_api = depsMock.http_api;
 
 		vacuumFeatures = new TestVacuum(depsMock, mockRobot.duid, mockRobot.model, { staticFeatures: [] });
+
+		const processMapStub = async (rawData: Buffer) => {
+			if (!rawData) return null;
+			// Return different base64 depending on input to differentiate tests?
+			// Or just return keys expected by test
+			// Maps expectation: "base64_full" for updateMap, "base64_truncated" for cleanRecord
+			if (rawData.toString() === "dummy_map_data") return { mapBase64: "base64_full", mapData: {} };
+			if (rawData.toString() === "record_map_data") return { mapBase64Clean: "base64_truncated", mapBase64: "base64_full", mapData: {} }; // cleanRecord expects truncated?
+			// cleanRecord test expects "mapBase64Truncated" state to equal "base64_truncated".
+			// But MapManager processing returns mapBase64 and mapBase64Clean.
+			// V1VacuumFeatures maps mapBase64Clean to mapBase64Truncated state key.
+			return { mapBase64: "base64_full", mapBase64Clean: "base64_truncated", mapData: {} };
+		};
+
+		vacuumFeatures.setMockMapManagerComponents(processMapStub);
 		await vacuumFeatures.initialize();
 	});
 

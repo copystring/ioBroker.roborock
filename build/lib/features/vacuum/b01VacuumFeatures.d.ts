@@ -19,7 +19,7 @@ export declare class B01VacuumFeatures extends V1VacuumFeatures {
     private updateSummaryState;
     private extractStartTime;
     private processRecordAttributes;
-    detectAndApplyRuntimeFeatures(_statusData: Readonly<Record<string, any>>): Promise<boolean>;
+    detectAndApplyRuntimeFeatures(statusData: Readonly<Record<string, any>>): Promise<boolean>;
     protected getDynamicFeatures(): Set<Feature>;
-    processDockType(_dockType: number): Promise<void>;
+    processDockType(dockType: number): Promise<void>;
 }

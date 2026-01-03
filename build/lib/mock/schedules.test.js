@@ -32,7 +32,8 @@ describe("Schedule (Timer) Verification", () => {
             config: { staticFeatures: [] },
             http_api: {
                 getFwFeaturesResult: () => mockRobot.features,
-                storeFwFeaturesResult: () => { }
+                storeFwFeaturesResult: () => { },
+                getRobotModel: () => mockRobot.model
             },
             requestsHandler: {
                 sendRequest: async (duid, method, params) => {
@@ -44,6 +45,7 @@ describe("Schedule (Timer) Verification", () => {
             }
         };
         mockAdapter.requestsHandler = depsMock.requestsHandler;
+        mockAdapter.http_api = depsMock.http_api;
         vacuumFeatures = new TestVacuum(depsMock, mockRobot.duid, mockRobot.model, { staticFeatures: [] });
         await vacuumFeatures.initialize();
     });

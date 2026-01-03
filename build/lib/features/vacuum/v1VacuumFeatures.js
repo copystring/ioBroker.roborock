@@ -1047,8 +1047,8 @@ class V1VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                     await this.deps.ensureFolder(`Devices.${this.duid}.cleaningInfo.records`);
                     const recordsList = cleaningAttributes[cleaningAttribute];
                     const cleaningRecordsJSON = [];
-                    // Process records sequentially, most recent first
-                    const recordsIndices = Object.keys(recordsList).sort((a, b) => parseInt(b) - parseInt(a));
+                    // Process records sequentially, most recent first (index 0 is newest)
+                    const recordsIndices = Object.keys(recordsList).sort((a, b) => parseInt(a) - parseInt(b));
                     const limit = 20; // Max records to process per update to avoid timeouts
                     let processed = 0;
                     for (const cleaningRecord of recordsIndices) {

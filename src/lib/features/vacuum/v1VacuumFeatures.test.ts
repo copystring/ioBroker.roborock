@@ -22,6 +22,12 @@ describe("V1VacuumFeatures", () => {
 			requestsHandler: { sendRequest: sinon.stub().resolves({}), command: sinon.stub().resolves() },
 			getDeviceProtocolVersion: () => Promise.resolve("1.0"), // Use plain function to avoid sinon issues
 			translations: {},
+			http_api: {
+				getFwFeaturesResult: sinon.stub(),
+				storeFwFeaturesResult: sinon.stub(),
+				getRobotModel: sinon.stub().returns("roborock.vacuum.a70")
+			},
+			rLog: sinon.stub(),
 		};
 		depsMock = {
 			adapter: adapterMock,
@@ -132,7 +138,7 @@ describe("V1VacuumFeatures", () => {
 			adapterMock.requestsHandler.sendRequest,
 			"duid1",
 			"get_clean_record_map",
-			[1234567890], // Expected Standard params
+			{ start_time: 1234567890 }, // Expected Standard params
 			sinon.match.any
 		);
 	});

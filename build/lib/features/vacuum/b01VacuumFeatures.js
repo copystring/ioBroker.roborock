@@ -423,14 +423,17 @@ class B01VacuumFeatures extends v1VacuumFeatures_1.V1VacuumFeatures {
             await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${index}.${mappedKey}`, { val, ack: true });
         }
     }
-    async detectAndApplyRuntimeFeatures(_statusData) {
-        return false; // B01 features are statically defined
+    async detectAndApplyRuntimeFeatures(statusData) {
+        // B01 features are statically defined, parameter unused but required by signature
+        void statusData;
+        return false;
     }
     getDynamicFeatures() {
         return new Set(); // B01 does not use bitfield feature flags
     }
-    async processDockType(_dockType) {
-        // B01 dock features are handled via static command definitions
+    async processDockType(dockType) {
+        // B01 dock features are handled via static command definitions, parameter unused but required by signature
+        void dockType;
     }
 }
 exports.B01VacuumFeatures = B01VacuumFeatures;

@@ -1252,8 +1252,8 @@ export abstract class V1VacuumFeatures extends BaseDeviceFeatures {
     				const recordsList = cleaningAttributes[cleaningAttribute] as Record<string, number>;
     				const cleaningRecordsJSON: unknown[] = [];
 
-    				// Process records sequentially, most recent first
-    				const recordsIndices = Object.keys(recordsList).sort((a, b) => parseInt(b) - parseInt(a));
+    				// Process records sequentially, most recent first (index 0 is newest)
+    				const recordsIndices = Object.keys(recordsList).sort((a, b) => parseInt(a) - parseInt(b));
     				const limit = 20; // Max records to process per update to avoid timeouts
     				let processed = 0;
 

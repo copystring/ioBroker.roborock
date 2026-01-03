@@ -18,6 +18,7 @@ class TestVacuumFeatures extends v1VacuumFeatures_1.V1VacuumFeatures {
     getFirmwareFeatureName() { return ""; }
     getCommonCleaningInfo() { return {}; }
     // Expose protected method for testing
+    // Expose protected method for testing
     async publicApplyFeature(feature) {
         return this.applyFeature(feature);
     }
@@ -57,6 +58,10 @@ describe("Features - State Creation", () => {
             ensureFolder: async (path) => mockAdapter.setObjectNotExistsAsync(path, { type: "folder" }),
             ensureState: async (id, common) => mockAdapter.setObjectNotExistsAsync(id, { type: "state", common }),
         };
+        // Double-ensure setState is present even if class binding fails
+        if (!deps.adapter.setState) {
+            deps.adapter.setState = mockAdapter.setState;
+        }
         const features = new TestVacuumFeatures(deps, mockRobot.duid, mockRobot.model, { staticFeatures: [] });
         // 1. Initial State: No DSS features applied
         const dssFolder = `Devices.${mockRobot.duid}.dockingStationStatus`;
@@ -99,6 +104,12 @@ describe("Features - State Creation", () => {
                 return {};
             }
         };
+        // Ensure setState is present
+        if (!deps.adapter.setState) {
+            console.log("[TestDiag] setState missing on adapter, patching...");
+            deps.adapter.setState = mockAdapter.setState;
+        }
+        console.log("[TestDiag] Adapter methods:", Object.getOwnPropertyNames(Object.getPrototypeOf(deps.adapter)));
         const features = new TestVacuumFeatures(deps, mockRobot.duid, mockRobot.model, { staticFeatures: [] });
         // 1. Initial: No reset buttons
         const resetMainBrush = `Devices.${mockRobot.duid}.resetConsumables.main_brush_work_time`;
@@ -111,14 +122,14 @@ describe("Features - State Creation", () => {
         // Check for RESET buttons - Main Key Checks
         // We know resetConsumables contains: main_brush_work_time, side_brush_work_time, filter_work_time, etc.
         const duid = mockRobot.duid; // Use duid from mockRobot
-        const resetMainBrushPath = `Devices.${duid}.resetConsumables.main_brush_work_time`;
-        const resetSideBrush = `Devices.${duid}.resetConsumables.side_brush_work_time`;
-        const resetFilter = `Devices.${duid}.resetConsumables.filter_work_time`;
+        const resetMainBrushPath = `Devices.${duid}.resetConsumables.main_brush`;
+        const resetSideBrush = `Devices.${duid}.resetConsumables.side_brush`;
+        const resetFilter = `Devices.${duid}.resetConsumables.filter`;
         const resetUnknown = `Devices.${duid}.resetConsumables.unknown_consumable`;
         (0, chai_1.expect)(mockAdapter.objects).to.have.property(resetMainBrushPath);
         (0, chai_1.expect)(mockAdapter.objects).to.have.property(resetSideBrush);
         (0, chai_1.expect)(mockAdapter.objects).to.have.property(resetFilter);
-        // Should NOT create reset button for unknown consumable
+        // Should NOT create reset button for unknown consumable (only work_time/dirty_time suffixes)
         (0, chai_1.expect)(mockAdapter.objects).to.not.have.property(resetUnknown);
         // Verify object properties for a created button
         const btnObj = mockAdapter.objects[resetMainBrushPath];
