@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.FallbackVacuumFeatures = exports.FallbackBaseFeatures = void 0;
 // src/lib/features/fallback_features.ts
 const baseDeviceFeatures_1 = require("./baseDeviceFeatures");
-const baseVacuumFeatures_1 = require("./vacuum/baseVacuumFeatures"); // Import Vacuum-Basis
+const v1VacuumFeatures_1 = require("./vacuum/v1VacuumFeatures"); // Import Vacuum-Basis
 // --- Generic fallback ---
 class FallbackBaseFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
     constructor(deps, duid, robotModel) {
@@ -12,51 +12,51 @@ class FallbackBaseFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
     // --- Implementation of abstract methods ---
     // --- Implementation of abstract methods ---
     getDynamicFeatures() {
-        this.deps.log.warn(`[${this.duid}] Using fallback getDynamicFeatures. Returning empty set.`);
+        this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, "Using fallback getDynamicFeatures. Returning empty set.", "warn");
         return new Set(); // Fallback returns no dynamic features
     }
     async processDockType(dockType) {
-        this.deps.log.warn(`[${this.duid}] Using fallback processDockType for dock type ${dockType}. No actions taken.`);
+        this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Using fallback processDockType for dock type ${dockType}. No actions taken.`, "warn");
         // Fallback does nothing with dock type
     }
     async detectAndApplyRuntimeFeatures() {
-        this.deps.log.warn(`[${this.duid}] Using fallback detectAndApplyRuntimeFeatures. No features detected.`);
+        this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, "Using fallback detectAndApplyRuntimeFeatures. No features detected.", "warn");
         return false; // Fallback does no runtime detection
     }
     getCommonConsumable(attribute) {
-        this.deps.log.warn(`[${this.duid}] Fallback: getCommonConsumable called for ${attribute}, returning undefined.`);
+        this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Fallback: getCommonConsumable called for ${attribute}, returning undefined.`, "warn");
         return undefined;
     }
     isResetableConsumable(consumable) {
-        this.deps.log.warn(`[${this.duid}] Fallback: isResetableConsumable called for ${consumable}, returning false.`);
+        this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Fallback: isResetableConsumable called for ${consumable}, returning false.`, "warn");
         return false;
     }
     getCommonDeviceStates(attribute) {
-        this.deps.log.warn(`[${this.duid}] Fallback: getCommonDeviceStates called for ${attribute}, returning undefined.`);
+        this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Fallback: getCommonDeviceStates called for ${attribute}, returning undefined.`, "warn");
         return undefined;
     }
     getCommonCleaningInfo(attribute) {
-        this.deps.log.warn(`[${this.duid}] Fallback: getCommonCleaningInfo called for ${attribute}, returning undefined.`);
+        this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Fallback: getCommonCleaningInfo called for ${attribute}, returning undefined.`, "warn");
         return undefined;
     }
     getCommonCleaningRecords(attribute) {
-        this.deps.log.warn(`[${this.duid}] Fallback: getCommonCleaningRecords called for ${attribute}, returning undefined.`);
+        this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Fallback: getCommonCleaningRecords called for ${attribute}, returning undefined.`, "warn");
         return undefined;
     }
     getFirmwareFeatureName(featureID) {
-        this.deps.log.warn(`[${this.duid}] Fallback: getFirmwareFeatureName called for ${featureID}, returning default.`);
+        this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Fallback: getFirmwareFeatureName called for ${featureID}, returning default.`, "warn");
         return `FeatureID_${featureID}`; // Default fallback response
     }
 }
 exports.FallbackBaseFeatures = FallbackBaseFeatures;
 // --- Specific Vacuum Fallback ---
 // ... imports
-const baseVacuumFeatures_2 = require("./vacuum/baseVacuumFeatures");
+const v1VacuumFeatures_2 = require("./vacuum/v1VacuumFeatures");
 // ...
-class FallbackVacuumFeatures extends baseVacuumFeatures_1.BaseVacuumFeatures {
-    constructor(deps, duid, robotModel, profile = baseVacuumFeatures_2.DEFAULT_PROFILE) {
+class FallbackVacuumFeatures extends v1VacuumFeatures_1.V1VacuumFeatures {
+    constructor(deps, duid, robotModel, profile = v1VacuumFeatures_2.DEFAULT_PROFILE) {
         super(deps, duid, robotModel, { staticFeatures: [] }, profile);
-        this.deps.log.warn(`[${this.duid}] Using FallbackVacuumFeatures for model ${robotModel}. Runtime detection and base vacuum features active.`);
+        this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Using FallbackVacuumFeatures for model ${robotModel}. Runtime detection and base vacuum features active.`, "warn");
     }
 }
 exports.FallbackVacuumFeatures = FallbackVacuumFeatures;

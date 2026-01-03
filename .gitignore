@@ -2,7 +2,6 @@
 .*/
 !.vscode/
 !.github/
-!.husky/
 
 *.code-workspace
 node_modules
@@ -24,8 +23,4 @@ lib/go2rtc/go2rtc_win64.zip
 images/products/
 .commitinfo
 src/www/pathProcessor.ts
-
-
-# Build artifacts
-*.tsbuildinfo
-
+www/assets

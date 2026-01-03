@@ -56,10 +56,9 @@ function md5hex(str) {
 function toBuffer(input) {
     return Buffer.isBuffer(input) ? input : Buffer.from(input, "utf-8");
 }
-/*
- * Crypto implementations based on community research:
- * - 1.0: Credits to rovo89
- * - L01: Credits to Kenny (Homey project)
+/**
+ * Cryptographic engine compatible with various Roborock protocol versions.
+ * Supports legacy 1.0, A01 (AES-CBC), L01 (AES-GCM), and B01 modes.
  */
 exports.cryptoEngine = {
     /**
@@ -169,6 +168,43 @@ exports.cryptoEngine = {
         decipher.setAAD(aad);
         decipher.setAuthTag(tag);
         return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+    },
+    // ---------- B01 (AES-128-CBC with custom IV) ----------
+    /**
+     * Encrypts a payload for the B01 protocol using AES-128-CBC.
+     * The IV is derived from the random seed and a static salt.
+     */
+    encryptB01(payload, localKey, ivInput) {
+        const key = toBuffer(localKey);
+        const iv = this.deriveB01IV(ivInput);
+        const cipher = crypto.createCipheriv("aes-128-cbc", key, iv);
+        cipher.setAutoPadding(true);
+        const data = Buffer.isBuffer(payload) ? payload : Buffer.from(payload, "utf8");
+        return Buffer.concat([cipher.update(data), cipher.final()]);
+    },
+    /**
+     * Decrypts a B01 payload.
+     */
+    decryptB01(payload, localKey, ivInput) {
+        const key = toBuffer(localKey);
+        const iv = this.deriveB01IV(ivInput);
+        const decipher = crypto.createDecipheriv("aes-128-cbc", key, iv);
+        decipher.setAutoPadding(true);
+        return Buffer.concat([decipher.update(payload), decipher.final()]);
+    },
+    /**
+     * Derives the initial vector (IV) specifically for B01 protocol encryption.
+     * Computes MD5(hex(random) + salt) and extracts the middle 16 bytes.
+     * Salt source: librrcodec.so (hardcoded)
+     */
+    deriveB01IV(ivInput) {
+        const salt = "5wwh9ikChRjASpMU8cxg7o1d2E";
+        const randomBuffer = Buffer.alloc(4);
+        randomBuffer.writeUInt32BE(ivInput, 0); // Use Big-Endian per protocol specification
+        const rStr = randomBuffer.toString("hex").toLowerCase();
+        const hash = crypto.createHash("md5").update(rStr + salt).digest("hex");
+        const ivStr = hash.substring(9, 25);
+        return Buffer.from(ivStr, "utf8");
     },
     // ---------- Password Encryption (Login V4) ----------
     encryptPassword(password, k) {

@@ -51,7 +51,7 @@ export declare const BaseStatusSchema: z.ZodObject<{
 }, z.core.$loose>;
 /**
  * Base class for device features. Handles init, feature application, and commands.
- * Extended by specific types (e.g. BaseVacuumFeatures).
+ * Extended by specific types (e.g. V1VacuumFeatures).
  */
 export declare abstract class BaseDeviceFeatures {
     protected deps: FeatureDependencies;
@@ -115,7 +115,13 @@ export declare abstract class BaseDeviceFeatures {
      * @param initialStatus Optional initial status.
      * @param initialFwFeatures Optional initial firmware features.
      */
-    initialize(): Promise<void>;
+    initialize(online?: boolean): Promise<void>;
+    /**
+     * Fetches initial runtime data (status, consumables, map).
+     * Subclasses should override this to provide specific logic.
+     */
+    initializeDeviceData(): Promise<void>;
+    setupProtocolFeatures(): Promise<void>;
     /**
      * Logs summary of applied features and commands. Call after init.
      */
@@ -165,6 +171,12 @@ export declare abstract class BaseDeviceFeatures {
      * @param feature Feature enum key.
      */
     hasStaticFeature(feature: Feature): boolean;
+    hasFeature(feature: Feature): boolean;
+    /**
+     * Helper to safely access dynamic feature methods.
+     * Encapsulates type casting for readability.
+     */
+    protected getFeatureMethod(name: string): Function;
     /**
      * Allows feature handlers to provide/modify parameters for a command before sending.
      * Override this to implement logic like 'app_segment_clean' gathering segments from states.

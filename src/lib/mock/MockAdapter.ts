@@ -19,9 +19,22 @@ export class MockAdapter {
 	public setInterval(callback: (...args: any[]) => void, ms: number, ...args: any[]): any { return setInterval(callback, ms, ...args); }
 	public clearInterval(intervalId: any): void { clearInterval(intervalId); }
 	public clearTimeout(timeoutId: any): void { clearTimeout(timeoutId); }
-	public async getDeviceProtocolVersion(): Promise<string> { return "1.0"; }
+	public getDeviceProtocolVersion = async (): Promise<string> => {
+		// console.log("[MockAdapter] getDeviceProtocolVersion called");
+		return "1.0";
+	};
+
+	public rLog = (type: string, id: string | undefined | null, level: string, protocol: any, version: any, message: string, loglevel: string = "info"): void => {
+		void level;
+		void protocol;
+		void version;
+		if (this.log[loglevel]) {
+			this.log[loglevel](`[${type}|${id}] ${message}`);
+		}
+	};
 
 	constructor() {
+		console.log("[MockAdapter] Constructor called");
 		this.log = {
 			info: (msg: string) => console.log(`[INFO] ${msg}`),
 			warn: (msg: string) => console.warn(`[WARN] ${msg}`),
@@ -29,6 +42,9 @@ export class MockAdapter {
 			debug: () => {},
 			silly: () => {}
 		};
+		this.setState = this.setState.bind(this);
+		this.setStateAsync = this.setStateAsync.bind(this);
+		this.setStateChangedAsync = this.setStateChangedAsync.bind(this);
 	}
 
 	public async setObjectAsync(id: string, obj: any): Promise<void> {
@@ -57,7 +73,20 @@ export class MockAdapter {
 		this.objects[id] = obj;
 	}
 
-	public async setStateAsync(id: string, state: any): Promise<void> {
+	public setState = (id: string, state: any, ack?: boolean | ((err?: any) => void), callback?: (err?: any) => void): void => {
+		if (typeof ack === "function") {
+			callback = ack;
+			ack = undefined;
+		}
+		// Fire and forget / callback style
+		this.setStateAsync(id, state).then(() => {
+			if (callback) callback();
+		}).catch((e) => {
+			if (callback) callback(e);
+		});
+	};
+
+	public setStateAsync = async (id: string, state: any): Promise<void> => {
 		// Handle { val: ... } object or direct value
 		let val = state;
 		if (typeof state === "object" && state !== null && "val" in state) {
@@ -89,11 +118,11 @@ export class MockAdapter {
 				throw new Error(`Type mismatch for ${id}. Expected ${expectedType}, got ${actualType} (${val})`);
 			}
 		}
-	}
+	};
 
-	public async setStateChangedAsync(id: string, state: any): Promise<void> {
+	public setStateChangedAsync = async (id: string, state: any): Promise<void> => {
 		return this.setStateAsync(id, state);
-	}
+	};
 
 	public async getStateAsync(id: string): Promise<any> {
 		return { val: this.states[id], ack: true };

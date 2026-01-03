@@ -22,6 +22,12 @@ var Feature;
     Feature["DockingStationStatus"] = "DockingStationStatus";
     Feature["NetworkInfo"] = "NetworkInfo";
     Feature["UpdateStatus"] = "UpdateStatus";
+    Feature["Timers"] = "Timers";
+    Feature["FirmwareInfo"] = "FirmwareInfo";
+    Feature["MultiMap"] = "MultiMap";
+    Feature["RoomMapping"] = "RoomMapping";
+    Feature["Map"] = "Map";
+    Feature["CleanSummary"] = "CleanSummary";
     // --- Static Flags (Defined by Model Class Config) ---
     Feature["Camera"] = "Camera";
     Feature["MopForbidden"] = "MopForbidden";

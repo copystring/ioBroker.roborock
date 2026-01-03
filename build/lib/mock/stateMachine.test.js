@@ -3,8 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const chai_1 = require("chai");
 const MockAdapter_1 = require("./MockAdapter");
 const MockRobot_1 = require("./MockRobot");
-const baseVacuumFeatures_1 = require("../features/vacuum/baseVacuumFeatures");
-class TestVacuum extends baseVacuumFeatures_1.BaseVacuumFeatures {
+const v1VacuumFeatures_1 = require("../features/vacuum/v1VacuumFeatures");
+class TestVacuum extends v1VacuumFeatures_1.V1VacuumFeatures {
     getDynamicFeatures() {
         return new Set();
     }
@@ -32,7 +32,8 @@ describe("State Machine Deep Dive", () => {
             config: { staticFeatures: [] },
             http_api: {
                 getFwFeaturesResult: () => mockRobot.features,
-                storeFwFeaturesResult: () => { }
+                storeFwFeaturesResult: () => { },
+                getRobotModel: () => mockRobot.model
             },
             requestsHandler: {
                 sendRequest: async (duid, method, params) => {
@@ -44,6 +45,7 @@ describe("State Machine Deep Dive", () => {
             }
         };
         mockAdapter.requestsHandler = depsMock.requestsHandler;
+        mockAdapter.http_api = depsMock.http_api;
         vacuumFeatures = new TestVacuum(depsMock, mockRobot.duid, mockRobot.model, { staticFeatures: [] });
         await vacuumFeatures.initialize();
     });

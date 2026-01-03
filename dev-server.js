@@ -78,10 +78,15 @@ console.log("=".repeat(70) + "\n");
 // Copy pathProcessor first
 console.log(prefix("SETUP", colors.web) + " Copying pathProcessor.ts...");
 exec("shx cp src/lib/pathProcessor.ts src/www/pathProcessor.ts", (err) => {
-	if (err) {
-		console.error(prefix("SETUP", colors.error) + " Failed to copy pathProcessor.ts");
-	}
+	if (err) console.error(prefix("SETUP", colors.error) + " Failed to copy pathProcessor.ts");
 });
+
+// Run Build Info Update
+console.log(prefix("SETUP", colors.backend) + " Updating Build Info...");
+exec("node scripts/updateBuildInfo.js", (err) => {
+	if (err) console.error(prefix("SETUP", colors.error) + " Failed to update build info");
+});
+
 
 // Resolve paths to executables
 const tscPath = path.join(__dirname, "node_modules", "typescript", "bin", "tsc");

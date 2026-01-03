@@ -9,7 +9,7 @@ export default [
 		...iobroker.backend,
 
 		files: ["**/*.js", "**/*.ts"],
-		ignores: ["**/*.d.ts", "**/build/**", "**/admin/**", "**/test/**", "www/**"],
+		ignores: ["**/*.d.ts", "**/build/**", "**/admin/**", "**/test/**", "www/**", "**/.antigravityignore/**"],
 		languageOptions: {
 			parser: tsParser,
 			ecmaVersion: 2020,
