@@ -1,9 +1,9 @@
-import { Parser } from "binary-parser";
+import type { Roborock } from "../main";
 import * as crypto from "crypto";
 import * as mqtt from "mqtt";
-import * as zlib from "zlib";
-import type { Roborock } from "../main";
+import { Parser } from "binary-parser";
 import { MapDecryptor as B01MapDecryptor } from "./map/b01/MapDecryptor";
+import * as zlib from "zlib";
 
 // Parser for protocol 301 messages (often Map Data)
 const protocol301Parser = new Parser()
@@ -303,16 +303,9 @@ export class mqtt_api {
 						// B01 payloads contain nested JSON strings
 						if (typeof inner === "string") {
 							try {
-								// Also trim trailing garbage from the nested string if needed
-								const lastBraceInner = inner.lastIndexOf("}");
-								if (lastBraceInner !== -1) {
-									inner = inner.substring(0, lastBraceInner + 1);
-								}
-
 								inner = JSON.parse(inner);
 							} catch (e) {
 								this.adapter.rLog("MQTT", duid, "Error", "B01", undefined, `Failed to parse B01 nested string payload: ${e}`, "warn");
-
 							}
 						}
 						this.handleB01Response(inner, duid, data.version);

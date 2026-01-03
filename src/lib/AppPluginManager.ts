@@ -1,7 +1,7 @@
-import * as fs from "fs";
-import * as JSZip from "jszip";
-import * as path from "path";
 import { Roborock } from "../main";
+import * as fs from "fs";
+import * as path from "path";
+import * as JSZip from "jszip";
 
 export class AppPluginManager {
 	adapter: Roborock;
@@ -144,11 +144,9 @@ export class AppPluginManager {
 					reason = "Assets missing";
 				} else {
 					if (fs.existsSync(versionFilePath)) {
-						const versionContent = fs.readFileSync(versionFilePath, "utf8").trim();
-						const currentVersion = parseInt(versionContent);
-						const remoteVersion = parseInt(newVersion);
-
-						if (!isNaN(remoteVersion) && (!isNaN(currentVersion) ? remoteVersion > currentVersion : true)) {
+						const currentVersion = fs.readFileSync(versionFilePath, "utf8").trim();
+						// Simple numeric check, assuming version increases
+						if (Number(newVersion) > Number(currentVersion)) {
 							shouldDownload = true;
 							reason = `New version (Local: ${currentVersion}, Remote: ${newVersion})`;
 						} else {

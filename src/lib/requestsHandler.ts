@@ -1,8 +1,8 @@
-import PQueue from "p-queue";
 import type { Roborock } from "../main";
 import type { BaseDeviceFeatures } from "./features/baseDeviceFeatures";
-import { MapBuilder } from "./map/v1/MapBuilder";
 import { MapParser } from "./map/v1/MapParser";
+import { MapBuilder } from "./map/v1/MapBuilder";
+import PQueue from "p-queue";
 import { messageParser } from "./messageParser";
 
 type AbortSignalWithStatic = typeof AbortSignal & {
@@ -437,7 +437,6 @@ export class requestsHandler {
 
 		// For L01/1.0, favor Cloud to avoid potential local ID mismatch issues issues observed in past versions.
 		// TODO: Re-evaluate local preference for L01 once stable.
-
 		if (version === "L01" || version === "1.0") {
 			return true;
 		}

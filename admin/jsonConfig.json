@@ -121,15 +121,5 @@
             "lg": 6,
             "xl": 6
 		},
-		"downloadRoborockImages": {
-			"type": "checkbox",
-			"label": "Download Roborock Images",
-			"newLine": true,
-			"xs": 12,
-			"sm": 12,
-            "md": 6,
-            "lg": 6,
-            "xl": 6
-		}
 	}
 }
