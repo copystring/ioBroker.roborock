@@ -1,74 +1,64 @@
 {
-  // --- GENERAL & AUTOMATION ---
-
-  // Allow tasks (like our npm run dev) to start automatically without asking
-  "task.allowAutomaticTasks": "on",
-
-  // Enable ESLint integration
-  "eslint.enable": true,
-  "eslint.nodePath": "./node_modules",
-
-  // Use ESLint as the default formatter for files
-  "editor.defaultFormatter": "dbaeumer.vscode-eslint",
-
-  // Automatically format code when saving
-  "editor.formatOnSave": true,
-
-  // Automatically fix linting errors (e.g. missing semicolons) when saving
-  "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": "explicit"
-  },
-
-  // Your custom print width preference
-  "prettier.printWidth": 170,
-  // Tell Prettier to use tabs instead of spaces when formatting
-	"prettier.useTabs": true,
-
-	// Tell VS Code editor to use tabs by default for new files
-	"editor.insertSpaces": false,
-
-	// Force VS Code to use the setting above, not guess from the file
-	"editor.detectIndentation": false,
-
-
-  // --- FILE VISIBILITY ---
-
-  // Exclude generated files from search results to keep search fast and clean
-  "search.exclude": {
-    "**/node_modules": true,
-    "**/build": true,
-    "**/.git": true,
-    "**/*.js.map": true,
-    "**/*.js": true,
-    "src/www/pathProcessor.ts": true
-  },
-
-  // Hide compiled files and maps in the file explorer (optional, keeps tree clean)
-  "files.exclude": {
-    "**/.git": true,
-    "**/.DS_Store": true,
-    "**/*.js.map": true,
-    "**/*.js": true,
-    "src/www/pathProcessor.ts": true
-    // "build/": true // Uncomment this if you want to hide the build folder entirely
-  },
-
-
-  // --- IOBROKER SPECIFIC SCHEMAS ---
-
-  // Intellisense and validation for io-package.json and admin config
-  "json.schemas": [
-    {
-      "fileMatch": ["io-package.json"],
-      "url": "https://raw.githubusercontent.com/ioBroker/ioBroker.js-controller/master/schemas/io-package.json"
+    // --- GENERAL & AUTOMATION ---
+    // Allow tasks (like our npm run dev) to start automatically without asking
+    "task.allowAutomaticTasks": "on",
+    // Enable ESLint integration
+    "eslint.enable": true,
+    "eslint.nodePath": "./node_modules",
+    // Use ESLint as the default formatter for files
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+    // Automatically format code when saving
+    "editor.formatOnSave": true,
+    // Automatically fix linting errors (e.g. missing semicolons) when saving
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "explicit"
     },
-    {
-      "fileMatch": [
-        "admin/jsonConfig.json",
-        "admin/jsonCustom.json",
-        "admin/jsonTab.json"
-      ],
-      "url": "https://raw.githubusercontent.com/ioBroker/ioBroker.admin/master/packages/jsonConfig/schemas/jsonConfig.json"
-     }
-  ]
+    // Your custom print width preference
+    "prettier.printWidth": 170,
+    // Tell Prettier to use tabs instead of spaces when formatting
+    "prettier.useTabs": true,
+    // Tell VS Code editor to use tabs by default for new files
+    "editor.insertSpaces": false,
+    // Force VS Code to use the setting above, not guess from the file
+    "editor.detectIndentation": false,
+    // --- FILE VISIBILITY ---
+    // Exclude generated files from search results to keep search fast and clean
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/build": true,
+        "**/.git": true,
+        "**/*.js.map": true,
+        "**/*.js": true,
+        "src/www/pathProcessor.ts": true
+    },
+    // Hide compiled files and maps in the file explorer (optional, keeps tree clean)
+    "files.exclude": {
+        "**/.git": true,
+        "**/.DS_Store": true,
+        "**/*.js.map": true,
+        "**/*.js": true,
+        "src/www/pathProcessor.ts": true
+        // "build/": true // Uncomment this if you want to hide the build folder entirely
+    },
+    // --- IOBROKER SPECIFIC SCHEMAS ---
+    // Intellisense and validation for io-package.json and admin config
+    "json.schemas": [
+        {
+            "fileMatch": [
+                "io-package.json"
+            ],
+            "url": "https://raw.githubusercontent.com/ioBroker/ioBroker.js-controller/master/schemas/io-package.json"
+        },
+        {
+            "fileMatch": [
+                "admin/jsonConfig.json",
+                "admin/jsonCustom.json",
+                "admin/jsonTab.json",
+                "admin/jsonConfig.json5",
+                "admin/jsonCustom.json5",
+                "admin/jsonTab.json5"
+            ],
+            "url": "https://raw.githubusercontent.com/ioBroker/ioBroker.admin/master/packages/jsonConfig/schemas/jsonConfig.json"
+        }
+    ]
 }
