@@ -1,8 +1,8 @@
-import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies, CommandSpec } from "../baseDeviceFeatures";
-import { Feature } from "../features.enum";
 import { z } from "zod";
-import { VACUUM_CONSTANTS } from "./vacuumConstants";
 import { ProductHelper } from "../../productHelper";
+import { BaseDeviceFeatures, CommandSpec, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
+import { Feature } from "../features.enum";
+import { VACUUM_CONSTANTS } from "./vacuumConstants";
 
 // --- Shared Constants ---
 export const BASE_FAN = { 101: "Quiet", 102: "Balanced", 103: "Turbo", 104: "Max" };
@@ -249,12 +249,9 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 
 		let changedByStatus = false;
 		// WaterBox
-		if ((validStatus.water_box_mode !== undefined || validStatus.mop_mode !== undefined) && !this.appliedFeatures.has(Feature.WaterBox)) {
-			// this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected WaterBox feature via status.`);
-			if (await this.applyFeature(Feature.WaterBox)) {
-				changedByStatus = true;
-				appliedFeaturesList.push("WaterBox");
-			}
+		if ((validStatus.water_box_mode !== undefined || validStatus.mop_mode !== undefined) && !this.appliedFeatures.has(Feature.WaterBox) && await this.applyFeature(Feature.WaterBox)) {
+			changedByStatus = true;
+			appliedFeaturesList.push("WaterBox");
 		}
 
 		// Carpet Mode Commands
@@ -274,42 +271,28 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 		}
 
 		// Refine Fan Power (Max+)
-		if (validStatus.fan_power === 108 && !this.appliedFeatures.has(Feature.FanMaxPlus)) {
-			// Apply only if not statically defined
-			if (!this.config.staticFeatures.includes(Feature.FanMaxPlus)) {
-				// this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected FanMaxPlus state (108).`);
-				if (await this.applyFeature(Feature.FanMaxPlus)) {
-					changedByStatus = true;
-					appliedFeaturesList.push("FanMaxPlus");
-				}
-			}
+		if (validStatus.fan_power === 108 && !this.appliedFeatures.has(Feature.FanMaxPlus) && !this.config.staticFeatures.includes(Feature.FanMaxPlus) && await this.applyFeature(Feature.FanMaxPlus)) {
+			// this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected FanMaxPlus state (108).`);
+			changedByStatus = true;
+			appliedFeaturesList.push("FanMaxPlus");
 		}
 
 		// MopDry
-		if (validStatus.dry_status !== undefined && !this.appliedFeatures.has(Feature.MopDry)) {
-			// this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected MopDry feature via 'dry_status' key.`);
-			if (await this.applyFeature(Feature.MopDry)) {
-				changedByStatus = true;
-				appliedFeaturesList.push("MopDry");
-			}
+		if (validStatus.dry_status !== undefined && !this.appliedFeatures.has(Feature.MopDry) && await this.applyFeature(Feature.MopDry)) {
+			changedByStatus = true;
+			appliedFeaturesList.push("MopDry");
 		}
 
 		// AutoEmptyDock
-		if (validStatus.dust_collection_status !== undefined && !this.appliedFeatures.has(Feature.AutoEmptyDock)) {
-			// this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected AutoEmptyDock feature via 'dust_collection_status' key.`);
-			if (await this.applyFeature(Feature.AutoEmptyDock)) {
-				changedByStatus = true;
-				appliedFeaturesList.push("AutoEmptyDock");
-			}
+		if (validStatus.dust_collection_status !== undefined && !this.appliedFeatures.has(Feature.AutoEmptyDock) && await this.applyFeature(Feature.AutoEmptyDock)) {
+			changedByStatus = true;
+			appliedFeaturesList.push("AutoEmptyDock");
 		}
 
 		// MopWash
-		if (validStatus.wash_status !== undefined && !this.appliedFeatures.has(Feature.MopWash)) {
-
-			if (await this.applyFeature(Feature.MopWash)) {
-				changedByStatus = true;
-				appliedFeaturesList.push("MopWash");
-			}
+		if (validStatus.wash_status !== undefined && !this.appliedFeatures.has(Feature.MopWash) && await this.applyFeature(Feature.MopWash)) {
+			changedByStatus = true;
+			appliedFeaturesList.push("MopWash");
 		}
 
 		// Dynamic DockingStationStatus
@@ -317,19 +300,15 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
 		const hasDssInStatus = validStatus.dss !== undefined;
 		const hasSupportedDock = validStatus.dock_type !== undefined && dssSupportedDockTypes.includes(validStatus.dock_type);
 
-		if ((hasDssInStatus || hasSupportedDock) && !this.appliedFeatures.has(Feature.DockingStationStatus)) {
-			if (await this.applyFeature(Feature.DockingStationStatus)) {
-				changedByStatus = true;
-				appliedFeaturesList.push("DockingStationStatus");
-			}
+		if ((hasDssInStatus || hasSupportedDock) && !this.appliedFeatures.has(Feature.DockingStationStatus) && await this.applyFeature(Feature.DockingStationStatus)) {
+			changedByStatus = true;
+			appliedFeaturesList.push("DockingStationStatus");
 		}
 
 		// Ensure Consumables features are applied (standard for all vacuums really, but good to be explicit)
-		if (!this.appliedFeatures.has(Feature.Consumables)) {
-			if (await this.applyFeature(Feature.Consumables)) {
-				changedByStatus = true;
-				appliedFeaturesList.push("Consumables");
-			}
+		if (!this.appliedFeatures.has(Feature.Consumables) && await this.applyFeature(Feature.Consumables)) {
+			changedByStatus = true;
+			appliedFeaturesList.push("Consumables");
 		}
 		// ResetConsumables is now handled dynamically inside updateConsumables loop,
 		// but we might want to register the Feature if we attach commands to it in future.
@@ -1055,7 +1034,7 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     	}
 
     	if (
-    		method === "set_water_box_custom_mode" ||
+    		(method === "set_water_box_custom_mode" ||
     		method === "set_custom_mode" ||
     		method === "set_clean_motor_mode" ||
     		method === "set_mop_mode" ||
@@ -1066,22 +1045,21 @@ export abstract class BaseVacuumFeatures extends BaseDeviceFeatures {
     		method === "set_water_box_distance_off" ||
     		method === "app_set_dryer_setting" ||
     		method === "set_wash_towel_mode" ||
-    		method === "set_dust_collection_switch_status"
+    		method === "set_dust_collection_switch_status") &&
+			(params !== undefined && !Array.isArray(params))
     	) {
     		// These commands require parameters to be wrapped in an array [val]
-    		if (params !== undefined && !Array.isArray(params)) {
-    			// If params is a string (ioBroker JSON state), try to parse it first
-    			if (typeof params === "string") {
-    				try {
-    					const parsed = JSON.parse(params);
-    					return [parsed];
-    				} catch {
-    					// Not JSON, wrap as is
-    					return [params];
-    				}
+    		// If params is a string (ioBroker JSON state), try to parse it first
+    		if (typeof params === "string") {
+    			try {
+    				const parsed = JSON.parse(params);
+    				return [parsed];
+    			} catch {
+    				// Not JSON, wrap as is
+    				return [params];
     			}
-    			return [params];
     		}
+    		return [params];
     	}
 
     	return params;
