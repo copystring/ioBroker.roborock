@@ -18,14 +18,14 @@ async function main() {
 	try {
 		// 1. Get staged files and content
 		let stagedFiles = execSync("git diff --name-only --staged").toString().trim().split("\n").filter(f => f);
-		let diff = execSync("git diff --staged").toString();
+		let diff = execSync("git diff --staged", { maxBuffer: 1024 * 1024 * 10 }).toString();
 		let targetRef = "Staged";
 
 		// Fallback: Check last commit if nothing is staged
 		if (!diff || diff.trim() === "") {
 			console.log("ℹ️ No staged changes. Checking last commit (HEAD)...");
-			stagedFiles = execSync("git diff --name-only HEAD~1 HEAD").toString().trim().split("\n").filter(f => f);
-			diff = execSync("git diff HEAD~1 HEAD").toString();
+			stagedFiles = execSync("git diff --name-only HEAD~1 HEAD", { maxBuffer: 1024 * 1024 * 10 }).toString().trim().split("\n").filter(f => f);
+			diff = execSync("git diff HEAD~1 HEAD", { maxBuffer: 1024 * 1024 * 10 }).toString();
 			targetRef = execSync("git rev-parse --short HEAD").toString().trim();
 		}
 
@@ -133,17 +133,6 @@ ${diff}
 		const response = await result.response;
 		const text = response.text();
 
-		// Check for rejection keywords (BLOCKING PRE-PUSH)
-		if (text.includes("❌")) {
-			console.error("\n⛔ BLOCKING PUSH: AI Review rejected the changes.");
-			console.error("   Fix the issues or use 'git push --no-verify' to bypass.\n");
-			process.exit(1);
-		}
-
-		// Terminal Output
-		console.log("\n--- MODULAR SUPREME REVIEW ---");
-		console.log(text.split('\n').slice(0, 15).join('\n') + (text.split('\n').length > 15 ? "\n..." : ""));
-		console.log("------------------------------\n");
 
 		// Persist Report
 		const reviewFile = path.join(__dirname, "..", "ai-review.md");
@@ -154,6 +143,13 @@ ${diff}
 
 		fs.writeFileSync(reviewFile, header + text + footer);
 		console.log(`✨ Modular insights saved to: ${reviewFile}`);
+
+		// Check for rejection keywords (BLOCKING PRE-PUSH)
+		if (text.includes("❌")) {
+			console.error("\n⛔ BLOCKING PUSH: AI Review rejected the changes.");
+			console.error("   Fix the issues or use 'git push --no-verify' to bypass.\n");
+			process.exit(1);
+		}
 
 	} catch (error) {
 		console.error("❌ Modular Review failed!");

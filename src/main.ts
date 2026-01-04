@@ -157,7 +157,6 @@ export class Roborock extends utils.Adapter {
 			}
 			this.clearTimersAndIntervals();
 			this.local_api.stopUdpDiscovery();
-			this.local_api.stopUdpDiscovery();
 
 			// Remove the global process exit listener to prevent memory leaks
 			if (this.onExitBound) {
@@ -217,13 +216,12 @@ export class Roborock extends utils.Adapter {
 					await this.requestsHandler.command(handler, duid, "load_multi_map", [mapFlag]);
 
 					// Trigger update of room mapping and map after switching floors
-					setTimeout(async () => {
+					this.setTimeout(async () => {
 						this.log.info(`[onStateChange] Updating map and rooms after floor switch for ${duid}`);
 						await handler.updateRoomMapping();
 						await handler.updateMap();
 					}, 2000); // Small delay to let the robot process the switch
 
-					// Reset button
 					// Reset button
 					this.setResetTimeout(id);
 				}
