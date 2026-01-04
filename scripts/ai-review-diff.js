@@ -23,6 +23,7 @@ async function main() {
 		let stagedFiles = getStagedFiles("git diff --name-only --staged");
 		let targetRef = "Staged";
 		let diffSource = "--staged";
+		let commitMsg = "Staged Changes (Not yet committed)";
 
 		// Fallback: Check last commit if nothing is staged
 		if (stagedFiles.length === 0) {
@@ -30,6 +31,7 @@ async function main() {
 			stagedFiles = getStagedFiles("git diff --name-only HEAD~1 HEAD");
 			targetRef = execSync("git rev-parse --short HEAD").toString().trim();
 			diffSource = "HEAD~1 HEAD";
+			commitMsg = execSync("git log -1 --pretty=%B").toString().trim();
 		}
 
 		if (stagedFiles.length === 0) {
@@ -132,12 +134,16 @@ ${systemPrompt}
 
 ### INSTRUCTIONS FOR OUTPUT FORMAT:
 1. **Header**: Start with a summary table of files reviewed and their status (Pass/Fail/Warn).
-2. **Per-File details**: For each file, use the header "## 📂 File: [filename]".
-3. **Specifics**: Quote the code line numbers.
-4. **Style**: Use emojis, bold text, and clear "Why this is better" explanations.
-5. **No Build**: Do NOT mention files in 'build/' directory.
+2. **Review Commit**: Check if the code changes match the intent of the commit message.
+3. **Per-File details**: For each file, use the header "## 📂 File: [filename]".
+4. **Specifics**: Quote the code line numbers.
+5. **Style**: Use emojis, bold text, and clear "Why this is better" explanations.
+6. **No Build**: Do NOT mention files in 'build/' directory.
 
 ### CURRENT OPERATIONAL CONTEXT:
+
+COMMIT MESSAGE:
+"${commitMsg}"
 
 SYSTEM CONTEXT (DNA):
 ${finalContext}
@@ -145,20 +151,24 @@ ${finalContext}
 GIT DIFF OF CHANGES (Structured per file):
 ${structuredDiff}
 `;
-
 		const result = await model.generateContent(prompt);
 		const response = await result.response;
 		const text = response.text();
 
+		// Calculate Costs
+		const usage = response.usageMetadata || { promptTokenCount: 0, candidatesTokenCount: 0 };
+		const inputCost = (usage.promptTokenCount / 1000000) * 0.50;
+		const outputCost = (usage.candidatesTokenCount / 1000000) * 1.50; // Pricing for Gemini 1.5 Flash (approx)
+		const totalCost = inputCost + outputCost;
 
 		// Persist Report
 		const reviewFile = path.join(__dirname, "..", "ai-review.md");
 		const commitHash = execSync("git rev-parse --short HEAD").toString().trim();
 
 		const header = `# 👑 Supreme Architect Review (Modular)\n\n**Config**: Loaded from \`ai-review-instructions.md\`\n**Awareness**: System DNA + Adaptive Context\n**Target**: \`${commitHash}\`\n\n---\n\n`;
-		const footer = `\n\n---\n*Verified by Gemini 3.0 Frontier - Modular Supreme Mode*`;
+		const statsFooter = `\n\n---\n### 💰 Architect's Bill\n| Type | Tokens | Cost (Est.) |\n| :--- | :--- | :--- |\n| Input | ${usage.promptTokenCount} | $${inputCost.toFixed(6)} |\n| Output | ${usage.candidatesTokenCount} | $${outputCost.toFixed(6)} |\n| **Total** | | **$${totalCost.toFixed(6)}** |\n\n*Verified by Gemini 3.0 Frontier - Modular Supreme Mode*`;
 
-		fs.writeFileSync(reviewFile, header + text + footer);
+		fs.writeFileSync(reviewFile, header + text + statsFooter);
 		console.log(`✨ Modular insights saved to: ${reviewFile}`);
 
 		// Check for rejection keywords (BLOCKING PRE-PUSH)
