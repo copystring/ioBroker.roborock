@@ -1,0 +1,2 @@
+#!/bin/sh
+node -e "try { require('child_process').execSync('npm run lint', { stdio: 'inherit' }); } catch (e) { process.exit(1); }"
