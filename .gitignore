@@ -29,3 +29,7 @@ src/www/pathProcessor.ts
 # Build artifacts
 *.tsbuildinfo
 
+
+# AI Review
+ai-review.md
+
