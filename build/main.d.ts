@@ -1,12 +1,12 @@
 import * as utils from "@iobroker/adapter-core";
-import { roborock_package_helper } from "./lib/roborock_package_helper";
-import { requestsHandler } from "./lib/requestsHandler";
+import { DeviceManager } from "./lib/deviceManager";
+import { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
 import { http_api } from "./lib/httpApi";
 import { local_api } from "./lib/localApi";
 import { mqtt_api } from "./lib/mqttApi";
+import { requestsHandler } from "./lib/requestsHandler";
+import { roborock_package_helper } from "./lib/roborock_package_helper";
 import { socketHandler } from "./lib/socketHandler";
-import { DeviceManager } from "./lib/deviceManager";
-import { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
 export declare class Roborock extends utils.Adapter {
     http_api: http_api;
     local_api: local_api;
@@ -24,6 +24,7 @@ export declare class Roborock extends utils.Adapter {
     private commandTimeout;
     private mqttReconnectInterval;
     instance: number;
+    private go2rtcProcess;
     constructor(options?: Partial<utils.AdapterOptions>);
     /**
      * Adapter ready logic.

@@ -473,6 +473,7 @@ class BaseDeviceFeatures {
         // Formatting for specific keys (e.g. timestamps)
         if (key === "last_clean_t" && typeof val === "number") {
             val = new Date(val * 1000).toString();
+            common.type = "string"; // Update type to match new value
         }
         // Enforce type matching to keep the log clean
         if (common.type === "string" && typeof val !== "string") {
