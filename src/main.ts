@@ -568,12 +568,6 @@ export class Roborock extends utils.Adapter {
 				this.go2rtcProcess!.on("exit", () => {
 					this.go2rtcProcess = null;
 				});
-
-				process.on("exit", () => {
-					if (this.go2rtcProcess) {
-						this.go2rtcProcess.kill();
-					}
-				});
 			} catch (error: any) {
 				this.log.error(`Failed to spawn go2rtc: ${error.message}`);
 			}
