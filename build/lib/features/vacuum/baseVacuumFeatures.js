@@ -10,11 +10,11 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BaseVacuumFeatures = exports.VacuumStatusSchema = exports.DEFAULT_PROFILE = exports.BASE_MOP = exports.BASE_WATER = exports.BASE_FAN = void 0;
+const zod_1 = require("zod");
+const productHelper_1 = require("../../productHelper");
 const baseDeviceFeatures_1 = require("../baseDeviceFeatures");
 const features_enum_1 = require("../features.enum");
-const zod_1 = require("zod");
 const vacuumConstants_1 = require("./vacuumConstants");
-const productHelper_1 = require("../../productHelper");
 // --- Shared Constants ---
 exports.BASE_FAN = { 101: "Quiet", 102: "Balanced", 103: "Turbo", 104: "Max" };
 exports.BASE_WATER = { 200: "Off", 201: "Mild", 202: "Moderate", 203: "Intense" };
@@ -222,12 +222,9 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
         // Apply features/commands only if they haven't been applied yet
         let changedByStatus = false;
         // WaterBox
-        if ((validStatus.water_box_mode !== undefined || validStatus.mop_mode !== undefined) && !this.appliedFeatures.has(features_enum_1.Feature.WaterBox)) {
-            // this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected WaterBox feature via status.`);
-            if (await this.applyFeature(features_enum_1.Feature.WaterBox)) {
-                changedByStatus = true;
-                appliedFeaturesList.push("WaterBox");
-            }
+        if ((validStatus.water_box_mode !== undefined || validStatus.mop_mode !== undefined) && !this.appliedFeatures.has(features_enum_1.Feature.WaterBox) && await this.applyFeature(features_enum_1.Feature.WaterBox)) {
+            changedByStatus = true;
+            appliedFeaturesList.push("WaterBox");
         }
         // Carpet Mode Commands
         if (validStatus.carpet_mode !== undefined && !this.commands["set_carpet_mode"]) {
@@ -245,55 +242,38 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             appliedFeaturesList.push("set_carpet_clean_mode (Command)");
         }
         // Refine Fan Power (Max+)
-        if (validStatus.fan_power === 108 && !this.appliedFeatures.has(features_enum_1.Feature.FanMaxPlus)) {
-            // Apply only if not statically defined
-            if (!this.config.staticFeatures.includes(features_enum_1.Feature.FanMaxPlus)) {
-                // this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected FanMaxPlus state (108).`);
-                if (await this.applyFeature(features_enum_1.Feature.FanMaxPlus)) {
-                    changedByStatus = true;
-                    appliedFeaturesList.push("FanMaxPlus");
-                }
-            }
+        if (validStatus.fan_power === 108 && !this.appliedFeatures.has(features_enum_1.Feature.FanMaxPlus) && !this.config.staticFeatures.includes(features_enum_1.Feature.FanMaxPlus) && await this.applyFeature(features_enum_1.Feature.FanMaxPlus)) {
+            // this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected FanMaxPlus state (108).`);
+            changedByStatus = true;
+            appliedFeaturesList.push("FanMaxPlus");
         }
         // MopDry
-        if (validStatus.dry_status !== undefined && !this.appliedFeatures.has(features_enum_1.Feature.MopDry)) {
-            // this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected MopDry feature via 'dry_status' key.`);
-            if (await this.applyFeature(features_enum_1.Feature.MopDry)) {
-                changedByStatus = true;
-                appliedFeaturesList.push("MopDry");
-            }
+        if (validStatus.dry_status !== undefined && !this.appliedFeatures.has(features_enum_1.Feature.MopDry) && await this.applyFeature(features_enum_1.Feature.MopDry)) {
+            changedByStatus = true;
+            appliedFeaturesList.push("MopDry");
         }
         // AutoEmptyDock
-        if (validStatus.dust_collection_status !== undefined && !this.appliedFeatures.has(features_enum_1.Feature.AutoEmptyDock)) {
-            // this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected AutoEmptyDock feature via 'dust_collection_status' key.`);
-            if (await this.applyFeature(features_enum_1.Feature.AutoEmptyDock)) {
-                changedByStatus = true;
-                appliedFeaturesList.push("AutoEmptyDock");
-            }
+        if (validStatus.dust_collection_status !== undefined && !this.appliedFeatures.has(features_enum_1.Feature.AutoEmptyDock) && await this.applyFeature(features_enum_1.Feature.AutoEmptyDock)) {
+            changedByStatus = true;
+            appliedFeaturesList.push("AutoEmptyDock");
         }
         // MopWash
-        if (validStatus.wash_status !== undefined && !this.appliedFeatures.has(features_enum_1.Feature.MopWash)) {
-            if (await this.applyFeature(features_enum_1.Feature.MopWash)) {
-                changedByStatus = true;
-                appliedFeaturesList.push("MopWash");
-            }
+        if (validStatus.wash_status !== undefined && !this.appliedFeatures.has(features_enum_1.Feature.MopWash) && await this.applyFeature(features_enum_1.Feature.MopWash)) {
+            changedByStatus = true;
+            appliedFeaturesList.push("MopWash");
         }
         // Dynamic DockingStationStatus
         const dssSupportedDockTypes = [1, 2, 3, 6, 7, 8, 9, 10, 14, 15, 16, 17, 18];
         const hasDssInStatus = validStatus.dss !== undefined;
         const hasSupportedDock = validStatus.dock_type !== undefined && dssSupportedDockTypes.includes(validStatus.dock_type);
-        if ((hasDssInStatus || hasSupportedDock) && !this.appliedFeatures.has(features_enum_1.Feature.DockingStationStatus)) {
-            if (await this.applyFeature(features_enum_1.Feature.DockingStationStatus)) {
-                changedByStatus = true;
-                appliedFeaturesList.push("DockingStationStatus");
-            }
+        if ((hasDssInStatus || hasSupportedDock) && !this.appliedFeatures.has(features_enum_1.Feature.DockingStationStatus) && await this.applyFeature(features_enum_1.Feature.DockingStationStatus)) {
+            changedByStatus = true;
+            appliedFeaturesList.push("DockingStationStatus");
         }
         // Ensure Consumables features are applied (standard for all vacuums really, but good to be explicit)
-        if (!this.appliedFeatures.has(features_enum_1.Feature.Consumables)) {
-            if (await this.applyFeature(features_enum_1.Feature.Consumables)) {
-                changedByStatus = true;
-                appliedFeaturesList.push("Consumables");
-            }
+        if (!this.appliedFeatures.has(features_enum_1.Feature.Consumables) && await this.applyFeature(features_enum_1.Feature.Consumables)) {
+            changedByStatus = true;
+            appliedFeaturesList.push("Consumables");
         }
         // ResetConsumables is now handled dynamically inside updateConsumables loop,
         // but we might want to register the Feature if we attach commands to it in future.
@@ -872,7 +852,7 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                 return params; // Fallback
             }
         }
-        if (method === "set_water_box_custom_mode" ||
+        if ((method === "set_water_box_custom_mode" ||
             method === "set_custom_mode" ||
             method === "set_clean_motor_mode" ||
             method === "set_mop_mode" ||
@@ -883,22 +863,21 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             method === "set_water_box_distance_off" ||
             method === "app_set_dryer_setting" ||
             method === "set_wash_towel_mode" ||
-            method === "set_dust_collection_switch_status") {
+            method === "set_dust_collection_switch_status") &&
+            (params !== undefined && !Array.isArray(params))) {
             // These commands require parameters to be wrapped in an array [val]
-            if (params !== undefined && !Array.isArray(params)) {
-                // If params is a string (ioBroker JSON state), try to parse it first
-                if (typeof params === "string") {
-                    try {
-                        const parsed = JSON.parse(params);
-                        return [parsed];
-                    }
-                    catch {
-                        // Not JSON, wrap as is
-                        return [params];
-                    }
+            // If params is a string (ioBroker JSON state), try to parse it first
+            if (typeof params === "string") {
+                try {
+                    const parsed = JSON.parse(params);
+                    return [parsed];
                 }
-                return [params];
+                catch {
+                    // Not JSON, wrap as is
+                    return [params];
+                }
             }
+            return [params];
         }
         return params;
     }
