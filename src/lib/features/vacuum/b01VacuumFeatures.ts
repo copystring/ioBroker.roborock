@@ -1,17 +1,24 @@
-﻿import { V1VacuumFeatures, VacuumProfile } from "./v1VacuumFeatures";
-import { FeatureDependencies, DeviceModelConfig } from "../baseDeviceFeatures";
+﻿import { MapManager } from "../../map/MapManager";
+import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
+import { VACUUM_CONSTANTS } from "./vacuumConstants";
 
-export class B01VacuumFeatures extends V1VacuumFeatures {
+export class B01VacuumFeatures extends BaseDeviceFeatures {
+
+	// B01-specific properties
+	protected mapManager: MapManager;
+	protected mappedRooms: unknown[] | null = null;
 
 	constructor(
 		dependencies: FeatureDependencies,
 		duid: string,
 		robotModel: string,
 		config: DeviceModelConfig,
-		profile?: VacuumProfile
+		profile?: unknown // Accept profile to match legacy subclasses, but ignore it
 	) {
-		super(dependencies, duid, robotModel, config, profile);
+		super(dependencies, duid, robotModel, config);
+		void profile;
+		this.mapManager = new MapManager(this.deps.adapter);
 		this.deps.adapter.rLog("System", this.duid, "Info", "B01", undefined, `Constructing B01VacuumFeatures for ${robotModel}`, "info");
 	}
 
@@ -187,7 +194,7 @@ export class B01VacuumFeatures extends V1VacuumFeatures {
 	 * Allows feature handlers to provide/modify parameters for a command before sending.
 	 * B01 uses this to map individual command states to prop.set or service calls.
 	 */
-	public override async getCommandParams(method: string, params?: unknown): Promise<any> {
+	public override async getCommandParams(method: string, params?: unknown): Promise<unknown> {
 		// Intercept individual commands and route to prop.set or service
 		if (["status", "wind", "water", "work_mode", "dust_frequency", "clean_path_preference", "build_map", "mode", "custom_type"].includes(method)) {
 			return {
@@ -197,15 +204,15 @@ export class B01VacuumFeatures extends V1VacuumFeatures {
 		}
 
 		// Service calls
-		const serviceMap: Record<string, { method: string, params: any }> = {
+		const serviceMap: Record<string, { method: string, params: unknown }> = {
 			"update_map": { method: "service", params: { "method": "upload_by_maptype", "params": { "force": 1, "map_type": 0 } } },
 			"start_recharge": { method: "service", params: { "method": "start_recharge", "params": {} } },
 			"stop_recharge": { method: "service", params: { "method": "stop_recharge", "params": {} } },
 			"start_dust_collection": { method: "service", params: { "method": "start_dust_collection", "params": {} } },
 			"stop_dust_collection": { method: "service", params: { "method": "stop_dust_collection", "params": {} } },
-			"reset_main_brush": { method: "service", params: { "method": "reset_consumable", "params": { "main_brush_life": 100 } } },
-			"reset_side_brush": { method: "service", params: { "method": "reset_consumable", "params": { "side_brush_life": 100 } } },
-			"reset_filter": { method: "service", params: { "method": "reset_consumable", "params": { "filter_life": 100 } } }
+			"reset_main_brush": { method: "service", params: { "method": "reset_consumable", "params": { "consumable": 1 } } },
+			"reset_side_brush": { method: "service", params: { "method": "reset_consumable", "params": { "consumable": 2 } } },
+			"reset_filter": { method: "service", params: { "method": "reset_consumable", "params": { "consumable": 3 } } }
 		};
 
 		if (serviceMap[method]) {
@@ -236,7 +243,7 @@ export class B01VacuumFeatures extends V1VacuumFeatures {
 
 	// Override updateStatus to use strict B01 prop.get
 	public override async updateStatus(): Promise<void> {
-		const props = V1VacuumFeatures.CONSTANTS.b01StatusProps;
+		const props = VACUUM_CONSTANTS.b01StatusProps;
 		let resultObj: Record<string, any> | undefined;
 
 		try {
@@ -261,13 +268,13 @@ export class B01VacuumFeatures extends V1VacuumFeatures {
 	}
 
 	// Override updateConsumables to use strict B01 prop.get
-	public override async updateConsumables(data?: any): Promise<void> {
+	public override async updateConsumables(data?: unknown): Promise<void> {
 		let resultObj: Record<string, any> | undefined;
 
 		if (data) {
 			resultObj = data;
 		} else {
-    		const props = V1VacuumFeatures.CONSTANTS.b01SettingsProps;
+    		const props = VACUUM_CONSTANTS.b01SettingsProps;
     		const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "prop.get", { property: props });
     		if (Array.isArray(result) && result.length === props.length) {
     			resultObj = {};
@@ -285,7 +292,7 @@ export class B01VacuumFeatures extends V1VacuumFeatures {
 	}
 
 	// Override processStatus to apply B01 specific conversions (dm² to m²)
-	protected override async processStatus(resultObj: Record<string, any>): Promise<void> {
+	protected async processStatus(resultObj: Record<string, unknown>): Promise<void> {
 		// Prioritize dock_type processing to ensure feature flags are set
 		const dockType = resultObj["dock_type"];
 		if (dockType !== undefined) {
@@ -305,7 +312,7 @@ export class B01VacuumFeatures extends V1VacuumFeatures {
 
 		await this.deps.ensureFolder(`Devices.${this.duid}.deviceStatus`);
 		for (const key in resultObj) {
-			let val = resultObj[key];
+			let val: unknown = resultObj[key];
 
 			// Get definition or create default
 			const def = this.getCommonDeviceStates(key);
@@ -344,7 +351,7 @@ export class B01VacuumFeatures extends V1VacuumFeatures {
 			if (["clean_time", "cleaning_time"].includes(key)) {
 				// sniffs show 'cleaning_time: 25' for 25 min -> already in minutes. No conversion needed.
 				// last_clean_t might be timestamp or duration? usually timestamp if clean_finish.
-				val = Number(val);
+				val = Number(val as number | string);
 			} else if (["cleaning_area", "cleaning_area", "last_clean_area"].includes(key)) {
 				// B01 sends dm² (e.g. 2129 -> 21.29 m²)
 				val = Number(((val as number) / 100).toFixed(2));
@@ -362,7 +369,7 @@ export class B01VacuumFeatures extends V1VacuumFeatures {
 			});
 
 			await this.deps.ensureState(`Devices.${this.duid}.deviceStatus.${key}`, common);
-			await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.deviceStatus.${key}`, { val: val, ack: true });
+			await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.deviceStatus.${key}`, { val: val as ioBroker.StateValue, ack: true });
 		}
 	}
 
@@ -382,7 +389,7 @@ export class B01VacuumFeatures extends V1VacuumFeatures {
 			this.deps.adapter.pendingRequests.set(dummyId, {
 				method: "get_map_v1",
 				duid: this.duid,
-				resolve: (data: any) => {
+				resolve: (data: unknown) => {
 					this.deps.adapter.pendingRequests.delete(dummyId);
 					if (Buffer.isBuffer(data)) {
 						const device = this.deps.adapter.http_api.getDevices().find(d => d.duid === this.duid);
@@ -391,7 +398,7 @@ export class B01VacuumFeatures extends V1VacuumFeatures {
 						this.mapManager.processMap(data, "B01", this.robotModel, sn, this.mappedRooms, this.duid, "MQTT")
 							.then(async (res) => {
 								if (res) {
-									const { mapBase64, mapBase64Truncated, mapData } = res as any;
+									const { mapBase64, mapBase64Truncated, mapData } = res as { mapBase64: string; mapBase64Truncated: string; mapData: unknown };
 									await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64`, {
 										name: "Map Image",
 										type: "string",
@@ -450,12 +457,13 @@ export class B01VacuumFeatures extends V1VacuumFeatures {
 	}
 
 	// Override getCleaningRecordMap to use B01 service call (upload_record_by_url)
-	protected override async getCleaningRecordMap(startTime: number, recordDetails?: any): Promise<{ mapBase64CleanUncropped: string; mapBase64: string; mapBase64Truncated: string; mapData: string } | null> {
+	public async getCleaningRecordMap(startTime: number, recordDetails?: unknown): Promise<{ mapBase64CleanUncropped: string; mapBase64: string; mapBase64Truncated: string; mapData: string } | null> {
 		try {
-			let url = recordDetails?.record_map_url || recordDetails?.url;
-			if (!url && recordDetails?.detail) {
-				const detail = typeof recordDetails.detail === "string" ? JSON.parse(recordDetails.detail) : recordDetails.detail;
-				url = detail.record_map_url || detail.url;
+			const details = recordDetails as { record_map_url?: string; url?: string; detail?: string | { record_map_url?: string; url?: string } };
+			let url = details?.record_map_url || details?.url;
+			if (!url && details?.detail) {
+				const d = typeof details.detail === "string" ? JSON.parse(details.detail) : details.detail;
+				url = d.record_map_url || d.url;
 			}
 
 			if (!url) {
@@ -528,29 +536,29 @@ export class B01VacuumFeatures extends V1VacuumFeatures {
 		}
 	}
 	// Override processCleanSummary to handle B01 specific structure and avoid redundant requests
-	protected override async processCleanSummary(result: any): Promise<void> {
+	protected async processCleanSummary(result: unknown): Promise<void> {
 		try {
 			// B01 result structure is { total_time, total_area, total_count, record_list: [ { url, detail: string }, ... ] }
-			let summaryData = result;
-			if (result && result.data) {
-				summaryData = result.data;
+			let sd = result as { data?: any; total_time: number; total_area: number; total_count: number; record_list: any[] };
+			if (sd && sd.data) {
+				sd = sd.data;
 			}
 
-			if (!summaryData || !summaryData.record_list) {
+			if (!sd || !sd.record_list) {
 				this.deps.adapter.rLog("System", this.duid, "Warn", "B01", undefined, "Invalid B01 clean summary format", "warn");
 				return;
 			}
 
 			// Update Summary States
-			await this.updateSummaryState("clean_time", summaryData.total_time);
-			await this.updateSummaryState("clean_area", summaryData.total_area);
-			await this.updateSummaryState("clean_count", summaryData.total_count);
+			await this.updateSummaryState("clean_time", sd.total_time);
+			await this.updateSummaryState("clean_area", sd.total_area);
+			await this.updateSummaryState("clean_count", sd.total_count);
 
 			await this.deps.ensureFolder(`Devices.${this.duid}.cleaningInfo.records`);
-			const recordList = summaryData.record_list;
+			const recordList = sd.record_list;
 			const limit = 20;
 
-			recordList.sort((a: any, b: any) => {
+			recordList.sort((a: unknown, b: unknown) => {
 				const timeA = this.extractStartTime(a);
 				const timeB = this.extractStartTime(b);
 				return timeB - timeA;
@@ -622,9 +630,9 @@ export class B01VacuumFeatures extends V1VacuumFeatures {
 			}
 
 			const jsonSummary = {
-				clean_time: Number((summaryData.total_time / 3600).toFixed(2)),
-				clean_area: Number((summaryData.total_area / 1000000).toFixed(2)),
-				clean_count: summaryData.total_count,
+				clean_time: Number((sd.total_time / 3600).toFixed(2)),
+				clean_area: Number((sd.total_area / 1000000).toFixed(2)),
+				clean_count: sd.total_count,
 				records: recordList.map((r: any) => {
 					try {
 						return typeof r.detail === "string" ? JSON.parse(r.detail) : r.detail;
@@ -659,19 +667,20 @@ export class B01VacuumFeatures extends V1VacuumFeatures {
 	}
 
 
-	private extractStartTime(record: any): number {
+	private extractStartTime(record: unknown): number {
 		try {
-			const detail = typeof record.detail === "string" ? JSON.parse(record.detail) : record.detail;
+			const r = record as Record<string, unknown>;
+			const detail = typeof r.detail === "string" ? JSON.parse(r.detail) : r.detail;
 			return detail.record_start_time || detail.begin || 0;
 		} catch {
 			return 0;
 		}
 	}
 
-	private async processRecordAttributes(index: number, detail: any): Promise<void> {
+	private async processRecordAttributes(index: number, detail: Record<string, unknown>): Promise<void> {
 		for (const key in detail) {
 			const val = detail[key];
-			const mappedKey = V1VacuumFeatures.MAPPED_CLEAN_SUMMARY[key] || key;
+			const mappedKey = B01VacuumFeatures.MAPPED_CLEAN_SUMMARY[key] || key;
 
 			// Simple type mapping
 			const type = typeof val;
@@ -679,16 +688,16 @@ export class B01VacuumFeatures extends V1VacuumFeatures {
 
 			await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${index}.${mappedKey}`, {
 				name: mappedKey,
-				type: type as any,
+				type: type as ioBroker.CommonType,
 				role: "value",
 				read: true,
 				write: false
 			});
-			await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${index}.${mappedKey}`, { val, ack: true });
+			await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${index}.${mappedKey}`, { val: val as ioBroker.StateValue, ack: true });
 		}
 	}
 
-	public override async detectAndApplyRuntimeFeatures(statusData: Readonly<Record<string, any>>): Promise<boolean> {
+	public override async detectAndApplyRuntimeFeatures(statusData: Readonly<Record<string, unknown>>): Promise<boolean> {
 		// B01 features are statically defined, parameter unused but required by signature
 		void statusData;
 		return false;
@@ -1129,6 +1138,146 @@ export class B01VacuumFeatures extends V1VacuumFeatures {
 		}
 	}
 
+
+
+	protected async processConsumables(resultObj: Record<string, unknown>): Promise<void> {
+		await this.deps.ensureFolder(`Devices.${this.duid}.consumables`);
+		await this.deps.ensureFolder(`Devices.${this.duid}.resetConsumables`);
+
+		// Process Net Status if present (B01)
+		if (resultObj.net_status) {
+			await this.processNetworkInfo(resultObj.net_status);
+		}
+
+		// Process other B01 settings
+		const settingsToProcess = ["volume", "voice_type", "light_mode", "child_lock", "sound", "charge_station_type", "dust_auto_state"];
+		for (const key of settingsToProcess) {
+			if (resultObj[key] !== undefined) {
+				await this.deps.ensureState(`Devices.${this.duid}.deviceStatus.${key}`, {
+					name: key,
+					type: typeof resultObj[key] as ioBroker.CommonType,
+					role: "value",
+					write: false
+				});
+				await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.deviceStatus.${key}`, { val: resultObj[key] as ioBroker.StateValue, ack: true });
+			}
+		}
+
+		for (const key in resultObj) {
+			const val = resultObj[key];
+
+			if (key === "net_status" || settingsToProcess.includes(key)) continue;
+
+			const common = this.getCommonDeviceStates(key) || { name: key, type: typeof val as ioBroker.CommonType, role: "value", write: false };
+
+			// Check for specific consumables
+			if (["main_brush_work_time", "side_brush_work_time", "filter_work_time", "filter_element_work_time", "sensor_dirty_time"].includes(key)) {
+				const deviceName = key.replace("_work_time", "").replace("_dirty_time", "");
+				await this.deps.ensureState(`Devices.${this.duid}.consumables.${deviceName}`, { ...common, unit: "%" });
+
+				const totalTime =
+					(deviceName === "main_brush" ? 300 :
+						deviceName === "side_brush" ? 200 :
+							deviceName === "filter" || deviceName === "filter_element" ? 150 :
+								deviceName === "sensor" ? 30 : 0) * 3600;
+
+				if (totalTime > 0) {
+					const percent = Math.round(100 - ((val as number) / totalTime) * 100);
+					await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.consumables.${deviceName}`, { val: percent, ack: true });
+				}
+			} else {
+				await this.deps.ensureState(`Devices.${this.duid}.consumables.${key}`, common);
+				await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.consumables.${key}`, { val: val as ioBroker.StateValue, ack: true });
+			}
+
+			if (key.endsWith("_work_time") || key.endsWith("_dirty_time")) {
+				const resetKey = key.replace("_work_time", "").replace("_dirty_time", "");
+				await this.deps.ensureState(`Devices.${this.duid}.resetConsumables.${resetKey}`, { name: `Reset ${resetKey}`, type: "boolean", role: "button", write: true, def: false });
+			}
+		}
+	}
+
+	// Helper for B01 network info processing
+	private async processNetworkInfo(data: unknown): Promise<void> {
+		if (!data || typeof data !== "object") return;
+
+		const info = data as Record<string, unknown>;
+
+		await this.deps.ensureFolder(`Devices.${this.duid}.networkInfo`);
+
+		const mapping: Record<string, string> = {
+			ssid: "ssid",
+			ip: "ip",
+			mac: "mac",
+			bssid: "bssid",
+			rssi: "rssi",
+			frequency: "frequency" // Not standard but useful
+		};
+
+		for (const [key, stateName] of Object.entries(mapping)) {
+			if (info[key] !== undefined) {
+				const val = info[key];
+				const common = {
+					name: stateName,
+					type: typeof val === "number" ? "number" : "string",
+					role: key === "rssi" ? "value.rssi" : "info",
+					read: true,
+					write: false
+				} as ioBroker.StateCommon;
+
+				await this.deps.ensureState(`Devices.${this.duid}.networkInfo.${stateName}`, common);
+				await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.networkInfo.${stateName}`, { val: val as ioBroker.StateValue, ack: true });
+			}
+		}
+	}
+
+	protected async updateDockingStationStatus(dss: number): Promise<void> {
+		// Guard: Feature must be active
+		if (!this.appliedFeatures.has(Feature.DockingStationStatus)) {
+			return;
+		}
+
+		// Parse 2-bit status fields
+		const status = {
+			cleanFluidStatus: (dss >> 10) & 0b11,        // Bits 10-11: Clean water tank status
+			waterBoxFilterStatus: (dss >> 8) & 0b11,     // Bits 8-9: Water box filter
+			dustBagStatus: (dss >> 6) & 0b11,            // Bits 6-7: Dust bag (Staubbeutel)
+			dirtyWaterBoxStatus: (dss >> 4) & 0b11,      // Bits 4-5: Dirty water tank
+			clearWaterBoxStatus: (dss >> 2) & 0b11,      // Bits 2-3: Clear water box
+			isUpdownWaterReady: dss & 0b11,              // Bits 0-1: Water ready status
+		};
+
+		for (const [name, val] of Object.entries(status)) {
+			await this.deps.adapter.setStateChanged(
+				`Devices.${this.duid}.dockingStationStatus.${name}`,
+				{ val: val, ack: true }
+			);
+		}
+	}
+
+	protected static readonly MAPPED_CLEAN_SUMMARY: Record<string, string> = { 0: "clean_time", 1: "clean_area", 2: "clean_count", 3: "records", record_list: "records" };
+
+	public getCommonConsumable(attribute: string | number): Partial<ioBroker.StateCommon> | undefined {
+		return VACUUM_CONSTANTS.consumables[attribute as keyof typeof VACUUM_CONSTANTS.consumables] as Partial<ioBroker.StateCommon>;
+	}
+
+	public isResetableConsumable(consumable: string): boolean {
+		return VACUUM_CONSTANTS.resetConsumables.has(consumable);
+	}
+
+	public getCommonCleaningInfo(attribute: string | number): Partial<ioBroker.StateCommon> | undefined {
+		return VACUUM_CONSTANTS.cleaningInfo[attribute as keyof typeof VACUUM_CONSTANTS.cleaningInfo] as Partial<ioBroker.StateCommon>;
+	}
+
+	public getCommonCleaningRecords(attribute: string | number): Partial<ioBroker.StateCommon> | undefined {
+		const spec = VACUUM_CONSTANTS.cleaningRecords[attribute as keyof typeof VACUUM_CONSTANTS.cleaningRecords];
+		return spec as Partial<ioBroker.StateCommon> | undefined;
+	}
+
+	public getFirmwareFeatureName(featureID: string | number): string {
+		const name = VACUUM_CONSTANTS.firmwareFeatures[featureID as keyof typeof VACUUM_CONSTANTS.firmwareFeatures];
+		return name || `FeatureID_${featureID}`;
+	}
 }
 
 
