@@ -32,7 +32,7 @@
     "crc-32": "^1.2.2",
     "d3": "^7.9.0",
     "go2rtc-static": "^1.2.0",
-    "image-size": "^1.1.1",
+    "image-size": "^2.0.2",
     "jszip": "^3.10.1",
     "marching-squares": "^1.0.0",
     "mqtt": "5.14.1",
