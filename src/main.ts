@@ -556,19 +556,14 @@ export class Roborock extends utils.Adapter {
 	 */
 	async getDeviceProtocolVersion(duid: string): Promise<string> {
 		const tcpConnected = this.local_api.isConnected(duid);
-		let version = "1.0";
 
 		if (tcpConnected && !this.requestsHandler.isCloudDevice(duid)) {
-			version = this.local_api.getLocalProtocolVersion(duid) || "1.0";
-		} else {
-			const device = this.http_api.getDevices().find((d) => d.duid == duid);
-			version = device?.pv || "1.0";
+			return this.local_api.getLocalProtocolVersion(duid) || "1.0";
 		}
-
-		return version;
-
-		return version;
+		const device = this.http_api.getDevices().find((d) => d.duid == duid);
+		return device?.pv || "1.0";
 	}
+
 
 	/**
 	 * Starts the go2rtc process if cameras are present.
