@@ -2,21 +2,21 @@
 /// <reference types="@iobroker/adapter-core" />
 
 import * as utils from "@iobroker/adapter-core";
+import { ChildProcess, spawn } from "child_process";
 import { randomBytes } from "crypto";
-import { spawn } from "child_process";
 import go2rtcPath from "go2rtc-static";
 
 // --- API & Helper Imports ---
-import { roborock_package_helper } from "./lib/roborock_package_helper";
-import { requestsHandler } from "./lib/requestsHandler";
+import { buildInfo } from "./lib/buildInfo";
+import { DeviceManager } from "./lib/deviceManager";
+import { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
+import { Feature } from "./lib/features/features.enum";
 import { http_api } from "./lib/httpApi";
 import { local_api } from "./lib/localApi";
 import { mqtt_api } from "./lib/mqttApi";
+import { requestsHandler } from "./lib/requestsHandler";
+import { roborock_package_helper } from "./lib/roborock_package_helper";
 import { socketHandler } from "./lib/socketHandler";
-import { DeviceManager } from "./lib/deviceManager";
-import { Feature } from "./lib/features/features.enum";
-import { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
-import { buildInfo } from "./lib/buildInfo";
 
 export class Roborock extends utils.Adapter {
 	// --- Public APIs (accessible by helpers) ---
@@ -40,6 +40,7 @@ export class Roborock extends utils.Adapter {
 	private commandTimeout: ioBroker.Timeout | undefined = undefined;
 	private mqttReconnectInterval: ioBroker.Interval | undefined = undefined;
 	public instance: number = 0;
+	private go2rtcProcess: ChildProcess | null = null;
 
 	constructor(options: Partial<utils.AdapterOptions> = {}) {
 		super({ ...options, name: "roborock", useFormatDate: true });
@@ -154,6 +155,10 @@ export class Roborock extends utils.Adapter {
 			}
 			this.clearTimersAndIntervals();
 			this.local_api.stopUdpDiscovery();
+			if (this.go2rtcProcess) {
+				this.go2rtcProcess.kill();
+				this.go2rtcProcess = null;
+			}
 			this.setState("info.connection", { val: false, ack: true });
 			callback();
 		} catch (e: any) {
@@ -553,12 +558,22 @@ export class Roborock extends utils.Adapter {
 
 		if (cameraCount > 0 && go2rtcPath) {
 			try {
-				const go2rtcProcess = spawn(go2rtcPath.toString(), ["-config", JSON.stringify(go2rtcConfig)], { shell: false, detached: false, windowsHide: true });
+				this.go2rtcProcess = spawn(go2rtcPath.toString(), ["-config", JSON.stringify(go2rtcConfig)], { shell: false, detached: false, windowsHide: true });
 
-				go2rtcProcess.on("error", (err) => this.log.error(`Error starting go2rtc: ${err.message}`));
-				go2rtcProcess.stdout.on("data", (data) => this.log.debug(`go2rtc output: ${data}`));
-				go2rtcProcess.stderr.on("data", (data) => this.log.error(`go2rtc error output: ${data}`));
-				process.on("exit", () => go2rtcProcess.kill());
+				this.go2rtcProcess!.on("error", (err) => this.log.error(`Error starting go2rtc: ${err.message}`));
+				this.go2rtcProcess!.stdout!.on("data", (data) => this.log.debug(`go2rtc output: ${data}`));
+				this.go2rtcProcess!.stderr!.on("data", (data) => this.log.error(`go2rtc error output: ${data}`));
+
+				// Remove the process reference on exit to prevent double-kill attempts
+				this.go2rtcProcess!.on("exit", () => {
+					this.go2rtcProcess = null;
+				});
+
+				process.on("exit", () => {
+					if (this.go2rtcProcess) {
+						this.go2rtcProcess.kill();
+					}
+				});
 			} catch (error: any) {
 				this.log.error(`Failed to spawn go2rtc: ${error.message}`);
 			}
