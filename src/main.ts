@@ -223,10 +223,13 @@ export class Roborock extends utils.Adapter {
 					}
 
 					const timeout = this.setTimeout(async () => {
-						this.log.info(`[onStateChange] Updating map and rooms after floor switch for ${duid}`);
-						await handler.updateRoomMapping();
-						await handler.updateMap();
-						this.commandTimeouts.delete(timeoutKey);
+						try {
+							this.log.info(`[onStateChange] Updating map and rooms after floor switch for ${duid}`);
+							await handler.updateRoomMapping();
+							await handler.updateMap();
+						} finally {
+							this.commandTimeouts.delete(timeoutKey);
+						}
 					}, 2000); // Small delay to let the robot process the switch
 
 					if (timeout) {
