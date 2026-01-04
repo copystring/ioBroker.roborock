@@ -1,5 +1,8 @@
 {
   "*.{js,ts}": "eslint --fix",
   "*.{yml,yaml}": "npx yaml-lint",
-  "**/*.json": "node scripts/run-package-tests.js"
+  "package.json": "node scripts/check-lockfile.js",
+  "**/*.json": [
+    "node scripts/run-package-tests.js"
+  ]
 }

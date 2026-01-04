@@ -26,17 +26,17 @@ async function main() {
 You are a senior software engineer conducting a code review.
 Review the following git diff for LOGIC ERRORS, SECURITY VULNERABILITIES, and ARCHITECTURAL FLAWS.
 Ignore style and formatting (they are handled by other tools).
-Focus on issues like:
-- Race conditions
-- Memory leaks
-- Off-by-one errors
-- Missing error handling
-- Unintended side effects
+
+### REPORTING REQUIREMENTS:
+1. For every issue found, specify the **FILE PATH** and **APPROXIMATE LINE NUMBER(S)**.
+2. Be concise but specific.
+3. Only report genuine logical flaws, not opinions on style.
+4. If everything looks good, just say "LGTM".
 
 DIFF:
 ${diff}
 
-Provide a concise summary of findings. If everything looks good, just say "LGTM".
+Provide your findings in a structured format (e.g., Markdown table or list).
 `;
 
 		const result = await model.generateContent(prompt);
