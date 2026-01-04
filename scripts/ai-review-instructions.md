@@ -50,6 +50,12 @@
     *   Duplicated logic?
     *   Is it readable?
 
+4.  **🕵️ BLIND SPOTS (The "Unknown Unknowns")**:
+    *   **"What if...?"**: Ask questions the developer didn't. (e.g. "What if the API returns a 418 I'm a Teapot?", "What if this runs on a Raspberry Pi 1?").
+    *   **Side Effects**: distinct from logic errors. Does this change break a *different* part of the system?
+    *   **Missing Features**: Did the developer implement the "Happy Path" but forget the "Sad Path"?
+    *   **"Devil's Advocate"**: Try to break the code. Be creative.
+
 *(Style issues like indentation are secondary - only mention if they break the build).*
 
 ---
