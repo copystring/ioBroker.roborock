@@ -41,6 +41,8 @@ export class Roborock extends utils.Adapter {
 	private mqttReconnectInterval: ioBroker.Interval | undefined = undefined;
 	public instance: number = 0;
 	private go2rtcProcess: ChildProcess | null = null;
+	// Bound exit handler to prevent memory leaks while allowing process.removeListener
+	private onExitBound: (() => void) | null = null;
 
 	constructor(options: Partial<utils.AdapterOptions> = {}) {
 		super({ ...options, name: "roborock", useFormatDate: true });
@@ -155,6 +157,14 @@ export class Roborock extends utils.Adapter {
 			}
 			this.clearTimersAndIntervals();
 			this.local_api.stopUdpDiscovery();
+			this.local_api.stopUdpDiscovery();
+
+			// Remove the global process exit listener to prevent memory leaks
+			if (this.onExitBound) {
+				process.removeListener("exit", this.onExitBound);
+				this.onExitBound = null;
+			}
+
 			if (this.go2rtcProcess) {
 				this.go2rtcProcess.kill();
 				this.go2rtcProcess = null;
@@ -570,9 +580,18 @@ export class Roborock extends utils.Adapter {
 				this.go2rtcProcess!.stderr!.on("data", (data) => this.log.error(`go2rtc error output: ${data}`));
 
 				// Remove the process reference on exit to prevent double-kill attempts
+				// Remove the process reference on exit to prevent double-kill attempts
 				this.go2rtcProcess!.on("exit", () => {
 					this.go2rtcProcess = null;
 				});
+
+				// Safety net: Ensure child process ensures if Node.js crashes/exits
+				this.onExitBound = () => {
+					if (this.go2rtcProcess) {
+						this.go2rtcProcess.kill();
+					}
+				};
+				process.on("exit", this.onExitBound);
 			} catch (error: any) {
 				this.log.error(`Failed to spawn go2rtc: ${error.message}`);
 			}
