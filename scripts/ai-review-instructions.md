@@ -13,10 +13,11 @@
     | :--- | :--- | :--- |
     | `src/main.ts` | ✅ Pass / ⚠️ Warn / ⛔ Fail | Low/High |
 
-2.  **File Separation**: For EACH file changed, create a new section:
-    ```markdown
-    ## 📂 File: `src/main.ts`
-    ```
+2.  **STRICT File Separation**:
+    *   For EACH file changed, create a new section: `## 📂 File: src/main.ts`
+    *   **CRITICAL**: All findings, warnings, and code blocks MUST be inside their respective File section.
+    *   Do NOT list "General Issues" unless they apply to the entire repo structure.
+    *   If a file has no issues, write "Status: ✅ Pass".
 
 3.  **Code Blocks**: When showing code:
     *   **❌ The Scary Code**: Show the original/bad code (with a red cross).
