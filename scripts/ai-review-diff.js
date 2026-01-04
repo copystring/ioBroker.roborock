@@ -1,4 +1,4 @@
-
+ 
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { execSync } = require("node:child_process");
 
@@ -20,7 +20,7 @@ async function main() {
 		console.log("🤖 AI is reviewing your logic changes...");
 
 		const genAI = new GoogleGenerativeAI(apiKey);
-		const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+		const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
 
 		const prompt = `
 You are a senior software engineer conducting a code review.
