@@ -19,12 +19,13 @@
     *   Do NOT list "General Issues" unless they apply to the entire repo structure.
     *   If a file has no issues, write "Status: ✅ Pass".
 
-3.  **Code Blocks**:
-    *   **ONLY show code blocks if you are suggesting a change.**
-    *   If the code is perfect, do NOT show "✅ The Better Code". Just give the verdict.
+3.  **Code Blocks (STRICT)**:
+    *   **NEVER** show code blocks if the file Status is "✅ Approved" or "✅ Pass".
+    *   **ONLY** show code if you are requesting a *new* change.
+    *   If you want to praise a change, describe it in text (e.g., "Great job adding the retry logic."). DO NOT show the code again.
     *   If there is an issue:
-        *   **❌ The Scary Code**: Show the original/bad code.
-        *   **✅ The Better Code**: Show the fixed/improved code.
+        *   **❌ Current Code**: Show the problematic code.
+        *   **✅ Suggested Fix**: Show how it should be.
         *   **🧠 Why**: Explain the reasoning.
 
 4.  **Grading**:
