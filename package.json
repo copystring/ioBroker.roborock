@@ -119,6 +119,7 @@
     "verify": "npm run lint && tsc --noEmit -p tsconfig.json && npm run ai:review",
     "ai:review": "node scripts/ai-review-diff.js",
     "commit": "npm run verify && git commit",
+    "push": "npm run ai:review && git push",
     "prepare": "husky"
   },
   "bugs": {
