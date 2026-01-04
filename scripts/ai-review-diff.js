@@ -145,8 +145,15 @@ ${diff}
 		console.log(`✨ Modular insights saved to: ${reviewFile}`);
 
 		// Check for rejection keywords (BLOCKING PRE-PUSH)
-		if (text.includes("❌")) {
-			console.error("\n⛔ BLOCKING PUSH: AI Review rejected the changes.");
+		// We avoid blocking on "❌" because the AI often uses it in educational examples ("❌ The Scary Code")
+		const isRejected = text.includes("Status: ⚠️ Action Required") ||
+						   text.includes("Status: ⛔ Rejected") ||
+						   text.includes("Verdict: ⛔ Rejected") ||
+						   (text.includes("Action Required") && !text.includes("Status: Approved"));
+
+		if (isRejected) {
+			console.error("\n⛔ BLOCKING PUSH: AI Review indicates changes are required!");
+			console.error("   Check ai-review.md for details.");
 			console.error("   Fix the issues or use 'git push --no-verify' to bypass.\n");
 			process.exit(1);
 		}

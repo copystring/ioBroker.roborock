@@ -227,6 +227,8 @@ export class Roborock extends utils.Adapter {
 							this.log.info(`[onStateChange] Updating map and rooms after floor switch for ${duid}`);
 							await handler.updateRoomMapping();
 							await handler.updateMap();
+						} catch (e) {
+							this.catchError(e, "floorSwitchUpdate", duid);
 						} finally {
 							this.commandTimeouts.delete(timeoutKey);
 						}
