@@ -17,7 +17,7 @@ on:
 
 # Cancel previous PR/branch runs when a new commit is pushed
 concurrency:
-  group: ${{ github.ref }}
+  group: ${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 env:
@@ -57,6 +57,8 @@ jobs:
         os: [ubuntu-latest, windows-latest]
 
     steps:
+      - uses: actions/checkout@v4
+
       - name: Cache ioBroker Controller / Temp
         uses: actions/cache@v4
         with:
@@ -66,8 +68,6 @@ jobs:
           key: iobroker-controller-${{ runner.os }}-${{ matrix.node-version }}-${{ hashFiles('package-lock.json') }}
           restore-keys: |
             iobroker-controller-${{ runner.os }}-${{ matrix.node-version }}-
-
-      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
