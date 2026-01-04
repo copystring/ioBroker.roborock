@@ -167,9 +167,11 @@ ${structuredDiff}
 
 		// Check for rejection keywords (BLOCKING PRE-PUSH)
 		// We avoid blocking on "❌" because the AI often uses it in educational examples ("❌ The Scary Code")
+		// BUT: We DO block on "🚨" (Siren) because that implies a critical finding.
 		const isRejected = text.includes("Status: ⚠️ Action Required") ||
 						   text.includes("Status: ⛔ Rejected") ||
 						   text.includes("Verdict: ⛔ Rejected") ||
+						   text.includes("🚨") ||
 						   (text.includes("Action Required") && !text.includes("Status: Approved"));
 
 		if (isRejected) {

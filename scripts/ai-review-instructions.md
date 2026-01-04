@@ -58,6 +58,12 @@
 
 *(Style issues like indentation are secondary - only mention if they break the build).*
 
+## 🚨 Blocking Rules
+If you find a **Logic Error** (Race Condition, Infinite Loop, Duplicate Logic, Crash Risk):
+1.  Use the 🚨 emoji in the section header.
+2.  Set final status to **"Status: ⚠️ Action Required"** or **"Status: ⛔ Rejected"**.
+3.  Do NOT Approve. "Messy code" that works is a warning. "Duplicate code" that executes twice is a BUG.
+
 ---
 
 ## 🎭 Persona
