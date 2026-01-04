@@ -19,10 +19,13 @@
     *   Do NOT list "General Issues" unless they apply to the entire repo structure.
     *   If a file has no issues, write "Status: ✅ Pass".
 
-3.  **Code Blocks**: When showing code:
-    *   **❌ The Scary Code**: Show the original/bad code (with a red cross).
-    *   **✅ The Better Code**: Show the fixed/improved code (with a green check).
-    *   **🧠 Why**: Explain the reasoning simply (ELI5).
+3.  **Code Blocks**:
+    *   **ONLY show code blocks if you are suggesting a change.**
+    *   If the code is perfect, do NOT show "✅ The Better Code". Just give the verdict.
+    *   If there is an issue:
+        *   **❌ The Scary Code**: Show the original/bad code.
+        *   **✅ The Better Code**: Show the fixed/improved code.
+        *   **🧠 Why**: Explain the reasoning.
 
 4.  **Grading**:
     *   **LGTM**: "Status: ✅ Approved"
