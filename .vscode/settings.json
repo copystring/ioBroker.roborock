@@ -48,9 +48,9 @@
     "**/.git": true,
     "**/.DS_Store": true,
     "**/*.js.map": true,
-    "**/*.js": true,
+    // Only hide JS files in src/ where they are compiled from TS
+    "src/**/*.js": true,
     "src/www/pathProcessor.ts": true
-    // "build/": true // Uncomment this if you want to hide the build folder entirely
   },
 
 

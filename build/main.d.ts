@@ -111,4 +111,5 @@ export declare class Roborock extends utils.Adapter {
      * Centralized error handler.
      */
     catchError(error: any, attribute?: string, duid?: string): Promise<void>;
+    handleFloorSwitch(duid: string, mapFlag: number, stateId: string): Promise<void>;
 }

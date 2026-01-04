@@ -218,37 +218,7 @@ class Roborock extends utils.Adapter {
         if (folder === "floors" && idParts.length >= 7 && idParts[6] === "load") {
             const mapFlag = parseInt(idParts[5], 10);
             if (state.val === true || state.val === "true" || state.val === 1) {
-                const handler = this.deviceFeatureHandlers.get(duid);
-                if (handler) {
-                    this.log.info(`[onStateChange] Loading map ${mapFlag} for ${duid}`);
-                    await this.requestsHandler.command(handler, duid, "load_multi_map", [mapFlag]);
-                    // Trigger update of room mapping and map after switching floors
-                    const timeoutKey = `${duid}_floorSwitch`;
-                    if (this.commandTimeouts.has(timeoutKey)) {
-                        this.clearTimeout(this.commandTimeouts.get(timeoutKey));
-                        this.commandTimeouts.delete(timeoutKey);
-                    }
-                    const timeout = this.setTimeout(async () => {
-                        if (!this.mqtt_api)
-                            return;
-                        try {
-                            this.log.info(`[onStateChange] Updating map and rooms after floor switch for ${duid}`);
-                            await handler.updateRoomMapping();
-                            await handler.updateMap();
-                        }
-                        catch (e) {
-                            this.catchError(e, "floorSwitchUpdate", duid);
-                        }
-                        finally {
-                            this.commandTimeouts.delete(timeoutKey);
-                        }
-                    }, 2000); // Small delay to let the robot process the switch
-                    if (timeout) {
-                        this.commandTimeouts.set(timeoutKey, timeout);
-                    }
-                    // Reset button
-                    this.setResetTimeout(id);
-                }
+                await this.handleFloorSwitch(duid, mapFlag, id);
             }
             return;
         }
@@ -696,6 +666,40 @@ class Roborock extends utils.Adapter {
                 this.sentryInstance.getSentryObject().captureException(error);
             }
         }
+    }
+    // Helper to handle floor switching logic (extracted to reduce nesting)
+    async handleFloorSwitch(duid, mapFlag, stateId) {
+        const handler = this.deviceFeatureHandlers.get(duid);
+        if (!handler)
+            return;
+        this.log.info(`[onStateChange] Loading map ${mapFlag} for ${duid}`);
+        await this.requestsHandler.command(handler, duid, "load_multi_map", [mapFlag]);
+        // Trigger update of room mapping and map after switching floors
+        const timeoutKey = `${duid}_floorSwitch`;
+        if (this.commandTimeouts.has(timeoutKey)) {
+            this.clearTimeout(this.commandTimeouts.get(timeoutKey));
+            this.commandTimeouts.delete(timeoutKey);
+        }
+        const timeout = this.setTimeout(async () => {
+            if (!this.mqtt_api)
+                return;
+            try {
+                this.log.info(`[onStateChange] Updating map and rooms after floor switch for ${duid}`);
+                await handler.updateRoomMapping();
+                await handler.updateMap();
+            }
+            catch (e) {
+                this.catchError(e, "floorSwitchUpdate", duid);
+            }
+            finally {
+                this.commandTimeouts.delete(timeoutKey);
+            }
+        }, 2000); // Small delay to let the robot process the switch
+        if (timeout) {
+            this.commandTimeouts.set(timeoutKey, timeout);
+        }
+        // Reset button
+        this.setResetTimeout(stateId);
     }
 }
 exports.Roborock = Roborock;
