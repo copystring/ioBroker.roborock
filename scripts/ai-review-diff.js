@@ -156,8 +156,9 @@ ${structuredDiff}
 		const text = response.text();
 
 		// Calculate Costs
+		// Source: https://ai.google.dev/pricing (Gemini 1.5 Flash)
 		const PRICING = {
-			GEMINI_1_5_FLASH: { input: 0.50, output: 1.50 }
+			GEMINI_1_5_FLASH: { input: 0.075, output: 0.30 }
 		};
 		const currentModelPricing = PRICING.GEMINI_1_5_FLASH;
 
