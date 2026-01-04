@@ -610,8 +610,8 @@ export class Roborock extends utils.Adapter {
 				this.go2rtcProcess = spawn(go2rtcPath.toString(), ["-config", JSON.stringify(go2rtcConfig)], { shell: false, detached: false, windowsHide: true });
 
 				this.go2rtcProcess!.on("error", (err) => this.log.error(`Error starting go2rtc: ${err.message}`));
-				this.go2rtcProcess!.stdout!.on("data", (data) => this.log.debug(`go2rtc output: ${data}`));
-				this.go2rtcProcess!.stderr!.on("data", (data) => this.log.error(`go2rtc error output: ${data}`));
+				this.go2rtcProcess!.stdout!.on("data", (data) => this.log.debug(`go2rtc output: ${data.toString().trim()}`));
+				this.go2rtcProcess!.stderr!.on("data", (data) => this.log.error(`go2rtc error output: ${data.toString().trim()}`));
 
 				// Remove the process reference on exit to prevent double-kill attempts
 				// Remove the process reference on exit to prevent double-kill attempts
