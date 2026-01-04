@@ -120,7 +120,7 @@
     "ai:review": "node scripts/ai-review-diff.js",
     "commit": "npm run verify && git commit",
     "push": "npm run ai:review && git push",
-    "prepare": "husky"
+    "prepare": "node -e \"if (!process.env.CI) try { require('child_process').execSync('husky', { stdio: 'inherit' }); } catch (e) {}\""
   },
   "bugs": {
     "url": "https://github.com/copystring/ioBroker.roborock/issues"
