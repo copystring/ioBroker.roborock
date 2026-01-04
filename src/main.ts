@@ -250,54 +250,10 @@ export class Roborock extends utils.Adapter {
 		} else if (folder === "commands") {
 			this.log.info(`[handleCommand] Entering commands block for ${command}`);
 			try {
-				// Handle specific commands
-				switch (command) {
-					case "load_multi_map":
-						await this.requestsHandler.command(handler, duid, command, [state.val]);
-						break;
-					case "app_start":
-					case "app_charge":
-					case "app_spot":
-						this.log.info(`[handleCommand] Checking boolean command ${command}. Val: ${state.val}`);
-						if (state.val === true || state.val === "true" || state.val === 1) {
-							this.log.info(`[handleCommand] Triggering command ${command} for ${duid}`);
-							await this.requestsHandler.command(handler, duid, command);
-						} else {
-							this.log.info(`[handleCommand] Command ${command} NOT triggered because value is not true.`);
-						}
-						break;
-					case "app_segment_clean":
-						if (state.val === true || state.val === "true" || state.val === 1) {
-							// This command reads other states (selected rooms, count)
-							this.log.info(`[handleCommand] Triggering app_segment_clean for ${duid}`);
-							await this.requestsHandler.command(handler, duid, command);
-						}
-						break;
-					case "app_zoned_clean":
-					case "app_goto_target":
-						// Expects JSON string "[x,y]" or "[[x1,y1,x2,y2,n]]"
-						try {
-							const params = JSON.parse(state.val as string);
-							await this.requestsHandler.command(handler, duid, command, params);
-						} catch {
-							this.log.error(`Invalid JSON for ${command}: ${state.val}`);
-						}
-						break;
-					default:
-						// Default handler for simple set commands
-						// If it's a boolean command (button), we only trigger on true (or truthy)
-						if (typeof state.val === "boolean") {
-							if (state.val === true) {
-								await this.requestsHandler.command(handler, duid, command, state.val);
-							}
-						} else {
-							// For non-boolean, just send the value
-							await this.requestsHandler.command(handler, duid, command, state.val);
-						}
-				}
+				await this.executeCommand(handler, duid, command, state);
 			} finally {
 				// Reset boolean command state
-				if ((typeof state.val === "boolean" && state.val === true) || state.val === "true" || state.val === 1) {
+				if (this.isTruthy(state.val)) {
 					this.log.info(`[handleCommand] Scheduling reset for ${id}`);
 					this.commandTimeout = this.setTimeout(() => {
 						this.log.info(`[handleCommand] Resetting ${id} to false`);
@@ -306,6 +262,55 @@ export class Roborock extends utils.Adapter {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Executes a specific command for a device.
+	 */
+	private async executeCommand(handler: BaseDeviceFeatures, duid: string, command: string, state: ioBroker.State) {
+		switch (command) {
+			case "load_multi_map":
+				await this.requestsHandler.command(handler, duid, command, [state.val]);
+				break;
+			case "app_start":
+			case "app_charge":
+			case "app_spot":
+				this.log.info(`[handleCommand] Checking boolean command ${command}. Val: ${state.val}`);
+				if (this.isTruthy(state.val)) {
+					this.log.info(`[handleCommand] Triggering command ${command} for ${duid}`);
+					await this.requestsHandler.command(handler, duid, command);
+				} else {
+					this.log.info(`[handleCommand] Command ${command} NOT triggered because value is not true.`);
+				}
+				break;
+			case "app_segment_clean":
+				if (this.isTruthy(state.val)) {
+					this.log.info(`[handleCommand] Triggering app_segment_clean for ${duid}`);
+					await this.requestsHandler.command(handler, duid, command);
+				}
+				break;
+			case "app_zoned_clean":
+			case "app_goto_target":
+				try {
+					const params = JSON.parse(state.val as string);
+					await this.requestsHandler.command(handler, duid, command, params);
+				} catch {
+					this.log.error(`Invalid JSON for ${command}: ${state.val}`);
+				}
+				break;
+			default:
+				if (typeof state.val === "boolean") {
+					if (state.val === true) {
+						await this.requestsHandler.command(handler, duid, command, state.val);
+					}
+				} else {
+					await this.requestsHandler.command(handler, duid, command, state.val);
+				}
+		}
+	}
+
+	private isTruthy(val: any): boolean {
+		return val === true || val === "true" || val === 1;
 	}
 
 	/**
