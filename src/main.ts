@@ -224,15 +224,8 @@ export class Roborock extends utils.Adapter {
 					}, 2000); // Small delay to let the robot process the switch
 
 					// Reset button
-					const timeoutKey = `${id}_reset`;
-					if (this.commandTimeouts.has(timeoutKey)) {
-						this.clearTimeout(this.commandTimeouts.get(timeoutKey)!);
-					}
-					const timeout = this.setTimeout(() => {
-						this.setState(id, false, true);
-						this.commandTimeouts.delete(timeoutKey);
-					}, 1000);
-					if (timeout) this.commandTimeouts.set(timeoutKey, timeout);
+					// Reset button
+					this.setResetTimeout(id);
 				}
 			}
 			return;
@@ -260,15 +253,8 @@ export class Roborock extends utils.Adapter {
 		if (folder === "resetConsumables" && state.val === true) {
 			await this.requestsHandler.command(handler, duid, "reset_consumable", command);
 			// Reset button
-			const timeoutKey = `${id}_reset`;
-			if (this.commandTimeouts.has(timeoutKey)) {
-				this.clearTimeout(this.commandTimeouts.get(timeoutKey)!);
-			}
-			const timeout = this.setTimeout(() => {
-				this.setState(id, false, true);
-				this.commandTimeouts.delete(timeoutKey);
-			}, 1000);
-			if (timeout) this.commandTimeouts.set(timeoutKey, timeout);
+			// Reset button
+			this.setResetTimeout(id);
 		} else if (folder === "programs" && command === "startProgram") {
 			await this.http_api.executeScene(state as any);
 		} else if (folder === "commands") {
@@ -279,16 +265,7 @@ export class Roborock extends utils.Adapter {
 				// Reset boolean command state
 				if (this.isTruthy(state.val)) {
 					this.log.info(`[handleCommand] Scheduling reset for ${id}`);
-					const timeoutKey = `${id}_reset`;
-					if (this.commandTimeouts.has(timeoutKey)) {
-						this.clearTimeout(this.commandTimeouts.get(timeoutKey)!);
-					}
-					const timeout = this.setTimeout(() => {
-						this.log.info(`[handleCommand] Resetting ${id} to false`);
-						this.setState(id, false, true);
-						this.commandTimeouts.delete(timeoutKey);
-					}, 1000);
-					if (timeout) this.commandTimeouts.set(timeoutKey, timeout);
+					this.setResetTimeout(id);
 				}
 			}
 		}
@@ -345,6 +322,23 @@ export class Roborock extends utils.Adapter {
 
 	private isTruthy(val: any): boolean {
 		return val === true || val === "true" || val === 1 || val === "1";
+	}
+
+	/**
+	 * Sets a timeout to reset a state to false after 1 second.
+	 * Helps avoid race conditions by managing timeouts in a map.
+	 */
+	private setResetTimeout(id: string): void {
+		const timeoutKey = `${id}_reset`;
+		if (this.commandTimeouts.has(timeoutKey)) {
+			this.clearTimeout(this.commandTimeouts.get(timeoutKey)!);
+		}
+		const timeout = this.setTimeout(() => {
+			this.log.debug(`[setResetTimeout] Resetting ${id} to false`);
+			this.setState(id, false, true);
+			this.commandTimeouts.delete(timeoutKey);
+		}, 1000);
+		if (timeout) this.commandTimeouts.set(timeoutKey, timeout);
 	}
 
 	/**
