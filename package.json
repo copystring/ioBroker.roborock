@@ -118,6 +118,8 @@
     "test:all": "npm run test && npm run test:www",
     "verify": "npm run lint && tsc --noEmit -p tsconfig.json",
     "ai:review": "node scripts/ai-review-diff.js",
+    "verify": "npm run lint && npm run ai:review",
+    "commit": "npm run verify && git commit",
     "prepare": "husky"
   },
   "bugs": {
