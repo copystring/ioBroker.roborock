@@ -179,15 +179,20 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             };
         }
         // Service calls
+        const CONSUMABLE_IDS = {
+            MAIN_BRUSH: 1,
+            SIDE_BRUSH: 2,
+            FILTER: 3
+        };
         const serviceMap = {
             "update_map": { method: "service", params: { "method": "upload_by_maptype", "params": { "force": 1, "map_type": 0 } } },
             "start_recharge": { method: "service", params: { "method": "start_recharge", "params": {} } },
             "stop_recharge": { method: "service", params: { "method": "stop_recharge", "params": {} } },
             "start_dust_collection": { method: "service", params: { "method": "start_dust_collection", "params": {} } },
             "stop_dust_collection": { method: "service", params: { "method": "stop_dust_collection", "params": {} } },
-            "reset_main_brush": { method: "service", params: { "method": "reset_consumable", "params": { "consumable": 1 } } },
-            "reset_side_brush": { method: "service", params: { "method": "reset_consumable", "params": { "consumable": 2 } } },
-            "reset_filter": { method: "service", params: { "method": "reset_consumable", "params": { "consumable": 3 } } }
+            "reset_main_brush": { method: "service", params: { "method": "reset_consumable", "params": { "consumable": CONSUMABLE_IDS.MAIN_BRUSH } } },
+            "reset_side_brush": { method: "service", params: { "method": "reset_consumable", "params": { "consumable": CONSUMABLE_IDS.SIDE_BRUSH } } },
+            "reset_filter": { method: "service", params: { "method": "reset_consumable", "params": { "consumable": CONSUMABLE_IDS.FILTER } } }
         };
         if (serviceMap[method]) {
             return serviceMap[method];
@@ -310,11 +315,13 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             if (["clean_time", "cleaning_time"].includes(key)) {
                 // sniffs show 'cleaning_time: 25' for 25 min -> already in minutes. No conversion needed.
                 // last_clean_t might be timestamp or duration? usually timestamp if clean_finish.
-                val = Number(val);
+                const numericVal = Number(val);
+                val = isNaN(numericVal) ? 0 : numericVal;
             }
             else if (["cleaning_area", "cleaning_area", "last_clean_area"].includes(key)) {
                 // B01 sends dm² (e.g. 2129 -> 21.29 m²)
-                val = Number((val / 100).toFixed(2));
+                const numericVal = Number((val / 100).toFixed(2));
+                val = isNaN(numericVal) ? 0 : numericVal;
             }
             if (common.type === "string" && typeof val !== "string") {
                 val = String(val);
@@ -1044,9 +1051,10 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
         const settingsToProcess = ["volume", "voice_type", "light_mode", "child_lock", "sound", "charge_station_type", "dust_auto_state"];
         for (const key of settingsToProcess) {
             if (resultObj[key] !== undefined) {
+                const type = resultObj[key] === null ? "mixed" : typeof resultObj[key];
                 await this.deps.ensureState(`Devices.${this.duid}.deviceStatus.${key}`, {
                     name: key,
-                    type: typeof resultObj[key],
+                    type: type,
                     role: "value",
                     write: false
                 });
