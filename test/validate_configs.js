@@ -11,9 +11,11 @@ const VSCODE_DIR = path.join(ROOT_DIR, ".vscode");
 const JSON_CONFIG_PATH = path.join(ADMIN_DIR, "jsonConfig.json");
 const SCHEMA_URL = "https://raw.githubusercontent.com/ioBroker/ioBroker.admin/master/packages/jsonConfig/schemas/jsonConfig.json";
 
-// Helper: Strip JSON comments (basic implementation)
+const stripJsonComments = require("strip-json-comments").default;
+
+// Helper: Strip JSON comments (using library)
 function stripComments(jsonString) {
-    return jsonString.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//gm, "");
+    return stripJsonComments(jsonString);
 }
 
 // Helper: Recursively get files
