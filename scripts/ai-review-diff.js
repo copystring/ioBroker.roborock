@@ -156,9 +156,14 @@ ${structuredDiff}
 		const text = response.text();
 
 		// Calculate Costs
+		const PRICING = {
+			GEMINI_1_5_FLASH: { input: 0.50, output: 1.50 }
+		};
+		const currentModelPricing = PRICING.GEMINI_1_5_FLASH;
+
 		const usage = response.usageMetadata || { promptTokenCount: 0, candidatesTokenCount: 0 };
-		const inputCost = (usage.promptTokenCount / 1000000) * 0.50;
-		const outputCost = (usage.candidatesTokenCount / 1000000) * 1.50; // Pricing for Gemini 1.5 Flash (approx)
+		const inputCost = (usage.promptTokenCount / 1000000) * currentModelPricing.input;
+		const outputCost = (usage.candidatesTokenCount / 1000000) * currentModelPricing.output;
 		const totalCost = inputCost + outputCost;
 
 		// Persist Report
