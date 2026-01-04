@@ -70,6 +70,7 @@
     "eslint-plugin-sonarjs": "^3.0.5",
     "eslint-plugin-unicorn": "^60.0.0",
     "globals": "^16.4.0",
+    "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "mocha": "^10.2.0",
     "proxyquire": "^2.1.3",
@@ -117,7 +118,8 @@
     "test:all": "npm run test && npm run test:www",
     "verify": "npm run lint && npm run ai:review",
     "ai:review": "node scripts/ai-review-diff.js",
-    "commit": "npm run verify && git commit"
+    "commit": "npm run verify && git commit",
+    "prepare": "husky"
   },
   "bugs": {
     "url": "https://github.com/copystring/ioBroker.roborock/issues"
