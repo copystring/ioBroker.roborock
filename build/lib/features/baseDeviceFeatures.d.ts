@@ -1,6 +1,6 @@
+import { z } from "zod";
 import type { Roborock } from "../../main";
 import { Feature } from "./features.enum";
-import { z } from "zod";
 /**
  * Command object properties.
  */
@@ -60,6 +60,7 @@ export declare abstract class BaseDeviceFeatures {
     protected robotModel: string;
     protected config: DeviceModelConfig;
     protected appliedFeatures: Set<Feature>;
+    protected pendingFeatures: Set<Feature>;
     protected runtimeDetectionComplete: boolean;
     protected commandsCreated: boolean;
     protected static readonly CONSTANTS: {
@@ -84,6 +85,12 @@ export declare abstract class BaseDeviceFeatures {
      * @param config Static feature config.
      */
     constructor(dependencies: FeatureDependencies, duid: string, robotModel: string, config: DeviceModelConfig);
+    /**
+     * Applies a feature if not already applied. Looks up implementation in registry.
+     * @param feature Feature enum key.
+     * @returns `true` if applied now.
+     */
+    protected applyFeature(feature: Feature): Promise<boolean>;
     /**
      * Detects features via device-specific mechanisms (bitfields, fw info).
      * Implemented by subclasses.
@@ -121,12 +128,6 @@ export declare abstract class BaseDeviceFeatures {
      */
     printSummary(): void;
     /**
-     * Applies a feature if not already applied. Looks up implementation in registry.
-     * @param feature Feature enum key.
-     * @returns `true` if applied now.
-     */
-    protected applyFeature(feature: Feature): Promise<boolean>;
-    /**
      * Maps dynamic feature keys (e.g. 'is...') to action keys (e.g. 'MopWash').
      * @param detectedFeature Detected Feature enum key.
      * @returns Mapped action Feature key, detected key if actionable, or null.
@@ -136,6 +137,10 @@ export declare abstract class BaseDeviceFeatures {
      * Creates/updates ioBroker command objects from this.commands.
      */
     createCommandObjects(): Promise<void>;
+    /**
+     * Process a single command object creation.
+     */
+    protected processCommand(folderPath: string, cmd: string, spec: CommandSpec | any): Promise<void>;
     /**
      * Adds/updates command definition. Merges states to preserve specifics.
      * @param name Command name.
@@ -180,6 +185,11 @@ export declare abstract class BaseDeviceFeatures {
      * @param mapper Optional data mapper.
      */
     protected requestAndProcess(method: string, params: any[], folder: string, mapper?: (data: any) => Record<string, any>): Promise<void>;
+    /**
+     * Process a single key from API result.
+     */
+    protected processResultKey(folder: string, key: string, val: unknown): Promise<void>;
+    private hasStatesChanged;
     updateStatus(): Promise<void>;
     updateConsumables(): Promise<void>;
     updateNetworkInfo(): Promise<void>;
