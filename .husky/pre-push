@@ -1,1 +1,2 @@
-npm run ai:review
+#!/bin/sh
+node scripts/ai-review-diff.js
