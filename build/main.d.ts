@@ -21,7 +21,7 @@ export declare class Roborock extends utils.Adapter {
     isInitializing: boolean;
     sentryInstance: any;
     translations: Record<string, string>;
-    private commandTimeout;
+    private commandTimeouts;
     private mqttReconnectInterval;
     instance: number;
     private go2rtcProcess;

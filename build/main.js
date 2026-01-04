@@ -69,7 +69,7 @@ class Roborock extends utils.Adapter {
     isInitializing;
     sentryInstance;
     translations = {};
-    commandTimeout = undefined;
+    commandTimeouts = new Map();
     mqttReconnectInterval = undefined;
     instance = 0;
     go2rtcProcess = null;
@@ -230,7 +230,16 @@ class Roborock extends utils.Adapter {
                         await handler.updateMap();
                     }, 2000); // Small delay to let the robot process the switch
                     // Reset button
-                    this.setTimeout(() => this.setState(id, false, true), 1000);
+                    const timeoutKey = `${id}_reset`;
+                    if (this.commandTimeouts.has(timeoutKey)) {
+                        this.clearTimeout(this.commandTimeouts.get(timeoutKey));
+                    }
+                    const timeout = this.setTimeout(() => {
+                        this.setState(id, false, true);
+                        this.commandTimeouts.delete(timeoutKey);
+                    }, 1000);
+                    if (timeout)
+                        this.commandTimeouts.set(timeoutKey, timeout);
                 }
             }
             return;
@@ -255,9 +264,17 @@ class Roborock extends utils.Adapter {
         if (folder === "resetConsumables" && state.val === true) {
             await this.requestsHandler.command(handler, duid, "reset_consumable", command);
             // Reset button
-            this.setTimeout(() => {
+            const timeoutKey = `${id}_reset`;
+            if (this.commandTimeouts.has(timeoutKey)) {
+                this.clearTimeout(this.commandTimeouts.get(timeoutKey));
+            }
+            const timeout = this.setTimeout(() => {
                 this.setState(id, false, true);
+                this.setState(id, false, true);
+                this.commandTimeouts.delete(timeoutKey);
             }, 1000);
+            if (timeout)
+                this.commandTimeouts.set(timeoutKey, timeout);
         }
         else if (folder === "programs" && command === "startProgram") {
             await this.http_api.executeScene(state);
@@ -271,10 +288,17 @@ class Roborock extends utils.Adapter {
                 // Reset boolean command state
                 if (this.isTruthy(state.val)) {
                     this.log.info(`[handleCommand] Scheduling reset for ${id}`);
-                    this.commandTimeout = this.setTimeout(() => {
+                    const timeoutKey = `${id}_reset`;
+                    if (this.commandTimeouts.has(timeoutKey)) {
+                        this.clearTimeout(this.commandTimeouts.get(timeoutKey));
+                    }
+                    const timeout = this.setTimeout(() => {
                         this.log.info(`[handleCommand] Resetting ${id} to false`);
                         this.setState(id, false, true);
+                        this.commandTimeouts.delete(timeoutKey);
                     }, 1000);
+                    if (timeout)
+                        this.commandTimeouts.set(timeoutKey, timeout);
                 }
             }
         }
@@ -307,6 +331,10 @@ class Roborock extends utils.Adapter {
                 break;
             case "app_zoned_clean":
             case "app_goto_target":
+                if (typeof state.val !== "string") {
+                    this.log.warn(`[executeCommand] Expected string for ${command}, but got ${typeof state.val}`);
+                    break;
+                }
                 try {
                     const params = JSON.parse(state.val);
                     await this.requestsHandler.command(handler, duid, command, params);
@@ -327,7 +355,7 @@ class Roborock extends utils.Adapter {
         }
     }
     isTruthy(val) {
-        return val === true || val === "true" || val === 1;
+        return val === true || val === "true" || val === 1 || val === "1";
     }
     /**
      * Ensures a ClientID exists.
@@ -402,8 +430,8 @@ class Roborock extends utils.Adapter {
      * Clears all timeouts and intervals.
      */
     clearTimersAndIntervals() {
-        if (this.commandTimeout)
-            this.clearTimeout(this.commandTimeout);
+        this.commandTimeouts.forEach((timeout) => this.clearTimeout(timeout));
+        this.commandTimeouts.clear();
         this.deviceManager.stopPolling();
         this.requestsHandler.clearQueue();
     }
