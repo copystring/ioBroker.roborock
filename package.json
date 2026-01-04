@@ -23,6 +23,7 @@
     "node": ">= 20"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@iobroker/adapter-core": "3.3.2",
     "@napi-rs/canvas": "0.1.85",
     "axios": "1.13.2",
@@ -62,17 +63,24 @@
     "@types/sinon-chai": "^3.2.12",
     "@typescript-eslint/eslint-plugin": "^8.50.0",
     "@typescript-eslint/parser": "^8.50.0",
+    "ajv": "^8.17.1",
     "chai": "^4.4.1",
     "chai-as-promised": "^8.0.0",
     "eslint": "9.39.2",
+    "eslint-plugin-sonarjs": "^3.0.5",
+    "eslint-plugin-unicorn": "^60.0.0",
     "globals": "^16.4.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "mocha": "^10.2.0",
     "proxyquire": "^2.1.3",
     "rimraf": "6.1.2",
     "sinon": "^21.0.1",
     "sinon-chai": "^3.7.0",
+    "strip-json-comments": "^3.1.1",
     "typescript": "5.9.3",
-    "vitest": "4.0.16"
+    "vitest": "4.0.16",
+    "yaml-lint": "^1.7.0"
   },
   "main": "build/main.js",
   "files": [
@@ -93,21 +101,26 @@
     "watch:www": "npm run copy:pathProcessor && tsc -b tsconfig.web.json --watch",
     "__comment_mocha": "Mocha tests: 1. Everything in 'build' EXCEPT 'www'. 2. The 'test' folder.",
     "test:js": "tsc -p tsconfig.json && npx mocha --config test/mocharc.custom.json \"build/!(www)/**/*.test.js\"",
-    "test:package": "npx mocha test/package --exit",
+    "test:package": "npx mocha test/package test/validate_configs --exit",
     "test:integration": "npx mocha test/integration --exit",
     "test:watch": "npx mocha --watch --config test/mocharc.custom.json \"build/!(www)/**/*.test.js\"",
     "test": "npm run test:js && npm run test:package",
     "check": "tsc -b tsconfig.json --dry",
     "predev": "npm run copy:pathProcessor",
     "dev": "node dev-server.js",
-    "lint": "eslint .",
+    "lint:yaml": "npx yaml-lint \"**/*.yml\" \"**/*.yaml\" --ignore \"node_modules\"",
+    "lint": "eslint . && npm run lint:yaml",
     "translate": "translate-adapter",
     "release": "release-script",
     "__comment_vitest": "Vitest tests ONLY 'src/www'",
     "dev:www": "npm run copy:pathProcessor && vitest watch src/www",
     "test:www": "npm run copy:pathProcessor && vitest run src/www",
     "test:all": "npm run test && npm run test:www",
-    "verify": "npm run lint && tsc --noEmit -p tsconfig.json"
+    "verify": "npm run lint && tsc --noEmit -p tsconfig.json && npm run ai:review",
+    "ai:review": "node scripts/ai-review-diff.js",
+    "commit": "npm run verify && git commit",
+    "push": "npm run ai:review && git push",
+    "prepare": "node -e \"if (!process.env.CI) try { require('child_process').execSync('husky', { stdio: 'inherit' }); } catch (e) {}\""
   },
   "bugs": {
     "url": "https://github.com/copystring/ioBroker.roborock/issues"

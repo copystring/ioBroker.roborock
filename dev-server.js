@@ -41,10 +41,8 @@ function startProcess(name, modulePath, args, color) {
 	proc.stdout.on("data", (data) => {
 		const lines = data.toString().split("\n");
 		lines.forEach(line => {
-			if (line.trim()) {
-				if (!line.includes("npm warn") && !line.includes("Unknown global config")) {
-					console.log(`${prefix(name, color)} ${line.trim()}`);
-				}
+			if (line.trim() && !line.includes("npm warn") && !line.includes("Unknown global config")) {
+				console.log(`${prefix(name, color)} ${line.trim()}`);
 			}
 		});
 	});

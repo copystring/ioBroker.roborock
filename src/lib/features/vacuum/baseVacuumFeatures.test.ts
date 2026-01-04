@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import * as sinon from "sinon";
-import { BaseVacuumFeatures } from "./baseVacuumFeatures";
 import { Feature } from "../features.enum";
+import { BaseVacuumFeatures } from "./baseVacuumFeatures";
 
 describe("BaseVacuumFeatures", () => {
 	let adapterMock: any;
@@ -10,7 +10,8 @@ describe("BaseVacuumFeatures", () => {
 	beforeEach(() => {
 		adapterMock = {
 			log: { info: sinon.stub(), error: sinon.stub(), warn: sinon.stub(), debug: sinon.stub(), silly: sinon.stub() },
-			setStateChangedAsync: sinon.stub().resolves(),
+			setStateChanged: sinon.stub().resolves(),
+			setState: sinon.stub(),
 			ensureState: sinon.stub().resolves(),
 			ensureFolder: sinon.stub().resolves(),
 			getStateAsync: sinon.stub().resolves(),
@@ -62,9 +63,9 @@ describe("BaseVacuumFeatures", () => {
 
 		await vacuum.testUpdateDss(dssValue);
 
-		expect(adapterMock.setStateChangedAsync.calledWith("Devices.duid1.dockingStationStatus.cleanFluidStatus", { val: 1, ack: true })).to.be.true; // 1 = ERROR
-		expect(adapterMock.setStateChangedAsync.calledWith("Devices.duid1.dockingStationStatus.waterBoxFilterStatus", { val: 2, ack: true })).to.be.true; // 2 = OK
-		expect(adapterMock.setStateChangedAsync.calledWith("Devices.duid1.dockingStationStatus.dustBagStatus", { val: 0, ack: true })).to.be.true; // 0 = UNKNOWN
+		expect(adapterMock.setStateChanged.calledWith("Devices.duid1.dockingStationStatus.cleanFluidStatus", { val: 1, ack: true })).to.be.true; // 1 = ERROR
+		expect(adapterMock.setStateChanged.calledWith("Devices.duid1.dockingStationStatus.waterBoxFilterStatus", { val: 2, ack: true })).to.be.true; // 2 = OK
+		expect(adapterMock.setStateChanged.calledWith("Devices.duid1.dockingStationStatus.dustBagStatus", { val: 0, ack: true })).to.be.true; // 0 = UNKNOWN
 	});
 
 	it("should parse get_multi_maps_list and create floors structure", async () => {
@@ -92,11 +93,11 @@ describe("BaseVacuumFeatures", () => {
 
 		// Check States
 		// Floor 0
-		sinon.assert.calledWithMatch(adapterMock.setStateChangedAsync, "Devices.duid1.floors.0.name", { val: "Ground Floor" });
-		sinon.assert.calledWithMatch(adapterMock.setStateChangedAsync, "Devices.duid1.floors.0.mapFlag", { val: 0 });
+		sinon.assert.calledWithMatch(adapterMock.setStateChanged, "Devices.duid1.floors.0.name", { val: "Ground Floor" });
+		sinon.assert.calledWithMatch(adapterMock.setStateChanged, "Devices.duid1.floors.0.mapFlag", { val: 0 });
 
 		// Floor 1 (Name fallback)
-		sinon.assert.calledWithMatch(adapterMock.setStateChangedAsync, "Devices.duid1.floors.1.name", { val: "Map 1" });
+		sinon.assert.calledWithMatch(adapterMock.setStateChanged, "Devices.duid1.floors.1.name", { val: "Map 1" });
 
 		// Load button existence
 		// ensureState in BaseDeviceFeatures calls deps.ensureState(id, common) -> 2 args

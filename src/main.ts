@@ -2,21 +2,21 @@
 /// <reference types="@iobroker/adapter-core" />
 
 import * as utils from "@iobroker/adapter-core";
+import { ChildProcess, spawn } from "child_process";
 import { randomBytes } from "crypto";
-import { spawn } from "child_process";
 import go2rtcPath from "go2rtc-static";
 
 // --- API & Helper Imports ---
-import { roborock_package_helper } from "./lib/roborock_package_helper";
-import { requestsHandler } from "./lib/requestsHandler";
+import { buildInfo } from "./lib/buildInfo";
+import { DeviceManager } from "./lib/deviceManager";
+import { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
+import { Feature } from "./lib/features/features.enum";
 import { http_api } from "./lib/httpApi";
 import { local_api } from "./lib/localApi";
 import { mqtt_api } from "./lib/mqttApi";
+import { requestsHandler } from "./lib/requestsHandler";
+import { roborock_package_helper } from "./lib/roborock_package_helper";
 import { socketHandler } from "./lib/socketHandler";
-import { DeviceManager } from "./lib/deviceManager";
-import { Feature } from "./lib/features/features.enum";
-import { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
-import { buildInfo } from "./lib/buildInfo";
 
 export class Roborock extends utils.Adapter {
 	// --- Public APIs (accessible by helpers) ---
@@ -37,9 +37,12 @@ export class Roborock extends utils.Adapter {
 	public sentryInstance: any;
 	public translations: Record<string, string> = {};
 
-	private commandTimeout: ioBroker.Timeout | undefined = undefined;
+	private commandTimeouts: Map<string, ioBroker.Timeout> = new Map();
 	private mqttReconnectInterval: ioBroker.Interval | undefined = undefined;
 	public instance: number = 0;
+	private go2rtcProcess: ChildProcess | null = null;
+	// Bound exit handler to prevent memory leaks while allowing process.removeListener
+	private onExitBound: (() => void) | null = null;
 
 	constructor(options: Partial<utils.AdapterOptions> = {}) {
 		super({ ...options, name: "roborock", useFormatDate: true });
@@ -154,6 +157,17 @@ export class Roborock extends utils.Adapter {
 			}
 			this.clearTimersAndIntervals();
 			this.local_api.stopUdpDiscovery();
+
+			// Remove the global process exit listener to prevent memory leaks
+			if (this.onExitBound) {
+				process.removeListener("exit", this.onExitBound);
+				this.onExitBound = null;
+			}
+
+			if (this.go2rtcProcess) {
+				this.go2rtcProcess.kill();
+				this.go2rtcProcess = null;
+			}
 			this.setState("info.connection", { val: false, ack: true });
 			callback();
 		} catch (e: any) {
@@ -196,21 +210,7 @@ export class Roborock extends utils.Adapter {
 		if (folder === "floors" && idParts.length >= 7 && idParts[6] === "load") {
 			const mapFlag = parseInt(idParts[5], 10);
 			if (state.val === true || state.val === "true" || state.val === 1) {
-				const handler = this.deviceFeatureHandlers.get(duid);
-				if (handler) {
-					this.log.info(`[onStateChange] Loading map ${mapFlag} for ${duid}`);
-					await this.requestsHandler.command(handler, duid, "load_multi_map", [mapFlag]);
-
-					// Trigger update of room mapping and map after switching floors
-					setTimeout(async () => {
-						this.log.info(`[onStateChange] Updating map and rooms after floor switch for ${duid}`);
-						await handler.updateRoomMapping();
-						await handler.updateMap();
-					}, 2000); // Small delay to let the robot process the switch
-
-					// Reset button
-					this.setTimeout(() => this.setState(id, false, true), 1000);
-				}
+				await this.handleFloorSwitch(duid, mapFlag, id);
 			}
 			return;
 		}
@@ -237,70 +237,92 @@ export class Roborock extends utils.Adapter {
 		if (folder === "resetConsumables" && state.val === true) {
 			await this.requestsHandler.command(handler, duid, "reset_consumable", command);
 			// Reset button
-			this.setTimeout(() => {
-				this.setState(id, false, true);
-			}, 1000);
+			// Reset button
+			this.setResetTimeout(id);
 		} else if (folder === "programs" && command === "startProgram") {
 			await this.http_api.executeScene(state as any);
 		} else if (folder === "commands") {
 			this.log.info(`[handleCommand] Entering commands block for ${command}`);
 			try {
-				// Handle specific commands
-				switch (command) {
-					case "load_multi_map":
-						await this.requestsHandler.command(handler, duid, command, [state.val]);
-						break;
-					case "app_start":
-					case "app_charge":
-					case "app_spot":
-						this.log.info(`[handleCommand] Checking boolean command ${command}. Val: ${state.val}`);
-						if (state.val === true || state.val === "true" || state.val === 1) {
-							this.log.info(`[handleCommand] Triggering command ${command} for ${duid}`);
-							await this.requestsHandler.command(handler, duid, command);
-						} else {
-							this.log.info(`[handleCommand] Command ${command} NOT triggered because value is not true.`);
-						}
-						break;
-					case "app_segment_clean":
-						if (state.val === true || state.val === "true" || state.val === 1) {
-							// This command reads other states (selected rooms, count)
-							this.log.info(`[handleCommand] Triggering app_segment_clean for ${duid}`);
-							await this.requestsHandler.command(handler, duid, command);
-						}
-						break;
-					case "app_zoned_clean":
-					case "app_goto_target":
-						// Expects JSON string "[x,y]" or "[[x1,y1,x2,y2,n]]"
-						try {
-							const params = JSON.parse(state.val as string);
-							await this.requestsHandler.command(handler, duid, command, params);
-						} catch {
-							this.log.error(`Invalid JSON for ${command}: ${state.val}`);
-						}
-						break;
-					default:
-						// Default handler for simple set commands
-						// If it's a boolean command (button), we only trigger on true (or truthy)
-						if (typeof state.val === "boolean") {
-							if (state.val === true) {
-								await this.requestsHandler.command(handler, duid, command, state.val);
-							}
-						} else {
-							// For non-boolean, just send the value
-							await this.requestsHandler.command(handler, duid, command, state.val);
-						}
-				}
+				await this.executeCommand(handler, duid, command, state);
 			} finally {
 				// Reset boolean command state
-				if ((typeof state.val === "boolean" && state.val === true) || state.val === "true" || state.val === 1) {
+				if (this.isTruthy(state.val)) {
 					this.log.info(`[handleCommand] Scheduling reset for ${id}`);
-					this.commandTimeout = this.setTimeout(() => {
-						this.log.info(`[handleCommand] Resetting ${id} to false`);
-						this.setState(id, false, true);
-					}, 1000);
+					this.setResetTimeout(id);
 				}
 			}
 		}
+	}
+
+	/**
+	 * Executes a specific command for a device.
+	 */
+	private async executeCommand(handler: BaseDeviceFeatures, duid: string, command: string, state: ioBroker.State) {
+		switch (command) {
+			case "load_multi_map":
+				await this.requestsHandler.command(handler, duid, command, [state.val]);
+				break;
+			case "app_start":
+			case "app_charge":
+			case "app_spot":
+				this.log.info(`[handleCommand] Checking boolean command ${command}. Val: ${state.val}`);
+				if (this.isTruthy(state.val)) {
+					this.log.info(`[handleCommand] Triggering command ${command} for ${duid}`);
+					await this.requestsHandler.command(handler, duid, command);
+				} else {
+					this.log.info(`[handleCommand] Command ${command} NOT triggered because value is not true.`);
+				}
+				break;
+			case "app_segment_clean":
+				if (this.isTruthy(state.val)) {
+					this.log.info(`[handleCommand] Triggering app_segment_clean for ${duid}`);
+					await this.requestsHandler.command(handler, duid, command);
+				}
+				break;
+			case "app_zoned_clean":
+			case "app_goto_target":
+				if (typeof state.val !== "string") {
+					this.log.warn(`[executeCommand] Expected string for ${command}, but got ${typeof state.val}`);
+					break;
+				}
+				try {
+					const params = JSON.parse(state.val);
+					await this.requestsHandler.command(handler, duid, command, params);
+				} catch {
+					this.log.error(`Invalid JSON for ${command}: ${state.val}`);
+				}
+				break;
+			default:
+				if (typeof state.val === "boolean") {
+					if (state.val === true) {
+						await this.requestsHandler.command(handler, duid, command, state.val);
+					}
+				} else {
+					await this.requestsHandler.command(handler, duid, command, state.val);
+				}
+		}
+	}
+
+	private isTruthy(val: any): boolean {
+		return val === true || val === "true" || val === 1 || val === "1";
+	}
+
+	/**
+	 * Sets a timeout to reset a state to false after 1 second.
+	 * Helps avoid race conditions by managing timeouts in a map.
+	 */
+	private setResetTimeout(id: string): void {
+		const timeoutKey = `${id}_reset`;
+		if (this.commandTimeouts.has(timeoutKey)) {
+			this.clearTimeout(this.commandTimeouts.get(timeoutKey)!);
+		}
+		const timeout = this.setTimeout(() => {
+			this.log.debug(`[setResetTimeout] Resetting ${id} to false`);
+			this.setState(id, false, true);
+			this.commandTimeouts.delete(timeoutKey);
+		}, 1000);
+		if (timeout) this.commandTimeouts.set(timeoutKey, timeout);
 	}
 
 	/**
@@ -382,7 +404,8 @@ export class Roborock extends utils.Adapter {
 	 * Clears all timeouts and intervals.
 	 */
 	clearTimersAndIntervals() {
-		if (this.commandTimeout) this.clearTimeout(this.commandTimeout as any);
+		this.commandTimeouts.forEach((timeout) => this.clearTimeout(timeout));
+		this.commandTimeouts.clear();
 
 		this.deviceManager.stopPolling();
 		this.requestsHandler.clearQueue();
@@ -553,12 +576,25 @@ export class Roborock extends utils.Adapter {
 
 		if (cameraCount > 0 && go2rtcPath) {
 			try {
-				const go2rtcProcess = spawn(go2rtcPath.toString(), ["-config", JSON.stringify(go2rtcConfig)], { shell: false, detached: false, windowsHide: true });
+				this.go2rtcProcess = spawn(go2rtcPath.toString(), ["-config", JSON.stringify(go2rtcConfig)], { shell: false, detached: false, windowsHide: true });
 
-				go2rtcProcess.on("error", (err) => this.log.error(`Error starting go2rtc: ${err.message}`));
-				go2rtcProcess.stdout.on("data", (data) => this.log.debug(`go2rtc output: ${data}`));
-				go2rtcProcess.stderr.on("data", (data) => this.log.error(`go2rtc error output: ${data}`));
-				process.on("exit", () => go2rtcProcess.kill());
+				this.go2rtcProcess!.on("error", (err) => this.log.error(`Error starting go2rtc: ${err.message}`));
+				this.go2rtcProcess!.stdout!.on("data", (data) => this.log.debug(`go2rtc output: ${data.toString().trim()}`));
+				this.go2rtcProcess!.stderr!.on("data", (data) => this.log.error(`go2rtc error output: ${data.toString().trim()}`));
+
+				// Remove the process reference on exit to prevent double-kill attempts
+				// Remove the process reference on exit to prevent double-kill attempts
+				this.go2rtcProcess!.on("exit", () => {
+					this.go2rtcProcess = null;
+				});
+
+				// Safety net: Ensure child process ensures if Node.js crashes/exits
+				this.onExitBound = () => {
+					if (this.go2rtcProcess) {
+						this.go2rtcProcess.kill();
+					}
+				};
+				process.on("exit", this.onExitBound);
 			} catch (error: any) {
 				this.log.error(`Failed to spawn go2rtc: ${error.message}`);
 			}
@@ -655,6 +691,41 @@ export class Roborock extends utils.Adapter {
 				this.sentryInstance.getSentryObject().captureException(error);
 			}
 		}
+	}
+	// Helper to handle floor switching logic (extracted to reduce nesting)
+	async handleFloorSwitch(duid: string, mapFlag: number, stateId: string): Promise<void> {
+		const handler = this.deviceFeatureHandlers.get(duid);
+		if (!handler) return;
+
+		this.log.info(`[onStateChange] Loading map ${mapFlag} for ${duid}`);
+		await this.requestsHandler.command(handler, duid, "load_multi_map", [mapFlag]);
+
+		// Trigger update of room mapping and map after switching floors
+		const timeoutKey = `${duid}_floorSwitch`;
+		if (this.commandTimeouts.has(timeoutKey)) {
+			this.clearTimeout(this.commandTimeouts.get(timeoutKey)!);
+			this.commandTimeouts.delete(timeoutKey);
+		}
+
+		const timeout = this.setTimeout(async () => {
+			if (!this.mqtt_api) return;
+			try {
+				this.log.info(`[onStateChange] Updating map and rooms after floor switch for ${duid}`);
+				await handler.updateRoomMapping();
+				await handler.updateMap();
+			} catch (e) {
+				this.catchError(e, "floorSwitchUpdate", duid);
+			} finally {
+				this.commandTimeouts.delete(timeoutKey);
+			}
+		}, 2000); // Small delay to let the robot process the switch
+
+		if (timeout) {
+			this.commandTimeouts.set(timeoutKey, timeout);
+		}
+
+		// Reset button
+		this.setResetTimeout(stateId);
 	}
 }
 

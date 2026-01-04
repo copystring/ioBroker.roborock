@@ -1,7 +1,7 @@
 // src/lib/features/base_device_features.ts
+import { z } from "zod";
 import type { Roborock } from "../../main";
 import { Feature } from "./features.enum";
-import { z } from "zod";
 
 // --- Types & Interfaces ---
 
@@ -91,6 +91,7 @@ export abstract class BaseDeviceFeatures {
 	protected robotModel: string;
 	protected config: DeviceModelConfig; // Static feature config from model class
 	protected appliedFeatures = new Set<Feature>(); // Tracks applied features
+	protected pendingFeatures = new Set<Feature>(); // Tracks features currently being applied (Race Condition Guard)
 	protected runtimeDetectionComplete = false; // Initial runtime detection flag
 	protected commandsCreated = false; // Command objects created flag
 
@@ -146,6 +147,53 @@ export abstract class BaseDeviceFeatures {
 		this.config = config;
 		// Start with generic base commands
 		this.commands = JSON.parse(JSON.stringify(BaseDeviceFeatures.CONSTANTS.baseCommands));
+	}
+
+
+	/**
+	 * Applies a feature if not already applied. Looks up implementation in registry.
+	 * @param feature Feature enum key.
+	 * @returns `true` if applied now.
+	 */
+	protected async applyFeature(feature: Feature): Promise<boolean> {
+		// Validate input feature
+		if (!feature || !Object.values(Feature).includes(feature)) {
+			this.deps.log.warn(`[${this.duid}] Attempted to apply invalid feature value: ${feature}`);
+			return false;
+		}
+		// Check if already applied or pending
+		if (this.appliedFeatures.has(feature) || this.pendingFeatures.has(feature)) {
+			// this.deps.log.silly(`[${this.duid}] Feature '${feature}' already applied or pending.`);
+			return false;
+		}
+
+		// Get registry from instance metadata (prototype chain)
+		const registry: Map<Feature, string> | undefined = (this as any)[BaseDeviceFeatures.FEATURE_METADATA_KEY];
+
+		if (registry && registry.has(feature)) {
+			const methodName = registry.get(feature)!;
+			this.pendingFeatures.add(feature); // Lock
+			try {
+				// Execute method dynamically
+				// @ts-ignore
+				await this[methodName].call(this);
+				this.appliedFeatures.add(feature); // Mark applied after success
+				return true;
+			} catch (e: any) {
+				this.deps.log.error(`[FeatureApply|${this.robotModel}|${this.duid}] Error applying feature '${feature}': ${e.message} ${e.stack}`);
+				return false;
+			} finally {
+				this.pendingFeatures.delete(feature); // Unlock
+			}
+		} else {
+			// ...
+			if (registry) {
+				this.deps.log.silly(`[FeatureApply|${this.robotModel}|${this.duid}] Registry exists, no implementation for feature '${feature}'. Keys: ${Array.from(registry.keys()).join(", ")}`);
+			} else {
+				this.deps.log.silly(`[FeatureApply|${this.robotModel}|${this.duid}] No registry found on instance.`);
+			}
+			return false;
+		}
 	}
 
 	// --- Abstract / Overridable Methods ---
@@ -230,48 +278,6 @@ export abstract class BaseDeviceFeatures {
 	// --- Core Helper Methods ---
 
 	/**
-	 * Applies a feature if not already applied. Looks up implementation in registry.
-	 * @param feature Feature enum key.
-	 * @returns `true` if applied now.
-	 */
-	protected async applyFeature(feature: Feature): Promise<boolean> {
-		// Validate input feature
-		if (!feature || !Object.values(Feature).includes(feature)) {
-			this.deps.log.warn(`[${this.duid}] Attempted to apply invalid feature value: ${feature}`);
-			return false;
-		}
-		// Check if already applied
-		if (this.appliedFeatures.has(feature)) {
-			this.deps.log.silly(`[${this.duid}] Feature '${feature}' already applied.`);
-			return false;
-		}
-
-		// Get registry from instance metadata (prototype chain)
-		const registry: Map<Feature, string> | undefined = (this as any)[BaseDeviceFeatures.FEATURE_METADATA_KEY];
-
-		if (registry && registry.has(feature)) {
-			const methodName = registry.get(feature)!;
-			try {
-				// Execute method dynamically
-				// @ts-ignore
-				await this[methodName].call(this);
-				this.appliedFeatures.add(feature); // Mark applied after success
-				return true;
-			} catch (e: any) {
-				this.deps.log.error(`[FeatureApply|${this.robotModel}|${this.duid}] Error applying feature '${feature}': ${e.message} ${e.stack}`);
-				return false;
-			}
-		} else {
-			if (registry) {
-				this.deps.log.silly(`[FeatureApply|${this.robotModel}|${this.duid}] Registry exists, no implementation for feature '${feature}'. Keys: ${Array.from(registry.keys()).join(", ")}`);
-			} else {
-				this.deps.log.silly(`[FeatureApply|${this.robotModel}|${this.duid}] No registry found on instance.`);
-			}
-			return false;
-		}
-	}
-
-	/**
 	 * Maps dynamic feature keys (e.g. 'is...') to action keys (e.g. 'MopWash').
 	 * @param detectedFeature Detected Feature enum key.
 	 * @returns Mapped action Feature key, detected key if actionable, or null.
@@ -324,72 +330,7 @@ export abstract class BaseDeviceFeatures {
 		const promises: Promise<void>[] = [];
 
 		for (const [command, commonCommand] of Object.entries(this.commands)) {
-			// Async IIFE for parallel execution
-			promises.push(
-				(async (cmd: string, spec: CommandSpec | any) => {
-					try {
-						const options: Partial<ioBroker.StateCommon> = {
-							...(spec as Partial<ioBroker.StateCommon>),
-							name: spec.name || this.deps.adapter.translations[cmd] || cmd, // Add name generation
-							write: true, // Writable
-						};
-						const originalType = spec.type; // Store original type
-
-						// Determine Role
-						if (!options.role) {
-							if (originalType === "boolean" && !options.states) options.role = "button";
-							else if (originalType === "number" && options.states) options.role = "value.list";
-							else if (originalType === "number") options.role = "level";
-							else if (originalType === "json" && options.states) options.role = "value.list";
-							else if (originalType === "json") options.role = "json";
-							else options.role = "state";
-						}
-
-						// Adjust type
-						if (originalType === "json") {
-							options.type = "string";
-						}
-
-						// Type validation and default
-						const validTypes: ioBroker.CommonType[] = ["string", "number", "boolean", "object", "array", "mixed"];
-						if (!options.type || typeof options.type !== "string" || !validTypes.includes(options.type as ioBroker.CommonType)) {
-							if (originalType !== "json") {
-								// Skip log if setting to string
-								this.deps.log.warn(`[${this.duid}] Invalid or missing type '${spec.type}' for command '${cmd}', defaulting to 'string'.`);
-							}
-							options.type = "string";
-						}
-
-						const path = `${folderPath}.${cmd}`;
-
-						// Create/Update Object
-						const existingObj = await this.deps.adapter.getObjectAsync(path);
-						if (existingObj) {
-							// Extend if common differs. Stringify is good enough for now.
-							if (JSON.stringify(existingObj.common) !== JSON.stringify(options)) {
-								this.deps.log.silly(`[${this.duid}] Extending command object ${path}`);
-								await this.deps.adapter.extendObject(path, { common: options as ioBroker.StateCommon });
-							} else {
-								this.deps.log.silly(`[${this.duid}] Command object ${path} common part is up-to-date.`);
-							}
-						} else {
-							this.deps.log.silly(`[${this.duid}] Ensuring command object ${path}`);
-							await this.deps.ensureState(path, options as ioBroker.StateCommon);
-						}
-
-						// Reset button states
-						if (options.role === "button") {
-							const currentState = await this.deps.adapter.getStateAsync(path);
-							// Reset to false if needed
-							if (!currentState || currentState.val !== false) {
-								await this.deps.adapter.setState(path, false, true);
-							}
-						}
-					} catch (e: any) {
-						this.deps.log.error(`[${this.duid}] Error processing command object '${command}': ${e.message}`);
-					}
-				})(command, commonCommand)
-			); // Pass to IIFE
+			promises.push(this.processCommand(folderPath, command, commonCommand));
 		}
 
 		try {
@@ -398,6 +339,73 @@ export abstract class BaseDeviceFeatures {
 		} catch (e: any) {
 			// Catch Promise.all errors (rare)
 			this.deps.log.error(`[${this.duid}] Critical error during parallel command object creation: ${e.message}`);
+		}
+	}
+
+	/**
+	 * Process a single command object creation.
+	 */
+	protected async processCommand(folderPath: string, cmd: string, spec: CommandSpec | any): Promise<void> {
+		try {
+			const options: Partial<ioBroker.StateCommon> = {
+				...(spec as Partial<ioBroker.StateCommon>),
+				name: spec.name || this.deps.adapter.translations[cmd] || cmd, // Add name generation
+				write: true, // Writable
+			};
+			const originalType = spec.type; // Store original type
+
+			// Determine Role
+			if (!options.role) {
+				if (originalType === "boolean" && !options.states) options.role = "button";
+				else if (originalType === "number" && options.states) options.role = "value.list";
+				else if (originalType === "number") options.role = "level";
+				else if (originalType === "json" && options.states) options.role = "value.list";
+				else if (originalType === "json") options.role = "json";
+				else options.role = "state";
+			}
+
+			// Adjust type
+			if (originalType === "json") {
+				options.type = "string";
+			}
+
+			// Type validation and default
+			const validTypes: ioBroker.CommonType[] = ["string", "number", "boolean", "object", "array", "mixed"];
+			if (!options.type || typeof options.type !== "string" || !validTypes.includes(options.type as ioBroker.CommonType)) {
+				if (originalType !== "json") {
+					// Skip log if setting to string
+					this.deps.log.warn(`[${this.duid}] Invalid or missing type '${spec.type}' for command '${cmd}', defaulting to 'string'.`);
+				}
+				options.type = "string";
+			}
+
+			const path = `${folderPath}.${cmd}`;
+
+			// Create/Update Object
+			const existingObj = await this.deps.adapter.getObjectAsync(path);
+			if (existingObj) {
+				// Extend if common differs. Stringify is good enough for now.
+				if (JSON.stringify(existingObj.common) !== JSON.stringify(options)) {
+					this.deps.log.silly(`[${this.duid}] Extending command object ${path}`);
+					await this.deps.adapter.extendObject(path, { common: options as ioBroker.StateCommon });
+				} else {
+					this.deps.log.silly(`[${this.duid}] Command object ${path} common part is up-to-date.`);
+				}
+			} else {
+				this.deps.log.silly(`[${this.duid}] Ensuring command object ${path}`);
+				await this.deps.ensureState(path, options as ioBroker.StateCommon);
+			}
+
+			// Reset button states
+			if (options.role === "button") {
+				const currentState = await this.deps.adapter.getStateAsync(path);
+				// Reset to false if needed
+				if (!currentState || currentState.val !== false) {
+					await this.deps.adapter.setState(path, false, true);
+				}
+			}
+		} catch (e: any) {
+			this.deps.log.error(`[${this.duid}] Error processing command object '${cmd}': ${e.message}`);
 		}
 	}
 
@@ -456,22 +464,13 @@ export abstract class BaseDeviceFeatures {
 
 			// Check if object exists and needs update
 			const existingObj = await this.deps.adapter.getObjectAsync(path);
-			if (existingObj && existingObj.common) {
-				// Check if states mapping changed
-				const hasStatesMappingChanged =
-					(commonOptions.states && !existingObj.common.states) ||
-					(!commonOptions.states && existingObj.common.states) ||
-					(commonOptions.states && existingObj.common.states &&
-					 JSON.stringify(commonOptions.states) !== JSON.stringify(existingObj.common.states));
-
-				if (hasStatesMappingChanged) {
-					this.deps.log.debug(`[${this.duid}] Updating object definition for ${path} (states mapping changed)`);
-					await this.deps.adapter.extendObjectAsync(path, {
-						common: commonOptions as ioBroker.StateCommon,
-						native: native
-					});
-					return;
-				}
+			if (existingObj && existingObj.common && this.hasStatesChanged(commonOptions.states, existingObj.common.states)) {
+				this.deps.log.debug(`[${this.duid}] Updating object definition for ${path} (states mapping changed)`);
+				await this.deps.adapter.extendObject(path, {
+					common: commonOptions as ioBroker.StateCommon,
+					native: native
+				});
+				return;
 			}
 
 			// Standard ensure (creates if not exists)
@@ -553,36 +552,54 @@ export abstract class BaseDeviceFeatures {
 				await this.deps.ensureFolder(`Devices.${this.duid}.${folder}`);
 
 				for (const key in resultObj) {
-					let val = resultObj[key];
-					// Determine common options (type, role, unit)
-					const common = this.getCommonDeviceStates(key) || { name: key, type: typeof val as ioBroker.CommonType, read: true, write: false };
-
-					// Handle Objects/Arrays by stringifying them so they don't crash the state
-					if (typeof val === "object" && val !== null) {
-						val = JSON.stringify(val);
-					}
-
-					// Formatting for specific keys (e.g. timestamps)
-					if (key === "last_clean_t" && typeof resultObj[key] === "number") {
-						val = new Date((resultObj[key] as number) * 1000).toString();
-					}
-
-					// Enforce type matching to keep the log clean
-					if (common.type === "string" && typeof val !== "string") {
-						val = String(val);
-					} else if (common.type === "number" && typeof val !== "number") {
-						val = Number(val);
-					} else if (common.type === "boolean" && typeof val !== "boolean") {
-						val = !!val;
-					}
-
-					await this.deps.ensureState(`Devices.${this.duid}.${folder}.${key}`, common);
-					await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.${folder}.${key}`, { val: val as ioBroker.StateValue, ack: true });
+					await this.processResultKey(folder, key, resultObj[key]);
 				}
 			}
 		} catch (e: any) {
 			this.deps.log.warn(`[${this.duid}] Failed to update ${folder} (method: ${method}): ${e.message}`);
 		}
+	}
+
+	/**
+	 * Process a single key from API result.
+	 */
+	protected async processResultKey(folder: string, key: string, val: unknown): Promise<void> {
+		// Determine common options (type, role, unit)
+		const common = this.getCommonDeviceStates(key) || { name: key, type: typeof val as ioBroker.CommonType, read: true, write: false };
+
+		// Handle Objects/Arrays by stringifying them so they don't crash the state
+		if (typeof val === "object" && val !== null) {
+			val = JSON.stringify(val);
+		}
+
+		// Formatting for specific keys (e.g. timestamps)
+		if (key === "last_clean_t" && typeof (val as any) === "number") {
+			val = new Date((val as number) * 1000).toString();
+			common.type = "string"; // Update type to match new value
+		}
+
+		// Enforce type matching to keep the log clean
+		if (common.type === "string" && typeof val !== "string") {
+			val = String(val);
+		} else if (common.type === "number" && typeof val !== "number") {
+			val = Number(val);
+		} else if (common.type === "boolean" && typeof val !== "boolean") {
+			val = !!val;
+		}
+
+		await this.deps.ensureState(`Devices.${this.duid}.${folder}.${key}`, common);
+		await this.deps.adapter.setStateChanged(`Devices.${this.duid}.${folder}.${key}`, { val: val as ioBroker.StateValue, ack: true });
+	}
+
+	// --- Helper Methods ---
+
+	private hasStatesChanged(
+		newStates: Record<string, string> | string | string[] | undefined,
+		oldStates: Record<string, string> | string | string[] | undefined
+	): boolean {
+		if (!!newStates !== !!oldStates) return true; // One is defined, one is not
+		if (!newStates || !oldStates) return false; // Both undefined
+		return JSON.stringify(newStates) !== JSON.stringify(oldStates);
 	}
 
 	public async updateStatus(): Promise<void> {

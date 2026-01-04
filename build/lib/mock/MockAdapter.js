@@ -51,7 +51,7 @@ class MockAdapter {
     async setObject(id, obj) {
         this.objects[id] = obj;
     }
-    async setStateAsync(id, state) {
+    async setState(id, state) {
         // Handle { val: ... } object or direct value
         let val = state;
         if (typeof state === "object" && state !== null && "val" in state) {
@@ -83,8 +83,8 @@ class MockAdapter {
             }
         }
     }
-    async setStateChangedAsync(id, state) {
-        return this.setStateAsync(id, state);
+    async setStateChanged(id, state) {
+        return this.setState(id, state);
     }
     async getStateAsync(id) {
         return { val: this.states[id], ack: true };

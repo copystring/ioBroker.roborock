@@ -1,12 +1,12 @@
 import * as utils from "@iobroker/adapter-core";
-import { roborock_package_helper } from "./lib/roborock_package_helper";
-import { requestsHandler } from "./lib/requestsHandler";
+import { DeviceManager } from "./lib/deviceManager";
+import { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
 import { http_api } from "./lib/httpApi";
 import { local_api } from "./lib/localApi";
 import { mqtt_api } from "./lib/mqttApi";
+import { requestsHandler } from "./lib/requestsHandler";
+import { roborock_package_helper } from "./lib/roborock_package_helper";
 import { socketHandler } from "./lib/socketHandler";
-import { DeviceManager } from "./lib/deviceManager";
-import { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
 export declare class Roborock extends utils.Adapter {
     http_api: http_api;
     local_api: local_api;
@@ -21,9 +21,11 @@ export declare class Roborock extends utils.Adapter {
     isInitializing: boolean;
     sentryInstance: any;
     translations: Record<string, string>;
-    private commandTimeout;
+    private commandTimeouts;
     private mqttReconnectInterval;
     instance: number;
+    private go2rtcProcess;
+    private onExitBound;
     constructor(options?: Partial<utils.AdapterOptions>);
     /**
      * Adapter ready logic.
@@ -45,6 +47,16 @@ export declare class Roborock extends utils.Adapter {
      * Handles commands from onStateChange.
      */
     private handleCommand;
+    /**
+     * Executes a specific command for a device.
+     */
+    private executeCommand;
+    private isTruthy;
+    /**
+     * Sets a timeout to reset a state to false after 1 second.
+     * Helps avoid race conditions by managing timeouts in a map.
+     */
+    private setResetTimeout;
     /**
      * Ensures a ClientID exists.
      */
@@ -99,4 +111,5 @@ export declare class Roborock extends utils.Adapter {
      * Centralized error handler.
      */
     catchError(error: any, attribute?: string, duid?: string): Promise<void>;
+    handleFloorSwitch(duid: string, mapFlag: number, stateId: string): Promise<void>;
 }

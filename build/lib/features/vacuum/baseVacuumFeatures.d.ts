@@ -1,6 +1,6 @@
+import { z } from "zod";
 import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
-import { z } from "zod";
 export declare const BASE_FAN: {
     101: string;
     102: string;
