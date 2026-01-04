@@ -156,11 +156,12 @@ ${structuredDiff}
 		const text = response.text();
 
 		// Calculate Costs
-		// Source: https://ai.google.dev/pricing (Gemini 1.5 Flash)
+		// Calculate Costs
+		// Source: Gemini 3 Flash Preview (Experimental/Preview pricing)
 		const PRICING = {
-			GEMINI_1_5_FLASH: { input: 0.075, output: 0.30 }
+			GEMINI_3_FLASH_PREVIEW: { input: 0.00, output: 0.00 }
 		};
-		const currentModelPricing = PRICING.GEMINI_1_5_FLASH;
+		const currentModelPricing = PRICING.GEMINI_3_FLASH_PREVIEW;
 
 		const usage = response.usageMetadata || { promptTokenCount: 0, candidatesTokenCount: 0 };
 		const inputCost = (usage.promptTokenCount / 1000000) * currentModelPricing.input;
