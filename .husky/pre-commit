@@ -1,0 +1,2 @@
+npx lint-staged
+node scripts/ai-review-diff.js
