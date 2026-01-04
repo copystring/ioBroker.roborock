@@ -25,13 +25,29 @@ async function main() {
 		let diffSource = "--staged";
 		let commitMsg = "Staged Changes (Not yet committed)";
 
-		// Fallback: Check last commit if nothing is staged
+
+		// Fallback: Check unpushed commits (Upstream/Main vs HEAD) if nothing is staged
 		if (stagedFiles.length === 0) {
-			console.log("ℹ️ No staged changes. Checking last commit (HEAD)...");
-			stagedFiles = getStagedFiles("git diff --name-only HEAD~1 HEAD");
-			targetRef = execSync("git rev-parse --short HEAD").toString().trim();
-			diffSource = "HEAD~1 HEAD";
-			commitMsg = execSync("git log -1 --pretty=%B").toString().trim();
+			console.log("ℹ️ No staged changes. Determining push range...");
+			try {
+				// Try getting the upstream branch
+				const upstream = execSync("git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>NUL || echo origin/main").toString().trim();
+				console.log(`ℹ️ Comparing HEAD against upstream: ${upstream}`);
+
+				stagedFiles = getStagedFiles(`git diff --name-only ${upstream}...HEAD`);
+				targetRef = `${upstream}...HEAD`;
+				diffSource = `${upstream}...HEAD`;
+				// Get all commit messages in the range
+				commitMsg = execSync(`git log ${upstream}..HEAD --pretty="- %s"`).toString().trim();
+				if (!commitMsg) commitMsg = "Multiple unsaved changes";
+			} catch (e) {
+				// Fallback if no upstream or origin/main not found (e.g. first commit)
+				console.log("⚠️ Could not determine upstream. Falling back to last commit.");
+				stagedFiles = getStagedFiles("git diff --name-only HEAD~1 HEAD");
+				targetRef = "HEAD~1";
+				diffSource = "HEAD~1 HEAD";
+				commitMsg = execSync("git log -1 --pretty=%B").toString().trim();
+			}
 		}
 
 		if (stagedFiles.length === 0) {
