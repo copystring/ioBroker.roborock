@@ -493,7 +493,7 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                     val = Math.round(val / 3600);
                 }
                 await this.deps.ensureState(`Devices.${this.duid}.consumables.${key}`, fullCommon);
-                await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.consumables.${key}`, { val: Number(val), ack: true });
+                await this.deps.adapter.setStateChanged(`Devices.${this.duid}.consumables.${key}`, { val: Number(val), ack: true });
                 if (BaseVacuumFeatures.CONSTANTS.resetConsumables.has(key)) {
                     await this.ensureState("resetConsumables", key, {
                         type: "boolean",
@@ -603,7 +603,7 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                 name: `${name} (ID: ${id})`,
                 write: false
             });
-            await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.firmwareFeatures.${name}`, { val: isSupported, ack: true });
+            await this.deps.adapter.setStateChanged(`Devices.${this.duid}.firmwareFeatures.${name}`, { val: isSupported, ack: true });
         }
     }
     // Override updateStatus to process dss breakdown
@@ -650,7 +650,7 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                         val = String(val);
                     }
                     await this.deps.ensureState(`Devices.${this.duid}.deviceStatus.${key}`, common);
-                    await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.deviceStatus.${key}`, { val: val, ack: true });
+                    await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.${key}`, { val: val, ack: true });
                 }
             }
         }
@@ -673,7 +673,7 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             isUpdownWaterReady: dss & 0b11, // Bits 0-1: Water ready status
         };
         for (const [name, val] of Object.entries(status)) {
-            await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.dockingStationStatus.${name}`, { val: val, ack: true });
+            await this.deps.adapter.setStateChanged(`Devices.${this.duid}.dockingStationStatus.${name}`, { val: val, ack: true });
         }
     }
     async addRssState() { await this.ensureState("deviceStatus", "rss", { ...this.getCommonDeviceStates("rss"), write: false }); }
@@ -781,7 +781,7 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                 const fullStateId = `Devices.${this.duid}.floors.${pathName}`;
                 const currentState = await this.deps.adapter.getStateAsync(fullStateId);
                 if (!currentState || currentState.val === null) {
-                    await this.deps.adapter.setStateAsync(fullStateId, { val: true, ack: true });
+                    await this.deps.adapter.setState(fullStateId, { val: true, ack: true });
                 }
             }
             await this.ensureState("floors", "cleanCount", {
@@ -843,7 +843,7 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                     this.deps.log.info(`[${this.duid}] Starting segment clean for rooms: ${roomList.segments.join(", ")} (Repeat: ${roomList.repeat})`);
                 }
                 // Reset count to 1 after start (from legacy behavior)
-                await this.deps.adapter.setStateAsync(`Devices.${this.duid}.floors.cleanCount`, { val: 1, ack: true });
+                await this.deps.adapter.setState(`Devices.${this.duid}.floors.cleanCount`, { val: 1, ack: true });
                 // Roborock expects array of objects? Legacy code: [roomList]
                 return [roomList];
             }
@@ -899,7 +899,7 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                     if (cleaningAttributeCommon)
                         cleaningAttributeCommon.type = "number";
                     await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.${mappedAttribute}`, cleaningAttributeCommon || {});
-                    await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.${mappedAttribute}`, {
+                    await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.${mappedAttribute}`, {
                         val: val,
                         ack: true,
                     });
@@ -934,7 +934,7 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                                 const cleaningRecordCommon = this.getCommonCleaningRecords(mappedRecordAttribute);
                                 if (cleaningRecordCommon) {
                                     await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, cleaningRecordCommon);
-                                    await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, {
+                                    await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.${mappedRecordAttribute}`, {
                                         val: val,
                                         ack: true,
                                     });
@@ -948,19 +948,19 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                                         type: "string",
                                         role: "json",
                                     });
-                                    await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.map.mapData`, { val: mapArray.mapData, ack: true });
+                                    await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.map.mapData`, { val: mapArray.mapData, ack: true });
                                     await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.map.mapBase64`, {
                                         name: "Map Image (Full, Uncropped)",
                                         type: "string",
                                         role: "text.png",
                                     });
-                                    await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.map.mapBase64`, { val: mapArray.mapBase64, ack: true });
+                                    await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.map.mapBase64`, { val: mapArray.mapBase64, ack: true });
                                     await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.map.mapBase64Truncated`, {
                                         name: "Map Image (Full, Cropped)",
                                         type: "string",
                                         role: "text.png",
                                     });
-                                    await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.map.mapBase64Truncated`, {
+                                    await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.records.${cleaningRecord}.map.mapBase64Truncated`, {
                                         val: mapArray.mapBase64Truncated,
                                         ack: true,
                                     });
@@ -972,7 +972,7 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                         }
                     }
                     await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.json`, { name: "Cleaning Records JSON", type: "string", role: "json" });
-                    await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.json`, { val: JSON.stringify(cleaningRecordsJSON), ack: true });
+                    await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.records.json`, { val: JSON.stringify(cleaningRecordsJSON), ack: true });
                 }
             }
         }
@@ -1043,12 +1043,12 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             if (mapData) {
                 // Update map states
                 await this.deps.ensureState(`Devices.${this.duid}.map.mapData`, { name: "Map Data", type: "string", role: "json" });
-                await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapData`, { val: JSON.stringify(mapData), ack: true });
+                await this.deps.adapter.setStateChanged(`Devices.${this.duid}.map.mapData`, { val: JSON.stringify(mapData), ack: true });
                 const [mapBase64Clean, mapBase64] = await this.deps.adapter.requestsHandler.mapCreator.canvasMap(mapData);
                 await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64Clean`, { name: "Map Image (Clean)", type: "string", role: "text.png" });
-                await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapBase64Clean`, { val: mapBase64Clean, ack: true });
+                await this.deps.adapter.setStateChanged(`Devices.${this.duid}.map.mapBase64Clean`, { val: mapBase64Clean, ack: true });
                 await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64`, { name: "Map Image", type: "string", role: "text.png" });
-                await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapBase64`, { val: mapBase64, ack: true });
+                await this.deps.adapter.setStateChanged(`Devices.${this.duid}.map.mapBase64`, { val: mapBase64, ack: true });
             }
         }
         catch (e) {
@@ -1113,11 +1113,11 @@ class BaseVacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                     await this.deps.adapter.extendObjectAsync(`Devices.${this.duid}.floors.${mapFlag}`, { common: { name } });
                     // Create States
                     await this.ensureState(`floors.${mapFlag}`, "name", { name: "Floor Name", type: "string", write: false });
-                    await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.floors.${mapFlag}.name`, { val: name, ack: true });
+                    await this.deps.adapter.setStateChanged(`Devices.${this.duid}.floors.${mapFlag}.name`, { val: name, ack: true });
                     await this.ensureState(`floors.${mapFlag}`, "mapFlag", { name: "Map Flag", type: "number", write: false });
-                    await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.floors.${mapFlag}.mapFlag`, { val: mapFlag, ack: true });
+                    await this.deps.adapter.setStateChanged(`Devices.${this.duid}.floors.${mapFlag}.mapFlag`, { val: mapFlag, ack: true });
                     await this.ensureState(`floors.${mapFlag}`, "add_time", { name: "Created At", type: "string", write: false });
-                    await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.floors.${mapFlag}.add_time`, { val: formattedTime, ack: true });
+                    await this.deps.adapter.setStateChanged(`Devices.${this.duid}.floors.${mapFlag}.add_time`, { val: formattedTime, ack: true });
                     // Load Button
                     await this.ensureState(`floors.${mapFlag}`, "load", { name: "Load Map", type: "boolean", role: "button", write: true, def: false });
                 }

@@ -25,6 +25,7 @@ export declare class Roborock extends utils.Adapter {
     private mqttReconnectInterval;
     instance: number;
     private go2rtcProcess;
+    private onExitBound;
     constructor(options?: Partial<utils.AdapterOptions>);
     /**
      * Adapter ready logic.
@@ -46,6 +47,11 @@ export declare class Roborock extends utils.Adapter {
      * Handles commands from onStateChange.
      */
     private handleCommand;
+    /**
+     * Executes a specific command for a device.
+     */
+    private executeCommand;
+    private isTruthy;
     /**
      * Ensures a ClientID exists.
      */

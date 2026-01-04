@@ -486,7 +486,7 @@ class BaseDeviceFeatures {
             val = !!val;
         }
         await this.deps.ensureState(`Devices.${this.duid}.${folder}.${key}`, common);
-        await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.${folder}.${key}`, { val: val, ack: true });
+        await this.deps.adapter.setStateChanged(`Devices.${this.duid}.${folder}.${key}`, { val: val, ack: true });
     }
     // --- Helper Methods ---
     hasStatesChanged(newStates, oldStates) {

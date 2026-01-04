@@ -588,7 +588,7 @@ export abstract class BaseDeviceFeatures {
 		}
 
 		await this.deps.ensureState(`Devices.${this.duid}.${folder}.${key}`, common);
-		await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.${folder}.${key}`, { val: val as ioBroker.StateValue, ack: true });
+		await this.deps.adapter.setStateChanged(`Devices.${this.duid}.${folder}.${key}`, { val: val as ioBroker.StateValue, ack: true });
 	}
 
 	// --- Helper Methods ---

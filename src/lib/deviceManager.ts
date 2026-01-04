@@ -460,7 +460,7 @@ export class DeviceManager {
 				const common = handler.getCommonConsumable(mappedName); // Use mapped name
 
 				await this.adapter.ensureState(`Devices.${duid}.consumables.${mappedName}`, common || {});
-				await this.adapter.setStateChangedAsync(`Devices.${duid}.consumables.${mappedName}`, { val, ack: true });
+				await this.adapter.setStateChanged(`Devices.${duid}.consumables.${mappedName}`, { val, ack: true });
 			}
 		}
 	}

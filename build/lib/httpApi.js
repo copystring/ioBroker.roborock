@@ -420,7 +420,7 @@ class http_api {
                             },
                             native: {}
                         });
-                        await this.adapter.setStateAsync(stateId, { val: base64, ack: true });
+                        await this.adapter.setState(stateId, { val: base64, ack: true });
                     }
                 }
                 catch (e) {

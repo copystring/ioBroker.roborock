@@ -23,7 +23,7 @@ export declare class MockAdapter {
     extendObject(id: string, obj: any): Promise<void>;
     getObjectAsync(id: string): Promise<any>;
     setObject(id: string, obj: any): Promise<void>;
-    setStateAsync(id: string, state: any): Promise<void>;
-    setStateChangedAsync(id: string, state: any): Promise<void>;
+    setState(id: string, state: any): Promise<void>;
+    setStateChanged(id: string, state: any): Promise<void>;
     getStateAsync(id: string): Promise<any>;
 }
