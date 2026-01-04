@@ -12,6 +12,8 @@ on:
       # pre-releases
       - "v[0-9]+.[0-9]+.[0-9]+-**"
   pull_request: {}
+  schedule:
+    - cron: '0 3 * * *' # Daily build at 3 AM to keep the cache warm
 
 # Cancel previous PR/branch runs when a new commit is pushed
 concurrency:
@@ -20,6 +22,9 @@ concurrency:
 
 env:
   HUSKY: 0
+  NPM_CONFIG_PREFER_OFFLINE: true
+  NPM_CONFIG_AUDIT: false
+  NPM_CONFIG_FUND: false
 
 jobs:
   # Performs quick checks before the expensive test runs
@@ -52,15 +57,27 @@ jobs:
         os: [ubuntu-latest, windows-latest]
 
     steps:
+      - name: Cache ioBroker Controller / Temp
+        uses: actions/cache@v4
+        with:
+          path: |
+            C:\Users\runneradmin\AppData\Local\Temp\test-iobroker.roborock
+            /tmp/test-iobroker.roborock
+          key: iobroker-controller-${{ runner.os }}-${{ matrix.node-version }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            iobroker-controller-${{ runner.os }}-${{ matrix.node-version }}-
+
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
+
       - uses: ioBroker/testing-action-adapter@v1
         with:
           node-version: ${{ matrix.node-version }}
           os: ${{ matrix.os }}
+          package-cache: 'npm'
           # Uncomment the following line if your adapter cannot be installed using 'npm ci'
           # install-command: 'npm install'
           package-cache: 'npm'
