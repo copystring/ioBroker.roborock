@@ -426,6 +426,4 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 
-## Contributing & AI Agents
-If you are an AI assistant (or a human) working on this repository, please read **[.ai-agent-rules.md](.ai-agent-rules.md)** first!
-It contains critical environment constraints (e.g., Windows PowerShell rules) and coding standards.
+
