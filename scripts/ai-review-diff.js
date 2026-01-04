@@ -1,4 +1,4 @@
- 
+
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { execSync } = require("node:child_process");
 const fs = require("node:fs");
@@ -19,6 +19,9 @@ async function main() {
 		// 1. Get staged files and content
 		const stagedFiles = execSync("git diff --name-only --staged").toString().trim().split("\n").filter(f => f);
 		const diff = execSync("git diff --staged").toString();
+		// FORCE CHECK LAST COMMIT
+		// const stagedFiles = execSync("git diff --name-only HEAD~1 HEAD").toString().trim().split("\n").filter(f => f);
+		// const diff = execSync("git diff HEAD~1 HEAD").toString();
 
 		if (!diff || diff.trim() === "") {
 			console.log("ℹ️ No staged changes to review.");
@@ -38,7 +41,18 @@ async function main() {
 		}
 
 		// 3. System DNA & Staged Content
-		const dnaFiles = ["package.json", "io-package.json", "tsconfig.json"];
+		const dnaFiles = [
+			"package.json",
+			"io-package.json",
+			"tsconfig.json",
+			"tsconfig.web.json",
+			"eslint.config.mjs",
+			".eslintrc.json",
+			".prettierrc",
+			".prettierrc.json",
+			".editorconfig",
+			".lintstagedrc.json"
+		];
 		let contextMap = new Map();
 
 		for (const file of dnaFiles) {
