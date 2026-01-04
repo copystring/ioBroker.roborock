@@ -80,7 +80,6 @@ jobs:
           package-cache: 'npm'
           # Uncomment the following line if your adapter cannot be installed using 'npm ci'
           # install-command: 'npm install'
-          package-cache: 'npm'
 
   # Deploys the final package to NPM
   deploy:
