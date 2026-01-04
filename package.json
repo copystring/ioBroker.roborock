@@ -117,6 +117,7 @@
     "test:www": "npm run copy:pathProcessor && vitest run src/www",
     "test:all": "npm run test && npm run test:www",
     "verify": "npm run lint && tsc --noEmit -p tsconfig.json",
+    "ai:review": "node scripts/ai-review-diff.js",
     "prepare": "husky"
   },
   "bugs": {

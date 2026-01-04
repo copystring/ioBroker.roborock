@@ -17,14 +17,20 @@ async function main() {
 
 	try {
 		// 1. Get staged files and content
-		const stagedFiles = execSync("git diff --name-only --staged").toString().trim().split("\n").filter(f => f);
-		const diff = execSync("git diff --staged").toString();
-		// FORCE CHECK LAST COMMIT
-		// const stagedFiles = execSync("git diff --name-only HEAD~1 HEAD").toString().trim().split("\n").filter(f => f);
-		// const diff = execSync("git diff HEAD~1 HEAD").toString();
+		let stagedFiles = execSync("git diff --name-only --staged").toString().trim().split("\n").filter(f => f);
+		let diff = execSync("git diff --staged").toString();
+		let targetRef = "Staged";
+
+		// Fallback: Check last commit if nothing is staged
+		if (!diff || diff.trim() === "") {
+			console.log("ℹ️ No staged changes. Checking last commit (HEAD)...");
+			stagedFiles = execSync("git diff --name-only HEAD~1 HEAD").toString().trim().split("\n").filter(f => f);
+			diff = execSync("git diff HEAD~1 HEAD").toString();
+			targetRef = execSync("git rev-parse --short HEAD").toString().trim();
+		}
 
 		if (!diff || diff.trim() === "") {
-			console.log("ℹ️ No staged changes to review.");
+			console.log("ℹ️ No changes found (Staged or HEAD). Exiting.");
 			return;
 		}
 
@@ -64,8 +70,23 @@ async function main() {
 
 		for (const file of stagedFiles) {
 			const fullPath = path.join(process.cwd(), file);
-			if (fs.existsSync(fullPath) && fs.lstatSync(fullPath).isFile()) {
-				contextMap.set(file, fs.readFileSync(fullPath, "utf8"));
+			// Get file content
+			let content = "";
+			try {
+				if (targetRef === "Staged") {
+					if (fs.existsSync(fullPath) && fs.lstatSync(fullPath).isFile()) {
+						content = fs.readFileSync(fullPath, "utf8");
+					}
+				} else {
+					// Read from git object if checking HEAD
+					content = execSync(`git show HEAD:${file}`).toString();
+				}
+			} catch (e) {
+				content = "(Deleted or New File)";
+			}
+
+			if (content && content !== "(Deleted or New File)") {
+				contextMap.set(file, content);
 			}
 		}
 
@@ -112,6 +133,13 @@ ${diff}
 		const response = await result.response;
 		const text = response.text();
 
+		// Check for rejection keywords (BLOCKING PRE-PUSH)
+		if (text.includes("❌")) {
+			console.error("\n⛔ BLOCKING PUSH: AI Review rejected the changes.");
+			console.error("   Fix the issues or use 'git push --no-verify' to bypass.\n");
+			process.exit(1);
+		}
+
 		// Terminal Output
 		console.log("\n--- MODULAR SUPREME REVIEW ---");
 		console.log(text.split('\n').slice(0, 15).join('\n') + (text.split('\n').length > 15 ? "\n..." : ""));
@@ -132,5 +160,4 @@ ${diff}
 		console.error(error.message);
 	}
 }
-
 main();
