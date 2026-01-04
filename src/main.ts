@@ -223,6 +223,7 @@ export class Roborock extends utils.Adapter {
 					}
 
 					const timeout = this.setTimeout(async () => {
+						if (!this.mqtt_api) return;
 						try {
 							this.log.info(`[onStateChange] Updating map and rooms after floor switch for ${duid}`);
 							await handler.updateRoomMapping();
