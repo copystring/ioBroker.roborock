@@ -116,7 +116,7 @@
     "dev:www": "npm run copy:pathProcessor && vitest watch src/www",
     "test:www": "npm run copy:pathProcessor && vitest run src/www",
     "test:all": "npm run test && npm run test:www",
-    "verify": "npm run lint && npm run ai:review",
+    "verify": "npm run lint && tsc --noEmit -p tsconfig.json && npm run ai:review",
     "ai:review": "node scripts/ai-review-diff.js",
     "commit": "npm run verify && git commit",
     "prepare": "husky"
