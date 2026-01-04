@@ -73,7 +73,8 @@
     "sinon": "^21.0.1",
     "sinon-chai": "^3.7.0",
     "typescript": "5.9.3",
-    "vitest": "4.0.16"
+    "vitest": "4.0.16",
+    "yaml-lint": "^1.7.0"
   },
   "main": "build/main.js",
   "files": [
@@ -94,14 +95,15 @@
     "watch:www": "npm run copy:pathProcessor && tsc -b tsconfig.web.json --watch",
     "__comment_mocha": "Mocha tests: 1. Everything in 'build' EXCEPT 'www'. 2. The 'test' folder.",
     "test:js": "tsc -p tsconfig.json && npx mocha --config test/mocharc.custom.json \"build/!(www)/**/*.test.js\"",
-    "test:package": "npx mocha test/package test/jsonConfig --exit",
+    "test:package": "npx mocha test/package test/validate_configs --exit",
     "test:integration": "npx mocha test/integration --exit",
     "test:watch": "npx mocha --watch --config test/mocharc.custom.json \"build/!(www)/**/*.test.js\"",
     "test": "npm run test:js && npm run test:package",
     "check": "tsc -b tsconfig.json --dry",
     "predev": "npm run copy:pathProcessor",
     "dev": "node dev-server.js",
-    "lint": "eslint .",
+    "lint:yaml": "npx yaml-lint \"**/*.yml\" \"**/*.yaml\" --ignore \"node_modules\"",
+    "lint": "eslint . && npm run lint:yaml",
     "translate": "translate-adapter",
     "release": "release-script",
     "__comment_vitest": "Vitest tests ONLY 'src/www'",
