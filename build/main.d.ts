@@ -53,6 +53,11 @@ export declare class Roborock extends utils.Adapter {
     private executeCommand;
     private isTruthy;
     /**
+     * Sets a timeout to reset a state to false after 1 second.
+     * Helps avoid race conditions by managing timeouts in a map.
+     */
+    private setResetTimeout;
+    /**
      * Ensures a ClientID exists.
      */
     ensureClientID(): Promise<string>;
