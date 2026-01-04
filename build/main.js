@@ -270,7 +270,6 @@ class Roborock extends utils.Adapter {
             }
             const timeout = this.setTimeout(() => {
                 this.setState(id, false, true);
-                this.setState(id, false, true);
                 this.commandTimeouts.delete(timeoutKey);
             }, 1000);
             if (timeout)
