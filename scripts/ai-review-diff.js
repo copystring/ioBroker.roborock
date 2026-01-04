@@ -155,27 +155,14 @@ ${structuredDiff}
 		const response = await result.response;
 		const text = response.text();
 
-		// Calculate Costs
-		// Calculate Costs
-		// Source: Gemini 3 Flash Preview (Experimental/Preview pricing)
-		const PRICING = {
-			GEMINI_3_FLASH_PREVIEW: { input: 0.00, output: 0.00 }
-		};
-		const currentModelPricing = PRICING.GEMINI_3_FLASH_PREVIEW;
-
-		const usage = response.usageMetadata || { promptTokenCount: 0, candidatesTokenCount: 0 };
-		const inputCost = (usage.promptTokenCount / 1000000) * currentModelPricing.input;
-		const outputCost = (usage.candidatesTokenCount / 1000000) * currentModelPricing.output;
-		const totalCost = inputCost + outputCost;
-
 		// Persist Report
 		const reviewFile = path.join(__dirname, "..", "ai-review.md");
 		const commitHash = execSync("git rev-parse --short HEAD").toString().trim();
 
 		const header = `# 👑 Supreme Architect Review (Modular)\n\n**Config**: Loaded from \`ai-review-instructions.md\`\n**Awareness**: System DNA + Adaptive Context\n**Target**: \`${commitHash}\`\n\n---\n\n`;
-		const statsFooter = `\n\n---\n### 💰 Architect's Bill\n| Type | Tokens | Cost (Est.) |\n| :--- | :--- | :--- |\n| Input | ${usage.promptTokenCount} | $${inputCost.toFixed(6)} |\n| Output | ${usage.candidatesTokenCount} | $${outputCost.toFixed(6)} |\n| **Total** | | **$${totalCost.toFixed(6)}** |\n\n*Verified by Gemini 3.0 Frontier - Modular Supreme Mode*`;
+		const footer = `\n\n---\n*Verified by Gemini 3.0 Frontier - Modular Supreme Mode*`;
 
-		fs.writeFileSync(reviewFile, header + text + statsFooter);
+		fs.writeFileSync(reviewFile, header + text + footer);
 		console.log(`✨ Modular insights saved to: ${reviewFile}`);
 
 		// Check for rejection keywords (BLOCKING PRE-PUSH)
