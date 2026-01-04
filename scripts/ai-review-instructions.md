@@ -32,12 +32,25 @@
 
 ---
 
-## 🔍 What to Look For
+## 🔍 What to Look For (PRIORITY ORDER)
 
-*   **Logic Errors**: Infinite loops, race conditions, unhandled promises.
-*   **Safety**: Missing `try-catch`, potential crashes.
-*   **Style**: Indentation (use TABS), naming conventions.
-*   **Performance**: unnecessary loops, memory leaks.
+1.  **🧠 LOGIC & REASONING (Critical)**:
+    *   **Race Conditions**: Are async operations properly awaited/handled?
+    *   **State Management**: Are we overwriting data? Are we reading stale data?
+    *   **Edge Cases**: What happens if the network fails? If the object is null?
+    *   **"Denkfehler"**: deeply question the developer's intent. "Does this actually do what they think it does?"
+
+2.  **🛡️ Security & Safety**:
+    *   Input validation (trust nothing).
+    *   Error handling (try-catch where needed).
+    *   Resource leaks (intervals/timeouts cleared?).
+
+3.  **🏗️ Maintainability**:
+    *   Hardcoded values?
+    *   Duplicated logic?
+    *   Is it readable?
+
+*(Style issues like indentation are secondary - only mention if they break the build).*
 
 ---
 

@@ -16,22 +16,41 @@ async function main() {
 	}
 
 	try {
-		// 1. Get staged files and content
-		let stagedFiles = execSync("git diff --name-only --staged").toString().trim().split("\n").filter(f => f);
-		let diff = execSync("git diff --staged", { maxBuffer: 1024 * 1024 * 10 }).toString();
+		// 1. Get staged files (excluding build/ and lockfiles)
+		const getStagedFiles = (cmd) => execSync(cmd).toString().trim().split("\n")
+			.filter(f => f && !f.startsWith("build/") && !f.includes("package-lock.json"));
+
+		let stagedFiles = getStagedFiles("git diff --name-only --staged");
 		let targetRef = "Staged";
+		let diffSource = "--staged";
 
 		// Fallback: Check last commit if nothing is staged
-		if (!diff || diff.trim() === "") {
+		if (stagedFiles.length === 0) {
 			console.log("ℹ️ No staged changes. Checking last commit (HEAD)...");
-			stagedFiles = execSync("git diff --name-only HEAD~1 HEAD", { maxBuffer: 1024 * 1024 * 10 }).toString().trim().split("\n").filter(f => f);
-			diff = execSync("git diff HEAD~1 HEAD", { maxBuffer: 1024 * 1024 * 10 }).toString();
+			stagedFiles = getStagedFiles("git diff --name-only HEAD~1 HEAD");
 			targetRef = execSync("git rev-parse --short HEAD").toString().trim();
+			diffSource = "HEAD~1 HEAD";
 		}
 
-		if (!diff || diff.trim() === "") {
-			console.log("ℹ️ No changes found (Staged or HEAD). Exiting.");
+		if (stagedFiles.length === 0) {
+			console.log("ℹ️ No relevant changes found (ignoring build/). Exiting.");
 			return;
+		}
+
+		// Construct structured diff with file headers
+		let structuredDiff = "";
+		for (const file of stagedFiles) {
+			try {
+				const fileDiff = execSync(`git diff ${diffSource} -- "${file}"`, { maxBuffer: 1024 * 1024 * 10 }).toString();
+				if (fileDiff.trim()) {
+					structuredDiff += `\n\n===================================================================\n`;
+					structuredDiff += `VIDEO_GAME_LEVEL_LOADED: ${file}\n`; // Unique token for AI
+					structuredDiff += `===================================================================\n`;
+					structuredDiff += fileDiff;
+				}
+			} catch (e) {
+				console.warn(`⚠️ Could not read diff for ${file}`);
+			}
 		}
 
 		console.log("🧠 Supreme Architect is initializing Modular Context...");
@@ -42,11 +61,17 @@ async function main() {
 		if (fs.existsSync(instructionsPath)) {
 			systemPrompt = fs.readFileSync(instructionsPath, "utf-8");
 		} else {
-			console.log("⚠️  Instructions file missing. Using fallback basic prompt.");
-			systemPrompt = "Review the following diff for logic errors and output in Markdown.";
+            // Fallback Prompt with improved formatting instructions
+			systemPrompt = `
+You are the Supreme Architect, a high-level code reviewer.
+Review the provided code changes.
+**CRITICAL INSTRUCTION**: Group your feedback by filename.
+Use the header "## 📂 File: [filename]" for each section.
+Ignore any changes in 'build/' folder if they appear.
+`;
 		}
 
-		// 3. System DNA & Staged Content
+		// 3. System DNA & Staged Content (Restored Full List)
 		const dnaFiles = [
 			"package.json",
 			"io-package.json",
@@ -55,7 +80,6 @@ async function main() {
 			"eslint.config.mjs",
 			".eslintrc.json",
 			".prettierrc",
-			".prettierrc.json",
 			".editorconfig",
 			".lintstagedrc.json"
 		];
@@ -68,32 +92,11 @@ async function main() {
 			}
 		}
 
-		for (const file of stagedFiles) {
-			const fullPath = path.join(process.cwd(), file);
-			// Get file content
-			let content = "";
-			try {
-				if (targetRef === "Staged") {
-					if (fs.existsSync(fullPath) && fs.lstatSync(fullPath).isFile()) {
-						content = fs.readFileSync(fullPath, "utf8");
-					}
-				} else {
-					// Read from git object if checking HEAD
-					content = execSync(`git show HEAD:${file}`).toString();
-				}
-			} catch (e) {
-				content = "(Deleted or New File)";
-			}
-
-			if (content && content !== "(Deleted or New File)") {
-				contextMap.set(file, content);
-			}
-		}
-
-		// 4. Adaptive Dependency Retrieval
+		// 4. Adaptive Dependency Retrieval (Restored)
+		// Scans for imports in the changed code and loads those files for context
 		const importRegex = /from\s+['"](\.\.?\/[^'"]+)['"]/g;
 		let match;
-		while ((match = importRegex.exec(diff)) !== null) {
+		while ((match = importRegex.exec(structuredDiff)) !== null) {
 			const relativePath = match[1];
 			const extensions = [".ts", ".js", ".d.ts", "/index.ts", "/index.js"];
 			for (const ext of extensions) {
@@ -101,7 +104,14 @@ async function main() {
 				const fullResolvedPath = path.join(process.cwd(), resolvedPath);
 
 				if (fs.existsSync(fullResolvedPath) && !contextMap.has(resolvedPath)) {
-					contextMap.set(resolvedPath, fs.readFileSync(fullResolvedPath, "utf-8"));
+					const depContent = fs.readFileSync(fullResolvedPath, "utf-8");
+					// Limit dependency content size to avoid token overflow
+					if (depContent.length < 20000) {
+						contextMap.set(resolvedPath, depContent);
+						console.log(`   🔗 Linked dependency: ${resolvedPath}`);
+					} else {
+						console.log(`   ⚠️ Dependency too large, skipping: ${resolvedPath}`);
+					}
 					break;
 				}
 			}
@@ -112,7 +122,7 @@ async function main() {
 			finalContext += `\n--- SOURCE: ${name} ---\n${content}\n`;
 		});
 
-		console.log(`🚀 Analyzing ${stagedFiles.length} changes with ${contextMap.size} DNA/Dependency assets...`);
+		console.log(`🚀 Analyzing ${stagedFiles.length} files...`);
 
 		const genAI = new GoogleGenerativeAI(apiKey);
 		const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
@@ -120,13 +130,20 @@ async function main() {
 		const prompt = `
 ${systemPrompt}
 
+### INSTRUCTIONS FOR OUTPUT FORMAT:
+1. **Header**: Start with a summary table of files reviewed and their status (Pass/Fail/Warn).
+2. **Per-File details**: For each file, use the header "## 📂 File: [filename]".
+3. **Specifics**: Quote the code line numbers.
+4. **Style**: Use emojis, bold text, and clear "Why this is better" explanations.
+5. **No Build**: Do NOT mention files in 'build/' directory.
+
 ### CURRENT OPERATIONAL CONTEXT:
 
-SYSTEM CONTEXT (DNA & DEPENDENCIES):
+SYSTEM CONTEXT (DNA):
 ${finalContext}
 
-GIT DIFF OF CHANGES:
-${diff}
+GIT DIFF OF CHANGES (Structured per file):
+${structuredDiff}
 `;
 
 		const result = await model.generateContent(prompt);
