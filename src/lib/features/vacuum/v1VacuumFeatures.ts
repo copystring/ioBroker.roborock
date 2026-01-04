@@ -1227,7 +1227,6 @@ export abstract class V1VacuumFeatures extends BaseDeviceFeatures {
     			return params; // Fallback
     		}
     	}
-
     	if (
     		(method === "set_water_box_custom_mode" ||
     		method === "set_custom_mode" ||
@@ -1256,7 +1255,6 @@ export abstract class V1VacuumFeatures extends BaseDeviceFeatures {
     		}
     		return [params];
     	}
-
     	return params;
     }
 

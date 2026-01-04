@@ -5,6 +5,7 @@ import type { Roborock } from "../main";
 import { BaseDeviceFeatures, FeatureDependencies } from "./features/baseDeviceFeatures";
 import { FallbackBaseFeatures, FallbackVacuumFeatures } from "./features/fallbackFeatures";
 import { DEFAULT_PROFILE, VacuumProfile } from "./features/vacuum/v1VacuumFeatures";
+
 import { ProductHelper } from "./productHelper";
 
 // Import indices to trigger decorators
@@ -454,5 +455,6 @@ export class DeviceManager {
 			}
 		}
 	}
+
 }
 

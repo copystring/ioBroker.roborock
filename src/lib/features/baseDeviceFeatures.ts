@@ -1,5 +1,6 @@
 // src/lib/features/base_device_features.ts
 import { z } from "zod";
+
 import type { Roborock } from "../../main";
 import { Feature } from "./features.enum";
 
@@ -192,6 +193,7 @@ export abstract class BaseDeviceFeatures {
 			}
 			return false;
 		}
+
 	}
 
 	// --- Abstract / Overridable Methods ---
@@ -364,6 +366,7 @@ export abstract class BaseDeviceFeatures {
 
 		for (const [command, commonCommand] of Object.entries(this.commands)) {
 			promises.push(this.processCommand(folderPath, command, commonCommand));
+
 		}
 
 		try {

@@ -122,6 +122,7 @@
     "commit": "npm run verify && git commit",
     "push": "npm run ai:review && git push",
     "prepare": "node -e \"if (!process.env.CI) try { require('child_process').execSync('husky', { stdio: 'inherit' }); } catch (e) {}\""
+
   },
   "bugs": {
     "url": "https://github.com/copystring/ioBroker.roborock/issues"

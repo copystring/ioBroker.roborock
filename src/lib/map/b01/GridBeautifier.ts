@@ -2449,6 +2449,7 @@ function getEachDoorPointColor(extend_door_point: any, fill_door_point: any, col
 					max_index = color_id_map.get(color_id);
 					max_color = color_id;
 				}
+
 			});
 			if (max_color !== -1) {
 				map[rowOffset + col] = max_color;

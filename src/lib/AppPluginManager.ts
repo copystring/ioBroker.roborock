@@ -3,6 +3,7 @@ import * as JSZip from "jszip";
 import * as path from "path";
 import { Roborock } from "../main";
 
+
 export class AppPluginManager {
 	adapter: Roborock;
 
@@ -149,6 +150,7 @@ export class AppPluginManager {
 						const remoteVersion = parseInt(newVersion);
 
 						if (!isNaN(remoteVersion) && (!isNaN(currentVersion) ? remoteVersion > currentVersion : true)) {
+
 							shouldDownload = true;
 							reason = `New version (Local: ${currentVersion}, Remote: ${newVersion})`;
 						} else {

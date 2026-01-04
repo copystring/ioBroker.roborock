@@ -219,6 +219,7 @@ export class MapBuilder {
 			this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, "SEVERE ERROR: Assets missing, cannot re-download (No DUID/Manager).", "error");
 		}
 
+
 		this.assetsLoaded = true;
 	}
 
@@ -265,6 +266,7 @@ export class MapBuilder {
 		if (isBuildModel && isCleaning) {
 			key = "icon_93";
 		}
+
 
 		if (isGoCharging || deviceState === SUBTITLE_STATUS.BREAK_RECHARGING) {
 			key = isDarkMode ? "icon_94" : "icon_95";

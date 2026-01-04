@@ -12,12 +12,14 @@ import { buildInfo } from "./lib/buildInfo";
 import { DeviceManager } from "./lib/deviceManager";
 import { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
 import { Feature } from "./lib/features/features.enum";
+
 import { http_api } from "./lib/httpApi";
 import { local_api } from "./lib/localApi";
 import { MapManager } from "./lib/map/MapManager"; // Add import
 import { mqtt_api } from "./lib/mqttApi";
 import { requestsHandler } from "./lib/requestsHandler";
 import { socketHandler } from "./lib/socketHandler";
+
 
 export class Roborock extends utils.Adapter {
 	// --- Public APIs (accessible by helpers) ---
@@ -266,6 +268,7 @@ export class Roborock extends utils.Adapter {
 			} finally {
 				// Reset boolean command state
 				if (this.isTruthy(state.val)) {
+
 					this.log.info(`[handleCommand] Scheduling reset for ${id}`);
 					this.setResetTimeout(id);
 				}
@@ -565,6 +568,7 @@ export class Roborock extends utils.Adapter {
 	}
 
 
+
 	/**
 	 * Starts the go2rtc process if cameras are present.
 	 */
@@ -765,6 +769,7 @@ export class Roborock extends utils.Adapter {
 		// Reset button
 		this.setResetTimeout(stateId);
 	}
+
 }
 
 if (require.main !== module) {

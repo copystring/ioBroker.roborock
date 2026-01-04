@@ -24,14 +24,10 @@ lib/go2rtc/go2rtc_win64.zip
 images/products/
 .commitinfo
 src/www/pathProcessor.ts
-<<<<<<< HEAD
-
 # Build artifacts
 build/
 *.tsbuildinfo
+www/assets
 
 # AI Review
 ai-review.md
-=======
-www/assets
->>>>>>> 3f40d3bb (Refactor: B01 Protocol Support & Code Cleanup)

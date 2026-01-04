@@ -1,5 +1,6 @@
 ﻿import { expect } from "chai";
 import * as sinon from "sinon";
+
 import { Feature } from "../features.enum";
 import { V1VacuumFeatures } from "./v1VacuumFeatures";
 
