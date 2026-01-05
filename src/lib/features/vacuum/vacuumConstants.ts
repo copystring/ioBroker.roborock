@@ -86,7 +86,8 @@ export const VACUUM_CONSTANTS = {
 		"alarm", "volume", "hypa", "main_brush", "side_brush", "mop_life", "main_sensor",
 		"net_status", "sound", "station_act", "quiet_begin_time", "quiet_end_time",
 		"voice_type", "voice_type_version", "order_total", "privacy", "dust_auto_state",
-		"light_mode", "order_save_mode", "manufacturer", "child_lock", "charge_station_type"
+		"light_mode", "order_save_mode", "manufacturer", "child_lock", "charge_station_type",
+		"carpet_turbo", "green_laser"
 	],
 
 	baseCommands: {

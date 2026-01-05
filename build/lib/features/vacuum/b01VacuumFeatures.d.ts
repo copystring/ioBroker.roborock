@@ -6,6 +6,7 @@ export declare class B01VacuumFeatures extends BaseDeviceFeatures {
     protected mappedRooms: unknown[] | null;
     constructor(dependencies: FeatureDependencies, duid: string, robotModel: string, config: DeviceModelConfig, profile?: unknown);
     setupProtocolFeatures(): Promise<void>;
+    createCommandObjects(): Promise<void>;
     /**
      * Allows feature handlers to provide/modify parameters for a command before sending.
      * B01 uses this to map individual command states to prop.set or service calls.
