@@ -72,7 +72,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 				2: "Balanced",
 				3: "Turbo",
 				4: "Max",
-				127: "Max+"
+				5: "Max+"
 			}
 		});
 
@@ -777,7 +777,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 					103: "Turbo",
 					104: "Max",
 					105: "Off",
-					127: "Max+"
+					5: "Max+"
 				}
 			};
 		}

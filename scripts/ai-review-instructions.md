@@ -34,6 +34,7 @@
     *   **Blocker**: "Status: ⛔ Rejected" (if critical) or use the siren emoji 🚨.
 
 5.  **Ignore Build**: Do NOT review files starting with `build/`, `dist/`, or `node_modules/`.
+6.  **User Override (Important)**: The user has explicitly requested that the `build/` directory be tracked in git. Do NOT flag the absence of `build/` in `.gitignore` or the presence of build artifacts as an error or warning. This is intentional.
 
 ---
 
