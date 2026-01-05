@@ -217,9 +217,9 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			"stop_recharge": { method: "service", params: { "method": "stop_recharge", "params": {} } },
 			"start_dust_collection": { method: "service", params: { "method": "start_dust_collection", "params": {} } },
 			"stop_dust_collection": { method: "service", params: { "method": "stop_dust_collection", "params": {} } },
-			"reset_main_brush": { method: "service", params: { "method": "reset_consumable", "params": { "consumable": CONSUMABLE_IDS.MAIN_BRUSH } } },
-			"reset_side_brush": { method: "service", params: { "method": "reset_consumable", "params": { "consumable": CONSUMABLE_IDS.SIDE_BRUSH } } },
-			"reset_filter": { method: "service", params: { "method": "reset_consumable", "params": { "consumable": CONSUMABLE_IDS.FILTER } } }
+			"reset_main_brush": { method: "service.reset_consumable", params: { "consumable": CONSUMABLE_IDS.MAIN_BRUSH } },
+			"reset_side_brush": { method: "service.reset_consumable", params: { "consumable": CONSUMABLE_IDS.SIDE_BRUSH } },
+			"reset_filter": { method: "service.reset_consumable", params: { "consumable": CONSUMABLE_IDS.FILTER } }
 		};
 
 		if (serviceMap[method]) {
