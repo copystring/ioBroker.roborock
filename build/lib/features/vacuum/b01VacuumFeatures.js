@@ -58,7 +58,8 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                 1: "Quiet",
                 2: "Balanced",
                 3: "Turbo",
-                4: "Max"
+                4: "Max",
+                127: "Max+"
             }
         });
         // 5. Water Level (water)
@@ -211,6 +212,35 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
         await this.updateExtraStatus();
         // Initial Map
         await this.updateMap();
+    }
+    async updateRoomMapping() {
+        if (!this.mappedRooms)
+            return;
+        await this.deps.ensureFolder(`Devices.${this.duid}.floors`);
+        // B01 only supports single floor active mapping usually, or we treat it as "current_floor"
+        // But for ioBroker structure we usually put rooms under "floors.cleanSegments" or similar?
+        // V1 used "floors" and "rooms" in config?
+        // Let's use a flat room list under "floors" like V1 did.
+        // Create/Update Room States
+        // We assume mappedRooms is [{ id: 10, name: "Living Room" }, ...]
+        const rooms = this.mappedRooms;
+        const roomFolder = `Devices.${this.duid}.floors`;
+        const cleanSegmentsFolder = `${roomFolder}.cleanSegments`;
+        await this.deps.ensureFolder(cleanSegmentsFolder);
+        for (const room of rooms) {
+            const roomID = room.id;
+            const roomName = room.name || `Room ${roomID}`;
+            const roomStateId = `${cleanSegmentsFolder}.${roomID}`;
+            await this.deps.ensureState(roomStateId, {
+                name: roomName,
+                type: "boolean",
+                role: "value",
+                def: false,
+                read: true,
+                write: true
+            });
+            // We do NOT explicitly set val to false here.
+        }
     }
     // Override updateStatus to use strict B01 prop.get
     async updateStatus() {
@@ -383,6 +413,11 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                                     write: false
                                 });
                                 await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapData`, { val: JSON.stringify(mapData), ack: true });
+                                // Update internal room mapping from map data
+                                if (mapData.rooms) {
+                                    this.mappedRooms = mapData.rooms;
+                                    await this.updateRoomMapping();
+                                }
                             }
                         }).catch(err => {
                             this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Failed to process B01 map: ${err}`, "error");
@@ -658,7 +693,8 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                     102: "Balanced",
                     103: "Turbo",
                     104: "Max",
-                    105: "Off"
+                    105: "Off",
+                    127: "Max+"
                 }
             };
         }

@@ -12,6 +12,7 @@ export declare class B01VacuumFeatures extends BaseDeviceFeatures {
      */
     getCommandParams(method: string, params?: unknown): Promise<unknown>;
     initializeDeviceData(): Promise<void>;
+    updateRoomMapping(): Promise<void>;
     updateStatus(): Promise<void>;
     updateConsumables(data?: unknown): Promise<void>;
     protected processStatus(resultObj: Record<string, unknown>): Promise<void>;

@@ -1,6 +1,6 @@
-import { VacuumProfile, BASE_FAN, BASE_WATER, BASE_MOP } from "./v1VacuumFeatures";
+import { DeviceModelConfig, FeatureDependencies, RegisterModel } from "../baseDeviceFeatures";
 import { B01VacuumFeatures } from "./b01VacuumFeatures";
-import { RegisterModel, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
+import { BASE_FAN, BASE_MOP, BASE_WATER, VacuumProfile } from "./v1VacuumFeatures";
 
 const PROFILE_SC01: VacuumProfile = {
 	name: "Roborock Q7 L5 (sc01)",
@@ -22,8 +22,10 @@ const sc01Config: DeviceModelConfig = {
 
 @RegisterModel("roborock.vacuum.sc01")
 export class SC01Features extends B01VacuumFeatures {
-	constructor(dependencies: FeatureDependencies, duid: string) {
+	constructor(dependencies: FeatureDependencies, duid: string, ..._args: unknown[]) {
 		super(dependencies, duid, "roborock.vacuum.sc01", sc01Config, PROFILE_SC01);
+		// Prevent linter error for unused args
+		void _args;
 		dependencies.adapter.rLog("System", duid, "Info", "SC01", undefined, `Constructing SC01Features`, "info");
 	}
 }

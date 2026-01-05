@@ -10,9 +10,9 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SC01Features = void 0;
-const v1VacuumFeatures_1 = require("./v1VacuumFeatures");
-const b01VacuumFeatures_1 = require("./b01VacuumFeatures");
 const baseDeviceFeatures_1 = require("../baseDeviceFeatures");
+const b01VacuumFeatures_1 = require("./b01VacuumFeatures");
+const v1VacuumFeatures_1 = require("./v1VacuumFeatures");
 const PROFILE_SC01 = {
     name: "Roborock Q7 L5 (sc01)",
     features: {
@@ -30,7 +30,7 @@ const sc01Config = {
     staticFeatures: []
 };
 let SC01Features = class SC01Features extends b01VacuumFeatures_1.B01VacuumFeatures {
-    constructor(dependencies, duid) {
+    constructor(dependencies, duid, ..._args) {
         super(dependencies, duid, "roborock.vacuum.sc01", sc01Config, PROFILE_SC01);
         dependencies.adapter.rLog("System", duid, "Info", "SC01", undefined, `Constructing SC01Features`, "info");
     }
@@ -38,6 +38,6 @@ let SC01Features = class SC01Features extends b01VacuumFeatures_1.B01VacuumFeatu
 exports.SC01Features = SC01Features;
 exports.SC01Features = SC01Features = __decorate([
     (0, baseDeviceFeatures_1.RegisterModel)("roborock.vacuum.sc01"),
-    __metadata("design:paramtypes", [Object, String])
+    __metadata("design:paramtypes", [Object, String, Object])
 ], SC01Features);
 //# sourceMappingURL=sc01_features.js.map
