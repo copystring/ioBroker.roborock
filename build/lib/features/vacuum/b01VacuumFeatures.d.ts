@@ -39,6 +39,9 @@ export declare class B01VacuumFeatures extends BaseDeviceFeatures {
     updateNetworkInfo(): Promise<void>;
     protected processConsumables(resultObj: Record<string, unknown>): Promise<void>;
     private processNetworkInfo;
+    private getConsumableLifeSpan;
+    private processUpdateMapResponse;
+    private processRecordMap;
     protected updateDockingStationStatus(dss: number): Promise<void>;
     protected static readonly MAPPED_CLEAN_SUMMARY: Record<string, string>;
     getCommonConsumable(attribute: string | number): Partial<ioBroker.StateCommon> | undefined;
@@ -46,4 +49,5 @@ export declare class B01VacuumFeatures extends BaseDeviceFeatures {
     getCommonCleaningInfo(attribute: string | number): Partial<ioBroker.StateCommon> | undefined;
     getCommonCleaningRecords(attribute: string | number): Partial<ioBroker.StateCommon> | undefined;
     getFirmwareFeatureName(featureID: string | number): string;
+    private processHistoryMapResponse;
 }

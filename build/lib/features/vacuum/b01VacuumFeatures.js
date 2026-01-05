@@ -59,7 +59,7 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                 2: "Balanced",
                 3: "Turbo",
                 4: "Max",
-                127: "Max+"
+                5: "Max+"
             }
         });
         // 5. Water Level (water)
@@ -239,7 +239,6 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                 read: true,
                 write: true
             });
-            // We do NOT explicitly set val to false here.
         }
     }
     // Override updateStatus to use strict B01 prop.get
@@ -383,45 +382,7 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                 resolve: (data) => {
                     this.deps.adapter.pendingRequests.delete(dummyId);
                     if (Buffer.isBuffer(data)) {
-                        const device = this.deps.adapter.http_api.getDevices().find(d => d.duid === this.duid);
-                        const sn = device?.sn || this.duid;
-                        this.mapManager.processMap(data, "B01", this.robotModel, sn, this.mappedRooms, this.duid, "MQTT")
-                            .then(async (res) => {
-                            if (res) {
-                                const { mapBase64, mapBase64Truncated, mapData } = res;
-                                await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64`, {
-                                    name: "Map Image",
-                                    type: "string",
-                                    role: "text.png",
-                                    read: true,
-                                    write: false
-                                });
-                                await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapBase64`, { val: mapBase64, ack: true });
-                                await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64Truncated`, {
-                                    name: "Map Image Truncated",
-                                    type: "string",
-                                    role: "text.png",
-                                    read: true,
-                                    write: false
-                                });
-                                await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapBase64Truncated`, { val: mapBase64Truncated, ack: true });
-                                await this.deps.ensureState(`Devices.${this.duid}.map.mapData`, {
-                                    name: "Map Data",
-                                    type: "string",
-                                    role: "json",
-                                    read: true,
-                                    write: false
-                                });
-                                await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapData`, { val: JSON.stringify(mapData), ack: true });
-                                // Update internal room mapping from map data
-                                if (mapData.rooms) {
-                                    this.mappedRooms = mapData.rooms;
-                                    await this.updateRoomMapping();
-                                }
-                            }
-                        }).catch(err => {
-                            this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Failed to process B01 map: ${err}`, "error");
-                        });
+                        void this.processUpdateMapResponse(data);
                     }
                 },
                 reject: () => { }
@@ -465,35 +426,9 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                 this.deps.adapter.pendingRequests.set(dummyId, {
                     method: "get_clean_record_map",
                     duid: this.duid,
-                    resolve: async (data) => {
+                    resolve: (data) => {
                         this.deps.adapter.pendingRequests.delete(dummyId);
-                        if (Buffer.isBuffer(data)) {
-                            try {
-                                const devices = this.deps.adapter.http_api.getDevices();
-                                const device = devices.find((d) => d.duid === this.duid);
-                                const serial = device?.sn || this.duid;
-                                const mapRes = await this.deps.adapter.mapManager.processMap(data, "B01", this.robotModel, serial, null, this.duid, "B01History");
-                                if (mapRes) {
-                                    resolve({
-                                        mapBase64CleanUncropped: mapRes.mapBase64Clean || mapRes.mapBase64,
-                                        mapBase64: mapRes.mapBase64,
-                                        mapBase64Truncated: mapRes.mapBase64Clean || mapRes.mapBase64,
-                                        mapData: JSON.stringify(mapRes.mapData),
-                                    });
-                                }
-                                else {
-                                    this.deps.adapter.rLog("System", this.duid, "Warn", "B01", undefined, "B01 History Map processing returned null.", "warn");
-                                    resolve(null);
-                                }
-                            }
-                            catch (e) {
-                                this.deps.adapter.rLog("System", this.duid, "Error", "B01", undefined, `Failed to process B01 history map: ${e.message}`, "error");
-                                resolve(null);
-                            }
-                        }
-                        else {
-                            resolve(null);
-                        }
+                        void this.processHistoryMapResponse(data, resolve);
                     },
                     reject: () => {
                         this.deps.adapter.pendingRequests.delete(dummyId);
@@ -559,47 +494,11 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                 }
                 if (!detail)
                     continue;
-                const startTime = detail.record_start_time || detail.begin;
                 const index = i;
                 await this.deps.ensureFolder(`Devices.${this.duid}.cleaningInfo.records.${index}`);
                 await this.processRecordAttributes(index, detail);
                 if (detail.record_map_url || detail.url || recordItem.url) {
-                    const mapRes = await this.getCleaningRecordMap(startTime, recordItem);
-                    if (mapRes) {
-                        await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${index}.mapBase64`, {
-                            name: "History Map Base64",
-                            type: "string",
-                            role: "text",
-                            read: true,
-                            write: false
-                        });
-                        await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${index}.mapBase64Truncated`, {
-                            name: "History Map Base64 Truncated",
-                            type: "string",
-                            role: "text",
-                            read: true,
-                            write: false
-                        });
-                        await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${index}.mapBase64`, { val: mapRes.mapBase64, ack: true });
-                        await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${index}.mapBase64Truncated`, { val: mapRes.mapBase64Truncated, ack: true });
-                        // Add the map_object state (Combined JSON)
-                        const combinedObject = {
-                            ...detail,
-                            mapBase64: mapRes.mapBase64,
-                            mapBase64Truncated: mapRes.mapBase64Truncated
-                        };
-                        await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${index}.map_object`, {
-                            name: "Combined History Record",
-                            type: "string",
-                            role: "json",
-                            read: true,
-                            write: false
-                        });
-                        await this.deps.adapter.setStateAsync(`Devices.${this.duid}.cleaningInfo.records.${index}.map_object`, {
-                            val: JSON.stringify(combinedObject),
-                            ack: true
-                        });
-                    }
+                    await this.processRecordMap(index, detail, recordItem);
                 }
             }
             const jsonSummary = {
@@ -694,7 +593,7 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                     103: "Turbo",
                     104: "Max",
                     105: "Off",
-                    127: "Max+"
+                    5: "Max+"
                 }
             };
         }
@@ -1055,21 +954,21 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             // prop.get "net_status" usually just gives connected state.
             // Let's try service.get_network_info first as it's common.
             const res = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "service.get_net_info", {});
-            if (res) {
-                // Typically returns { ssid, ip, mac, rssi... }
-                const info = Array.isArray(res) ? res[0] : res;
-                if (info) {
-                    await this.deps.ensureFolder(`Devices.${this.duid}.networkInfo`);
-                    for (const key in info) {
-                        await this.deps.ensureState(`Devices.${this.duid}.networkInfo.${key}`, {
-                            name: key,
-                            type: typeof info[key],
-                            read: true,
-                            write: false
-                        });
-                        await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.networkInfo.${key}`, { val: info[key], ack: true });
-                    }
-                }
+            if (!res)
+                return;
+            // Typically returns { ssid, ip, mac, rssi... }
+            const info = Array.isArray(res) ? res[0] : res;
+            if (!info)
+                return;
+            await this.deps.ensureFolder(`Devices.${this.duid}.networkInfo`);
+            for (const key in info) {
+                await this.deps.ensureState(`Devices.${this.duid}.networkInfo.${key}`, {
+                    name: key,
+                    type: typeof info[key],
+                    read: true,
+                    write: false
+                });
+                await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.networkInfo.${key}`, { val: info[key], ack: true });
             }
         }
         catch (e) {
@@ -1106,10 +1005,7 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             if (["main_brush_work_time", "side_brush_work_time", "filter_work_time", "filter_element_work_time", "sensor_dirty_time"].includes(key)) {
                 const deviceName = key.replace("_work_time", "").replace("_dirty_time", "");
                 await this.deps.ensureState(`Devices.${this.duid}.consumables.${deviceName}`, { ...common, unit: "%" });
-                const totalTime = (deviceName === "main_brush" ? 300 :
-                    deviceName === "side_brush" ? 200 :
-                        deviceName === "filter" || deviceName === "filter_element" ? 150 :
-                            deviceName === "sensor" ? 30 : 0) * 3600;
+                const totalTime = this.getConsumableLifeSpan(deviceName) * 3600;
                 if (totalTime > 0) {
                     const percent = Math.round(100 - (val / totalTime) * 100);
                     await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.consumables.${deviceName}`, { val: percent, ack: true });
@@ -1125,7 +1021,6 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             }
         }
     }
-    // Helper for B01 network info processing
     async processNetworkInfo(data) {
         if (!data || typeof data !== "object")
             return;
@@ -1153,6 +1048,97 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                 await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.networkInfo.${stateName}`, { val: val, ack: true });
             }
         }
+    }
+    getConsumableLifeSpan(deviceName) {
+        switch (deviceName) {
+            case "main_brush": return 300;
+            case "side_brush": return 200;
+            case "filter":
+            case "filter_element": return 150;
+            case "sensor": return 30;
+            default: return 0;
+        }
+    }
+    async processUpdateMapResponse(data) {
+        try {
+            const device = this.deps.adapter.http_api.getDevices().find(d => d.duid === this.duid);
+            const sn = device?.sn || this.duid;
+            const res = await this.mapManager.processMap(data, "B01", this.robotModel, sn, this.mappedRooms, this.duid, "MQTT");
+            if (!res)
+                return;
+            const { mapBase64, mapBase64Truncated, mapData } = res;
+            await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64`, {
+                name: "Map Image",
+                type: "string",
+                role: "text.png",
+                read: true,
+                write: false
+            });
+            await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapBase64`, { val: mapBase64, ack: true });
+            await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64Truncated`, {
+                name: "Map Image Truncated",
+                type: "string",
+                role: "text.png",
+                read: true,
+                write: false
+            });
+            await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapBase64Truncated`, { val: mapBase64Truncated, ack: true });
+            await this.deps.ensureState(`Devices.${this.duid}.map.mapData`, {
+                name: "Map Data",
+                type: "string",
+                role: "json",
+                read: true,
+                write: false
+            });
+            await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapData`, { val: JSON.stringify(mapData), ack: true });
+            // Update internal room mapping from map data
+            if (mapData.rooms) {
+                this.mappedRooms = mapData.rooms;
+                await this.updateRoomMapping();
+            }
+        }
+        catch (err) {
+            this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Failed to process B01 map: ${err.message}`, "error");
+        }
+    }
+    async processRecordMap(index, detail, recordItem) {
+        const startTime = detail.record_start_time || detail.begin;
+        const mapRes = await this.getCleaningRecordMap(startTime, recordItem);
+        if (!mapRes)
+            return;
+        await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${index}.mapBase64`, {
+            name: "History Map Base64",
+            type: "string",
+            role: "text",
+            read: true,
+            write: false
+        });
+        await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${index}.mapBase64Truncated`, {
+            name: "History Map Base64 Truncated",
+            type: "string",
+            role: "text",
+            read: true,
+            write: false
+        });
+        await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${index}.mapBase64`, { val: mapRes.mapBase64, ack: true });
+        await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.cleaningInfo.records.${index}.mapBase64Truncated`, { val: mapRes.mapBase64Truncated, ack: true });
+        // Add the map_object state (Combined JSON)
+        const combinedObject = {
+            ...detail,
+            mapBase64: mapRes.mapBase64,
+            mapBase64Truncated: mapRes.mapBase64Truncated
+        };
+        await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${index}.map_object`, {
+            name: "Combined History Record",
+            type: "string",
+            role: "json",
+            read: true,
+            write: false
+        });
+        await this.deps.adapter.setStateAsync(`Devices.${this.duid}.cleaningInfo.records.${index}.map_object`, {
+            val: JSON.stringify(combinedObject),
+            ack: true
+        });
     }
     async updateDockingStationStatus(dss) {
         // Guard: Feature must be active
@@ -1189,6 +1175,34 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
     getFirmwareFeatureName(featureID) {
         const name = vacuumConstants_1.VACUUM_CONSTANTS.firmwareFeatures[featureID];
         return name || `FeatureID_${featureID}`;
+    }
+    async processHistoryMapResponse(data, resolve) {
+        if (!Buffer.isBuffer(data)) {
+            resolve(null);
+            return;
+        }
+        try {
+            const devices = this.deps.adapter.http_api.getDevices();
+            const device = devices.find((d) => d.duid === this.duid);
+            const serial = device?.sn || this.duid;
+            const mapRes = await this.deps.adapter.mapManager.processMap(data, "B01", this.robotModel, serial, null, this.duid, "B01History");
+            if (mapRes) {
+                resolve({
+                    mapBase64CleanUncropped: mapRes.mapBase64Clean || mapRes.mapBase64,
+                    mapBase64: mapRes.mapBase64,
+                    mapBase64Truncated: mapRes.mapBase64Clean || mapRes.mapBase64,
+                    mapData: JSON.stringify(mapRes.mapData),
+                });
+            }
+            else {
+                this.deps.adapter.rLog("System", this.duid, "Warn", "B01", undefined, "B01 History Map processing returned null.", "warn");
+                resolve(null);
+            }
+        }
+        catch (e) {
+            this.deps.adapter.rLog("System", this.duid, "Error", "B01", undefined, `Failed to process B01 history map: ${e.message}`, "error");
+            resolve(null);
+        }
     }
 }
 exports.B01VacuumFeatures = B01VacuumFeatures;

@@ -32,6 +32,8 @@ const sc01Config = {
 let SC01Features = class SC01Features extends b01VacuumFeatures_1.B01VacuumFeatures {
     constructor(dependencies, duid, ..._args) {
         super(dependencies, duid, "roborock.vacuum.sc01", sc01Config, PROFILE_SC01);
+        // Prevent linter error for unused args
+        void _args;
         dependencies.adapter.rLog("System", duid, "Info", "SC01", undefined, `Constructing SC01Features`, "info");
     }
 };
