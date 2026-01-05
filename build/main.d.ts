@@ -1,11 +1,12 @@
 import * as utils from "@iobroker/adapter-core";
+import { AppPluginManager } from "./lib/AppPluginManager";
 import { DeviceManager } from "./lib/deviceManager";
 import { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
 import { http_api } from "./lib/httpApi";
 import { local_api } from "./lib/localApi";
+import { MapManager } from "./lib/map/MapManager";
 import { mqtt_api } from "./lib/mqttApi";
 import { requestsHandler } from "./lib/requestsHandler";
-import { roborock_package_helper } from "./lib/roborock_package_helper";
 import { socketHandler } from "./lib/socketHandler";
 export declare class Roborock extends utils.Adapter {
     http_api: http_api;
@@ -14,10 +15,11 @@ export declare class Roborock extends utils.Adapter {
     requestsHandler: requestsHandler;
     socketHandler: socketHandler;
     deviceManager: DeviceManager;
+    mapManager: MapManager;
     deviceFeatureHandlers: Map<string, BaseDeviceFeatures>;
     nonce: Buffer;
     pendingRequests: Map<number, any>;
-    roborock_package_helper: roborock_package_helper;
+    appPluginManager: AppPluginManager;
     isInitializing: boolean;
     sentryInstance: any;
     translations: Record<string, string>;
@@ -111,5 +113,10 @@ export declare class Roborock extends utils.Adapter {
      * Centralized error handler.
      */
     catchError(error: any, attribute?: string, duid?: string): Promise<void>;
+    /**
+     * Centralized Logging Function for Protocol Messages
+     * Format: [Connection] [duid] direction (PV: version) (Protocol: protocol) payload
+     */
+    rLog(connection: "MQTT" | "TCP" | "UDP" | "HTTP" | "Cloud" | "Local" | "System" | "MapManager" | "Requests" | "Unknown", duid: string | null | undefined, direction: "<-" | "->" | "Info" | "Error" | "Warn" | "Debug", version: string | undefined, protocol: string | number | undefined, message: string, level?: "debug" | "info" | "warn" | "error"): void;
     handleFloorSwitch(duid: string, mapFlag: number, stateId: string): Promise<void>;
 }

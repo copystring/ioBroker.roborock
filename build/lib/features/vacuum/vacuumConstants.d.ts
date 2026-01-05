@@ -73,6 +73,8 @@ export declare const VACUUM_CONSTANTS: {
         17: string;
         18: string;
     };
+    b01StatusProps: string[];
+    b01SettingsProps: string[];
     baseCommands: {
         app_start: {
             type: string;
@@ -395,6 +397,90 @@ export declare const VACUUM_CONSTANTS: {
         };
         clean_times: {
             type: string;
+        };
+        along_floor: {
+            type: string;
+            def: number;
+            states: {
+                0: string;
+                1: string;
+            };
+            write: boolean;
+        };
+        green_laser: {
+            type: string;
+            def: number;
+            states: {
+                0: string;
+                1: string;
+            };
+            write: boolean;
+        };
+        dust_bag_used: {
+            type: string;
+            def: number;
+        };
+        add_sweep_status: {
+            type: string;
+            def: number;
+            states: {
+                0: string;
+                1: string;
+            };
+        };
+        status: {
+            type: string;
+            def: number;
+            states: {
+                1: string;
+                2: string;
+                3: string;
+                5: string;
+                6: string;
+                7: string;
+                8: string;
+                9: string;
+                10: string;
+                11: string;
+                12: string;
+                14: string;
+                15: string;
+                16: string;
+                17: string;
+                18: string;
+                22: string;
+                23: string;
+                26: string;
+                28: string;
+                29: string;
+                100: string;
+            };
+            write: boolean;
+        };
+        wind: {
+            type: string;
+            def: number;
+            states: {
+                101: string;
+                102: string;
+                103: string;
+                104: string;
+                105: string;
+                108: string;
+            };
+            write: boolean;
+        };
+        water: {
+            type: string;
+            def: number;
+            states: {
+                200: string;
+                201: string;
+                202: string;
+                203: string;
+                204: string;
+            };
+            write: boolean;
         };
     };
     consumables: {

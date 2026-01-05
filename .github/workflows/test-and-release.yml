@@ -78,6 +78,7 @@ jobs:
           node-version: ${{ matrix.node-version }}
           os: ${{ matrix.os }}
           package-cache: 'npm'
+          build: true
 
   # Deploys the final package to NPM
   deploy:

@@ -15,15 +15,10 @@ export declare class DeviceManager {
      */
     private cleanupOrphanedDevices;
     private lastStateCode;
-    private lastMapStatus;
     /**
      * Get current state code.
      */
     private getDeviceState;
-    /**
-     * Get current map status.
-     */
-    private getDeviceMapStatus;
     /**
      * Check if robot is active.
      */
@@ -32,6 +27,18 @@ export declare class DeviceManager {
      * Starts polling.
      */
     startPolling(): void;
+    /**
+     * Polling logic for B01 devices.
+     */
+    private pollB01Device;
+    /**
+     * Polling logic for A01 devices.
+     */
+    private pollA01Device;
+    /**
+     * Polling logic for V1 (Legacy) devices.
+     */
+    private pollV1Device;
     /**
      * Stops polling.
      */

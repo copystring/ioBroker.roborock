@@ -4,7 +4,6 @@
     // Output
     "noEmit": false,
     "outDir": "./build",
-    "rootDir": "./src",
     "sourceMap": true,
     "inlineSources": true,
     "declaration": true,
@@ -26,6 +25,8 @@
     "allowJs": false,
     "checkJs": false,
 
+    "rootDir": "./src",
+
     // Decorators
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
@@ -34,6 +35,6 @@
     "types": ["mocha", "node", "@iobroker/adapter-core"],
     "lib": ["ESNext", "DOM", "DOM.Iterable"]
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.json"],
   "exclude": ["node_modules", "src/www"]
 }

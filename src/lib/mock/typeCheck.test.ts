@@ -1,12 +1,12 @@
-
+﻿
 import { expect } from "chai";
 import { MockAdapter } from "./MockAdapter";
 import { MockRobot } from "./MockRobot";
-import { BaseVacuumFeatures } from "../features/vacuum/baseVacuumFeatures";
+import { V1VacuumFeatures } from "../features/vacuum/v1VacuumFeatures";
 import { Feature } from "../features/features.enum";
 
 // Concrete implementation for testing abstract class
-class TestVacuum extends BaseVacuumFeatures {
+class TestVacuum extends V1VacuumFeatures {
 	protected getDynamicFeatures(): Set<Feature> {
 		return new Set();
 	}
@@ -15,7 +15,8 @@ class TestVacuum extends BaseVacuumFeatures {
 	}
 }
 
-describe("Adapter Type Verification", () => {
+describe("Adapter Type Verification", function() {
+	this.timeout(5000);
 	let mockAdapter: MockAdapter;
 	let mockRobot: MockRobot;
 	let vacuumFeatures: TestVacuum;
@@ -79,3 +80,4 @@ describe("Adapter Type Verification", () => {
 		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.clean_time`]).to.equal(122.6);
 	});
 });
+

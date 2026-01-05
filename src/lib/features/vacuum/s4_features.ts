@@ -1,4 +1,4 @@
-import { BaseVacuumFeatures, VacuumProfile, BASE_FAN, BASE_WATER, BASE_MOP } from "./baseVacuumFeatures";
+﻿import { V1VacuumFeatures, VacuumProfile, BASE_FAN, BASE_WATER, BASE_MOP } from "./v1VacuumFeatures";
 import { RegisterModel, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 
 const PROFILE_S4: VacuumProfile = {
@@ -20,7 +20,7 @@ const s4Config: DeviceModelConfig = {
 };
 
 @RegisterModel("roborock.vacuum.s4")
-export class S4Features extends BaseVacuumFeatures {
+export class S4Features extends V1VacuumFeatures {
 	constructor(dependencies: FeatureDependencies, duid: string) {
 		super(dependencies, duid, "roborock.vacuum.s4", s4Config, PROFILE_S4);
 	}

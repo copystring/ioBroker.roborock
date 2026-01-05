@@ -32,7 +32,15 @@ export class ProductHelper {
 		const features = new Set<Feature>();
 
 		// 1. Tag-based deduction
-		const productItem = productInfo.data.productList.find(p => p.model === model);
+		let productItem;
+		if (productInfo.data.categoryDetailList) {
+			for (const cat of productInfo.data.categoryDetailList) {
+				if (cat.productList) {
+					productItem = cat.productList.find(p => p.model === model);
+					if (productItem) break;
+				}
+			}
+		}
 		if (productItem && productItem.productTags) {
 			for (const tag of productItem.productTags) {
 				switch (tag.name) {
