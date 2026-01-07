@@ -163,6 +163,13 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                 1: "On"
             }
         });
+        // 12. Update Map
+        this.addCommand("update_map", {
+            type: "boolean",
+            role: "button",
+            name: "Update Map",
+            def: false
+        });
         // 13. Consumable Resets (in resetConsumables folder)
         // We can't use addCommand easily for subfolders without modifying base class logic or hacking the key.
         // Instead, we will define them here but they won't automatically be created by createCommandObjects
@@ -277,6 +284,12 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             return {
                 method: "service.start_recharge",
                 params: {}
+            };
+        }
+        if (method === "update_map") {
+            return {
+                method: "service.upload_by_maptype",
+                params: { "force": 1, "map_type": 0 }
             };
         }
         // Service calls
