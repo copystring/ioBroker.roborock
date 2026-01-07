@@ -92,77 +92,6 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                 3: "High"
             }
         });
-        // 6. Work Mode
-        this.addCommand("work_mode", {
-            type: "number",
-            role: "value",
-            name: "Work Mode",
-            def: 0,
-            states: {
-                0: "Standard",
-                1: "Custom",
-                2: "Silent"
-            }
-        });
-        // 7. Dust Collection Frequency
-        this.addCommand("dust_frequency", {
-            type: "number",
-            role: "value",
-            name: "Dust Collection Frequency",
-            def: 0,
-            states: {
-                0: "Smart",
-                1: "Low",
-                2: "Medium",
-                3: "High",
-                4: "Never"
-            }
-        });
-        // 8. Clean Path Preference
-        this.addCommand("clean_path_preference", {
-            type: "number",
-            role: "value",
-            name: "Clean Path Preference",
-            def: 0,
-            states: {
-                0: "Standard",
-                1: "Fast"
-            }
-        });
-        // 9. Build Map
-        this.addCommand("build_map", {
-            type: "number",
-            role: "value",
-            name: "Build Map",
-            def: 1,
-            states: {
-                0: "Off",
-                1: "On"
-            }
-        });
-        // 10. Robot Mode
-        this.addCommand("mode", {
-            type: "number",
-            role: "value",
-            name: "Robot Mode",
-            def: 0,
-            states: {
-                0: "Vacuum",
-                1: "Mop",
-                2: "Vacuum & Mop"
-            }
-        });
-        // 11. Custom Mode
-        this.addCommand("custom_type", {
-            type: "number",
-            role: "value",
-            name: "Custom Mode",
-            def: 0,
-            states: {
-                0: "Off",
-                1: "On"
-            }
-        });
         // 12. Update Map
         this.addCommand("update_map", {
             type: "boolean",
@@ -210,6 +139,18 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             def: 0,
             states: { 0: "Off", 1: "On" } // Assuming 0/1 typical for repeat
         });
+        // 10. Robot Mode (Verified in logs: 0=Vacuum, 1=Vac&Mop, 2=Mop)
+        this.addCommand("mode", {
+            type: "number",
+            role: "value",
+            name: "Robot Mode",
+            def: 0,
+            states: {
+                0: "Vacuum",
+                1: "Vacuum & Mop",
+                2: "Mop"
+            }
+        });
         const cmds = Object.keys(this.commands);
         this.deps.adapter.rLog("System", this.duid, "Info", "B01", undefined, `B01 Protocol Enforced. Commands in memory: ${cmds.join(", ")}`, "info");
     }
@@ -241,7 +182,7 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
         // Intercept individual commands and route to prop.set or service
         // Removed "clean_path_preference" and "status" from generic list
         // Added "clean_path_preference" handler below
-        if (["wind", "water", "work_mode", "dust_frequency", "build_map", "mode", "custom_type",
+        if (["wind", "water", "mode",
             "child_lock", "carpet_turbo", "light_mode", "green_laser", "repeat_state"
         ].includes(method)) {
             return {
@@ -867,6 +808,29 @@ class B01VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
                     1: "Charging",
                     2: "Fully Charged",
                     3: "Charge Failed"
+                }
+            };
+        }
+        // 8. Charge State (Fixed key from charge_status)
+        if (attribute === "charge_state") {
+            return {
+                type: "number",
+                states: {
+                    0: "Charging",
+                    1: "Not Charging",
+                    2: "Fully Charged",
+                    3: "Charge Failed"
+                }
+            };
+        }
+        // 10. Robot Mode
+        if (attribute === "mode") {
+            return {
+                type: "number",
+                states: {
+                    0: "Vacuum",
+                    1: "Vacuum & Mop",
+                    2: "Mop"
                 }
             };
         }
