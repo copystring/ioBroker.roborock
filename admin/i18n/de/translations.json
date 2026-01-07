@@ -4,9 +4,9 @@
     "127": "Lebensdauer des Staubfilters",
     "Enable Map Creation": "Kartenerstellung aktivieren",
     "Login": "E-Mail",
-    "Map Creation Interval": "Kartenerstellungsintervall",
+
     "Password": "Passwort",
-    "Update interval": "Aktualisierungsintervall",
+    "Update interval": "Aktualisierungsintervall (Sekunden)",
     "adbumper_status": "Adbumber-Status",
     "app_charge": "Kehren Sie zum Dock zurück",
     "app_goto_target": "Gehe zum Ziel",
