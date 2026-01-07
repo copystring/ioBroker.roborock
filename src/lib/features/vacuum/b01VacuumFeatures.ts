@@ -55,6 +55,20 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			def: false
 		});
 
+		this.addCommand("app_pause", {
+			type: "boolean",
+			role: "button",
+			name: this.deps.adapter.translations["app_pause"] || "Pause Cleaning",
+			def: false
+		});
+
+		this.addCommand("app_stop", {
+			type: "boolean",
+			role: "button",
+			name: this.deps.adapter.translations["app_stop"] || "Stop Cleaning",
+			def: false
+		});
+
 		this.addCommand("app_charge", {
 			type: "boolean",
 			role: "button",
@@ -62,7 +76,15 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			def: false
 		});
 
+		this.addCommand("find_me", {
+			type: "boolean",
+			role: "button",
+			name: this.deps.adapter.translations["find_me"] || "Find Me",
+			def: false
+		});
+
 		// 4. Fan Power (wind)
+
 		this.addCommand("wind", {
 			type: "number",
 			role: "value",
@@ -167,23 +189,9 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			}
 		});
 
-		// 12. Service Commands (as individual buttons)
-		const services = {
-			"update_map": "Update Map",
-			"start_recharge": "Start Charging",
-			"stop_recharge": "Stop Charging",
-			"start_dust_collection": "Start Emptying",
-			"stop_dust_collection": "Stop Emptying",
-		};
 
-		for (const [srv, srvName] of Object.entries(services)) {
-			this.addCommand(srv, {
-				type: "boolean",
-				role: "button",
-				name: srvName,
-				def: false
-			});
-		}
+
+
 
 		// 13. Consumable Resets (in resetConsumables folder)
 
@@ -244,9 +252,9 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		await this.deps.ensureFolder(`Devices.${this.duid}.resetConsumables`);
 
 		const resets: Record<string, string> = {
-			"reset_consumable_1": "Reset Main Brush",
-			"reset_consumable_2": "Reset Side Brush",
-			"reset_consumable_3": "Reset Filter"
+			"reset_main_brush": "Reset Main Brush",
+			"reset_side_brush": "Reset Side Brush",
+			"reset_filter": "Reset Filter"
 		};
 
 		for (const [id, name] of Object.entries(resets)) {
@@ -285,10 +293,32 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			};
 		}
 
+		if (method === "find_me") {
+			return {
+				method: "service.find_device",
+				params: {}
+			};
+		}
+
 		if (method === "app_start") {
 			return {
 				method: "service.set_room_clean",
 				params: { "clean_type": 0, "ctrl_value": 1, "room_ids": [] }
+			};
+		}
+
+		if (method === "app_pause") {
+			return {
+				method: "service.set_room_clean",
+				params: { "clean_type": 0, "ctrl_value": 2, "room_ids": [] }
+			};
+		}
+
+		// User explicit mapping: app_stop -> stop_recharge
+		if (method === "app_stop") {
+			return {
+				method: "service.stop_recharge",
+				params: {}
 			};
 		}
 
@@ -301,24 +331,17 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 		// Service calls
 
-		const serviceMap: Record<string, { method: string, params: unknown }> = {
-			"update_map": { method: "service", params: { "method": "upload_by_maptype", "params": { "force": 1, "map_type": 0 } } },
-			"start_recharge": { method: "service", params: { "method": "start_recharge", "params": {} } },
-			"stop_recharge": { method: "service", params: { "method": "stop_recharge", "params": {} } },
-			"start_dust_collection": { method: "service", params: { "method": "start_dust_collection", "params": {} } },
-			"stop_dust_collection": { method: "service", params: { "method": "stop_dust_collection", "params": {} } },
-		};
 
-		if (serviceMap[method]) {
-			return serviceMap[method];
+
+		// Explicit Consumable Resets
+		if (method === "reset_main_brush") {
+			return { method: "service.reset_consumable", params: { "consumable": 1 } };
 		}
-
-		if (method.startsWith("reset_consumable_")) {
-			const consumableId = Number(method.split("_").pop());
-			return {
-				method: "service.reset_consumable",
-				params: { "consumable": consumableId }
-			};
+		if (method === "reset_side_brush") {
+			return { method: "service.reset_consumable", params: { "consumable": 2 } };
+		}
+		if (method === "reset_filter") {
+			return { method: "service.reset_consumable", params: { "consumable": 3 } };
 		}
 
 		return params;
