@@ -35,6 +35,7 @@ This document contains the complete translation mapping and internal constants f
 ### 🕹️ Robot Modes (`ROBOT_TYPE`)
 | Mode Name | Internal Value |
 | :--- | :--- |
+| `SLEEP` | `4294967295` |
 | `STANDBY` | `0` |
 | `WORKING` | `1` |
 | `CHARGING` | `2` |
@@ -42,7 +43,6 @@ This document contains the complete translation mapping and internal constants f
 | `ALERT` | `4` |
 | `MOP_CLEANING` | `5` |
 | `MOP_AIRDRYING` | `6` |
-| `SLEEP` | `4294967295` |
 
 ---
 
@@ -58,7 +58,7 @@ This document contains the complete translation mapping and internal constants f
 | **500** | `F_500` | LiDAR tareti veya lazer engelleniyor. Tıkanıklık olup olmadığını kontrol edin ve yeniden deneyin. | LiDAR sensörü engellenmiş veya sıkışmış. Varsa yabancı cisimleri çıkarın. Sorun devam ederse, robotu uzaklaştırın ve yeniden başlatın. |
 | **501** | `F_501` | Robot havada asılı kalmış. Robotu uzaklaştırın ve yeniden başlatın. | Robot havada asılı kalmış. Robotu uzaklaştırın ve yeniden başlatın. Yükseklik sensörleri kirli. Silerek temizleyin. |
 | **502** | `F_502` | Pil seviyesi düşük. Hemen şarj edin. | Pil seviyesi düşüktür. Başlamadan önce %20 şarj etmek için robotu bağlantı istasyonuna yerleştirin. |
-| **503** | `F_503` | Çöp kutusunun ve filtrenin doğru takılıp takılmadığını kontrol edin. | Çöp kutusunun ve filtreyi tekrar yerine takın.\nSorun devam ederse filtreyi değiştirin. |
+| **503** | `F_503` | Çöp kutusunun ve filtrenin doğru takılıp takılmadığını kontrol edin. | Çöp kutusunun ve filtreyi tekrar yerine takın.<br>Sorun devam ederse filtreyi değiştirin. |
 | **504** | `F_504` | Pil seviyesi düşük. Hemen şarj edin. | Pil seviyesi düşüktür. Başlamadan önce %20 şarj etmek için robotu bağlantı istasyonuna yerleştirin. |
 | **505** | `F_505` | Pil seviyesi düşük. Hemen şarj edin. | Pil seviyesi düşüktür. Başlamadan önce %20 şarj etmek için robotu bağlantı istasyonuna yerleştirin. |
 | **506** | `F_506` | Pil seviyesi düşük. Hemen şarj edin. | Pil seviyesi düşüktür. Başlamadan önce %20 şarj etmek için robotu bağlantı istasyonuna yerleştirin. |
@@ -163,6 +163,7 @@ This document contains the complete translation mapping and internal constants f
 
 | Key | Localized Value |
 | :--- | :--- |
+| `battery` | Battery Percentage |
 | `clean_record_abort_abnormally` | Anormal şekilde sona erdi |
 | `clean_record_abort_manually` | Temizlik kullanıcı tarafından yarıda kesildi |
 | `clean_record_area` | Toplam alan |
@@ -189,8 +190,10 @@ This document contains the complete translation mapping and internal constants f
 | `clean_record_work_record` | Geçmiş |
 | `common_abnormal` | Hata |
 | `common_alert` | Not |
+| `common_battery_percentage` | Battery Percentage |
 | `common_cancel` | İptal |
 | `common_close_time` | Sonlandır |
+| `common_custom_type` | Özel Tip |
 | `common_delete` | Sil |
 | `common_determine` | Tamam |
 | `common_disconnect` | Robot çevrimdışı |
@@ -198,6 +201,7 @@ This document contains the complete translation mapping and internal constants f
 | `common_holder_default_text` | En fazla 12 karakterden oluşan bir ad girin |
 | `common_known` | Anlaşıldı |
 | `common_loading` | Yükleniyor... |
+| `common_map_id` | Harita Kimliği |
 | `common_more` | Daha Fazla |
 | `common_more_setup` | Daha Fazla Ayar |
 | `common_network_abnormal` | Ağ Hatası |
@@ -234,6 +238,57 @@ This document contains the complete translation mapping and internal constants f
 | `device_sn` | Seri Numarası |
 | `device_timezone_to_robot` | Saat dilimini senkronize et |
 | `failed_page_content` | Yükleme başarısız oldu. |
+| `fault_summery_2003` | Pil seviyesi %20'nin altında. Programlanmış görev iptal edildi. |
+| `fault_summery_2007` | Hedefe ulaşılamıyor. Temizlik sona erdi. Hedef alana açılan kapının açık olduğundan veya önünde herhangi bir engel bulunmadığından emin olun. |
+| `fault_summery_2012` | Hedefe ulaşılamıyor. Temizlik sona erdi. Hedef alana açılan kapının açık olduğundan veya önünde herhangi bir engel bulunmadığından emin olun. |
+| `fault_summery_2100` | Pil seviyesi düşük. Şarj başlatılıyor. Şarj ettikten sonra temizliğe devam edin. |
+| `fault_summery_2102` | Temizleme tamamlandı. Bağlantı istasyonuna geri dönülüyor |
+| `fault_summery_500` | LiDAR sensörü engellenmiş veya sıkışmış. Varsa yabancı cisimleri çıkarın. Sorun devam ederse, robotu uzaklaştırın ve yeniden başlatın. |
+| `fault_summery_501` | Robot havada asılı kalmış. Robotu uzaklaştırın ve yeniden başlatın. Yükseklik sensörleri kirli. Silerek temizleyin. |
+| `fault_summery_502_518` | Pil seviyesi düşüktür. Başlamadan önce %20 şarj etmek için robotu bağlantı istasyonuna yerleştirin. |
+| `fault_summery_503` | Çöp kutusunun ve filtreyi tekrar yerine takın.<br>Sorun devam ederse filtreyi değiştirin. |
+| `fault_summery_509` | Yükseklik sensörlerinde hata. Sensörleri temizleyin, robotu düşebileceği noktalardan uzaklaştırın ve yeniden başlatın. |
+| `fault_summery_510` | Tampon sıkışmış. Serbest bırakmak için tekrar tekrar dokunun. Yabancı bir nesne yoksa robotu uzaklaştırın ve yeniden başlatın. |
+| `fault_summery_511_512` | Bağlantı istasyonu hatası. Bağlantı istasyonunun etrafındaki engelleri temizleyin, şarj temas noktalarını temizleyin ve robotu bağlantı istasyonuna yerleştirin. |
+| `fault_summery_513_514` | Robot çıkamadığı bir alanda kalmış. Robotun etrafındaki engelleri temizleyin veya robotu uzaklaştırın ve yeniden başlatın. |
+| `fault_summery_522` | Paspas takılı değil. Yeniden takın. |
+| `fault_summery_533` | Cihaz uzun süredir uyku modunda ve kapanmak üzeredir. Robotu şarj edin. |
+| `fault_summery_534` | Düşük pil seviyesi nedeniyle kapanmak üzere. Robotu şarj edin. |
+| `fault_summery_560` | Yan fırça sıkışmış. Çıkarın ve temizleyin. |
+| `fault_summery_568_569` | Ana tekerlekleri temizleyin, robotu uzaklaştırın ve yeniden başlatın. |
+| `fault_summery_570` | Ana fırça sıkışmış. Sökün ve rulmanını temizleyin. |
+| `fault_summery_572` | Ana fırça sıkışmış. Sökün ve rulmanını temizleyin. |
+| `fault_summery_594` | Toz torbası takılı değil. Düzgün takılıp takılmadığını kontrol edin. |
+| `fault_summery_611` | Konumlandırılamadı. Robotu bağlantı istasyonuna geri döndürün ve yeniden harita çıkartın. |
+| `fault_summery_612` | Yeni ortam algılandı. Harita değişti. Konumlandırılamadı. Yeniden harita çıkarıldıktan sonra tekrar deneyin. |
+| `fault_summery_629` | Paspas bezi yuvası yerinden çıkmıştır. Devam etmek için yeniden takın. |
+| `fault_summery_668` | Fan hatası. Sistemi sıfırlayın. Sorun devam ederse müşteri hizmetlerine başvurun. |
+| `fault_title_2003` | Pil seviyesi %20'nin altında. Programlanmış görev iptal edildi. |
+| `fault_title_2007` | Hedefe ulaşılamıyor. Temizlik sona erdi. |
+| `fault_title_2012` | Hedefe ulaşılamıyor. Temizlik sona erdi. |
+| `fault_title_2100` | Pil seviyesi düşük. Yeniden şarj ettikten sonra temizlemeye devam edin. |
+| `fault_title_2102` | Temizleme tamamlandı. Bağlantı istasyonuna geri dönülüyor |
+| `fault_title_407` | Temizlik devam ediyor. Programlanmış temizlik göz ardı edildi. |
+| `fault_title_500` | LiDAR tareti veya lazer engelleniyor. Tıkanıklık olup olmadığını kontrol edin ve yeniden deneyin. |
+| `fault_title_501` | Robot havada asılı kalmış. Robotu uzaklaştırın ve yeniden başlatın. |
+| `fault_title_502_518` | Pil seviyesi düşük. Hemen şarj edin. |
+| `fault_title_503` | Çöp kutusunun ve filtrenin doğru takılıp takılmadığını kontrol edin. |
+| `fault_title_509` | Yükseklik sensörlerinde hata. Sensörleri temizleyin, robotu düşebileceği noktalardan uzaklaştırın ve yeniden başlatın. |
+| `fault_title_510` | Tampon sıkışmış. Temizleyin ve serbest bırakmak için hafifçe vurun. |
+| `fault_title_511_512` | Bağlantı istasyonu hatası. Robotu bağlantı istasyonuna yerleştirin. |
+| `fault_title_513_514` | Robot çıkamadığı bir alanda kalmış. Robotu uzaklaştırın ve yeniden başlatın. |
+| `fault_title_522` | Paspasın düzgün takılıp takılmadığını kontrol edin. |
+| `fault_title_533` | Cihaz uzun süredir uyku modunda ve kapanmak üzere |
+| `fault_title_534` | Pil seviyesi düşük. Kapatılıyor. |
+| `fault_title_560` | Yan fırça sıkışmış. Çıkarın ve temizleyin. |
+| `fault_title_568_569` | Ana tekerlekleri temizleyin, robotu uzaklaştırın ve yeniden başlatın. |
+| `fault_title_570` | Ana fırça sıkışmış. Sökün ve rulmanını temizleyin. |
+| `fault_title_572` | Ana fırça sıkışmış. Sökün ve rulmanını temizleyin. |
+| `fault_title_594` | Toz torbasının düzgün takıldığından emin olun. |
+| `fault_title_611` | Konumlandırılamadı. Robotu bağlantı istasyonuna geri döndürün ve yeniden harita çıkartın. |
+| `fault_title_612` | Harita değişti. Konumlandırılamadı. Tekrar deneyin. |
+| `fault_title_629` | Paspas bezi yuvası yerinden çıkmıştır. |
+| `fault_title_668` | Robot hatası. Sistemi sıfırlayın. |
 | `firmware_upgrade_downloading` | Güncelleniyor... %d% |
 | `firmware_upgrade_installing` | Kuruluyor… |
 | `floor_title` | Ev Düzeni |
@@ -252,7 +307,7 @@ This document contains the complete translation mapping and internal constants f
 | `guide_map_save_open` | Etkin kalsın |
 | `guide_map_save_tip1` | Robotunuzun evinizi ezberlemesine izin verin |
 | `guide_map_save_tip2` | Harita kaydedildikten sonra robot, temizlik rotasını akıllı bir şekilde odaya uyarlar ve Seçmeli Oda Temizliği ve Girilmeyecek Bölge gibi kişiselleştirilmiş temizlik özelliklerinin kilidini açabilirsiniz. |
-| `guide_map_save_tip3` | Harita Kaydetme devre dışı bırakıldığında, harita düzenleme ve Seçmeli Oda Temizleme ve Girilmeyecek Bölge gibi kişiselleştirilmiş temizlik özellikleri kullanılamayacaktır.\n |
+| `guide_map_save_tip3` | Harita Kaydetme devre dışı bırakıldığında, harita düzenleme ve Seçmeli Oda Temizleme ve Girilmeyecek Bölge gibi kişiselleştirilmiş temizlik özellikleri kullanılamayacaktır.<br> |
 | `guide_map_save_tip4` | Harita kaydedildikten sonra robot, temizlik rotasını akıllı bir şekilde odaya uyarlar ve Seçmeli Oda Temizliği ve Girilmeyecek Bölge gibi kişiselleştirilmiş temizlik özelliklerinin kilidini açabilirsiniz. |
 | `guide_map_save_tip5` | Yansıtıcı nesneler ve kaygan yüzeyler Harita Kaydetme işlemini olumsuz etkileyebilir ve rotada anormalliklerine neden olabilir. |
 | `guide_mopnow` | Paspaslamadan önce zemini süpürün. |
@@ -451,7 +506,7 @@ This document contains the complete translation mapping and internal constants f
 | `mapEdit_recommend_add_cill` | Bir eşiği onaylamak için dokunun |
 | `mapEdit_recommend_add_zone` | Girilmeyecek Bölge Ekle |
 | `mapEdit_recommend_carpet_subtitle` | Halı olabilecek bir nesne tespit edildi. Ekledikten sonra Halı Desteği veya Kaçınılacak Alan olarak ayarlayın. |
-| `mapEdit_recommend_cill_subtitle` | \nBurada bir eşik tespit edildi. Bir eşik bölgesi ayarlayın. |
+| `mapEdit_recommend_cill_subtitle` | <br>Burada bir eşik tespit edildi. Bir eşik bölgesi ayarlayın. |
 | `mapEdit_recommend_cill_title` | Eşik |
 | `mapEdit_recommend_cliff_subtitle` | Merdiven, basamak veya yüksek bir kenar tespit edildi. Girilmeyecek Bölge ekleyin. |
 | `mapEdit_recommend_ignore` | Tanımada hata mı oluştu? Yok say. |
@@ -572,18 +627,18 @@ This document contains the complete translation mapping and internal constants f
 | `set_voice_package_waiting` | Bekleniyor… |
 | `setting_adjust_time` | Başlangıç saati bitiş saatiyle aynı. Lütfen değiştirin. |
 | `setting_carpet_avoid` | Halıdan Kaçınma ve Geçiş |
-| `setting_carpet_avoid_tip` | Paspas bezi yuvası yerine takıldıktan sonra robot halılardan kaçınır ve herhangi bir noktayı kaçırmamak için yalnızca gerektiğinde halıların üzerinden geçer.\n* Bunu lütfen harita düzenlemede bir halı ekledikten sonra kullanın |
+| `setting_carpet_avoid_tip` | Paspas bezi yuvası yerine takıldıktan sonra robot halılardan kaçınır ve herhangi bir noktayı kaçırmamak için yalnızca gerektiğinde halıların üzerinden geçer.<br>* Bunu lütfen harita düzenlemede bir halı ekledikten sonra kullanın |
 | `setting_cartoon_voice` | Çizgi film çocuk sesi |
 | `setting_charging` | Yoğun Olmayan Zamanlarda Şarj |
 | `setting_charging_desc` | Yoğun olmayan saatlerde aküyü tamamen şarj eder ve diğer saatlerde yalnızca minimum gücü korur. |
 | `setting_charging_disable_tip` | * Şarj süresi ayarlanmamış. Yoğun olmayan saatlerde şarj aktif değil. |
 | `setting_charging_empty` | Ayarlanmamış |
-| `setting_charging_note` | *Aşağıdaki koşullarda yoğun saatlerde akü şarjı gerçekleşebilir:\n1. Bitmemiş görevler varsa.\n2. Herhangi bir görev yoksa da robot minimum gücü korumak için şarj olacaktır. |
+| `setting_charging_note` | *Aşağıdaki koşullarda yoğun saatlerde akü şarjı gerçekleşebilir:<br>1. Bitmemiş görevler varsa.<br>2. Herhangi bir görev yoksa da robot minimum gücü korumak için şarj olacaktır. |
 | `setting_check_text` | Göster |
-| `setting_consumable_change_tips1` | \nAna fırçanın hizmet ömrü doldu. Lütfen hemen değiştirin |
-| `setting_consumable_change_tips2` | \nYan fırçanın kullanım ömrü doldu. Lütfen hemen değiştirin |
-| `setting_consumable_change_tips3` | \nFiltrenin kullanım ömrü doldu. Lütfen hemen değiştirin |
-| `setting_consumable_change_tips4` | \nPaspas bezinin kullanım ömrü doldu. Lütfen hemen değiştirin |
+| `setting_consumable_change_tips1` | <br>Ana fırçanın hizmet ömrü doldu. Lütfen hemen değiştirin |
+| `setting_consumable_change_tips2` | <br>Yan fırçanın kullanım ömrü doldu. Lütfen hemen değiştirin |
+| `setting_consumable_change_tips3` | <br>Filtrenin kullanım ömrü doldu. Lütfen hemen değiştirin |
+| `setting_consumable_change_tips4` | <br>Paspas bezinin kullanım ömrü doldu. Lütfen hemen değiştirin |
 | `setting_consumable_change_tips5` | Çöp kutusu dolu olabilir. Lütfen boşaltın |
 | `setting_consumable_change_tips6` | Sensörler uzun süredir temizlenmemiş. Lütfen temizleyin. |
 | `setting_consumable_change_tips7` | Paspas bezi yuvası takılı değil |

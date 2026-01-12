@@ -88,9 +88,31 @@ export declare class Roborock extends utils.Adapter {
      */
     ensureState(path: string, commonOptions: Partial<ioBroker.StateCommon>, native?: Record<string, any>): Promise<void>;
     /**
+     * Helper to check if common properties of an object have meaningfully changed.
+     *
+     * PERFORMANCE CRITICAL:
+     * This method prevents "Write Storms" to the ioBroker database (objects.json/redis).
+     * Writing objects is expensive (disk I/O) and triggers system-wide events.
+     * We only write if the definition (name, role, unit, etc.) has actually changed.
+     * This significantly reduces CPU usage and disk wear on startup.
+     */
+    private hasCommonChanged;
+    /**
+     * JSON.stringify with sorted keys for consistent object comparison.
+     */
+    private stringifySorted;
+    /**
+     * Helper to safely parse JSON strings that look like objects/arrays.
+     */
+    formatRoborockDate(timestamp: number): string;
+    /**
+     * Helper to safely parse JSON strings that look like objects/arrays.
+     */
+    private tryParseJson;
+    /**
      * Creates a folder if it doesn't exist, applying translations.
      */
-    ensureFolder(path: string): Promise<void>;
+    ensureFolder(path: string, customName?: string | ioBroker.StringOrTranslated): Promise<void>;
     /**
      * Gets the protocol version for a device.
      */

@@ -35,6 +35,7 @@ This document contains the complete translation mapping and internal constants f
 ### 🕹️ Robot Modes (`ROBOT_TYPE`)
 | Mode Name | Internal Value |
 | :--- | :--- |
+| `SLEEP` | `4294967295` |
 | `STANDBY` | `0` |
 | `WORKING` | `1` |
 | `CHARGING` | `2` |
@@ -42,7 +43,6 @@ This document contains the complete translation mapping and internal constants f
 | `ALERT` | `4` |
 | `MOP_CLEANING` | `5` |
 | `MOP_AIRDRYING` | `6` |
-| `SLEEP` | `4294967295` |
 
 ---
 
@@ -58,7 +58,7 @@ This document contains the complete translation mapping and internal constants f
 | **500** | `F_500` | Wieżyczka lub laser LiDAR są zablokowane. Sprawdź, czy nie ma przeszkód, i spróbuj ponownie. | Czujnik LiDAR jest zasłonięty lub zablokowany. Usuń wszystkie ciała obce. Jeśli wciąż występuje problem, przenieś robota i uruchom ponownie. |
 | **501** | `F_501` | Robot zawieszony. Przenieś robota i uruchom ponownie. | Robot zawieszony. Przenieś robota i uruchom ponownie. Zanieczyszczone czujniki krawędzi. Należy je wyczyścić. |
 | **502** | `F_502` | Niski poziom naładowania akumulatora. Naładuj teraz. | Niski poziom naładowania akumulatora. Umieść robota w stacji dokującej, aby naładować go do 20% przed uruchomieniem. |
-| **503** | `F_503` | Sprawdź, czy pojemnik na kurz i filtr są poprawnie zamontowane. | Ponownie zamocuj pojemnik na kurz i filtr.\nJeśli problem się utrzymuje, wymień filtr. |
+| **503** | `F_503` | Sprawdź, czy pojemnik na kurz i filtr są poprawnie zamontowane. | Ponownie zamocuj pojemnik na kurz i filtr.<br>Jeśli problem się utrzymuje, wymień filtr. |
 | **504** | `F_504` | Niski poziom naładowania akumulatora. Naładuj teraz. | Niski poziom naładowania akumulatora. Umieść robota w stacji dokującej, aby naładować go do 20% przed uruchomieniem. |
 | **505** | `F_505` | Niski poziom naładowania akumulatora. Naładuj teraz. | Niski poziom naładowania akumulatora. Umieść robota w stacji dokującej, aby naładować go do 20% przed uruchomieniem. |
 | **506** | `F_506` | Niski poziom naładowania akumulatora. Naładuj teraz. | Niski poziom naładowania akumulatora. Umieść robota w stacji dokującej, aby naładować go do 20% przed uruchomieniem. |
@@ -163,6 +163,7 @@ This document contains the complete translation mapping and internal constants f
 
 | Key | Localized Value |
 | :--- | :--- |
+| `battery` | Procent baterii |
 | `clean_record_abort_abnormally` | Zakończone w nietypowy sposób |
 | `clean_record_abort_manually` | Sprzątanie przerwane przez użytkownika |
 | `clean_record_area` | Całkowita powierzchnia |
@@ -189,8 +190,10 @@ This document contains the complete translation mapping and internal constants f
 | `clean_record_work_record` | Historia |
 | `common_abnormal` | Błąd |
 | `common_alert` | Uwaga |
+| `common_battery_percentage` | Procent baterii |
 | `common_cancel` | Anuluj |
 | `common_close_time` | Zakończ |
+| `common_custom_type` | Typ niestandardowy |
 | `common_delete` | Usuń |
 | `common_determine` | OK |
 | `common_disconnect` | Robot jest offline |
@@ -198,6 +201,7 @@ This document contains the complete translation mapping and internal constants f
 | `common_holder_default_text` | Wpisz nazwę nie dłuższą niż 12 znaków |
 | `common_known` | Rozumiem |
 | `common_loading` | Ładowanie… |
+| `common_map_id` | ID mapy |
 | `common_more` | Więcej |
 | `common_more_setup` | Więcej ustawień |
 | `common_network_abnormal` | Błąd sieci |
@@ -234,6 +238,57 @@ This document contains the complete translation mapping and internal constants f
 | `device_sn` | Numer seryjny |
 | `device_timezone_to_robot` | Synchronizuj strefę czasową |
 | `failed_page_content` | Ładowanie nie powiodło się. |
+| `fault_summery_2003` | Poziom naładowania akumulatora poniżej 20%. Zaplanowane zadanie zostało anulowane. |
+| `fault_summery_2007` | Brak możliwości dotarcia do celu. Sprzątanie zakończone. Upewnij się, że drzwi do obszaru docelowego są otwarte i nie ma w nich żadnych przeszkód. |
+| `fault_summery_2012` | Brak możliwości dotarcia do celu. Sprzątanie zakończone. Upewnij się, że drzwi do obszaru docelowego są otwarte i nie ma w nich żadnych przeszkód. |
+| `fault_summery_2100` | Niski poziom naładowania akumulatora. Rozpoczynanie ładowania. Wznów sprzątanie po naładowaniu. |
+| `fault_summery_2102` | Sprzątanie zakończone. Powrót do stacji dokującej |
+| `fault_summery_500` | Czujnik LiDAR jest zasłonięty lub zablokowany. Usuń wszystkie ciała obce. Jeśli wciąż występuje problem, przenieś robota i uruchom ponownie. |
+| `fault_summery_501` | Robot zawieszony. Przenieś robota i uruchom ponownie. Zanieczyszczone czujniki krawędzi. Należy je wyczyścić. |
+| `fault_summery_502_518` | Niski poziom naładowania akumulatora. Umieść robota w stacji dokującej, aby naładować go do 20% przed uruchomieniem. |
+| `fault_summery_503` | Ponownie zamocuj pojemnik na kurz i filtr.<br>Jeśli problem się utrzymuje, wymień filtr. |
+| `fault_summery_509` | Błąd czujników krawędzi. Oczyść je, zabierz robota z miejsca upadku i uruchom ponownie. |
+| `fault_summery_510` | Zderzak zakleszczony. Stuknij w niego kilka razy, aby go uwolnić. Jeśli nie ma ciał obcych, przenieś robota i uruchom ponownie. |
+| `fault_summery_511_512` | Błąd dokowania. Usuń przeszkody w pobliżu stacji dokującej, wyczyść styki ładowania, a następnie podłącz robota do stacji dokującej. |
+| `fault_summery_513_514` | Robot uwięziony. Usuń przeszkody w pobliżu robota lub przenieś robota i uruchom ponownie. |
+| `fault_summery_522` | Nie zainstalowano mopa. Zainstaluj ponownie. |
+| `fault_summery_533` | Robot zaraz się wyłączy po długim uśpieniu. Naładuj robota. |
+| `fault_summery_534` | Urządzenie zostanie wyłączone z powodu niskiego poziomu naładowania akumulatora. Naładuj robota. |
+| `fault_summery_560` | Szczotka boczna jest zaplątana. Zdejmij i wyczyść. |
+| `fault_summery_568_569` | Wyczyść kółka główne, przenieś robota i uruchom ponownie. |
+| `fault_summery_570` | Szczotka główna jest zaplątana. Wyjmij i wyczyść ją oraz jej łożysko. |
+| `fault_summery_572` | Szczotka główna jest zaplątana. Wyjmij i wyczyść ją oraz jej łożysko. |
+| `fault_summery_594` | Worek na kurz nie został zamontowany. Sprawdź, czy został zainstalowany poprawnie. |
+| `fault_summery_611` | Pozycjonowanie nie powiodło się. Przenieś robota z powrotem do stacji dokującej i powtórz mapowanie. |
+| `fault_summery_612` | Wykryto nowe środowisko. Zmieniono mapę. Pozycjonowanie nie powiodło się. Spróbuj ponownie po ponownym mapowaniu. |
+| `fault_summery_629` | Mocowanie ściereczki mopa odpadło. Zamontuj je ponownie, aby wznowić pracę. |
+| `fault_summery_668` | Błąd wentylatora. Jeśli problem będzie się powtarzać, skontaktuj się z obsługą klienta. |
+| `fault_title_2003` | Poziom naładowania akumulatora poniżej 20%. Zaplanowane zadanie zostało anulowane. |
+| `fault_title_2007` | Brak możliwości dotarcia do celu. Sprzątanie zakończone. |
+| `fault_title_2012` | Brak możliwości dotarcia do celu. Sprzątanie zakończone. |
+| `fault_title_2100` | Niski poziom naładowania akumulatora. Wznów sprzątanie po naładowaniu. |
+| `fault_title_2102` | Sprzątanie zakończone. Powrót do stacji dokującej |
+| `fault_title_407` | Sprzątanie w toku. Zaplanowane sprzątanie zostało zignorowane. |
+| `fault_title_500` | Wieżyczka lub laser LiDAR są zablokowane. Sprawdź, czy nie ma przeszkód, i spróbuj ponownie. |
+| `fault_title_501` | Robot zawieszony. Przenieś robota i uruchom ponownie. |
+| `fault_title_502_518` | Niski poziom naładowania akumulatora. Naładuj teraz. |
+| `fault_title_503` | Sprawdź, czy pojemnik na kurz i filtr są poprawnie zamontowane. |
+| `fault_title_509` | Błąd czujników krawędzi. Oczyść je, zabierz robota z miejsca upadku i uruchom ponownie. |
+| `fault_title_510` | Zderzak zakleszczony. Wyczyść zderzak i lekko w niego postukaj, aby go uwolnić. |
+| `fault_title_511_512` | Błąd dokowania. Podłącz robota do stacji dokującej. |
+| `fault_title_513_514` | Robot uwięziony. Przenieś robota i uruchom ponownie. |
+| `fault_title_522` | Sprawdź, czy mop jest poprawnie zamontowany. |
+| `fault_title_533` | Robot zaraz się wyłączy po długim uśpieniu |
+| `fault_title_534` | Niski poziom naładowania akumulatora. Wyłączanie. |
+| `fault_title_560` | Szczotka boczna jest zaplątana. Zdejmij i wyczyść. |
+| `fault_title_568_569` | Wyczyść kółka główne, przenieś robota i uruchom ponownie. |
+| `fault_title_570` | Szczotka główna jest zaplątana. Wyjmij i wyczyść ją oraz jej łożysko. |
+| `fault_title_572` | Szczotka główna jest zaplątana. Wyjmij i wyczyść ją oraz jej łożysko. |
+| `fault_title_594` | Upewnij się, że worek na kurz jest poprawnie zamontowany. |
+| `fault_title_611` | Pozycjonowanie nie powiodło się. Przenieś robota z powrotem do stacji dokującej i powtórz mapowanie. |
+| `fault_title_612` | Zmieniono mapę. Pozycjonowanie nie powiodło się. Spróbuj ponownie. |
+| `fault_title_629` | Mocowanie ściereczki mopa odpadło. |
+| `fault_title_668` | Błąd robota. Zresetuj system. |
 | `firmware_upgrade_downloading` | Aktualizowanie… %d% |
 | `firmware_upgrade_installing` | Instalowanie… |
 | `floor_title` | Układ domu |
@@ -451,7 +506,7 @@ This document contains the complete translation mapping and internal constants f
 | `mapEdit_recommend_add_cill` | Naciśnij, aby potwierdzić próg |
 | `mapEdit_recommend_add_zone` | Dodaj strefę zakazaną |
 | `mapEdit_recommend_carpet_subtitle` | Wykryto potencjalny dywan. Po dodaniu go ustaw opcję Większa siła ssania na dywanie lub Unikaj. |
-| `mapEdit_recommend_cill_subtitle` | \nWykryto próg w tym miejscu. Ustaw strefę progu. |
+| `mapEdit_recommend_cill_subtitle` | <br>Wykryto próg w tym miejscu. Ustaw strefę progu. |
 | `mapEdit_recommend_cill_title` | Próg |
 | `mapEdit_recommend_cliff_subtitle` | Wykryto potencjalne stopnie, schody lub uskoki. Dodaj strefę zakazaną. |
 | `mapEdit_recommend_ignore` | Błędne rozpoznanie? Zignoruj. |
@@ -572,18 +627,18 @@ This document contains the complete translation mapping and internal constants f
 | `set_voice_package_waiting` | Czekanie… |
 | `setting_adjust_time` | Czas rozpoczęcia jest taki sam jak czas zakończenia. Zmień to. |
 | `setting_carpet_avoid` | Unikanie dywanów i przechodzenie przez nie |
-| `setting_carpet_avoid_tip` | Po zamontowaniu mocowania ściereczki mopa robot unika dywanów i przejeżdża przez nie tylko w razie potrzeby, aby nie pominąć plam. \n* Użyj po dodaniu dywanu w trybie edycji mapy |
+| `setting_carpet_avoid_tip` | Po zamontowaniu mocowania ściereczki mopa robot unika dywanów i przejeżdża przez nie tylko w razie potrzeby, aby nie pominąć plam. <br>* Użyj po dodaniu dywanu w trybie edycji mapy |
 | `setting_cartoon_voice` | Kreskówkowy głos dziecięcy |
 | `setting_charging` | Ładowanie poza godzinami szczytu |
 | `setting_charging_desc` | Ładuje akumulator do pełna w godzinach poza szczytem, a w pozostałych godzinach utrzymuje jedynie minimalny poziom mocy. |
 | `setting_charging_disable_tip` | * Nie ustawiono czasu ładowania. Ładowanie poza godzinami szczytu nieaktywne. |
 | `setting_charging_empty` | Nie ustawiono |
-| `setting_charging_note` | * Ładowanie akumulatora może odbywać się w godzinach szczytu w następujących sytuacjach:\n1. Występują niedokończone zadania.\n2. Jeśli nie ma żadnych zadań, robot będzie się także ładował, aby utrzymać minimalny poziom mocy. |
+| `setting_charging_note` | * Ładowanie akumulatora może odbywać się w godzinach szczytu w następujących sytuacjach:<br>1. Występują niedokończone zadania.<br>2. Jeśli nie ma żadnych zadań, robot będzie się także ładował, aby utrzymać minimalny poziom mocy. |
 | `setting_check_text` | Wyświetl |
-| `setting_consumable_change_tips1` | \nSzczotka główna jest zużyta. Wymień natychmiast |
-| `setting_consumable_change_tips2` | \nSzczotka boczna jest zużyta. Wymień natychmiast |
-| `setting_consumable_change_tips3` | \nFiltr jest zużyty. Wymień natychmiast |
-| `setting_consumable_change_tips4` | \nŚciereczka mopa jest zużyta. Wymień natychmiast |
+| `setting_consumable_change_tips1` | <br>Szczotka główna jest zużyta. Wymień natychmiast |
+| `setting_consumable_change_tips2` | <br>Szczotka boczna jest zużyta. Wymień natychmiast |
+| `setting_consumable_change_tips3` | <br>Filtr jest zużyty. Wymień natychmiast |
+| `setting_consumable_change_tips4` | <br>Ściereczka mopa jest zużyta. Wymień natychmiast |
 | `setting_consumable_change_tips5` | Pojemnik na kurz może być pełny. Opróżnij go |
 | `setting_consumable_change_tips6` | Czujniki nie były czyszczone od dłuższego czasu. Należy je wyczyścić. |
 | `setting_consumable_change_tips7` | Nie zamontowano mocowania ściereczki mopa |

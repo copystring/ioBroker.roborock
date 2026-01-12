@@ -35,6 +35,7 @@ This document contains the complete translation mapping and internal constants f
 ### 🕹️ Robot Modes (`ROBOT_TYPE`)
 | Mode Name | Internal Value |
 | :--- | :--- |
+| `SLEEP` | `4294967295` |
 | `STANDBY` | `0` |
 | `WORKING` | `1` |
 | `CHARGING` | `2` |
@@ -42,7 +43,6 @@ This document contains the complete translation mapping and internal constants f
 | `ALERT` | `4` |
 | `MOP_CLEANING` | `5` |
 | `MOP_AIRDRYING` | `6` |
-| `SLEEP` | `4294967295` |
 
 ---
 
@@ -163,6 +163,7 @@ This document contains the complete translation mapping and internal constants f
 
 | Key | Localized Value |
 | :--- | :--- |
+| `battery` | Battery Percentage |
 | `clean_record_abort_abnormally` | 비정상적인 종료 |
 | `clean_record_abort_manually` | 수동 종료 |
 | `clean_record_area` | 누적 청소 면적 |
@@ -189,6 +190,7 @@ This document contains the complete translation mapping and internal constants f
 | `clean_record_work_record` | 작업 내역 |
 | `common_abnormal` | 오류 |
 | `common_alert` | 안내 |
+| `common_battery_percentage` | Battery Percentage |
 | `common_cancel` | 취소 |
 | `common_close_time` | 종료 시간 |
 | `common_delete` | 삭제 |
@@ -234,6 +236,57 @@ This document contains the complete translation mapping and internal constants f
 | `device_sn` | 일련번호 |
 | `device_timezone_to_robot` | 시간대 동기화 |
 | `failed_page_content` | 데이터 로딩 실패 |
+| `fault_summery_2003` | 배터리 잔량이 20% 미만이므로 이번 예약 작업을 취소합니다. |
+| `fault_summery_2007` | 대상 영역에 진입할 수 없어 청소를 종료합니다. 해당 영역의 방 문이 열려 있거나 가려지지 않았는지 확인하세요. |
+| `fault_summery_2012` | 일부 영역에 진입할 수 없어 청소를 종료합니다. 해당 영역의 방 문이 열려 있거나 가려지지 않았는지 확인하세요 |
+| `fault_summery_2100` | 배터리 잔량이 부족하여 도크로 복귀합니다. 청소는 충전 후 이어집니다. |
+| `fault_summery_2102` | 청소가 완료되었습니다. 도크로 복귀하기 시작합니다. |
+| `fault_summery_500` | 레이저 거리측정 센서가 가려지거나 걸렸다면 레이저 헤드를 돌려 가리는 장애물 또는 이물질을 제거하세요. 그렇지 않으면 기기를 새로운 위치로 옮겨 다시 시작하세요. |
+| `fault_summery_501` | 본체가 지면과 닿지 않으면 새로운 위치로 옮겨 다시 시작하세요. 낙하 방지 센서가 오염된 경우에도 해당 오류를 유발할 수 있습니다. 낙하 방지 센서를 닦아내세요. |
+| `fault_summery_502_518` | 배터리 잔량이 부족하면 본체를 도크에 놓고 20%까지 충전한 후 다시 시작하세요. |
+| `fault_summery_503` | 먼지통과 필터를 제자리에 정확하게 장착하세요. 정확하게 장착해도 오류가 지속되면 필터를 교체해 보세요 |
+| `fault_summery_509` | 낙하 방지 센서의 오류이면 센서를 닦고 기기를 새로운 위치로 옮겨 다시 시작하세요. |
+| `fault_summery_510` | 범퍼가 걸린 경우 여러 번 가볍게 두드려 이물질을 제거하세요. 이물질이 없으면 기기를 새로운 위치로 옮겨 다시 시작하세요. |
+| `fault_summery_511_512` | 충전을 위한 복귀가 실패하면 도크 근처의 장애물 및 충전 접점을 청소하고 본체를 도크에 올려놓으세요. |
+| `fault_summery_513_514` | 기기가 걸렸거나 막혔다면 본체 근처의 장애물을 정리하세요. 정리할 수 없으면 기기를 새로운 위치로 옮겨 다시 시작하세요. |
+| `fault_summery_522` | 물걸레가 장착되지 않았다면 제대로 장착하세요. |
+| `fault_summery_533` | 절전 상태가 오래 지속되어 전원을 곧 차단합니다. 본체의 충전 상태를 유지하세요. |
+| `fault_summery_534` | 배터리 잔량이 낮아 전원을 곧 차단합니다. 본체의 충전 상태를 유지하세요. |
+| `fault_summery_560` | 사이드 브러시에 이물질이 감겼을 수 있습니다. 해당 브러시를 분리하여 이물질을 제거하세요. |
+| `fault_summery_568_569` | 구동 바퀴를 점검 및 청소하고 새로운 위치로 옮겨 다시 시작하세요. |
+| `fault_summery_570` | 메인 브러시에 이물질이 감겼을 수 있습니다. 분리하여 브러시 및 베어링을 청소하세요. |
+| `fault_summery_572` | 진입 금지 영역 또는 가상 벽이 감지되었습니다. 본체를 현재 위치에서 옮기세요. |
+| `fault_summery_594` | 더스트백이 장착되지 않았습니다. 제대로 장착하세요. |
+| `fault_summery_611` | 위치 추적에 실패하였습니다. 본체를 도크로 옮긴 후 지도를 다시 생성하세요. |
+| `fault_summery_612` | 새로운 환경으로 인해 지도가 변경되어 위치 추적에 실패하였습니다. 지도를 다시 생성하세요. |
+| `fault_summery_629` | 물걸레 받침대가 탈락되었다면 다시 장착하여 작업을 계속하세요. |
+| `fault_summery_668` | 팬 오류입니다. 시스템을 초기화하세요. 문제가 지속되면 고객센터로 문의해 주세요. |
+| `fault_title_2003` | 배터리 잔량이 20% 미만이므로 이번 예약 작업을 취소합니다. |
+| `fault_title_2007` | 대상 영역에 진입할 수 없어 청소를 종료합니다. |
+| `fault_title_2012` | 일부 영역에 진입할 수 없어 청소를 종료합니다. |
+| `fault_title_2100` | 배터리 잔량이 부족합니다. 청소는 충전 후 이어집니다. |
+| `fault_title_2102` | 청소가 완료되었습니다. 도크로 복귀하기 시작합니다. |
+| `fault_title_407` | 현재 기기가 청소 중이므로 예약 청소를 수행할 수 없습니다. |
+| `fault_title_500` | 레이저 거리측정 센서의 헤드를 돌려 가려짐 또는 걸림 현상이 있는지 확인하세요. |
+| `fault_title_501` | 본체가 지면과 닿지 않았습니다. 새로운 위치로 옮겨 다시 시작하세요. |
+| `fault_title_502_518` | 배터리 잔량이 부족합니다. 충전하세요. |
+| `fault_title_503` | 먼지통 및 필터가 제대로 장착되었는지 확인하세요. |
+| `fault_title_509` | 낙하 방지 센서를 닦고 기기를 새로운 위치로 옮겨 다시 시작하세요. |
+| `fault_title_510` | 범퍼를 검사하고 가볍게 두드려 걸림 현상이 있는지 확인하세요. |
+| `fault_title_511_512` | 충전을 위한 복귀가 실패하였습니다. 본체를 도크에 올려놓으세요. |
+| `fault_title_513_514` | 기기가 걸렸거나 막혔을 수 있습니다. 새로운 위치로 옮겨 다시 시작하세요. |
+| `fault_title_522` | 물걸레가 제대로 장착되었는지 확인하세요. |
+| `fault_title_533` | 절전 상태가 오래 지속되어 전원을 곧 차단합니다. |
+| `fault_title_534` | 배터리 잔량이 낮아 전원을 곧 차단합니다. |
+| `fault_title_560` | 사이드 브러시에 이물질이 감겼을 수 있습니다. 분리하여 이물질을 제거하세요. |
+| `fault_title_568_569` | 구동 바퀴를 점검 및 청소하고 새로운 위치로 옮겨 다시 시작하세요. |
+| `fault_title_570` | 메인 브러시에 이물질이 감겼을 수 있습니다. 분리하여 브러시 및 베어링을 청소하세요. |
+| `fault_title_572` | 진입 금지 영역 또는 가상 벽이 감지되었습니다. 본체를 현재 위치에서 옮기세요. |
+| `fault_title_594` | 더스트백이 제대로 장착되었는지 확인하세요. |
+| `fault_title_611` | 위치 추적에 실패하였습니다. 본체를 도크로 옮긴 후 지도를 다시 생성하세요. |
+| `fault_title_612` | 지도가 변경되어 위치 추적에 실패하였습니다. 지도를 다시 생성하세요. |
+| `fault_title_629` | 물걸레 받침대가 탈락되었습니다. |
+| `fault_title_668` | 본체 오류입니다. 시스템을 초기화하세요 |
 | `firmware_upgrade_downloading` | 업그레이드 중 %d% |
 | `firmware_upgrade_installing` | 장착 중 |
 | `floor_title` | 주택 유형 |
@@ -289,7 +342,7 @@ This document contains the complete translation mapping and internal constants f
 | `home_charge_back_charge` | 복귀 및 충전 |
 | `home_charge_charging` | 충전 중 |
 | `home_charge_start_back_charge` | 복귀 및 충전 시작 |
-| `home_charge_stop_back_charge` | 충전을 위한\n복귀 중단 |
+| `home_charge_stop_back_charge` | 충전을 위한<br>복귀 중단 |
 | `home_clean_custom` | 사용자 지정 모드 |
 | `home_clean_mode_clean_continue` | 계속하기 |
 | `home_clean_mode_clean_pause` | 일시 정지 |
@@ -572,13 +625,13 @@ This document contains the complete translation mapping and internal constants f
 | `set_voice_package_waiting` | 대기 중 |
 | `setting_adjust_time` | 시작 시간과 종료 시간이 동일합니다. 변경해 주세요. |
 | `setting_carpet_avoid` | 카펫 회피/통과 |
-| `setting_carpet_avoid_tip` | 물걸레 받침대를 장착하면 카펫을 회피하고 필요 시에만 통과하여 청소 누락을 방지할 수 있습니다.\n* 지도 편집 페이지에서 카펫을 추가한 후 사용하세요. |
+| `setting_carpet_avoid_tip` | 물걸레 받침대를 장착하면 카펫을 회피하고 필요 시에만 통과하여 청소 누락을 방지할 수 있습니다.<br>* 지도 편집 페이지에서 카펫을 추가한 후 사용하세요. |
 | `setting_cartoon_voice` | 어린이 음성 |
 | `setting_charging` | 오프 피크 충전 |
 | `setting_charging_desc` | 오프 피크 시간대에 배터리를 완전 충전하고 나머지 시간에는 배터리 안전을 위한 기본 충전 수준만 유지합니다. |
 | `setting_charging_disable_tip` | * 충전 시간을 설정하지 않아 오프 피크 충전 기능이 활성화되지 않았습니다 |
 | `setting_charging_empty` | 미설정 |
-| `setting_charging_note` | * 오프 피크 외 시간대에도 충전을 진행할 수 있습니다.\n1. 미완성 작업이 있으면 오프 피크 외 시간대에 필요한 양만큼 충전을 진행합니다.\n2. 작업이 없으면 오프 피크 외 시간대에도 필요한 안전 수준까지 충전을 진행합니다. |
+| `setting_charging_note` | * 오프 피크 외 시간대에도 충전을 진행할 수 있습니다.<br>1. 미완성 작업이 있으면 오프 피크 외 시간대에 필요한 양만큼 충전을 진행합니다.<br>2. 작업이 없으면 오프 피크 외 시간대에도 필요한 안전 수준까지 충전을 진행합니다. |
 | `setting_check_text` | 확인 |
 | `setting_consumable_change_tips1` | 메인 브러시의 유효기간이 만료되어 가능한 한 빨리 교체하세요. |
 | `setting_consumable_change_tips2` | 사이드 브러시의 유효기간이 만료되어 가능한 한 빨리 교체하세요. |

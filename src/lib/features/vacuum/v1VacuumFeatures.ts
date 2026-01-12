@@ -356,24 +356,27 @@ export abstract class V1VacuumFeatures extends BaseDeviceFeatures {
 		// Apply features/commands only if they haven't been applied yet
 
 		let changedByStatus = false;
-		const version = await this.deps.adapter.getDeviceProtocolVersion(this.duid);
+
 
 		// WaterBox
-		if (version !== "B01" && (validStatus.water_box_mode !== undefined || validStatus.mop_mode !== undefined) && !this.appliedFeatures.has(Feature.WaterBox) && await this.applyFeature(Feature.WaterBox)) {
+
+		// WaterBox
+		const detectedWaterBox = (validStatus.water_box_mode !== undefined || validStatus.mop_mode !== undefined);
+		if (detectedWaterBox && !this.appliedFeatures.has(Feature.WaterBox) && await this.applyFeature(Feature.WaterBox)) {
 			// this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected WaterBox feature via status.`);
 			changedByStatus = true;
 			appliedFeaturesList.push("WaterBox");
 		}
 
 		// Carpet Mode Commands
-		if (version !== "B01" && validStatus.carpet_mode !== undefined && !this.commands["set_carpet_mode"]) {
+		if (validStatus.carpet_mode !== undefined && !this.commands["set_carpet_mode"]) {
 			// this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected carpet_mode command via status.`);
 			const spec: CommandSpec = { type: "json", states: V1VacuumFeatures.CONSTANTS.deviceStates.carpet_mode.states };
 			this.addCommand("set_carpet_mode", spec);
 			changedByStatus = true;
 			appliedFeaturesList.push("set_carpet_mode (Command)");
 		}
-		if (version !== "B01" && validStatus.carpet_clean_mode !== undefined && !this.commands["set_carpet_clean_mode"]) {
+		if (validStatus.carpet_clean_mode !== undefined && !this.commands["set_carpet_clean_mode"]) {
 			// this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected carpet_clean_mode command via status.`);
 			const spec: CommandSpec = { type: "json", states: V1VacuumFeatures.CONSTANTS.deviceStates.carpet_clean_mode.states };
 			this.addCommand("set_carpet_clean_mode", spec);
@@ -389,21 +392,21 @@ export abstract class V1VacuumFeatures extends BaseDeviceFeatures {
 		}
 
 		// MopDry
-		if (version !== "B01" && validStatus.dry_status !== undefined && !this.appliedFeatures.has(Feature.MopDry) && await this.applyFeature(Feature.MopDry)) {
+		if (validStatus.dry_status !== undefined && !this.appliedFeatures.has(Feature.MopDry) && await this.applyFeature(Feature.MopDry)) {
 			// this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected MopDry feature via 'dry_status' key.`);
 			changedByStatus = true;
 			appliedFeaturesList.push("MopDry");
 		}
 
 		// AutoEmptyDock
-		if (version !== "B01" && validStatus.dust_collection_status !== undefined && !this.appliedFeatures.has(Feature.AutoEmptyDock) && await this.applyFeature(Feature.AutoEmptyDock)) {
+		if (validStatus.dust_collection_status !== undefined && !this.appliedFeatures.has(Feature.AutoEmptyDock) && await this.applyFeature(Feature.AutoEmptyDock)) {
 			// this.deps.log.silly(`[RuntimeDetect|${this.robotModel}|${this.duid}] Detected AutoEmptyDock feature via 'dust_collection_status' key.`);
 			changedByStatus = true;
 			appliedFeaturesList.push("AutoEmptyDock");
 		}
 
 		// MopWash
-		if (version !== "B01" && validStatus.wash_status !== undefined && !this.appliedFeatures.has(Feature.MopWash) && await this.applyFeature(Feature.MopWash)) {
+		if (validStatus.wash_status !== undefined && !this.appliedFeatures.has(Feature.MopWash) && await this.applyFeature(Feature.MopWash)) {
 			changedByStatus = true;
 			appliedFeaturesList.push("MopWash");
 		}
@@ -412,8 +415,9 @@ export abstract class V1VacuumFeatures extends BaseDeviceFeatures {
 		const dssSupportedDockTypes = [1, 2, 3, 6, 7, 8, 9, 10, 14, 15, 16, 17, 18];
 		const hasDssInStatus = validStatus.dss !== undefined;
 		const hasSupportedDock = validStatus.dock_type !== undefined && dssSupportedDockTypes.includes(validStatus.dock_type);
+		const shouldApplyDss = (hasDssInStatus || hasSupportedDock);
 
-		if (version !== "B01" && (hasDssInStatus || hasSupportedDock) && !this.appliedFeatures.has(Feature.DockingStationStatus) && await this.applyFeature(Feature.DockingStationStatus)) {
+		if (shouldApplyDss && !this.appliedFeatures.has(Feature.DockingStationStatus) && await this.applyFeature(Feature.DockingStationStatus)) {
 			changedByStatus = true;
 			appliedFeaturesList.push("DockingStationStatus");
 		}
@@ -622,10 +626,10 @@ export abstract class V1VacuumFeatures extends BaseDeviceFeatures {
     		return;
     	}
     	const streamTypes = {
-    		stream_html: `http://${ip}:${1984 + this.deps.adapter.instance}/stream.html?src=${this.duid}`,
-    		webrtc_html: `http://${ip}:${1984 + this.deps.adapter.instance}/webrtc.html?src=${this.duid}&media=video`,
-    		stream_mp4: `http://${ip}:${1984 + this.deps.adapter.instance}/api/stream.mp4?src=${this.duid}`,
-    		rtsp: `rtsp://${ip}:${8554 + this.deps.adapter.instance}/${this.duid}?video`,
+    		stream_html: `http://${ip}:${8554 + this.deps.adapter.instance}/stream.html?src=${this.duid}`,
+    		webrtc_html: `http://${ip}:${8554 + this.deps.adapter.instance}/webrtc.html?src=${this.duid}&media=video`,
+    		stream_mp4: `http://${ip}:${8554 + this.deps.adapter.instance}/api/stream.mp4?src=${this.duid}`,
+    		rtsp: `rtsp://${ip}:${1984 + this.deps.adapter.instance}/${this.duid}?video`,
     	};
     	await this.deps.ensureFolder(`Devices.${this.duid}.camera`);
     	for (const [name, stream_uri] of Object.entries(streamTypes)) {
@@ -700,11 +704,14 @@ export abstract class V1VacuumFeatures extends BaseDeviceFeatures {
     			const deviceName = key.replace("_work_time", "").replace("_dirty_time", "");
     			await this.deps.ensureState(`Devices.${this.duid}.consumables.${deviceName}`, { ...common, unit: "%" });
 
-    			const totalTime =
-    				(deviceName === "main_brush" ? 300 :
-    				deviceName === "side_brush" ? 200 :
-    				deviceName === "filter" || deviceName === "filter_element" ? 150 :
-    				deviceName === "sensor" ? 30 : 0) * 3600;
+    			const fullLifeHours: Record<string, number> = {
+    				"main_brush": 300,
+    				"side_brush": 200,
+    				"filter": 150,
+    				"filter_element": 150,
+    				"sensor": 30
+    			};
+    			const totalTime = (fullLifeHours[deviceName] || 0) * 3600;
 
     			if (totalTime > 0) {
     				const percent = Math.round(100 - (val / totalTime) * 100);
@@ -977,6 +984,11 @@ export abstract class V1VacuumFeatures extends BaseDeviceFeatures {
     			val = Number(((val as number) / 1000000).toFixed(2));
     		}
 
+    		// Formatting for specific keys (e.g. timestamps)
+    		if ((key === "last_clean_t" || key === "clean_finish") && typeof val === "number") {
+    			val = new Date(val * 1000).toLocaleString();
+    		}
+
     		if (common.type === "string" && typeof val !== "string") {
     			val = String(val);
     		}
@@ -1227,19 +1239,22 @@ export abstract class V1VacuumFeatures extends BaseDeviceFeatures {
     			return params; // Fallback
     		}
     	}
-    	if (
-    		(method === "set_water_box_custom_mode" ||
-    		method === "set_custom_mode" ||
-    		method === "set_clean_motor_mode" ||
-    		method === "set_mop_mode" ||
-    		method === "set_smart_wash_params" ||
-    		method === "set_carpet_mode" ||
-    		method === "set_carpet_clean_mode" ||
-    		method === "set_dust_collection_mode" ||
-    		method === "set_water_box_distance_off" ||
-    		method === "app_set_dryer_setting" ||
-    		method === "set_wash_towel_mode" ||
-    		method === "set_dust_collection_switch_status") &&
+    	const commandsRequiringArray = [
+    		"set_water_box_custom_mode",
+    		"set_custom_mode",
+    		"set_clean_motor_mode",
+    		"set_mop_mode",
+    		"set_smart_wash_params",
+    		"set_carpet_mode",
+    		"set_carpet_clean_mode",
+    		"set_dust_collection_mode",
+    		"set_water_box_distance_off",
+    		"app_set_dryer_setting",
+    		"set_wash_towel_mode",
+    		"set_dust_collection_switch_status"
+    	];
+
+    	if (commandsRequiringArray.includes(method) &&
 			(params !== undefined && !Array.isArray(params))
     	) {
     		// These commands require parameters to be wrapped in an array [val]
@@ -1297,7 +1312,10 @@ export abstract class V1VacuumFeatures extends BaseDeviceFeatures {
     					val: val as ioBroker.StateValue,
     					ack: true,
     				});
-    			} else if (mappedAttribute == "records") {
+    				continue;
+    			}
+
+    			if (mappedAttribute == "records") {
     				await this.deps.ensureFolder(`Devices.${this.duid}.cleaningInfo.records`);
     				const recordsList = cleaningAttributes[cleaningAttribute] as Record<string, number>;
     				const cleaningRecordsJSON: unknown[] = [];

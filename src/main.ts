@@ -445,11 +445,11 @@ export class Roborock extends utils.Adapter {
 				let value = device[attr];
 
 				if (attr === "activeTime") {
-					value = new Date(value * 1000).toLocaleString();
+					value = this.formatRoborockDate(value);
 					common.unit = "";
 					common.type = "string";
 				} else if (attr === "createTime") {
-					value = new Date(value * 1000).toLocaleString();
+					value = this.formatRoborockDate(value);
 					common.type = "string";
 				} else {
 					common.type = typeof value as ioBroker.CommonType;
@@ -493,8 +493,6 @@ export class Roborock extends utils.Adapter {
 	 * Creates a state if it doesn't exist, applying translations.
 	 */
 	public async ensureState(path: string, commonOptions: Partial<ioBroker.StateCommon>, native: Record<string, any> = {}) {
-
-
 		const stateName = path.split(".").pop() || path;
 		const translatedName = commonOptions.name || this.translations[stateName] || stateName;
 
@@ -506,7 +504,7 @@ export class Roborock extends utils.Adapter {
 			write: false,
 		};
 
-		const finalCommon = { ...baseCommon, ...commonOptions };
+		const finalCommon = { ...baseCommon, ...commonOptions, name: translatedName };
 		if (finalCommon.def === undefined || finalCommon.def === null || finalCommon.def === "") {
 			delete finalCommon.def;
 		}
@@ -518,40 +516,142 @@ export class Roborock extends utils.Adapter {
 			oldObj = null; // Does not exist
 		}
 
-		// Check if object exists AND if its type is different from what we need
-		if (!oldObj || oldObj.common.type !== finalCommon.type) {
-			if (oldObj) {
-				// Object exists, but type is wrong - let's fix it
-				this.log.warn(`[ensureState] Correcting data type for "${path}". Old: "${oldObj.common.type}", New: "${finalCommon.type}".`);
+		// Check if object exists AND if its metadata is different from what we need
+		if (oldObj && !this.hasCommonChanged(oldObj.common as ioBroker.StateCommon, finalCommon)) {
+			return;
+		}
 
-				// Safely merge common properties, ensuring type is updated
+		try {
+			if (oldObj) {
+				// Object exists, but metadata changed
+				this.log.debug(`[ensureState] Updating metadata for "${path}".`);
+
+				// Safely merge common properties
 				const newCommon = { ...oldObj.common, ...finalCommon };
 
 				// Force extension to apply changes
 				await this.extendObject(path, { common: newCommon });
 			} else {
-				// Object does not exist, create it new
+				// Object does not exist, create it new.
+				// Provide mandatory defaults for a valid ioBroker state object.
+				const defaults: Partial<ioBroker.StateCommon> = {
+					role: "state",
+					read: true,
+					write: false,
+					type: "mixed"
+				};
+				const commonObj: ioBroker.StateCommon = { ...defaults, ...finalCommon } as ioBroker.StateCommon;
+
+				if (!commonObj.type) commonObj.type = "mixed";
+
 				await this.setObject(path, {
 					type: "state",
-					common: finalCommon,
+					common: commonObj,
 					native: native,
 				});
 			}
+		} catch (e: any) {
+			this.log.error(`[ensureState] Failed to update/create object for "${path}": ${e.message}`);
 		}
+	}
+
+	/**
+	 * Helper to check if common properties of an object have meaningfully changed.
+	 *
+	 * PERFORMANCE CRITICAL:
+	 * This method prevents "Write Storms" to the ioBroker database (objects.json/redis).
+	 * Writing objects is expensive (disk I/O) and triggers system-wide events.
+	 * We only write if the definition (name, role, unit, etc.) has actually changed.
+	 * This significantly reduces CPU usage and disk wear on startup.
+	 */
+	private hasCommonChanged(oldCommon: ioBroker.StateCommon, newCommon: Partial<ioBroker.StateCommon>): boolean {
+		if (newCommon.type !== undefined && oldCommon.type !== newCommon.type) return true;
+		if (newCommon.name !== undefined && this.stringifySorted(oldCommon.name) !== this.stringifySorted(newCommon.name)) return true;
+		if (newCommon.states !== undefined && this.stringifySorted(oldCommon.states) !== this.stringifySorted(newCommon.states)) return true;
+		if (newCommon.role !== undefined && oldCommon.role !== newCommon.role) return true;
+		if (newCommon.unit !== undefined && oldCommon.unit !== newCommon.unit) return true;
+		if (newCommon.min !== undefined && oldCommon.min !== newCommon.min) return true;
+		if (newCommon.max !== undefined && oldCommon.max !== newCommon.max) return true;
+		if (newCommon.icon !== undefined && oldCommon.icon !== newCommon.icon) return true;
+		if (newCommon.read !== undefined && oldCommon.read !== newCommon.read) return true;
+		if (newCommon.write !== undefined && oldCommon.write !== newCommon.write) return true;
+		if (newCommon.def !== undefined && oldCommon.def !== newCommon.def) return true;
+		return false;
+	}
+
+	/**
+	 * JSON.stringify with sorted keys for consistent object comparison.
+	 */
+	private stringifySorted(obj: any): string {
+		return JSON.stringify(obj, (_key, value) => {
+			if (value && typeof value === "object" && !Array.isArray(value)) {
+				return Object.keys(value)
+					.sort()
+					.reduce((sorted: any, key) => {
+						sorted[key] = value[key];
+						return sorted;
+					}, {});
+			}
+			return value;
+		});
+	}
+
+	/**
+	 * Helper to safely parse JSON strings that look like objects/arrays.
+	 */
+	public formatRoborockDate(timestamp: number): string {
+		return new Date(timestamp * 1000).toLocaleString();
+	}
+
+	/**
+	 * Helper to safely parse JSON strings that look like objects/arrays.
+	 */
+	private tryParseJson(value: string): any | undefined {
+		const trimmed = value.trim();
+		if ((trimmed.startsWith("{") || trimmed.startsWith("[")) && (trimmed.endsWith("}") || trimmed.endsWith("]"))) {
+			try {
+				return JSON.parse(trimmed);
+			} catch {
+				return undefined;
+			}
+		}
+		return undefined;
 	}
 
 	/**
 	 * Creates a folder if it doesn't exist, applying translations.
 	 */
-	async ensureFolder(path: string) {
-
-
+	async ensureFolder(path: string, customName?: string | ioBroker.StringOrTranslated) {
 		const attribute = path.split(".").pop() || path;
-		await this.setObjectNotExistsAsync(path, {
-			type: "folder",
-			common: { name: this.translations[attribute] || attribute },
-			native: {},
-		});
+		const name = customName || this.translations[attribute] || attribute;
+
+		let oldObj: ioBroker.Object | null | undefined;
+		try {
+			oldObj = await this.getObjectAsync(path);
+		} catch {
+			oldObj = null; // Does not exist
+		}
+
+		if (!oldObj || oldObj.type !== "folder") {
+			await this.setObject(path, {
+				type: "folder",
+				common: {
+					name: name
+				},
+				native: {}
+			});
+		} else {
+			const currentName = oldObj.common.name;
+			const isDifferent = JSON.stringify(currentName) !== JSON.stringify(name);
+
+			if (isDifferent) {
+				try {
+					await this.extendObject(path, { common: { name } });
+				} catch (e: any) {
+					this.log.error(`Failed to update folder name for ${path}: ${e.message}`);
+				}
+			}
+		}
 	}
 
 	/**
@@ -577,8 +677,8 @@ export class Roborock extends utils.Adapter {
 		const localKeys = this.http_api.getMatchedLocalKeys();
 		const { u, s, k } = this.http_api.get_rriot();
 
-		const port = 8554 + this.instance;
-		const rtspPort = 1984 + this.instance;
+		const port = 8554 + this.instance; // API/Web Port
+		const rtspPort = 1984 + this.instance; // RTSP Port
 		const go2rtcConfig = {
 			server: { listen: `:${port}` },
 			rtsp: { listen: `:${rtspPort}` },
@@ -639,6 +739,7 @@ export class Roborock extends utils.Adapter {
 			const t = typeof value;
 			if (t === "number") return "number";
 			if (t === "boolean") return "boolean";
+			if (t === "object" && value !== null) return "object";
 			return "string";
 		};
 
@@ -663,12 +764,14 @@ export class Roborock extends utils.Adapter {
 			let parsedValue = value;
 			let isJson = false;
 
-			if (typeof value === "string" && value.startsWith("{") && value.endsWith("}")) {
-				try {
-					parsedValue = JSON.parse(value);
+			if (typeof value === "object" && value !== null) {
+				parsedValue = value;
+				isJson = true;
+			} else if (typeof value === "string") {
+				const maybeJson = this.tryParseJson(value);
+				if (maybeJson !== undefined) {
+					parsedValue = maybeJson;
 					isJson = true;
-				} catch {
-					/* ignore */
 				}
 			}
 

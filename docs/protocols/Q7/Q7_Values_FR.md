@@ -35,6 +35,7 @@ This document contains the complete translation mapping and internal constants f
 ### 🕹️ Robot Modes (`ROBOT_TYPE`)
 | Mode Name | Internal Value |
 | :--- | :--- |
+| `SLEEP` | `4294967295` |
 | `STANDBY` | `0` |
 | `WORKING` | `1` |
 | `CHARGING` | `2` |
@@ -42,7 +43,6 @@ This document contains the complete translation mapping and internal constants f
 | `ALERT` | `4` |
 | `MOP_CLEANING` | `5` |
 | `MOP_AIRDRYING` | `6` |
-| `SLEEP` | `4294967295` |
 
 ---
 
@@ -58,7 +58,7 @@ This document contains the complete translation mapping and internal constants f
 | **500** | `F_500` | Tourelle LiDAR ou laser bloqué. Vérifiez qu'il n'y a pas d’obstruction et réessayez. | Capteur LiDAR obstrué ou coincé. Retirez tout corps étranger. Si le problème persiste, déplacez le robot et redémarrez le nettoyage. |
 | **501** | `F_501` | Robot suspendu. Déplacez le robot et redémarrez le nettoyage. | Robot suspendu. Déplacez le robot et redémarrez le nettoyage. Les capteurs de vide sont sales. Essuyez-les pour les nettoyer. |
 | **502** | `F_502` | Batterie faible. Rechargez-la maintenant. | Batterie faible. Placez le robot sur la station d’accueil et rechargez-le à 20 % avant de démarrer le nettoyage. |
-| **503** | `F_503` | Vérifiez que le bac à poussière et le filtre sont installés correctement. | Remettez en place le bac à poussière et le filtre.\nSi le problème persiste, remplacez le filtre. |
+| **503** | `F_503` | Vérifiez que le bac à poussière et le filtre sont installés correctement. | Remettez en place le bac à poussière et le filtre.<br>Si le problème persiste, remplacez le filtre. |
 | **504** | `F_504` | Batterie faible. Rechargez-la maintenant. | Batterie faible. Placez le robot sur la station d’accueil et rechargez-le à 20 % avant de démarrer le nettoyage. |
 | **505** | `F_505` | Batterie faible. Rechargez-la maintenant. | Batterie faible. Placez le robot sur la station d’accueil et rechargez-le à 20 % avant de démarrer le nettoyage. |
 | **506** | `F_506` | Batterie faible. Rechargez-la maintenant. | Batterie faible. Placez le robot sur la station d’accueil et rechargez-le à 20 % avant de démarrer le nettoyage. |
@@ -163,6 +163,7 @@ This document contains the complete translation mapping and internal constants f
 
 | Key | Localized Value |
 | :--- | :--- |
+| `battery` | Pourcentage de batterie |
 | `clean_record_abort_abnormally` | Terminé de façon anormale |
 | `clean_record_abort_manually` | Nettoyage interrompu par l’utilisateur |
 | `clean_record_area` | Surface totale |
@@ -189,8 +190,10 @@ This document contains the complete translation mapping and internal constants f
 | `clean_record_work_record` | Historique |
 | `common_abnormal` | Erreur |
 | `common_alert` | Remarque |
+| `common_battery_percentage` | Pourcentage de batterie |
 | `common_cancel` | Annuler |
 | `common_close_time` | Terminer |
+| `common_custom_type` | Type personnalisé |
 | `common_delete` | Supprimer |
 | `common_determine` | OK |
 | `common_disconnect` | Robot hors ligne |
@@ -198,6 +201,7 @@ This document contains the complete translation mapping and internal constants f
 | `common_holder_default_text` | Saisissez un nom de 12 caractères maximum |
 | `common_known` | J'ai compris |
 | `common_loading` | Chargement… |
+| `common_map_id` | ID de carte |
 | `common_more` | Plus |
 | `common_more_setup` | Autres paramètres |
 | `common_network_abnormal` | Erreur réseau |
@@ -234,6 +238,57 @@ This document contains the complete translation mapping and internal constants f
 | `device_sn` | Numéro de série |
 | `device_timezone_to_robot` | Synchroniser les fuseaux horaires |
 | `failed_page_content` | Le chargement a échoué. |
+| `fault_summery_2003` | Niveau de batterie inférieur à 20 %. La tâche programmée est annulée. |
+| `fault_summery_2007` | Impossible d’atteindre la cible. Nettoyage terminé. Assurez-vous que la porte de la zone cible est ouverte et non obstruée. |
+| `fault_summery_2012` | Impossible d’atteindre la cible. Nettoyage terminé. Assurez-vous que la porte de la zone cible est ouverte et non obstruée. |
+| `fault_summery_2100` | Batterie faible. Démarrage de la charge. Reprendre le nettoyage après la charge. |
+| `fault_summery_2102` | Nettoyage terminé. Retour vers la station |
+| `fault_summery_500` | Capteur LiDAR obstrué ou coincé. Retirez tout corps étranger. Si le problème persiste, déplacez le robot et redémarrez le nettoyage. |
+| `fault_summery_501` | Robot suspendu. Déplacez le robot et redémarrez le nettoyage. Les capteurs de vide sont sales. Essuyez-les pour les nettoyer. |
+| `fault_summery_502_518` | Batterie faible. Placez le robot sur la station d’accueil et rechargez-le à 20 % avant de démarrer le nettoyage. |
+| `fault_summery_503` | Remettez en place le bac à poussière et le filtre.<br>Si le problème persiste, remplacez le filtre. |
+| `fault_summery_509` | Erreur des capteurs de vide. Nettoyez-les, éloignez le robot des risques de chute et redémarrez le nettoyage. |
+| `fault_summery_510` | Pare-chocs coincé. Tapotez dessus à plusieurs reprises pour le libérer. Si aucun corps étranger n'est présent, déplacez le robot et redémarrez le nettoyage. |
+| `fault_summery_511_512` | Erreur de retour à la station. Éliminez les obstacles autour de la station, nettoyez les contacts de rechargement et placez le robot sur la station. |
+| `fault_summery_513_514` | Robot coincé. Éliminez les obstacles autour du robot ou déplacez-le et redémarrez le nettoyage. |
+| `fault_summery_522` | Serpillière non installée. Réinstallez-la. |
+| `fault_summery_533` | Le robot va s'arrêter après une longue période d'inactivité prolongée. Rechargez le robot. |
+| `fault_summery_534` | Le robot va s'arrêter car sa batterie est faible. Rechargez le robot. |
+| `fault_summery_560` | Enchevêtrement au niveau de la brosse latérale. Retirez-la et nettoyez-la. |
+| `fault_summery_568_569` | Nettoyez les roulettes principales, déplacez le robot et redémarrez le nettoyage. |
+| `fault_summery_570` | Enchevêtrement au niveau de la brosse principale. Retirez-la et nettoyez-la ainsi que son roulement. |
+| `fault_summery_572` | Enchevêtrement au niveau de la brosse principale. Retirez-la et nettoyez-la ainsi que son roulement. |
+| `fault_summery_594` | Le sac à poussière n’est pas installé. Vérifiez qu’il est installé correctement. |
+| `fault_summery_611` | Échec de positionnement. Ramenez le robot à la station et effectuez à nouveau la cartographie. |
+| `fault_summery_612` | Nouvel environnement détecté. Carte modifiée. Échec de positionnement. Essayez à nouveau après la nouvelle cartographie. |
+| `fault_summery_629` | Le support de serpillière est tombé. Réinstallez-le pour remettre l’appareil en marche. |
+| `fault_summery_668` | Erreur du ventilateur. Réinitialisez le système. Si le problème persiste, contactez le Service clientèle. |
+| `fault_title_2003` | Niveau de batterie inférieur à 20 %. La tâche programmée est annulée. |
+| `fault_title_2007` | Impossible d’atteindre la cible. Nettoyage terminé. |
+| `fault_title_2012` | Impossible d’atteindre la cible. Nettoyage terminé. |
+| `fault_title_2100` | Batterie faible. Reprendre le nettoyage après la charge. |
+| `fault_title_2102` | Nettoyage terminé. Retour vers la station |
+| `fault_title_407` | Nettoyage en cours. Nettoyage programmé ignoré. |
+| `fault_title_500` | Tourelle LiDAR ou laser bloqué. Vérifiez qu'il n'y a pas d’obstruction et réessayez. |
+| `fault_title_501` | Robot suspendu. Déplacez le robot et redémarrez le nettoyage. |
+| `fault_title_502_518` | Batterie faible. Rechargez-la maintenant. |
+| `fault_title_503` | Vérifiez que le bac à poussière et le filtre sont installés correctement. |
+| `fault_title_509` | Erreur des capteurs de vide. Nettoyez-les, éloignez le robot des risques de chute et redémarrez le nettoyage. |
+| `fault_title_510` | Pare-chocs coincé. Nettoyez-le et tapotez délicatement dessus pour le libérer. |
+| `fault_title_511_512` | Erreur de retour à la station. Placez le robot sur la station. |
+| `fault_title_513_514` | Robot coincé. Déplacez le robot et redémarrez le nettoyage. |
+| `fault_title_522` | Vérifiez que la serpillière est correctement installée. |
+| `fault_title_533` | Le robot va s'arrêter après une longue période d'inactivité prolongée. |
+| `fault_title_534` | Batterie faible. Arrêt du robot. |
+| `fault_title_560` | Enchevêtrement au niveau de la brosse latérale. Retirez-la et nettoyez-la. |
+| `fault_title_568_569` | Nettoyez les roulettes principales, déplacez le robot et redémarrez le nettoyage. |
+| `fault_title_570` | Enchevêtrement au niveau de la brosse principale. Retirez-la et nettoyez-la ainsi que son roulement. |
+| `fault_title_572` | Enchevêtrement au niveau de la brosse principale. Retirez-la et nettoyez-la ainsi que son roulement. |
+| `fault_title_594` | Vérifiez que le sac à poussière est correctement installé. |
+| `fault_title_611` | Échec de positionnement. Ramenez le robot à la station et effectuez à nouveau la cartographie. |
+| `fault_title_612` | Carte modifiée. Échec de positionnement. Essayez à nouveau. |
+| `fault_title_629` | Le support de serpillière est tombé. |
+| `fault_title_668` | Erreur du robot. Réinitialisez le système. |
 | `firmware_upgrade_downloading` | Téléchargement... %d% |
 | `firmware_upgrade_installing` | Installation… |
 | `floor_title` | Agencement de votre domicile |
@@ -252,7 +307,7 @@ This document contains the complete translation mapping and internal constants f
 | `guide_map_save_open` | Laisser activé |
 | `guide_map_save_tip1` | Laissez le robot mémoriser votre domicile |
 | `guide_map_save_tip2` | Une fois la carte enregistrée, le robot adapte de façon intelligente son parcours de nettoyage en fonction de la pièce, et vous pouvez accéder à des fonctions de nettoyage personnalisé telles que le Nettoyage sélectif de pièces et les Zones interdites. |
-| `guide_map_save_tip3` | Lorsque l'enregistrement des cartes est désactivé, l'édition des cartes et les fonctions de nettoyage personnalisé telles que le Nettoyage sélectif des pièces et les Zones interdites ne sont pas disponibles.\n |
+| `guide_map_save_tip3` | Lorsque l'enregistrement des cartes est désactivé, l'édition des cartes et les fonctions de nettoyage personnalisé telles que le Nettoyage sélectif des pièces et les Zones interdites ne sont pas disponibles.<br> |
 | `guide_map_save_tip4` | Une fois la carte enregistrée, le robot adapte de façon intelligente son parcours de nettoyage en fonction de la pièce, et vous pouvez accéder à des fonctions de nettoyage personnalisé telles que le Nettoyage sélectif de pièces et les Zones interdites. |
 | `guide_map_save_tip5` | Les objets réfléchissants et les surfaces glissantes peuvent affecter la stabilité et l'enregistrement de la carte, et entraîner des anomalies de parcours. |
 | `guide_mopnow` | Aspirez avant de nettoyer à la serpillière. |
@@ -451,7 +506,7 @@ This document contains the complete translation mapping and internal constants f
 | `mapEdit_recommend_add_cill` | Appuyez ici pour confirmer un seuil. |
 | `mapEdit_recommend_add_zone` | Ajouter une zone interdite |
 | `mapEdit_recommend_carpet_subtitle` | Tapis/moquette suspecté détecté. Définissez Carpet Boost ou Éviter après l'avoir ajouté. |
-| `mapEdit_recommend_cill_subtitle` | \nSeuil détecté ici. Définir une zone de seuil. |
+| `mapEdit_recommend_cill_subtitle` | <br>Seuil détecté ici. Définir une zone de seuil. |
 | `mapEdit_recommend_cill_title` | Seuil |
 | `mapEdit_recommend_cliff_subtitle` | Escaliers, marches ou vide suspectés détectés. Ajoutez une zone interdite. |
 | `mapEdit_recommend_ignore` | Une erreur de reconnaissance ? Ignorer. |
@@ -511,7 +566,7 @@ This document contains the complete translation mapping and internal constants f
 | `map_device_recharging_tip` | Modification impossible pendant le retour à la station |
 | `map_load` | Le changement de cartes mettra fin au nettoyage en cours. |
 | `map_save_close_cancel` | Laisser activé |
-| `map_save_close_content` | Lorsque l'enregistrement des cartes est désactivé, l'édition des cartes et les fonctions de nettoyage personnalisé telles que le Nettoyage sélectif des pièces et les Zones interdites ne sont pas disponibles.\n |
+| `map_save_close_content` | Lorsque l'enregistrement des cartes est désactivé, l'édition des cartes et les fonctions de nettoyage personnalisé telles que le Nettoyage sélectif des pièces et les Zones interdites ne sont pas disponibles.<br> |
 | `map_save_close_ok` | Désactiver |
 | `map_save_close_title` | Désactiver l'enregistrement des cartes ? |
 | `map_switch_tip` | Sélectionner une carte pour une utilisation sur un seul étage |
@@ -572,18 +627,18 @@ This document contains the complete translation mapping and internal constants f
 | `set_voice_package_waiting` | Attente… |
 | `setting_adjust_time` | Heure de début et de fin identiques. Veuillez les modifier. |
 | `setting_carpet_avoid` | Évitement ou franchissement des tapis/moquettes |
-| `setting_carpet_avoid_tip` | Une fois le support de serpillière installé, le robot évite les tapis/moquettes et les traverse uniquement en cas de besoin afin d'éviter de manquer certains endroits.\n* Utilisez cette fonction après avoir ajouté un tapis/une moquette dans l'édition des cartes. |
+| `setting_carpet_avoid_tip` | Une fois le support de serpillière installé, le robot évite les tapis/moquettes et les traverse uniquement en cas de besoin afin d'éviter de manquer certains endroits.<br>* Utilisez cette fonction après avoir ajouté un tapis/une moquette dans l'édition des cartes. |
 | `setting_cartoon_voice` | Voix de cartoon enfantine |
 | `setting_charging` | Rechargement en dehors des heures de pointe |
 | `setting_charging_desc` | Recharge complètement la batterie en dehors des heures de pointe et maintient une autonomie minimale le reste du temps. |
 | `setting_charging_disable_tip` | * Aucun horaire de rechargement défini. Rechargement en dehors des heures de pointe inactif. |
 | `setting_charging_empty` | Non défini |
-| `setting_charging_note` | * Le rechargement de la batterie peut se produire pendant les heures de pointe dans les conditions suivantes :\n1. Il existe des tâches inachevées.\n2. S'il n'y a pas de tâches, le robot se recharge pour maintenir une autonomie minimale. |
+| `setting_charging_note` | * Le rechargement de la batterie peut se produire pendant les heures de pointe dans les conditions suivantes :<br>1. Il existe des tâches inachevées.<br>2. S'il n'y a pas de tâches, le robot se recharge pour maintenir une autonomie minimale. |
 | `setting_check_text` | Afficher |
-| `setting_consumable_change_tips1` | \nLa durée de vie maximale de la brosse principale a été atteinte. Veuillez la remplacer immédiatement. |
-| `setting_consumable_change_tips2` | \nLa durée de vie maximale de la brosse latérale a été atteinte. Veuillez la remplacer immédiatement. |
-| `setting_consumable_change_tips3` | \nLa durée de vie maximale du filtre a été atteinte. Veuillez le remplacer immédiatement. |
-| `setting_consumable_change_tips4` | \nLa durée de vie maximale de la serpillière a été atteinte. Veuillez la remplacer immédiatement. |
+| `setting_consumable_change_tips1` | <br>La durée de vie maximale de la brosse principale a été atteinte. Veuillez la remplacer immédiatement. |
+| `setting_consumable_change_tips2` | <br>La durée de vie maximale de la brosse latérale a été atteinte. Veuillez la remplacer immédiatement. |
+| `setting_consumable_change_tips3` | <br>La durée de vie maximale du filtre a été atteinte. Veuillez le remplacer immédiatement. |
+| `setting_consumable_change_tips4` | <br>La durée de vie maximale de la serpillière a été atteinte. Veuillez la remplacer immédiatement. |
 | `setting_consumable_change_tips5` | Le bac à poussière est peut-être plein. Veuillez le vider. |
 | `setting_consumable_change_tips6` | Les capteurs n'ont pas été nettoyés depuis longtemps. Veuillez les nettoyer. |
 | `setting_consumable_change_tips7` | Le support de serpillière n'est pas installé |

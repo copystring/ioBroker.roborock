@@ -35,6 +35,7 @@ This document contains the complete translation mapping and internal constants f
 ### 🕹️ Robot Modes (`ROBOT_TYPE`)
 | Mode Name | Internal Value |
 | :--- | :--- |
+| `SLEEP` | `4294967295` |
 | `STANDBY` | `0` |
 | `WORKING` | `1` |
 | `CHARGING` | `2` |
@@ -42,7 +43,6 @@ This document contains the complete translation mapping and internal constants f
 | `ALERT` | `4` |
 | `MOP_CLEANING` | `5` |
 | `MOP_AIRDRYING` | `6` |
-| `SLEEP` | `4294967295` |
 
 ---
 
@@ -58,7 +58,7 @@ This document contains the complete translation mapping and internal constants f
 | **500** | `F_500` | Zablokovaná veža LiDAR alebo laser. Skontrolujte vzhľadom na prekážky a skúste znova. | Snímač LiDAR je zablokovaný alebo zaseknutý. Odstráňte prípadné cudzie objekty. Ak problém pretrváva, odsuňte robot a znova ho spustite. |
 | **501** | `F_501` | Robot sa zastavil. Posuňte robot ďalej a reštartujte ho. | Robot sa zastavil. Posuňte robot ďalej a reštartujte ho. Snímače zrázu sú znečistené. Vyčistite ich. |
 | **502** | `F_502` | Slabá batéria. Ihneď ju nabite. | Slabá batéria. Pred spustením robota ho položte na dokovaciu stanicu, aby sa nabil na 20 %. |
-| **503** | `F_503` | Skontrolujte, či je správne nainštalovaná nádoba na prach a filter. | Znovu nainštalujte nádobu na prach a filter na miesto.\nAk problém pretrváva, vymeňte filter. |
+| **503** | `F_503` | Skontrolujte, či je správne nainštalovaná nádoba na prach a filter. | Znovu nainštalujte nádobu na prach a filter na miesto.<br>Ak problém pretrváva, vymeňte filter. |
 | **504** | `F_504` | Slabá batéria. Ihneď ju nabite. | Slabá batéria. Pred spustením robota ho položte na dokovaciu stanicu, aby sa nabil na 20 %. |
 | **505** | `F_505` | Slabá batéria. Ihneď ju nabite. | Slabá batéria. Pred spustením robota ho položte na dokovaciu stanicu, aby sa nabil na 20 %. |
 | **506** | `F_506` | Slabá batéria. Ihneď ju nabite. | Slabá batéria. Pred spustením robota ho položte na dokovaciu stanicu, aby sa nabil na 20 %. |
@@ -163,6 +163,7 @@ This document contains the complete translation mapping and internal constants f
 
 | Key | Localized Value |
 | :--- | :--- |
+| `battery` | Battery Percentage |
 | `clean_record_abort_abnormally` | Neprirodzene ukončené |
 | `clean_record_abort_manually` | Čistenie prerušené používateľom |
 | `clean_record_area` | Celková plocha |
@@ -189,6 +190,7 @@ This document contains the complete translation mapping and internal constants f
 | `clean_record_work_record` | História |
 | `common_abnormal` | Chyba |
 | `common_alert` | Poznámka |
+| `common_battery_percentage` | Battery Percentage |
 | `common_cancel` | Zrušiť |
 | `common_close_time` | Koniec |
 | `common_delete` | Odstrániť |
@@ -234,6 +236,57 @@ This document contains the complete translation mapping and internal constants f
 | `device_sn` | Sériové číslo |
 | `device_timezone_to_robot` | Synchronizácia časových pásiem |
 | `failed_page_content` | Načítanie zlyhalo. |
+| `fault_summery_2003` | Úroveň nabitia batérie je nižšia ako 20 %. Plánovaná úloha je zrušená. |
+| `fault_summery_2007` | Nie je možné dosiahnuť cieľ. Čistenie je ukončené. Uistite sa, že dvere do cieľového priestoru sú otvorené alebo voľné. |
+| `fault_summery_2012` | Nie je možné dosiahnuť cieľ. Čistenie je ukončené. Uistite sa, že dvere do cieľového priestoru sú otvorené alebo voľné. |
+| `fault_summery_2100` | Slabá batéria. Spustenie nabíjania. Po nabití pokračujte v čistení. |
+| `fault_summery_2102` | Čistenie je dokončené. Návrat do doku |
+| `fault_summery_500` | Snímač LiDAR je zablokovaný alebo zaseknutý. Odstráňte prípadné cudzie objekty. Ak problém pretrváva, odsuňte robot a znova ho spustite. |
+| `fault_summery_501` | Robot sa zastavil. Posuňte robot ďalej a reštartujte ho. Snímače zrázu sú znečistené. Vyčistite ich. |
+| `fault_summery_502_518` | Slabá batéria. Pred spustením robota ho položte na dokovaciu stanicu, aby sa nabil na 20 %. |
+| `fault_summery_503` | Znovu nainštalujte nádobu na prach a filter na miesto.<br>Ak problém pretrváva, vymeňte filter. |
+| `fault_summery_509` | Chyba snímačov zrázu. Vyčistite ich, posuňte robot preč od zrázu a reštartujte ho. |
+| `fault_summery_510` | Zaseknutý nárazník. Opakovaným klepnutím naň ho uvoľnite. Ak sa v ňom nenachádza žiadny cudzí predmet, odsuňte robota a reštartujte ho. |
+| `fault_summery_511_512` | Chyba návratu do doku. Odstráňte prekážky v okolí doku, vyčistite nabíjacie kontakty a umiestnite robota na doku. |
+| `fault_summery_513_514` | Robot uviazol. Odstráňte prekážky okolo robota alebo odsuňte robot a reštartujte ho. |
+| `fault_summery_522` | Mop nie je vložený. Vložte ho. |
+| `fault_summery_533` | Po dlhom čase spánku sa čoskoro vypne. Nabite robot. |
+| `fault_summery_534` | Z dôvodu slabej batérie sa čoskoro vypne. Nabite robota. |
+| `fault_summery_560` | Bočná kefa je zamotaná. Vyberte ju a vyčistite. |
+| `fault_summery_568_569` | Vyčistite hlavné kolieska, odsuňte robot a reštartujte ho. |
+| `fault_summery_570` | Hlavná kefa je zamotaná. Vyberte a vyčistite ju a jej ložisko. |
+| `fault_summery_572` | Hlavná kefa je zamotaná. Vyberte a vyčistite ju a jej ložisko. |
+| `fault_summery_594` | Vrecko na prach nie je vložené. Skontrolujte, či je riadne vložené. |
+| `fault_summery_611` | Nastavenie polohy zlyhalo. Presuňte robot naspäť do dokovacej stanice a spustite nové mapovanie. |
+| `fault_summery_612` | Bolo zistené nové prostredie. Mapa sa zmenila. Nastavenie polohy zlyhalo. Po opätovnom mapovaní to skúste znova. |
+| `fault_summery_629` | Držiak mopovej utierky odpadol. Znovu ho nainštalujte, aby ste pokračovali v práci. |
+| `fault_summery_668` | Chyba ventilátora. Resetujte systém. Ak problém pretrváva, kontaktujte zákaznícky servis. |
+| `fault_title_2003` | Úroveň nabitia batérie je nižšia ako 20 %. Plánovaná úloha je zrušená. |
+| `fault_title_2007` | Nie je možné dosiahnuť cieľ. Čistenie je ukončené. |
+| `fault_title_2012` | Nie je možné dosiahnuť cieľ. Čistenie je ukončené. |
+| `fault_title_2100` | Slabá batéria. Po dobití pokračujte v čistení. |
+| `fault_title_2102` | Čistenie je dokončené. Návrat do doku |
+| `fault_title_407` | Prebieha čistenie. Naplánované čistenie je ignorované. |
+| `fault_title_500` | Zablokovaná veža LiDAR alebo laser. Skontrolujte vzhľadom na prekážky a skúste znova. |
+| `fault_title_501` | Robot sa zastavil. Posuňte robot ďalej a reštartujte ho. |
+| `fault_title_502_518` | Slabá batéria. Ihneď ju nabite. |
+| `fault_title_503` | Skontrolujte, či je správne nainštalovaná nádoba na prach a filter. |
+| `fault_title_509` | Chyba snímačov zrázu. Vyčistite ich, posuňte robot preč od zrázu a reštartujte ho. |
+| `fault_title_510` | Zaseknutý nárazník. Vyčistite ho a ľahkým klepnutím ho uvoľnite. |
+| `fault_title_511_512` | Chyba návratu do dokovacej stanice. Umiestnite robot do dokovacej stanice. |
+| `fault_title_513_514` | Robot uviazol. Posuňte robot ďalej a reštartujte ho. |
+| `fault_title_522` | Skontrolujte, či je mop riadne vložený. |
+| `fault_title_533` | Po dlhom čase spánku sa čoskoro vypne |
+| `fault_title_534` | Slabá batéria. Vypnutie. |
+| `fault_title_560` | Bočná kefa je zamotaná. Vyberte ju a vyčistite. |
+| `fault_title_568_569` | Vyčistite hlavné kolieska, odsuňte robota a reštartujte ho. |
+| `fault_title_570` | Hlavná kefa je zamotaná. Vyberte a vyčistite ju a jej ložisko. |
+| `fault_title_572` | Hlavná kefa je zamotaná. Vyberte a vyčistite ju a jej ložisko. |
+| `fault_title_594` | Uistite sa, že vrecko na prach je riadne vložené. |
+| `fault_title_611` | Nastavenie polohy zlyhalo. Presuňte robot naspäť do dokovacej stanice a spustite nové mapovanie. |
+| `fault_title_612` | Mapa sa zmenila. Nastavenie polohy zlyhalo. Skúste znova. |
+| `fault_title_629` | Držiak mopovej utierky odpadol. |
+| `fault_title_668` | Chyba robota. Resetujte systém. |
 | `firmware_upgrade_downloading` | Aktualizácia... %d% |
 | `firmware_upgrade_installing` | Inštalácia... |
 | `floor_title` | Pôdorys domácnosti |
@@ -252,13 +305,13 @@ This document contains the complete translation mapping and internal constants f
 | `guide_map_save_open` | Ponechať aktivované |
 | `guide_map_save_tip1` | Umožnite robotu, aby si zapamätal vašu domácnosť |
 | `guide_map_save_tip2` | Po uložení mapy robot inteligentne prispôsobí svoju trasu čistenia miestnosti a vy môžete aktivovať funkcie prispôsobeného čistenia, ako je napríklad selektívne čistenie miestností a zónu zákazu vstupu. |
-| `guide_map_save_tip3` | Po vypnutí ukladania mapy nebude možné upravovať mapy a používať funkcie prispôsobeného čistenia, napríklad selektívne čistenie miestností a zónu zákazu vstupu.\n |
+| `guide_map_save_tip3` | Po vypnutí ukladania mapy nebude možné upravovať mapy a používať funkcie prispôsobeného čistenia, napríklad selektívne čistenie miestností a zónu zákazu vstupu.<br> |
 | `guide_map_save_tip4` | Po uložení mapy robot inteligentne prispôsobí svoju trasu čistenia miestnosti a vy môžete aktivovať funkcie prispôsobeného čistenia, ako je napríklad selektívne čistenie miestností a zónu zákazu vstupu. |
 | `guide_map_save_tip5` | Reflexné objekty a klzké povrchy môžu ovplyvniť stabilitu ukladania mapy a spôsobiť abnormality trasy. |
 | `guide_mopnow` | Pred čistením mopom povysávajte. |
 | `guide_mopnow_tip` | Počas prvého použitia by sa mali podlahy pred čistením mopom trikrát povysávať. |
 | `guide_multifloors` | Viac poschodí |
-| `guide_nodisturb_tips1` | Aby sa minimalizovalo rušenie, niektoré automatické operácie sa počas obdobia DND\n(Nerušiť) nevykonávajú. |
+| `guide_nodisturb_tips1` | Aby sa minimalizovalo rušenie, niektoré automatické operácie sa počas obdobia DND<br>(Nerušiť) nevykonávajú. |
 | `guide_nodisturbhome` | Minimalizovať rušenie |
 | `guide_nodisturbmode` | Režim Nerušiť |
 | `guide_noliquid` | Nevylievajte na podlahu žiadnu tekutinu. |
@@ -572,13 +625,13 @@ This document contains the complete translation mapping and internal constants f
 | `set_voice_package_waiting` | Čakanie... |
 | `setting_adjust_time` | Čas spustenia je rovnaký ako čas ukončenia. Zmeňte. |
 | `setting_carpet_avoid` | Vyhýbanie sa kobercu a prechádzanie koberca |
-| `setting_carpet_avoid_tip` | Po nainštalovaní držiaka mopovej utierky sa robot vyhýba kobercom a prechádza cez ne len v prípade potreby, aby nevynechal žiadne miesta.\\n* Použite po pridaní koberca v úprave mapy |
+| `setting_carpet_avoid_tip` | Po nainštalovaní držiaka mopovej utierky sa robot vyhýba kobercom a prechádza cez ne len v prípade potreby, aby nevynechal žiadne miesta.\n* Použite po pridaní koberca v úprave mapy |
 | `setting_cartoon_voice` | Animovaný detský hlas |
 | `setting_charging` | Nabíjanie mimo špičky |
 | `setting_charging_desc` | Plne nabije batériu mimo energetickej špičky a počas iných období bude zachovávať iba minimálny výkon. |
 | `setting_charging_disable_tip` | * Nie je nastavený čas nabíjania. Nabíjanie mimo špičky nie je aktívne. |
 | `setting_charging_empty` | Nie je nastavené |
-| `setting_charging_note` | *Nabíjanie batérie sa môže uskutočniť v čase špičky v nasledujúcich prípadoch:\n1. Existujú nedokončené úlohy.\n2. Ak neexistujú žiadne úlohy, robot sa nabije na zachovanie minimálneho výkonu. |
+| `setting_charging_note` | *Nabíjanie batérie sa môže uskutočniť v čase špičky v nasledujúcich prípadoch:<br>1. Existujú nedokončené úlohy.<br>2. Ak neexistujú žiadne úlohy, robot sa nabije na zachovanie minimálneho výkonu. |
 | `setting_check_text` | Zobraziť |
 | `setting_consumable_change_tips1` | Hlavná kefa dosiahla svoju životnosť. Ihneď ju vymeňte |
 | `setting_consumable_change_tips2` | Bočná kefa dosiahla svoju životnosť. Ihneď ju vymeňte |

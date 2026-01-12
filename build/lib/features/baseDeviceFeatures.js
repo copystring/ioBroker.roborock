@@ -516,7 +516,7 @@ class BaseDeviceFeatures {
             val = JSON.stringify(val);
         }
         // Formatting for specific keys (e.g. timestamps)
-        if (key === "last_clean_t" && typeof val === "number") {
+        if ((key === "last_clean_t" || key === "clean_finish") && typeof val === "number") {
             val = new Date(val * 1000).toString();
             common.type = "string"; // Update type to match new value
         }

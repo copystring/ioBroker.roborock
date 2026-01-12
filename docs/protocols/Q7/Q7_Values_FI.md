@@ -35,6 +35,7 @@ This document contains the complete translation mapping and internal constants f
 ### 🕹️ Robot Modes (`ROBOT_TYPE`)
 | Mode Name | Internal Value |
 | :--- | :--- |
+| `SLEEP` | `4294967295` |
 | `STANDBY` | `0` |
 | `WORKING` | `1` |
 | `CHARGING` | `2` |
@@ -42,7 +43,6 @@ This document contains the complete translation mapping and internal constants f
 | `ALERT` | `4` |
 | `MOP_CLEANING` | `5` |
 | `MOP_AIRDRYING` | `6` |
-| `SLEEP` | `4294967295` |
 
 ---
 
@@ -58,7 +58,7 @@ This document contains the complete translation mapping and internal constants f
 | **500** | `F_500` | LiDAR-torni tai laser on estynyt. Tarkista esteet ja yritä uudelleen. | LiDAR-anturi on tukossa tai jumissa. Poista vieraat esineet, jos niitä on. Jos ongelma jatkuu, siirrä robotti pois ja käynnistä uudelleen. |
 | **501** | `F_501` | Robotti ilmassa. Siirrä robotti pois ja käynnistä uudelleen. | Robotti ilmassa. Siirrä robotti pois ja käynnistä uudelleen. Reuna-anturit ovat likaiset. Pyyhi ne puhtaiksi. |
 | **502** | `F_502` | Akun varaus on alhainen. Lataa nyt. | Akku vähissä. Aseta robotti telakkaan ja lataa se 20 %:iin ennen aloittamista. |
-| **503** | `F_503` | Tarkista, että pölysäiliö ja suodatin on asennettu oikein. | Asenna pölysäiliö ja suodatin uudelleen paikoilleen.\nJos ongelma jatkuu, vaihda suodatin. |
+| **503** | `F_503` | Tarkista, että pölysäiliö ja suodatin on asennettu oikein. | Asenna pölysäiliö ja suodatin uudelleen paikoilleen.<br>Jos ongelma jatkuu, vaihda suodatin. |
 | **504** | `F_504` | Akun varaus on alhainen. Lataa nyt. | Akku vähissä. Aseta robotti telakkaan ja lataa se 20 %:iin ennen aloittamista. |
 | **505** | `F_505` | Akun varaus on alhainen. Lataa nyt. | Akku vähissä. Aseta robotti telakkaan ja lataa se 20 %:iin ennen aloittamista. |
 | **506** | `F_506` | Akun varaus on alhainen. Lataa nyt. | Akku vähissä. Aseta robotti telakkaan ja lataa se 20 %:iin ennen aloittamista. |
@@ -163,6 +163,7 @@ This document contains the complete translation mapping and internal constants f
 
 | Key | Localized Value |
 | :--- | :--- |
+| `battery` | Battery Percentage |
 | `clean_record_abort_abnormally` | Päättyi epänormaalisti |
 | `clean_record_abort_manually` | Käyttäjä keskeytti siivouksen |
 | `clean_record_area` | Pinta-ala yhteensä |
@@ -189,6 +190,7 @@ This document contains the complete translation mapping and internal constants f
 | `clean_record_work_record` | Historia |
 | `common_abnormal` | Virhe |
 | `common_alert` | Huomio |
+| `common_battery_percentage` | Battery Percentage |
 | `common_cancel` | Peruuta |
 | `common_close_time` | Lopeta |
 | `common_delete` | Poista |
@@ -234,6 +236,57 @@ This document contains the complete translation mapping and internal constants f
 | `device_sn` | Sarjanumero |
 | `device_timezone_to_robot` | Synkronoi aikavyöhyke |
 | `failed_page_content` | Lataus epäonnistui. |
+| `fault_summery_2003` | Akun varaus alle 20 %. Ajastettu tehtävä peruttu. |
+| `fault_summery_2007` | Kohteeseen ei päästy. Siivous päättyi. Varmista, että kohdealueen ovi on auki eikä sen edessä ole esteitä. |
+| `fault_summery_2012` | Kohteeseen ei päästy. Siivous päättyi. Varmista, että kohdealueen ovi on auki eikä sen edessä ole esteitä. |
+| `fault_summery_2100` | Akun varaus on alhainen. Aloitetaan lataus. Jatka siivousta latauksen jälkeen. |
+| `fault_summery_2102` | Siivous valmis. Palataan telakalle. |
+| `fault_summery_500` | LiDAR-anturi on tukossa tai jumissa. Poista vieraat esineet, jos niitä on. Jos ongelma jatkuu, siirrä robotti pois ja käynnistä uudelleen. |
+| `fault_summery_501` | Robotti ilmassa. Siirrä robotti pois ja käynnistä uudelleen. Reuna-anturit ovat likaiset. Pyyhi ne puhtaiksi. |
+| `fault_summery_502_518` | Akku vähissä. Aseta robotti telakkaan ja lataa se 20 %:iin ennen aloittamista. |
+| `fault_summery_503` | Asenna pölysäiliö ja suodatin uudelleen paikoilleen.<br>Jos ongelma jatkuu, vaihda suodatin. |
+| `fault_summery_509` | Reuna-antureiden virhe. Puhdista ne, siirrä robotti kauemmas pudotuksista ja käynnistä uudelleen. |
+| `fault_summery_510` | Puskuri on jumissa. Napauta sitä toistuvasti irrottamiseksi. Jos vierasesinettä ei ole, siirrä robotti pois ja käynnistä uudelleen. |
+| `fault_summery_511_512` | Telakointivirhe. Poista telakan ympäriltä esteet, puhdista latauskoskettimet ja aseta robotti telakkaan. |
+| `fault_summery_513_514` | Robotti jumissa. Poista esteet robotin ympäriltä tai siirrä robotti ja käynnistä uudelleen. |
+| `fault_summery_522` | Moppia ei ole asennettu. Asenna se uudelleen. |
+| `fault_summery_533` | Sammutetaan pitkän lepo-tilan jälkeen. Lataa robotti. |
+| `fault_summery_534` | Sammutetaan akun alhaisen varauksen vuoksi. Lataa robotti. |
+| `fault_summery_560` | Sivuharjassa on kietoutumia. Irrota ja puhdista se. |
+| `fault_summery_568_569` | Puhdista päärenkaat, siirrä robotti pois ja käynnistä uudelleen. |
+| `fault_summery_570` | Pääharjassa on kietoutumia. Irrota ja puhdista se sekä sen laakeri. |
+| `fault_summery_572` | Pääharjassa on kietoutumia. Irrota ja puhdista se sekä sen laakeri. |
+| `fault_summery_594` | Pölypussia ei ole asennettu. Tarkista, että se on asennettu kunnolla. |
+| `fault_summery_611` | Paikannus epäonnistui. Siirrä robotti takaisin telakkaan ja suorita kartoitus uudelleen. |
+| `fault_summery_612` | Uusi ympäristö havaittu. Karttaa muutettu. Paikannus epäonnistui. Yritä uudelleen kartoituksen jälkeen. |
+| `fault_summery_629` | Moppiliinan pidike irtosi. Asenna se takaisin jatkaaksesi siivousta. |
+| `fault_summery_668` | Tuuletinvirhe. Nollaa järjestelmä. Jos ongelma jatkuu, ota yhteyttä asiakaspalveluun. |
+| `fault_title_2003` | Akun varaus alle 20 %. Ajastettu tehtävä peruttu. |
+| `fault_title_2007` | Kohteeseen ei päästy. Siivous päättyi. |
+| `fault_title_2012` | Kohteeseen ei päästy. Siivous päättyi. |
+| `fault_title_2100` | Akun varaus on alhainen. Jatka siivousta lataamisen jälkeen. |
+| `fault_title_2102` | Siivous valmis. Palataan telakalle. |
+| `fault_title_407` | Siivous käynnissä. Ajastettu siivous ohitettu. |
+| `fault_title_500` | LiDAR-torni tai laser on estynyt. Tarkista esteet ja yritä uudelleen. |
+| `fault_title_501` | Robotti ilmassa. Siirrä robotti pois ja käynnistä uudelleen. |
+| `fault_title_502_518` | Akun varaus on alhainen. Lataa nyt. |
+| `fault_title_503` | Tarkista, että pölysäiliö ja suodatin on asennettu oikein. |
+| `fault_title_509` | Reuna-antureiden virhe. Puhdista ne, siirrä robotti kauemmas pudotuksista ja käynnistä uudelleen. |
+| `fault_title_510` | Puskuri on jumissa. Puhdista se ja napauta kevyesti vapauttaaksesi sen. |
+| `fault_title_511_512` | Telakointivirhe. Aseta robotti telakkaan. |
+| `fault_title_513_514` | Robotti jumissa. Siirrä robotti pois ja käynnistä uudelleen. |
+| `fault_title_522` | Tarkista, että moppi on asennettu oikein. |
+| `fault_title_533` | Sammutetaan pitkän lepo-tilan jälkeen |
+| `fault_title_534` | Akun varaus on alhainen. Sammutetaan. |
+| `fault_title_560` | Sivuharjassa on kietoutumia. Irrota ja puhdista se. |
+| `fault_title_568_569` | Puhdista päärenkaat, siirrä robotti pois ja käynnistä uudelleen. |
+| `fault_title_570` | Pääharjassa on kietoutumia. Irrota ja puhdista se sekä sen laakeri. |
+| `fault_title_572` | Pääharjassa on kietoutumia. Irrota ja puhdista se sekä sen laakeri. |
+| `fault_title_594` | Varmista, että pölypussi on asennettu oikein. |
+| `fault_title_611` | Paikannus epäonnistui. Siirrä robotti takaisin telakkaan ja suorita kartoitus uudelleen. |
+| `fault_title_612` | Karttaa muutettu. Paikannus epäonnistui. Yritä uudelleen. |
+| `fault_title_629` | Moppiliinan pidike irtosi. |
+| `fault_title_668` | Robottivirhe. Nollaa järjestelmä. |
 | `firmware_upgrade_downloading` | Päivitetään... %d % |
 | `firmware_upgrade_installing` | Asennetaan... |
 | `floor_title` | Kodin pohjaratkaisu |
@@ -252,7 +305,7 @@ This document contains the complete translation mapping and internal constants f
 | `guide_map_save_open` | Pidä se käytössä |
 | `guide_map_save_tip1` | Anna robotin opetella kotisi |
 | `guide_map_save_tip2` | Kun kartta on tallennettu, robotti mukauttaa siivousreittinsä älykkäästi huoneen mukaan, ja voit käyttää räätälöityjä siivoustoimintoja, kuten Valikoiva huoneiden siivous ja Kielletyt alueet. |
-| `guide_map_save_tip3` | Kun kartan tallennus on poistettu käytöstä, kartan muokkaus ja räätälöidyt siivoustoiminnot, kuten Valikoiva huoneiden siivous ja Kielletyt alueet, eivät ole käytettävissä.\n |
+| `guide_map_save_tip3` | Kun kartan tallennus on poistettu käytöstä, kartan muokkaus ja räätälöidyt siivoustoiminnot, kuten Valikoiva huoneiden siivous ja Kielletyt alueet, eivät ole käytettävissä.<br> |
 | `guide_map_save_tip4` | Kun kartta on tallennettu, robotti mukauttaa siivousreittinsä älykkäästi huoneen mukaan, ja voit käyttää räätälöityjä siivoustoimintoja, kuten Valikoiva huoneiden siivous ja Kielletyt alueet. |
 | `guide_map_save_tip5` | Heijastavat esineet ja liukkaat pinnat voivat vaikuttaa kartan tallennuksen tarkkuuteen ja aiheuttaa reittipoikkeamia. |
 | `guide_mopnow` | Imuroi ennen moppausta. |
@@ -572,13 +625,13 @@ This document contains the complete translation mapping and internal constants f
 | `set_voice_package_waiting` | Odotetaan... |
 | `setting_adjust_time` | Aloitusaika sama kuin lopetusaika. Ole hyvä ja muuta se. |
 | `setting_carpet_avoid` | Maton välttäminen ja ylitys |
-| `setting_carpet_avoid_tip` | Kun moppiliinan pidike on asennettu, robotti välttää mattoja ja ylittää ne vain tarvittaessa, jotta mikään kohta ei jää siivoamatta.\\n* Käytä tätä toimintoa vasta, kun olet lisännyt maton kartan muokkauksessa |
+| `setting_carpet_avoid_tip` | Kun moppiliinan pidike on asennettu, robotti välttää mattoja ja ylittää ne vain tarvittaessa, jotta mikään kohta ei jää siivoamatta.\n* Käytä tätä toimintoa vasta, kun olet lisännyt maton kartan muokkauksessa |
 | `setting_cartoon_voice` | Lasten sarjakuvamainen ääni |
 | `setting_charging` | Lataus edullisempana aikana |
 | `setting_charging_desc` | Lataa akun täyteen hiljaisempina aikoina ja ylläpitää vain minimitehoa muina aikoina. |
 | `setting_charging_disable_tip` | * Latausaikaa ei ole asetettu. Edullisen ajan lataus ei ole aktiivinen. |
 | `setting_charging_empty` | Ei asetettu |
-| `setting_charging_note` | *Akun lataus voi tapahtua myös ruuhka-aikoina seuraavissa tilanteissa:\n1. Tehtäviä on vielä kesken.\n2. Jos tehtäviä ei ole, robotti lataa silti ylläpitääkseen minimitehoa. |
+| `setting_charging_note` | *Akun lataus voi tapahtua myös ruuhka-aikoina seuraavissa tilanteissa:<br>1. Tehtäviä on vielä kesken.<br>2. Jos tehtäviä ei ole, robotti lataa silti ylläpitääkseen minimitehoa. |
 | `setting_check_text` | Näytä |
 | `setting_consumable_change_tips1` | Päärulla on saavuttanut käyttöikänsä. Vaihda se välittömästi |
 | `setting_consumable_change_tips2` | Sivuharja on saavuttanut käyttöikänsä. Vaihda se välittömästi |

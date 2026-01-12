@@ -35,6 +35,7 @@ This document contains the complete translation mapping and internal constants f
 ### 🕹️ Robot Modes (`ROBOT_TYPE`)
 | Mode Name | Internal Value |
 | :--- | :--- |
+| `SLEEP` | `4294967295` |
 | `STANDBY` | `0` |
 | `WORKING` | `1` |
 | `CHARGING` | `2` |
@@ -42,7 +43,6 @@ This document contains the complete translation mapping and internal constants f
 | `ALERT` | `4` |
 | `MOP_CLEANING` | `5` |
 | `MOP_AIRDRYING` | `6` |
-| `SLEEP` | `4294967295` |
 
 ---
 
@@ -58,7 +58,7 @@ This document contains the complete translation mapping and internal constants f
 | **500** | `F_500` | Tháp LiDAR hoặc laser bị chặn. Hãy kiểm tra xem có vật cản không và thử lại. | Cảm biến LiDAR bị cản trở hoặc kẹt. Loại bỏ vật thể lạ nếu có. Nếu sự cố vẫn tiếp diễn, hãy di chuyển robot ra xa và khởi động lại. |
 | **501** | `F_501` | Đã tạm ngừng robot. Di chuyển robot ra xa và khởi động lại. | Đã tạm ngừng robot. Di chuyển robot ra xa và khởi động lại. Cảm biến vách ngăn bị bẩn. Lau sạch. |
 | **502** | `F_502` | Pin yếu. Sạc lại ngay. | Pin yếu. Đặt robot lên dock sạc để sạch tới mức 20% trước khi bắt đầu. |
-| **503** | `F_503` | Kiểm tra xem thùng đựng bụi và bộ lọc đã được lắp đúng cách chưa. | Lắp lại thùng đựng bụi và bộ lọc vào đúng vị trí.\nNếu sự cố vẫn tiếp diễn, hãy thay bộ lọc. |
+| **503** | `F_503` | Kiểm tra xem thùng đựng bụi và bộ lọc đã được lắp đúng cách chưa. | Lắp lại thùng đựng bụi và bộ lọc vào đúng vị trí.<br>Nếu sự cố vẫn tiếp diễn, hãy thay bộ lọc. |
 | **504** | `F_504` | Pin yếu. Sạc lại ngay. | Pin yếu. Đặt robot lên dock sạc để sạch tới mức 20% trước khi bắt đầu. |
 | **505** | `F_505` | Pin yếu. Sạc lại ngay. | Pin yếu. Đặt robot lên dock sạc để sạch tới mức 20% trước khi bắt đầu. |
 | **506** | `F_506` | Pin yếu. Sạc lại ngay. | Pin yếu. Đặt robot lên dock sạc để sạch tới mức 20% trước khi bắt đầu. |
@@ -163,6 +163,7 @@ This document contains the complete translation mapping and internal constants f
 
 | Key | Localized Value |
 | :--- | :--- |
+| `battery` | Battery Percentage |
 | `clean_record_abort_abnormally` | Kết thúc bất thường |
 | `clean_record_abort_manually` | Quá trình làm sạch bị gián đoạn bởi người dùng |
 | `clean_record_area` | Tổng diện tích |
@@ -189,6 +190,7 @@ This document contains the complete translation mapping and internal constants f
 | `clean_record_work_record` | Lịch sử |
 | `common_abnormal` | Lỗi |
 | `common_alert` | Lưu ý |
+| `common_battery_percentage` | Battery Percentage |
 | `common_cancel` | Hủy bỏ |
 | `common_close_time` | Kết thúc |
 | `common_delete` | Xóa |
@@ -234,6 +236,57 @@ This document contains the complete translation mapping and internal constants f
 | `device_sn` | Số Sê-ri |
 | `device_timezone_to_robot` | Đồng bộ múi giờ |
 | `failed_page_content` | Không tải được. |
+| `fault_summery_2003` | Mức pin dưới 20%. Đã hủy tác vụ đã lên lịch. |
+| `fault_summery_2007` | Không thể đến được mục tiêu. Quá trình làm sạch đã kết thúc. Đảm bảo cửa vào khu vực mục tiêu mở hoặc không bị cản trở. |
+| `fault_summery_2012` | Không thể đến được mục tiêu. Quá trình làm sạch đã kết thúc. Đảm bảo cửa vào khu vực mục tiêu mở hoặc không bị cản trở. |
+| `fault_summery_2100` | Pin yếu. Bắt đầu sạc lại. Tiếp tục làm sạch sau khi sạc. |
+| `fault_summery_2102` | Đã làm sạch xong. Đang quay trở về dock sạc |
+| `fault_summery_500` | Cảm biến LiDAR bị cản trở hoặc kẹt. Loại bỏ vật thể lạ nếu có. Nếu sự cố vẫn tiếp diễn, hãy di chuyển robot ra xa và khởi động lại. |
+| `fault_summery_501` | Đã tạm ngừng robot. Di chuyển robot ra xa và khởi động lại. Cảm biến vách ngăn bị bẩn. Lau sạch. |
+| `fault_summery_502_518` | Pin yếu. Đặt robot lên dock sạc để sạch tới mức 20% trước khi bắt đầu. |
+| `fault_summery_503` | Lắp lại thùng đựng bụi và bộ lọc vào đúng vị trí.<br>Nếu sự cố vẫn tiếp diễn, hãy thay bộ lọc. |
+| `fault_summery_509` | Lỗi cảm biến vách ngăn. Vệ sinh cảm biến, di chuyển robot ra xa khỏi các điểm rơi và khởi động lại. |
+| `fault_summery_510` | Bộ đệm bị kẹt. Nhấn liên tục để tháo. Nếu không có vật thể lạ nào, hãy di chuyển robot ra xa và khởi động lại. |
+| `fault_summery_511_512` | Lỗi trở về dock sạc. Dọn sạch chướng ngại vật xung quanh dock sạc, vệ sinh các đầu tiếp xúc sạc và đặt robot vào dock sạc. |
+| `fault_summery_513_514` | Robot bị mắc kẹt. Dọn sạch chướng ngại vật xung quanh robot hoặc di chuyển robot ra xa và khởi động lại. |
+| `fault_summery_522` | Chưa lắp giẻ lau. Lắp lại. |
+| `fault_summery_533` | Sắp tắt sau thời gian dài ở chế độ Ngủ. Sạc robot. |
+| `fault_summery_534` | Sắp tắt do pin yếu. Sạc robot. |
+| `fault_summery_560` | Chổi bên bị rối. Hãy tháo và làm sạch. |
+| `fault_summery_568_569` | Vệ sinh bánh xe chính, di chuyển robot ra xa và khởi động lại. |
+| `fault_summery_570` | Chổi chính bị rối. Tháo và vệ sinh chổi chính và vòng bi của chổi. |
+| `fault_summery_572` | Chổi chính bị rối. Tháo và vệ sinh chổi chính và vòng bi của chổi. |
+| `fault_summery_594` | Chưa lắp túi đựng bụi. Kiểm tra xem đã được lắp đúng cách chưa. |
+| `fault_summery_611` | Định vị thất bại. Hãy di chuyển robot về dock sạc rồi vẽ lại bản đồ. |
+| `fault_summery_612` | Đã phát hiện môi trường mới. Đã thay đổi bản đồ. Định vị thất bại. Hãy thử lại sau khi vẽ lại bản đồ. |
+| `fault_summery_629` | Đế gắn giẻ lau bị rơi. Lắp lại để robot tiếp tục hoạt động. |
+| `fault_summery_668` | Lỗi quạt. Đặt lại hệ thống. Nếu sự cố vẫn tiếp diễn, hãy liên hệ với bộ phận dịch vụ khách hàng. |
+| `fault_title_2003` | Mức pin dưới 20%. Đã hủy tác vụ đã lên lịch. |
+| `fault_title_2007` | Không thể đến được mục tiêu. Quá trình làm sạch đã kết thúc. |
+| `fault_title_2012` | Không thể đến được mục tiêu. Quá trình làm sạch đã kết thúc. |
+| `fault_title_2100` | Pin yếu. Tiếp tục làm sạch sau khi sạc lại. |
+| `fault_title_2102` | Đã làm sạch xong. Đang quay trở về dock sạc |
+| `fault_title_407` | Đang làm sạch. Đã bỏ qua dọn dẹp theo lịch. |
+| `fault_title_500` | Tháp LiDAR hoặc laser bị chặn. Hãy kiểm tra xem có vật cản không và thử lại. |
+| `fault_title_501` | Đã tạm ngừng robot. Di chuyển robot ra xa và khởi động lại. |
+| `fault_title_502_518` | Pin yếu. Sạc lại ngay. |
+| `fault_title_503` | Kiểm tra xem thùng đựng bụi và bộ lọc đã được lắp đúng cách chưa. |
+| `fault_title_509` | Lỗi cảm biến vách ngăn. Vệ sinh cảm biến, di chuyển robot ra xa khỏi các điểm rơi và khởi động lại. |
+| `fault_title_510` | Bộ đệm bị kẹt. Làm sạch và nhấn nhẹ để tháo. |
+| `fault_title_511_512` | Lỗi trở về dock sạc. Đặt robot lên dock sạc. |
+| `fault_title_513_514` | Robot bị mắc kẹt. Di chuyển robot ra xa và khởi động lại. |
+| `fault_title_522` | Kiểm tra xem giẻ lau đã được lắp đúng cách chưa. |
+| `fault_title_533` | Sắp tắt sau thời gian dài ở chế độ Ngủ |
+| `fault_title_534` | Pin yếu. Robot sắp tắt. |
+| `fault_title_560` | Chổi bên bị rối. Hãy tháo và làm sạch. |
+| `fault_title_568_569` | Vệ sinh bánh xe chính, di chuyển robot ra xa và khởi động lại. |
+| `fault_title_570` | Chổi chính bị rối. Tháo và vệ sinh chổi chính và vòng bi của chổi. |
+| `fault_title_572` | Chổi chính bị rối. Tháo và vệ sinh chổi chính và vòng bi của chổi. |
+| `fault_title_594` | Đảm bảo túi đựng bụi đã được lắp đúng cách. |
+| `fault_title_611` | Định vị thất bại. Hãy di chuyển robot về dock sạc rồi vẽ lại bản đồ. |
+| `fault_title_612` | Đã thay đổi bản đồ. Định vị thất bại. Hãy thử lại. |
+| `fault_title_629` | Đế gắn giẻ lau bị rơi. |
+| `fault_title_668` | Lỗi robot. Đặt lại hệ thống. |
 | `firmware_upgrade_downloading` | Đang cập nhật... %d% |
 | `firmware_upgrade_installing` | Đang cài đặt... |
 | `floor_title` | Bố cục Nhà |
@@ -252,7 +305,7 @@ This document contains the complete translation mapping and internal constants f
 | `guide_map_save_open` | Luôn bật |
 | `guide_map_save_tip1` | Cho phép robot ghi nhớ nhà bạn |
 | `guide_map_save_tip2` | Sau khi bản đồ được lưu, robot sẽ tự điều chỉnh tuyến đường làm sạch phù hợp với phòng và bạn có thể mở khóa tính năng làm sạch tùy chỉnh như Làm sạch Phòng có Chọn lọc và Khu vực Cấm. |
-| `guide_map_save_tip3` | Khi tắt Lưu Bản đồ, các tính năng chỉnh sửa bản đồ và làm sạch tùy chỉnh như Làm sạch Phòng Chọn lọc và Khu vực Cấm sẽ không còn khả dụng.\n |
+| `guide_map_save_tip3` | Khi tắt Lưu Bản đồ, các tính năng chỉnh sửa bản đồ và làm sạch tùy chỉnh như Làm sạch Phòng Chọn lọc và Khu vực Cấm sẽ không còn khả dụng.<br> |
 | `guide_map_save_tip4` | Sau khi bản đồ được lưu, robot sẽ tự điều chỉnh tuyến đường làm sạch phù hợp với phòng và bạn có thể mở khóa tính năng làm sạch tùy chỉnh như Làm sạch Phòng có Chọn lọc và Khu vực Cấm. |
 | `guide_map_save_tip5` | Các vật thể phản chiếu và bề mặt trơn trượt có thể ảnh hưởng đến sự ổn định của tính năng Lưu Bản đồ và gây ra bất thường trong tuyến đường. |
 | `guide_mopnow` | Hút bụi trước khi lau. |
@@ -451,7 +504,7 @@ This document contains the complete translation mapping and internal constants f
 | `mapEdit_recommend_add_cill` | Nhấn để xác nhận bậu cửa |
 | `mapEdit_recommend_add_zone` | Thêm Khu vực Cấm |
 | `mapEdit_recommend_carpet_subtitle` | Đã phát hiện thảm khả nghi. Đặt Tăng công suất hút Thảm hoặc Tránh sau khi thêm thảm. |
-| `mapEdit_recommend_cill_subtitle` | \nĐã phát hiện bậu cửa ở đây. Đặt khu vực có bậu cửa. |
+| `mapEdit_recommend_cill_subtitle` | <br>Đã phát hiện bậu cửa ở đây. Đặt khu vực có bậu cửa. |
 | `mapEdit_recommend_cill_title` | Bậu cửa |
 | `mapEdit_recommend_cliff_subtitle` | Đã phát hiện bậc thang, cầu thang hoặc vách ngăn khả nghi. Thêm Khu vực Cấm. |
 | `mapEdit_recommend_ignore` | Lỗi nhận diện? Bỏ qua. |
@@ -478,7 +531,7 @@ This document contains the complete translation mapping and internal constants f
 | `mapEdit_room_rename_fail` | Đặt tên thất bại |
 | `mapEdit_room_rename_success` | Đặt tên thành công |
 | `mapEdit_select_room_material_tip` | Chọn một phòng để đặt loại sàn |
-| `mapEdit_select_room_merge_error_tip` | Chọn khu vực liền kề\n |
+| `mapEdit_select_room_merge_error_tip` | Chọn khu vực liền kề<br> |
 | `mapEdit_select_room_merge_tip` | Chọn nhiều phòng liền kề để hợp nhất |
 | `mapEdit_select_room_rename_tip` | Chọn phòng để đặt tên |
 | `mapEdit_select_room_split_out_range_tip` | Vẽ đường phân chia trong phòng đã chọn. |
@@ -572,18 +625,18 @@ This document contains the complete translation mapping and internal constants f
 | `set_voice_package_waiting` | Đang chờ... |
 | `setting_adjust_time` | Thời gian bắt đầu trùng với thời gian kết thúc. Vui lòng thay đổi. |
 | `setting_carpet_avoid` | Tránh và Đi qua Thảm |
-| `setting_carpet_avoid_tip` | Sau khi lắp đế gắn giẻ lau, robot sẽ tránh thảm và chỉ đi qua thảm khi cần thiết để tránh bỏ sót bất kỳ khu vực nào.\n* Vui lòng sử dụng sau khi thêm thảm vào bản đồ chỉnh sửa |
+| `setting_carpet_avoid_tip` | Sau khi lắp đế gắn giẻ lau, robot sẽ tránh thảm và chỉ đi qua thảm khi cần thiết để tránh bỏ sót bất kỳ khu vực nào.<br>* Vui lòng sử dụng sau khi thêm thảm vào bản đồ chỉnh sửa |
 | `setting_cartoon_voice` | Giọng hoạt hình của trẻ con |
 | `setting_charging` | Sạc Ngoài Giờ cao điểm |
 | `setting_charging_desc` | Sạc đầy pin ngoài giờ cao điểm và chỉ duy trì lượng pin tối thiểu trong những khung giờ khác. |
 | `setting_charging_disable_tip` | * Chưa đặt thời gian sạc. Sạc ngoài giờ cao điểm không hoạt động. |
 | `setting_charging_empty` | Chưa đặt |
-| `setting_charging_note` | *Quá trình sạc pin có thể xảy ra trong giờ cao điểm trong những điều kiện sau:\n1. Có tác vụ chưa hoàn tất.\n2. Nếu không có tác vụ nào, robbot cũng sẽ sạc để duy trì lượng pin tối thiểu. |
+| `setting_charging_note` | *Quá trình sạc pin có thể xảy ra trong giờ cao điểm trong những điều kiện sau:<br>1. Có tác vụ chưa hoàn tất.<br>2. Nếu không có tác vụ nào, robbot cũng sẽ sạc để duy trì lượng pin tối thiểu. |
 | `setting_check_text` | Xem |
-| `setting_consumable_change_tips1` | \nChổi chính đã hết tuổi thọ sử dụng. Vui lòng thay ngay |
-| `setting_consumable_change_tips2` | \nChổi bên đã hết tuổi thọ sử dụng. Vui lòng thay ngay |
-| `setting_consumable_change_tips3` | \nBộ lọc đã hết tuổi thọ sử dụng. Vui lòng thay ngay |
-| `setting_consumable_change_tips4` | \nGiẻ lau đã hết tuổi thọ sử dụng. Vui lòng thay ngay |
+| `setting_consumable_change_tips1` | <br>Chổi chính đã hết tuổi thọ sử dụng. Vui lòng thay ngay |
+| `setting_consumable_change_tips2` | <br>Chổi bên đã hết tuổi thọ sử dụng. Vui lòng thay ngay |
+| `setting_consumable_change_tips3` | <br>Bộ lọc đã hết tuổi thọ sử dụng. Vui lòng thay ngay |
+| `setting_consumable_change_tips4` | <br>Giẻ lau đã hết tuổi thọ sử dụng. Vui lòng thay ngay |
 | `setting_consumable_change_tips5` | Thùng đựng bụi có thể đầy. Vui lòng đổ bụi |
 | `setting_consumable_change_tips6` | Các cảm biến đã lâu chưa được làm sạch. Vui lòng làm sạch. |
 | `setting_consumable_change_tips7` | Chưa lắp đế gắn giẻ lau |

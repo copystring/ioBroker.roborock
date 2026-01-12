@@ -1,13 +1,17 @@
 ﻿import { MapManager } from "../../map/MapManager";
+import { RoborockLocales } from "../../roborock_locales";
 import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
 import { VACUUM_CONSTANTS } from "./vacuumConstants";
+import deviceDataSet = require("../../protocols/q7_dataset.json");
 
 export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 	// B01-specific properties
 	protected mapManager: MapManager;
-	protected mappedRooms: unknown[] | null = null;
+	protected locales: RoborockLocales;
+	private cleanedLegacySegments = false;
+	private mappedRooms: Array<{ id: number; name: string }> | null = null;
 
 	constructor(
 		dependencies: FeatureDependencies,
@@ -19,12 +23,12 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		super(dependencies, duid, robotModel, config);
 		void profile;
 		this.mapManager = new MapManager(this.deps.adapter);
+		this.locales = new RoborockLocales(deviceDataSet);
 		this.deps.adapter.rLog("System", this.duid, "Info", "B01", undefined, `Constructing B01VacuumFeatures for ${robotModel}`, "info");
 	}
 
 
 
-	// Override updateStatus to use strict B01 prop.get
 	public override async setupProtocolFeatures(): Promise<void> {
 		this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, "Configuring B01 Command Set...", "debug");
 
@@ -88,7 +92,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		this.addCommand("wind", {
 			type: "number",
 			role: "value",
-			name: "Fan Power",
+			name: this.locales.getNameAll("wind"),
 			def: 2,
 			states: {
 				1: "Quiet",
@@ -103,7 +107,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		this.addCommand("water", {
 			type: "number",
 			role: "value",
-			name: "Water Level",
+			name: this.locales.getNameAll("water"),
 			def: 1,
 			states: {
 				1: "Low",
@@ -127,50 +131,41 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			def: false
 		});
 
-		// 13. Consumable Resets (in resetConsumables folder)
-
-		// We can't use addCommand easily for subfolders without modifying base class logic or hacking the key.
-		// Instead, we will define them here but they won't automatically be created by createCommandObjects
-		// if we don't add them to this.commands.
-		// However, getCommandParams needs to intercept them.
-
-		// Let's create these states manually later in createCommandObjects override or just here using ensureState?
-		// Better: Override createCommandObjects or do it in initializeDeviceData?
-		// Let's do it in initializeDeviceData to ensure they exist.
+		// 13. Consumable Resets are handled in createCommandObjects and initializeDeviceData
 
 		// 14. Additional B01 Commands (Discovered in Sniffer)
 		this.addCommand("child_lock", {
 			type: "boolean",
 			role: "switch",
-			name: "Child Lock",
+			name: this.locales.getNameAll("child_lock"),
 			def: false
 		});
 
 		this.addCommand("carpet_turbo", {
 			type: "boolean",
 			role: "switch",
-			name: "Carpet Turbo (Boost)",
+			name: this.locales.getNameAll("carpet_turbo"),
 			def: false
 		});
 
 		this.addCommand("light_mode", {
 			type: "boolean",
 			role: "switch",
-			name: "Button Lights",
+			name: this.locales.getNameAll("light_mode"),
 			def: true
 		});
 
 		this.addCommand("green_laser", {
 			type: "boolean",
 			role: "switch",
-			name: "Reactive AI / Obstacle Avoidance",
+			name: this.locales.getNameAll("green_laser"),
 			def: true
 		});
 
 		this.addCommand("repeat_state", {
 			type: "number",
 			role: "value",
-			name: "Repeat Cleaning",
+			name: this.locales.getNameAll("repeat_state"),
 			def: 0,
 			states: { 0: "Off", 1: "On" } // Assuming 0/1 typical for repeat
 		});
@@ -179,7 +174,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		this.addCommand("mode", {
 			type: "number",
 			role: "value",
-			name: "Robot Mode",
+			name: this.locales.getNameAll("mode"),
 			def: 0,
 			states: {
 				0: "Vacuum",
@@ -261,16 +256,12 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			};
 		}
 
-		// User explicit mapping: app_stop -> stop_recharge
 		if (method === "app_stop") {
 			return {
-				method: "service.stop_recharge",
+				method: "service.stop_clean",
 				params: {}
 			};
 		}
-
-
-
 
 		if (method === "app_charge") {
 			return {
@@ -326,24 +317,49 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 	public async updateRoomMapping(): Promise<void> {
 		if (!this.mappedRooms) return;
 
-		await this.deps.ensureFolder(`Devices.${this.duid}.floors`);
-		// B01 only supports single floor active mapping usually, or we treat it as "current_floor"
-		// But for ioBroker structure we usually put rooms under "floors.cleanSegments" or similar?
-		// V1 used "floors" and "rooms" in config?
-		// Let's use a flat room list under "floors" like V1 did.
+		const mapStatusState = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.deviceStatus.map_status`);
+		let floorID = 0;
+		if (mapStatusState && typeof mapStatusState.val === "number") {
+			floorID = mapStatusState.val;
+		} else {
+			// Fallback: try to use 'current_map_id' from device status
+			const currentMapIdState = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.deviceStatus.current_map_id`);
+			if (currentMapIdState && typeof currentMapIdState.val === "number") {
+				floorID = currentMapIdState.val;
+			} else {
+				this.deps.log.debug(`[${this.duid}] map_status and current_map_id not available for room mapping, defaulting to floor 0.`);
+			}
+		}
+		const floorFolder = `Devices.${this.duid}.floors.${floorID}`;
+		const floorName = `${this.locales.getText("guide_multifloors", this.deps.adapter.language || "en")} ${floorID}`;
+		await this.deps.ensureFolder(floorFolder, floorName);
 
-		// Create/Update Room States
-		// We assume mappedRooms is [{ id: 10, name: "Living Room" }, ...]
-		const rooms = this.mappedRooms as { id: number; name: string }[];
-		const roomFolder = `Devices.${this.duid}.floors`;
+		// Cleaning up legacy/orphan states to avoid confusion (run once)
+		if (!this.cleanedLegacySegments) {
+			this.cleanedLegacySegments = true; // Set flag immediately to prevent race conditions
+			const legacyCleanSegments = `Devices.${this.duid}.floors.cleanSegments`;
+			try {
+				const legacyObj = await this.deps.adapter.getObjectAsync(legacyCleanSegments);
+				if (legacyObj) {
+					this.deps.adapter.log.info(`[${this.duid}] Cleaning up legacy 'cleanSegments' folder...`);
+					await this.deps.adapter.delObjectAsync(legacyCleanSegments, { recursive: true });
+				}
+			} catch {
+				// Ignore cleanup errors
+			}
+		}
 
-		const cleanSegmentsFolder = `${roomFolder}.cleanSegments`;
-		await this.deps.ensureFolder(cleanSegmentsFolder);
+		// We assume mappedRooms is [{ id: 10, name: "Living Room" }, ...] or [{ roomId: 10, roomName: "Living Room" }, ...]
+		const rooms = this.mappedRooms as any[];
 
 		for (const room of rooms) {
-			const roomID = room.id;
-			const roomName = room.name || `Room ${roomID}`;
-			const roomStateId = `${cleanSegmentsFolder}.${roomID}`;
+			const roomID = room?.id ?? room?.roomId;
+			if (typeof roomID !== "number") {
+				this.deps.adapter.rLog("System", this.duid, "Warn", "B01", undefined, `Invalid room data in mappedRooms: ${JSON.stringify(room)}`, "warn");
+				continue;
+			}
+			const roomName = room.name || room.roomName || `Room ${roomID}`;
+			const roomStateId = `${floorFolder}.${roomID}`;
 
 			await this.deps.ensureState(roomStateId, {
 				name: roomName,
@@ -422,16 +438,33 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		}
 
 		// Map B01 specific keys to standard ioBroker states for compatibility
-		// Map B01 specific keys to standard ioBroker states for compatibility
-
-
 		await this.deps.ensureFolder(`Devices.${this.duid}.deviceStatus`);
 		for (const key in resultObj) {
 			let val: unknown = resultObj[key];
 
+			if (typeof val === "string") {
+				const trimmed = val.trim();
+				if ((trimmed.startsWith("{") || trimmed.startsWith("[")) && (trimmed.endsWith("}") || trimmed.endsWith("]"))) {
+					try {
+						val = JSON.parse(trimmed);
+					} catch {
+						/* ignore */
+					}
+				}
+			}
+
+			// Formatting for specific keys (e.g. timestamps)
+			if ((key === "last_clean_t" || key === "clean_finish") && typeof val === "number") {
+				val = this.deps.adapter.formatRoborockDate(val);
+			}
+
 			// Get definition or create default
 			const def = this.getCommonDeviceStates(key);
-			const common: any = def ? { ...def } : { name: key, type: typeof val as ioBroker.CommonType, role: "value", read: true, write: false };
+			let type: ioBroker.CommonType = typeof val as ioBroker.CommonType;
+			if (type === "object" && val !== null) type = "object";
+			if ((key === "last_clean_t" || key === "clean_finish") && typeof val === "string") type = "string"; // Force string type if formatted
+
+			const common: any = def ? { ...def } : { name: key, type: type, role: "value", read: true, write: false };
 
 			// Enrich with defaults if missing
 			if (!common.name) common.name = key;
@@ -439,17 +472,10 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			if (common.read === undefined) common.read = true;
 			if (common.write === undefined) common.write = false;
 
-			// Manual Metadata Overrides for B01 specific fields
-			if (key === "clean_finish") {
-				common.name = "Clean Finish Timestamp";
-				common.role = "value.time";
-				common.unit = null; // Ensure no unit residue
-			} else if (key === "cleaning_time" || key === "real_clean_time") {
-				common.name = key === "cleaning_time" ? "Cleaning Time" : "Real Cleaning Time";
+			// Manual Metadata Overrides - Removed hardcoded EN strings to use getNameAll translations
+			if (key === "cleaning_time" || key === "real_clean_time" || key === "total_clean_time") {
 				common.role = "value.interval";
 				common.unit = key === "cleaning_time" ? "min" : "s";
-			} else if (key === "cleaning_area") {
-				common.name = "Cleaning Area";
 			}
 
 			// Serialize complex objects
@@ -728,161 +754,160 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		void dockType;
 	}
 
-	public override getCommonDeviceStates(attribute: string | number): { states?: Record<any, any>; unit?: string; type?: ioBroker.CommonType | undefined } | undefined {
+	public override getCommonDeviceStates(attribute: string | number): Partial<ioBroker.StateCommon> | undefined {
 		// Map B01 properties to readable states
+		const lang = this.deps.adapter.language || "en";
 
-		// 1. Fan Power (wind) - User confirmed 101-104 but B01/Q7 sends 1-4
+		// Fan Power (wind)
 		if (attribute === "wind" || attribute === "fan_power") {
+			// Map B01 (1-5) to Standard (101-105) for text retrieval
+			const b01FanMap: Record<number, number> = { 1: 101, 2: 102, 3: 103, 4: 104, 5: 105 };
+			const states: Record<number, string> = {};
+
+			for (const [b01Val, stdVal] of Object.entries(b01FanMap)) {
+				states[parseInt(b01Val)] = this.locales.getFanPowerText(stdVal, lang);
+			}
+
 			return {
 				type: "number",
-				states: {
-					1: "Quiet",
-					2: "Balanced",
-					3: "Turbo",
-					4: "Max",
-					101: "Quiet",
-					102: "Balanced",
-					103: "Turbo",
-					104: "Max",
-					105: "Off",
-					5: "Max+"
-				}
+				name: this.locales.getNameAll(String(attribute)),
+				states: states
 			};
 		}
 
-		// 2. Water Level (water) - Standard 200-203 but B01/Q7 sends 1-3
+		// Water Level (water)
 		if (attribute === "water" || attribute === "water_box_mode") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				states: {
-					0: "Off",
-					1: "Low",
-					2: "Medium",
-					3: "High",
-					200: "Off",
-					201: "Low",
-					202: "Medium",
-					203: "High"
+					0: this.locales.getWaterBoxModeText(200, lang), // Off
+					1: this.locales.getWaterBoxModeText(201, lang), // Low
+					2: this.locales.getWaterBoxModeText(202, lang), // Medium
+					3: this.locales.getWaterBoxModeText(203, lang)  // High
 				}
 			};
 		}
 
-		// 3. Status - General Robot State
+		// Status
 		if (attribute === "status" || attribute === "state") {
+			const states: Record<number, string> = {
+				0: "Unknown",
+				1: "Initiating",
+				2: "Sleeping",
+				3: "Idle",
+				4: "Remote Control",
+				5: "Cleaning",
+				6: "Returning Dock",
+				7: "Manual Mode",
+				8: "Charging",
+				9: "Charging Error",
+				10: "Paused",
+				11: "Spot Cleaning",
+				12: "In Error",
+				13: "Shutting Down",
+				14: "Updating",
+				15: "Docking",
+				16: "Go To",
+				17: "Zone Clean",
+				18: "Room Clean",
+				22: "Emptying Dust Container",
+				23: "Washing Mop",
+				26: "Going to Wash Mop",
+				28: "In Call",
+				29: "Mapping",
+				100: "Fully Charged"
+			};
+
+			// Override with dataset translations if available
+			for (const code in states) {
+				const key = this.locales.getStatusKey(code);
+				if (key) {
+					states[Number(code)] = this.locales.getText(key, lang);
+				}
+			}
+
 			return {
 				type: "number",
-				states: {
-					0: "Unknown",
-					1: "Initiating",
-					2: "Sleeping",
-					3: "Idle",
-					4: "Remote Control",
-					5: "Cleaning",
-					6: "Returning Dock",
-					7: "Manual Mode",
-					8: "Charging",
-					9: "Charging Error",
-					10: "Paused",
-					11: "Spot Cleaning",
-					12: "In Error",
-					13: "Shutting Down",
-					14: "Updating",
-					15: "Docking",
-					16: "Go To",
-					17: "Zone Clean",
-					18: "Room Clean",
-					22: "Emptying Dust Container",
-					23: "Washing Mop",
-					26: "Going to Wash Lov",
-					28: "In Call",
-					29: "Mapping",
-					100: "Fully Charged"
-				}
+				name: this.locales.getNameAll(String(attribute)),
+				states: states
 			};
 		}
 
-		// 3.1 Cleaning Stats Units
-		if (attribute === "clean_time" || attribute === "cleaning_time") {
+		// Cleaning Stats
+		if (attribute === "clean_time" || attribute === "cleaning_time" || attribute === "total_clean_time") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				unit: "min"
 			};
 		}
 		if (attribute === "clean_area" || attribute === "cleaning_area" || attribute === "last_clean_area") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				unit: "m²"
 			};
 		}
-		if (attribute === "battery" || attribute === "quantity") {
+		if (attribute === "quantity") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				unit: "%"
 			};
 		}
 		if (attribute === "real_clean_time") {
 			return {
 				type: "number",
+				role: "value.interval",
+				name: this.locales.getNameAll(String(attribute)),
 				unit: "s"
 			};
 		}
 		if (attribute === "clean_finish") {
 			return {
-				type: "number"
+				type: "string",
+				role: "value.datetime",
+				name: this.locales.getNameAll(String(attribute)),
 			};
 		}
 		if (attribute === "last_clean_t") {
 			return {
-				type: "string"
+				type: "string",
+				name: this.locales.getNameAll(String(attribute))
 			};
 		}
 
-		// 4. Error Codes - Populate from q7_dataset if available, else generic
+		// Error Codes
 		if (attribute === "error_code" || attribute === "fault") {
-			// We can generate a states object from the imported Q7Data if we want 'states' mapping in object
-			// This might be large, but useful.
-			// However, Q7Data is imported in v1VacuumFeatures only?
-			// Let's rely on base implementation for dynamic lookup OR return a basic set.
-			// Base implementation usually sets the text state 'error_text'.
-			// But for the numeric 'error_code' state, we can add common ones.
+			const states: Record<string, string> = { "0": "No Error" };
+			const codes = this.locales.getErrorCodes();
+			for (const code of codes) {
+				states[code.toString()] = this.locales.getErrorText(code, lang);
+			}
+
 			return {
 				type: "number",
-				states: {
-					0: "No Error",
-					1: "LiDAR Blocked",
-					2: "Bumper Stuck",
-					3: "Wheels Suspended",
-					4: "Cliff Sensor Error",
-					5: "Main Brush Jammed",
-					6: "Side Brush Jammed",
-					7: "Wheels Jammed",
-					8: "Robot Trapped",
-					9: "No Dustbin",
-					10: "Filter Wet/Blocked",
-					11: "Magnetic Field Detected",
-					12: "Low Battery",
-					13: "Charging Error",
-					14: "Battery Error",
-					15: "Wall Sensor Dirty",
-					16: "Robot Tilted",
-					17: "Side Brush Error",
-					18: "Fan Error",
-					100: "Sensor Dirty"
-				}
+				name: this.locales.getNameAll(String(attribute)),
+				states: states
 			};
 		}
+
 
 		// 5. Dock Status
 		if (attribute === "dock_status") {
+			const states: Record<number, string> = {
+				0: "Undocked",
+				1: "Docking",
+				2: "Docked",
+				3: "Leaving Dock",
+				255: "Unknown"
+			};
+			// TODO: Add dataset mapping for dock_status if possible
 			return {
 				type: "number",
-				states: {
-					0: "Undocked",
-					1: "Docking",
-					2: "Docked",
-					3: "Leaving Dock",
-					255: "Unknown"
-				}
+				name: this.locales.getNameAll(String(attribute)),
+				states: states
 			};
 		}
 
@@ -890,6 +915,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		if (attribute === "dust_collection_status") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				states: {
 					0: "Idle",
 					1: "Collecting",
@@ -904,6 +930,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		if (attribute === "map_status") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				states: {
 					0: "Unmapped",
 					1: "Mapped",
@@ -913,23 +940,11 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			};
 		}
 
-		// 8. Charge Status
-		if (attribute === "charge_status") {
-			return {
-				type: "number",
-				states: {
-					0: "Not Charging",
-					1: "Charging",
-					2: "Fully Charged",
-					3: "Charge Failed"
-				}
-			};
-		}
-
-		// 8. Charge State (Fixed key from charge_status)
+		// 8. Charge State
 		if (attribute === "charge_state") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				states: {
 					0: "Charging",
 					1: "Not Charging",
@@ -939,22 +954,11 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			};
 		}
 
-		// 10. Robot Mode
-		if (attribute === "mode") {
-			return {
-				type: "number",
-				states: {
-					0: "Vacuum",
-					1: "Vacuum & Mop",
-					2: "Mop"
-				}
-			};
-		}
-
 		// 9. Work Mode
 		if (attribute === "work_mode") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				states: {
 					0: "Standard",
 					1: "Custom",
@@ -963,10 +967,24 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			};
 		}
 
+		// 10. Robot Mode
+		if (attribute === "mode") {
+			return {
+				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
+				states: {
+					0: "Vacuum",
+					1: "Vacuum & Mop",
+					2: "Mop"
+				}
+			};
+		}
+
 		// 10. Tank State (Water Box)
 		if (attribute === "tank_state") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				states: {
 					0: "Installed",
 					1: "Removed",
@@ -980,10 +998,14 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		if (attribute === "sweep_type" || attribute === "mop_mode") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				states: {
-					0: "Standard",
-					1: "Deep",
-					2: "Deep+"
+					0: this.locales.getMopModeText(300, lang) || "Standard",
+					1: this.locales.getMopModeText(301, lang) || "Deep",
+					300: this.locales.getMopModeText(300, lang),
+					301: this.locales.getMopModeText(301, lang),
+					302: this.locales.getMopModeText(302, lang),
+					303: this.locales.getMopModeText(303, lang)
 				}
 			};
 		}
@@ -992,10 +1014,11 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		if (attribute === "cloth_state") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				states: {
-					0: "Installed",
-					1: "Removed",
-					2: "Dirty"
+					0: this.locales.getClothStateText(0, lang),
+					1: this.locales.getClothStateText(1, lang),
+					2: this.locales.getClothStateText(2, lang)
 				}
 			};
 		}
@@ -1004,6 +1027,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		if (attribute === "multi_floor") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				states: {
 					0: "Disabled",
 					1: "Enabled"
@@ -1015,6 +1039,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		if (attribute === "quiet_is_open") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				states: {
 					0: "Off",
 					1: "On"
@@ -1026,6 +1051,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		if (attribute === "dust_frequency") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				states: {
 					0: "Smart",
 					1: "Low",
@@ -1040,6 +1066,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		if (attribute === "clean_path_preference") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				states: {
 					0: "Standard",
 					1: "Fast"
@@ -1051,6 +1078,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		if (attribute === "repeat_state") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				states: {
 					0: "Off",
 					1: "On"
@@ -1062,6 +1090,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		if (attribute === "dust_action") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				states: {
 					0: "Idle",
 					1: "Emptying"
@@ -1073,6 +1102,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		if (attribute === "build_map") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				states: {
 					0: "Off",
 					1: "On"
@@ -1084,42 +1114,21 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		if (attribute === "map_num") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				unit: "maps"
 			};
 		}
 
-		// 21. Mode
-		if (attribute === "mode") {
-			return {
-				type: "number",
-				states: {
-					0: "Vacuum",
-					1: "Mop",
-					2: "Vacuum & Mop"
-				}
-			};
-		}
+
 
 		// 22. Custom Type
 		if (attribute === "custom_type") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				states: {
 					0: "Off",
 					1: "On"
-				}
-			};
-		}
-
-		// 8. Charge State (Fixed key from charge_status)
-		if (attribute === "charge_state") {
-			return {
-				type: "number",
-				states: {
-					0: "Charging",
-					1: "Not Charging",
-					2: "Fully Charged",
-					3: "Charge Failed"
 				}
 			};
 		}
@@ -1128,10 +1137,11 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		if (attribute === "add_sweep_status") {
 			return {
 				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
 				states: {
 					"-1": "Unknown",
-					0: "Off",
-					1: "On"
+					0: this.locales.getText("common_off", lang),
+					1: this.locales.getText("common_on", lang)
 				}
 			};
 		}
@@ -1140,12 +1150,50 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		if (attribute === "language") {
 			return {
 				type: "number",
-				states: {
-					0: "Chinese",
-					1: "English",
-					2: "Other",
-					4: "German", // Guessed based on 4 in DE context
-				}
+				name: this.locales.getNameAll(String(attribute)),
+			};
+		}
+
+		// 25. Time Zone
+		if (attribute === "time_zone") {
+			return {
+				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
+			};
+		}
+		if (attribute === "time_zone_info") {
+			return {
+				type: "string",
+				name: this.locales.getNameAll(String(attribute)),
+			};
+		}
+
+		// 26. Recommend
+		if (attribute === "recommend") {
+			return {
+				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
+			};
+		}
+
+		// 27. PU Charging
+		if (attribute === "pu_charging") {
+			return {
+				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
+			};
+		}
+
+		// Default fallback using getNameAll
+		const keyName = String(attribute);
+		const translatedName = this.locales.getNameAll(keyName);
+		if (translatedName !== keyName) {
+			return {
+				name: translatedName,
+				type: "mixed",
+				role: "value",
+				read: true,
+				write: false
 			};
 		}
 
@@ -1211,7 +1259,12 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 			if (key === "net_status" || settingsToProcess.includes(key)) continue;
 
-			const common = this.getCommonDeviceStates(key) || { name: key, type: typeof val as ioBroker.CommonType, role: "value", write: false };
+			const common = this.getCommonDeviceStates(key) || {
+				name: this.locales.getNameAll(key) || key,
+				type: typeof val as ioBroker.CommonType,
+				role: "value",
+				write: false
+			};
 
 			// Check for specific consumables
 			if (["main_brush_work_time", "side_brush_work_time", "filter_work_time", "filter_element_work_time", "sensor_dirty_time"].includes(key)) {
@@ -1290,7 +1343,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 			const { mapBase64, mapBase64Truncated, mapData } = res as { mapBase64: string; mapBase64Truncated: string; mapData: unknown };
 			await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64`, {
-				name: "Map Image",
+				name: "Map Base64",
 				type: "string",
 				role: "text.png",
 				read: true,
@@ -1299,7 +1352,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			await this.deps.adapter.setStateChangedAsync(`Devices.${this.duid}.map.mapBase64`, { val: mapBase64, ack: true });
 
 			await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64Truncated`, {
-				name: "Map Image Truncated",
+				name: "Map Base64 Truncated",
 				type: "string",
 				role: "text.png",
 				read: true,
@@ -1332,14 +1385,14 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		if (!mapRes) return;
 
 		await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${index}.mapBase64`, {
-			name: "History Map Base64",
+			name: "Map Base64",
 			type: "string",
 			role: "text",
 			read: true,
 			write: false
 		});
 		await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${index}.mapBase64Truncated`, {
-			name: "History Map Base64 Truncated",
+			name: "Map Base64 Truncated",
 			type: "string",
 			role: "text",
 			read: true,
@@ -1357,14 +1410,14 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		};
 
 		await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${index}.map_object`, {
-			name: "Combined History Record",
+			name: "Map Object",
 			type: "string",
 			role: "json",
 			read: true,
 			write: false
 		});
 
-		await this.deps.adapter.setStateAsync(`Devices.${this.duid}.cleaningInfo.records.${index}.map_object`, {
+		await this.deps.adapter.setState(`Devices.${this.duid}.cleaningInfo.records.${index}.map_object`, {
 			val: JSON.stringify(combinedObject),
 			ack: true
 		});

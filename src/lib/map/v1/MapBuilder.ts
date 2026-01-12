@@ -1,11 +1,11 @@
-import { Roborock } from "../../../main";
-import { createCanvas, loadImage, type Canvas, type CanvasRenderingContext2D, Image } from "@napi-rs/canvas";
-import { assignRoborockRoomColorsToHex } from "../../roomColoring";
-import * as Images from "../../images";
-import { processPaths, type PathResult, type PathPoint } from "../../pathProcessor.js";
+import { createCanvas, Image, loadImage, type Canvas, type CanvasRenderingContext2D } from "@napi-rs/canvas";
 import * as fs from "fs";
 import * as path from "path";
-import { LEGACY_COLORS, VISUAL_BLOCK_SIZE, ROBOROCK_PALETTE } from "../MapHelper"; // Import shared resources
+import { Roborock } from "../../../main";
+import * as Images from "../../images";
+import { processPaths, type PathPoint, type PathResult } from "../../pathProcessor.js";
+import { assignRoborockRoomColorsToHex } from "../../roomColoring";
+import { LEGACY_COLORS, ROBOROCK_PALETTE, VISUAL_BLOCK_SIZE } from "../MapHelper"; // Import shared resources
 
 // ... Constants removed (using MapHelper or internal logic) ...
 
@@ -553,7 +553,6 @@ export class MapBuilder {
 			42: "18",
 			48: "48",
 			49: "49",
-			50: "50",
 			51: "51",
 			54: "54",
 			65: "65",

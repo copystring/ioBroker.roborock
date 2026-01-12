@@ -35,6 +35,7 @@ This document contains the complete translation mapping and internal constants f
 ### 🕹️ Robot Modes (`ROBOT_TYPE`)
 | Mode Name | Internal Value |
 | :--- | :--- |
+| `SLEEP` | `4294967295` |
 | `STANDBY` | `0` |
 | `WORKING` | `1` |
 | `CHARGING` | `2` |
@@ -42,7 +43,6 @@ This document contains the complete translation mapping and internal constants f
 | `ALERT` | `4` |
 | `MOP_CLEANING` | `5` |
 | `MOP_AIRDRYING` | `6` |
-| `SLEEP` | `4294967295` |
 
 ---
 
@@ -58,7 +58,7 @@ This document contains the complete translation mapping and internal constants f
 | **500** | `F_500` | LiDAR-sensor of -laser geblokkeerd. Controleer op belemmeringen en probeer het opnieuw. | LiDAR-sensor geblokkeerd of vastgelopen. Verwijder eventuele vreemde voorwerpen indien aanwezig. Als het probleem aanhoudt, verplaats de robot en start opnieuw op. |
 | **501** | `F_501` | Robot opgeschort. Verplaats de robot en start opnieuw op. | Robot opgeschort. Verplaats de robot en start opnieuw op. Afgrondsensoren zijn vuil. Veeg ze schoon. |
 | **502** | `F_502` | Batterij bijna leeg. Nu opladen. | Batterij bijna leeg. Plaats de robot op het dockingstation om deze tot 20% op te laden voordat u begint. |
-| **503** | `F_503` | Controleer of de stofbak en het filter correct zijn geïnstalleerd. | Installeer de stofbak en het filter opnieuw op de juiste plaats.\nAls het probleem aanhoudt, moet u het filter vervangen. |
+| **503** | `F_503` | Controleer of de stofbak en het filter correct zijn geïnstalleerd. | Installeer de stofbak en het filter opnieuw op de juiste plaats.<br>Als het probleem aanhoudt, moet u het filter vervangen. |
 | **504** | `F_504` | Batterij bijna leeg. Nu opladen. | Batterij bijna leeg. Plaats de robot op het dockingstation om deze tot 20% op te laden voordat u begint. |
 | **505** | `F_505` | Batterij bijna leeg. Nu opladen. | Batterij bijna leeg. Plaats de robot op het dockingstation om deze tot 20% op te laden voordat u begint. |
 | **506** | `F_506` | Batterij bijna leeg. Nu opladen. | Batterij bijna leeg. Plaats de robot op het dockingstation om deze tot 20% op te laden voordat u begint. |
@@ -163,6 +163,7 @@ This document contains the complete translation mapping and internal constants f
 
 | Key | Localized Value |
 | :--- | :--- |
+| `battery` | Batterij percentage |
 | `clean_record_abort_abnormally` | Abnormaal beëindigd |
 | `clean_record_abort_manually` | Reiniging onderbroken door gebruiker |
 | `clean_record_area` | Totale gebied |
@@ -189,8 +190,10 @@ This document contains the complete translation mapping and internal constants f
 | `clean_record_work_record` | Geschiedenis |
 | `common_abnormal` | Fout |
 | `common_alert` | Opmerking |
+| `common_battery_percentage` | Batterij percentage |
 | `common_cancel` | Annuleren |
 | `common_close_time` | Beëindigen |
+| `common_custom_type` | Aangepast type |
 | `common_delete` | Verwijderen |
 | `common_determine` | OKÉ |
 | `common_disconnect` | Robot offline |
@@ -198,6 +201,7 @@ This document contains the complete translation mapping and internal constants f
 | `common_holder_default_text` | Voer een naam in van maximaal 12 tekens |
 | `common_known` | Begrepen |
 | `common_loading` | Aan het laden... |
+| `common_map_id` | Kaart-ID |
 | `common_more` | Meer |
 | `common_more_setup` | Meer instellingen |
 | `common_network_abnormal` | Netwerkfout |
@@ -234,6 +238,57 @@ This document contains the complete translation mapping and internal constants f
 | `device_sn` | Serienummer |
 | `device_timezone_to_robot` | Tijdzone synchroniseren |
 | `failed_page_content` | Laden mislukt. |
+| `fault_summery_2003` | Batterijniveau onder de 20%. Geplande taak geannuleerd. |
+| `fault_summery_2007` | Kan het doel niet bereiken. Reiniging beëindigd. Zorg ervoor dat de deur naar het doeldomein open of niet geblokkeerd is. |
+| `fault_summery_2012` | Kan het doel niet bereiken. Reiniging beëindigd. Zorg ervoor dat de deur naar het doeldomein open of niet geblokkeerd is. |
+| `fault_summery_2100` | Batterij bijna leeg. Start met opladen. Hervat het reinigen na het opladen. |
+| `fault_summery_2102` | Reiniging voltooid. Keert terug naar het dockingstation |
+| `fault_summery_500` | LiDAR-sensor geblokkeerd of vastgelopen. Verwijder eventuele vreemde voorwerpen indien aanwezig. Als het probleem aanhoudt, verplaats de robot en start opnieuw op. |
+| `fault_summery_501` | Robot opgeschort. Verplaats de robot en start opnieuw op. Afgrondsensoren zijn vuil. Veeg ze schoon. |
+| `fault_summery_502_518` | Batterij bijna leeg. Plaats de robot op het dockingstation om deze tot 20% op te laden voordat u begint. |
+| `fault_summery_503` | Installeer de stofbak en het filter opnieuw op de juiste plaats.<br>Als het probleem aanhoudt, moet u het filter vervangen. |
+| `fault_summery_509` | Fout bij afgrondsensoren. Maak ze schoon, verplaats de robot weg van afgronden en start opnieuw op. |
+| `fault_summery_510` | Stootrand zit vast. Tik er herhaaldelijk op om het los te maken. Als er geen vreemd voorwerp is, verplaats de robot en start opnieuw op. |
+| `fault_summery_511_512` | Dockingfout. Verwijder obstakels rond het dockingstation, reinig de oplaadcontacten en plaats de robot op het dockingstation. |
+| `fault_summery_513_514` | Robot zit vast. Verwijder obstakels rond de robot of verplaats de robot en start opnieuw op. |
+| `fault_summery_522` | Dweil niet geïnstalleerd. Installeer deze opnieuw. |
+| `fault_summery_533` | Gaat uitschakelen na een lange slaapstand. Laad de robot op. |
+| `fault_summery_534` | Gaat uitschakelen vanwege een bijna lege batterij. Laad de robot op. |
+| `fault_summery_560` | Zijborstel vastgelopen. Verwijder en maak schoon. |
+| `fault_summery_568_569` | Reinig de hoofdwielen, verplaats de robot en start opnieuw op. |
+| `fault_summery_570` | Hoofdborstel vastgelopen. Verwijder en reinig deze en het lager. |
+| `fault_summery_572` | Hoofdborstel vastgelopen. Verwijder en reinig deze en het lager. |
+| `fault_summery_594` | Stofzak niet geplaatst. Controleer of deze correct is geplaatst. |
+| `fault_summery_611` | Positionering mislukt. Verplaats de robot terug naar het dockingstation en maak een nieuwe kaart. |
+| `fault_summery_612` | Nieuwe omgeving gedetecteerd. Kaart gewijzigd. Positionering mislukt. Probeer het opnieuw na het opnieuw in kaart brengen. |
+| `fault_summery_629` | Dweildoekhouder is losgekomen. Installeer deze opnieuw om door te gaan met werken. |
+| `fault_summery_668` | Fout ventilator. Reset het systeem. Neem contact op met de klantenservice als het probleem aanhoudt. |
+| `fault_title_2003` | Batterijniveau onder de 20%. Geplande taak geannuleerd. |
+| `fault_title_2007` | Kan het doel niet bereiken. Reiniging beëindigd. |
+| `fault_title_2012` | Kan het doel niet bereiken. Reiniging beëindigd. |
+| `fault_title_2100` | Batterij bijna leeg. Hervat het reinigen na het opladen. |
+| `fault_title_2102` | Reiniging voltooid. Keert terug naar het dockingstation |
+| `fault_title_407` | Reiniging wordt uitgevoerd. Geplande reinigingsbeurt genegeerd. |
+| `fault_title_500` | LiDAR-sensor of -laser geblokkeerd. Controleer op belemmeringen en probeer het opnieuw. |
+| `fault_title_501` | Robot opgeschort. Verplaats de robot en start opnieuw op. |
+| `fault_title_502_518` | Batterij bijna leeg. Nu opladen. |
+| `fault_title_503` | Controleer of de stofbak en het filter correct zijn geïnstalleerd. |
+| `fault_title_509` | Fout bij afgrondsensoren. Maak ze schoon, verplaats de robot weg van afgronden en start opnieuw op. |
+| `fault_title_510` | Stootrand zit vast. Reinig hem en tik lichtjes om hem los te maken. |
+| `fault_title_511_512` | Dockingfout. Plaats de robot op het dockingstation. |
+| `fault_title_513_514` | Robot zit vast. Verplaats de robot en start opnieuw op. |
+| `fault_title_522` | Controleer of de dweil correct is geïnstalleerd. |
+| `fault_title_533` | Gaat uitschakelen na een lange slaapstand |
+| `fault_title_534` | Batterij bijna leeg. Uitschakelen. |
+| `fault_title_560` | Zijborstel vastgelopen. Verwijder en maak schoon. |
+| `fault_title_568_569` | Reinig de hoofdwielen, verplaats de robot en start opnieuw op. |
+| `fault_title_570` | Hoofdborstel vastgelopen. Verwijder en reinig deze en het lager. |
+| `fault_title_572` | Hoofdborstel vastgelopen. Verwijder en reinig deze en het lager. |
+| `fault_title_594` | Zorg ervoor dat de stofzak correct is geplaatst. |
+| `fault_title_611` | Positionering mislukt. Verplaats de robot terug naar het dockingstation en maak een nieuwe kaart. |
+| `fault_title_612` | Kaart gewijzigd. Positionering mislukt. Probeer het opnieuw. |
+| `fault_title_629` | Dweildoekhouder is losgekomen. |
+| `fault_title_668` | Fout in robot. Reset het systeem. |
 | `firmware_upgrade_downloading` | Bezig met updaten... %d% |
 | `firmware_upgrade_installing` | Bezig met installeren... |
 | `floor_title` | Huisindeling |
@@ -252,7 +307,7 @@ This document contains the complete translation mapping and internal constants f
 | `guide_map_save_open` | Ingeschakeld houden |
 | `guide_map_save_tip1` | Laat je robot je huis onthouden |
 | `guide_map_save_tip2` | Nadat de kaart is opgeslagen, past de robot zijn reinigingsroute intelligent aan de kamer aan en kun je aangepaste reinigingsfuncties ontgrendelen, zoals Selectieve Kamerreiniging en No-Go Zone. |
-| `guide_map_save_tip3` | Zodra Kaartopslag is uitgeschakeld, zijn kaartbewerking en aangepaste reinigingsfuncties zoals Selectieve Kamerreiniging en No-Go Zone niet beschikbaar.\n |
+| `guide_map_save_tip3` | Zodra Kaartopslag is uitgeschakeld, zijn kaartbewerking en aangepaste reinigingsfuncties zoals Selectieve Kamerreiniging en No-Go Zone niet beschikbaar.<br> |
 | `guide_map_save_tip4` | Nadat de kaart is opgeslagen, past de robot zijn reinigingsroute intelligent aan de kamer aan en kun je aangepaste reinigingsfuncties ontgrendelen, zoals Selectieve Kamerreiniging en No-Go Zone. |
 | `guide_map_save_tip5` | Reflecterende objecten en gladde oppervlakken kunnen de stabiliteit van het opslaan van kaarten beïnvloeden en routeafwijkingen veroorzaken. |
 | `guide_mopnow` | Stofzuig voor het dweilen. |
@@ -572,13 +627,13 @@ This document contains the complete translation mapping and internal constants f
 | `set_voice_package_waiting` | Bezig met wachten... |
 | `setting_adjust_time` | Starttijd is gelijk aan eindtijd. Gelieve dit te wijzigen. |
 | `setting_carpet_avoid` | Tapijt vermijden en oversteken |
-| `setting_carpet_avoid_tip` | Nadat de dweildoek is bevestigd, vermijdt de robot tapijten en steekt deze alleen over als dat nodig is om geen plekken over te slaan.\\n* Gebruik dit nadat je een tapijt hebt toegevoegd in de kaartbewerking. |
+| `setting_carpet_avoid_tip` | Nadat de dweildoek is bevestigd, vermijdt de robot tapijten en steekt deze alleen over als dat nodig is om geen plekken over te slaan.\n* Gebruik dit nadat je een tapijt hebt toegevoegd in de kaartbewerking. |
 | `setting_cartoon_voice` | Tekenfilmstem voor kinderen |
 | `setting_charging` | Opladen tijdens daluren |
 | `setting_charging_desc` | Laadt de batterij volledig op tijdens daluren en behoudt alleen minimale stroom tijdens andere uren. |
 | `setting_charging_disable_tip` | * Geen oplaadtijd ingesteld. Laden tijdens daluren inactief. |
 | `setting_charging_empty` | Niet ingesteld |
-| `setting_charging_note` | *Batterij kan tijdens piekuren worden opgeladen onder de volgende omstandigheden:\n1. Er zijn onvoltooide taken.\n2. Als er geen taken zijn, zal de robot ook opladen om minimale stroom te behouden. |
+| `setting_charging_note` | *Batterij kan tijdens piekuren worden opgeladen onder de volgende omstandigheden:<br>1. Er zijn onvoltooide taken.<br>2. Als er geen taken zijn, zal de robot ook opladen om minimale stroom te behouden. |
 | `setting_check_text` | Bekijken |
 | `setting_consumable_change_tips1` | De hoofdborstel heeft zijn levensduur bereikt. Vervang het onmiddellijk |
 | `setting_consumable_change_tips2` | De zijborstel heeft zijn levensduur bereikt. Vervang het onmiddellijk |

@@ -35,6 +35,7 @@ This document contains the complete translation mapping and internal constants f
 ### 🕹️ Robot Modes (`ROBOT_TYPE`)
 | Mode Name | Internal Value |
 | :--- | :--- |
+| `SLEEP` | `4294967295` |
 | `STANDBY` | `0` |
 | `WORKING` | `1` |
 | `CHARGING` | `2` |
@@ -42,7 +43,6 @@ This document contains the complete translation mapping and internal constants f
 | `ALERT` | `4` |
 | `MOP_CLEANING` | `5` |
 | `MOP_AIRDRYING` | `6` |
-| `SLEEP` | `4294967295` |
 
 ---
 
@@ -58,7 +58,7 @@ This document contains the complete translation mapping and internal constants f
 | **500** | `F_500` | Torre LiDAR o láser bloqueado. Compruebe si hay alguna obstrucción y vuelva a intentarlo. | El sensor LiDAR está obstruido o atascado. Retire cualquier posible objeto extraño. Si el problema persiste, cambie de sitio el robot aspirador y reinicie. |
 | **501** | `F_501` | Robot suspendido. Traslade el robot aspirador a otra ubicación y reinicie la limpieza. | Robot suspendido. Traslade el robot aspirador a otra ubicación y reinicie la limpieza. Sensores de desnivel sucios. Límpielos. |
 | **502** | `F_502` | Batería baja. Recargue ahora. | Batería baja. Coloque el robot aspirador en la base y cárguelo hasta el 20 % antes de comenzar. |
-| **503** | `F_503` | Asegúrese de que el depósito de polvo y el filtro estén bien instalados. | Vuelva a instalar el depósito de polvo y el filtro en su sitio.\nSi el problema persiste, sustituya el filtro. |
+| **503** | `F_503` | Asegúrese de que el depósito de polvo y el filtro estén bien instalados. | Vuelva a instalar el depósito de polvo y el filtro en su sitio.<br>Si el problema persiste, sustituya el filtro. |
 | **504** | `F_504` | Batería baja. Recargue ahora. | Batería baja. Coloque el robot aspirador en la base y cárguelo hasta el 20 % antes de comenzar. |
 | **505** | `F_505` | Batería baja. Recargue ahora. | Batería baja. Coloque el robot aspirador en la base y cárguelo hasta el 20 % antes de comenzar. |
 | **506** | `F_506` | Batería baja. Recargue ahora. | Batería baja. Coloque el robot aspirador en la base y cárguelo hasta el 20 % antes de comenzar. |
@@ -163,6 +163,7 @@ This document contains the complete translation mapping and internal constants f
 
 | Key | Localized Value |
 | :--- | :--- |
+| `battery` | Porcentaje de batería |
 | `clean_record_abort_abnormally` | Finalizada de forma inesperada |
 | `clean_record_abort_manually` | El usuario ha interrumpido la limpieza |
 | `clean_record_area` | Superficie total |
@@ -189,8 +190,10 @@ This document contains the complete translation mapping and internal constants f
 | `clean_record_work_record` | Historial |
 | `common_abnormal` | Error |
 | `common_alert` | Atención |
+| `common_battery_percentage` | Porcentaje de batería |
 | `common_cancel` | Cancelar |
 | `common_close_time` | Finalizar |
+| `common_custom_type` | Tipo personalizado |
 | `common_delete` | Eliminar |
 | `common_determine` | Aceptar |
 | `common_disconnect` | Robot sin conexión |
@@ -198,6 +201,7 @@ This document contains the complete translation mapping and internal constants f
 | `common_holder_default_text` | Introduzca un nombre de 12 caracteres como máximo |
 | `common_known` | Entiendo |
 | `common_loading` | Cargando... |
+| `common_map_id` | ID de mapa |
 | `common_more` | Más |
 | `common_more_setup` | Más ajustes |
 | `common_network_abnormal` | Error de red |
@@ -234,6 +238,57 @@ This document contains the complete translation mapping and internal constants f
 | `device_sn` | Número de serie |
 | `device_timezone_to_robot` | Sincronizar zona horaria |
 | `failed_page_content` | Error al cargar. |
+| `fault_summery_2003` | Nivel de batería inferior al 20 %. Tarea programada cancelada. |
+| `fault_summery_2007` | No se puede llegar al objetivo. Limpieza finalizada. Asegúrese de que la puerta del área objetivo esté abierta y despejada. |
+| `fault_summery_2012` | No se puede llegar al objetivo. Limpieza finalizada. Asegúrese de que la puerta del área objetivo esté abierta y despejada. |
+| `fault_summery_2100` | Batería baja. Iniciando recarga. La limpieza podrá reanudarse después de cargar. |
+| `fault_summery_2102` | Limpieza completa. Regresando a la base. |
+| `fault_summery_500` | El sensor LiDAR está obstruido o atascado. Retire cualquier posible objeto extraño. Si el problema persiste, cambie de sitio el robot aspirador y reinicie. |
+| `fault_summery_501` | Robot suspendido. Traslade el robot aspirador a otra ubicación y reinicie la limpieza. Sensores de desnivel sucios. Límpielos. |
+| `fault_summery_502_518` | Batería baja. Coloque el robot aspirador en la base y cárguelo hasta el 20 % antes de comenzar. |
+| `fault_summery_503` | Vuelva a instalar el depósito de polvo y el filtro en su sitio.<br>Si el problema persiste, sustituya el filtro. |
+| `fault_summery_509` | Error en sensor de desnivel. Limpie los sensores de desnivel, aleje el robot aspirador de zonas por las que pueda caer y reinicie la limpieza. |
+| `fault_summery_510` | Parachoques atascado. Dele suaves golpecitos para soltarlo. Si no hay objetos extraños, cambie de sitio el robot aspirador y reinicie. |
+| `fault_summery_511_512` | Error durante la vuelta a la base. Despeje los obstáculos a su alrededor, limpie los contactos de carga y coloque el robot aspirador en la base. |
+| `fault_summery_513_514` | Robot atascado. Despeje los obstáculos alrededor del robot o cambie de sitio el robot aspirador y reinicie. |
+| `fault_summery_522` | Mopa no instalada. Vuelva a instalarla. |
+| `fault_summery_533` | El robot lleva mucho tiempo en suspensión y va a apagarse. Cargue el robot. |
+| `fault_summery_534` | El nivel de batería es bajo y el robot va a apagarse. Cargue el robot. |
+| `fault_summery_560` | Cepillo lateral enredado. Retírelo y límpielo. |
+| `fault_summery_568_569` | Limpie las ruedas principales, traslade el robot aspirador a otra ubicación y reinicie. |
+| `fault_summery_570` | Cepillo principal enredado. Retírelo y limpie el cepillo principal y el cojinete. |
+| `fault_summery_572` | Cepillo principal enredado. Retírelo y limpie el cepillo principal y el cojinete. |
+| `fault_summery_594` | La bolsa para polvo no está instalada. Compruebe que esté bien instalada. |
+| `fault_summery_611` | Posicionamiento fallido. Lleve el robot a la base y repita el mapeo. |
+| `fault_summery_612` | Nuevo entorno detectado. Mapa modificado. Posicionamiento fallido. Inténtelo de nuevo después de repetir el mapeo. |
+| `fault_summery_629` | El soporte de mopa se ha caído. Recolóquelo para reanudar el trabajo. |
+| `fault_summery_668` | Error en ventilador. Reinicie el sistema. Si el problema persiste, póngase en contacto con el servicio de atención al cliente. |
+| `fault_title_2003` | Nivel de batería inferior al 20 %. Tarea programada cancelada. |
+| `fault_title_2007` | No se puede llegar al objetivo. Limpieza finalizada. |
+| `fault_title_2012` | No se puede llegar al objetivo. Limpieza finalizada. |
+| `fault_title_2100` | Batería baja. La limpieza podrá reanudarse después de recargar. |
+| `fault_title_2102` | Limpieza completa. Regresando a la base. |
+| `fault_title_407` | Limpieza en curso. Se ha ignorado la limpieza programada. |
+| `fault_title_500` | Torre LiDAR o láser bloqueado. Compruebe si hay alguna obstrucción y vuelva a intentarlo. |
+| `fault_title_501` | Robot suspendido. Traslade el robot aspirador a otra ubicación y reinicie la limpieza. |
+| `fault_title_502_518` | Batería baja. Recargue ahora. |
+| `fault_title_503` | Asegúrese de que el depósito de polvo y el filtro estén bien instalados. |
+| `fault_title_509` | Error en sensor de desnivel. Limpie los sensores de desnivel, aleje el robot aspirador de zonas por las que pueda caer y reinicie la limpieza. |
+| `fault_title_510` | Parachoques atascado. Límpielo y dele suaves golpecitos para desatascarlo. |
+| `fault_title_511_512` | Error durante la vuelta a la base. Coloque el robot aspirador en la base. |
+| `fault_title_513_514` | Robot atascado. Traslade el robot aspirador a otra ubicación y reinicie. |
+| `fault_title_522` | Asegúrese de que la mopa esté correctamente instalada. |
+| `fault_title_533` | El robot lleva mucho tiempo en suspensión y va a apagarse |
+| `fault_title_534` | Batería baja. Apagando. |
+| `fault_title_560` | Cepillo lateral enredado. Retírelo y límpielo. |
+| `fault_title_568_569` | Limpie las ruedas principales, traslade el robot aspirador a otra ubicación y reinicie. |
+| `fault_title_570` | Cepillo principal enredado. Retírelo y limpie el cepillo principal y el cojinete. |
+| `fault_title_572` | Cepillo principal enredado. Retírelo y limpie el cepillo principal y el cojinete. |
+| `fault_title_594` | Asegúrese de que la bolsa para polvo esté correctamente instalada. |
+| `fault_title_611` | Posicionamiento fallido. Lleve el robot a la base y repita el mapeo. |
+| `fault_title_612` | Mapa modificado. Posicionamiento fallido. Inténtelo de nuevo. |
+| `fault_title_629` | El soporte de mopa se ha caído. |
+| `fault_title_668` | Error en el robot. Restablezca el sistema. |
 | `firmware_upgrade_downloading` | Actualizando... %d% |
 | `firmware_upgrade_installing` | Instalando… |
 | `floor_title` | Distribución de la casa |
@@ -252,7 +307,7 @@ This document contains the complete translation mapping and internal constants f
 | `guide_map_save_open` | Mantener habilitado |
 | `guide_map_save_tip1` | Memorización de su hogar |
 | `guide_map_save_tip2` | Tras guardar el mapa, el robot aspirador adaptará su ruta a la habitación de forma inteligente y se podrán desbloquear ajustes de limpieza personalizada, como Limpieza selectiva de habitaciones o Zona restringida. |
-| `guide_map_save_tip3` | Cuando el guardado de mapas esté desactivado, la edición de mapas y otras funciones de limpieza personalizada, como Limpieza selectiva de habitaciones o Zona restringida, no estarán disponibles.\n |
+| `guide_map_save_tip3` | Cuando el guardado de mapas esté desactivado, la edición de mapas y otras funciones de limpieza personalizada, como Limpieza selectiva de habitaciones o Zona restringida, no estarán disponibles.<br> |
 | `guide_map_save_tip4` | Tras guardar el mapa, el robot aspirador adaptará su ruta a la habitación de forma inteligente y se podrán desbloquear ajustes de limpieza personalizada, como la limpieza selectiva de habitaciones y las zonas restringidas. |
 | `guide_map_save_tip5` | Los objetos reflectantes y las superficies resbaladizas pueden afectar a la estabilidad del guardado de mapas y provocar rutas anómalas. |
 | `guide_mopnow` | Es necesario aspirar antes de fregar. |
@@ -451,7 +506,7 @@ This document contains the complete translation mapping and internal constants f
 | `mapEdit_recommend_add_cill` | Pulse para confirmar el umbral |
 | `mapEdit_recommend_add_zone` | Añadir zona restringida |
 | `mapEdit_recommend_carpet_subtitle` | Posible alfombra detectada. Después de añadirla, seleccione la función de refuerzo para alfombras o la opción de evitarla. |
-| `mapEdit_recommend_cill_subtitle` | \nSe ha detectado un umbral aquí. Configure una zona de umbral. |
+| `mapEdit_recommend_cill_subtitle` | <br>Se ha detectado un umbral aquí. Configure una zona de umbral. |
 | `mapEdit_recommend_cill_title` | Umbral |
 | `mapEdit_recommend_cliff_subtitle` | Posibles escalones, escaleras o desniveles detectados. Añadir una zona restringida. |
 | `mapEdit_recommend_ignore` | ¿Error de reconocimiento? Ignorar. |
@@ -511,7 +566,7 @@ This document contains the complete translation mapping and internal constants f
 | `map_device_recharging_tip` | La edición no está disponible durante la vuelta a la base |
 | `map_load` | Cambiar de mapa pondrá fin a la tarea actual |
 | `map_save_close_cancel` | Mantener habilitado |
-| `map_save_close_content` | Cuando el guardado de mapas esté desactivado, la edición de mapas y otras funciones de limpieza personalizada, como Limpieza selectiva de habitaciones o Zona restringida, no estarán disponibles.\n |
+| `map_save_close_content` | Cuando el guardado de mapas esté desactivado, la edición de mapas y otras funciones de limpieza personalizada, como Limpieza selectiva de habitaciones o Zona restringida, no estarán disponibles.<br> |
 | `map_save_close_ok` | Deshabilitar |
 | `map_save_close_title` | ¿Deshabilitar guardado de mapas? |
 | `map_switch_tip` | Seleccione un mapa para uso en una sola planta |
@@ -572,18 +627,18 @@ This document contains the complete translation mapping and internal constants f
 | `set_voice_package_waiting` | Esperando… |
 | `setting_adjust_time` | La fecha de inicio coincide con la de finalización. Cámbielas. |
 | `setting_carpet_avoid` | Evitación y cruce de alfombras |
-| `setting_carpet_avoid_tip` | Una vez instalado el soporte de mopa, el robot evitará las alfombras y las cruzará solo cuando sea necesario para no saltarse ninguna zona por limpiar.\n* Para utilizar esta función, primero deben añadirse alfombras en la edición de mapas |
+| `setting_carpet_avoid_tip` | Una vez instalado el soporte de mopa, el robot evitará las alfombras y las cruzará solo cuando sea necesario para no saltarse ninguna zona por limpiar.<br>* Para utilizar esta función, primero deben añadirse alfombras en la edición de mapas |
 | `setting_cartoon_voice` | Voz infantil de dibujos animados |
 | `setting_charging` | Carga fuera de horas punta |
 | `setting_charging_desc` | Carga completamente la batería fuera de las horas punta y solo mantiene la energía mínima durante el resto de horas. |
 | `setting_charging_disable_tip` | * Tiempo de carga no establecido. Carga fuera de horas punta inactiva. |
 | `setting_charging_empty` | No configurado |
-| `setting_charging_note` | * La carga de la batería puede producirse durante las horas punta en los siguientes casos:\n1. Hay tareas incompletas.\n2. Aunque no haya ninguna tarea, el robot se cargará para mantener un nivel mínimo de energía. |
+| `setting_charging_note` | * La carga de la batería puede producirse durante las horas punta en los siguientes casos:<br>1. Hay tareas incompletas.<br>2. Aunque no haya ninguna tarea, el robot se cargará para mantener un nivel mínimo de energía. |
 | `setting_check_text` | Ver |
-| `setting_consumable_change_tips1` | \nEl cepillo principal ha llegado al final de su vida útil. Sustitúyalo de inmediato. |
-| `setting_consumable_change_tips2` | \nEl cepillo lateral ha llegado al final de su vida útil. Sustitúyalo de inmediato. |
-| `setting_consumable_change_tips3` | \nEl filtro ha llegado al final de su vida útil. Sustitúyalo de inmediato. |
-| `setting_consumable_change_tips4` | \nLa mopa ha llegado al final de su vida útil. Sustitúyala de inmediato. |
+| `setting_consumable_change_tips1` | <br>El cepillo principal ha llegado al final de su vida útil. Sustitúyalo de inmediato. |
+| `setting_consumable_change_tips2` | <br>El cepillo lateral ha llegado al final de su vida útil. Sustitúyalo de inmediato. |
+| `setting_consumable_change_tips3` | <br>El filtro ha llegado al final de su vida útil. Sustitúyalo de inmediato. |
+| `setting_consumable_change_tips4` | <br>La mopa ha llegado al final de su vida útil. Sustitúyala de inmediato. |
 | `setting_consumable_change_tips5` | El depósito de polvo debe estar lleno. Vacíelo. |
 | `setting_consumable_change_tips6` | Los sensores llevan mucho tiempo sin limpiarse. Límpielos. |
 | `setting_consumable_change_tips7` | Soporte de mopa no instalado |

@@ -35,6 +35,7 @@ This document contains the complete translation mapping and internal constants f
 ### 🕹️ Robot Modes (`ROBOT_TYPE`)
 | Mode Name | Internal Value |
 | :--- | :--- |
+| `SLEEP` | `4294967295` |
 | `STANDBY` | `0` |
 | `WORKING` | `1` |
 | `CHARGING` | `2` |
@@ -42,7 +43,6 @@ This document contains the complete translation mapping and internal constants f
 | `ALERT` | `4` |
 | `MOP_CLEANING` | `5` |
 | `MOP_AIRDRYING` | `6` |
-| `SLEEP` | `4294967295` |
 
 ---
 
@@ -58,7 +58,7 @@ This document contains the complete translation mapping and internal constants f
 | **500** | `F_500` | LiDAR dreiesylinder eller laser blokkert. Se etter hindring og prøv på nytt. | LiDAR-sensoren er blokkert eller sitter fast. Fjern eventuelle fremmedlegemer. Hvis problemet vedvarer, flytt roboten bort og start på nytt. |
 | **501** | `F_501` | Robot suspendert. Flytt roboten bort og start på nytt. | Robot suspendert. Flytt roboten bort og start på nytt. Klippesensorer skitne. Tørk dem rene. |
 | **502** | `F_502` | Lavt batteri: Ny lad opp nå. | Lavt batteri. Sett roboten i ladestasjonen, for å lade den til 20% før du starter. |
-| **503** | `F_503` | Kontroller at støvbeholderen og filteret er riktig installert. | Sett støvbeholderen og filteret på plass igjen.\nHvis problemet vedvarer, bytt filteret. |
+| **503** | `F_503` | Kontroller at støvbeholderen og filteret er riktig installert. | Sett støvbeholderen og filteret på plass igjen.<br>Hvis problemet vedvarer, bytt filteret. |
 | **504** | `F_504` | Lavt batteri: Ny lad opp nå. | Lavt batteri. Sett roboten i ladestasjonen, for å lade den til 20% før du starter. |
 | **505** | `F_505` | Lavt batteri: Ny lad opp nå. | Lavt batteri. Sett roboten i ladestasjonen, for å lade den til 20% før du starter. |
 | **506** | `F_506` | Lavt batteri: Ny lad opp nå. | Lavt batteri. Sett roboten i ladestasjonen, for å lade den til 20% før du starter. |
@@ -163,6 +163,7 @@ This document contains the complete translation mapping and internal constants f
 
 | Key | Localized Value |
 | :--- | :--- |
+| `battery` | Battery Percentage |
 | `clean_record_abort_abnormally` | Avsluttes unormalt |
 | `clean_record_abort_manually` | Rengjøring avbrutt av bruker |
 | `clean_record_area` | Totalt område |
@@ -189,6 +190,7 @@ This document contains the complete translation mapping and internal constants f
 | `clean_record_work_record` | Historikk |
 | `common_abnormal` | Feil |
 | `common_alert` | Merknad |
+| `common_battery_percentage` | Battery Percentage |
 | `common_cancel` | Avbryt |
 | `common_close_time` | Avslutt |
 | `common_delete` | Slett |
@@ -234,6 +236,57 @@ This document contains the complete translation mapping and internal constants f
 | `device_sn` | Serienummer |
 | `device_timezone_to_robot` | Synkroniser tidssone |
 | `failed_page_content` | Lasting mislyktes. |
+| `fault_summery_2003` | Batterinivå under 20%. Planlagt oppgave avbrutt. |
+| `fault_summery_2007` | Kan ikke nå målet. Rengjøring avsluttet. Sørg for at døren til målområdet er åpen eller uhindret. |
+| `fault_summery_2012` | Kan ikke nå målet. Rengjøring avsluttet. Sørg for at døren til målområdet er åpen eller uhindret. |
+| `fault_summery_2100` | Lavt batteri: Begynner å ny lade opp. Fortsett rengjøringen etter lading. |
+| `fault_summery_2102` | Rengjøring fullført. Tilbake til ladestasjonen |
+| `fault_summery_500` | LiDAR-sensoren er blokkert eller sitter fast. Fjern eventuelle fremmedlegemer. Hvis problemet vedvarer, flytt roboten bort og start på nytt. |
+| `fault_summery_501` | Robot suspendert. Flytt roboten bort og start på nytt. Klippesensorer skitne. Tørk dem rene. |
+| `fault_summery_502_518` | Lavt batteri. Sett roboten i ladestasjonen, for å lade den til 20% før du starter. |
+| `fault_summery_503` | Sett støvbeholderen og filteret på plass igjen.<br>Hvis problemet vedvarer, bytt filteret. |
+| `fault_summery_509` | Klippesensorer feil. Rengjør dem, flytt roboten bort fra dråper og start på nytt. |
+| `fault_summery_510` | Støtfanger hektet seg opp. Trykk på den gjentatte ganger for å slippe den. Hvis det ikke finnes fremmedlegemer, flytt roboten bort og start på nytt. |
+| `fault_summery_511_512` | Ladestasjonsfeil. Fjern hindringer rundt dokken, rengjør ladekontakter og sett roboten på ladestasjonen. |
+| `fault_summery_513_514` | Robot innestengt. Fjern hindringer rundt roboten eller flytt roboten bort og start på nytt. |
+| `fault_summery_522` | Mopp ikke installert. Monter den på nytt. |
+| `fault_summery_533` | I ferd med å slå seg av etter lang tids søvn. Lad roboten. |
+| `fault_summery_534` | I ferd med å slå seg av på grunn av lavt batteri. Lad roboten. |
+| `fault_summery_560` | Sidebørsten viklet seg inn. Fjern og rengjør den. |
+| `fault_summery_568_569` | Rengjør hovedhjulene, flytt roboten bort og start på nytt. |
+| `fault_summery_570` | Hovedbørsten viklet seg inn. Fjern og rengjør den og lageret. |
+| `fault_summery_572` | Hovedbørsten viklet seg inn. Fjern og rengjør den og lageret. |
+| `fault_summery_594` | Støvpose ikke installert. Kontroller at den er riktig installert. |
+| `fault_summery_611` | Posisjonering mislyktes. Flytt roboten tilbake til ladestasjonen og tilordne den på nytt. |
+| `fault_summery_612` | Nytt miljø oppdaget. Kartet er endret. Posisjonering mislyktes. Prøv på nytt etter ny tilordning. |
+| `fault_summery_629` | Moppeklutfeste falt av. Installer den på nytt for å fortsette å fungere. |
+| `fault_summery_668` | Viftefeil. Tilbakestill systemet. Hvis problemet vedvarer, kontakt kundeservice. |
+| `fault_title_2003` | Batterinivå under 20%. Planlagt oppgave avbrutt. |
+| `fault_title_2007` | Kan ikke nå målet. Rengjøring avsluttet. |
+| `fault_title_2012` | Kan ikke nå målet. Rengjøring avsluttet. |
+| `fault_title_2100` | Lavt batteri: Gjenoppta rengjøringen etter nylading. |
+| `fault_title_2102` | Rengjøring fullført. Tilbake til ladestasjonen |
+| `fault_title_407` | Rengjøring pågår. Planlagt rengjøring ignorert. |
+| `fault_title_500` | LiDAR dreiesylinder eller laser blokkert. Se etter hindring og prøv på nytt. |
+| `fault_title_501` | Robot suspendert. Flytt roboten bort og start på nytt. |
+| `fault_title_502_518` | Lavt batteri: Ny lad opp nå. |
+| `fault_title_503` | Kontroller at støvbeholderen og filteret er riktig installert. |
+| `fault_title_509` | Klippesensorer feil. Rengjør dem, flytt roboten bort fra dråper og start på nytt. |
+| `fault_title_510` | Støtfanger hektet seg opp. Rengjør og dunk lett i den for å frigjøre den. |
+| `fault_title_511_512` | Ladestasjonsfeil. Sett roboten på ladestasjonen. |
+| `fault_title_513_514` | Robot innestengt. Flytt roboten bort og start på nytt. |
+| `fault_title_522` | Kontroller at moppen er riktig installert. |
+| `fault_title_533` | I ferd med å slå seg av etter lang tids søvn |
+| `fault_title_534` | Lavt batteri: Deaktivere. |
+| `fault_title_560` | Sidebørsten viklet seg inn. Fjern og rengjør den. |
+| `fault_title_568_569` | Rengjør hovedhjulene, flytt roboten bort og start på nytt. |
+| `fault_title_570` | Hovedbørsten viklet seg inn. Fjern og rengjør den og lageret. |
+| `fault_title_572` | Hovedbørsten viklet seg inn. Fjern og rengjør den og lageret. |
+| `fault_title_594` | Kontroller at støvposen er riktig installert. |
+| `fault_title_611` | Posisjonering mislyktes. Flytt roboten tilbake til ladestasjonen og tilordne den på nytt. |
+| `fault_title_612` | Kartet er endret. Posisjonering mislyktes. Prøv igjen. |
+| `fault_title_629` | Moppeklutfeste falt av. |
+| `fault_title_668` | Robotfeil. Tilbakestill systemet. |
 | `firmware_upgrade_downloading` | Oppdatere... %d% |
 | `firmware_upgrade_installing` | Installere... |
 | `floor_title` | Hjemmeoppsett |
@@ -578,7 +631,7 @@ This document contains the complete translation mapping and internal constants f
 | `setting_charging_desc` | Lader batteriet helt opp utenom rushtiden og opprettholder bare minimum av strøm i andre timer. |
 | `setting_charging_disable_tip` | * Ingen ladetid angitt. Lading utenfor strømpristoppene inaktiv. |
 | `setting_charging_empty` | Ikke angitt |
-| `setting_charging_note` | *Batterilading kan skje i rushtiden under følgende forhold:\n1. Det er uferdige oppgaver.\n2. Hvis det ikke er noen oppgaver, vil roboten også lade for å opprettholde minimum strøm. |
+| `setting_charging_note` | *Batterilading kan skje i rushtiden under følgende forhold:<br>1. Det er uferdige oppgaver.<br>2. Hvis det ikke er noen oppgaver, vil roboten også lade for å opprettholde minimum strøm. |
 | `setting_check_text` | Se |
 | `setting_consumable_change_tips1` | Hovedbørsten har nådd slutten av levetiden. Skift det ut umiddelbart |
 | `setting_consumable_change_tips2` | Sidebørsten har nådd slutten av levetiden. Skift det ut umiddelbart |

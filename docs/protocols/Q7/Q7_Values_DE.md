@@ -35,6 +35,7 @@ This document contains the complete translation mapping and internal constants f
 ### 🕹️ Robot Modes (`ROBOT_TYPE`)
 | Mode Name | Internal Value |
 | :--- | :--- |
+| `SLEEP` | `4294967295` |
 | `STANDBY` | `0` |
 | `WORKING` | `1` |
 | `CHARGING` | `2` |
@@ -42,7 +43,6 @@ This document contains the complete translation mapping and internal constants f
 | `ALERT` | `4` |
 | `MOP_CLEANING` | `5` |
 | `MOP_AIRDRYING` | `6` |
-| `SLEEP` | `4294967295` |
 
 ---
 
@@ -58,7 +58,7 @@ This document contains the complete translation mapping and internal constants f
 | **500** | `F_500` | LiDAR-Sensor oder Laser blockiert. Prüfe Blockierungen und versuche es erneut. | LiDAR-Sensor blockiert oder festgefahren. Entferne eventuell vorhandene Fremdkörper. Wenn das Problem weiterhin besteht, bewege den Roboter weg und starte ihn neu. |
 | **501** | `F_501` | Roboter angehalten. Bewege den Roboter und starte ihn neu. | Roboter angehalten. Bewege den Roboter und starte ihn neu. Klippensensoren schmutzig. Wische sie sauber. |
 | **502** | `F_502` | Niedriger Akkustand. Jetzt aufladen. | Akkustand niedrig. Stelle den Roboter in die Dockingstation und lade ihn vor Gebrauch auf 20 % auf. |
-| **503** | `F_503` | Überprüfe, ob der Staubbehälter und der Filter ordnungsgemäß installiert sind. | Installiere den Staubbehälter und den Filter erneut.\nWenn das Problem weiterhin besteht, ersetze den Filter. |
+| **503** | `F_503` | Überprüfe, ob der Staubbehälter und der Filter ordnungsgemäß installiert sind. | Installiere den Staubbehälter und den Filter erneut.<br>Wenn das Problem weiterhin besteht, ersetze den Filter. |
 | **504** | `F_504` | Niedriger Akkustand. Jetzt aufladen. | Akkustand niedrig. Stelle den Roboter in die Dockingstation und lade ihn vor Gebrauch auf 20 % auf. |
 | **505** | `F_505` | Niedriger Akkustand. Jetzt aufladen. | Akkustand niedrig. Stelle den Roboter in die Dockingstation und lade ihn vor Gebrauch auf 20 % auf. |
 | **506** | `F_506` | Niedriger Akkustand. Jetzt aufladen. | Akkustand niedrig. Stelle den Roboter in die Dockingstation und lade ihn vor Gebrauch auf 20 % auf. |
@@ -163,6 +163,7 @@ This document contains the complete translation mapping and internal constants f
 
 | Key | Localized Value |
 | :--- | :--- |
+| `battery` | Batterieprozentsatz |
 | `clean_record_abort_abnormally` | Abnormal beendet |
 | `clean_record_abort_manually` | Reinigung vom Benutzer unterbrochen |
 | `clean_record_area` | Gesamtfläche |
@@ -189,8 +190,10 @@ This document contains the complete translation mapping and internal constants f
 | `clean_record_work_record` | Verlauf |
 | `common_abnormal` | Fehler |
 | `common_alert` | Hinweis |
+| `common_battery_percentage` | Batterieprozentsatz |
 | `common_cancel` | Abbrechen |
 | `common_close_time` | Ende |
+| `common_custom_type` | Benutzerdefinierter Typ |
 | `common_delete` | Löschen |
 | `common_determine` | OK |
 | `common_disconnect` | Roboter offline |
@@ -198,6 +201,7 @@ This document contains the complete translation mapping and internal constants f
 | `common_holder_default_text` | Gib einen Namen mit max. 12 Zeichen ein |
 | `common_known` | Verstanden |
 | `common_loading` | Laden ... |
+| `common_map_id` | Karten-ID |
 | `common_more` | Mehr |
 | `common_more_setup` | Weitere Einstellungen |
 | `common_network_abnormal` | Netzwerkfehler |
@@ -234,6 +238,57 @@ This document contains the complete translation mapping and internal constants f
 | `device_sn` | Seriennummer |
 | `device_timezone_to_robot` | Zeitzone synchronisieren |
 | `failed_page_content` | Laden fehlgeschlagen. |
+| `fault_summery_2003` | Akkustand ≤ 20 % Geplante Aufgabe abgebrochen. |
+| `fault_summery_2007` | Das Ziel ist nicht anfahrbar. Reinigung beendet. Stelle sicher, dass die Tür zum Zielbereich offen oder unversperrt ist. |
+| `fault_summery_2012` | Das Ziel ist nicht anfahrbar. Reinigung beendet. Stelle sicher, dass die Tür zum Zielbereich offen oder unversperrt ist. |
+| `fault_summery_2100` | Niedriger Akkustand. Beginnt mit dem Aufladen. Setze die Reinigung nach dem Aufladen fort. |
+| `fault_summery_2102` | Reinigung abgeschlossen. Kehre zur Dockingstation zurück |
+| `fault_summery_500` | LiDAR-Sensor blockiert oder festgefahren. Entferne eventuell vorhandene Fremdkörper. Wenn das Problem weiterhin besteht, bewege den Roboter weg und starte ihn neu. |
+| `fault_summery_501` | Roboter angehalten. Bewege den Roboter und starte ihn neu. Klippensensoren schmutzig. Wische sie sauber. |
+| `fault_summery_502_518` | Akkustand niedrig. Stelle den Roboter in die Dockingstation und lade ihn vor Gebrauch auf 20 % auf. |
+| `fault_summery_503` | Installiere den Staubbehälter und den Filter erneut.<br>Wenn das Problem weiterhin besteht, ersetze den Filter. |
+| `fault_summery_509` | Klippensensor-Fehler. Reinige die Klippensensoren, bewege den Roboter von Stufen weg und starte ihn neu. |
+| `fault_summery_510` | Stoßfänger klemmt. Tippe wiederholt darauf, um ihn zu lösen. Wenn kein Fremdkörper vorhanden ist, bewege den Roboter weg und starte ihn neu. |
+| `fault_summery_511_512` | Andocken fehlgeschlagen. Beseitige Hindernisse um die Dockingstation, reinige die Ladekontakte und stelle den Roboter auf die Dockingstation. |
+| `fault_summery_513_514` | Roboter verfangen. Beseitige Hindernisse um den Roboter oder bewege den Roboter weg und starte neu. |
+| `fault_summery_522` | Mopp nicht installiert. Bitte einsetzen. |
+| `fault_summery_533` | Schaltet sich nach langer Zeit im Schlafmodus aus. Lade den Roboter auf. |
+| `fault_summery_534` | Schaltet sich wegen schwachem Akku aus. Lade den Roboter auf. |
+| `fault_summery_560` | Seitenbürste verheddert. Entferne und reinige sie. |
+| `fault_summery_568_569` | Reinige die Haupträder, bewege den Roboter weg und starte ihn neu. |
+| `fault_summery_570` | Hauptbürste verheddert. Entferne und reinige sie sowie das Lager. |
+| `fault_summery_572` | Hauptbürste verheddert. Entferne und reinige sie sowie das Lager. |
+| `fault_summery_594` | Staubbeutel ist nicht eingesetzt. Überprüfe, ob er korrekt installiert ist. |
+| `fault_summery_611` | Positionierung fehlgeschlagen. Bringe den Roboter zurück zur Dockingstation und starte die Kartierung neu. |
+| `fault_summery_612` | Neue Firmware erkannt. Karte geändert. Positionierung fehlgeschlagen. Versuche es nach der erneuten Kartierung erneut. |
+| `fault_summery_629` | Der Mopp-Tuchhalter ist abgefallen. Setze ihn wieder ein, um mit der Reinigung fortzufahren. |
+| `fault_summery_668` | Gebläsefehler. Setze das System zurück. Wenn das Problem weiterhin besteht, wende dich an den Kundendienst. |
+| `fault_title_2003` | Akkustand ≤ 20 %. Geplante Aufgabe abgebrochen. |
+| `fault_title_2007` | Das Ziel ist nicht anfahrbar. Reinigung beendet. |
+| `fault_title_2012` | Das Ziel ist nicht anfahrbar. Reinigung beendet. |
+| `fault_title_2100` | Niedriger Akkustand. Setze die Reinigung nach dem Wiederaufladen fort. |
+| `fault_title_2102` | Reinigung abgeschlossen. Kehre zur Dockingstation zurück |
+| `fault_title_407` | Reinigung läuft. Geplante Reinigung ignoriert. |
+| `fault_title_500` | LiDAR-Sensor oder Laser blockiert. Prüfe Blockierungen und versuche es erneut. |
+| `fault_title_501` | Roboter angehalten. Bewege den Roboter und starte ihn neu. |
+| `fault_title_502_518` | Niedriger Akkustand. Jetzt aufladen. |
+| `fault_title_503` | Überprüfe, ob der Staubbehälter und der Filter ordnungsgemäß installiert sind. |
+| `fault_title_509` | Klippensensor-Fehler. Reinige die Klippensensoren, bewege den Roboter von Stufen weg und starte ihn neu. |
+| `fault_title_510` | Stoßfänger klemmt. Reinige ihn und klopfe leicht gegen ihn, um ihn zu lösen. |
+| `fault_title_511_512` | Andocken fehlgeschlagen. Stelle den Roboter auf die Dockingstation. |
+| `fault_title_513_514` | Roboter verfangen. Bewege den Roboter und starte ihn neu. |
+| `fault_title_522` | Überprüfe, ob der Mopp ordnungsgemäß installiert ist. |
+| `fault_title_533` | Schaltet sich nach langer Zeit im Schlafmodus aus |
+| `fault_title_534` | Niedriger Akkustand. Ausgeschaltet |
+| `fault_title_560` | Seitenbürste verheddert. Entferne und reinige sie. |
+| `fault_title_568_569` | Reinige die Haupträder, bewege den Roboter weg und starte ihn neu. |
+| `fault_title_570` | Hauptbürste verheddert. Entferne und reinige sie sowie das Lager. |
+| `fault_title_572` | Hauptbürste verheddert. Entferne und reinige sie sowie das Lager. |
+| `fault_title_594` | Vergewissere dich, dass der Staubbeutel ordnungsgemäß installiert ist. |
+| `fault_title_611` | Positionierung fehlgeschlagen. Bringe den Roboter zurück zur Dockingstation und starte die Kartierung neu. |
+| `fault_title_612` | Karte geändert. Positionierung fehlgeschlagen. Versuche es erneut. |
+| `fault_title_629` | Der Mopp-Tuchhalter ist abgefallen. |
+| `fault_title_668` | Roboterfehler. Setze das System zurück. |
 | `firmware_upgrade_downloading` | Herunterladen ... %d% |
 | `firmware_upgrade_installing` | Installieren … |
 | `floor_title` | Grundriss des Zuhauses |
@@ -252,7 +307,7 @@ This document contains the complete translation mapping and internal constants f
 | `guide_map_save_open` | Aktiviert lassen |
 | `guide_map_save_tip1` | Lass deinen Roboter dein Zuhause abspeichern |
 | `guide_map_save_tip2` | Sobald die Karte gespeichert ist, passt der Roboter seine Reinigungsroute intelligent an den Raum an und du kannst angepasste Reinigungsfunktionen wie selektive Raumreinigung und Sperrzonen nutzen. |
-| `guide_map_save_tip3` | Ist die Kartenspeicherung deaktiviert, sind Kartenbearbeitung und angepasste Reinigungsfunktionen wie Selektive Raumreinigung und Sperrzonen nicht mehr verfügbar.\n |
+| `guide_map_save_tip3` | Ist die Kartenspeicherung deaktiviert, sind Kartenbearbeitung und angepasste Reinigungsfunktionen wie Selektive Raumreinigung und Sperrzonen nicht mehr verfügbar.<br> |
 | `guide_map_save_tip4` | Sobald die Karte gespeichert ist, passt der Roboter seine Reinigungsroute intelligent an den Raum an und du kannst angepasste Reinigungsfunktionen wie selektive Raumreinigung und Sperrzonen nutzen. |
 | `guide_map_save_tip5` | Spiegelnde Objekte und rutschige Oberflächen können die Stabilität der Kartenspeicherung beeinträchtigen und Routenabweichungen verursachen. |
 | `guide_mopnow` | Staubsaugen vor Wischen. |
@@ -572,17 +627,17 @@ This document contains the complete translation mapping and internal constants f
 | `set_voice_package_waiting` | Warten … |
 | `setting_adjust_time` | Startzeit entspricht der Endzeit. Bitte ändern. |
 | `setting_carpet_avoid` | Teppichvermeidung und -überquerung |
-| `setting_carpet_avoid_tip` | Nachdem der Mopphalter installiert wurde, meidet der Roboter Teppiche und überquert sie nur, wenn es notwendig ist, um keine Stellen auszulassen.\n*Verwende dies, nachdem du einen Teppich in der Kartenbearbeitung hinzugefügt hast. |
+| `setting_carpet_avoid_tip` | Nachdem der Mopphalter installiert wurde, meidet der Roboter Teppiche und überquert sie nur, wenn es notwendig ist, um keine Stellen auszulassen.<br>*Verwende dies, nachdem du einen Teppich in der Kartenbearbeitung hinzugefügt hast. |
 | `setting_cartoon_voice` | Cartoon-Kinderstimme |
 | `setting_charging` | Laden außerhalb der Spitzenzeiten |
 | `setting_charging_desc` | Lädt den Akku außerhalb der Spitzenzeiten vollständig und hält während anderer Stunden nur die Mindestleistung aufrecht. |
 | `setting_charging_disable_tip` | * Keine Ladezeit eingestellt. Laden außerhalb der Spitzenzeiten nicht aktiv. |
 | `setting_charging_empty` | Nicht festgelegt |
-| `setting_charging_note` | *Das Laden des Akkus kann während der Spitzenzeiten unter folgenden Bedingungen erfolgen:\n1. Es gibt unvollendete Aufgaben.\n2. Wenn keine Aufgaben vorliegen, lädt der Roboter ebenfalls, um die Mindestleistung aufrechtzuerhalten. |
+| `setting_charging_note` | *Das Laden des Akkus kann während der Spitzenzeiten unter folgenden Bedingungen erfolgen:<br>1. Es gibt unvollendete Aufgaben.<br>2. Wenn keine Aufgaben vorliegen, lädt der Roboter ebenfalls, um die Mindestleistung aufrechtzuerhalten. |
 | `setting_check_text` | Ansicht |
-| `setting_consumable_change_tips1` | \nDie Hauptbürste hat ihre Lebensdauer erreicht. Bitte ersetze sie sofort |
-| `setting_consumable_change_tips2` | \nDie Seitenbürste hat ihre Lebensdauer erreicht. Bitte ersetze sie sofort |
-| `setting_consumable_change_tips3` | \nDer Filter hat seine max. Betriebsdauer erreicht. Bitte ersetze ihn sofort. |
+| `setting_consumable_change_tips1` | <br>Die Hauptbürste hat ihre Lebensdauer erreicht. Bitte ersetze sie sofort |
+| `setting_consumable_change_tips2` | <br>Die Seitenbürste hat ihre Lebensdauer erreicht. Bitte ersetze sie sofort |
+| `setting_consumable_change_tips3` | <br>Der Filter hat seine max. Betriebsdauer erreicht. Bitte ersetze ihn sofort. |
 | `setting_consumable_change_tips4` | Das Wischtuch hat seine max. Betriebsdauer erreicht. Bitte ersetze es sofort. |
 | `setting_consumable_change_tips5` | Staubbehälter könnte voll sein. Bitte entleere ihn |
 | `setting_consumable_change_tips6` | Sensoren wurden lange Zeit nicht gereinigt. Bitte reinige sie. |

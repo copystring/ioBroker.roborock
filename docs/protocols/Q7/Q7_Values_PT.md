@@ -35,6 +35,7 @@ This document contains the complete translation mapping and internal constants f
 ### 🕹️ Robot Modes (`ROBOT_TYPE`)
 | Mode Name | Internal Value |
 | :--- | :--- |
+| `SLEEP` | `4294967295` |
 | `STANDBY` | `0` |
 | `WORKING` | `1` |
 | `CHARGING` | `2` |
@@ -42,7 +43,6 @@ This document contains the complete translation mapping and internal constants f
 | `ALERT` | `4` |
 | `MOP_CLEANING` | `5` |
 | `MOP_AIRDRYING` | `6` |
-| `SLEEP` | `4294967295` |
 
 ---
 
@@ -58,7 +58,7 @@ This document contains the complete translation mapping and internal constants f
 | **500** | `F_500` | Torre ou laser LiDAR bloqueado. Verifique se existe alguma obstrução e tente novamente. | Sensor LiDAR obstruído ou preso. Remova objetos estranhos, se existirem. Se o problema persistir, afaste o robô e reinicie. |
 | **501** | `F_501` | Robô suspenso. Afaste o robô e reinicie. | Robô suspenso. Afaste o robô. Sensores de penhasco sujos. Limpe-os. |
 | **502** | `F_502` | Bateria fraca. Recarregue agora. | Bateria fraca. Coloque o robô na estação e carregue-o a 20% antes de iniciar. |
-| **503** | `F_503` | Verifique se o compartimento do lixo e o filtro estão corretamente instalados. | Reinstale o compartimento do lixo e o filtro corretamente.\nSe o problema persistir, substitua o filtro. |
+| **503** | `F_503` | Verifique se o compartimento do lixo e o filtro estão corretamente instalados. | Reinstale o compartimento do lixo e o filtro corretamente.<br>Se o problema persistir, substitua o filtro. |
 | **504** | `F_504` | Bateria fraca. Recarregue agora. | Bateria fraca. Coloque o robô na estação e carregue-o a 20% antes de iniciar. |
 | **505** | `F_505` | Bateria fraca. Recarregue agora. | Bateria fraca. Coloque o robô na estação e carregue-o a 20% antes de iniciar. |
 | **506** | `F_506` | Bateria fraca. Recarregue agora. | Bateria fraca. Coloque o robô na estação e carregue-o a 20% antes de iniciar. |
@@ -163,6 +163,7 @@ This document contains the complete translation mapping and internal constants f
 
 | Key | Localized Value |
 | :--- | :--- |
+| `battery` | Porcentagem de bateria |
 | `clean_record_abort_abnormally` | Conclusão anormal |
 | `clean_record_abort_manually` | Limpeza interrompida pelo utilizador |
 | `clean_record_area` | Área total |
@@ -189,8 +190,10 @@ This document contains the complete translation mapping and internal constants f
 | `clean_record_work_record` | Histórico |
 | `common_abnormal` | Erro |
 | `common_alert` | Nota |
+| `common_battery_percentage` | Porcentagem de bateria |
 | `common_cancel` | Cancelar |
 | `common_close_time` | Fim |
+| `common_custom_type` | Tipo personalizado |
 | `common_delete` | Eliminar |
 | `common_determine` | OK |
 | `common_disconnect` | Robô offline |
@@ -198,6 +201,7 @@ This document contains the complete translation mapping and internal constants f
 | `common_holder_default_text` | Introduza um nome com um máximo de 12 caracteres |
 | `common_known` | Compreendo |
 | `common_loading` | A carregar... |
+| `common_map_id` | ID do mapa |
 | `common_more` | Mais |
 | `common_more_setup` | Mais definições |
 | `common_network_abnormal` | Erro de rede |
@@ -234,6 +238,57 @@ This document contains the complete translation mapping and internal constants f
 | `device_sn` | Número de série |
 | `device_timezone_to_robot` | Sincronizar fuso horário |
 | `failed_page_content` | O carregamento falhou. |
+| `fault_summery_2003` | Nível da bateria abaixo de 20%. Tarefa programada cancelada. |
+| `fault_summery_2007` | Não foi possível chegar ao destino. A limpeza terminou. Certifique-se de que a porta de acesso à área de destino está aberta ou desobstruída. |
+| `fault_summery_2012` | Não foi possível chegar ao destino. A limpeza terminou. Certifique-se de que a porta de acesso à área de destino está aberta ou desobstruída. |
+| `fault_summery_2100` | Bateria fraca. A iniciar o recarregamento. Continue a limpeza depois do carregamento. |
+| `fault_summery_2102` | Limpeza concluída. A regressar à estação |
+| `fault_summery_500` | Sensor LiDAR obstruído ou preso. Remova objetos estranhos, se existirem. Se o problema persistir, afaste o robô e reinicie. |
+| `fault_summery_501` | Robô suspenso. Afaste o robô. Sensores de penhasco sujos. Limpe-os. |
+| `fault_summery_502_518` | Bateria fraca. Coloque o robô na estação e carregue-o a 20% antes de iniciar. |
+| `fault_summery_503` | Reinstale o compartimento do lixo e o filtro corretamente.<br>Se o problema persistir, substitua o filtro. |
+| `fault_summery_509` | Erro dos sensores de penhasco. Limpe-os, afaste o robô de locais propícios a quedas e reinicie. |
+| `fault_summery_510` | O para-choques ficou preso. Toque-lhe repetidamente para o libertar. Se não existir nenhum objeto estranho, afaste o robô e reinicie. |
+| `fault_summery_511_512` | Erro ao voltar para a estação. Remova os obstáculos à volta da estação, limpe os contactos de carregamento e coloque o robô na estação. |
+| `fault_summery_513_514` | Robô preso. Remova os obstáculos à volta do robô ou afaste-o e reinicie. |
+| `fault_summery_522` | Mopa não instalada. Volte a colocá-la. |
+| `fault_summery_533` | Está prestes a desligar-se após um longo período de suspensão. Carregue o robô. |
+| `fault_summery_534` | Está prestes a desligar-se devido a bateria fraca. Carregue o robô. |
+| `fault_summery_560` | Escova lateral emaranhada. Remova e limpe. |
+| `fault_summery_568_569` | Limpe as rodas principais, afaste o robô e reinicie. |
+| `fault_summery_570` | Escova principal emaranhada. Remova-a e limpe-a, bem como o respetivo rolamento. |
+| `fault_summery_572` | Escova principal emaranhada. Remova-a e limpe-a, bem como o respetivo rolamento. |
+| `fault_summery_594` | Saco para o pó não instalado. Verifique se está corretamente instalado. |
+| `fault_summery_611` | Falha no posicionamento. Mova o robô novamente para a estação e efetue o remapeamento. |
+| `fault_summery_612` | Novo ambiente detetado. O mapa foi alterado. Falha no posicionamento. Tente novamente após o remapeamento. |
+| `fault_summery_629` | O suporte do pano da mopa caiu. Reinstale-o para retomar a tarefa. |
+| `fault_summery_668` | Erro da ventoinha. Reponha o sistema. Se o problema persistir, contacte o serviço de apoio ao cliente. |
+| `fault_title_2003` | Nível da bateria abaixo de 20%. Tarefa programada cancelada. |
+| `fault_title_2007` | Não foi possível chegar ao destino. A limpeza terminou. |
+| `fault_title_2012` | Não foi possível chegar ao destino. A limpeza terminou. |
+| `fault_title_2100` | Bateria fraca. Continue a limpeza depois de recarregar. |
+| `fault_title_2102` | Limpeza concluída. A regressar à estação |
+| `fault_title_407` | Limpeza em curso. Limpeza programada ignorada. |
+| `fault_title_500` | Torre ou laser LiDAR bloqueado. Verifique se existe alguma obstrução e tente novamente. |
+| `fault_title_501` | Robô suspenso. Afaste o robô e reinicie. |
+| `fault_title_502_518` | Bateria fraca. Recarregue agora. |
+| `fault_title_503` | Verifique se o compartimento do lixo e o filtro estão corretamente instalados. |
+| `fault_title_509` | Erro dos sensores de penhasco. Limpe-os, afaste o robô de locais propícios a quedas e reinicie. |
+| `fault_title_510` | O para-choques ficou preso. Limpe-o e toque ligeiramente para o libertar. |
+| `fault_title_511_512` | Erro ao voltar para a estação. Coloque o robô na estação. |
+| `fault_title_513_514` | Robô preso. Afaste o robô e reinicie. |
+| `fault_title_522` | Verifique se a mopa está corretamente instalada. |
+| `fault_title_533` | Está prestes a desligar-se após um longo período de suspensão |
+| `fault_title_534` | Bateria fraca. A desligar. |
+| `fault_title_560` | Escova lateral emaranhada. Remova e limpe. |
+| `fault_title_568_569` | Limpe as rodas principais, afaste o robô e reinicie. |
+| `fault_title_570` | Escova principal emaranhada. Remova-a e limpe-a, bem como o respetivo rolamento. |
+| `fault_title_572` | Escova principal emaranhada. Remova-a e limpe-a, bem como o respetivo rolamento. |
+| `fault_title_594` | Certifique-se de que o saco para o pó está corretamente instalado. |
+| `fault_title_611` | Falha no posicionamento. Mova o robô novamente para a estação e efetue o remapeamento. |
+| `fault_title_612` | O mapa foi alterado. Falha no posicionamento. Tente novamente. |
+| `fault_title_629` | O suporte do pano da mopa caiu. |
+| `fault_title_668` | Erro do robô. Reponha o sistema. |
 | `firmware_upgrade_downloading` | A transferir... %d% |
 | `firmware_upgrade_installing` | A instalar... |
 | `floor_title` | Esquema da casa |
@@ -252,7 +307,7 @@ This document contains the complete translation mapping and internal constants f
 | `guide_map_save_open` | Manter ativado |
 | `guide_map_save_tip1` | Permita que o robô memorize a sua casa |
 | `guide_map_save_tip2` | Depois de o mapa ser guardado, o robô adapta de forma inteligente o seu percurso de limpeza à divisão e pode desbloquear funcionalidades de limpeza personalizadas, como a limpeza seletiva de divisões e zonas interditas. |
-| `guide_map_save_tip3` | Quando a funcionalidade Guardar mapa estiver desativada, a edição de mapas e as funcionalidades de limpeza personalizadas, como a limpeza seletiva de divisões e a zona interdita, ficarão indisponíveis.\n |
+| `guide_map_save_tip3` | Quando a funcionalidade Guardar mapa estiver desativada, a edição de mapas e as funcionalidades de limpeza personalizadas, como a limpeza seletiva de divisões e a zona interdita, ficarão indisponíveis.<br> |
 | `guide_map_save_tip4` | Depois de o mapa ser guardado, o robô adapta de forma inteligente o seu percurso de limpeza à divisão e pode desbloquear funcionalidades de limpeza personalizadas, como a limpeza seletiva de divisões e zonas interditas. |
 | `guide_map_save_tip5` | Objetos refletores e superfícies escorregadias podem afetar a estabilidade da funcionalidade Guardar mapa e causar anormalidades na rota. |
 | `guide_mopnow` | Aspire antes de passar a mopa. |
@@ -451,7 +506,7 @@ This document contains the complete translation mapping and internal constants f
 | `mapEdit_recommend_add_cill` | Toque para confirmar um limiar |
 | `mapEdit_recommend_add_zone` | Adicionar zona interdita |
 | `mapEdit_recommend_carpet_subtitle` | Suspeita de tapete detetada. Defina o Reforço do tapete ou Evitar depois de o adicionar. |
-| `mapEdit_recommend_cill_subtitle` | \nLimiar detetado aqui. Defina uma zona de limiar. |
+| `mapEdit_recommend_cill_subtitle` | <br>Limiar detetado aqui. Defina uma zona de limiar. |
 | `mapEdit_recommend_cill_title` | Limiar |
 | `mapEdit_recommend_cliff_subtitle` | Suspeita de degraus, escadas ou desníveis detetada. Adicione uma zona interdita. |
 | `mapEdit_recommend_ignore` | Erro de reconhecimento? Ignorar. |
@@ -511,7 +566,7 @@ This document contains the complete translation mapping and internal constants f
 | `map_device_recharging_tip` | Edição indisponível durante o regresso à estação |
 | `map_load` | A mudança de mapa irá terminar a limpeza atual. |
 | `map_save_close_cancel` | Manter ativado |
-| `map_save_close_content` | Quando a funcionalidade Guardar mapa estiver desativada, a edição de mapas e as funcionalidades de limpeza personalizadas, como a limpeza seletiva de divisões e a zona interdita, ficarão indisponíveis.\n |
+| `map_save_close_content` | Quando a funcionalidade Guardar mapa estiver desativada, a edição de mapas e as funcionalidades de limpeza personalizadas, como a limpeza seletiva de divisões e a zona interdita, ficarão indisponíveis.<br> |
 | `map_save_close_ok` | Desativar |
 | `map_save_close_title` | Desativar a funcionalidade Guardar mapa? |
 | `map_switch_tip` | Selecionar um mapa para utilização num único piso |
@@ -572,18 +627,18 @@ This document contains the complete translation mapping and internal constants f
 | `set_voice_package_waiting` | A aguardar... |
 | `setting_adjust_time` | A hora de início é igual à hora de fim. Por favor, altere. |
 | `setting_carpet_avoid` | Evitamento e passagem pelo tapete |
-| `setting_carpet_avoid_tip` | Depois de o suporte do pano da esfregona estar instalado, o robô evita os tapetes e só os atravessa quando necessário para não deixar escapar quaisquer pontos.\n* Utilize-a depois de adicionar um tapete na edição do mapa |
+| `setting_carpet_avoid_tip` | Depois de o suporte do pano da esfregona estar instalado, o robô evita os tapetes e só os atravessa quando necessário para não deixar escapar quaisquer pontos.<br>* Utilize-a depois de adicionar um tapete na edição do mapa |
 | `setting_cartoon_voice` | Voz de desenho animado infantil |
 | `setting_charging` | Carregamento fora das horas de ponta |
 | `setting_charging_desc` | Carrega totalmente a bateria fora das horas de ponta e mantém apenas a potência mínima durante as outras horas. |
 | `setting_charging_disable_tip` | * Sem tempo de carregamento definido. Carregamento fora das horas de ponta inativo. |
 | `setting_charging_empty` | Não definido |
-| `setting_charging_note` | *O carregamento da bateria pode ocorrer durante as horas de ponta nas seguintes condições:\n1. Existem tarefas por concluir.\n2. Se não existirem tarefas, o robô também carrega para manter a potência mínima. |
+| `setting_charging_note` | *O carregamento da bateria pode ocorrer durante as horas de ponta nas seguintes condições:<br>1. Existem tarefas por concluir.<br>2. Se não existirem tarefas, o robô também carrega para manter a potência mínima. |
 | `setting_check_text` | Ver |
-| `setting_consumable_change_tips1` | \nA escova principal atingiu a sua vida útil. Substitua-a imediatamente. |
-| `setting_consumable_change_tips2` | \nA escova lateral atingiu a sua vida útil. Substitua-a imediatamente. |
-| `setting_consumable_change_tips3` | \nO filtro atingiu a sua vida útil. Substitua-o imediatamente. |
-| `setting_consumable_change_tips4` | \nO pano da mopa atingiu a sua vida útil. Substitua-o imediatamente. |
+| `setting_consumable_change_tips1` | <br>A escova principal atingiu a sua vida útil. Substitua-a imediatamente. |
+| `setting_consumable_change_tips2` | <br>A escova lateral atingiu a sua vida útil. Substitua-a imediatamente. |
+| `setting_consumable_change_tips3` | <br>O filtro atingiu a sua vida útil. Substitua-o imediatamente. |
+| `setting_consumable_change_tips4` | <br>O pano da mopa atingiu a sua vida útil. Substitua-o imediatamente. |
 | `setting_consumable_change_tips5` | O compartimento do lixo pode estar cheio. Esvazie-o. |
 | `setting_consumable_change_tips6` | Os sensores ficaram por limpar durante muito tempo. Limpe-os. |
 | `setting_consumable_change_tips7` | O suporte do pano da mopa não está instalado |

@@ -35,6 +35,7 @@ This document contains the complete translation mapping and internal constants f
 ### 🕹️ Robot Modes (`ROBOT_TYPE`)
 | Mode Name | Internal Value |
 | :--- | :--- |
+| `SLEEP` | `4294967295` |
 | `STANDBY` | `0` |
 | `WORKING` | `1` |
 | `CHARGING` | `2` |
@@ -42,7 +43,6 @@ This document contains the complete translation mapping and internal constants f
 | `ALERT` | `4` |
 | `MOP_CLEANING` | `5` |
 | `MOP_AIRDRYING` | `6` |
-| `SLEEP` | `4294967295` |
 
 ---
 
@@ -58,7 +58,7 @@ This document contains the complete translation mapping and internal constants f
 | **500** | `F_500` | LiDAR-tårn eller laserblokeret. Tjek for forhindringer, og prøv igen. | LiDAR-sensoren er blokeret eller sidder fast. Fjern eventuelle fremmedlegemer. Hvis problemet fortsætter, flyt robotten væk og genstart. |
 | **501** | `F_501` | Robot suspenderet. Flyt robotten væk og genstart. | Robot suspenderet. Flyt robotten væk og genstart. Klippesensorer snavset. Tør dem af. |
 | **502** | `F_502` | Lavt batteri. Genoplad nu. | Lavt batteriniveau. Sæt robotten på docken for at oplade den til 20%, før du starter. |
-| **503** | `F_503` | Kontroller, at skraldespanden og filteret er installeret korrekt. | Geninstaller skraldespanden og filteret på plads.\nHvis problemet fortsætter, skal du udskifte filteret. |
+| **503** | `F_503` | Kontroller, at skraldespanden og filteret er installeret korrekt. | Geninstaller skraldespanden og filteret på plads.<br>Hvis problemet fortsætter, skal du udskifte filteret. |
 | **504** | `F_504` | Lavt batteri. Genoplad nu. | Lavt batteriniveau. Sæt robotten på docken for at oplade den til 20%, før du starter. |
 | **505** | `F_505` | Lavt batteri. Genoplad nu. | Lavt batteriniveau. Sæt robotten på docken for at oplade den til 20%, før du starter. |
 | **506** | `F_506` | Lavt batteri. Genoplad nu. | Lavt batteriniveau. Sæt robotten på docken for at oplade den til 20%, før du starter. |
@@ -163,6 +163,7 @@ This document contains the complete translation mapping and internal constants f
 
 | Key | Localized Value |
 | :--- | :--- |
+| `battery` | Battery Percentage |
 | `clean_record_abort_abnormally` | Sluttede unormalt |
 | `clean_record_abort_manually` | Manuel afslutning |
 | `clean_record_area` | Akkumuleret areal |
@@ -189,6 +190,7 @@ This document contains the complete translation mapping and internal constants f
 | `clean_record_work_record` | Arbejdslog |
 | `common_abnormal` | Unormal |
 | `common_alert` | Bemærk |
+| `common_battery_percentage` | Battery Percentage |
 | `common_cancel` | Annuller |
 | `common_close_time` | Lukketid |
 | `common_delete` | Slet |
@@ -234,6 +236,57 @@ This document contains the complete translation mapping and internal constants f
 | `device_sn` | Serienummer |
 | `device_timezone_to_robot` | Synk telefonens tidszone til robotten |
 | `failed_page_content` | Indlæsningen mislykkedes. |
+| `fault_summery_2003` | Batteriniveau under 20%. Planlagt opgave annulleret. |
+| `fault_summery_2007` | Kan ikke nå målet. Rengøringen sluttede. Sørg for, at døren til målområdet er åben eller uhindret. |
+| `fault_summery_2012` | Kan ikke nå målet. Rengøringen sluttede. Sørg for, at døren til målområdet er åben eller uhindret. |
+| `fault_summery_2100` | Lavt batteri. Begynder at genoplade. Genoptag rengøringen efter opladning. |
+| `fault_summery_2102` | Rengøring afsluttet. Tilbage til docken |
+| `fault_summery_500` | LiDAR-sensoren er blokeret eller sidder fast. Fjern eventuelle fremmedlegemer. Hvis problemet fortsætter, flyt robotten væk og genstart. |
+| `fault_summery_501` | Robot suspenderet. Flyt robotten væk og genstart. Klippesensorer snavset. Tør dem af. |
+| `fault_summery_502_518` | Lavt batteriniveau. Sæt robotten på docken for at oplade den til 20%, før du starter. |
+| `fault_summery_503` | Geninstaller skraldespanden og filteret på plads.<br>Hvis problemet fortsætter, skal du udskifte filteret. |
+| `fault_summery_509` | Klippesensorfejl. Rengør dem, flyt robotten væk fra kanter, og genstart. |
+| `fault_summery_510` | Kofanger sidder fast. Tryk gentagne gange på den for at slippe den. Hvis der ikke findes fremmedlegemer, skal du flytte robotten væk og genstarte. |
+| `fault_summery_511_512` | Dockingfejl. Fjern forhindringer omkring docken, rengør opladningskontakter, og sæt robotten på docken. |
+| `fault_summery_513_514` | Robot fanget. Fjern forhindringer omkring robotten, eller flyt robotten væk og genstart. |
+| `fault_summery_522` | Moppe ikke installeret. Geninstaller det. |
+| `fault_summery_533` | Ved at lukke ned efter lang tids søvn. Oplad robotten. |
+| `fault_summery_534` | Ved at lukke ned på grund af lavt batteri. Oplad robotten. |
+| `fault_summery_560` | Sidebørsten sammenfiltrede. Fjern og rengør det. |
+| `fault_summery_568_569` | Rengør hovedhjulene, flyt robotten væk og genstart. |
+| `fault_summery_570` | Hovedbørsten sammenfiltrede. Fjern og rengør den og dens leje. |
+| `fault_summery_572` | Hovedbørsten sammenfiltrede. Fjern og rengør den og dens leje. |
+| `fault_summery_594` | Støvpose ikke installeret. Kontroller, at den er installeret korrekt. |
+| `fault_summery_611` | Positionering mislykkedes. Flyt robotten tilbage til docken, og tilknyt den igen. |
+| `fault_summery_612` | Nyt miljø registreret. Kortet er ændret. Positionering mislykkedes. Prøv igen efter genkortlægning. |
+| `fault_summery_629` | Moppekludsbeslag faldt af. Geninstaller det for at genoptage arbejdet. |
+| `fault_summery_668` | Ventilator fejl. Nulstil systemet. Hvis problemet fortsætter, skal du kontakte kundeservice. |
+| `fault_title_2003` | Batteriniveau under 20%. Planlagt opgave annulleret. |
+| `fault_title_2007` | Kan ikke nå målet. Rengøringen sluttede. |
+| `fault_title_2012` | Kan ikke nå målet. Rengøringen sluttede. |
+| `fault_title_2100` | Lavt batteri. Genoptag rengøringen efter genopladning. |
+| `fault_title_2102` | Rengøring afsluttet. Tilbage til docken |
+| `fault_title_407` | Rengøring i gang. Planlagt oprydning ignoreret. |
+| `fault_title_500` | LiDAR-tårn eller laserblokeret. Tjek for forhindringer, og prøv igen. |
+| `fault_title_501` | Robot suspenderet. Flyt robotten væk og genstart. |
+| `fault_title_502_518` | Lavt batteri. Genoplad nu. |
+| `fault_title_503` | Kontroller, at skraldespanden og filteret er installeret korrekt. |
+| `fault_title_509` | Klippesensorfejl. Rengør dem, flyt robotten væk fra kanter, og genstart. |
+| `fault_title_510` | Kofanger sidder fast. Rengør den, og tryk let for at frigøre den. |
+| `fault_title_511_512` | Dockingfejl. Sæt robotten på docken. |
+| `fault_title_513_514` | Robot fanget. Flyt robotten væk og genstart. |
+| `fault_title_522` | Kontroller, at moppen er korrekt installeret. |
+| `fault_title_533` | Ved at lukke ned efter lang tids søvn |
+| `fault_title_534` | Lavt batteri. Slukke. |
+| `fault_title_560` | Sidebørsten sammenfiltrede. Fjern og rengør det. |
+| `fault_title_568_569` | Rengør hovedhjulene, flyt robotten væk og genstart. |
+| `fault_title_570` | Hovedbørsten sammenfiltrede. Fjern og rengør den og dens leje. |
+| `fault_title_572` | Hovedbørsten sammenfiltrede. Fjern og rengør den og dens leje. |
+| `fault_title_594` | Sørg for, at støvposen er korrekt installeret. |
+| `fault_title_611` | Positionering mislykkedes. Flyt robotten tilbage til docken, og tilknyt den igen. |
+| `fault_title_612` | Kortet er ændret. Positionering mislykkedes. Prøv igen. |
+| `fault_title_629` | Moppekludsbeslag faldt af. |
+| `fault_title_668` | Robot fejl. Nulstil systemet. |
 | `firmware_upgrade_downloading` | Opdatering... %d% |
 | `firmware_upgrade_installing` | Installere... |
 | `floor_title` | Hjemmelayout |
@@ -572,13 +625,13 @@ This document contains the complete translation mapping and internal constants f
 | `set_voice_package_waiting` | Venter... |
 | `setting_adjust_time` | Starttidspunkt samme som sluttidspunkt. Skift venligst. |
 | `setting_carpet_avoid` | Undgåelse af tæpper og krydsning |
-| `setting_carpet_avoid_tip` | Når moppekludsbeslaget er installeret, undgår robotten tæpper og krydser dem kun, når det er nødvendigt for at undgå at gå glip af pletter.\\n* Brug det efter at have tilføjet et tæppe i kortredigering |
+| `setting_carpet_avoid_tip` | Når moppekludsbeslaget er installeret, undgår robotten tæpper og krydser dem kun, når det er nødvendigt for at undgå at gå glip af pletter.\n* Brug det efter at have tilføjet et tæppe i kortredigering |
 | `setting_cartoon_voice` | Tegneserie børns stemme |
 | `setting_charging` | Opladning udenfor spidsbelastning |
 | `setting_charging_desc` | Oplader batteriet helt uden for spidsbelastningsperioder og opretholder kun minimal strøm i andre timer. |
 | `setting_charging_disable_tip` | * Ingen opladningstid indstillet. Opladning uden for spidsbelastningsperioder er inaktiv. |
 | `setting_charging_empty` | Ikke indstillet |
-| `setting_charging_note` | *Batteriopladning kan forekomme i spidsbelastningsperioder under følgende forhold:\n1. Der er uafsluttede opgaver.\n2. Hvis der ikke er nogen opgaver, vil robotten også oplade for at opretholde minimal effekt. |
+| `setting_charging_note` | *Batteriopladning kan forekomme i spidsbelastningsperioder under følgende forhold:<br>1. Der er uafsluttede opgaver.<br>2. Hvis der ikke er nogen opgaver, vil robotten også oplade for at opretholde minimal effekt. |
 | `setting_check_text` | Se |
 | `setting_consumable_change_tips1` | Hovedbørsten er udløbet. Udskift den hurtigst muligt |
 | `setting_consumable_change_tips2` | Sidebørsten er udløbet. Udskift den hurtigst muligt |

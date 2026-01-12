@@ -35,6 +35,7 @@ This document contains the complete translation mapping and internal constants f
 ### 🕹️ Robot Modes (`ROBOT_TYPE`)
 | Mode Name | Internal Value |
 | :--- | :--- |
+| `SLEEP` | `4294967295` |
 | `STANDBY` | `0` |
 | `WORKING` | `1` |
 | `CHARGING` | `2` |
@@ -42,7 +43,6 @@ This document contains the complete translation mapping and internal constants f
 | `ALERT` | `4` |
 | `MOP_CLEANING` | `5` |
 | `MOP_AIRDRYING` | `6` |
-| `SLEEP` | `4294967295` |
 
 ---
 
@@ -58,7 +58,7 @@ This document contains the complete translation mapping and internal constants f
 | **500** | `F_500` | LiDAR-torn eller laser blockerad. Sök efter hinder och försök igen. | LiDAR-sensorn är övertäckt eller har fastnat Avlägsna eventuella främmande föremål. Om problemet kvarstår kan du behöva flytta roboten och starta om. |
 | **501** | `F_501` | Roboten hänger. Flytta roboten och starta om. | Roboten hänger. Flytta roboten och starta om. Trappsensorerna är smutsiga. Torka rent dem. |
 | **502** | `F_502` | Lågt batteri. Ladda nu. | Batteri är lågt. Placera roboten i laddningsstationen och ladda den till 20 % innan start. |
-| **503** | `F_503` | Kontrollera att dammbehållaren och filtret sitter som de ska. | Sätt tillbaka dammbehållren och filtret.\nByt ut filtret om problemet kvarstår. |
+| **503** | `F_503` | Kontrollera att dammbehållaren och filtret sitter som de ska. | Sätt tillbaka dammbehållren och filtret.<br>Byt ut filtret om problemet kvarstår. |
 | **504** | `F_504` | Lågt batteri. Ladda nu. | Batteri är lågt. Placera roboten i laddningsstationen och ladda den till 20 % innan start. |
 | **505** | `F_505` | Lågt batteri. Ladda nu. | Batteri är lågt. Placera roboten i laddningsstationen och ladda den till 20 % innan start. |
 | **506** | `F_506` | Lågt batteri. Ladda nu. | Batteri är lågt. Placera roboten i laddningsstationen och ladda den till 20 % innan start. |
@@ -163,6 +163,7 @@ This document contains the complete translation mapping and internal constants f
 
 | Key | Localized Value |
 | :--- | :--- |
+| `battery` | Battery Percentage |
 | `clean_record_abort_abnormally` | Avslutades onormalt |
 | `clean_record_abort_manually` | Städning avbruten av användaren |
 | `clean_record_area` | Totalt område |
@@ -189,6 +190,7 @@ This document contains the complete translation mapping and internal constants f
 | `clean_record_work_record` | Historik |
 | `common_abnormal` | Fel |
 | `common_alert` | Obs: |
+| `common_battery_percentage` | Battery Percentage |
 | `common_cancel` | Avbryt |
 | `common_close_time` | Sluta |
 | `common_delete` | Radera |
@@ -234,6 +236,57 @@ This document contains the complete translation mapping and internal constants f
 | `device_sn` | Serienummer |
 | `device_timezone_to_robot` | Synkronisera tidszon |
 | `failed_page_content` | Kunde inte läsa in. |
+| `fault_summery_2003` | Batterinivån är under 20 %. Schemalagd uppgift avbruten. |
+| `fault_summery_2007` | Kan inte komma till målet. Städning avslutad. Kontrollera att dörren till målområter är öppen och att roboten kan komma åt. |
+| `fault_summery_2012` | Kan inte komma till målet. Städning avslutad. Kontrollera att dörren till målområter är öppen och att roboten kan komma åt. |
+| `fault_summery_2100` | Lågt batteri. Börjar ladda. Fortsätt städning efter laddning. |
+| `fault_summery_2102` | Städning slutförd. Återvänder till laddningsstationen |
+| `fault_summery_500` | LiDAR-sensorn är övertäckt eller har fastnat Avlägsna eventuella främmande föremål. Om problemet kvarstår kan du behöva flytta roboten och starta om. |
+| `fault_summery_501` | Roboten hänger. Flytta roboten och starta om. Trappsensorerna är smutsiga. Torka rent dem. |
+| `fault_summery_502_518` | Batteri är lågt. Placera roboten i laddningsstationen och ladda den till 20 % innan start. |
+| `fault_summery_503` | Sätt tillbaka dammbehållren och filtret.<br>Byt ut filtret om problemet kvarstår. |
+| `fault_summery_509` | Fel med trappsensorerna. Rengör dem, flytta undan robot från sänkor och starta om. |
+| `fault_summery_510` | Stötfångare fastnat. Tryck på den tills den lossnar. Om det inte finns några främmande föremål kan du flytta på roboten och starta om. |
+| `fault_summery_511_512` | Dockningsfel. Ta bort hinder runt laddningsstationen, rengör laddningskontakterna och sätt roboten på laddningsstationen. |
+| `fault_summery_513_514` | Robot fastnat. Ta bort hinder runt roboten eller flytta på roboten och starta om. |
+| `fault_summery_522` | Moppen är inte monterad. Sätt tillbaka den. |
+| `fault_summery_533` | Stänger snart av efter att ha varit i viloläge länge. Ladda roboten. |
+| `fault_summery_534` | Stänger snart av på grund av lågt batteri. Ladda roboten. |
+| `fault_summery_560` | Sidoborsten har fastnat. Ta bort och rengör den. |
+| `fault_summery_568_569` | Rengör huvudhjulen, ta bort roboten och starta om. |
+| `fault_summery_570` | Huvudborsten har fastnat. Ta bort och rengör den och dess lager. |
+| `fault_summery_572` | Huvudborsten har fastnat. Ta bort och rengör den och dess lager. |
+| `fault_summery_594` | Dammsugarpåsen sitter inte i. Kontrollera att den sitter som den ska. |
+| `fault_summery_611` | Positionering misslyckades. Sätt tillbaka roboten på laddningsstationen och kartlägg igen. |
+| `fault_summery_612` | Ny miljö upptäckt. Karta ändrad. Positionering misslyckades. Försök igen efter ny kartläggning. |
+| `fault_summery_629` | Moppduksfästet har lossnat. Sätt tillbaka det för att fortsätta. |
+| `fault_summery_668` | Fläktfel. Återställ systemet. Kontakta kundtjänst om problemet kvarstår. |
+| `fault_title_2003` | Batterinivån är under 20 %. Schemalagd uppgift avbruten. |
+| `fault_title_2007` | Kan inte komma till målet. Städning avslutad. |
+| `fault_title_2012` | Kan inte komma till målet. Städning avslutad. |
+| `fault_title_2100` | Lågt batteri. Fortsätt städning efter laddning. |
+| `fault_title_2102` | Städning slutförd. Återvänder till laddningsstationen |
+| `fault_title_407` | Städning pågår. Schemalagd städning ignoreras. |
+| `fault_title_500` | LiDAR-torn eller laser blockerad. Sök efter hinder och försök igen. |
+| `fault_title_501` | Roboten hänger. Flytta roboten och starta om. |
+| `fault_title_502_518` | Lågt batteri. Ladda nu. |
+| `fault_title_503` | Kontrollera att dammbehållaren och filtret sitter som de ska. |
+| `fault_title_509` | Fel med trappsensorerna. Rengör dem, flytta undan robot från sänkor och starta om. |
+| `fault_title_510` | Stötfångare fastnat. Rengör och knacka lätt tills den lossnar. |
+| `fault_title_511_512` | Dockningsfel. Placera roboten i laddningsstationen. |
+| `fault_title_513_514` | Robot fastnat. Flytta roboten och starta om. |
+| `fault_title_522` | Kontrollera att moppen sitter som den ska. |
+| `fault_title_533` | Stänger snart av efter att ha varit i viloläge länge |
+| `fault_title_534` | Lågt batteri. Stänger av. |
+| `fault_title_560` | Sidoborsten har fastnat. Ta bort och rengör den. |
+| `fault_title_568_569` | Rengör huvudhjulen, ta bort roboten och starta om. |
+| `fault_title_570` | Huvudborsten har fastnat. Ta bort och rengör den och dess lager. |
+| `fault_title_572` | Huvudborsten har fastnat. Ta bort och rengör den och dess lager. |
+| `fault_title_594` | Kontrollera att dammsugarpåsen sitter som den ska. |
+| `fault_title_611` | Positionering misslyckades. Sätt tillbaka roboten på laddningsstationen och kartlägg igen. |
+| `fault_title_612` | Karta ändrad. Positionering misslyckades. Försök en gång till. |
+| `fault_title_629` | Moppduksfästet har lossnat. |
+| `fault_title_668` | Robotfel. Återställ systemet. |
 | `firmware_upgrade_downloading` | Uppdaterar... %d% |
 | `firmware_upgrade_installing` | Installerar... |
 | `floor_title` | Layout över hemmet |
@@ -252,7 +305,7 @@ This document contains the complete translation mapping and internal constants f
 | `guide_map_save_open` | Behåll aktiverad |
 | `guide_map_save_tip1` | Låt din robot komma ihåg ditt hem. |
 | `guide_map_save_tip2` | När kartan har sparats kommer roboten att anpassa sin städrutin efter rummet och du kan låsa upp anpassade städfunktioner som städning av vissa rum och förbjudna områden. |
-| `guide_map_save_tip3` | När sparande av kartor är inaktiverat kommer funktioner för kartändring och anpassade städfunktioner som städning av vissa rum och förbjudna områden att inaktiveras.\n |
+| `guide_map_save_tip3` | När sparande av kartor är inaktiverat kommer funktioner för kartändring och anpassade städfunktioner som städning av vissa rum och förbjudna områden att inaktiveras.<br> |
 | `guide_map_save_tip4` | När kartan har sparats kommer roboten att anpassa sin städrutin efter rummet och du kan låsa upp anpassade städfunktioner som städning av vissa rum och förbjudna områden. |
 | `guide_map_save_tip5` | Speglande föremål och hala ytor kan påverka stabiliteten för sparande av kartor och orsaka ruttstörningar. |
 | `guide_mopnow` | Dammsug innan moppning. |
@@ -572,13 +625,13 @@ This document contains the complete translation mapping and internal constants f
 | `set_voice_package_waiting` | Väntar... |
 | `setting_adjust_time` | Starttid och sluttid är samma. Ändra. |
 | `setting_carpet_avoid` | Undvikande av och körning över mattor |
-| `setting_carpet_avoid_tip` | Efter att moppduksfästet har monterats undviker roboten mattor och kör bara över dem när den måste för att inte missa ett område.\\n* Använd efter att ha lagt till en matta på kartan |
+| `setting_carpet_avoid_tip` | Efter att moppduksfästet har monterats undviker roboten mattor och kör bara över dem när den måste för att inte missa ett område.\n* Använd efter att ha lagt till en matta på kartan |
 | `setting_cartoon_voice` | Barnfilmsröst |
 | `setting_charging` | Laddning under lågpristider |
 | `setting_charging_desc` | Laddar batteriet helt under tider med lägre elpris och håller bara minimal laddning under övriga tider. |
 | `setting_charging_disable_tip` | * Ingen inställd laddningstid. Laddning vid låga avgiftstider inaktiv. |
 | `setting_charging_empty` | Inte inställd |
-| `setting_charging_note` | *Batteriet kan laddas under tider med höga priser i följande situationer:\n1. Det finns ej slutförda uppgifter.\n2. Om det inte finns några uppgifter kommer roboten ändå att upprätthålla en viss lägsta batterinivå. |
+| `setting_charging_note` | *Batteriet kan laddas under tider med höga priser i följande situationer:<br>1. Det finns ej slutförda uppgifter.<br>2. Om det inte finns några uppgifter kommer roboten ändå att upprätthålla en viss lägsta batterinivå. |
 | `setting_check_text` | Se |
 | `setting_consumable_change_tips1` | Huvudborsten har nått sin livslängd. Byt ut det omedelbart |
 | `setting_consumable_change_tips2` | Sidoborsten har nått sin livslängd. Byt ut det omedelbart |

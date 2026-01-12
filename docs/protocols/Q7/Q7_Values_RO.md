@@ -35,6 +35,7 @@ This document contains the complete translation mapping and internal constants f
 ### 🕹️ Robot Modes (`ROBOT_TYPE`)
 | Mode Name | Internal Value |
 | :--- | :--- |
+| `SLEEP` | `4294967295` |
 | `STANDBY` | `0` |
 | `WORKING` | `1` |
 | `CHARGING` | `2` |
@@ -42,7 +43,6 @@ This document contains the complete translation mapping and internal constants f
 | `ALERT` | `4` |
 | `MOP_CLEANING` | `5` |
 | `MOP_AIRDRYING` | `6` |
-| `SLEEP` | `4294967295` |
 
 ---
 
@@ -58,7 +58,7 @@ This document contains the complete translation mapping and internal constants f
 | **500** | `F_500` | Turelă LiDAR sau laser blocată. Căutați eventualele obstrucții și încercați din nou. | Senzor LiDAR obstrucționat sau blocat. Îndepărtați obiectele străine, dacă există. Dacă problema persistă, mutați robotul într-o altă locație și porniți-l din nou. |
 | **501** | `F_501` | Robot suspendat. Mutați robotul și porniți-l din nou. | Robot suspendat. Mutați robotul și porniți-l din nou. Senzorii de zonă abruptă sunt murdari. Curățați-i. |
 | **502** | `F_502` | Baterie descărcată. Reîncărcați acum. | Baterie descărcată. Andocați robotul pentru a se încărca până la 20% înainte de pornire. |
-| **503** | `F_503` | Verificați dacă coșul de gunoi și filtrul sunt montate corect. | Remontați coșul de gunoi și filtrul.\nDacă problema persistă, înlocuiți filtrul. |
+| **503** | `F_503` | Verificați dacă coșul de gunoi și filtrul sunt montate corect. | Remontați coșul de gunoi și filtrul.<br>Dacă problema persistă, înlocuiți filtrul. |
 | **504** | `F_504` | Baterie descărcată. Reîncărcați acum. | Baterie descărcată. Andocați robotul pentru a se încărca până la 20% înainte de pornire. |
 | **505** | `F_505` | Baterie descărcată. Reîncărcați acum. | Baterie descărcată. Andocați robotul pentru a se încărca până la 20% înainte de pornire. |
 | **506** | `F_506` | Baterie descărcată. Reîncărcați acum. | Baterie descărcată. Andocați robotul pentru a se încărca până la 20% înainte de pornire. |
@@ -163,6 +163,7 @@ This document contains the complete translation mapping and internal constants f
 
 | Key | Localized Value |
 | :--- | :--- |
+| `battery` | Battery Percentage |
 | `clean_record_abort_abnormally` | Încheiat anormal |
 | `clean_record_abort_manually` | Curățare întreruptă de utilizator |
 | `clean_record_area` | Suprafață totală |
@@ -189,6 +190,7 @@ This document contains the complete translation mapping and internal constants f
 | `clean_record_work_record` | Istoric |
 | `common_abnormal` | Eroare |
 | `common_alert` | Notă |
+| `common_battery_percentage` | Battery Percentage |
 | `common_cancel` | Anulare |
 | `common_close_time` | Încheiere |
 | `common_delete` | Ștergere |
@@ -234,6 +236,57 @@ This document contains the complete translation mapping and internal constants f
 | `device_sn` | Număr de serie |
 | `device_timezone_to_robot` | Sincronizare fus orar |
 | `failed_page_content` | Încărcare nereușită. |
+| `fault_summery_2003` | Nivelul bateriei sub 20%. Acțiunea planificată a fost anulată. |
+| `fault_summery_2007` | Nu se poate ajunge la țintă. Curățare finalizată. Asigurați-vă că ușa către zona țintă este deschisă, iar traseul neobstrucționată. |
+| `fault_summery_2012` | Nu se poate ajunge la țintă. Curățare finalizată. Asigurați-vă că ușa către zona țintă este deschisă, iar traseul neobstrucționată. |
+| `fault_summery_2100` | Baterie descărcată. Se începe reîncărcarea. Reluați procesul de curățare după încărcare. |
+| `fault_summery_2102` | Curățare finalizată. Revenire la stația de andocare |
+| `fault_summery_500` | Senzor LiDAR obstrucționat sau blocat. Îndepărtați obiectele străine, dacă există. Dacă problema persistă, mutați robotul într-o altă locație și porniți-l din nou. |
+| `fault_summery_501` | Robot suspendat. Mutați robotul și porniți-l din nou. Senzorii de zonă abruptă sunt murdari. Curățați-i. |
+| `fault_summery_502_518` | Baterie descărcată. Andocați robotul pentru a se încărca până la 20% înainte de pornire. |
+| `fault_summery_503` | Remontați coșul de gunoi și filtrul.<br>Dacă problema persistă, înlocuiți filtrul. |
+| `fault_summery_509` | Eroare la senzorii de zonă abruptă. Curățați-i, mutați robotul departe de zona abruptă și porniți-l din nou. |
+| `fault_summery_510` | Bară de protecție blocată. Apăsați-o ușor în mod repetat pentru a o elibera. Dacă nu există obiecte străine, mutați robotul într-o altă locație și porniți-l din nou. |
+| `fault_summery_511_512` | Eroare de andocare. Îndepărtați obstacolele din jurul stației de andocare, curățați contactele de încărcare și așezați robotul la stația de andocare. |
+| `fault_summery_513_514` | Robot blocat. Îndepărtați obiectele din jurul robotului sau mutați robotul într-o altă locație și porniți-l din nou. |
+| `fault_summery_522` | Mopul nu este montat Remontați-l. |
+| `fault_summery_533` | Pe punctul de a fi scos din funcțiune după o perioadă lungă de repaus. Încărcați robotul. |
+| `fault_summery_534` | Pe punctul de a fi scos din funcțiune din cauza bateriei descărcate. Încărcați robotul. |
+| `fault_summery_560` | Perie laterală blocată. Scoateți-o și curățați-o. |
+| `fault_summery_568_569` | Curățați roțile principale, mutați robotul într-o altă locație și porniți-l din nou. |
+| `fault_summery_570` | Perie principală blocată. Scoateți și curățați peria și rulmentul. |
+| `fault_summery_572` | Perie principală blocată. Scoateți și curățați peria și rulmentul. |
+| `fault_summery_594` | Sacul de praf nu este montat. Asigurați-vă că este montat corect. |
+| `fault_summery_611` | Poziționare nereușită. Mutați robotul înapoi la stația de andocare și recartografiați. |
+| `fault_summery_612` | Mediu nou detectat. Hartă modificată. Poziționarea nu a reușit. Încercați din nou după o nouă cartografiere. |
+| `fault_summery_629` | Suportul de mop s-a desprins. Remontați-l pentru a relua procesul. |
+| `fault_summery_668` | Eroare ventilator. Resetați sistemul. Dacă problema persistă, contactați serviciul clienți. |
+| `fault_title_2003` | Nivelul bateriei sub 20%. Acțiunea planificată a fost anulată. |
+| `fault_title_2007` | Nu se poate ajunge la țintă. Curățare finalizată. |
+| `fault_title_2012` | Nu se poate ajunge la țintă. Curățare finalizată. |
+| `fault_title_2100` | Baterie descărcată. Reluați procesul de curățare după încărcare. |
+| `fault_title_2102` | Curățare finalizată. Revenire la stația de andocare |
+| `fault_title_407` | Curățare în curs. Curățarea planificată a fost ignorată. |
+| `fault_title_500` | Turelă LiDAR sau laser blocată. Căutați eventualele obstrucții și încercați din nou. |
+| `fault_title_501` | Robot suspendat. Mutați robotul și porniți-l din nou. |
+| `fault_title_502_518` | Baterie descărcată. Reîncărcați acum. |
+| `fault_title_503` | Verificați dacă coșul de gunoi și filtrul sunt montate corect. |
+| `fault_title_509` | Eroare la senzorii de zonă abruptă. Curățați-i, mutați robotul departe de zona abruptă și porniți-l din nou. |
+| `fault_title_510` | Bară de protecție blocată. Curățați-o și apăsați-o ușor pentru a o elibera. |
+| `fault_title_511_512` | Eroare de andocare. Așezați robotul la stația de andocare. |
+| `fault_title_513_514` | Robot blocat. Mutați robotul într-o altă locație și porniți-l din nou. |
+| `fault_title_522` | Verificați dacă mopul este montat corect. |
+| `fault_title_533` | Pe punctul de a fi scos din funcțiune după o perioadă lungă de repaus |
+| `fault_title_534` | Baterie descărcată. Oprire în curs. |
+| `fault_title_560` | Perie laterală blocată. Scoateți-o și curățați-o. |
+| `fault_title_568_569` | Curățați roțile principale, mutați robotul într-o altă locație și porniți-l din nou. |
+| `fault_title_570` | Perie principală blocată. Scoateți și curățați peria și rulmentul. |
+| `fault_title_572` | Perie principală blocată. Scoateți și curățați peria și rulmentul. |
+| `fault_title_594` | Asigurați-vă că sacul de praf este montat corect. |
+| `fault_title_611` | Poziționare nereușită. Mutați robotul înapoi la stația de andocare și recartografiați. |
+| `fault_title_612` | Hartă modificată. Poziționare nereușită. Încercați din nou. |
+| `fault_title_629` | Suportul de mop s-a desprins. |
+| `fault_title_668` | Eroare robot. Resetați sistemul. |
 | `firmware_upgrade_downloading` | Se actualizează... %d% |
 | `firmware_upgrade_installing` | Se instalează... |
 | `floor_title` | Configurație locuință |
@@ -252,7 +305,7 @@ This document contains the complete translation mapping and internal constants f
 | `guide_map_save_open` | Lăsați opțiunea activată |
 | `guide_map_save_tip1` | Permiteți-i robotului să vă memoreze locuința |
 | `guide_map_save_tip2` | Odată ce harta este salvată, robotul își va adapta în mod inteligent traseul de curățare în funcție de cameră și puteți debloca funcții de curățare personalizate, cum ar fi curățarea selectivă a camerelor și zona interzisă. |
-| `guide_map_save_tip3` | Când salvarea hărților este dezactivată, funcțiile de editare a hărților și de curățare personalizată, cum ar fi curățarea selectivă a camerei și zona interzisă, vor fi indisponibile.\n |
+| `guide_map_save_tip3` | Când salvarea hărților este dezactivată, funcțiile de editare a hărților și de curățare personalizată, cum ar fi curățarea selectivă a camerei și zona interzisă, vor fi indisponibile.<br> |
 | `guide_map_save_tip4` | Odată ce harta este salvată, robotul își va adapta în mod inteligent traseul de curățare în funcție de cameră și puteți debloca funcții de curățare personalizate, cum ar fi curățarea selectivă a camerelor și zona interzisă. |
 | `guide_map_save_tip5` | Obiectele reflectorizante și suprafețele alunecoase pot afecta stabilitatea salvării hărții și pot cauza anomalii ale traseului. |
 | `guide_mopnow` | Aspirați înainte de a spăla. |
@@ -451,7 +504,7 @@ This document contains the complete translation mapping and internal constants f
 | `mapEdit_recommend_add_cill` | Apăsați pentru a confirma pragul |
 | `mapEdit_recommend_add_zone` | Adăugare zonă interzisă |
 | `mapEdit_recommend_carpet_subtitle` | S-a detectat un posibil covor. Setați puterea crescută de aspirare pentru covor sau evitarea covorului după ce îl adăugați. |
-| `mapEdit_recommend_cill_subtitle` | \nPrag detectat aici. Configurați o zonă cu prag. |
+| `mapEdit_recommend_cill_subtitle` | <br>Prag detectat aici. Configurați o zonă cu prag. |
 | `mapEdit_recommend_cill_title` | Prag |
 | `mapEdit_recommend_cliff_subtitle` | S-au detectat posibile trepte, scări sau zone abrupte. Adăugați o zonă interzisă. |
 | `mapEdit_recommend_ignore` | Eroare de recunoaștere? Ignoră. |
@@ -572,18 +625,18 @@ This document contains the complete translation mapping and internal constants f
 | `set_voice_package_waiting` | Se așteaptă... |
 | `setting_adjust_time` | Ora de pornire este identică cu ora de încheiere. Vă rugăm să modificați. |
 | `setting_carpet_avoid` | Evitarea și traversarea covoarelor |
-| `setting_carpet_avoid_tip` | După instalarea suportului de mop, robotul evită covoarele și le traversează doar atunci când este necesar pentru a nu lăsa locuri necurățate.\n*Utilizați opțiunea după adăugarea unui covor în editarea hărții |
+| `setting_carpet_avoid_tip` | După instalarea suportului de mop, robotul evită covoarele și le traversează doar atunci când este necesar pentru a nu lăsa locuri necurățate.<br>*Utilizați opțiunea după adăugarea unui covor în editarea hărții |
 | `setting_cartoon_voice` | Voce de copil din animații |
 | `setting_charging` | Încărcare în afara orelor de vârf |
 | `setting_charging_desc` | Încarcă complet bateria în afara orelor de vârf și doar menține puterea minimă în celelalte ore. |
 | `setting_charging_disable_tip` | *Timpul de încărcare nu este stabilit. Încărcarea în afara orelor de vârf este inactivă. |
 | `setting_charging_empty` | Nesetat |
-| `setting_charging_note` | *Încărcarea bateriei poate avea loc în orele de vârf în următoarele condiții:\n1. Există sarcini nefinalizate.\n2. Dacă nu există sarcini, robotul se va încărca pentru a menține nivelul minim de energie. |
+| `setting_charging_note` | *Încărcarea bateriei poate avea loc în orele de vârf în următoarele condiții:<br>1. Există sarcini nefinalizate.<br>2. Dacă nu există sarcini, robotul se va încărca pentru a menține nivelul minim de energie. |
 | `setting_check_text` | Vizualizare |
-| `setting_consumable_change_tips1` | \nPeria principală a ajuns la finalul duratei sale de utilizare. Înlocuiți-o imediat |
-| `setting_consumable_change_tips2` | \nPeria laterală a ajuns la finalul duratei sale de utilizare. Înlocuiți imediat |
-| `setting_consumable_change_tips3` | \nFiltrul a ajuns la finalul duratei sale de utilizare. Înlocuiți-l imediat |
-| `setting_consumable_change_tips4` | \nLaveta mopului a ajuns la finalul duratei sale de utilizare. Înlocuiți-o imediat |
+| `setting_consumable_change_tips1` | <br>Peria principală a ajuns la finalul duratei sale de utilizare. Înlocuiți-o imediat |
+| `setting_consumable_change_tips2` | <br>Peria laterală a ajuns la finalul duratei sale de utilizare. Înlocuiți imediat |
+| `setting_consumable_change_tips3` | <br>Filtrul a ajuns la finalul duratei sale de utilizare. Înlocuiți-l imediat |
+| `setting_consumable_change_tips4` | <br>Laveta mopului a ajuns la finalul duratei sale de utilizare. Înlocuiți-o imediat |
 | `setting_consumable_change_tips5` | Coșul de gunoi poate fi plin. Vă rog să îl goliți |
 | `setting_consumable_change_tips6` | Senzorii nu au fost curățați de mult timp. Vă rugăm să îi curățați. |
 | `setting_consumable_change_tips7` | Suportul de mop nu este montat |

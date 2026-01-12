@@ -1,9 +1,12 @@
 import { MapManager } from "../../map/MapManager";
+import { RoborockLocales } from "../../roborock_locales";
 import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
 export declare class B01VacuumFeatures extends BaseDeviceFeatures {
     protected mapManager: MapManager;
-    protected mappedRooms: unknown[] | null;
+    protected locales: RoborockLocales;
+    private cleanedLegacySegments;
+    private mappedRooms;
     constructor(dependencies: FeatureDependencies, duid: string, robotModel: string, config: DeviceModelConfig, profile?: unknown);
     setupProtocolFeatures(): Promise<void>;
     createCommandObjects(): Promise<void>;
@@ -32,11 +35,7 @@ export declare class B01VacuumFeatures extends BaseDeviceFeatures {
     detectAndApplyRuntimeFeatures(statusData: Readonly<Record<string, unknown>>): Promise<boolean>;
     protected getDynamicFeatures(): Set<Feature>;
     processDockType(dockType: number): Promise<void>;
-    getCommonDeviceStates(attribute: string | number): {
-        states?: Record<any, any>;
-        unit?: string;
-        type?: ioBroker.CommonType | undefined;
-    } | undefined;
+    getCommonDeviceStates(attribute: string | number): Partial<ioBroker.StateCommon> | undefined;
     updateNetworkInfo(): Promise<void>;
     protected processConsumables(resultObj: Record<string, unknown>): Promise<void>;
     private processNetworkInfo;

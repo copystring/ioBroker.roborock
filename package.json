@@ -20,10 +20,9 @@
     "url": "https://github.com/copystring/ioBroker.roborock"
   },
   "engines": {
-    "node": ">= 20"
+    "node": ">= 22"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
     "@iobroker/adapter-core": "3.3.2",
     "@napi-rs/canvas": "0.1.85",
     "axios": "1.13.2",
@@ -46,6 +45,7 @@
     "@alcalzone/release-script-plugin-iobroker": "4.0.0",
     "@alcalzone/release-script-plugin-license": "4.0.0",
     "@alcalzone/release-script-plugin-manual-review": "4.0.0",
+    "@google/generative-ai": "^0.24.1",
     "@iobroker/adapter-dev": "^1.5.0",
     "@iobroker/eslint-config": "^2.2.0",
     "@iobroker/testing": "5.2.2",
@@ -55,7 +55,7 @@
     "@types/chai-as-promised": "^8.0.0",
     "@types/d3": "^7.4.3",
     "@types/mocha": "^10.0.6",
-    "@types/node": "^25.0.3",
+    "@types/node": "^22.10.5",
     "@types/node-forge": "^1.3.14",
     "@types/ping": "^0.4.4",
     "@types/proxyquire": "^1.3.31",
@@ -70,8 +70,7 @@
     "eslint-plugin-sonarjs": "^3.0.5",
     "eslint-plugin-unicorn": "^60.0.0",
     "globals": "^16.4.0",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.2.7",
+
     "mocha": "^10.2.0",
     "proxyquire": "^2.1.3",
     "rimraf": "6.1.2",
@@ -95,8 +94,9 @@
   "scripts": {
     "clean": "rimraf build",
     "copy:pathProcessor": "shx cp src/lib/pathProcessor.ts src/www/pathProcessor.ts",
-    "copy:protocols": "shx mkdir -p build/src/lib/protocols && shx cp src/lib/protocols/q7_dataset.json build/src/lib/protocols/",
+    "copy:protocols": "shx mkdir -p build/lib/protocols && shx cp src/lib/protocols/q7_dataset.json build/lib/protocols/",
     "build": "npm run clean && node scripts/updateBuildInfo.js && npm run copy:protocols && tsc -b tsconfig.json && npm run build:www",
+    "postbuild": "npm run ai:review",
     "build:www": "npm run copy:pathProcessor && tsc -b tsconfig.web.json",
     "build:all": "npm run build",
     "watch": "npm run clean && tsc -b tsconfig.json --watch",
@@ -118,17 +118,12 @@
     "dev:www": "npm run copy:pathProcessor && vitest watch src/www",
     "test:www": "npm run copy:pathProcessor && vitest run src/www",
     "test:all": "npm run test && npm run test:www",
-    "verify": "npm run lint && tsc --noEmit -p tsconfig.json && npm run ai:review",
+    "verify": "npm run lint && tsc --noEmit -p tsconfig.json",
     "ai:review": "node scripts/ai-review-diff.js",
-    "commit": "npm run verify && git commit",
-    "push": "npm run ai:review && git push",
-    "prepare": "node -e \"if (!process.env.CI) try { require('child_process').execSync('husky', { stdio: 'inherit' }); } catch (e) {}\""
+    "commit": "npm run verify && git commit"
   },
   "bugs": {
     "url": "https://github.com/copystring/ioBroker.roborock/issues"
   },
-  "readmeFilename": "README.md",
-  "lint-staged": {
-    "*.{js,ts}": "eslint --fix"
-  }
+  "readmeFilename": "README.md"
 }

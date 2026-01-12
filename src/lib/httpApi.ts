@@ -510,7 +510,7 @@ export class http_api {
 								},
 								native: {}
 							});
-							await this.adapter.setStateAsync(stateId, { val: base64, ack: true });
+							await this.adapter.setState(stateId, { val: base64, ack: true });
 						}
 					} catch (e) {
 						this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `Failed to download image for ${p.model}: ${e}`, "warn");

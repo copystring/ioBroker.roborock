@@ -35,11 +35,11 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MapBuilder = void 0;
 const canvas_1 = require("@napi-rs/canvas");
-const roomColoring_1 = require("../../roomColoring");
-const Images = __importStar(require("../../images"));
-const pathProcessor_js_1 = require("../../pathProcessor.js");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
+const Images = __importStar(require("../../images"));
+const pathProcessor_js_1 = require("../../pathProcessor.js");
+const roomColoring_1 = require("../../roomColoring");
 const MapHelper_1 = require("../MapHelper"); // Import shared resources
 // ... Constants removed (using MapHelper or internal logic) ...
 const OFFSET = 60;
@@ -494,7 +494,6 @@ class MapBuilder {
             42: "18",
             48: "48",
             49: "49",
-            50: "50",
             51: "51",
             54: "54",
             65: "65",

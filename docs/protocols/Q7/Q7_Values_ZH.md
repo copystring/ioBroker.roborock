@@ -35,6 +35,7 @@ This document contains the complete translation mapping and internal constants f
 ### 🕹️ Robot Modes (`ROBOT_TYPE`)
 | Mode Name | Internal Value |
 | :--- | :--- |
+| `SLEEP` | `4294967295` |
 | `STANDBY` | `0` |
 | `WORKING` | `1` |
 | `CHARGING` | `2` |
@@ -42,7 +43,6 @@ This document contains the complete translation mapping and internal constants f
 | `ALERT` | `4` |
 | `MOP_CLEANING` | `5` |
 | `MOP_AIRDRYING` | `6` |
-| `SLEEP` | `4294967295` |
 
 ---
 
@@ -55,17 +55,17 @@ This document contains the complete translation mapping and internal constants f
 | :--- | :--- | :--- | :--- |
 | **0** | `F_0` | - | - |
 | **407** | `F_407` | 机器人运行中，本次定时任务取消 | - |
-| **500** | `F_500` | 请拨动激光测距传感器，确认无遮挡或被卡住 | 激光测距传感器被遮挡或被异物卡住，请拨动激光头，清除遮挡物或异物；\n如无需清除，请移到新位置启动。 |
-| **501** | `F_501` | 主机悬空，请将主机移到新位置启动 | 主机悬空，请移动到新位置启动；\n悬崖传感器太脏也可能导致该故障，请擦拭悬崖传感器排除。 |
+| **500** | `F_500` | 请拨动激光测距传感器，确认无遮挡或被卡住 | 激光测距传感器被遮挡或被异物卡住，请拨动激光头，清除遮挡物或异物；<br>如无需清除，请移到新位置启动。 |
+| **501** | `F_501` | 主机悬空，请将主机移到新位置启动 | 主机悬空，请移动到新位置启动；<br>悬崖传感器太脏也可能导致该故障，请擦拭悬崖传感器排除。 |
 | **502** | `F_502` | 电量不足，请充电 | 电量不足，请将主机放到基站充电至20%再启动。 |
-| **503** | `F_503` | 请确认尘盒及滤网已安装好 | 请装回尘盒及滤网，并确认安装到位；\n如已安装到位仍然报错，请尝试更换滤网。 |
+| **503** | `F_503` | 请确认尘盒及滤网已安装好 | 请装回尘盒及滤网，并确认安装到位；<br>如已安装到位仍然报错，请尝试更换滤网。 |
 | **504** | `F_504` | 电量不足，请充电 | 电量不足，请将主机放到基站充电至20%再启动。 |
 | **505** | `F_505` | 电量不足，请充电 | 电量不足，请将主机放到基站充电至20%再启动。 |
 | **506** | `F_506` | 电量不足，请充电 | 电量不足，请将主机放到基站充电至20%再启动。 |
 | **507** | `F_507` | 电量不足，请充电 | 电量不足，请将主机放到基站充电至20%再启动。 |
 | **508** | `F_508` | 电量不足，请充电 | 电量不足，请将主机放到基站充电至20%再启动。 |
 | **509** | `F_509` | 请擦拭悬崖传感器，并移到新位置启动 | 悬崖传感器异常，请擦拭悬崖传感器，并移到新位置启动 |
-| **510** | `F_510` | 请检查并轻拍碰撞缓冲器，确认未卡住 | 碰撞缓冲器被卡住，请多次轻拍排除异物；\n如无异物，请移动到新位置启动。 |
+| **510** | `F_510` | 请检查并轻拍碰撞缓冲器，确认未卡住 | 碰撞缓冲器被卡住，请多次轻拍排除异物；<br>如无异物，请移动到新位置启动。 |
 | **511** | `F_511` | 回充失败，请将主机放回基站 | 回充失败，请清理充电座附近障碍物及充电接触区域，并将主机放回基站。 |
 | **512** | `F_512` | 回充失败，请将主机放回基站 | 回充失败，请清理充电座附近障碍物及充电接触区域，并将主机放回基站。 |
 | **513** | `F_513` | 可能卡住或困住，请移到新位置启动 | 可能卡住或困住，请清除主机周围障碍物；如无法清除，请移动到新位置启动。 |
@@ -163,6 +163,7 @@ This document contains the complete translation mapping and internal constants f
 
 | Key | Localized Value |
 | :--- | :--- |
+| `battery` | Battery Percentage |
 | `clean_record_abort_abnormally` | 异常结束 |
 | `clean_record_abort_manually` | 手动结束 |
 | `clean_record_area` | 累计面积 |
@@ -189,6 +190,7 @@ This document contains the complete translation mapping and internal constants f
 | `clean_record_work_record` | 工作记录 |
 | `common_abnormal` | 异常 |
 | `common_alert` | 提示 |
+| `common_battery_percentage` | Battery Percentage |
 | `common_cancel` | 取消 |
 | `common_close_time` | 关闭时间 |
 | `common_delete` | 删除 |
@@ -234,6 +236,57 @@ This document contains the complete translation mapping and internal constants f
 | `device_sn` | 序列号 |
 | `device_timezone_to_robot` | 同步手机时区至机器人 |
 | `failed_page_content` | 数据加载失败 |
+| `fault_summery_2003` | 电量低于20%，本次定时任务取消 |
+| `fault_summery_2007` | 无法到达目标区域，清洁结束，请确认目标区域房门已打开或无遮挡。 |
+| `fault_summery_2012` | 部分区域无法到达，清洁结束，请确认目标区域房门已打开或无遮挡。 |
+| `fault_summery_2100` | 电量不足，返回基站充电，补电后会继续清洁 |
+| `fault_summery_2102` | 清洁完成，开始返回基站 |
+| `fault_summery_500` | 激光测距传感器被遮挡或被异物卡住，请拨动激光头，清除遮挡物或异物；<br>如无需清除，请移到新位置启动。 |
+| `fault_summery_501` | 主机悬空，请移动到新位置启动；<br>悬崖传感器太脏也可能导致该故障，请擦拭悬崖传感器排除。 |
+| `fault_summery_502_518` | 电量不足，请将主机放到基站充电至20%再启动。 |
+| `fault_summery_503` | 请装回尘盒及滤网，并确认安装到位；<br>如已安装到位仍然报错，请尝试更换滤网。 |
+| `fault_summery_509` | 悬崖传感器异常，请擦拭悬崖传感器，并移到新位置启动 |
+| `fault_summery_510` | 碰撞缓冲器被卡住，请多次轻拍排除异物；<br>如无异物，请移动到新位置启动。 |
+| `fault_summery_511_512` | 回充失败，请清理充电座附近障碍物及充电接触区域，并将主机放回基站。 |
+| `fault_summery_513_514` | 可能卡住或困住，请清除主机周围障碍物；如无法清除，请移动到新位置启动。 |
+| `fault_summery_522` | 拖布未安装，请装回拖布 |
+| `fault_summery_533` | 主机长时间休眠，即将关机，请将主机保持充电状态。 |
+| `fault_summery_534` | 主机电量过低，即将关机，请将主机保持充电状态。 |
+| `fault_summery_560` | 边刷可能缠绕异物，请取下边刷并清理 |
+| `fault_summery_568_569` | 请检查并清理驱动轮，并移到新位置启动 |
+| `fault_summery_570` | 主刷可能缠绕异物，请拆卸主刷并清理刷毛及轴承 |
+| `fault_summery_572` | 检测到禁区或虚拟墙，请将主机搬离此区域 |
+| `fault_summery_594` | 集尘袋未安装，请确认集尘袋安装到位 |
+| `fault_summery_611` | 定位失败，请将主机搬回基站后重新建图 |
+| `fault_summery_612` | 检测到新环境，地图发生变化，定位失败，请重新建图在使用。 |
+| `fault_summery_629` | 拖布支架掉落，请安装后继续工作。 |
+| `fault_summery_668` | 风机异常，请尝试重置系统，若无法解除请联系售后客服支持。 |
+| `fault_title_2003` | 电量低于20%，本次定时任务取消 |
+| `fault_title_2007` | 无法到达目标区域，清洁结束 |
+| `fault_title_2012` | 部分区域无法到达，清洁结束 |
+| `fault_title_2100` | 电量低，补电后会继续清洁 |
+| `fault_title_2102` | 清洁完成，开始返回基站 |
+| `fault_title_407` | 机器人运行中，本次定时任务取消 |
+| `fault_title_500` | 请拨动激光测距传感器，确认无遮挡或被卡住 |
+| `fault_title_501` | 主机悬空，请将主机移到新位置启动 |
+| `fault_title_502_518` | 电量不足，请充电 |
+| `fault_title_503` | 请确认尘盒及滤网已安装好 |
+| `fault_title_509` | 请擦拭悬崖传感器，并移到新位置启动 |
+| `fault_title_510` | 请检查并轻拍碰撞缓冲器，确认未卡住 |
+| `fault_title_511_512` | 回充失败，请将主机放回基站 |
+| `fault_title_513_514` | 可能卡住或困住，请移到新位置启动 |
+| `fault_title_522` | 请确认拖布已装好 |
+| `fault_title_533` | 长时间休眠，即将关机 |
+| `fault_title_534` | 电量过低，即将关机 |
+| `fault_title_560` | 边刷可能缠绕异物，请拆卸并清理 |
+| `fault_title_568_569` | 请检查并清理驱动轮，并移到新位置启动 |
+| `fault_title_570` | 主刷可能缠绕异物，请拆卸主刷并清理刷毛及轴承 |
+| `fault_title_572` | 检测到禁区或虚拟墙，请将主机搬离此区域 |
+| `fault_title_594` | 请确认集尘袋已装好 |
+| `fault_title_611` | 定位失败，请将主机搬回基站后重新建图 |
+| `fault_title_612` | 地图发生变化，定位失败，请重新建图 |
+| `fault_title_629` | 拖布支架掉落 |
+| `fault_title_668` | 主机异常，请重置系统 |
 | `firmware_upgrade_downloading` | 升级中 %d% |
 | `firmware_upgrade_installing` | 安装中 |
 | `floor_title` | 楼层户型 |
@@ -572,13 +625,13 @@ This document contains the complete translation mapping and internal constants f
 | `set_voice_package_waiting` | 等待中 |
 | `setting_adjust_time` | 开始时间与结束时间一致，请调整 |
 | `setting_carpet_avoid` | 地毯规避穿越 |
-| `setting_carpet_avoid_tip` | 安装拖布支架后，规避地毯，仅在必要时穿越，避免漏扫\n* 请在地图编辑中添加地毯后使用 |
+| `setting_carpet_avoid_tip` | 安装拖布支架后，规避地毯，仅在必要时穿越，避免漏扫<br>* 请在地图编辑中添加地毯后使用 |
 | `setting_cartoon_voice` | 卡通童声 |
 | `setting_charging` | 谷点充电 |
 | `setting_charging_desc` | 在谷点时间段内充满电池，其他时段除保证安全电量外不对电池充电。 |
 | `setting_charging_disable_tip` | * 未设置充电时间，谷点充电未生效 |
 | `setting_charging_empty` | 未设置 |
-| `setting_charging_note` | * 非谷点时段，仍可能向电池充电\n1. 如有未完成任务，机器人在非谷点时段充电至所需电量；\n2. 如无任务，机器人在非谷点时段也会补电至安全电量。 |
+| `setting_charging_note` | * 非谷点时段，仍可能向电池充电<br>1. 如有未完成任务，机器人在非谷点时段充电至所需电量；<br>2. 如无任务，机器人在非谷点时段也会补电至安全电量。 |
 | `setting_check_text` | 查看 |
 | `setting_consumable_change_tips1` | 主刷到期，请尽快更换 |
 | `setting_consumable_change_tips2` | 边刷到期，请尽快更换 |

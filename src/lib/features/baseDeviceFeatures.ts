@@ -629,7 +629,7 @@ export abstract class BaseDeviceFeatures {
 		}
 
 		// Formatting for specific keys (e.g. timestamps)
-		if (key === "last_clean_t" && typeof (val as any) === "number") {
+		if ((key === "last_clean_t" || key === "clean_finish") && typeof (val as any) === "number") {
 			val = new Date((val as number) * 1000).toString();
 			common.type = "string"; // Update type to match new value
 		}

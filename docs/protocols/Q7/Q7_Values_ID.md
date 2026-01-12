@@ -35,6 +35,7 @@ This document contains the complete translation mapping and internal constants f
 ### 🕹️ Robot Modes (`ROBOT_TYPE`)
 | Mode Name | Internal Value |
 | :--- | :--- |
+| `SLEEP` | `4294967295` |
 | `STANDBY` | `0` |
 | `WORKING` | `1` |
 | `CHARGING` | `2` |
@@ -42,7 +43,6 @@ This document contains the complete translation mapping and internal constants f
 | `ALERT` | `4` |
 | `MOP_CLEANING` | `5` |
 | `MOP_AIRDRYING` | `6` |
-| `SLEEP` | `4294967295` |
 
 ---
 
@@ -58,7 +58,7 @@ This document contains the complete translation mapping and internal constants f
 | **500** | `F_500` | Menara LiDAR atau laser terhalang. Periksa jika ada penghalang dan coba lagi. | Sensor LiDAR terhalang atau macet. Singkirkan benda asing, jika ada. Jika masalah tetap berlanjut, pindahkan robot, lalu mulai ulang. |
 | **501** | `F_501` | Robot terhenti. Pindahkan robot dan mulai ulang. | Robot terhenti. Pindahkan robot dan mulai ulang. Sensor turunan kotor. Bersihkan. |
 | **502** | `F_502` | Baterai lemah. Isi ulang daya sekarang. | Baterai lemah. Letakkan robot di dok untuk mengisi dayanya hingga 20% sebelum menyalakan. |
-| **503** | `F_503` | Periksa jika tempat sampah dan filter terpasang dengan benar. | Pasang kembali tempat sampah dan filter pada tempatnya.\nJika masalah berlanjut, ganti filternya. |
+| **503** | `F_503` | Periksa jika tempat sampah dan filter terpasang dengan benar. | Pasang kembali tempat sampah dan filter pada tempatnya.<br>Jika masalah berlanjut, ganti filternya. |
 | **504** | `F_504` | Baterai lemah. Isi ulang daya sekarang. | Baterai lemah. Letakkan robot di dok untuk mengisi dayanya hingga 20% sebelum menyalakan. |
 | **505** | `F_505` | Baterai lemah. Isi ulang daya sekarang. | Baterai lemah. Letakkan robot di dok untuk mengisi dayanya hingga 20% sebelum menyalakan. |
 | **506** | `F_506` | Baterai lemah. Isi ulang daya sekarang. | Baterai lemah. Letakkan robot di dok untuk mengisi dayanya hingga 20% sebelum menyalakan. |
@@ -163,6 +163,7 @@ This document contains the complete translation mapping and internal constants f
 
 | Key | Localized Value |
 | :--- | :--- |
+| `battery` | Battery Percentage |
 | `clean_record_abort_abnormally` | Diakhiri secara abnormal |
 | `clean_record_abort_manually` | Pembersihan dijeda oleh pengguna |
 | `clean_record_area` | Total area |
@@ -189,6 +190,7 @@ This document contains the complete translation mapping and internal constants f
 | `clean_record_work_record` | Riwayat |
 | `common_abnormal` | Kesalahan |
 | `common_alert` | Catatan |
+| `common_battery_percentage` | Battery Percentage |
 | `common_cancel` | Batalkan |
 | `common_close_time` | Berakhir |
 | `common_delete` | Hapus |
@@ -234,6 +236,57 @@ This document contains the complete translation mapping and internal constants f
 | `device_sn` | Nomor Seri |
 | `device_timezone_to_robot` | Sinkronkan zona waktu |
 | `failed_page_content` | Gagal memuat. |
+| `fault_summery_2003` | Tingkat baterai di bawah 20%. Tugas terjadwal dibatalkan. |
+| `fault_summery_2007` | Tidak dapat menjangkau target. Pembersihan diakhiri. Pastikan pintu ke area target terbuka atau tidak terhalang. |
+| `fault_summery_2012` | Tidak dapat menjangkau target. Pembersihan diakhiri. Pastikan pintu ke area target terbuka atau tidak terhalang. |
+| `fault_summery_2100` | Baterai lemah. Mulai mengisi ulang daya. Lanjutkan pembersihan setelah mengisi daya. |
+| `fault_summery_2102` | Pembersihan selesai. Kembali ke dok. |
+| `fault_summery_500` | Sensor LiDAR terhalang atau macet. Singkirkan benda asing, jika ada. Jika masalah tetap berlanjut, pindahkan robot, lalu mulai ulang. |
+| `fault_summery_501` | Robot terhenti. Pindahkan robot dan mulai ulang. Sensor turunan kotor. Bersihkan. |
+| `fault_summery_502_518` | Baterai lemah. Letakkan robot di dok untuk mengisi dayanya hingga 20% sebelum menyalakan. |
+| `fault_summery_503` | Pasang kembali tempat sampah dan filter pada tempatnya.<br>Jika masalah berlanjut, ganti filternya. |
+| `fault_summery_509` | Kesalahan sensor turunan. Bersihkan, jauhkan robot dari turunan agar tidak terjatuh, lalu mulai ulang. |
+| `fault_summery_510` | Bumper macet. Ketuk berulang kali untuk melepaskannya. Jika tidak ada benda asing yang menghalangi, pindahkan robot, lalu mulai ulang. |
+| `fault_summery_511_512` | Kesalahan kembali ke dok. Sisihkan penghalang di sekitar dok, bersihkan kontak pengisian daya, lalu letakkan robot di dok. |
+| `fault_summery_513_514` | Robot terjebak. Sisihkan penghalang di sekitar robot atau pindahkan robot, lalu mulai ulang. |
+| `fault_summery_522` | Pel tidak terpasang. Pasang kembali. |
+| `fault_summery_533` | Akan segera dimatikan setelah sekian lama dalam mode tidur. Isi ulang daya robot. |
+| `fault_summery_534` | Akan segera dimatikan karena baterai lemah. Isi ulang daya robot. |
+| `fault_summery_560` | Sikat samping tersangkut. Lepaskan dan bersihkan. |
+| `fault_summery_568_569` | Bersihkan roda utama, pindahkan robot, lalu mulai ulang. |
+| `fault_summery_570` | Sikat utama tersangkut. Lepaskan, lalu bersihkan sikat utama dan bantalannya. |
+| `fault_summery_572` | Sikat utama tersangkut. Lepaskan, lalu bersihkan sikat utama dan bantalannya. |
+| `fault_summery_594` | Kantong sampah tidak terpasang. Periksa jika kantong sampah terpasang dengan benar. |
+| `fault_summery_611` | Pencarian gagal. Arahkan robot kembali ke dok, lalu petakan ulang. |
+| `fault_summery_612` | Lingkungan baru terdeteksi. Peta berubah. Pencarian gagal. Coba lagi setelah memetakan ulang. |
+| `fault_summery_629` | Dudukan kain pel terjatuh. Pasang kembali untuk melanjutkan pekerjaan. |
+| `fault_summery_668` | Kesalahan kipas. Atur ulang sistem. Jika masalah berlanjut, hubungi layanan pelanggan. |
+| `fault_title_2003` | Tingkat baterai di bawah 20%. Tugas terjadwal dibatalkan. |
+| `fault_title_2007` | Tidak dapat menjangkau target. Pembersihan diakhiri. |
+| `fault_title_2012` | Tidak dapat menjangkau target. Pembersihan diakhiri. |
+| `fault_title_2100` | Baterai lemah. Lanjutkan pembersihan setelah mengisi ulang daya. |
+| `fault_title_2102` | Pembersihan selesai. Kembali ke dok. |
+| `fault_title_407` | Pembersihan sedang berlangsung. Pembersihan terjadwal diabaikan. |
+| `fault_title_500` | Menara LiDAR atau laser terhalang. Periksa jika ada penghalang dan coba lagi. |
+| `fault_title_501` | Robot terhenti. Pindahkan robot dan mulai ulang. |
+| `fault_title_502_518` | Baterai lemah. Isi ulang daya sekarang. |
+| `fault_title_503` | Periksa jika tempat sampah dan filter terpasang dengan benar. |
+| `fault_title_509` | Kesalahan sensor turunan. Bersihkan, jauhkan robot dari turunan agar tidak terjatuh, lalu mulai ulang. |
+| `fault_title_510` | Bumper macet. Bersihkan, lalu ketuk perlahan untuk melepaskannya. |
+| `fault_title_511_512` | Kesalahan kembali ke dok. Letakkan robot di dok. |
+| `fault_title_513_514` | Robot terjebak. Pindahkan robot dan mulai ulang. |
+| `fault_title_522` | Periksa jika pel terpasang dengan benar. |
+| `fault_title_533` | Akan segera dimatikan setelah sekian lama dalam mode tidur |
+| `fault_title_534` | Baterai lemah. Mematikan. |
+| `fault_title_560` | Sikat samping tersangkut. Lepaskan dan bersihkan. |
+| `fault_title_568_569` | Bersihkan roda utama, pindahkan robot, lalu mulai ulang. |
+| `fault_title_570` | Sikat utama tersangkut. Lepaskan, lalu bersihkan sikat utama dan bantalannya. |
+| `fault_title_572` | Sikat utama tersangkut. Lepaskan, lalu bersihkan sikat utama dan bantalannya. |
+| `fault_title_594` | Pastikan kantong sampah terpasang dengan benar. |
+| `fault_title_611` | Pencarian gagal. Arahkan robot kembali ke dok, lalu petakan ulang. |
+| `fault_title_612` | Peta berubah. Pencarian gagal. Coba lagi. |
+| `fault_title_629` | Dudukan kain pel terjatuh. |
+| `fault_title_668` | Kesalahan robot. Atur ulang sistem. |
 | `firmware_upgrade_downloading` | Memperbarui... %d% |
 | `firmware_upgrade_installing` | Menginstal... |
 | `floor_title` | Tata Letak Rumah |
@@ -252,7 +305,7 @@ This document contains the complete translation mapping and internal constants f
 | `guide_map_save_open` | Tetap aktifkan |
 | `guide_map_save_tip1` | Izinkan robot mengenali denah rumah Anda |
 | `guide_map_save_tip2` | Setelah peta disimpan, robot akan secara cerdas menyesuaikan rute pembersihannya terhadap ruangan. Selain itu, Anda dapat membuka fitur pembersihan khusus, seperti Pembersihan Ruangan Selektif dan Zona Terlarang. |
-| `guide_map_save_tip3` | Setelah Penyimpanan Peta dinonaktifkan, fitur pengeditan peta dan pembersihan khusus, seperti Pembersihan Ruangan Selektif dan Zona Terlarang tidak akan tersedia.\n |
+| `guide_map_save_tip3` | Setelah Penyimpanan Peta dinonaktifkan, fitur pengeditan peta dan pembersihan khusus, seperti Pembersihan Ruangan Selektif dan Zona Terlarang tidak akan tersedia.<br> |
 | `guide_map_save_tip4` | Setelah peta disimpan, robot akan secara cerdas menyesuaikan rute pembersihannya terhadap ruangan. Selain itu, Anda dapat membuka fitur pembersihan khusus, seperti Pembersihan Ruangan Selektif dan Zona Terlarang. |
 | `guide_map_save_tip5` | Objek reflektif dan permukaan licin dapat memengaruhi stabilitas Penyimpanan Peta dan menyebabkan kesalahan rute. |
 | `guide_mopnow` | Sedot debu sebelum mengepel. |
@@ -451,7 +504,7 @@ This document contains the complete translation mapping and internal constants f
 | `mapEdit_recommend_add_cill` | Ketuk untuk mengonfirmasi ambang pintu |
 | `mapEdit_recommend_add_zone` | Tambah Zona Terlarang |
 | `mapEdit_recommend_carpet_subtitle` | Karpet mungkin terdeteksi. Atur Booster Karpet atau Hindari setelah menambahkannya. |
-| `mapEdit_recommend_cill_subtitle` | \nAmbang pintu terdeteksi di sini. Atur zona ambang pintu. |
+| `mapEdit_recommend_cill_subtitle` | <br>Ambang pintu terdeteksi di sini. Atur zona ambang pintu. |
 | `mapEdit_recommend_cill_title` | Ambang pintu |
 | `mapEdit_recommend_cliff_subtitle` | Undakan, tangga, atau turunan mungkin terdeteksi. Tambah Zona Terlarang. |
 | `mapEdit_recommend_ignore` | Kesalahan pendeteksian? Abaikan. |
@@ -572,18 +625,18 @@ This document contains the complete translation mapping and internal constants f
 | `set_voice_package_waiting` | Menunggu... |
 | `setting_adjust_time` | Waktu mulai sama dengan waktu berakhir. Ubah. |
 | `setting_carpet_avoid` | Penghindaran dan Pelintasan Karpet |
-| `setting_carpet_avoid_tip` | Setelah dudukan kain pel dipasang, robot akan menghindari karpet dan melintasinya hanya saat diperlukan agar tidak ada satu titik pun yang terlewat.\n* Gunakan setelah menambahkan karpet dalam pengeditan peta |
+| `setting_carpet_avoid_tip` | Setelah dudukan kain pel dipasang, robot akan menghindari karpet dan melintasinya hanya saat diperlukan agar tidak ada satu titik pun yang terlewat.<br>* Gunakan setelah menambahkan karpet dalam pengeditan peta |
 | `setting_cartoon_voice` | Suara anak-anak kartun |
 | `setting_charging` | Pengisian Daya di Luar Jam Sibuk |
 | `setting_charging_desc` | Mengisi penuh baterai di luar jam sibuk dan hanya mempertahankan daya minimum selama periode waktu lainnya. |
 | `setting_charging_disable_tip` | * Tidak ada waktu pengisian daya yang telah diatur. Pengisian daya di luar jam sibuk tidak aktif. |
 | `setting_charging_empty` | Tidak diatur |
-| `setting_charging_note` | *Pengisian daya baterai dapat dilakukan selama jam sibuk dalam kondisi berikut:\n1. Ada tugas yang belum selesai.\n2. Jika tidak ada tugas, robot juga akan mengisi daya untuk mempertahankan daya minimum. |
+| `setting_charging_note` | *Pengisian daya baterai dapat dilakukan selama jam sibuk dalam kondisi berikut:<br>1. Ada tugas yang belum selesai.<br>2. Jika tidak ada tugas, robot juga akan mengisi daya untuk mempertahankan daya minimum. |
 | `setting_check_text` | Lihat |
-| `setting_consumable_change_tips1` | \nSikat utama telah mencapai akhir masa pakainya. Segera ganti. |
-| `setting_consumable_change_tips2` | \nSikat samping telah mencapai akhir masa pakainya. Segera ganti. |
-| `setting_consumable_change_tips3` | \nFilter telah mencapai akhir masa pakainya. Segera ganti. |
-| `setting_consumable_change_tips4` | \nKain pel telah mencapai akhir masa pakainya. Segera ganti. |
+| `setting_consumable_change_tips1` | <br>Sikat utama telah mencapai akhir masa pakainya. Segera ganti. |
+| `setting_consumable_change_tips2` | <br>Sikat samping telah mencapai akhir masa pakainya. Segera ganti. |
+| `setting_consumable_change_tips3` | <br>Filter telah mencapai akhir masa pakainya. Segera ganti. |
+| `setting_consumable_change_tips4` | <br>Kain pel telah mencapai akhir masa pakainya. Segera ganti. |
 | `setting_consumable_change_tips5` | Tempat sampah mungkin penuh. Kosongkan. |
 | `setting_consumable_change_tips6` | Sensor sudah lama belum pernah dibersihkan. Bersihkan. |
 | `setting_consumable_change_tips7` | Dudukan kain pel belum terpasang |

@@ -35,6 +35,7 @@ This document contains the complete translation mapping and internal constants f
 ### 🕹️ Robot Modes (`ROBOT_TYPE`)
 | Mode Name | Internal Value |
 | :--- | :--- |
+| `SLEEP` | `4294967295` |
 | `STANDBY` | `0` |
 | `WORKING` | `1` |
 | `CHARGING` | `2` |
@@ -42,7 +43,6 @@ This document contains the complete translation mapping and internal constants f
 | `ALERT` | `4` |
 | `MOP_CLEANING` | `5` |
 | `MOP_AIRDRYING` | `6` |
-| `SLEEP` | `4294967295` |
 
 ---
 
@@ -58,7 +58,7 @@ This document contains the complete translation mapping and internal constants f
 | **500** | `F_500` | LiDAR-torony vagy lézer akadályozva. Ellenőrizze, hogy nincs-e akadály, és próbálja meg újra. | A LiDAR-érzékelő el van takarva vagy beragadt. Távolítsa el az idegen tárgyakat, ha vannak. Ha a probléma továbbra is fennáll, helyezze arrébb a robotot, és indítsa újra. |
 | **501** | `F_501` | Robot a levegőben. Helyezze arrébb a robotot, és indítsa újra. | Robot a levegőben. Helyezze arrébb a robotot, és indítsa újra. A peremérzékelők piszkosak. Tisztítsa meg őket. |
 | **502** | `F_502` | Alacsony töltöttség. Töltse fel most. | Alacsony töltöttség. Az indítás előtt helyezze a robotot a dokkolóba, és töltse fel 20%-ra. |
-| **503** | `F_503` | Ellenőrizze, hogy a portartály és a szűrő megfelelően van-e behelyezve. | Helyezze vissza a portartályt és a szűrőt a helyére.\nHa a probléma továbbra is fennáll, cserélje ki a szűrőt. |
+| **503** | `F_503` | Ellenőrizze, hogy a portartály és a szűrő megfelelően van-e behelyezve. | Helyezze vissza a portartályt és a szűrőt a helyére.<br>Ha a probléma továbbra is fennáll, cserélje ki a szűrőt. |
 | **504** | `F_504` | Alacsony töltöttség. Töltse fel most. | Alacsony töltöttség. Az indítás előtt helyezze a robotot a dokkolóba, és töltse fel 20%-ra. |
 | **505** | `F_505` | Alacsony töltöttség. Töltse fel most. | Alacsony töltöttség. Az indítás előtt helyezze a robotot a dokkolóba, és töltse fel 20%-ra. |
 | **506** | `F_506` | Alacsony töltöttség. Töltse fel most. | Alacsony töltöttség. Az indítás előtt helyezze a robotot a dokkolóba, és töltse fel 20%-ra. |
@@ -163,6 +163,7 @@ This document contains the complete translation mapping and internal constants f
 
 | Key | Localized Value |
 | :--- | :--- |
+| `battery` | Battery Percentage |
 | `clean_record_abort_abnormally` | Rendellenesen ért véget. |
 | `clean_record_abort_manually` | A felhasználó megszakította a takarítást |
 | `clean_record_area` | Teljes terület |
@@ -189,6 +190,7 @@ This document contains the complete translation mapping and internal constants f
 | `clean_record_work_record` | Előzmények |
 | `common_abnormal` | Hiba |
 | `common_alert` | Megjegyzés |
+| `common_battery_percentage` | Battery Percentage |
 | `common_cancel` | Visszavonás |
 | `common_close_time` | Befejezés |
 | `common_delete` | Törlés |
@@ -234,6 +236,57 @@ This document contains the complete translation mapping and internal constants f
 | `device_sn` | Sorozatszám |
 | `device_timezone_to_robot` | Időzóna szinkronizálása |
 | `failed_page_content` | A betöltés sikertelen. |
+| `fault_summery_2003` | Az akkumulátor töltöttségi szintje 20% alatt van. Ütemezett feladat visszavonva. |
+| `fault_summery_2007` | Nem lehet elérni a célt. A takarítás véget ért. Győződjön meg arról, hogy a célterületre vezető ajtó nyitva van, vagy nincs akadály. |
+| `fault_summery_2012` | Nem lehet elérni a célt. A takarítás véget ért. Győződjön meg arról, hogy a célterületre vezető ajtó nyitva van, vagy nincs akadály. |
+| `fault_summery_2100` | Alacsony töltöttség. Elkezdődik a töltés. Folytassa a takarítást a töltést követően. |
+| `fault_summery_2102` | Takarítás befejezve. Visszatérés a dokkolóhoz |
+| `fault_summery_500` | A LiDAR-érzékelő el van takarva vagy beragadt. Távolítsa el az idegen tárgyakat, ha vannak. Ha a probléma továbbra is fennáll, helyezze arrébb a robotot, és indítsa újra. |
+| `fault_summery_501` | Robot a levegőben. Helyezze arrébb a robotot, és indítsa újra. A peremérzékelők piszkosak. Tisztítsa meg őket. |
+| `fault_summery_502_518` | Alacsony töltöttség. Az indítás előtt helyezze a robotot a dokkolóba, és töltse fel 20%-ra. |
+| `fault_summery_503` | Helyezze vissza a portartályt és a szűrőt a helyére.<br>Ha a probléma továbbra is fennáll, cserélje ki a szűrőt. |
+| `fault_summery_509` | Peremérzékelő-hiba. Tisztítsa meg őket, helyezze át a robotot a peremtől, és indítsa újra. |
+| `fault_summery_510` | Beragadt ütköző. Koppintson rá többször a kioldáshoz. Ha nem talál idegen tárgyat, helyezze arrébb a robotot, és indítsa újra. |
+| `fault_summery_511_512` | Dokkolási hiba. Távolítsa el az akadályokat a dokkoló körül, tisztítsa meg a töltőérintkezőket, és helyezze a robotot a dokkolóba. |
+| `fault_summery_513_514` | A robot beszorult. Távolítsa el az akadályokat a robot körül, vagy helyezze arrébb a robotot, majd indítsa újra. |
+| `fault_summery_522` | A mop nincs rögzítve. Rögzítse újra. |
+| `fault_summery_533` | A hosszú alvást követően hamarosan leáll. Töltse fel a robotot. |
+| `fault_summery_534` | Az alacsony akkumulátortöltöttség miatt hamarosan leáll. Töltse fel a robotot. |
+| `fault_summery_560` | Az oldalkefe beakadt. Távolítsa el és tisztítsa meg. |
+| `fault_summery_568_569` | Tisztítsa meg a fő kerekeket, helyezze arrébb a robotot, és indítsa újra. |
+| `fault_summery_570` | A fő kefe beakadt. Távolítsa el és tisztítsa meg a csapággyal együtt. |
+| `fault_summery_572` | A fő kefe beakadt. Távolítsa el és tisztítsa meg a csapággyal együtt. |
+| `fault_summery_594` | A porzsák nincs rögzítve. Ellenőrizze, hogy megfelelően van-e rögzítve. |
+| `fault_summery_611` | A pozicionálás sikertelen. Helyezze vissza a robotot a dokkba, és képezze le újra. |
+| `fault_summery_612` | Új környezet észlelve. Térkép módosítva. A pozicionálás sikertelen. Próbálja újra az ismételt leképezést követően. |
+| `fault_summery_629` | A moprögzítő leesett. Helyezze vissza a működés folytatásához. |
+| `fault_summery_668` | Ventilátorhiba. Állítsa alaphelyzetbe a rendszert. Ha a probléma továbbra is fennáll, forduljon az ügyfélszolgálathoz. |
+| `fault_title_2003` | Az akkumulátor töltöttségi szintje 20% alatt van. Ütemezett feladat visszavonva. |
+| `fault_title_2007` | Nem lehet elérni a célt. A takarítás véget ért. |
+| `fault_title_2012` | Nem lehet elérni a célt. A takarítás véget ért. |
+| `fault_title_2100` | Alacsony töltöttség. Folytassa a takarítást a töltést követően. |
+| `fault_title_2102` | Takarítás befejezve. Visszatérés a dokkolóhoz |
+| `fault_title_407` | Takarítás folyamatban. A beütemezett takarítás figyelmen kívül hagyva. |
+| `fault_title_500` | LiDAR-torony vagy lézer akadályozva. Ellenőrizze, hogy nincs-e akadály, és próbálja meg újra. |
+| `fault_title_501` | Robot a levegőben. Helyezze arrébb a robotot, és indítsa újra. |
+| `fault_title_502_518` | Alacsony töltöttség. Töltse fel most. |
+| `fault_title_503` | Ellenőrizze, hogy a portartály és a szűrő megfelelően van-e behelyezve. |
+| `fault_title_509` | Peremérzékelő-hiba. Tisztítsa meg őket, helyezze át a robotot a peremtől, és indítsa újra. |
+| `fault_title_510` | Beragadt ütköző. Tisztítsa meg, és enyhén kocogtassa meg, hogy kioldjon. |
+| `fault_title_511_512` | Dokkolási hiba. Helyezze a robotot a dokkolóba. |
+| `fault_title_513_514` | A robot beszorult. Helyezze arrébb a robotot, és indítsa újra. |
+| `fault_title_522` | Ellenőrizze, hogy a mop megfelelően van-e rögzítve. |
+| `fault_title_533` | A hosszú alvást követően hamarosan leáll |
+| `fault_title_534` | Alacsony töltöttség. Kikapcsolás. |
+| `fault_title_560` | Az oldalkefe beakadt. Távolítsa el és tisztítsa meg. |
+| `fault_title_568_569` | Tisztítsa meg a fő kerekeket, helyezze arrébb a robotot, és indítsa újra. |
+| `fault_title_570` | A fő kefe beakadt. Távolítsa el és tisztítsa meg a csapággyal együtt. |
+| `fault_title_572` | A fő kefe beakadt. Távolítsa el és tisztítsa meg a csapággyal együtt. |
+| `fault_title_594` | Győződjön meg arról, hogy a porzsák megfelelően van-e rögzítve. |
+| `fault_title_611` | A pozicionálás sikertelen. Helyezze vissza a robotot a dokkba, és képezze le újra. |
+| `fault_title_612` | Térkép módosítva. A pozicionálás sikertelen. Próbálja újra. |
+| `fault_title_629` | A moprögzítő leesett. |
+| `fault_title_668` | Robothiba. Állítsa alaphelyzetbe a rendszert. |
 | `firmware_upgrade_downloading` | Frissítés… %d% |
 | `firmware_upgrade_installing` | Telepítés… |
 | `floor_title` | Otthon elrendezése |
@@ -252,7 +305,7 @@ This document contains the complete translation mapping and internal constants f
 | `guide_map_save_open` | Tartsa engedélyezve |
 | `guide_map_save_tip1` | Tegye lehetővé a robot számára, hogy feltérképezze az otthonát |
 | `guide_map_save_tip2` | A térkép mentését követően a robot intelligensen a szobához igazítja a takarítási útvonalát, és olyan személyre szabott takarítási funkciókat tesz lehetővé, mint a Szelektív szobatakarítás és a No-go zóna. |
-| `guide_map_save_tip3` | A Térképmentés letiltását követően a térképszerkesztés és a személyre szabott takarítási funkciók, mint például a Szelektív szobatakarítás és a No-go zóna, nem lesznek elérhetők.\n |
+| `guide_map_save_tip3` | A Térképmentés letiltását követően a térképszerkesztés és a személyre szabott takarítási funkciók, mint például a Szelektív szobatakarítás és a No-go zóna, nem lesznek elérhetők.<br> |
 | `guide_map_save_tip4` | A térkép mentését követően a robot intelligensen a szobához igazítja a takarítási útvonalát, és olyan személyre szabott takarítási funkciókat tesz lehetővé, mint a Szelektív szobatakarítás és a No-go zóna. |
 | `guide_map_save_tip5` | A fényvisszaverő tárgyak és a csúszós felületek befolyásolhatják a Térképmentés stabilitását, és útvonalbeli rendellenességeket okozhatnak. |
 | `guide_mopnow` | A felmosás előtt végezzen porszívózást. |
@@ -572,13 +625,13 @@ This document contains the complete translation mapping and internal constants f
 | `set_voice_package_waiting` | Várakozás… |
 | `setting_adjust_time` | A kezdési időpont megegyezik a befejezési időponttal. Kérjük, módosítsa. |
 | `setting_carpet_avoid` | Szőnyegkerülés és -átkelés |
-| `setting_carpet_avoid_tip` | Miután a moptartót rögzítették, a robot elkerüli a szőnyegeket, és csak akkor halad át rajtuk, ha szükséges, hogy ne maradjon ki egyetlen rész sem.\\n* Használja a szőnyeg hozzáadását követően a térképszerkesztés során |
+| `setting_carpet_avoid_tip` | Miután a moptartót rögzítették, a robot elkerüli a szőnyegeket, és csak akkor halad át rajtuk, ha szükséges, hogy ne maradjon ki egyetlen rész sem.\n* Használja a szőnyeg hozzáadását követően a térképszerkesztés során |
 | `setting_cartoon_voice` | Rajzfilmszerű gyermekhang |
 | `setting_charging` | Csúcsidőn kívüli töltés |
 | `setting_charging_desc` | Csúcsidőn kívül teljesen feltölti az akkumulátort, más órákban pedig csak minimális töltöttséget tart fenn. |
 | `setting_charging_disable_tip` | * Nincs töltési idő beállítva. Csúcsidőn kívüli töltés inaktív. |
 | `setting_charging_empty` | Nincs beállítva |
-| `setting_charging_note` | *Az akkumulátor töltése csúcsidőben is történhet a következő körülmények között:\n1. Vannak befejezetlen feladatok.\n2. Ha nincsenek feladatok, a robot töltődik is, hogy fenntartsa a minimális töltöttséget. |
+| `setting_charging_note` | *Az akkumulátor töltése csúcsidőben is történhet a következő körülmények között:<br>1. Vannak befejezetlen feladatok.<br>2. Ha nincsenek feladatok, a robot töltődik is, hogy fenntartsa a minimális töltöttséget. |
 | `setting_check_text` | Megtekintés |
 | `setting_consumable_change_tips1` | A fő kefe elérte az élettartamát. Azonnal cserélje ki |
 | `setting_consumable_change_tips2` | Az oldalkefe elérte az élettartamát. Azonnal cserélje ki |

@@ -35,6 +35,7 @@ This document contains the complete translation mapping and internal constants f
 ### 🕹️ Robot Modes (`ROBOT_TYPE`)
 | Mode Name | Internal Value |
 | :--- | :--- |
+| `SLEEP` | `4294967295` |
 | `STANDBY` | `0` |
 | `WORKING` | `1` |
 | `CHARGING` | `2` |
@@ -42,7 +43,6 @@ This document contains the complete translation mapping and internal constants f
 | `ALERT` | `4` |
 | `MOP_CLEANING` | `5` |
 | `MOP_AIRDRYING` | `6` |
-| `SLEEP` | `4294967295` |
 
 ---
 
@@ -58,7 +58,7 @@ This document contains the complete translation mapping and internal constants f
 | **500** | `F_500` | LiDAR turret or laser blocked. Check for obstruction and retry. | LiDAR sensor obstructed or stuck. Remove foreign objects if any. If the problem persists, move the robot away and restart. |
 | **501** | `F_501` | Robot suspended. Move the robot away and restart. | Robot suspended. Move the robot away and restart. Cliff sensors dirty. Wipe them clean. |
 | **502** | `F_502` | Low battery. Recharge now. | Battery low. Put the robot on the dock to charge it to 20% before starting. |
-| **503** | `F_503` | Check that the dustbin and filter are installed properly. | Reinstall the dustbin and filter in place.\nIf the problem persists, replace the filter. |
+| **503** | `F_503` | Check that the dustbin and filter are installed properly. | Reinstall the dustbin and filter in place.<br>If the problem persists, replace the filter. |
 | **504** | `F_504` | Low battery. Recharge now. | Battery low. Put the robot on the dock to charge it to 20% before starting. |
 | **505** | `F_505` | Low battery. Recharge now. | Battery low. Put the robot on the dock to charge it to 20% before starting. |
 | **506** | `F_506` | Low battery. Recharge now. | Battery low. Put the robot on the dock to charge it to 20% before starting. |
@@ -163,6 +163,7 @@ This document contains the complete translation mapping and internal constants f
 
 | Key | Localized Value |
 | :--- | :--- |
+| `battery` | Battery Percentage |
 | `clean_record_abort_abnormally` | Ended abnormally |
 | `clean_record_abort_manually` | Cleaning interrupted by user |
 | `clean_record_area` | Total Area |
@@ -189,8 +190,10 @@ This document contains the complete translation mapping and internal constants f
 | `clean_record_work_record` | History |
 | `common_abnormal` | Error |
 | `common_alert` | Note |
+| `common_battery_percentage` | Battery Percentage |
 | `common_cancel` | Cancel |
 | `common_close_time` | End |
+| `common_custom_type` | Custom Type |
 | `common_delete` | Delete |
 | `common_determine` | OK |
 | `common_disconnect` | Robot offline |
@@ -198,6 +201,7 @@ This document contains the complete translation mapping and internal constants f
 | `common_holder_default_text` | Enter a name of no more than 12 characters |
 | `common_known` | Got it |
 | `common_loading` | Loading... |
+| `common_map_id` | Map ID |
 | `common_more` | More |
 | `common_more_setup` | More settings |
 | `common_network_abnormal` | Network Error |
@@ -234,6 +238,57 @@ This document contains the complete translation mapping and internal constants f
 | `device_sn` | Serial Number |
 | `device_timezone_to_robot` | Sync Time Zone |
 | `failed_page_content` | Loading failed. |
+| `fault_summery_2003` | Battery level below 20%. Scheduled task canceled. |
+| `fault_summery_2007` | Unable to reach the target. Cleaning ended. Ensure the door to the target area is open or unobstructed. |
+| `fault_summery_2012` | Unable to reach the target. Cleaning ended. Ensure the door to the target area is open or unobstructed. |
+| `fault_summery_2100` | Low battery. Starting to recharge. Resume cleaning after charging. |
+| `fault_summery_2102` | Cleaning completed. Returning to the dock |
+| `fault_summery_500` | LiDAR sensor obstructed or stuck. Remove foreign objects if any. If the problem persists, move the robot away and restart. |
+| `fault_summery_501` | Robot suspended. Move the robot away and restart. Cliff sensors dirty. Wipe them clean. |
+| `fault_summery_502_518` | Battery low. Put the robot on the dock to charge it to 20% before starting. |
+| `fault_summery_503` | Reinstall the dustbin and filter in place.<br>If the problem persists, replace the filter. |
+| `fault_summery_509` | Cliff sensors error. Clean them, move the robot away from drops, and restart. |
+| `fault_summery_510` | Bumper stuck. Tap it repeatedly to release it. If no foreign object exists, move the robot away and restart. |
+| `fault_summery_511_512` | Docking error. Clear obstacles around the dock, clean charging contacts, and put the robot on the dock. |
+| `fault_summery_513_514` | Robot trapped. Clear obstacles around robot or move robot away and restart. |
+| `fault_summery_522` | Mop not installed. Reinstall it. |
+| `fault_summery_533` | About to shut down after a long time of sleep. Charge the robot. |
+| `fault_summery_534` | About to shut down due to low battery. Charge the robot. |
+| `fault_summery_560` | Side brush entangled. Remove and clean it. |
+| `fault_summery_568_569` | Clean main wheels, move the robot away and restart. |
+| `fault_summery_570` | Main brush entangled. Remove and clean it and its bearing. |
+| `fault_summery_572` | Main brush entangled. Remove and clean it and its bearing. |
+| `fault_summery_594` | Dust bag not installed. Check that it is installed properly. |
+| `fault_summery_611` | Positioning failed. Move the robot back to the dock and remap. |
+| `fault_summery_612` | New environment detected. Map changed. Positioning failed. Try again after remapping. |
+| `fault_summery_629` | Mop cloth mount fell off. Reinstall it to resume working. |
+| `fault_summery_668` | Fan error. Reset the system. If the problem persists, contact customer service. |
+| `fault_title_2003` | Battery level below 20%. Scheduled task canceled. |
+| `fault_title_2007` | Unable to reach the target. Cleaning ended. |
+| `fault_title_2012` | Unable to reach the target. Cleaning ended. |
+| `fault_title_2100` | Low battery. Resume cleaning after recharging. |
+| `fault_title_2102` | Cleaning completed. Returning to the dock |
+| `fault_title_407` | Cleaning in progress. Scheduled cleanup ignored. |
+| `fault_title_500` | LiDAR turret or laser blocked. Check for obstruction and retry. |
+| `fault_title_501` | Robot suspended. Move the robot away and restart. |
+| `fault_title_502_518` | Low battery. Recharge now. |
+| `fault_title_503` | Check that the dustbin and filter are installed properly. |
+| `fault_title_509` | Cliff sensors error. Clean them, move the robot away from drops, and restart. |
+| `fault_title_510` | Bumper stuck. Clean it and lightly tap to release it. |
+| `fault_title_511_512` | Docking error. Put the robot on the dock. |
+| `fault_title_513_514` | Robot trapped. Move the robot away and restart. |
+| `fault_title_522` | Check that the mop is properly installed. |
+| `fault_title_533` | About to shut down after a long time of sleep |
+| `fault_title_534` | Low battery. Turning off. |
+| `fault_title_560` | Side brush entangled. Remove and clean it. |
+| `fault_title_568_569` | Clean main wheels, move the robot away and restart. |
+| `fault_title_570` | Main brush entangled. Remove and clean it and its bearing. |
+| `fault_title_572` | Main brush entangled. Remove and clean it and its bearing. |
+| `fault_title_594` | Make sure the dust bag is properly installed. |
+| `fault_title_611` | Positioning failed. Move the robot back to the dock and remap. |
+| `fault_title_612` | Map changed. Positioning failed. Try again. |
+| `fault_title_629` | Mop cloth mount fell off. |
+| `fault_title_668` | Robot error. Reset the system. |
 | `firmware_upgrade_downloading` | Updating... %d% |
 | `firmware_upgrade_installing` | Installing... |
 | `floor_title` | Home Layout |
@@ -252,7 +307,7 @@ This document contains the complete translation mapping and internal constants f
 | `guide_map_save_open` | Keep it enabled |
 | `guide_map_save_tip1` | Allow your robot to memorize your home |
 | `guide_map_save_tip2` | After the map is saved, the robot will intelligently adapt its cleaning route to the room, and you can unlock customized cleaning features such as Selective Room Cleaning and No-Go Zone. |
-| `guide_map_save_tip3` | Once Map Saving is disabled, map editing and customized cleaning features such as Selective Room Cleaning and No-Go Zone will be unavailable.\n |
+| `guide_map_save_tip3` | Once Map Saving is disabled, map editing and customized cleaning features such as Selective Room Cleaning and No-Go Zone will be unavailable.<br> |
 | `guide_map_save_tip4` | After the map is saved, the robot will intelligently adapt its cleaning route to the room, and you can unlock customized cleaning features such as Selective Room Cleaning and No-Go Zone. |
 | `guide_map_save_tip5` | Reflective objects and slippery surfaces may affect the stability of Map Saving and cause route abnormalities. |
 | `guide_mopnow` | Vacuum before mopping. |
@@ -572,13 +627,13 @@ This document contains the complete translation mapping and internal constants f
 | `set_voice_package_waiting` | Waiting... |
 | `setting_adjust_time` | Start time same as end time. Please change. |
 | `setting_carpet_avoid` | Carpet Avoidance and Crossing |
-| `setting_carpet_avoid_tip` | After the mop cloth mount is installed, the robot avoids carpets and crosses them only when necessary to avoid missing any spots.\n* Please use it after adding a carpet in map editing |
+| `setting_carpet_avoid_tip` | After the mop cloth mount is installed, the robot avoids carpets and crosses them only when necessary to avoid missing any spots.<br>* Please use it after adding a carpet in map editing |
 | `setting_cartoon_voice` | Cartoon children's voice |
 | `setting_charging` | Off-Peak Charging |
 | `setting_charging_desc` | Fully charges the battery during off-peak hours and only maintains minimum power during other hours. |
 | `setting_charging_disable_tip` | * No charging time set. Off-peak charging inactive. |
 | `setting_charging_empty` | Not Set |
-| `setting_charging_note` | *Battery charging may occur during peak hours in the following conditions:\n1. There are unfinished tasks.\n2. If there are no tasks, the robot will also charge to maintain minimum power. |
+| `setting_charging_note` | *Battery charging may occur during peak hours in the following conditions:<br>1. There are unfinished tasks.<br>2. If there are no tasks, the robot will also charge to maintain minimum power. |
 | `setting_check_text` | View |
 | `setting_consumable_change_tips1` | The main brush has reached its service life. Please replace it immediately |
 | `setting_consumable_change_tips2` | The side brush has reached its service life. Please replace it immediately |

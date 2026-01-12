@@ -35,6 +35,7 @@ This document contains the complete translation mapping and internal constants f
 ### 🕹️ Robot Modes (`ROBOT_TYPE`)
 | Mode Name | Internal Value |
 | :--- | :--- |
+| `SLEEP` | `4294967295` |
 | `STANDBY` | `0` |
 | `WORKING` | `1` |
 | `CHARGING` | `2` |
@@ -42,7 +43,6 @@ This document contains the complete translation mapping and internal constants f
 | `ALERT` | `4` |
 | `MOP_CLEANING` | `5` |
 | `MOP_AIRDRYING` | `6` |
-| `SLEEP` | `4294967295` |
 
 ---
 
@@ -58,7 +58,7 @@ This document contains the complete translation mapping and internal constants f
 | **500** | `F_500` | Torretta o laser LiDAR bloccati. Verificare la presenza di una ostruzione e riprovare. | Sensore LiDAR ostruito o bloccato. Rimuovere eventuali oggetti estranei. Se il problema persiste, allontanare il robot e riavviarlo. |
 | **501** | `F_501` | Robot sospeso. Allontanare il robot e riavviarlo. | Robot sospeso. Allontanare il robot e riavviarlo. Sensori di caduta sporchi. Pulirli. |
 | **502** | `F_502` | Basso livello di carica della batteria. Ricaricare immediatamente. | Basso livello di carica della batteria. Porre il robot sulla stazione di ricarica e ricaricarlo del 20% prima di avviarlo. |
-| **503** | `F_503` | Controllare che il cestino della polvere e il filtro siano installati correttamente. | Reinstallare il cestino della polvere e il filtro al loro posto.\nSe il problema persiste, sostituire il filtro. |
+| **503** | `F_503` | Controllare che il cestino della polvere e il filtro siano installati correttamente. | Reinstallare il cestino della polvere e il filtro al loro posto.<br>Se il problema persiste, sostituire il filtro. |
 | **504** | `F_504` | Basso livello di carica della batteria. Ricaricare immediatamente. | Basso livello di carica della batteria. Porre il robot sulla stazione di ricarica e ricaricarlo del 20% prima di avviarlo. |
 | **505** | `F_505` | Basso livello di carica della batteria. Ricaricare immediatamente. | Basso livello di carica della batteria. Porre il robot sulla stazione di ricarica e ricaricarlo del 20% prima di avviarlo. |
 | **506** | `F_506` | Basso livello di carica della batteria. Ricaricare immediatamente. | Basso livello di carica della batteria. Porre il robot sulla stazione di ricarica e ricaricarlo del 20% prima di avviarlo. |
@@ -163,6 +163,7 @@ This document contains the complete translation mapping and internal constants f
 
 | Key | Localized Value |
 | :--- | :--- |
+| `battery` | Percentuale della batteria |
 | `clean_record_abort_abnormally` | Terminata in modo anomalo |
 | `clean_record_abort_manually` | Pulizia interrotta dall’utente |
 | `clean_record_area` | Area totale |
@@ -189,8 +190,10 @@ This document contains the complete translation mapping and internal constants f
 | `clean_record_work_record` | Cronologia |
 | `common_abnormal` | Errore |
 | `common_alert` | Nota |
+| `common_battery_percentage` | Percentuale della batteria |
 | `common_cancel` | Annulla |
 | `common_close_time` | Fine |
+| `common_custom_type` | Tipo personalizzato |
 | `common_delete` | Elimina |
 | `common_determine` | OK |
 | `common_disconnect` | Robot offline |
@@ -198,6 +201,7 @@ This document contains the complete translation mapping and internal constants f
 | `common_holder_default_text` | Inserire un nome di non più di 12 caratteri |
 | `common_known` | Fatto |
 | `common_loading` | Caricamento in corso... |
+| `common_map_id` | ID mappa |
 | `common_more` | Altro |
 | `common_more_setup` | Altre impostazioni |
 | `common_network_abnormal` | Errore di rete |
@@ -234,6 +238,57 @@ This document contains the complete translation mapping and internal constants f
 | `device_sn` | Numero di serie |
 | `device_timezone_to_robot` | Sincronizzare il fuso orario |
 | `failed_page_content` | Caricamento non riuscito. |
+| `fault_summery_2003` | Livello della batteria < 20%. Attività programmata annullata. |
+| `fault_summery_2007` | Impossibile raggiungere l'obiettivo. Pulizia arrestata. Accertarsi che la porta che conduce all'area di destinazione sia aperta e libera da ostacoli. |
+| `fault_summery_2012` | Impossibile raggiungere l'obiettivo. Pulizia arrestata. Accertarsi che la porta che conduce all'area di destinazione sia aperta e libera da ostacoli. |
+| `fault_summery_2100` | Basso livello di carica della batteria. Inizio della ricarica in corso. Riprendere la pulizia dopo la ricarica. |
+| `fault_summery_2102` | Pulizia completata. Ritorno alla stazione di ricarica in corso |
+| `fault_summery_500` | Sensore LiDAR ostruito o bloccato. Rimuovere eventuali oggetti estranei. Se il problema persiste, allontanare il robot e riavviarlo. |
+| `fault_summery_501` | Robot sospeso. Allontanare il robot e riavviarlo. Sensori di caduta sporchi. Pulirli. |
+| `fault_summery_502_518` | Basso livello di carica della batteria. Porre il robot sulla stazione di ricarica e ricaricarlo del 20% prima di avviarlo. |
+| `fault_summery_503` | Reinstallare il cestino della polvere e il filtro al loro posto.<br>Se il problema persiste, sostituire il filtro. |
+| `fault_summery_509` | Errore dei sensori di caduta. Pulire i sensori di caduta, spostare il robot dal dislivello e riavviare. |
+| `fault_summery_510` | Paraurti bloccato. Batterlo ripetutamente per liberarlo. Se non sono presenti oggetti estranei, allontanare il robot e riavviarlo. |
+| `fault_summery_511_512` | Errore nella stazione di ricarica. Rimuovere gli ostacoli attorno alla stazione di ricarica, pulire i contatti di ricarica e posizionare il robot sulla stazione. |
+| `fault_summery_513_514` | Robot intrappolato. Eliminare gli ostacoli attorno al robot oppure allontanarlo e riavviarlo. |
+| `fault_summery_522` | Panno non installato. Reinstallarlo. |
+| `fault_summery_533` | Sta per spegnersi dopo un lungo periodo di sospensione. Ricaricare il robot. |
+| `fault_summery_534` | Spegnimento imminente a causa del basso livello di carica della batteria. Ricaricare il robot. |
+| `fault_summery_560` | Spazzola laterale impigliata. Rimuoverla e pulirla. |
+| `fault_summery_568_569` | Pulire le ruote principali, allontanare il robot e riavviarlo. |
+| `fault_summery_570` | Spazzola principale impigliata. Rimuoverla e pulirla insieme al relativo cuscinetto. |
+| `fault_summery_572` | Spazzola principale impigliata. Rimuoverla e pulirla insieme al relativo cuscinetto. |
+| `fault_summery_594` | Sacchetto per la polvere non installato. Verificare che sia installato correttamente. |
+| `fault_summery_611` | Posizionamento non riuscito. Riportare il robot alla stazione di ricarica e ripetere la mappatura. |
+| `fault_summery_612` | È stato rilevato un nuovo ambiente. Mappa modificata. Posizionamento non riuscito. Riprovare dopo la nuova mappatura. |
+| `fault_summery_629` | L'aggancio del panno di lavaggio è caduto. Reinstallarlo per riprendere il lavoro. |
+| `fault_summery_668` | Errore della ventola. Resettare il sistema. Se il problema persiste, contattare il servizio clienti. |
+| `fault_title_2003` | Livello della batteria < 20%. Attività programmata annullata. |
+| `fault_title_2007` | Impossibile raggiungere l'obiettivo. Pulizia arrestata. |
+| `fault_title_2012` | Impossibile raggiungere l'obiettivo. Pulizia arrestata. |
+| `fault_title_2100` | Basso livello di carica della batteria. Riprendere la pulizia dopo la ricarica. |
+| `fault_title_2102` | Pulizia completata. Ritorno alla stazione di ricarica in corso |
+| `fault_title_407` | Pulizia in corso. Pulizia programmata ignorata. |
+| `fault_title_500` | Torretta o laser LiDAR bloccati. Verificare la presenza di una ostruzione e riprovare. |
+| `fault_title_501` | Robot sospeso. Allontanare il robot e riavviarlo. |
+| `fault_title_502_518` | Basso livello di carica della batteria. Ricaricare immediatamente. |
+| `fault_title_503` | Controllare che il cestino della polvere e il filtro siano installati correttamente. |
+| `fault_title_509` | Errore dei sensori di caduta. Pulire i sensori di caduta, spostare il robot dal dislivello e riavviare. |
+| `fault_title_510` | Paraurti bloccato. Pulire il paraurti e batterlo leggermente per liberarlo. |
+| `fault_title_511_512` | Errore nella stazione di ricarica. Posizionare il robot nella stazione di ricarica. |
+| `fault_title_513_514` | Robot intrappolato. Allontanare il robot e riavviarlo. |
+| `fault_title_522` | Verificare che il panno sia installato correttamente. |
+| `fault_title_533` | Sta per spegnersi dopo un lungo periodo di sospensione |
+| `fault_title_534` | Basso livello di carica della batteria. Spegnimento in corso. |
+| `fault_title_560` | Spazzola laterale impigliata. Rimuoverla e pulirla. |
+| `fault_title_568_569` | Pulire le ruote principali, allontanare il robot e riavviarlo. |
+| `fault_title_570` | Spazzola principale impigliata. Rimuoverla e pulirla insieme al relativo cuscinetto. |
+| `fault_title_572` | Spazzola principale impigliata. Rimuoverla e pulirla insieme al relativo cuscinetto. |
+| `fault_title_594` | Accertarsi che il sacchetto per la polvere sia installato correttamente. |
+| `fault_title_611` | Posizionamento non riuscito. Riportare il robot alla stazione di ricarica e ripetere la mappatura. |
+| `fault_title_612` | Mappa modificata. Posizionamento non riuscito. Riprovare. |
+| `fault_title_629` | L'aggancio del panno di lavaggio è caduto. |
+| `fault_title_668` | Errore del robot. Resettare il sistema. |
 | `firmware_upgrade_downloading` | Aggiornamento in corso... %d% |
 | `firmware_upgrade_installing` | Installazione in corso… |
 | `floor_title` | Layout della casa |
@@ -252,7 +307,7 @@ This document contains the complete translation mapping and internal constants f
 | `guide_map_save_open` | Mantieni l’abilitazione |
 | `guide_map_save_tip1` | Permetti al robot di memorizzare la casa |
 | `guide_map_save_tip2` | Una volta salvata la mappa, il robot adatterà in modo intelligente il percorso di pulizia alla stanza e sarà possibile sbloccare funzioni di pulizia personalizzate, come la pulizia selettiva della stanza e le zone vietate. |
-| `guide_map_save_tip3` | Qualora il salvataggio della mappa sia disabilitato, le funzioni di modifica della mappa e di pulizia personalizzata, come la pulizia selettiva della stanza e le zone vietate, non saranno disponibili.\n |
+| `guide_map_save_tip3` | Qualora il salvataggio della mappa sia disabilitato, le funzioni di modifica della mappa e di pulizia personalizzata, come la pulizia selettiva della stanza e le zone vietate, non saranno disponibili.<br> |
 | `guide_map_save_tip4` | Una volta salvata la mappa, il robot adatterà in modo intelligente il percorso di pulizia alla stanza e sarà possibile sbloccare funzioni di pulizia personalizzate, come la pulizia selettiva della stanza e le zone vietate. |
 | `guide_map_save_tip5` | Oggetti riflettenti e superfici scivolose possono compromettere la stabilità del salvataggio della mappa e causare anomalie nel percorso. |
 | `guide_mopnow` | Aspirazione seguita da lavaggio. |
@@ -402,7 +457,7 @@ This document contains the complete translation mapping and internal constants f
 | `mapEdit_delete_map_alert` | Una volta eliminata la mappa, verranno eliminati i relativi programmi associati |
 | `mapEdit_erase` | Rimuovi |
 | `mapEdit_erase_add` | Aggiungere una zona per la rimozione. |
-| `mapEdit_erase_message` | *Non nascondere le aree normali, altrimenti il \u200b\u200brobot non sarà in grado di pulirle. |
+| `mapEdit_erase_message` | *Non nascondere le aree normali, altrimenti il ​​robot non sarà in grado di pulirle. |
 | `mapEdit_erase_near_tip` | Non impostare a meno di 0,5 metri dalla stazione |
 | `mapEdit_erase_tips` | È possibile nascondere le aree che il robot non deve pulire |
 | `mapEdit_erase_title` | Rimuovi |
@@ -451,7 +506,7 @@ This document contains the complete translation mapping and internal constants f
 | `mapEdit_recommend_add_cill` | Toccare per confermare una soglia |
 | `mapEdit_recommend_add_zone` | Aggiungi Zona vietata |
 | `mapEdit_recommend_carpet_subtitle` | Individuato sospetto tappeto. Dopo averlo aggiunto, impostare Potenziamento tappeti oppure Evita. |
-| `mapEdit_recommend_cill_subtitle` | \nSoglia individuata qui. Impostare una zona soglia. |
+| `mapEdit_recommend_cill_subtitle` | <br>Soglia individuata qui. Impostare una zona soglia. |
 | `mapEdit_recommend_cill_title` | Soglia |
 | `mapEdit_recommend_cliff_subtitle` | Individuati sospetti gradini, scale o dislivelli. Aggiungere una Zona vietata. |
 | `mapEdit_recommend_ignore` | Errore di riconoscimento? Ignora. |
@@ -511,7 +566,7 @@ This document contains the complete translation mapping and internal constants f
 | `map_device_recharging_tip` | Modifica non disponibile durante l'aggancio |
 | `map_load` | Il cambio di mappe terminerà la pulizia attuale. |
 | `map_save_close_cancel` | Mantieni l’abilitazione |
-| `map_save_close_content` | Qualora il salvataggio della mappa sia disabilitato, le funzioni di modifica della mappa e di pulizia personalizzata, come la pulizia selettiva della stanza e le zone vietate, non saranno disponibili.\n |
+| `map_save_close_content` | Qualora il salvataggio della mappa sia disabilitato, le funzioni di modifica della mappa e di pulizia personalizzata, come la pulizia selettiva della stanza e le zone vietate, non saranno disponibili.<br> |
 | `map_save_close_ok` | Disabilita |
 | `map_save_close_title` | Disabilitare il salvataggio delle mappe? |
 | `map_switch_tip` | Selezionare una mappa da utilizzare per un singolo piano |
@@ -572,18 +627,18 @@ This document contains the complete translation mapping and internal constants f
 | `set_voice_package_waiting` | In attesa… |
 | `setting_adjust_time` | Ora iniziale uguale a ora finale. Modificare. |
 | `setting_carpet_avoid` | Aggiramento e attraversamento di tappeti |
-| `setting_carpet_avoid_tip` | Una volta installato l'aggancio de panno di lavaggio, il robot evita i tappeti e li attraversa solo se necessario per evitare di mancare aree.\n*Utilizzarlo dopo aver aggiunto un tappeto nella modifica della mappa |
+| `setting_carpet_avoid_tip` | Una volta installato l'aggancio de panno di lavaggio, il robot evita i tappeti e li attraversa solo se necessario per evitare di mancare aree.<br>*Utilizzarlo dopo aver aggiunto un tappeto nella modifica della mappa |
 | `setting_cartoon_voice` | Voce dei bambini dei cartoni animati |
 | `setting_charging` | Ricarica nelle ore non di punta |
 | `setting_charging_desc` | Ricarica completamente la batteria durante le ore non di punta e mantiene solo la potenza minima durante le altre ore. |
 | `setting_charging_disable_tip` | * Nessun tempo di ricarica configurato. Ricarica nelle ore non di punta non attiva. |
 | `setting_charging_empty` | Non impostato |
-| `setting_charging_note` | *La ricarica della batteria può avvenire durante le ore di punta nelle seguenti condizioni:\n1. Vi sono attività non portate a termine.\n2. Se non vi sono attività in corso, il robot si ricaricherà anche per mantenere la potenza minima. |
+| `setting_charging_note` | *La ricarica della batteria può avvenire durante le ore di punta nelle seguenti condizioni:<br>1. Vi sono attività non portate a termine.<br>2. Se non vi sono attività in corso, il robot si ricaricherà anche per mantenere la potenza minima. |
 | `setting_check_text` | Vista |
-| `setting_consumable_change_tips1` | \nLa spazzola principale ha raggiunto il limite della sua vita utile. Sostituirla immediatamente |
-| `setting_consumable_change_tips2` | \nLa spazzola laterale ha raggiunto il limite della sua vita utile. Sostituirla immediatamente |
-| `setting_consumable_change_tips3` | \nIl filtro ha raggiunto il limite della sua vita utile. Sostituirlo immediatamente |
-| `setting_consumable_change_tips4` | \nIl panno di lavaggio ha raggiunto il limite della sua vita utile. Sostituirlo immediatamente |
+| `setting_consumable_change_tips1` | <br>La spazzola principale ha raggiunto il limite della sua vita utile. Sostituirla immediatamente |
+| `setting_consumable_change_tips2` | <br>La spazzola laterale ha raggiunto il limite della sua vita utile. Sostituirla immediatamente |
+| `setting_consumable_change_tips3` | <br>Il filtro ha raggiunto il limite della sua vita utile. Sostituirlo immediatamente |
+| `setting_consumable_change_tips4` | <br>Il panno di lavaggio ha raggiunto il limite della sua vita utile. Sostituirlo immediatamente |
 | `setting_consumable_change_tips5` | Il cestino per la polvere potrebbe essere pieno. Sostituirlo |
 | `setting_consumable_change_tips6` | I sensori non sono stati puliti da molto tempo. Pulirli. |
 | `setting_consumable_change_tips7` | Aggancio del panno di lavaggio non installato |

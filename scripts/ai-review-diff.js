@@ -18,42 +18,42 @@ async function main() {
 	try {
 		// 1. Get staged files (excluding build/ and lockfiles)
 		const getStagedFiles = (cmd) => execSync(cmd).toString().trim().split("\n")
-			.filter(f => f && !f.startsWith("build/") && !f.includes("package-lock.json"));
+			.filter(f => f && (f.endsWith(".js") || f.endsWith(".ts") || f.endsWith(".json")) && !f.startsWith("build/") && !f.includes("package-lock.json"));
 
 		let stagedFiles = getStagedFiles("git diff --name-only --staged");
 		let targetRef = "Staged";
 		let diffSource = "--staged";
 		let commitMsg = "Staged Changes (Not yet committed)";
 
-
-		// Fallback: Check unpushed commits (Upstream/Main vs HEAD) if nothing is staged
+		// 1.5 Check Working Directory (Unstaged) if Staged is empty
 		if (stagedFiles.length === 0) {
-			console.log("ℹ️ No staged changes. Determining push range...");
-			try {
-				// Try getting the upstream branch
-				const isWindows = process.platform === "win32";
-const nullDevice = isWindows ? "NUL" : "/dev/null";
-const upstream = execSync(`git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>${nullDevice} || echo origin/main`).toString().trim();
-				console.log(`ℹ️ Comparing HEAD against upstream: ${upstream}`);
+			const unstagedFiles = getStagedFiles("git diff --name-only");
+			if (unstagedFiles.length > 0) {
+				console.log("ℹ️ No staged changes, checking working directory...");
+				stagedFiles = unstagedFiles;
+				targetRef = "Working Directory";
+				diffSource = ""; // Diff against HEAD
+				commitMsg = "Uncommitted Changes (Working Directory)";
+			}
+		}
 
-				stagedFiles = getStagedFiles(`git diff --name-only ${upstream}...HEAD`);
-				targetRef = `${upstream}...HEAD`;
-				diffSource = `${upstream}...HEAD`;
-				// Get all commit messages in the range
-				commitMsg = execSync(`git log ${upstream}..HEAD --pretty="- %s"`).toString().trim();
-				if (!commitMsg) commitMsg = "Multiple unsaved changes";
-			} catch (e) {
-				// Fallback if no upstream or origin/main not found (e.g. first commit)
-				console.log("⚠️ Could not determine upstream. Falling back to last commit.");
-				stagedFiles = getStagedFiles("git diff --name-only HEAD~1 HEAD");
-				targetRef = "HEAD~1";
-				diffSource = "HEAD~1 HEAD";
-				commitMsg = execSync("git log -1 --pretty=%B").toString().trim();
+
+
+		// 2. Fallback: Check Working Directory (Unstaged) if Staged is empty
+		// User Requirement: "Only uncommitted changes matter".
+		if (stagedFiles.length === 0) {
+			const unstagedFiles = getStagedFiles("git diff --name-only");
+			if (unstagedFiles.length > 0) {
+				console.log("ℹ️ No staged changes, checking working directory...");
+				stagedFiles = unstagedFiles;
+				targetRef = "Working Directory";
+				diffSource = ""; // Diff against HEAD
+				commitMsg = "Uncommitted Changes (Working Directory)";
 			}
 		}
 
 		if (stagedFiles.length === 0) {
-			console.log("ℹ️ No relevant changes found (ignoring build/). Exiting.");
+			console.log("✅ No uncommitted changes found. Skipping AI Review.");
 			return;
 		}
 
@@ -142,6 +142,19 @@ Ignore any changes in 'build/' folder if they appear.
 			finalContext += `\n--- SOURCE: ${name} ---\n${content}\n`;
 		});
 
+		// 5. Inject ioBroker Type Definitions (Direct source of truth)
+		let typesPath = path.join(process.cwd(), "node_modules", "@iobroker", "types", "build", "types.d.ts");
+		if (!fs.existsSync(typesPath)) {
+			// Fallback: Try sibling node_modules or search for the package
+			typesPath = require.resolve("@iobroker/types/build/types.d.ts", { paths: [process.cwd()] });
+		}
+
+		if (fs.existsSync(typesPath)) {
+			console.log("   🧬 Injecting ioBroker Type Definitions...");
+			const typesContent = fs.readFileSync(typesPath, "utf-8");
+			finalContext += `\n\n--- IO_BROKER_OFFICIAL_TYPES ---\n${typesContent}\n`;
+		}
+
 		console.log(`🚀 Analyzing ${stagedFiles.length} files...`);
 
 		const genAI = new GoogleGenerativeAI(apiKey);
@@ -149,14 +162,6 @@ Ignore any changes in 'build/' folder if they appear.
 
 		const prompt = `
 ${systemPrompt}
-
-### INSTRUCTIONS FOR OUTPUT FORMAT:
-1. **Header**: Start with a summary table of files reviewed and their status (Pass/Fail/Warn).
-2. **Review Commit**: Check if the code changes match the intent of the commit message.
-3. **Per-File details**: For each file, use the header "## 📂 File: [filename]".
-4. **Specifics**: Quote the code line numbers.
-5. **Style**: Use emojis, bold text, and clear "Why this is better" explanations.
-6. **No Build**: Do NOT mention files in 'build/' directory.
 
 ### CURRENT OPERATIONAL CONTEXT:
 
