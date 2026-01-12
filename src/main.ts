@@ -597,7 +597,7 @@ export class Roborock extends utils.Adapter {
 	}
 
 	/**
-	 * Helper to safely parse JSON strings that look like objects/arrays.
+	 * Helper to format Roborock timestamps (seconds) to locale string.
 	 */
 	public formatRoborockDate(timestamp: number): string {
 		return new Date(timestamp * 1000).toLocaleString();

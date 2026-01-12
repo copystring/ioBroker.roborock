@@ -102,7 +102,7 @@ export declare class Roborock extends utils.Adapter {
      */
     private stringifySorted;
     /**
-     * Helper to safely parse JSON strings that look like objects/arrays.
+     * Helper to format Roborock timestamps (seconds) to locale string.
      */
     formatRoborockDate(timestamp: number): string;
     /**
