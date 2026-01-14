@@ -176,6 +176,7 @@ export class Roborock extends utils.Adapter {
 				this.clearInterval(this.mqttReconnectInterval);
 			}
 			this.clearTimersAndIntervals();
+			this.mqtt_api.cleanup();
 			this.local_api.stopUdpDiscovery();
 
 			// Remove the global process exit listener to prevent memory leaks

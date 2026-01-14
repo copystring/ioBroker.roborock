@@ -11,7 +11,6 @@
 			}
 		</script>
 		<script src="/socket.io/socket.io.js"></script>
-		<script type="module" src="./conn.js"></script>
 		<script type="module" src="./map.js"></script>
 
 		<style>
@@ -147,6 +146,16 @@
 				height: auto;
 			}
 
+			#largePhoto-bbox {
+				display: none;
+				position: absolute;
+				border: 3px solid #ff3b30;
+				box-shadow: 0 0 8px rgba(255, 59, 48, 0.8);
+				pointer-events: none;
+				z-index: 1001;
+			}
+
+
 			/* --- Restliches Styling (unverändert) --- */
 			#addButton,
 			#deleteButton {
@@ -217,6 +226,8 @@
 
 		<div id="largePhoto">
 			<img id="largePhoto-image" src="" alt="Obstacle Detail" />
+			<div id="largePhoto-bbox">
+			</div>
 		</div>
 
 		<div style="display: flex; flex-direction: column; align-items: center">

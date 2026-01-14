@@ -1,14 +1,12 @@
 import type { Roborock } from "../main";
-interface PhotoRequestData {
-    chunks: Buffer[];
-}
+import { PhotoManager } from "./PhotoManager";
 export declare class mqtt_api {
     adapter: Roborock;
     mqttUser: string;
     mqttPassword: string;
     client: any;
     connected: boolean;
-    pendingPhotoRequests: Record<string, PhotoRequestData>;
+    photoManager: PhotoManager;
     mqttOptions: any;
     constructor(adapter: Roborock);
     /**
@@ -58,40 +56,17 @@ export declare class mqtt_api {
      */
     private handleB01Map;
     /**
-     * Fallback logic if PV is unknown (Original mixed sniffing logic)
-     */
-    private fallbackMapHandling;
-    /**
      * Ensures that a valid endpoint string exists for this adapter instance.
-     * Generates one if missing.
      */
     ensureEndpoint(): Promise<string>;
     /**
      * Publishes a message to the MQTT broker.
-     * @param duid The Device Unique ID
-     * @param roborockMessage The encrypted binary message
      */
     sendMessage(duid: string, roborockMessage: Buffer): Promise<void>;
     isConnected(): boolean;
-    /**
-     * Gracefully disconnects the MQTT client.
-     */
     disconnectClient(): Promise<void>;
-    /**
-     * Helper: Calculate MD5 hex string.
-     */
     md5hex(str: string): string;
-    /**
-     * Helper: Calculate MD5 binary buffer.
-     */
     md5bin(str: string): Buffer;
-    /**
-     * Clears internal state (e.g. pending partial downloads).
-     */
     clearIntervals(): void;
-    /**
-     * Full cleanup of the API instance.
-     */
     cleanup(): void;
 }
-export {};

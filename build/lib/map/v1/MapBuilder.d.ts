@@ -20,10 +20,9 @@ export declare class MapBuilder {
         newmap: boolean;
     };
     constructor(adapter: Roborock);
+    private robotToCanvas;
     private getX;
     private getY;
-    private robotXtoCanvasX;
-    private robotYtoCanvasY;
     /**
      * Creates a pre-rendered sprite for a single carpet tile.
      * Logic matches renderCarpetTest.js exactly.

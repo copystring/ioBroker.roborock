@@ -2,18 +2,19 @@
 import { createCanvas, Image, loadImage } from "@napi-rs/canvas";
 import * as fs from "fs";
 import * as path from "path";
+import { robotToPixel } from "../../../common/coordTransformation";
 import { B01Area, B01DeviceStatus, B01MapData, B01Point } from "./types";
 
 // --- CONSTANTS from original Roborock modules ---
 import {
-	APP_COLORS,
-	CleanModeType,
-	JOB_STATUS,
-	PALETTE,
-	ROOM_TYPE_MAP,
-	SC_MAP_COLORS,
-	SCCleanType,
-	SUBTITLE_STATUS
+    APP_COLORS,
+    CleanModeType,
+    JOB_STATUS,
+    PALETTE,
+    ROOM_TYPE_MAP,
+    SC_MAP_COLORS,
+    SCCleanType,
+    SUBTITLE_STATUS
 } from "./constants";
 import { hexToRgba } from "./utils";
 
@@ -466,9 +467,15 @@ export class MapBuilder {
 		}
 
 		const toPixel = (wx: number, wy: number) => {
-			const px = (wx - data.header.minX) / data.header.resolution + 0.5;
-			const py = data.header.sizeY - 1 - ((wy - data.header.minY) / data.header.resolution);
-			return { x: px, y: py };
+			return robotToPixel({
+				x: wx,
+				y: wy,
+				minX: data.header.minX,
+				minY: data.header.minY,
+				sizeY: data.header.sizeY,
+				resolution: data.header.resolution,
+				scale: 1
+			});
 		};
 
 		// 3. Zones & Walls

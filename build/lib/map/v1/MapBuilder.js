@@ -37,8 +37,9 @@ exports.MapBuilder = void 0;
 const canvas_1 = require("@napi-rs/canvas");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
+const coordTransformation_1 = require("../../../common/coordTransformation");
+const pathProcessor_1 = require("../../../common/pathProcessor");
 const Images = __importStar(require("../../images"));
-const pathProcessor_js_1 = require("../../pathProcessor.js");
 const roomColoring_1 = require("../../roomColoring");
 const MapHelper_1 = require("../MapHelper"); // Import shared resources
 // ... Constants removed (using MapHelper or internal logic) ...
@@ -64,23 +65,22 @@ class MapBuilder {
     // --------------------
     // Coordinate Helpers
     // --------------------
+    robotToCanvas(image, robotX, robotY) {
+        return (0, coordTransformation_1.robotToPixel)({
+            x: robotX,
+            y: robotY,
+            minX: image.position.left * 50,
+            minY: image.position.top * 50,
+            sizeY: image.dimensions.height / MapHelper_1.VISUAL_BLOCK_SIZE,
+            resolution: 50,
+            scale: MapHelper_1.VISUAL_BLOCK_SIZE,
+        });
+    }
     getX(dimensions, px) {
         return (px * MapHelper_1.VISUAL_BLOCK_SIZE) % dimensions.width;
     }
     getY(dimensions, px) {
         return dimensions.height - Math.floor(px / (dimensions.width / MapHelper_1.VISUAL_BLOCK_SIZE)) * MapHelper_1.VISUAL_BLOCK_SIZE - MapHelper_1.VISUAL_BLOCK_SIZE;
-    }
-    robotXtoCanvasX(image, robotCoord) {
-        // Calculate base X
-        const x = (robotCoord - image.position.left) * MapHelper_1.VISUAL_BLOCK_SIZE;
-        // Add centering offset (+1.5px) to align with pixel center
-        return x + MapHelper_1.VISUAL_BLOCK_SIZE / 2;
-    }
-    robotYtoCanvasY(image, robotCoord) {
-        // Calculate base Y
-        const y = (image.dimensions.height / MapHelper_1.VISUAL_BLOCK_SIZE + image.position.top - robotCoord) * MapHelper_1.VISUAL_BLOCK_SIZE;
-        // Add centering offset (-1.5px) to align with pixel center
-        return y - MapHelper_1.VISUAL_BLOCK_SIZE / 2;
     }
     // --------------------
     // Drawing Helpers
@@ -388,13 +388,14 @@ class MapBuilder {
     }
     drawPaths(ctx, mapdata) {
         const robotToScaledPixel = (robotCoord, img) => {
+            const p = this.robotToCanvas(img, robotCoord[0], robotCoord[1]);
             return {
-                x: this.robotXtoCanvasX(img, robotCoord[0] / 50),
-                y: this.robotYtoCanvasY(img, robotCoord[1] / 50),
+                x: p.x,
+                y: p.y,
             };
         };
         const pathSegments = (mapdata.PATH?.points && mapdata.MOP_PATH)
-            ? (0, pathProcessor_js_1.processPaths)(mapdata.PATH.points, mapdata.MOP_PATH, robotToScaledPixel, MapHelper_1.VISUAL_BLOCK_SIZE, mapdata.IMAGE)
+            ? (0, pathProcessor_1.processPaths)(mapdata.PATH.points, mapdata.MOP_PATH, robotToScaledPixel, MapHelper_1.VISUAL_BLOCK_SIZE, mapdata.IMAGE)
             : {
                 mainPath: [[]],
                 backwashPath: [[]],
@@ -414,10 +415,12 @@ class MapBuilder {
     drawActiveZones(ctx, zones, image) {
         if (zones?.[0]) {
             zones.forEach((coord) => {
-                const x = this.robotXtoCanvasX(image, coord[0] / 50);
-                const y = this.robotYtoCanvasY(image, coord[1] / 50);
-                const w = this.robotXtoCanvasX(image, coord[2] / 50) - x;
-                const h = this.robotYtoCanvasY(image, coord[3] / 50) - y;
+                const p1 = this.robotToCanvas(image, coord[0], coord[1]);
+                const p2 = this.robotToCanvas(image, coord[2], coord[3]);
+                const x = p1.x;
+                const y = p1.y;
+                const w = p2.x - x;
+                const h = p2.y - y;
                 ctx.fillStyle = "rgba(46,139,87,0.1)";
                 ctx.fillRect(x, y, w, h);
                 ctx.strokeStyle = "#2e8b57";
@@ -435,8 +438,9 @@ class MapBuilder {
             ctx.beginPath();
             let lastX = -1, lastY = -1;
             predictedPath.points.forEach((coord, index) => {
-                const x = this.robotXtoCanvasX(image, coord[0] / 50);
-                const y = this.robotYtoCanvasY(image, coord[1] / 50);
+                const p = this.robotToCanvas(image, coord[0], coord[1]);
+                const x = p.x;
+                const y = p.y;
                 if (index === 0) {
                     ctx.fillStyle = "rgba(255, 255, 255, 1)";
                     ctx.fillRect(x, y, (1 * MapHelper_1.VISUAL_BLOCK_SIZE) / 2, (1 * MapHelper_1.VISUAL_BLOCK_SIZE) / 2);
@@ -505,8 +509,9 @@ class MapBuilder {
         if (obstacles) {
             for (const obstacle of obstacles) {
                 const type = obstacle[2];
-                const x = this.robotXtoCanvasX(image, obstacle[0] / 50) + MapHelper_1.VISUAL_BLOCK_SIZE / 2;
-                const y = this.robotYtoCanvasY(image, obstacle[1] / 50) + MapHelper_1.VISUAL_BLOCK_SIZE / 2;
+                const p = this.robotToCanvas(image, obstacle[0], obstacle[1]);
+                const x = p.x; // + VISUAL_BLOCK_SIZE / 2; // robotToCanvas already centers it
+                const y = p.y; // + VISUAL_BLOCK_SIZE / 2;
                 const suffix = OBSTACLE_MAPPING[type] || "18";
                 const imagePath = await this.findObstacleImage(suffix, model);
                 if (!imagePath) {
@@ -538,8 +543,9 @@ class MapBuilder {
         if (mapdata.CHARGER_LOCATION) {
             const pos = mapdata.CHARGER_LOCATION.position;
             if (pos?.[0] && pos?.[1]) {
-                const x = this.robotXtoCanvasX(mapdata.IMAGE, pos[0] / 50);
-                const y = this.robotYtoCanvasY(mapdata.IMAGE, pos[1] / 50);
+                const p = this.robotToCanvas(mapdata.IMAGE, pos[0], pos[1]);
+                const x = p.x;
+                const y = p.y;
                 const w = MapHelper_1.VISUAL_BLOCK_SIZE * 3;
                 const h = MapHelper_1.VISUAL_BLOCK_SIZE * 3;
                 ctx.drawImage(imgCharger, x - w / 2, y - h / 2, w, h);
@@ -550,8 +556,9 @@ class MapBuilder {
             const angle = mapdata.ROBOT_POSITION.angle ?? 0;
             const drawAngle = -angle + 90;
             if (pos?.[0] && pos?.[1]) {
-                const x = this.robotXtoCanvasX(mapdata.IMAGE, pos[0] / 50);
-                const y = this.robotYtoCanvasY(mapdata.IMAGE, pos[1] / 50);
+                const p = this.robotToCanvas(mapdata.IMAGE, pos[0], pos[1]);
+                const x = p.x;
+                const y = p.y;
                 const robotSize = MapHelper_1.VISUAL_BLOCK_SIZE * 5;
                 ctx.save();
                 ctx.translate(x, y);
@@ -563,7 +570,8 @@ class MapBuilder {
         if (mapdata.GOTO_TARGET?.[0] && mapdata.GOTO_TARGET?.[1]) {
             const pinW = MapHelper_1.VISUAL_BLOCK_SIZE * 3;
             const pinH = (pinW / 29) * 24;
-            ctx.drawImage(imgGoToPin, this.robotXtoCanvasX(mapdata.IMAGE, mapdata.GOTO_TARGET[0] / 50) - pinW / 2, this.robotYtoCanvasY(mapdata.IMAGE, mapdata.GOTO_TARGET[1] / 50) - (pinH + MapHelper_1.VISUAL_BLOCK_SIZE / 2), pinW, pinH);
+            const p = this.robotToCanvas(mapdata.IMAGE, mapdata.GOTO_TARGET[0], mapdata.GOTO_TARGET[1]);
+            ctx.drawImage(imgGoToPin, p.x - pinW / 2, p.y - (pinH + MapHelper_1.VISUAL_BLOCK_SIZE / 2), pinW, pinH);
         }
     }
     drawRoomNames(ctx, segmentsData, mappedRooms) {
@@ -620,10 +628,12 @@ class MapBuilder {
             if (!zones)
                 return;
             zones.forEach((zone) => {
-                const x1 = this.robotXtoCanvasX(mapdata.IMAGE, Math.min(zone[0], zone[2], zone[4], zone[6]) / 50);
-                const y1 = this.robotYtoCanvasY(mapdata.IMAGE, Math.max(zone[1], zone[3], zone[5], zone[7]) / 50);
-                const x2 = this.robotXtoCanvasX(mapdata.IMAGE, Math.max(zone[0], zone[2], zone[4], zone[6]) / 50);
-                const y2 = this.robotYtoCanvasY(mapdata.IMAGE, Math.min(zone[1], zone[3], zone[5], zone[7]) / 50);
+                const p1 = this.robotToCanvas(mapdata.IMAGE, Math.min(zone[0], zone[2], zone[4], zone[6]), Math.max(zone[1], zone[3], zone[5], zone[7]));
+                const p2 = this.robotToCanvas(mapdata.IMAGE, Math.max(zone[0], zone[2], zone[4], zone[6]), Math.min(zone[1], zone[3], zone[5], zone[7]));
+                const x1 = p1.x;
+                const y1 = p1.y;
+                const x2 = p2.x;
+                const y2 = p2.y;
                 const minX = Math.min(x1, x2);
                 const minY = Math.min(y1, y2);
                 const maxX = Math.max(x1, x2);
@@ -642,8 +652,10 @@ class MapBuilder {
             ctx.lineWidth = 1 * MapHelper_1.VISUAL_BLOCK_SIZE;
             ctx.beginPath();
             mapdata.VIRTUAL_WALLS.forEach((wall) => {
-                ctx.moveTo(this.robotXtoCanvasX(mapdata.IMAGE, wall[0] / 50), this.robotYtoCanvasY(mapdata.IMAGE, wall[1] / 50));
-                ctx.lineTo(this.robotXtoCanvasX(mapdata.IMAGE, wall[2] / 50), this.robotYtoCanvasY(mapdata.IMAGE, wall[3] / 50));
+                const p1 = this.robotToCanvas(mapdata.IMAGE, wall[0], wall[1]);
+                const p2 = this.robotToCanvas(mapdata.IMAGE, wall[2], wall[3]);
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
             });
             ctx.stroke();
         }

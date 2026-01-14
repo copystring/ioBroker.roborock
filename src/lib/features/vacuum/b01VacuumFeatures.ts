@@ -1,4 +1,5 @@
-﻿import { MapManager } from "../../map/MapManager";
+﻿
+import { MapManager } from "../../map/MapManager";
 import { RoborockLocales } from "../../roborock_locales";
 import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
@@ -66,12 +67,6 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			def: false
 		});
 
-		this.addCommand("app_stop", {
-			type: "boolean",
-			role: "button",
-			name: this.deps.adapter.translations["app_stop"] || "Stop Cleaning",
-			def: false
-		});
 
 		this.addCommand("app_charge", {
 			type: "boolean",
@@ -256,12 +251,6 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			};
 		}
 
-		if (method === "app_stop") {
-			return {
-				method: "service.stop_clean",
-				params: {}
-			};
-		}
 
 		if (method === "app_charge") {
 			return {
@@ -281,15 +270,20 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 
 
+
 		// Explicit Consumable Resets
-		if (method === "reset_main_brush") {
-			return { method: "service.reset_consumable", params: { "consumable": 1 } };
-		}
-		if (method === "reset_side_brush") {
-			return { method: "service.reset_consumable", params: { "consumable": 2 } };
-		}
-		if (method === "reset_filter") {
-			return { method: "service.reset_consumable", params: { "consumable": 3 } };
+		const isReset = method === "reset_consumable" || method.startsWith("reset_");
+		if (isReset) {
+			const resetTarget = method === "reset_consumable" ? (Array.isArray(params) ? params[0] : params) : method;
+			if (resetTarget === "reset_main_brush" || resetTarget === 1) {
+				return { method: "service.reset_consumable", params: { "consumable": 1 } };
+			}
+			if (resetTarget === "reset_side_brush" || resetTarget === 2) {
+				return { method: "service.reset_consumable", params: { "consumable": 2 } };
+			}
+			if (resetTarget === "reset_filter" || resetTarget === 3) {
+				return { method: "service.reset_consumable", params: { "consumable": 3 } };
+			}
 		}
 
 		return params;
@@ -880,16 +874,24 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 		// Error Codes
 		if (attribute === "error_code" || attribute === "fault") {
-			const states: Record<string, string> = { "0": "No Error" };
-			const codes = this.locales.getErrorCodes();
-			for (const code of codes) {
-				states[code.toString()] = this.locales.getErrorText(code, lang);
+			const faultCodes = this.locales.getErrorCodes();
+			const standardErrors = VACUUM_CONSTANTS.errorCodes;
+			const states: Record<string, string> = {};
+
+			// 1. Add standard error codes (1-30) as baseline
+			for (const [code, desc] of Object.entries(standardErrors)) {
+				states[code] = desc;
 			}
+
+			// 2. Add/Overlay model-specific fault codes from dataset
+			faultCodes.forEach((code) => {
+				states[code] = this.locales.getErrorText(code, lang);
+			});
 
 			return {
 				type: "number",
 				name: this.locales.getNameAll(String(attribute)),
-				states: states
+				states: states,
 			};
 		}
 

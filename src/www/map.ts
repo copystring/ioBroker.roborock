@@ -1,8 +1,8 @@
-import { Connection } from "./conn.js";
 import * as d3 from "d3";
-import { IMG_GO_TO_PIN, IMG_CHARGER, IMG_ROBOT_ORIGINAL } from "./images.js";
-import { localCoordsToRobotCoords, robotCoordsToLocalCoords } from "./coords.js";
-import { processPaths, type PathResult } from "./pathProcessor.js";
+import { localCoordsToRobotCoords, robotCoordsToLocalCoords } from "../common/coordTransformation";
+import { processPaths, type PathResult } from "../common/pathProcessor";
+import { Connection } from "./conn.js";
+import { IMG_CHARGER, IMG_GO_TO_PIN, IMG_ROBOT_ORIGINAL } from "./images.js";
 
 // Interfaces
 // -----------------------------------------------------------------------------
@@ -91,8 +91,36 @@ const UI_CONSTANTS = {
 	PIN_HEIGHT_BASE: 24,
 	PIN_Y_OFFSET_BASE: 5,
 	PATH_MOP_WIDTH_BASE: 6.5,
-	PATH_MAIN_WIDTH_RATIO_BASE: 0.5,
+	PATH_MAIN_WIDTH_RATIO_BASE: 0.8,
 	PATH_BACKWASH_WIDTH_BASE: 0.5,
+};
+
+const OBSTACLE_MAPPING: Record<number, string> = {
+	"-99": "99",
+	0: "0",
+	1: "1",
+	2: "2",
+	3: "3",
+	4: "3",
+	5: "5_cn",
+	9: "9",
+	10: "10",
+	18: "18",
+	25: "25",
+	26: "26",
+	27: "26",
+	34: "10",
+	42: "18",
+	48: "48",
+	49: "49",
+	50: "50",
+	51: "51",
+	54: "54",
+	65: "65",
+	67: "67",
+	69: "69",
+	70: "70",
+	99: "99",
 };
 
 // -----------------------------------------------------------------------------
@@ -151,6 +179,8 @@ class MapApplication {
 	private popupX: number = 0;
 	private popupY: number = 0;
 	private selectedObstacleID: any;
+	private model: string | null = null;
+	private robotModels: Record<string, string> = {};
 	private rects: Rect[] = [];
 	private zones: number[][] = [];
 	private rectCounter = 0;
@@ -161,6 +191,7 @@ class MapApplication {
 	private triangle!: HTMLElement;
 	private largePhoto!: HTMLElement;
 	private largePhotoImage!: HTMLImageElement;
+	private largePhotoBBox!: HTMLElement;
 	private robotSelect!: HTMLSelectElement;
 	private deleteButton!: HTMLButtonElement;
 	private addButton!: HTMLButtonElement;
@@ -212,6 +243,7 @@ class MapApplication {
 		this.triangle = getElement("triangle");
 		this.largePhoto = getElement("largePhoto");
 		this.largePhotoImage = getElement("largePhoto-image");
+		this.largePhotoBBox = getElement("largePhoto-bbox");
 		this.robotSelect = getElement("robotSelect");
 		this.deleteButton = getElement("deleteButton");
 		this.addButton = getElement("addButton");
@@ -312,7 +344,15 @@ class MapApplication {
 						const idParts = row.id.split(".");
 						const duid = idParts[idParts.length - 1];
 						const name = row.value && row.value.common && row.value.common.name ? row.value.common.name : duid;
-						if (duid) robots.push({ duid: duid, name: name });
+						// Extract model from native object
+						const model = row.value?.native?.model || row.value?.native?.deviceInfo?.model || null;
+
+						if (duid) {
+							robots.push({ duid: duid, name: name });
+							if (model) {
+								this.robotModels[duid] = model;
+							}
+						}
 					});
 				}
 
@@ -344,6 +384,45 @@ class MapApplication {
 					this.robotSelect.value = duid;
 					this.setupSocketListeners(duid);
 				}
+
+				// Fetch HomeData to resolve models reliably
+				const homeDataId = `${this.instanceId}.HomeData`;
+				this.connection.getStates([homeDataId]).then((states: Record<string, any>) => {
+					const state = states[homeDataId];
+					if (state && state.val) {
+						try {
+							const homeData = typeof state.val === "string" ? JSON.parse(state.val) : state.val;
+							const productMap: Record<string, string> = {};
+							if (homeData.products) {
+								homeData.products.forEach((p: any) => {
+									if (p.id && p.model) productMap[p.id] = p.model;
+								});
+							}
+							const processDeviceList = (list: any[]) => {
+								if (list) {
+									list.forEach((d: any) => {
+										if (d.duid && d.productId && productMap[d.productId]) {
+											this.robotModels[d.duid] = productMap[d.productId];
+										}
+									});
+								}
+							};
+							processDeviceList(homeData.devices);
+							processDeviceList(homeData.receivedDevices);
+
+							// Re-trigger listeners if we have a model now
+							if (this.currentRobotDuid && this.robotModels[this.currentRobotDuid]) {
+								this.model = this.robotModels[this.currentRobotDuid];
+								// Refresh obstacles if they were drawn with fallback
+								if (this.map && this.map.OBSTACLES2) {
+									this.drawObstacles(this.map.OBSTACLES2);
+								}
+							}
+						} catch (e) {
+							console.error("Failed to parse HomeData:", e);
+						}
+					}
+				});
 			})
 			.catch((err) => console.error("Error fetching robot list:", err));
 	}
@@ -376,6 +455,7 @@ class MapApplication {
 
 		const mapBase64StateId = `${this.instanceId}.Devices.${duid}.map.mapBase64Clean`;
 		const mapDataStateId = `${this.instanceId}.Devices.${duid}.map.mapData`;
+
 		this.currentMapSubscriptions = [mapBase64StateId, mapDataStateId];
 
 		this.onStateChange = (id: string, state: any | null | undefined) => {
@@ -420,6 +500,12 @@ class MapApplication {
 
 		this.connection.getStates([mapBase64StateId, mapDataStateId]).then((states: Record<string, any | null | undefined>) => {
 			if (!this.onStateChange) return;
+
+			// Try to resolve model from map if already populated
+			if (this.robotModels[duid]) {
+				this.model = this.robotModels[duid];
+			}
+
 			this.onStateChange(mapBase64StateId, states[mapBase64StateId]);
 			this.onStateChange(mapDataStateId, states[mapDataStateId]);
 		});
@@ -715,34 +801,6 @@ class MapApplication {
 		const bgRadius = fixedRadius * 1.1;
 		const imageSize = fixedRadius * 1.8;
 
-		const OBSTACLE_MAPPING: Record<number, string> = {
-			"-99": "99",
-			0: "0",
-			1: "1",
-			2: "2",
-			3: "3",
-			4: "3",
-			5: "5_cn",
-			9: "9",
-			10: "10",
-			18: "18",
-			25: "25",
-			26: "26",
-			27: "26",
-			34: "10",
-			42: "18",
-			48: "48",
-			49: "49",
-			50: "50",
-			51: "51",
-			54: "54",
-			65: "65",
-			67: "67",
-			69: "69",
-			70: "70",
-			99: "99",
-		};
-
 		const groups = this.obstacleGroup.selectAll(".obstacle-group").data(obstaclesData);
 
 		groups.exit().remove();
@@ -766,6 +824,7 @@ class MapApplication {
 				this.connection
 					.sendTo(this.instanceId, "get_obstacle_image", { obstacleId: this.selectedObstacleID, duid: this.currentRobotDuid, type: 1 })
 					.then((response) => {
+
 						if (response && (response as any).image) {
 							let imageData = (response as any).image as string;
 							if (typeof imageData === "string" && !imageData.startsWith("data:image/")) imageData = "data:image/png;base64," + imageData;
@@ -778,6 +837,8 @@ class MapApplication {
 								this.triangle.style.display = "none";
 								this.popupTimeout = null;
 							}, 3000);
+						} else if (response && (response as any).data && (response as any).version === undefined) {
+							// Fallback for raw buffer if passed as object
 						}
 					})
 					.catch((err) => console.error("Error getting obstacle image:", err));
@@ -800,7 +861,9 @@ class MapApplication {
 			.attr("x", -imageSize / 2)
 			.attr("y", -imageSize / 2)
 			.on("error", function () {
-				d3.select(this).attr("href", "images/projects_comroborocktanos_resources_obstacle_new_p18.png");
+				// Revert to a generic fallback icon instead of making the obstacle invisible
+				// Use 'default' model folder which we know exists
+				d3.select(this).attr("href", `assets/default/drawable-mdpi/projects_comroborocktanos_resources_obstacle_new_p18.png`);
 			});
 
 		const allGroups = enterGroups.merge(groups as any);
@@ -815,7 +878,8 @@ class MapApplication {
 			.attr("href", (d: any) => {
 				const type = d[2];
 				const suffix = OBSTACLE_MAPPING[type] || "18";
-				return `images/projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`;
+				const modelFolder = this.model || "default";
+				return `assets/${modelFolder}/drawable-mdpi/projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`;
 			});
 	}
 
@@ -967,7 +1031,6 @@ class MapApplication {
 				cleanCount,
 			]);
 		}
-		console.log("Zones updated:", JSON.stringify(this.zones));
 	}
 
 	private updatePopupPosition() {
@@ -1238,10 +1301,39 @@ class MapApplication {
 			this.popupTimeout = null;
 			if (!this.currentRobotDuid || !this.selectedObstacleID) return;
 			this.largePhotoImage.src = "";
+			this.largePhotoBBox.style.display = "none";
+
 			this.connection
 				.sendTo(this.instanceId, "get_obstacle_image", { obstacleId: this.selectedObstacleID, duid: this.currentRobotDuid, type: 0 })
 				.then((response: any) => {
-					if (response && typeof response.image === "string") this.largePhotoImage.src = response.image.replace(/\s/g, "");
+					if (response && (response as any).image) {
+						let imageData = (response as any).image as string;
+						if (typeof imageData === "string" && !imageData.startsWith("data:image/")) imageData = "data:image/png;base64," + imageData;
+						// Define the onload handler BEFORE setting .src to avoid race conditions
+						this.largePhotoImage.onload = () => {
+							// Handle Bounding Box scaling if present
+							if (response.bbox) {
+								const bbox = response.bbox;
+								const displayedWidth = this.largePhotoImage.clientWidth;
+								const displayedHeight = this.largePhotoImage.clientHeight;
+
+								// Calculate scaling factor
+								// Calculate scaling factor, protecting against zero division
+								if (bbox.imageWidth > 0 && bbox.imageHeight > 0) {
+									const scaleX = displayedWidth / bbox.imageWidth;
+									const scaleY = displayedHeight / bbox.imageHeight;
+
+									// Position BBox
+									this.largePhotoBBox.style.left = (bbox.x * scaleX) + "px";
+									this.largePhotoBBox.style.top = (bbox.y * scaleY) + "px";
+									this.largePhotoBBox.style.width = (bbox.w * scaleX) + "px";
+									this.largePhotoBBox.style.height = (bbox.h * scaleY) + "px";
+									this.largePhotoBBox.style.display = "block";
+								}
+							}
+						};
+						this.largePhotoImage.src = imageData.replace(/\s/g, "");
+					}
 				})
 				.catch((err) => console.error("Error getting large obstacle image:", err));
 		});
@@ -1250,6 +1342,7 @@ class MapApplication {
 			this.largePhoto.style.display = "none";
 		});
 	}
+
 
 	// Rescaler Helper
 	private get rescaler() {

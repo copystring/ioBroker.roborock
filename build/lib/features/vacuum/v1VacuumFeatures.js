@@ -489,7 +489,7 @@ class V1VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             result.states = this.profile.mappings.water_box_mode;
         }
         else if (attribute === "error_code" && this.profile.mappings.error_code) {
-            result.states = this.profile.mappings.error_code;
+            result.states = { ...result.states, ...this.profile.mappings.error_code };
         }
         else if (attribute === "state" && this.profile.mappings.state) {
             result.states = this.profile.mappings.state;

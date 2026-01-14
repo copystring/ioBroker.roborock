@@ -34,9 +34,9 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.messageParser = void 0;
-const zod_1 = require("zod");
 const binary_parser_1 = require("binary-parser");
 const crc32 = __importStar(require("crc-32"));
+const zod_1 = require("zod");
 const cryptoEngine_1 = require("./cryptoEngine");
 const SUPPORTED_VERSIONS = ["1.0", "A01", "L01", "B01", "\x81S\x19"];
 // Zod schema for runtime frame validation

@@ -37,6 +37,7 @@ exports.MapBuilder = void 0;
 const canvas_1 = require("@napi-rs/canvas");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
+const coordTransformation_1 = require("../../../common/coordTransformation");
 // --- CONSTANTS from original Roborock modules ---
 const constants_1 = require("./constants");
 const utils_1 = require("./utils");
@@ -442,9 +443,15 @@ class MapBuilder {
             }
         }
         const toPixel = (wx, wy) => {
-            const px = (wx - data.header.minX) / data.header.resolution + 0.5;
-            const py = data.header.sizeY - 1 - ((wy - data.header.minY) / data.header.resolution);
-            return { x: px, y: py };
+            return (0, coordTransformation_1.robotToPixel)({
+                x: wx,
+                y: wy,
+                minX: data.header.minX,
+                minY: data.header.minY,
+                sizeY: data.header.sizeY,
+                resolution: data.header.resolution,
+                scale: 1
+            });
         };
         // 3. Zones & Walls
         const drawNoGoZone = (area, isForbidden) => {

@@ -61,17 +61,23 @@ class socketHandler {
      * Handles 'get_obstacle_image' command.
      */
     async handleGetObstacleImage(msg) {
-        const { duid, obstacleId } = msg.message;
-        if (!duid || !obstacleId) {
-            this.adapter.rLog("MapManager", duid, "Warn", undefined, undefined, "'get_obstacle_image' missing duid or obstacleId.", "warn");
+        const { duid } = msg.message;
+        if (!duid) {
+            this.adapter.rLog("MapManager", duid, "Warn", undefined, undefined, "'get_obstacle_image' missing duid.", "warn");
             if (msg.callback) {
-                this.adapter.sendTo(msg.from, msg.command, { error: "Missing duid or obstacleId" }, msg.callback);
+                this.adapter.sendTo(msg.from, msg.command, { error: "Missing duid" }, msg.callback);
             }
             return;
         }
-        // Use type 0 (full) or 1 (preview)
-        const imageType = msg.message.type === 0 ? 0 : 1;
-        this.adapter.rLog("MapManager", duid, "Info", undefined, undefined, `Requesting obstacle image type: ${imageType}`, "info");
+        const obstacleId = msg.message.obstacleId;
+        if (obstacleId === undefined || obstacleId === null) {
+            this.adapter.rLog("MapManager", duid, "Warn", undefined, undefined, "[Photo] Received get_obstacle_image request without obstacleId", "warn");
+            if (msg.callback)
+                this.adapter.sendTo(msg.from, msg.command, { error: "Missing obstacleId" }, msg.callback);
+            return;
+        }
+        const imageType = msg.message.type !== undefined ? msg.message.type : 1;
+        this.adapter.rLog("MapManager", duid, "Info", undefined, undefined, `[Photo] Requesting obstacle image type: ${imageType}`, "info");
         try {
             if (!this.adapter.requestsHandler) {
                 throw new Error("RequestHandler is not available");
@@ -81,12 +87,49 @@ class socketHandler {
                 throw new Error(`No device handler found for DUID ${duid}`);
             }
             const photoResponse = await handler.getPhoto(obstacleId, imageType);
+            let potentialBuffer = null;
+            let bbox = null;
+            // Helper to find the buffer and bbox in various response structures
+            const extractData = (obj) => {
+                if (!obj)
+                    return null;
+                if (Buffer.isBuffer(obj))
+                    return { buf: obj };
+                if (obj.buffer && Buffer.isBuffer(obj.buffer))
+                    return { buf: obj.buffer, bbox: obj.bbox };
+                if (obj.data) {
+                    if (Buffer.isBuffer(obj.data))
+                        return { buf: obj.data };
+                    if (obj.data.buffer && Buffer.isBuffer(obj.data.buffer))
+                        return { buf: obj.data.buffer, bbox: obj.data.bbox };
+                }
+                return null;
+            };
+            let payload = photoResponse;
+            const extracted = extractData(photoResponse);
+            if (extracted) {
+                potentialBuffer = extracted.buf;
+                bbox = extracted.bbox;
+            }
+            if (Buffer.isBuffer(potentialBuffer)) {
+                let mimeType = "image/png";
+                if (potentialBuffer[0] === 0xff && potentialBuffer[1] === 0xd8) {
+                    mimeType = "image/jpeg";
+                }
+                this.adapter.rLog("MapManager", duid, "Debug", undefined, undefined, `[Photo] Converting Buffer to Base64. Length: ${potentialBuffer.length}. Mime: ${mimeType}`, "debug");
+                payload = {
+                    image: `data:${mimeType};base64,` + potentialBuffer.toString("base64"),
+                    bbox: bbox
+                };
+            }
             if (msg.callback) {
-                this.adapter.sendTo(msg.from, msg.command, photoResponse, msg.callback);
+                const imageLen = (payload && payload.image) ? payload.image.length : 0;
+                this.adapter.rLog("MapManager", duid, "Info", undefined, undefined, `[Photo] Sending photo response to frontend (Image length: ${imageLen})`, "info");
+                this.adapter.sendTo(msg.from, msg.command, payload, msg.callback);
             }
         }
         catch (error) {
-            this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, `Failed to get obstacle image ${obstacleId}: ${error.message}`, "error");
+            this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, `[Photo] Failed to get obstacle image ${obstacleId}: ${error.message}`, "error");
             this.adapter.catchError(error, "handleGetObstacleImage", duid);
             if (msg.callback) {
                 this.adapter.sendTo(msg.from, msg.command, { error: error.message || "Failed" }, msg.callback);

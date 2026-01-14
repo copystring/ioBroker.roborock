@@ -1,9 +1,10 @@
 import { createCanvas, Image, loadImage, type Canvas, type CanvasRenderingContext2D } from "@napi-rs/canvas";
 import * as fs from "fs";
 import * as path from "path";
+import { robotToPixel } from "../../../common/coordTransformation";
+import { processPaths, type PathPoint, type PathResult } from "../../../common/pathProcessor";
 import { Roborock } from "../../../main";
 import * as Images from "../../images";
-import { processPaths, type PathPoint, type PathResult } from "../../pathProcessor.js";
 import { assignRoborockRoomColorsToHex } from "../../roomColoring";
 import { LEGACY_COLORS, ROBOROCK_PALETTE, VISUAL_BLOCK_SIZE } from "../MapHelper"; // Import shared resources
 
@@ -64,26 +65,24 @@ export class MapBuilder {
 	// Coordinate Helpers
 	// --------------------
 
+	private robotToCanvas(image: any, robotX: number, robotY: number): { x: number; y: number } {
+		return robotToPixel({
+			x: robotX,
+			y: robotY,
+			minX: image.position.left * 50,
+			minY: image.position.top * 50,
+			sizeY: image.dimensions.height / VISUAL_BLOCK_SIZE,
+			resolution: 50,
+			scale: VISUAL_BLOCK_SIZE,
+		});
+	}
+
 	private getX(dimensions: Dimensions, px: number): number {
 		return (px * VISUAL_BLOCK_SIZE) % dimensions.width;
 	}
 
 	private getY(dimensions: Dimensions, px: number): number {
 		return dimensions.height - Math.floor(px / (dimensions.width / VISUAL_BLOCK_SIZE)) * VISUAL_BLOCK_SIZE - VISUAL_BLOCK_SIZE;
-	}
-
-	private robotXtoCanvasX(image: any, robotCoord: number): number {
-		// Calculate base X
-		const x = (robotCoord - image.position.left) * VISUAL_BLOCK_SIZE;
-		// Add centering offset (+1.5px) to align with pixel center
-		return x + VISUAL_BLOCK_SIZE / 2;
-	}
-
-	private robotYtoCanvasY(image: any, robotCoord: number): number {
-		// Calculate base Y
-		const y = (image.dimensions.height / VISUAL_BLOCK_SIZE + image.position.top - robotCoord) * VISUAL_BLOCK_SIZE;
-		// Add centering offset (-1.5px) to align with pixel center
-		return y - VISUAL_BLOCK_SIZE / 2;
 	}
 
 	// --------------------
@@ -437,9 +436,10 @@ export class MapBuilder {
 
 	private drawPaths(ctx: ExtendedContext2D, mapdata: any) {
 		const robotToScaledPixel = (robotCoord: [number, number], img: any): PathPoint => {
+			const p = this.robotToCanvas(img, robotCoord[0], robotCoord[1]);
 			return {
-				x: this.robotXtoCanvasX(img, robotCoord[0] / 50),
-				y: this.robotYtoCanvasY(img, robotCoord[1] / 50),
+				x: p.x,
+				y: p.y,
 			};
 		};
 
@@ -468,10 +468,12 @@ export class MapBuilder {
 	private drawActiveZones(ctx: ExtendedContext2D, zones: any, image: any) {
 		if (zones?.[0]) {
 			zones.forEach((coord: any) => {
-				const x = this.robotXtoCanvasX(image, coord[0] / 50);
-				const y = this.robotYtoCanvasY(image, coord[1] / 50);
-				const w = this.robotXtoCanvasX(image, coord[2] / 50) - x;
-				const h = this.robotYtoCanvasY(image, coord[3] / 50) - y;
+				const p1 = this.robotToCanvas(image, coord[0], coord[1]);
+				const p2 = this.robotToCanvas(image, coord[2], coord[3]);
+				const x = p1.x;
+				const y = p1.y;
+				const w = p2.x - x;
+				const h = p2.y - y;
 				ctx.fillStyle = "rgba(46,139,87,0.1)";
 				ctx.fillRect(x, y, w, h);
 				ctx.strokeStyle = "#2e8b57";
@@ -491,8 +493,9 @@ export class MapBuilder {
 			let lastX = -1,
 				lastY = -1;
 			predictedPath.points.forEach((coord: any, index: number) => {
-				const x = this.robotXtoCanvasX(image, coord[0] / 50);
-				const y = this.robotYtoCanvasY(image, coord[1] / 50);
+				const p = this.robotToCanvas(image, coord[0], coord[1]);
+				const x = p.x;
+				const y = p.y;
 				if (index === 0) {
 					ctx.fillStyle = "rgba(255, 255, 255, 1)";
 					ctx.fillRect(x, y, (1 * VISUAL_BLOCK_SIZE) / 2, (1 * VISUAL_BLOCK_SIZE) / 2);
@@ -565,8 +568,9 @@ export class MapBuilder {
 		if (obstacles) {
 			for (const obstacle of obstacles) {
 				const type = obstacle[2];
-				const x = this.robotXtoCanvasX(image, obstacle[0] / 50) + VISUAL_BLOCK_SIZE / 2;
-				const y = this.robotYtoCanvasY(image, obstacle[1] / 50) + VISUAL_BLOCK_SIZE / 2;
+				const p = this.robotToCanvas(image, obstacle[0], obstacle[1]);
+				const x = p.x; // + VISUAL_BLOCK_SIZE / 2; // robotToCanvas already centers it
+				const y = p.y; // + VISUAL_BLOCK_SIZE / 2;
 
 				const suffix = OBSTACLE_MAPPING[type] || "18";
 				const imagePath = await this.findObstacleImage(suffix, model);
@@ -602,8 +606,9 @@ export class MapBuilder {
 		if (mapdata.CHARGER_LOCATION) {
 			const pos = mapdata.CHARGER_LOCATION.position;
 			if (pos?.[0] && pos?.[1]) {
-				const x = this.robotXtoCanvasX(mapdata.IMAGE, pos[0] / 50);
-				const y = this.robotYtoCanvasY(mapdata.IMAGE, pos[1] / 50);
+				const p = this.robotToCanvas(mapdata.IMAGE, pos[0], pos[1]);
+				const x = p.x;
+				const y = p.y;
 				const w = VISUAL_BLOCK_SIZE * 3;
 				const h = VISUAL_BLOCK_SIZE * 3;
 				ctx.drawImage(imgCharger, x - w / 2, y - h / 2, w, h);
@@ -616,8 +621,9 @@ export class MapBuilder {
 			const drawAngle = -angle + 90;
 
 			if (pos?.[0] && pos?.[1]) {
-				const x = this.robotXtoCanvasX(mapdata.IMAGE, pos[0] / 50);
-				const y = this.robotYtoCanvasY(mapdata.IMAGE, pos[1] / 50);
+				const p = this.robotToCanvas(mapdata.IMAGE, pos[0], pos[1]);
+				const x = p.x;
+				const y = p.y;
 				const robotSize = VISUAL_BLOCK_SIZE * 5;
 
 				ctx.save();
@@ -631,10 +637,11 @@ export class MapBuilder {
 		if (mapdata.GOTO_TARGET?.[0] && mapdata.GOTO_TARGET?.[1]) {
 			const pinW = VISUAL_BLOCK_SIZE * 3;
 			const pinH = (pinW / 29) * 24;
+			const p = this.robotToCanvas(mapdata.IMAGE, mapdata.GOTO_TARGET[0], mapdata.GOTO_TARGET[1]);
 			ctx.drawImage(
 				imgGoToPin,
-				this.robotXtoCanvasX(mapdata.IMAGE, mapdata.GOTO_TARGET[0] / 50) - pinW / 2,
-				this.robotYtoCanvasY(mapdata.IMAGE, mapdata.GOTO_TARGET[1] / 50) - (pinH + VISUAL_BLOCK_SIZE / 2),
+				p.x - pinW / 2,
+				p.y - (pinH + VISUAL_BLOCK_SIZE / 2),
 				pinW,
 				pinH
 			);
@@ -699,10 +706,12 @@ export class MapBuilder {
 		const drawRectArea = (zones: number[][], fill: string, stroke: string) => {
 			if (!zones) return;
 			zones.forEach((zone) => {
-				const x1 = this.robotXtoCanvasX(mapdata.IMAGE, Math.min(zone[0], zone[2], zone[4], zone[6]) / 50);
-				const y1 = this.robotYtoCanvasY(mapdata.IMAGE, Math.max(zone[1], zone[3], zone[5], zone[7]) / 50);
-				const x2 = this.robotXtoCanvasX(mapdata.IMAGE, Math.max(zone[0], zone[2], zone[4], zone[6]) / 50);
-				const y2 = this.robotYtoCanvasY(mapdata.IMAGE, Math.min(zone[1], zone[3], zone[5], zone[7]) / 50);
+				const p1 = this.robotToCanvas(mapdata.IMAGE, Math.min(zone[0], zone[2], zone[4], zone[6]), Math.max(zone[1], zone[3], zone[5], zone[7]));
+				const p2 = this.robotToCanvas(mapdata.IMAGE, Math.max(zone[0], zone[2], zone[4], zone[6]), Math.min(zone[1], zone[3], zone[5], zone[7]));
+				const x1 = p1.x;
+				const y1 = p1.y;
+				const x2 = p2.x;
+				const y2 = p2.y;
 				const minX = Math.min(x1, x2);
 				const minY = Math.min(y1, y2);
 				const maxX = Math.max(x1, x2);
@@ -721,8 +730,10 @@ export class MapBuilder {
 			ctx.lineWidth = 1 * VISUAL_BLOCK_SIZE;
 			ctx.beginPath();
 			mapdata.VIRTUAL_WALLS.forEach((wall: any) => {
-				ctx.moveTo(this.robotXtoCanvasX(mapdata.IMAGE, wall[0] / 50), this.robotYtoCanvasY(mapdata.IMAGE, wall[1] / 50));
-				ctx.lineTo(this.robotXtoCanvasX(mapdata.IMAGE, wall[2] / 50), this.robotYtoCanvasY(mapdata.IMAGE, wall[3] / 50));
+				const p1 = this.robotToCanvas(mapdata.IMAGE, wall[0], wall[1]);
+				const p2 = this.robotToCanvas(mapdata.IMAGE, wall[2], wall[3]);
+				ctx.moveTo(p1.x, p1.y);
+				ctx.lineTo(p2.x, p2.y);
 			});
 			ctx.stroke();
 		}

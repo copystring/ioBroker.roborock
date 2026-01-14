@@ -1,6 +1,6 @@
-import { z } from "zod";
 import { Parser } from "binary-parser";
 import * as crc32 from "crc-32";
+import { z } from "zod";
 import { Roborock } from "../main";
 import { cryptoEngine } from "./cryptoEngine";
 
