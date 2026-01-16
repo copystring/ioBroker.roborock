@@ -1,43 +1,10 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
@@ -46,7 +13,6 @@ exports.V1VacuumFeatures = exports.VacuumStatusSchema = exports.DEFAULT_PROFILE 
 const zod_1 = require("zod");
 const MapManager_1 = require("../../map/MapManager");
 const productHelper_1 = require("../../productHelper");
-const Q7Data = __importStar(require("../../protocols/q7_dataset.json"));
 const baseDeviceFeatures_1 = require("../baseDeviceFeatures");
 const features_enum_1 = require("../features.enum");
 const vacuumConstants_1 = require("./vacuumConstants");
@@ -133,12 +99,9 @@ class V1VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
             staticFeatures: [...defaultFeatures, ...config.staticFeatures]
         };
         super(dependencies, duid, robotModel, mergedConfig);
-        this.profile = profile;
+        // Deep clone profile to avoid mutating shared static objects
+        this.profile = structuredClone(profile);
         this.applyLocalizedMappings();
-        // Populate dynamic states map references
-        V1VacuumFeatures.CONSTANTS.deviceStates.dock_type.states = V1VacuumFeatures.CONSTANTS.dockTypes;
-        V1VacuumFeatures.CONSTANTS.deviceStates.error_code.states = V1VacuumFeatures.CONSTANTS.errorCodes;
-        V1VacuumFeatures.CONSTANTS.deviceStates.state.states = V1VacuumFeatures.CONSTANTS.stateCodes;
         this.applyCleanMotorModePresets();
         // Deduplicate static features
         this.config.staticFeatures = [...new Set(this.config.staticFeatures)];
@@ -146,37 +109,28 @@ class V1VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
     applyLocalizedMappings() {
         try {
             // Determine system language, default to 'en'
-            // @ts-ignore - 'language' property might not be typed on adapter config correctly or needs access
-            const sysLang = (this.deps.adapter.config && this.deps.adapter.config.language) ? this.deps.adapter.config.language : "en";
-            // Check if there is data for fault codes
-            if (Q7Data && Q7Data.fault_codes) {
-                const errorMapping = {};
-                for (const [codeStr, data] of Object.entries(Q7Data.fault_codes)) {
-                    const code = Number(codeStr);
-                    const entry = data;
-                    // Try exact language match, simplified match (e.g. en-US -> en), or english fallback
-                    let trans = entry[sysLang];
-                    if (!trans && sysLang.includes("-")) {
-                        const shortLang = sysLang.split("-")[0];
-                        trans = entry[shortLang];
-                    }
-                    if (!trans)
-                        trans = entry["en"];
-                    if (trans && trans.title) {
-                        errorMapping[code] = trans.title;
-                    }
-                    else if (entry.internal) {
-                        errorMapping[code] = entry.internal;
-                    }
-                }
-                // Override/Merge into profile mappings
-                if (Object.keys(errorMapping).length > 0) {
-                    this.profile.mappings.error_code = {
-                        ...this.profile.mappings.error_code,
-                        ...errorMapping
-                    };
-                }
+            const sysLang = this.deps.adapter.language || "en";
+            const errorMapping = {};
+            // Determine fallback language errors
+            let fallbackErrors = undefined;
+            if (vacuumConstants_1.VACUUM_CONSTANTS.errorCodes_languages) {
+                fallbackErrors = vacuumConstants_1.VACUUM_CONSTANTS.resolveErrorCodeFallback(sysLang);
             }
+            // Apply fallback errors if available
+            if (fallbackErrors) {
+                Object.entries(fallbackErrors).forEach(([code, text]) => {
+                    errorMapping[Number(code)] = text;
+                });
+            }
+            // Override/Merge into profile mappings
+            // Ensure base English codes are included as foundation
+            // Verified: S7 MaxV data serves as a functional superset for V1 devices, ensuring basic faults are covered
+            // Priority: Base -> Localized Fallback -> Model Specific Overrides
+            this.profile.mappings.error_code = {
+                ...vacuumConstants_1.VACUUM_CONSTANTS.errorCodes,
+                ...errorMapping,
+                ...(this.profile.mappings.error_code || {})
+            };
         }
         catch (e) {
             this.deps.adapter.log.error(`Failed to apply localized mappings: ${e}`);
@@ -488,11 +442,14 @@ class V1VacuumFeatures extends baseDeviceFeatures_1.BaseDeviceFeatures {
         else if (attribute === "water_box_mode" && this.profile.mappings.water_box_mode) {
             result.states = this.profile.mappings.water_box_mode;
         }
-        else if (attribute === "error_code" && this.profile.mappings.error_code) {
-            result.states = { ...result.states, ...this.profile.mappings.error_code };
+        else if (attribute === "error_code") {
+            result.states = this.profile.mappings.error_code || vacuumConstants_1.VACUUM_CONSTANTS.errorCodes;
         }
-        else if (attribute === "state" && this.profile.mappings.state) {
-            result.states = this.profile.mappings.state;
+        else if (attribute === "state") {
+            result.states = { ...vacuumConstants_1.VACUUM_CONSTANTS.stateCodes, ...(this.profile.mappings.state || {}) };
+        }
+        else if (attribute === "dock_type") {
+            result.states = { ...vacuumConstants_1.VACUUM_CONSTANTS.dockTypes }; // Currently no overrides in profile.docks for names, mostly feature flags
         }
         return result;
     }

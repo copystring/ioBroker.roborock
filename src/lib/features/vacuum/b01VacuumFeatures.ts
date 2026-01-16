@@ -878,14 +878,42 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			const standardErrors = VACUUM_CONSTANTS.errorCodes;
 			const states: Record<string, string> = {};
 
-			// 1. Add standard error codes (1-30) as baseline
-			for (const [code, desc] of Object.entries(standardErrors)) {
-				states[code] = desc;
+			// Use standard firmware error range (1-30) as the foundation before applying model-specific overrides to ensure basic faults are covered
+			// Provide localized fallback if available
+			let standardErrorsToUse = standardErrors;
+			if (VACUUM_CONSTANTS.errorCodes_languages) {
+				const fallbackErrors = VACUUM_CONSTANTS.resolveErrorCodeFallback(lang);
+				if (fallbackErrors) {
+					standardErrorsToUse = { ...standardErrors, ...fallbackErrors };
+				}
+			}
+
+			// Add standard error codes (with fallback)
+			for (const [code, desc] of Object.entries(standardErrorsToUse)) {
+				if (typeof desc === "string") {
+					states[code] = desc;
+				}
 			}
 
 			// 2. Add/Overlay model-specific fault codes from dataset
 			faultCodes.forEach((code) => {
-				states[code] = this.locales.getErrorText(code, lang);
+				const entry = this.locales.getErrorText(code, lang);
+				let text = "";
+				if (typeof entry === "string") {
+					text = entry;
+				} else if (entry && typeof entry === "object") {
+					const obj = entry as any;
+					text = obj.summary || obj.title || "";
+				}
+
+				// Check if the resolved text matches a standardized placeholder format to avoid overwriting default labels
+				const isPlaceholder = text === `F_${code}`;
+
+				if (isPlaceholder || !text) {
+					// Skip overwriting if it's a placeholder or empty
+				} else {
+					states[code] = text;
+				}
 			});
 
 			return {

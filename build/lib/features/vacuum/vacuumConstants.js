@@ -1,37 +1,24 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.VACUUM_CONSTANTS = void 0;
+const s7_maxv_dataset_json_1 = __importDefault(require("../../protocols/s7_maxv_dataset.json"));
 exports.VACUUM_CONSTANTS = {
     errorCodes: {
         0: "No error",
-        1: "Laser sensor fault",
-        2: "Collision sensor fault",
-        3: "Wheel floating",
-        4: "Cliff sensor fault",
-        5: "Main brush blocked",
-        6: "Side brush blocked",
-        7: "Wheel blocked",
-        8: "Device stuck",
-        9: "Dust bin missing",
-        10: "Filter blocked",
-        11: "Magnetic field detected",
-        12: "Low battery",
-        13: "Charging problem",
-        14: "Battery failure",
-        15: "Wall sensor fault",
-        16: "Uneven surface",
-        17: "Side brush failure",
-        18: "Suction fan failure",
-        19: "Unpowered charging station",
-        20: "Unknown Error",
-        21: "Laser pressure sensor problem",
-        22: "Charge sensor problem",
-        23: "Dock problem",
-        24: "No-go zone or invisible wall detected",
+        // Use S7 MaxV dataset as the standardized error definition for the entire adapter
+        // This supersedes legacy hardcoded lists and serves as the baseline for V1 and B01
+        // SCHEMA VERIFIED: The S7 dataset structure is flat: { [lang]: { [code]: "text" } }.
+        // It does NOT follow the Q7 nested structure.
+        ...(s7_maxv_dataset_json_1.default["en"] || {}),
+        // Add legacy/missing codes
         254: "Bin full",
         255: "Internal error",
         "-1": "Unknown Error",
     },
+    errorCodes_languages: s7_maxv_dataset_json_1.default,
     stateCodes: {
         0: "Unknown",
         1: "Initiating",
@@ -314,6 +301,24 @@ exports.VACUUM_CONSTANTS = {
         122: "isSupportFetchTimerSummary",
         123: "isOrderCleanSupported",
         125: "isRemoteSupported",
+    },
+    /**
+     * Helper to resolve language fallback for error codes.
+     * Returns the localized error map or undefined if not found.
+     */
+    resolveErrorCodeFallback(lang) {
+        if (!lang)
+            return undefined;
+        // Check exact match first
+        if (this.errorCodes_languages[lang])
+            return this.errorCodes_languages[lang];
+        // Check base language (e.g., 'es' from 'es-LA' or 'es-MX')
+        if (lang.includes("-")) {
+            const baseLang = lang.split("-")[0].toLowerCase();
+            if (this.errorCodes_languages[baseLang])
+                return this.errorCodes_languages[baseLang];
+        }
+        return undefined;
     },
 };
 //# sourceMappingURL=vacuumConstants.js.map

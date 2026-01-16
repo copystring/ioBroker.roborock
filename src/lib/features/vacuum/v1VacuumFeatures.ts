@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { MapManager } from "../../map/MapManager";
 import { ProductHelper } from "../../productHelper";
-import * as Q7Data from "../../protocols/q7_dataset.json";
 import { BaseDeviceFeatures, CommandSpec, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
 import { VACUUM_CONSTANTS } from "./vacuumConstants";
@@ -122,15 +121,10 @@ export abstract class V1VacuumFeatures extends BaseDeviceFeatures {
 		};
 
 		super(dependencies, duid, robotModel, mergedConfig);
-		this.profile = profile;
+		// Deep clone profile to avoid mutating shared static objects
+		this.profile = structuredClone(profile);
 
 		this.applyLocalizedMappings();
-
-		// Populate dynamic states map references
-		V1VacuumFeatures.CONSTANTS.deviceStates.dock_type.states = V1VacuumFeatures.CONSTANTS.dockTypes;
-		V1VacuumFeatures.CONSTANTS.deviceStates.error_code.states = V1VacuumFeatures.CONSTANTS.errorCodes;
-		V1VacuumFeatures.CONSTANTS.deviceStates.state.states = V1VacuumFeatures.CONSTANTS.stateCodes;
-
 		this.applyCleanMotorModePresets();
 
 		// Deduplicate static features
@@ -140,40 +134,32 @@ export abstract class V1VacuumFeatures extends BaseDeviceFeatures {
 	protected applyLocalizedMappings(): void {
 		try {
 			// Determine system language, default to 'en'
-			// @ts-ignore - 'language' property might not be typed on adapter config correctly or needs access
-			const sysLang = (this.deps.adapter.config && this.deps.adapter.config.language) ? this.deps.adapter.config.language : "en";
+			const sysLang = this.deps.adapter.language || "en";
 
-			// Check if there is data for fault codes
-			if (Q7Data && Q7Data.fault_codes) {
-				const errorMapping: Record<number, string> = {};
+			const errorMapping: Record<number, string> = {};
 
-				for (const [codeStr, data] of Object.entries(Q7Data.fault_codes)) {
-					const code = Number(codeStr);
-					const entry = data as any;
-
-					// Try exact language match, simplified match (e.g. en-US -> en), or english fallback
-					let trans = entry[sysLang];
-					if (!trans && sysLang.includes("-")) {
-						const shortLang = sysLang.split("-")[0];
-						trans = entry[shortLang];
-					}
-					if (!trans) trans = entry["en"];
-
-					if (trans && trans.title) {
-						errorMapping[code] = trans.title;
-					} else if (entry.internal) {
-						errorMapping[code] = entry.internal;
-					}
-				}
-
-				// Override/Merge into profile mappings
-				if (Object.keys(errorMapping).length > 0) {
-					this.profile.mappings.error_code = {
-						...this.profile.mappings.error_code,
-						...errorMapping
-					};
-				}
+			// Determine fallback language errors
+			let fallbackErrors: Record<string, string> | undefined = undefined;
+			if (VACUUM_CONSTANTS.errorCodes_languages) {
+				fallbackErrors = VACUUM_CONSTANTS.resolveErrorCodeFallback(sysLang);
 			}
+
+			// Apply fallback errors if available
+			if (fallbackErrors) {
+				Object.entries(fallbackErrors).forEach(([code, text]) => {
+					errorMapping[Number(code)] = text;
+				});
+			}
+
+			// Override/Merge into profile mappings
+			// Ensure base English codes are included as foundation
+			// Verified: S7 MaxV data serves as a functional superset for V1 devices, ensuring basic faults are covered
+			// Priority: Base -> Localized Fallback -> Model Specific Overrides
+			this.profile.mappings.error_code = {
+				...VACUUM_CONSTANTS.errorCodes,
+				...errorMapping,
+				...(this.profile.mappings.error_code || {})
+			};
 		} catch (e) {
 			this.deps.adapter.log.error(`Failed to apply localized mappings: ${e}`);
 		}
@@ -514,10 +500,12 @@ export abstract class V1VacuumFeatures extends BaseDeviceFeatures {
 			result.states = this.profile.mappings.mop_mode;
 		} else if (attribute === "water_box_mode" && this.profile.mappings.water_box_mode) {
 			result.states = this.profile.mappings.water_box_mode;
-		} else if (attribute === "error_code" && this.profile.mappings.error_code) {
-			result.states = { ...result.states, ...this.profile.mappings.error_code };
-		} else if (attribute === "state" && this.profile.mappings.state) {
-			result.states = this.profile.mappings.state;
+		} else if (attribute === "error_code") {
+			result.states = this.profile.mappings.error_code || VACUUM_CONSTANTS.errorCodes;
+		} else if (attribute === "state") {
+			result.states = { ...VACUUM_CONSTANTS.stateCodes, ...(this.profile.mappings.state || {}) };
+		} else if (attribute === "dock_type") {
+			result.states = { ...VACUUM_CONSTANTS.dockTypes }; // Currently no overrides in profile.docks for names, mostly feature flags
 		}
 
 		return result;

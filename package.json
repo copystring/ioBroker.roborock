@@ -93,7 +93,7 @@
   ],
   "scripts": {
     "clean": "rimraf build",
-    "copy:protocols": "shx mkdir -p build/lib/protocols && shx cp src/lib/protocols/q7_dataset.json build/lib/protocols/",
+    "copy:protocols": "shx mkdir -p build/lib/protocols && shx cp src/lib/protocols/q7_dataset.json src/lib/protocols/s7_maxv_dataset.json build/lib/protocols/",
     "build": "npm run clean && node scripts/updateBuildInfo.js && npm run copy:protocols && tsc -b tsconfig.json && npm run build:www",
     "postbuild": "npm run ai:review",
     "build:www": "esbuild src/www/map.ts --bundle --minify --sourcemap --outfile=www/map.js --format=esm",

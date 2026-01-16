@@ -1,34 +1,11 @@
 export declare const VACUUM_CONSTANTS: {
     errorCodes: {
-        0: string;
-        1: string;
-        2: string;
-        3: string;
-        4: string;
-        5: string;
-        6: string;
-        7: string;
-        8: string;
-        9: string;
-        10: string;
-        11: string;
-        12: string;
-        13: string;
-        14: string;
-        15: string;
-        16: string;
-        17: string;
-        18: string;
-        19: string;
-        20: string;
-        21: string;
-        22: string;
-        23: string;
-        24: string;
         254: string;
         255: string;
         "-1": string;
+        0: string;
     };
+    errorCodes_languages: Record<string, Record<string, string>>;
     stateCodes: {
         0: string;
         1: string;
@@ -662,6 +639,11 @@ export declare const VACUUM_CONSTANTS: {
         readonly 123: "isOrderCleanSupported";
         readonly 125: "isRemoteSupported";
     };
+    /**
+     * Helper to resolve language fallback for error codes.
+     * Returns the localized error map or undefined if not found.
+     */
+    resolveErrorCodeFallback(lang: string | undefined | null): Record<string, string> | undefined;
 };
 export type FirmwareFeatures = typeof VACUUM_CONSTANTS.firmwareFeatures;
 export type FirmwareFeatureId = keyof FirmwareFeatures;
