@@ -165,7 +165,7 @@ export const VACUUM_CONSTANTS = {
 		rst: { type: "number" },
 		switch_status: { type: "number" },
 		last_clean_t: { type: "string" },
-		cleaning_info: { type: "string" },  // Note: JSON string warning in logs
+		cleaning_info: { type: "string" },
 		exit_dock: { type: "number" },
 		dtof_status: { type: "number" },
 		seq_type: { type: "number" },
@@ -185,8 +185,7 @@ export const VACUUM_CONSTANTS = {
 		green_laser: { type: "number", def: 0, states: { 0: "Off", 1: "On" }, write: true },
 		dust_bag_used: { type: "number", def: 0 },
 		add_sweep_status: { type: "number", def: 0, states: { 0: "None", 1: "Active" } },
-		// New attributes from Issue 888 logs
-		clean_finish: { type: "string" }, // Should be mapped to date string
+		clean_finish: { type: "string" },
 
 		status: {
 			type: "number",
