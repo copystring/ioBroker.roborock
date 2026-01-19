@@ -500,6 +500,8 @@ export class mqtt_api {
 
 			if (foundId !== -1) {
 				this.adapter.requestsHandler.resolvePendingRequest(foundId, workingBuf, data.protocol, duid, "MQTT", "B01");
+			} else {
+				await this.processUnsolicitedB01Map(duid, workingBuf);
 			}
 		} catch (e: any) {
 			this.adapter.rLog("MQTT", duid, "Error", "B01", undefined, `B01 Map processing failed: ${e.message}`, "error");
@@ -545,6 +547,30 @@ export class mqtt_api {
 	}
 
 
+
+	private async processUnsolicitedB01Map(duid: string, workingBuf: Buffer): Promise<void> {
+		try {
+			const robotModel = this.adapter.http_api.getRobotModel(duid) || "roborock.vacuum.a27";
+			const res = await this.adapter.mapManager.processMap(workingBuf, "B01", robotModel, duid, null, duid, "MQTT");
+			if (!res) return;
+
+			await this.adapter.ensureFolder(`Devices.${duid}.map`);
+			if (res.mapBase64) {
+				await this.adapter.ensureState(`Devices.${duid}.map.mapBase64`, { name: "Map Image", type: "string", role: "text.png" });
+				await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapBase64`, { val: res.mapBase64, ack: true });
+			}
+			if (res.mapBase64Clean) {
+				await this.adapter.ensureState(`Devices.${duid}.map.mapBase64Clean`, { name: "Map Image (Clean)", type: "string", role: "text.png" });
+				await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapBase64Clean`, { val: res.mapBase64Clean, ack: true });
+			}
+			if (res.mapData) {
+				await this.adapter.ensureState(`Devices.${duid}.map.mapData`, { name: "Map Data", type: "string", role: "json" });
+				await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapData`, { val: JSON.stringify(res.mapData), ack: true });
+			}
+		} catch (err: any) {
+			this.adapter.rLog("MQTT", duid, "Error", "B01", undefined, `Failed to process unsolicited B01 map: ${err}`, "error");
+		}
+	}
 
 	/**
 	 * Ensures that a valid endpoint string exists for this adapter instance.
