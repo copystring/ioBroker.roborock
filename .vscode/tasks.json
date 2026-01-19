@@ -2,11 +2,11 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Unified Development Mode",
+      "label": "Watch All (TSC, WWW, VITEST)",
       "type": "npm",
-      "script": "dev",
+      "script": "watch:all",
       "isBackground": true,
-      "problemMatcher": "$tsc-watch",
+      "problemMatcher": [],
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",

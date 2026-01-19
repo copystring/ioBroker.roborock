@@ -1,7 +1,7 @@
 
-import { expect } from "chai";
-import { MockAdapter } from "./MockAdapter";
+import { beforeEach, describe, expect, it } from "vitest";
 import { requestsHandler } from "../requestsHandler"; // Real class
+import { MockAdapter } from "./MockAdapter";
 
 describe("Queue Deep Dive (requestsHandler)", () => {
 	let mockAdapter: MockAdapter;

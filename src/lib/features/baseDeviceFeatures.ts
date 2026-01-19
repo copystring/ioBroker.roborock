@@ -77,6 +77,7 @@ export const BaseStatusSchema = z
 		error_code: z.number().int().optional(),
 		// Add generic status fields if applicable
 	})
+	// eslint-disable-next-line
 	.passthrough();
 
 // --- Generic Base Class ---
@@ -86,6 +87,8 @@ export const BaseStatusSchema = z
  * Extended by specific types (e.g. V1VacuumFeatures).
  */
 export abstract class BaseDeviceFeatures {
+	protected createdStates = new Set<string>();
+
 	protected deps: FeatureDependencies;
 	public commands: Record<string, CommandSpec | any>; // Command definitions for this device
 	protected duid: string;
@@ -280,7 +283,6 @@ export abstract class BaseDeviceFeatures {
 
 	/**
 	 * Fetches initial runtime data (status, consumables, map).
-	 * Subclasses should override this to provide specific logic.
 	 */
 	public async initializeDeviceData(): Promise<void> {
 		// Default implementation: update status if online
@@ -583,9 +585,10 @@ export abstract class BaseDeviceFeatures {
 	 * @param folder Target folder.
 	 * @param mapper Optional data mapper.
 	 */
-	protected async requestAndProcess(method: string, params: any[], folder: string, mapper?: (data: any) => Record<string, any>): Promise<void> {
+	protected async requestAndProcess(method: string, params: any[], folder: string, mapper?: (data: any) => Record<string, any> | Promise<Record<string, any>>): Promise<void> {
 		try {
 			const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, method, params);
+			this.deps.adapter.rLog("System", this.duid, "Debug", method, folder, `Raw result: ${JSON.stringify(result)}`, "debug");
 
 			let resultObj: Record<string, unknown> | undefined;
 
@@ -602,7 +605,7 @@ export abstract class BaseDeviceFeatures {
 			if (resultObj) {
 				// Apply mapper
 				if (mapper) {
-					resultObj = mapper(resultObj);
+					resultObj = await mapper(resultObj);
 				}
 
 				await this.deps.ensureFolder(`Devices.${this.duid}.${folder}`);
@@ -621,7 +624,18 @@ export abstract class BaseDeviceFeatures {
 	 */
 	protected async processResultKey(folder: string, key: string, val: unknown): Promise<void> {
 		// Determine common options (type, role, unit)
-		const common = this.getCommonDeviceStates(key) || { name: key, type: typeof val as ioBroker.CommonType, read: true, write: false };
+		let common: Partial<ioBroker.StateCommon> | undefined;
+		if (folder === "deviceStatus") {
+			common = this.getCommonDeviceStates(key);
+		} else if (folder === "cleaningInfo") {
+			common = this.getCommonCleaningInfo(key);
+		} else if (folder === "cleaningRecords") {
+			common = this.getCommonCleaningRecords(key);
+		}
+
+		if (!common) {
+			common = { name: key, type: typeof val as ioBroker.CommonType, read: true, write: false };
+		}
 
 		// Handle Objects/Arrays by stringifying them so they don't crash the state
 		if (typeof val === "object" && val !== null) {
@@ -643,8 +657,15 @@ export abstract class BaseDeviceFeatures {
 			val = !!val;
 		}
 
-		await this.deps.ensureState(`Devices.${this.duid}.${folder}.${key}`, common);
-		await this.deps.adapter.setStateChanged(`Devices.${this.duid}.${folder}.${key}`, { val: val as ioBroker.StateValue, ack: true });
+		const fullPath = `Devices.${this.duid}.${folder}.${key}`;
+
+		if (!this.createdStates.has(fullPath)) {
+			await this.deps.ensureState(fullPath, common);
+			this.createdStates.add(fullPath);
+		}
+
+		this.deps.adapter.rLog("System", this.duid, "Debug", folder, key, `processResultKey: ${val} (${common?.type})`, "debug");
+		await this.deps.adapter.setStateChanged(fullPath, { val: val as ioBroker.StateValue, ack: true });
 	}
 
 	// --- Helper Methods ---

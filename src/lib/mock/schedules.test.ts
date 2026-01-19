@@ -1,9 +1,9 @@
 ﻿
-import { expect } from "chai";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Feature } from "../features/features.enum";
+import { V1VacuumFeatures } from "../features/vacuum/v1VacuumFeatures";
 import { MockAdapter } from "./MockAdapter";
 import { MockRobot } from "./MockRobot";
-import { V1VacuumFeatures } from "../features/vacuum/v1VacuumFeatures";
-import { Feature } from "../features/features.enum";
 
 class TestVacuum extends V1VacuumFeatures {
 	protected getDynamicFeatures(): Set<Feature> {
@@ -55,40 +55,31 @@ describe("Schedule (Timer) Verification", () => {
 	});
 
 	it("should process timers and create schedule states", async () => {
-		// V1VacuumFeatures currently doesn't implement 'updateTimers' or 'setupTimers' in a generic way
-		// that's easily exposed unless `Feature.SimpleTimer` or similar is detected/used?
-		// Wait, looking at baseVacuumFeatures (or user log): `get_timer` is a command.
+		// Mock timer response
+		const timerResponse = [
+			["timer_id_1", "on", ["0 14 * * 5", ["Start Cleaning", ["102", "1", "101", "100"]], 1234567890]],
+			["timer_id_2", "off", ["0 10 * * *", ["Start Cleaning", ["102", "1", "101", "100"]], 1234567891]],
+			["timer_id_3", "on", ["0 8 * * 1,3,5", ["Start Cleaning", ["102", "1", "101", "100"]], 1234567892]]
+		];
+		// Inject mock into requestsHandler.sendRequest instead of mockRobot
+		const originalSendRequest = depsMock.requestsHandler.sendRequest;
+		depsMock.requestsHandler.sendRequest = vi.fn().mockImplementation(async (duid, method, params) => {
+			if (method === "get_timer") return timerResponse;
+			return originalSendRequest(duid, method, params);
+		});
 
-		// Is there robust timer handling in the current baseVacuumFeatures?
-		// I recall seeing 'isSupportFetchTimerSummary' in firmware features.
-		// Let's check if there's a method calling `get_timer`.
+		// Call via vacuumFeatures
+		await vacuumFeatures.updateTimers();
 
-		// If not, we might need to implement the test assuming usage of `sendRequest("get_timer")` and manual processing,
-		// OR acknowledging that timer support might be limited or model-specific.
+		// Check if get_timer was called
+		expect(depsMock.requestsHandler.sendRequest).toHaveBeenCalledWith(expect.anything(), "get_timer", expect.anything());
 
-		// Checking MockRobot: it implements `get_timer`.
-		// Checking vacuumConstants: doesn't explicitly list timer states structure.
+		// Verify States are created
+		const duid = mockRobot.duid;
+		await mockAdapter.expectState(`Devices.${duid}.schedules.timer_id_1.enabled`, { val: true });
+		await mockAdapter.expectState(`Devices.${duid}.schedules.timer_id_1.cron`, { val: "0 14 * * 5" });
 
-		// Actually, many Roborock adapters don't fully parse timers into editable states due to complexity.
-		// But if the user asked me to "parse those CRON strings", I should check if the adapter *does* it.
-		// If the adapter *doesn't* currently have logic for it, I can't test it passing without adding the logic.
-
-		// Let's assume for this test we are verifying that `get_timer` returns valid data
-		// and that IF we were to implement parsing, the data is there.
-		// But the plan said "Verify timer parsing".
-
-		// Let's try to call `vacuumFeatures.getTimers()` if it exists?
-		// A quick search in previous context didn't show `getTimers`.
-		// `updateExtraStatus` calls many things.
-
-		// If the feature isn't implemented, this test might serve as a "Modification Request" or simply verify raw retrieval.
-		// Let's verify we can fetch them via the adapter's request handler first.
-
-		const timers = await depsMock.requestsHandler.sendRequest(mockRobot.duid, "get_timer", []);
-
-		expect(timers).to.be.an("array");
-		expect(timers.length).to.equal(3);
-		expect(timers[0][2][0]).to.contain("0 14 * * 5"); // CRON check
+		await mockAdapter.expectState(`Devices.${duid}.schedules.timer_id_2.enabled`, { val: false });
+		await mockAdapter.expectState(`Devices.${duid}.schedules.timer_id_3.cron`, { val: "0 8 * * 1,3,5" });
 	});
 });
-

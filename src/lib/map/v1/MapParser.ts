@@ -1,6 +1,6 @@
 // src/lib/map/v1/MapParser.ts
-import type { Roborock } from "../../../main";
 import * as crypto from "crypto";
+import type { Roborock } from "../../../main";
 
 // --------------------
 // Constants
@@ -178,7 +178,8 @@ export class MapParser {
 	}
 
 	/**
-	 * Parses the complete raw map buffer from the robot.
+	 * Parses the raw map data from V1 Roborock vacuums.
+	 * @see test/unit/v1_map_specification.test.ts for the binary format specification.
 	 */
 	async parsedata(buf: Buffer, mappedRooms: any[] | null, options: { isHistoryMap: boolean } = { isHistoryMap: false }): Promise<ParsedMapData | {}> {
 		if (buf.length < 8) {
@@ -235,7 +236,7 @@ export class MapParser {
 				break;
 			}
 
-			const blockBuffer = buf.slice(dataPosition, dataPosition + hlength + length);
+			const blockBuffer = buf.subarray(dataPosition, dataPosition + hlength + length);
 			const [offset1, offset2] = this.getTwoByteOffsets(blockBuffer);
 
 			const typeName = TYPES_REVERSE[type];

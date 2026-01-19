@@ -1,10 +1,10 @@
-import { Roborock } from "../../main";
-import { MapParser as MapParserV1 } from "./v1/MapParser";
+import type { Roborock } from "../../main";
+import { MapBuilder as MapBuilderB01 } from "./b01/MapBuilder";
+import { MapParser as MapParserB01 } from "./b01/MapParser";
+import { B01DeviceStatus } from "./b01/types";
 import { MapBuilder as MapBuilderV1 } from "./v1/MapBuilder";
 import { MapDecryptor as MapDecryptorV1 } from "./v1/MapDecryptor";
-import { MapParser as MapParserB01 } from "./b01/MapParser";
-import { MapBuilder as MapBuilderB01 } from "./b01/MapBuilder";
-import { B01DeviceStatus } from "./b01/types";
+import { MapParser as MapParserV1 } from "./v1/MapParser";
 
 export class MapManager {
 	private adapter: Roborock;

@@ -68,6 +68,10 @@ export const cryptoEngine = {
 
 	// ---------- V1 (AES-128-ECB) ----------
 
+	/**
+	 * Encrypts a payload using Protocol V1 (AES-128-ECB).
+	 * @see test/unit/crypto_specification.test.ts for the technical specification.
+	 */
 	encryptV1(payload: Buffer | string, localKey: string, ts: number): Buffer {
 		const key = md5bin(encodeTimestamp(ts) + localKey + SALT);
 		const cipher = crypto.createCipheriv("aes-128-ecb", key, null);
@@ -82,6 +86,11 @@ export const cryptoEngine = {
 
 	// ---------- A01 (AES-128-CBC) ----------
 
+	/**
+	 * Encrypts a payload using Protocol A01 (AES-128-CBC).
+	 * @see test/unit/crypto_specification.test.ts for the technical specification.
+	 * @param random A 32-bit random integer from the packet header.
+	 */
 	encryptA01(payload: Buffer | string, localKey: string, random: number): Buffer {
 		const randomHex = (random >>> 0).toString(16).padStart(8, "0");
 		const ivHex = md5hex(randomHex + "726f626f726f636b2d67a6d6da").substring(8, 24);
@@ -111,6 +120,10 @@ export const cryptoEngine = {
 
 	// ---------- L01 (AES-256-GCM) ----------
 
+	/**
+	 * Encrypts a payload using Protocol L01 (AES-256-GCM).
+	 * @see test/unit/crypto_specification.test.ts for the technical specification.
+	 */
 	encryptL01(payload: Buffer | string, localKey: string, ts: number, seq: number, random: number, connectNonce: number, ackNonce?: number): Buffer {
 		if (!connectNonce || ackNonce == null) throw new Error("Missing nonces for L01");
 

@@ -122,7 +122,7 @@ export class DeviceManager {
 					// Store handler
 					this.deviceFeatureHandlers.set(duid, handler);
 
-					await this.adapter.extendObjectAsync(`Devices.${duid}`, {
+					await this.adapter.extendObject(`Devices.${duid}`, {
 						type: "device",
 						common: {
 							name: device.name || duid, // Use cloud name or DUID

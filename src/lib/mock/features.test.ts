@@ -1,9 +1,9 @@
 ﻿
-import { expect } from "chai";
+import { beforeEach, describe, expect, it } from "vitest";
+import { Feature } from "../features/features.enum";
+import { V1VacuumFeatures } from "../features/vacuum/v1VacuumFeatures";
 import { MockAdapter } from "./MockAdapter";
 import { MockRobot } from "./MockRobot";
-import { V1VacuumFeatures } from "../features/vacuum/v1VacuumFeatures";
-import { Feature } from "../features/features.enum";
 
 // We need a concrete implementation of abstract V1VacuumFeatures to test it
 class TestVacuumFeatures extends V1VacuumFeatures {
@@ -119,10 +119,8 @@ describe("Features - State Creation", () => {
 		};
 		// Ensure setState is present
 		if (!deps.adapter.setState) {
-			console.log("[TestDiag] setState missing on adapter, patching...");
 			deps.adapter.setState = mockAdapter.setState;
 		}
-		console.log("[TestDiag] Adapter methods:", Object.getOwnPropertyNames(Object.getPrototypeOf(deps.adapter)));
 		const features = new TestVacuumFeatures(deps as any, mockRobot.duid, mockRobot.model, { staticFeatures: [] } as any);
 
 		// 1. Initial: No reset buttons

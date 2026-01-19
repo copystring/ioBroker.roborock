@@ -32,7 +32,7 @@
     "emitDecoratorMetadata": true,
 
     // Types
-    "types": ["mocha", "node", "@iobroker/adapter-core"],
+    "types": ["node", "@iobroker/adapter-core", "vitest/globals"],
     "lib": ["ESNext", "DOM", "DOM.Iterable"]
   },
   "include": ["src/**/*.ts", "src/**/*.json"],

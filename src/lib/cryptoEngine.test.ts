@@ -1,5 +1,5 @@
+import { describe, expect, it } from "vitest";
 import { cryptoEngine } from "./cryptoEngine";
-import { expect } from "chai";
 
 describe("cryptoEngine L01", () => {
 	const localKey = "byteTheDust";

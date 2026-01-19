@@ -75,49 +75,41 @@ export class PhotoManager {
 		try {
 			const photoId = payloadBuf.readUInt16LE(12);
 			const totalChunks = payloadBuf.readUInt16LE(14);
+			const pendingReqId = this.findPendingPhotoRequest(duid, photoId);
 
-			let pendingReqId = photoId;
-			// Fallback match for Task IDs
-			if (!this.adapter.pendingRequests.has(pendingReqId as any)) {
-				for (const [id, req] of this.adapter.pendingRequests) {
-					if (req.method === "get_photo" && req.duid === duid) {
-						if (req.params && req.params.data_filter && req.params.data_filter.type === 0) {
-							pendingReqId = id;
-							break;
-						}
-					}
-				}
-			}
+			if (!this.adapter.pendingRequests.has(pendingReqId as any)) return true;
 
 			const requestKey = `${duid}_${photoId}`;
-			if (this.adapter.pendingRequests.has(pendingReqId as any)) {
-				const totalSize = payloadBuf.length >= 24 ? payloadBuf.readUInt32LE(20) : 0;
-				this.adapter.rLog("MQTT", duid, "Info", "300", pendingReqId, `[Photo] Metadata (300). ID: ${photoId} (Task: ${pendingReqId}, Target Size: ${totalSize})`, "debug");
+			const totalSize = payloadBuf.length >= 24 ? payloadBuf.readUInt32LE(20) : 0;
+			this.adapter.rLog("MQTT", duid, "Info", "300", pendingReqId, `[Photo] Metadata (300). ID: ${photoId} (Task: ${pendingReqId}, Target Size: ${totalSize})`, "debug");
 
-				const firstChunk = payloadBuf.length > 56 ? payloadBuf.subarray(56) : Buffer.alloc(0);
-				this.pendingPhotoRequests[requestKey] = {
-					id: pendingReqId as number,
-					chunks: { [0]: firstChunk },
-					totalChunks: totalChunks,
-					totalSize: totalSize,
-					lastUpdateTime: Date.now()
-				};
+			const firstChunk = payloadBuf.length > 56 ? payloadBuf.subarray(56) : Buffer.alloc(0);
+			const photoData = this.initializePhotoRequest(duid, photoId, totalSize);
+			photoData.chunks[0] = firstChunk;
+			photoData.totalChunks = totalChunks;
+			this.pendingPhotoRequests[requestKey] = photoData;
 
-				// Special matching for Type 0 (Large Photo) which reports Chunks: 0 and sends raw 301 stream
-				if (totalChunks === 0) {
-					this.pendingRawRequest = { duid, photoId };
-				}
-
-				// Check for completion immediately (relevant for single-packet photos where size is known)
-				if (await this.isPhotoComplete(this.pendingPhotoRequests[requestKey], duid, photoId)) {
-					await this.processAndResolvePhoto(this.pendingPhotoRequests[requestKey], duid, requestKey, 300);
-				}
-				return true;
+			if (totalChunks === 0) {
+				this.pendingRawRequest = { duid, photoId };
 			}
+
+			if (await this.isPhotoComplete(photoData, duid, photoId)) {
+				await this.processAndResolvePhoto(photoData, duid, requestKey, 300);
+			}
+			return true;
 		} catch (e: any) {
 			this.adapter.rLog("MQTT", duid, "Error", "300", undefined, `[Photo] Header parse failed: ${e.message}`, "error");
+			return true;
 		}
-		return false;
+	}
+
+	private initializePhotoRequest(duid: string, photoId: number, totalSize: number): PhotoRequestData {
+		return {
+			id: this.findPendingPhotoRequest(duid, photoId),
+			chunks: {},
+			totalSize: totalSize,
+			lastUpdateTime: Date.now()
+		};
 	}
 
 	/**
@@ -160,22 +152,8 @@ export class PhotoManager {
 
 			// Robust Initialization: Initialize if missing, regardless of sequence
 			if (!photoData) {
-				let reqId = photoId;
-				if (!this.adapter.pendingRequests.has(reqId)) {
-					for (const [id, req] of this.adapter.pendingRequests.entries()) {
-						if (req.method === "get_photo" && req.duid === duid) {
-							reqId = id;
-							break;
-						}
-					}
-				}
-				this.pendingPhotoRequests[requestKey] = {
-					id: reqId,
-					chunks: {},
-					totalSize: extractedTotalSize,
-					lastUpdateTime: Date.now()
-				};
-				photoData = this.pendingPhotoRequests[requestKey];
+				photoData = this.initializePhotoRequest(duid, photoId, extractedTotalSize);
+				this.pendingPhotoRequests[requestKey] = photoData;
 			}
 
 			if (photoData) {
@@ -220,8 +198,11 @@ export class PhotoManager {
 		}
 
 		if (currentSize > photoData.totalSize) {
-			this.adapter.rLog("MQTT", duid, "Warn", "PHOTO", photoId, `[Photo] Received more data than expected! Current: ${currentSize}, Total: ${photoData.totalSize}`, "warn");
-			return true; // Consider complete but warn
+			this.adapter.rLog("MQTT", duid, "Error", "PHOTO", photoId, `[Photo] Data overflow: ${currentSize} > ${photoData.totalSize}. Resetting request.`, "error");
+			// Clean up invalid request
+			const requestKey = `${duid}_${photoId}`;
+			delete this.pendingPhotoRequests[requestKey];
+			return false;
 		}
 
 		return false;
@@ -281,7 +262,8 @@ export class PhotoManager {
 		}
 
 		const startsWithJpeg = workingBuf.length >= 2 && workingBuf[0] === 0xff && workingBuf[1] === 0xd8;
-		const startsWithPng = workingBuf.length >= 4 && workingBuf[0] === 0x89 && workingBuf[1] === 0x50 && workingBuf[2] === 0x4e && workingBuf[3] === 0x47;
+		const hasPngMagic = workingBuf[0] === 0x89 && workingBuf[1] === 0x50 && workingBuf[2] === 0x4e && workingBuf[3] === 0x47;
+		const startsWithPng = workingBuf.length >= 4 && hasPngMagic;
 
 		if (startsWithJpeg || startsWithPng) {
 			this.adapter.rLog("MQTT", duid, "Debug", logId, undefined, `[Photo] Valid image magic found at start. Skipping header stripping.`, "debug");
@@ -297,28 +279,11 @@ export class PhotoManager {
 
 			if (innerHeader.headerLength > 0 && innerHeader.headerLength < workingBuf.length) {
 				strippedData = workingBuf.subarray(innerHeader.headerLength);
-
-				if (innerHeader.type === 4 && workingBuf.length >= 36) {
-					try {
-						const extraHeader = v1PhotoProprietaryHeaderParser.parse(workingBuf.subarray(8, 36));
-						if (extraHeader.width > 300 && extraHeader.width < 10000) {
-							bbox = {
-								imageWidth: extraHeader.width,
-								imageHeight: extraHeader.height,
-								classId: extraHeader.classId,
-								instanceId: extraHeader.instanceId,
-								x: extraHeader.x1,
-								y: extraHeader.y1,
-								w: extraHeader.x2 - extraHeader.x1,
-								h: extraHeader.y2 - extraHeader.y1
-							};
-						}
-					} catch {}
-				}
+				bbox = this.parseProprietaryHeader(workingBuf, innerHeader.type);
 			}
 
 			const isJpeg = strippedData.length >= 2 && strippedData[0] === 0xff && strippedData[1] === 0xd8;
-			const isPng = strippedData.length >= 2 && strippedData[0] === 0x89 && strippedData[1] === 0x50;
+			const isPng = strippedData.length >= 4 && strippedData[0] === 0x89 && strippedData[1] === 0x50 && strippedData[2] === 0x4e && strippedData[3] === 0x47;
 
 			if (isJpeg || isPng) {
 				return { photo: strippedData, bbox };
@@ -326,7 +291,7 @@ export class PhotoManager {
 				const found = this.findImageInBuffer(workingBuf);
 				return { photo: found || strippedData, bbox };
 			}
-		} catch (e: any) {
+		} catch {
 			const found = this.findImageInBuffer(workingBuf);
 			return { photo: found || workingBuf, bbox: null };
 		}
@@ -351,5 +316,45 @@ export class PhotoManager {
 			this.adapter.clearInterval(this.photoCleanupInterval);
 			this.photoCleanupInterval = undefined;
 		}
+	}
+
+	private findPendingPhotoRequest(duid: string, photoId: number): number {
+		if (this.adapter.pendingRequests.has(photoId as any)) return photoId;
+
+		for (const [id, req] of this.adapter.pendingRequests) {
+			if (req.method === "get_photo" && req.duid === duid) {
+				// Type 0 is the common large photo request
+				const isType0 = req.params?.data_filter?.type === 0;
+				if (isType0 || !req.params?.data_filter) {
+					return id;
+				}
+			}
+		}
+		return photoId;
+	}
+
+	private parseProprietaryHeader(buf: Buffer, type: number): any | null {
+		if (type !== 4 || buf.length < 36) return null;
+
+		try {
+			const extraHeader = v1PhotoProprietaryHeaderParser.parse(buf.subarray(8, 36));
+			const isValidWidth = extraHeader.width > 300 && extraHeader.width < 10000;
+
+			if (isValidWidth) {
+				return {
+					imageWidth: extraHeader.width,
+					imageHeight: extraHeader.height,
+					classId: extraHeader.classId,
+					instanceId: extraHeader.instanceId,
+					x: extraHeader.x1,
+					y: extraHeader.y1,
+					w: extraHeader.x2 - extraHeader.x1,
+					h: extraHeader.y2 - extraHeader.y1
+				};
+			}
+		} catch {
+			// Ignore parsing errors
+		}
+		return null;
 	}
 }

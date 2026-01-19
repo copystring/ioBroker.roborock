@@ -25,9 +25,18 @@ images/products/
 .commitinfo
 src/www/pathProcessor.ts
 # Build artifacts
+build/
+coverage/
+junit.xml
 
 *.tsbuildinfo
 www/assets
 
 # AI Review
 ai-review.md
+expert-review.md
+
+# Logs and Test Artifacts
+*.log
+/*.txt
+.test-output/

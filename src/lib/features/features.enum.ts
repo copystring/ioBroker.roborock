@@ -18,6 +18,8 @@ export enum Feature {
     Consumables = "Consumables", // Creates consumables states
     ResetConsumables = "ResetConsumables", // Creates reset consumables buttons
     DockingStationStatus = "DockingStationStatus", // Creates docking station status states
+    CleaningRecords = "CleaningRecords", // Creates cleaning records states
+    WaterShortage = "WaterShortage", // Handle water shortage notification
 
     NetworkInfo = "NetworkInfo",
     UpdateStatus = "UpdateStatus",

@@ -1,6 +1,6 @@
 // test/messageParser.test.ts
 
-import { expect } from "chai";
+import { describe, expect, it } from "vitest";
 import { messageParser, type Frame } from "./messageParser"; // Adjust path if necessary
 
 // Mocking the Roborock adapter structure

@@ -1,9 +1,9 @@
 ﻿
-import { expect } from "chai";
+import { beforeEach, describe, expect, it } from "vitest";
+import { Feature } from "../features/features.enum";
+import { V1VacuumFeatures } from "../features/vacuum/v1VacuumFeatures";
 import { MockAdapter } from "./MockAdapter";
 import { MockRobot } from "./MockRobot";
-import { V1VacuumFeatures } from "../features/vacuum/v1VacuumFeatures";
-import { Feature } from "../features/features.enum";
 
 // Concrete implementation for testing abstract class
 class TestVacuum extends V1VacuumFeatures {
@@ -15,8 +15,7 @@ class TestVacuum extends V1VacuumFeatures {
 	}
 }
 
-describe("Adapter Type Verification", function() {
-	this.timeout(5000);
+describe("Adapter Type Verification", () => {
 	let mockAdapter: MockAdapter;
 	let mockRobot: MockRobot;
 	let vacuumFeatures: TestVacuum;

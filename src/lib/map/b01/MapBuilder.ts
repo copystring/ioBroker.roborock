@@ -7,16 +7,15 @@ import { B01Area, B01DeviceStatus, B01MapData, B01Point } from "./types";
 
 // --- CONSTANTS from original Roborock modules ---
 import {
-    APP_COLORS,
-    CleanModeType,
-    JOB_STATUS,
-    PALETTE,
-    ROOM_TYPE_MAP,
-    SC_MAP_COLORS,
-    SCCleanType,
-    SUBTITLE_STATUS
+	APP_COLORS,
+	CleanModeType,
+	JOB_STATUS,
+	PALETTE,
+	ROOM_TYPE_MAP,
+	SC_MAP_COLORS,
+	SCCleanType,
+	SUBTITLE_STATUS
 } from "./constants";
-import { hexToRgba } from "./utils";
 
 
 
@@ -430,41 +429,57 @@ export class MapBuilder {
 		}
 
 
-		const safePalette = {
-			WALL: hexToRgba(PALETTE.WALL),
-			FLOOR: hexToRgba(PALETTE.FLOOR),
-			CARPET: hexToRgba(PALETTE.CARPET),
-			UNKNOWN: hexToRgba(PALETTE.UNKNOWN)
-		};
+
+		const imgData = ctx.createImageData(width, height);
+		const buffer = imgData.data;
 
 		const COLOR_SET = SC_MAP_COLORS.LEVEL_1;
 
+		// Helper to convert hex to [r,g,b,a]
+		const hexToBytes = (hex: string): [number, number, number, number] => {
+			if (!hex || !hex.startsWith("#")) return [0, 0, 0, 0];
+			const r = parseInt(hex.slice(1, 3), 16);
+			const g = parseInt(hex.slice(3, 5), 16);
+			const b = parseInt(hex.slice(5, 7), 16);
+			const a = hex.length === 9 ? parseInt(hex.slice(7, 9), 16) : 255;
+			return [r, g, b, a];
+		};
+
+		const wallColor = hexToBytes(PALETTE.WALL);
+		const floorColor = hexToBytes(PALETTE.FLOOR);
+		const unknownColor = hexToBytes(PALETTE.UNKNOWN);
+		// Pre-compute room colors
+		const roomColors = COLOR_SET.map(c => hexToBytes(c));
+
 		for (let i = 0; i < data.mapGrid.length; i++) {
 			const val = data.mapGrid[i];
-			const y = Math.floor(i / width);
+			if (val === 0) continue; // Skip transparency (default 0)
+
 			const x = i % width;
+			const y = Math.floor(i / width);
 			const cy = height - 1 - y;
+			const idx = (cy * width + x) * 4;
+
+			let color: [number, number, number, number] | undefined;
 
 			if (val >= 128) { // Wall
-				ctx.fillStyle = safePalette.WALL;
-				ctx.fillRect(x, cy, 1, 1);
+				color = wallColor;
 			} else if (val === 127 || val === 1) { // Floor
-				ctx.fillStyle = safePalette.FLOOR;
-				ctx.fillRect(x, cy, 1, 1);
-			} else if (val === 0) {
-				// Background
-			} else {
-				// Room
-				let colorIdx = (val - 1);
-				if (roomColorMap[val] !== undefined) {
-					colorIdx = roomColorMap[val] > 0 ? roomColorMap[val] - 1 : 0;
-				}
-				let color = COLOR_SET[colorIdx % COLOR_SET.length];
-				if (!color) color = safePalette.UNKNOWN;
-				ctx.fillStyle = hexToRgba(color);
-				ctx.fillRect(x, cy, 1, 1);
+				color = floorColor;
+			} else { // Room
+				const colorIdx = this.getRoomFillColorIndex(val, roomColorMap[val]);
+				color = roomColors[colorIdx % roomColors.length] || unknownColor;
+			}
+
+			if (color) {
+				buffer[idx] = color[0];
+				buffer[idx + 1] = color[1];
+				buffer[idx + 2] = color[2];
+				buffer[idx + 3] = color[3];
 			}
 		}
+
+		ctx.putImageData(imgData, 0, 0);
 
 		const toPixel = (wx: number, wy: number) => {
 			return robotToPixel({
@@ -758,11 +773,7 @@ export class MapBuilder {
 
 
 					// 3. Select Color (Based STRICTLY on Room Color ID, not Name)
-					// Matches logic at line 507 for polygon filling
-					let colorIdx = 0;
-					if (r.colorId !== undefined) {
-						colorIdx = r.colorId > 0 ? r.colorId - 1 : 0;
-					}
+					const colorIdx = this.getRoomLabelColorIndex(r.colorId);
 					const BG_COLOR_SET = SC_MAP_COLORS.ROOM_ICON_BG;
 					const BORDER_COLOR_SET = SC_MAP_COLORS.ROOM_ICON_BORDER;
 
@@ -822,5 +833,18 @@ export class MapBuilder {
 		ctx.fillText("Complete Map (HQ 8x) - TEST MODE", width / 2, height + 4);
 
 		return canvas.toBuffer("image/png");
+	}
+	private getRoomFillColorIndex(roomId: number, colorId?: number): number {
+		if (colorId !== undefined) {
+			return colorId > 0 ? colorId - 1 : 0;
+		}
+		return roomId > 0 ? roomId - 1 : 0;
+	}
+
+	private getRoomLabelColorIndex(colorId?: number): number {
+		if (colorId !== undefined && colorId > 0) {
+			return colorId - 1;
+		}
+		return 0;
 	}
 }

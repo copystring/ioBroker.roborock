@@ -1,5 +1,4 @@
-import { expect } from "chai";
-import { describe, it } from "mocha";
+import { describe, expect, it } from "vitest";
 
 // Replicating the MapBuilder "toPixel" logic for regression testing.
 // Logic confirms alignment: X centered (+0.5), Y flipped and shifted (-1).

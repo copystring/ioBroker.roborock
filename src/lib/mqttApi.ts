@@ -159,6 +159,10 @@ export class mqtt_api {
 
 		client.on("message", async (topic: string, message: Buffer) => {
 			try {
+				/**
+				 * Listens for incoming MQTT messages and dispatches them to the appropriate handlers.
+				 * @see test/unit/transport_specification.test.ts for the MQTT topic structure.
+				 */
 				// Topic structure: rr/m/o/<uID>/<userID>/<endpoint>/<duid>
 				const parts = topic.split("/");
 				const duid = parts.pop();
@@ -203,60 +207,71 @@ export class mqtt_api {
 	/**
 	 * Helper to process the inner JSON of a B01 response.
 	 */
-	private async handleB01Response(response: any, duid: string, _version: string = "B01"): Promise<void> {
-		// Verify typical response fields (msgId or id) to map back to the original request
+	private async handleB01Response(response: any, duid: string): Promise<void> {
 		const reqId = Number(response.msgId || response.id);
 
-		if (!isNaN(reqId) && reqId > 0) {
-			if (this.adapter.pendingRequests.has(reqId)) {
-				const pending = this.adapter.pendingRequests.get(reqId);
-
-				// Handle Payload (Map/Photo data often in 'payload' field)
-				if (response.payload) {
-					try {
-						// Payload is typically a Hex string in the JSON
-						const payloadBuf = Buffer.from(response.payload, "hex");
-
-						// Decrypt/Decode the B01 payload (handles nested encryption and compression)
-						const finalPayload = this.decryptB01Payload(payloadBuf, duid);
-
-						// Determine if success based on if we got data
-						if (finalPayload && finalPayload.length > 0) {
-							this.adapter.requestsHandler.resolvePendingRequest(reqId, finalPayload, "B01", duid);
-							return;
-						}
-					} catch (e) {
-						this.adapter.rLog("MQTT", duid, "Error", "B01", reqId, `Failed to process inner payload: ${e}`, "error");
-					}
-				}
-
-				// Map the response 'data' (on success) or fallback to 'result'/'error'
-				// response.code === 0 is valid success.
-				const result = response.code === 0 ? response.data : (response.error || response.result);
-
-				// Special handling for Map/Photo ACKs in B01
-				const isMapOrPhoto = ["get_map_v1", "get_clean_record_map", "get_photo"].includes(pending.method);
-				const isSuccessOk = result === "ok" || (Array.isArray(result) && result[0] === "ok");
-
-				if (isMapOrPhoto && isSuccessOk) {
-					this.adapter.rLog("MQTT", duid, "<-", "B01", reqId, `Map/Photo ACK for ${pending.method}. Waiting for data.`, "debug");
-					// Do NOT resolve yet, let Protocol 300/301 handle it.
-				} else {
-					this.adapter.requestsHandler.resolvePendingRequest(reqId, result, `MQTT-B01`, duid, "MQTT");
-				}
-			} else {
-				if (this.adapter.requestsHandler.isRequestRecentlyFinished(reqId)) {
-					this.adapter.rLog("MQTT", duid, "<-", "B01", reqId, `Response finished recently.`, "debug");
-				} else {
-					// Suppress warnings for common B01 pushes that are not responses
-					const method = response.method || "";
-					if (!["prop.post", "service.post"].includes(method)) {
-						this.adapter.rLog("MQTT", duid, "<-", "B01", reqId, `Response not found in pending requests`, "debug");
-					}
-				}
-			}
-		} else {
+		if (isNaN(reqId) || reqId <= 0) {
 			this.adapter.rLog("MQTT", duid, "<-", "B01", undefined, `Message has no valid ID`, "warn");
+			return;
+		}
+
+		if (!this.adapter.pendingRequests.has(reqId)) {
+			this.handleUnknownB01Response(duid, reqId, response);
+			return;
+		}
+
+		const pending = this.adapter.pendingRequests.get(reqId);
+
+		// Handle inner payload (Map/Photo)
+		if (response.payload && await this.processB01InnerPayload(duid, reqId, response.payload)) {
+			return;
+		}
+
+		// Map the response 'data' (on success) or fallback to 'result'/'error'
+		const result = response.code === 0 ? response.data : (response.error || response.result);
+
+		// Special handling for Map/Photo ACKs in B01
+		const isMapOrPhoto = ["get_map_v1", "get_clean_record_map", "get_photo"].includes(pending.method);
+		const isSuccessOk = result === "ok" || (Array.isArray(result) && result[0] === "ok");
+
+		if (isMapOrPhoto && isSuccessOk) {
+			this.adapter.rLog("MQTT", duid, "<-", "B01", reqId, `Map/Photo ACK for ${pending.method}. Waiting for data.`, "debug");
+		} else {
+			this.adapter.requestsHandler.resolvePendingRequest(reqId, result, `MQTT-B01`, duid, "MQTT");
+		}
+	}
+
+	/**
+	 * Extracts and processes the inner 'payload' field from a B01 response.
+	 */
+	private async processB01InnerPayload(duid: string, reqId: number, payloadHex: string): Promise<boolean> {
+		try {
+			const payloadBuf = Buffer.from(payloadHex, "hex");
+			const finalPayload = this.decryptB01Payload(payloadBuf, duid);
+
+			if (finalPayload && finalPayload.length > 0) {
+				this.adapter.requestsHandler.resolvePendingRequest(reqId, finalPayload, "B01", duid);
+				return true;
+			}
+		} catch (e) {
+			this.adapter.rLog("MQTT", duid, "Error", "B01", reqId, `Failed to process inner payload: ${e}`, "error");
+		}
+		return false;
+	}
+
+	/**
+	 * Handles a B01 response that doesn't match any pending request.
+	 */
+	private handleUnknownB01Response(duid: string, reqId: number, response: any): void {
+		if (this.adapter.requestsHandler.isRequestRecentlyFinished(reqId)) {
+			this.adapter.rLog("MQTT", duid, "<-", "B01", reqId, `Response finished recently.`, "debug");
+			return;
+		}
+
+		// Suppress warnings for common B01 pushes that are not responses
+		const method = response.method || "";
+		if (!["prop.post", "service.post"].includes(method)) {
+			this.adapter.rLog("MQTT", duid, "<-", "B01", reqId, `Response not found in pending requests`, "debug");
 		}
 	}
 
@@ -265,44 +280,10 @@ export class mqtt_api {
 	 */
 	async handleDecodedMessage(duid: string, data: any, endpoint: string, topicEndpoint?: string): Promise<void> {
 		// 1. Protocol A01 / B01 (Tuya-like / JSON payload)
-		// Protocol 301 (Map) is also marked as B01 version but is binary/encrypted, so we must exclude it from JSON parsing.
-		if ((data.version === "A01" || data.version === "B01") && data.protocol !== 300 && data.protocol !== 301) {
-			try {
-				const parserPayloadStr = data.payload.toString();
-				const parsedPayload = JSON.parse(parserPayloadStr);
+		const isJsonProtocol = (data.version === "A01" || data.version === "B01") && data.protocol !== 300 && data.protocol !== 301;
+		if (isJsonProtocol) {
+			await this.handleProtocolA01B01(duid, data);
 
-				// For B01/A01 we might not know the exact ID/Action yet until we look inside.
-				this.adapter.rLog("MQTT", duid, "<-", data.version, undefined, `Message | ${parserPayloadStr}`, "debug");
-
-				// B01: Extract nested response from key "10001"
-				if (data.version === "B01") {
-					// Standard B01 Wrapper: { dps: { "10001": { ... } } }
-					if (parsedPayload.dps?.["10001"]) {
-						let inner = parsedPayload.dps["10001"];
-
-						// B01 payloads contain nested JSON strings
-						if (typeof inner === "string") {
-							try {
-								inner = JSON.parse(inner);
-							} catch (e) {
-								this.adapter.rLog("MQTT", duid, "Error", "B01", undefined, `Failed to parse B01 nested string payload: ${e}`, "warn");
-							}
-						}
-						this.handleB01Response(inner, duid, data.version);
-					} else {
-						// Fallback: Check if the payload ITSELF is the response (Unwrapped B01)
-						const isDirectPayload = (parsedPayload.id || parsedPayload.msgId) && (parsedPayload.result !== undefined || parsedPayload.data !== undefined || parsedPayload.code !== undefined || parsedPayload.payload !== undefined);
-
-						if (isDirectPayload) {
-							this.handleB01Response(parsedPayload, duid, data.version);
-						}
-					}
-				} else {
-					await this.adapter.processA01(duid, parsedPayload);
-				}
-			} catch (e) {
-				this.adapter.rLog("MQTT", duid, "Error", data.version, undefined, `Failed to parse payload: ${e}`, "error");
-			}
 			// Only early return if it's NOT a specialized protocol that needs fallout to Section 2/3/4
 			if (![102, 300, 301, 500].includes(data.protocol)) {
 				return;
@@ -311,43 +292,7 @@ export class mqtt_api {
 
 		// 2. Protocol 102 (General Command Response)
 		if (data.protocol === 102) {
-			try {
-				const payloadStr = data.payload.toString();
-				const parsed = JSON.parse(payloadStr);
-
-				let dps102 = parsed.dps?.["102"];
-				if (typeof dps102 === "string") {
-					dps102 = JSON.parse(dps102);
-				} else if (!dps102 && parsed.dps) {
-					dps102 = parsed.dps;
-				}
-
-				if (dps102) {
-					const pendingRequest = this.adapter.pendingRequests.get(dps102.id);
-
-					if (pendingRequest) {
-						if (pendingRequest.method === "get_map_v1" || pendingRequest.method === "get_clean_record_map" || pendingRequest.method === "get_photo") {
-							const isSuccessOk = dps102.result === "ok" || (Array.isArray(dps102.result) && dps102.result[0] === "ok");
-
-							if (isSuccessOk) {
-								this.adapter.rLog("MQTT", duid, "<-", "102", dps102.id, `Map/Photo ACK for ${pendingRequest.method}. Waiting for data.`, "debug");
-							} else {
-								this.adapter.requestsHandler.resolvePendingRequest(dps102.id, dps102.result, data.protocol, duid, "MQTT");
-							}
-						} else {
-							this.adapter.rLog("MQTT", duid, "<-", "102", dps102.id, `Response ${pendingRequest.method} | ${JSON.stringify(dps102.result)}`, "debug");
-							this.adapter.requestsHandler.resolvePendingRequest(dps102.id, dps102.result, data.protocol, duid, "MQTT");
-						}
-					} else if (!this.adapter.requestsHandler.isRequestRecentlyFinished(dps102.id)) {
-						const method = dps102.method || "";
-						if (method !== "prop.post") {
-							this.adapter.rLog("MQTT", duid, "<-", "102", dps102.id, `Response not found in pending requests | Payload: ${JSON.stringify(dps102)}`, "debug");
-						}
-					}
-				}
-			} catch (e) {
-				this.adapter.rLog("MQTT", duid, "Error", "102", undefined, `Failed to parse payload: ${e}`, "error");
-			}
+			await this.handleProtocol102(duid, data);
 			return;
 		}
 
@@ -359,27 +304,123 @@ export class mqtt_api {
 
 		// 4. Protocol 500 (Device Status / OTA)
 		if (data.protocol === 500) {
-			try {
-				const dataString = data.payload.toString("utf8");
-				const parsedData = JSON.parse(dataString);
-
-				if (parsedData.mqttOtaData) {
-					const status = parsedData.mqttOtaData.mqttOtaStatus?.status;
-					const progress = parsedData.mqttOtaData.mqttOtaProgress?.progress;
-
-					if (status) this.adapter.rLog("MQTT", duid, "Info", "500", undefined, `Firmware Update Status: ${status}`, "info");
-					if (progress !== undefined) this.adapter.rLog("MQTT", duid, "Info", "500", undefined, `Firmware Update Progress: ${progress}%`, "info");
-				} else if (parsedData.online === false) {
-					this.adapter.rLog("MQTT", duid, "Info", "500", undefined, `Device OFFLINE.`, "info");
-				}
-			} catch (error: any) {
-				this.adapter.rLog("MQTT", duid, "Error", "500", undefined, `Parse Error | ${error.message}`, "warn");
-			}
+			await this.handleProtocol500(duid, data);
 			return;
 		}
 
 		// 5. Unknown Protocol
 		this.adapter.rLog("MQTT", duid, "<-", String(data.protocol), undefined, "Unknown Protocol", "warn");
+	}
+
+	/**
+	 * Handles Protocol A01/B01 messages (Tuya-like JSON wrapper).
+	 */
+	private async handleProtocolA01B01(duid: string, data: any): Promise<void> {
+		try {
+			const payloadStr = data.payload.toString();
+			const parsedPayload = JSON.parse(payloadStr);
+
+			this.adapter.rLog("MQTT", duid, "<-", data.version, undefined, `Message | ${payloadStr}`, "debug");
+
+			if (data.version === "B01") {
+				await this.dispatchB01Message(duid, parsedPayload);
+			} else {
+				await this.adapter.processA01(duid, parsedPayload);
+			}
+		} catch (e) {
+			this.adapter.rLog("MQTT", duid, "Error", data.version, undefined, `Failed to parse payload: ${e}`, "error");
+		}
+	}
+
+	/**
+	 * Dispatches a B01 JSON message to the appropriate handler.
+	 */
+	private async dispatchB01Message(duid: string, parsedPayload: any): Promise<void> {
+		// Standard B01 Wrapper: { dps: { "10001": { ... } } }
+		if (parsedPayload.dps?.["10001"]) {
+			let inner = parsedPayload.dps["10001"];
+
+			if (typeof inner === "string") {
+				try {
+					inner = JSON.parse(inner);
+				} catch (e) {
+					this.adapter.rLog("MQTT", duid, "Error", "B01", undefined, `Failed to parse B01 nested string payload: ${e}`, "warn");
+					return;
+				}
+			}
+			await this.handleB01Response(inner, duid);
+			return;
+		}
+
+		// Fallback: Check if the payload ITSELF is the response (Unwrapped B01)
+		const hasId = !!(parsedPayload.id || parsedPayload.msgId);
+		const hasResult = parsedPayload.result !== undefined || parsedPayload.data !== undefined || parsedPayload.code !== undefined || parsedPayload.payload !== undefined;
+
+		if (hasId && hasResult) {
+			await this.handleB01Response(parsedPayload, duid);
+		}
+	}
+
+	/**
+	 * Handles Protocol 102 (General Command Response).
+	 */
+	private async handleProtocol102(duid: string, data: any): Promise<void> {
+		try {
+			const parsed = JSON.parse(data.payload.toString());
+			let dps102 = parsed.dps?.["102"] || (parsed.dps ? parsed.dps : null);
+
+			if (typeof dps102 === "string") {
+				dps102 = JSON.parse(dps102);
+			}
+
+			if (!dps102) return;
+
+			const pendingRequest = this.adapter.pendingRequests.get(dps102.id);
+			if (pendingRequest) {
+				await this.resolveProtocol102Request(duid, data.protocol, dps102, pendingRequest);
+			} else if (!this.adapter.requestsHandler.isRequestRecentlyFinished(dps102.id) && dps102.method !== "prop.post") {
+				this.adapter.rLog("MQTT", duid, "<-", "102", dps102.id, `Response not found in pending requests | Payload: ${JSON.stringify(dps102)}`, "debug");
+			}
+		} catch (e) {
+			this.adapter.rLog("MQTT", duid, "Error", "102", undefined, `Failed to parse Protocol 102: ${e}`, "error");
+		}
+	}
+
+	private async resolveProtocol102Request(duid: string, protocol: number, dps102: any, pending: any): Promise<void> {
+		const isBinaryDataMethod = ["get_map_v1", "get_clean_record_map", "get_photo"].includes(pending.method);
+
+		if (isBinaryDataMethod) {
+			const isSuccessOk = dps102.result === "ok" || (Array.isArray(dps102.result) && dps102.result[0] === "ok");
+			if (isSuccessOk) {
+				this.adapter.rLog("MQTT", duid, "<-", "102", dps102.id, `Map/Photo ACK for ${pending.method}. Waiting for data.`, "debug");
+			} else {
+				this.adapter.requestsHandler.resolvePendingRequest(dps102.id, dps102.result, protocol, duid, "MQTT");
+			}
+		} else {
+			this.adapter.rLog("MQTT", duid, "<-", "102", dps102.id, `Response ${pending.method} | ${JSON.stringify(dps102.result)}`, "debug");
+			this.adapter.requestsHandler.resolvePendingRequest(dps102.id, dps102.result, protocol, duid, "MQTT");
+		}
+	}
+
+	/**
+	 * Handles Protocol 500 (Device Status / OTA).
+	 */
+	private async handleProtocol500(duid: string, data: any): Promise<void> {
+		try {
+			const parsedData = JSON.parse(data.payload.toString("utf8"));
+
+			if (parsedData.mqttOtaData) {
+				const status = parsedData.mqttOtaData.mqttOtaStatus?.status;
+				const progress = parsedData.mqttOtaData.mqttOtaProgress?.progress;
+
+				if (status) this.adapter.rLog("MQTT", duid, "Info", "500", undefined, `Firmware Update Status: ${status}`, "info");
+				if (progress !== undefined) this.adapter.rLog("MQTT", duid, "Info", "500", undefined, `Firmware Update Progress: ${progress}%`, "info");
+			} else if (parsedData.online === false) {
+				this.adapter.rLog("MQTT", duid, "Info", "500", undefined, `Device OFFLINE.`, "info");
+			}
+		} catch (error: any) {
+			this.adapter.rLog("MQTT", duid, "Error", "500", undefined, `Parse Error | ${error.message}`, "warn");
+		}
 	}
 
 	/**
@@ -415,45 +456,45 @@ export class mqtt_api {
 	 * Handles V1 Map Data (Standard Encryption with 24-byte header)
 	 */
 	private async handleV1Map(duid: string, data: any, payloadBuf: Buffer, endpoint: string, topicEndpoint?: string): Promise<void> {
+		if (payloadBuf.length < 24) {
+			this.adapter.rLog("MQTT", duid, "Warn", "301", undefined, `V1 Data too short (${payloadBuf.length}b)`, "warn");
+			return;
+		}
+
 		try {
-			if (payloadBuf.length >= 24) {
-				const parsedHeader = protocol301Parser.parse(payloadBuf.subarray(0, 24));
-				const isValidEndpoint = (endpoint && endpoint.length > 0 && parsedHeader.endpoint && endpoint.startsWith(parsedHeader.endpoint)) ||
-										(topicEndpoint && topicEndpoint.length > 0 && parsedHeader.endpoint && topicEndpoint.startsWith(parsedHeader.endpoint));
+			const parsedHeader = protocol301Parser.parse(payloadBuf.subarray(0, 24));
+			const matchEndpoint = endpoint && parsedHeader.endpoint && endpoint.startsWith(parsedHeader.endpoint);
+			const matchTopic = topicEndpoint && parsedHeader.endpoint && topicEndpoint.startsWith(parsedHeader.endpoint);
 
-				if (isValidEndpoint) {
-					const iv = Buffer.alloc(16, 0);
-					const decipher = crypto.createDecipheriv("aes-128-cbc", this.adapter.nonce, iv);
-					let decrypted = decipher.update(payloadBuf.subarray(24) as Uint8Array);
-					decrypted = Buffer.concat([decrypted as Uint8Array, decipher.final()]);
+			if (!matchEndpoint && !matchTopic) {
+				this.adapter.rLog("MQTT", duid, "Warn", "301", undefined, `V1 Header Endpoint mismatch or invalid. Got: '${parsedHeader.endpoint}'`, "warn");
+				return;
+			}
 
-					let unzipped = decrypted;
-					try {
-						unzipped = zlib.gunzipSync(decrypted as Uint8Array);
-					} catch {}
+			const unzipped = this.decryptAndUnzipV1Map(payloadBuf);
+			const foundId = this.findPendingMapRequest(duid);
 
-					let foundId = -1;
-					for (const [id, req] of this.adapter.pendingRequests) {
-						if ((req.method === "get_map_v1" || req.method === "get_clean_record_map") && req.duid === duid) {
-							foundId = id;
-							break;
-						}
-					}
-
-					if (foundId !== -1) {
-						this.adapter.requestsHandler.resolvePendingRequest(foundId, unzipped, data.protocol, duid, "MQTT", "V1");
-					} else {
-						const robotModel = this.adapter.http_api.getRobotModel(duid) || "default";
-						this.adapter.mapManager.processMap(unzipped, "V1", robotModel, duid, null, duid, "MQTT");
-					}
-				} else {
-					this.adapter.rLog("MQTT", duid, "Warn", "301", undefined, `V1 Header Endpoint mismatch or invalid. Got: '${parsedHeader.endpoint}'`, "warn");
-				}
+			if (foundId !== -1) {
+				this.adapter.requestsHandler.resolvePendingRequest(foundId, unzipped, data.protocol, duid, "MQTT", "V1");
 			} else {
-				this.adapter.rLog("MQTT", duid, "Warn", "301", undefined, `V1 Data too short (${payloadBuf.length}b)`, "warn");
+				const robotModel = this.adapter.http_api.getRobotModel(duid) || "default";
+				this.adapter.mapManager.processMap(unzipped, "V1", robotModel, duid, null, duid, "MQTT");
 			}
 		} catch (e: any) {
 			this.adapter.rLog("MQTT", duid, "Error", "301", undefined, `V1 Map processing failed: ${e.message}`, "error");
+		}
+	}
+
+	private decryptAndUnzipV1Map(payloadBuf: Buffer): Buffer {
+		const iv = Buffer.alloc(16, 0);
+		const decipher = crypto.createDecipheriv("aes-128-cbc", this.adapter.nonce, iv);
+		let decrypted = decipher.update(payloadBuf.subarray(24) as Uint8Array);
+		decrypted = Buffer.concat([decrypted as Uint8Array, decipher.final()]);
+
+		try {
+			return zlib.gunzipSync(decrypted as Uint8Array);
+		} catch {
+			return decrypted;
 		}
 	}
 
@@ -462,62 +503,78 @@ export class mqtt_api {
 	 */
 	private async handleB01Map(duid: string, data: any, payloadBuf: Buffer): Promise<void> {
 		try {
-			let workingBuf = payloadBuf;
-
-			if (payloadBuf.length > 0 && payloadBuf[0] === 0x7B) { // '{'
-				try {
-					const json = JSON.parse(payloadBuf.toString("utf8"));
-					if (json.payload) {
-						const innerBuf = Buffer.from(json.payload, "hex");
-						const finalPayload = this.decryptB01Payload(innerBuf, duid);
-						if (finalPayload && finalPayload.length > 0) {
-							workingBuf = finalPayload;
-						}
-					}
-				} catch {}
-			} else {
-				const processed = this.decryptB01Payload(workingBuf, duid);
-				if (processed && processed.length > 0) {
-					workingBuf = processed;
-				}
-			}
-
-			let foundId = -1;
-			for (const [id, req] of this.adapter.pendingRequests) {
-				if ((req.method === "get_map_v1" || req.method === "get_clean_record_map" || req.method === "service.upload_by_maptype" || req.method === "service.upload_record_by_url") && req.duid === duid) {
-					foundId = id;
-					break;
-				}
-			}
+			const workingBuf = await this.getB01MapBuffer(duid, payloadBuf);
+			const foundId = this.findPendingB01MapRequest(duid);
 
 			if (foundId !== -1) {
 				this.adapter.requestsHandler.resolvePendingRequest(foundId, workingBuf, data.protocol, duid, "MQTT", "B01");
 			} else {
-				const robotModel = this.adapter.http_api.getRobotModel(duid) || "roborock.vacuum.a27";
-				this.adapter.mapManager.processMap(workingBuf, "B01", robotModel, duid, null, duid, "MQTT")
-					.then(async (res: any) => {
-						if (res) {
-							await this.adapter.ensureFolder(`Devices.${duid}.map`);
-							if (res.mapBase64) {
-								await this.adapter.ensureState(`Devices.${duid}.map.mapBase64`, { name: "Map Image", type: "string", role: "text.png" });
-								await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapBase64`, { val: res.mapBase64, ack: true });
-							}
-							if (res.mapBase64Clean) {
-								await this.adapter.ensureState(`Devices.${duid}.map.mapBase64Clean`, { name: "Map Image (Clean)", type: "string", role: "text.png" });
-								await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapBase64Clean`, { val: res.mapBase64Clean, ack: true });
-							}
-							if (res.mapData) {
-								await this.adapter.ensureState(`Devices.${duid}.map.mapData`, { name: "Map Data", type: "string", role: "json" });
-								await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapData`, { val: JSON.stringify(res.mapData), ack: true });
-							}
-						}
-					})
-					.catch((err: any) => {
-						this.adapter.rLog("MQTT", duid, "Error", "B01", undefined, `Failed to process unsolicited B01 map: ${err}`, "error");
-					});
+				await this.processUnsolicitedB01Map(duid, workingBuf);
 			}
 		} catch (e: any) {
 			this.adapter.rLog("MQTT", duid, "Error", "B01", undefined, `B01 Map processing failed: ${e.message}`, "error");
+		}
+	}
+
+	private async getB01MapBuffer(duid: string, payloadBuf: Buffer): Promise<Buffer> {
+		if (payloadBuf.length <= 0 || payloadBuf[0] !== 0x7B) { // NOT '{'
+			const processed = this.decryptB01Payload(payloadBuf, duid);
+			return (processed && processed.length > 0) ? processed : payloadBuf;
+		}
+
+		try {
+			const json = JSON.parse(payloadBuf.toString("utf8"));
+			if (!json.payload) return payloadBuf;
+
+			const innerBuf = Buffer.from(json.payload, "hex");
+			const finalPayload = this.decryptB01Payload(innerBuf, duid);
+			return (finalPayload && finalPayload.length > 0) ? finalPayload : payloadBuf;
+		} catch {
+			const processed = this.decryptB01Payload(payloadBuf, duid);
+			return (processed && processed.length > 0) ? processed : payloadBuf;
+		}
+	}
+
+	private findPendingMapRequest(duid: string): number {
+		for (const [id, req] of this.adapter.pendingRequests) {
+			if ((req.method === "get_map_v1" || req.method === "get_clean_record_map") && req.duid === duid) {
+				return id;
+			}
+		}
+		return -1;
+	}
+
+	private findPendingB01MapRequest(duid: string): number {
+		for (const [id, req] of this.adapter.pendingRequests) {
+			const methods = ["get_map_v1", "get_clean_record_map", "service.upload_by_maptype", "service.upload_record_by_url"];
+			if (methods.includes(req.method) && req.duid === duid) {
+				return id;
+			}
+		}
+		return -1;
+	}
+
+	private async processUnsolicitedB01Map(duid: string, workingBuf: Buffer): Promise<void> {
+		try {
+			const robotModel = this.adapter.http_api.getRobotModel(duid) || "roborock.vacuum.a27";
+			const res = await this.adapter.mapManager.processMap(workingBuf, "B01", robotModel, duid, null, duid, "MQTT");
+			if (!res) return;
+
+			await this.adapter.ensureFolder(`Devices.${duid}.map`);
+			if (res.mapBase64) {
+				await this.adapter.ensureState(`Devices.${duid}.map.mapBase64`, { name: "Map Image", type: "string", role: "text.png" });
+				await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapBase64`, { val: res.mapBase64, ack: true });
+			}
+			if (res.mapBase64Clean) {
+				await this.adapter.ensureState(`Devices.${duid}.map.mapBase64Clean`, { name: "Map Image (Clean)", type: "string", role: "text.png" });
+				await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapBase64Clean`, { val: res.mapBase64Clean, ack: true });
+			}
+			if (res.mapData) {
+				await this.adapter.ensureState(`Devices.${duid}.map.mapData`, { name: "Map Data", type: "string", role: "json" });
+				await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapData`, { val: JSON.stringify(res.mapData), ack: true });
+			}
+		} catch (err: any) {
+			this.adapter.rLog("MQTT", duid, "Error", "B01", undefined, `Failed to process unsolicited B01 map: ${err}`, "error");
 		}
 	}
 

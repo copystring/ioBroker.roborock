@@ -1,13 +1,18 @@
 import * as crypto from "crypto";
-import * as MapHelper from "../MapHelper";
 import { cryptoEngine } from "../../cryptoEngine";
+import * as MapHelper from "../MapHelper";
 
 export class MapDecryptor {
 
 	/**
-     * Decrypts B01 Map Buffer using the full verified pipeline (Layer 1 CBC -> L2 Base64 -> L3 ECB -> L4 HexBin -> L5 Decompress).
-     * Returns the raw Protobuf buffer if successful, or null/original if failed.
-     */
+	 * @doc:Encryption.md
+	 * ### B01 Map Decryption
+	 *
+	 * Decrypts a Roborock B01 map using a multi-layer "Russian Doll" unwrapping process.
+	 *
+	 * @see docs/map/B01_Map_Protocol.md for the full technical specification.
+	 * @see test/unit/b01_map_specification.test.ts for the executable specification.
+	 */
 	static decrypt(buf: Buffer, serial: string, model: string, _duid: string, adapter?: any, localKey?: string): Buffer | null {
 		MapDecryptor.logDebug(adapter, `Decrypting Block. Serial: ${serial}, Model: ${model}, Len: ${buf.length}`);
 
@@ -18,7 +23,53 @@ export class MapDecryptor {
 
 		let current = buf;
 
-		// 1. Layer 1: Outer Roborock Wrapper (B01Header + CBC)
+		// 1. Layer 1: Protocol Wrapper (B01 AES-CBC)
+		current = MapDecryptor.unwrapLayerCBC(current, localKey, adapter);
+
+		// 2. Layer 2: Transport Decoding (Base64)
+		current = MapDecryptor.unwrapBase64(current, adapter);
+
+		// 3. Layer 3: Map Data Encryption (AES-ECB)
+		current = MapDecryptor.unwrapLayerECB(current, serial, model, adapter);
+
+		// 4. Layer 4: Post-Cipher Transport Decoding (Hex-ASCII)
+		current = MapDecryptor.unwrapHex(current, adapter);
+
+		// 5. Layer 5: Decompression (ZLIB/GZIP)
+		current = MapDecryptor.unwrapDecompression(current, adapter);
+
+		return current;
+	}
+
+	private static unwrapBase64(current: Buffer, adapter?: any): Buffer {
+		const checkStr = current.subarray(0, Math.min(current.length, 100)).toString("utf8");
+		if (/^[A-Za-z0-9+/= \r\n]+$/.test(checkStr)) {
+			try {
+				const decoded = Buffer.from(current.toString("utf8"), "base64");
+				if (decoded.length > 0 && decoded.length !== current.length) {
+					MapDecryptor.logDebug(adapter, "Layer 2: Base64-decoded applied.");
+					return decoded;
+				}
+			} catch {}
+		}
+		return current;
+	}
+
+	private static unwrapHex(current: Buffer, adapter?: any): Buffer {
+		const checkStr = current.subarray(0, Math.min(current.length, 100)).toString("utf8");
+		if (/^[0-9a-fA-F]+$/.test(checkStr.substring(0, 10)) && (checkStr.startsWith("78") || checkStr.startsWith("1f"))) {
+			try {
+				const decoded = Buffer.from(current.toString("utf8"), "hex");
+				if (decoded.length > 0 && decoded.length !== current.length) {
+					MapDecryptor.logDebug(adapter, "Layer 4: Hex-decoded applied.");
+					return decoded;
+				}
+			} catch {}
+		}
+		return current;
+	}
+
+	private static unwrapLayerCBC(current: Buffer, localKey: string | undefined, adapter?: any): Buffer {
 		if (current.length > 19 && current.toString("ascii", 0, 3) === "B01") {
 			try {
 				const ivSeed = current.readUInt32BE(7);
@@ -27,101 +78,46 @@ export class MapDecryptor {
 
 				if (localKey) {
 					const derivedIV = cryptoEngine.deriveB01IV(ivSeed);
-					const decryptedCBC = MapDecryptor.decryptCBC(payload, localKey, derivedIV);
-					if (decryptedCBC) {
-						current = decryptedCBC;
-						MapDecryptor.logDebug(adapter, `Layer 1 Decrypted (CBC). Len=${current.length}. Header: ${current.subarray(0, 16).toString("hex")}`);
+					const decrypted = MapDecryptor.decryptCBC(payload, localKey, derivedIV);
+					if (decrypted) {
+						MapDecryptor.logDebug(adapter, `Layer 1: CBC Decrypted. New Len=${decrypted.length}`);
+						return decrypted;
 					}
-				} else {
-					MapDecryptor.logDebug(adapter, "Layer 1 detected but no LocalKey provided. Skipping CBC.");
 				}
 			} catch (e: any) {
-				MapDecryptor.logDebug(adapter, `Layer 1 Decryption failed: ${e.message}`, "warn");
+				MapDecryptor.logDebug(adapter, `Layer 1: CBC Decryption failed: ${e.message}`, "warn");
 			}
 		}
-
-		// 2. Layer 2: Intermediate Base64 Wrap
-		try {
-			// Check if buffer contains only safe Base64 ASCII characters
-			// We check the first 1000 characters to be reasonably sure, or the whole buffer if small.
-			const checkLen = Math.min(current.length, 4096);
-			let isBase64 = true;
-			for (let i = 0; i < checkLen; i++) {
-				const byte = current[i];
-				// A-Z, a-z, 0-9, +, /, =, whitespace
-				if (
-					(byte >= 65 && byte <= 90) || // A-Z
-					(byte >= 97 && byte <= 122) || // a-z
-					(byte >= 48 && byte <= 57) || // 0-9
-					byte === 43 || byte === 47 || byte === 61 || // + / =
-					byte === 10 || byte === 13 || byte === 32 // \n \r space
-				) {
-					continue;
-				}
-				isBase64 = false;
-				break;
-			}
-
-			if (isBase64 && current.length > 0) {
-				const asStr = current.toString("utf8");
-				const decoded = Buffer.from(asStr, "base64");
-				// Verify it actually decoded to something different
-				if (decoded.length > 0 && decoded.length !== current.length) {
-					current = decoded;
-					MapDecryptor.logDebug(adapter, `Layer 2: Base64 decoding applied. New Len=${current.length}. Header: ${current.subarray(0, 8).toString("hex")}`);
-				}
-			}
-		} catch (e: any) {
-			MapDecryptor.logDebug(adapter, `Layer 2 Base64 check failed: ${e.message}`, "warn");
-		}
-
-		// 3. Layer 3: Inner Cipher (ECB) with MapKey
-		if (serial && model) {
-			try {
-				// Safety: ECB requires 16-byte alignment
-				if (current.length % 16 === 0) {
-					const mapKey = MapDecryptor.deriveMapKey(serial, model);
-					const innerDecrypted = MapDecryptor.decryptECB(current, mapKey);
-					if (innerDecrypted && innerDecrypted.length > 0) {
-						current = innerDecrypted;
-						MapDecryptor.logDebug(adapter, `Layer 3 Decrypted (ECB). Len=${current.length}. Header: ${current.subarray(0, 16).toString("hex")}`);
-					}
-				} else {
-					// It's not 16-byte aligned
-					MapDecryptor.logDebug(adapter, `Skipping Layer 3 ECB: Data length ${current.length} is not a multiple of 16. Header: ${current.subarray(0, 8).toString("hex")}...`, "warn");
-				}
-			} catch (e: any) {
-				MapDecryptor.logDebug(adapter, `Layer 3 Decryption failed: ${e.message}`, "warn");
-			}
-		} else {
-			MapDecryptor.logDebug(adapter, "Missing Serial or Model, skipping Layer 3 ECB.", "warn");
-		}
-
-		// 4. Layer 4: Hex-in-ASCII conversion
-		const checkStr = current.subarray(0, 10).toString("utf8");
-		if (/^[0-9a-fA-F]+$/.test(checkStr) && checkStr.startsWith("78")) {
-			try {
-				const hexDecoded = Buffer.from(current.toString("utf8"), "hex");
-				if (hexDecoded.length > 0) {
-					current = hexDecoded;
-					MapDecryptor.logDebug(adapter, `Layer 4 Hex->Bin conversion applied.`);
-				}
-			} catch {}
-		}
-
-		// 5. Layer 5: Decompression (GZIP/ZLIB)
-		const decompressed = MapHelper.decompress(current);
-		if (decompressed === current && !MapDecryptor.isSignatureMatch(decompressed)) {
-			MapDecryptor.logDebug(adapter, `Decompression skipped/failed. No known signature (Gzip/Zlib/Protobuf) found. Header: ${current.subarray(0, 8).toString("hex")}`, "warn");
-		}
-		current = decompressed;
-
-		// Verification
-		if (MapDecryptor.isPlaintext(current)) {
-			return current;
-		}
-
 		return current;
+	}
+
+	private static unwrapLayerECB(current: Buffer, serial: string, model: string, adapter?: any): Buffer {
+		if (serial && model && current.length % 16 === 0) {
+			try {
+				const mapKey = MapDecryptor.deriveMapKey(serial, model);
+				const decrypted = MapDecryptor.decryptECB(current, mapKey);
+				// Roborock specific signature check: ZLIB(0x78), GZIP(0x1f), or ASCII-Hex equivalents ("78", "1f")
+				if (decrypted && decrypted.length > 0 && (decrypted[0] === 0x78 || decrypted[0] === 0x1f || (decrypted[0] === 0x37 && decrypted[1] === 0x38) || (decrypted[0] === 0x31 && decrypted[1] === 0x66))) {
+					MapDecryptor.logDebug(adapter, `Layer 3: ECB Decrypted. New Len=${decrypted.length}`);
+					return decrypted;
+				}
+			} catch (e: any) {
+				MapDecryptor.logDebug(adapter, `Layer 3: ECB Decryption failed: ${e.message}`, "warn");
+			}
+		}
+		return current;
+	}
+
+
+
+	private static unwrapDecompression(current: Buffer, adapter?: any): Buffer {
+		const decompressed = MapHelper.decompress(current);
+		if (decompressed !== current) {
+			MapDecryptor.logDebug(adapter, `Layer 5: Decompressed SUCCESS. New Len=${decompressed.length}`);
+		} else if (!MapDecryptor.isSignatureMatch(decompressed)) {
+			MapDecryptor.logDebug(adapter, "Layer 5: Decompression skipped (no known signature found).", "warn");
+		}
+		return decompressed;
 	}
 
 	private static deriveMapKey(serial: string, model: string): Buffer {
@@ -176,10 +172,6 @@ export class MapDecryptor {
 
 	public static isLikelyProtobuf(buf: Buffer): boolean {
 		return MapHelper.isLikelyProtobuf(buf);
-	}
-
-	private static isPlaintext(buf: Buffer): boolean {
-		return this.isSignatureMatch(buf);
 	}
 
 	private static logDebug(adapter: any, msg: string, level: "debug" | "warn" | "error" = "debug"): void {

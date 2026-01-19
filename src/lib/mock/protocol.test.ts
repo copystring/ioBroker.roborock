@@ -1,8 +1,8 @@
 
-import { expect } from "chai";
-import { MockAdapter } from "./MockAdapter";
-import { messageParser } from "../messageParser"; // Real class
 import * as crc32 from "crc-32";
+import { beforeEach, describe, expect, it } from "vitest";
+import { messageParser } from "../messageParser"; // Real class
+import { MockAdapter } from "./MockAdapter";
 
 describe("Protocol Deep Dive (messageParser)", () => {
 	let mockAdapter: MockAdapter;

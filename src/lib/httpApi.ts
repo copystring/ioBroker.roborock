@@ -113,7 +113,8 @@ export class http_api {
 	}
 
 	/**
-	 * Initializes the Login API and attempts to set up the Real API.
+	 * Initializes the HTTP API and authentication for Roborock Cloud.
+	 * @see test/unit/cloud_api_specification.test.ts for the cloud login flow and Hawk signing details.
 	 * @param clientID The client identifier.
 	 */
 	async init(clientID: string): Promise<void> {
@@ -256,13 +257,16 @@ export class http_api {
 					await this.adapter.unsubscribeStatesAsync(stateId);
 
 					// 3. Login with Code
-					// Reuse k/s from strictly before if possible? No, 'signRequest' was likely called at start.
-					// However, the signature 's' and 'k' might expire or be one-time?
-					// The dump usage implies sign is called before login.
-					// We already called signRequest above. We should be able to reuse 'k' and 's' IF they are not one-time use or time-bound.
-					// Safest is to re-sign if we think it might have expired, but for now reuse.
+					// Regenerate signature to avoid expiration
+					const newS = crypto.randomBytes(12).toString("base64").substring(0, 16).replace(/\+/g, "X").replace(/\//g, "Y");
+					const newSignData = await this.signRequest(newS);
 
-					const loginResult = await this.loginWithCode(code, k, s);
+					if (!newSignData) {
+						this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Failed to re-obtain signature for 2FA.`, "error");
+						throw new Error("Failed to re-obtain signature for 2FA login");
+					}
+
+					const loginResult = await this.loginWithCode(code, newSignData.k, newS);
 
 					if (loginResult.code === 200) {
 						this.userData = loginResult.data!; // data IS UserData

@@ -13,6 +13,10 @@ export class MockAdapter {
 	public pendingRequests: Map<number, any> = new Map();
 	public nonce: Buffer = Buffer.alloc(16);
 	public translations: Record<string, string> = {};
+	public logLevel: "debug" | "info" | "warn" | "error" = "warn";
+
+	private logLevels = { debug: 0, info: 1, warn: 2, error: 3 };
+
 	public catchError(error: any, attribute: string): void {
 		this.log.error(`[CatchError] ${attribute}: ${error}`);
 	}
@@ -24,30 +28,41 @@ export class MockAdapter {
 		return "1.0";
 	};
 
-	public rLog = (type: string, id: string | undefined | null, level: string, protocol: any, version: any, message: string, loglevel: string = "info"): void => {
-		void level;
-		void protocol;
-		void version;
-		if (this.log[loglevel]) {
-			this.log[loglevel](`[${type}|${id}] ${message}`);
+	public rLog(connection: "MQTT" | "TCP" | "UDP" | "HTTP" | "Cloud" | "Local" | "System" | "MapManager" | "Requests" | "Unknown", duid: string | null | undefined, direction: "<-" | "->" | "Info" | "Error" | "Warn" | "Debug", version: string | undefined, protocol: string | number | undefined, message: string, level: "debug" | "info" | "warn" | "error" = "debug"): void {
+		if (this.logLevels[level] < this.logLevels[this.logLevel]) return;
+
+		const duidStr = duid ? `[${duid}] ` : "";
+		const versionStr = version ? ` (PV: ${version})` : "";
+		const protoStr = protocol ? ` (P: ${protocol})` : "";
+		const logMsg = `[${connection}] ${duidStr}${direction}${versionStr}${protoStr} ${message}`;
+
+		if (this.log[level]) {
+			this.log[level](logMsg);
+		} else {
+			console.log(`[FALLBACK-${level}] ${logMsg}`);
 		}
-	};
+	}
+
+	private logMessage(level: "debug" | "info" | "warn" | "error", msg: string, logFn: (m: string) => void): void {
+		if (this.logLevels[level] >= this.logLevels[this.logLevel]) {
+			logFn(`[${level.toUpperCase()}] ${msg}`);
+		}
+	}
 
 	constructor() {
-		console.log("[MockAdapter] Constructor called");
 		this.log = {
-			info: (msg: string) => console.log(`[INFO] ${msg}`),
-			warn: (msg: string) => console.warn(`[WARN] ${msg}`),
-			error: (msg: string) => console.error(`[ERROR] ${msg}`),
-			debug: () => {},
+			info: (msg: string) => this.logMessage("info", msg, console.log),
+			warn: (msg: string) => this.logMessage("warn", msg, console.warn),
+			error: (msg: string) => this.logMessage("error", msg, console.error),
+			debug: (msg: string) => this.logMessage("debug", msg, console.log),
 			silly: () => {}
 		};
 		this.setState = this.setState.bind(this);
 		this.setStateAsync = this.setStateAsync.bind(this);
-		this.setStateChangedAsync = this.setStateChangedAsync.bind(this);
+		this.setStateChanged = this.setStateChanged.bind(this);
 	}
 
-	public async setObjectAsync(id: string, obj: any): Promise<void> {
+	public async setObject(id: string, obj: any): Promise<void> {
 		this.objects[id] = obj;
 	}
 
@@ -57,32 +72,28 @@ export class MockAdapter {
 		}
 	}
 
-	public async extendObjectAsync(id: string, obj: any): Promise<void> {
+	public extendObject = async (id: string, obj: any): Promise<void> => {
 		this.objects[id] = { ...this.objects[id], ...obj };
-	}
+	};
 
-	public async extendObject(id: string, obj: any): Promise<void> {
-		this.objects[id] = { ...this.objects[id], ...obj };
-	}
 
 	public async getObjectAsync(id: string): Promise<any> {
 		return this.objects[id];
 	}
 
-	public async setObject(id: string, obj: any): Promise<void> {
-		this.objects[id] = obj;
-	}
 
-	public setState = (id: string, state: any, ack?: boolean | ((err?: any) => void), callback?: (err?: any) => void): void => {
+
+	public setState = (id: string, state: any, ack?: boolean | ((err?: any) => void), callback?: (err?: any) => void): Promise<void> => {
 		if (typeof ack === "function") {
 			callback = ack;
 			ack = undefined;
 		}
 		// Fire and forget / callback style
-		this.setStateAsync(id, state).then(() => {
+		return this.setStateAsync(id, state).then(() => {
 			if (callback) callback();
 		}).catch((e) => {
 			if (callback) callback(e);
+			throw e;
 		});
 	};
 
@@ -93,6 +104,7 @@ export class MockAdapter {
 			val = state.val;
 		}
 
+		this.rLog("System", id, "Debug", undefined, undefined, `Setting state to ${val}`, "debug");
 		this.states[id] = val;
 
 		// Type Verification
@@ -120,11 +132,39 @@ export class MockAdapter {
 		}
 	};
 
-	public setStateChangedAsync = async (id: string, state: any): Promise<void> => {
-		return this.setStateAsync(id, state);
+	public setStateChanged = async (id: string, state: any, ack?: boolean | ((err?: any) => void), callback?: (err?: any) => void): Promise<void> => {
+		if (typeof ack === "function") {
+			callback = ack;
+			ack = undefined;
+		}
+
+		let val = state;
+		if (typeof state === "object" && state !== null && "val" in state) {
+			val = state.val;
+		}
+
+		if (this.states[id] !== val) {
+			await this.setStateAsync(id, state);
+		}
+
+		try {
+			if (callback) callback();
+		} catch (e: any) {
+			if (callback) callback(e);
+			throw e;
+		}
 	};
 
 	public async getStateAsync(id: string): Promise<any> {
 		return { val: this.states[id], ack: true };
+	}
+	public async expectState(id: string, expected: Partial<ioBroker.State>): Promise<void> {
+		const state = this.states[id];
+		if (state === undefined) {
+			throw new Error(`State ${id} not found`);
+		}
+		if (expected.val !== undefined && state !== expected.val) {
+			throw new Error(`State ${id} expected ${expected.val} but got ${state}`);
+		}
 	}
 }

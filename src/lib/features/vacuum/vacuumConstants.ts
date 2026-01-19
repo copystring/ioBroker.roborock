@@ -239,7 +239,7 @@ export const VACUUM_CONSTANTS = {
 		filter_life: { type: "number", unit: "%" },
 		strainer_work_times: { type: "number", unit: "h" },
 		cleaning_brush_work_times: { type: "number", unit: "%" },
-	},
+	} as const,
 	resetConsumables: new Set([
 		"main_brush_work_time",
 		"side_brush_work_time",

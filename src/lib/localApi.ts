@@ -1,10 +1,10 @@
-import type { Roborock } from "../main";
-import * as crypto from "crypto";
 import { Parser } from "binary-parser";
-import * as ping from "ping";
-import { Socket, SocketConstructorOpts } from "net";
-import * as dgram from "dgram";
 import * as crc32 from "crc-32";
+import * as crypto from "crypto";
+import * as dgram from "dgram";
+import { Socket, SocketConstructorOpts } from "net";
+import * as ping from "ping";
+import type { Roborock } from "../main";
 
 const UDP_DISCOVERY_PORT = 58866;
 const TCP_CONNECTION_PORT = 58867;
@@ -381,6 +381,7 @@ export class local_api {
 
 	/**
 	 * Starts listening for UDP broadcast packets to discover devices.
+	 * @see test/unit/transport_specification.test.ts for the UDP discovery protocol.
 	 */
 	async startUdpDiscovery(timeoutMs = 10_000): Promise<void> {
 		if (this.discoveryServer) {
@@ -405,20 +406,20 @@ export class local_api {
 			try {
 				switch (version) {
 					case "L01":
-						parsedMessage = vL01_Parser.parse(msg.slice(3));
+						parsedMessage = vL01_Parser.parse(msg.subarray(3));
 						decodedMessage = this.decryptGCM(msg.toString("hex"));
 						break;
 					case "B01":
 						// Try L01 (GCM) first
 						try {
-							parsedMessage = vL01_Parser.parse(msg.slice(3));
+							parsedMessage = vL01_Parser.parse(msg.subarray(3));
 							decodedMessage = this.decryptGCM(msg.toString("hex"));
 						} catch { /* ignore */ }
 
 						if (!decodedMessage) {
 							// Fallback to 1.0 (ECB)
 							try {
-								parsedMessage = v1_0_Parser.parse(msg.slice(3));
+								parsedMessage = v1_0_Parser.parse(msg.subarray(3));
 								decodedMessage = this.decryptECB(parsedMessage.payload);
 							} catch {
 								this.adapter.rLog("UDP", null, "Debug", "B01", undefined, `B01 discovery decryption failed for both GCM and ECB`, "debug");
@@ -426,7 +427,7 @@ export class local_api {
 						}
 						break;
 					case "1.0":
-						parsedMessage = v1_0_Parser.parse(msg.slice(3));
+						parsedMessage = v1_0_Parser.parse(msg.subarray(3));
 						decodedMessage = this.decryptECB(parsedMessage.payload);
 						break;
 					default:
