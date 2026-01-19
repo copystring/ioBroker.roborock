@@ -3,6 +3,8 @@
     "name": "roborock",
     "version": "0.6.19",
     "tier": 1,
+    "main": "build/main.js",
+    "useFormatDate": true,
     "news": {
       "0.6.19": {
         "en": "Rewrite of mqtt connection logic\nAdd missing features to Qrevo Slim\nStart websocket & web server onReady\nUpdate LICENSE\nUpdate README.md",
@@ -201,7 +203,7 @@
     "username": "",
     "password": "",
     "enable_map_creation": false,
-    "map_creation_interval": 2,
+
     "map_scale": 2,
     "updateInterval": 60,
     "hostname_ip": "iobroker",

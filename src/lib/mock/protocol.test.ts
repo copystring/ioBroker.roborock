@@ -1,8 +1,8 @@
 
-import { expect } from "chai";
-import { MockAdapter } from "./MockAdapter";
-import { messageParser } from "../messageParser"; // Real class
 import * as crc32 from "crc-32";
+import { beforeEach, describe, expect, it } from "vitest";
+import { messageParser } from "../messageParser"; // Real class
+import { MockAdapter } from "./MockAdapter";
 
 describe("Protocol Deep Dive (messageParser)", () => {
 	let mockAdapter: MockAdapter;
@@ -60,7 +60,7 @@ describe("Protocol Deep Dive (messageParser)", () => {
 		// So checking logs for "Decryption failed" vs "CRC mismatch" separates the two.
 
 		let logError = "";
-		mockAdapter.log.error = (msg: string) => { logError = msg; };
+		mockAdapter.log.error = (msg: string) => { logError += msg + "\n"; };
 
 		parser.decodeMsg(buf, "duid");
 

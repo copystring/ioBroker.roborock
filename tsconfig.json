@@ -1,10 +1,9 @@
 {
-  "extends": "@tsconfig/node18/tsconfig.json",
+  "extends": "@tsconfig/node22/tsconfig.json",
   "compilerOptions": {
     // Output
     "noEmit": false,
     "outDir": "./build",
-    "rootDir": "./src",
     "sourceMap": true,
     "inlineSources": true,
     "declaration": true,
@@ -26,14 +25,16 @@
     "allowJs": false,
     "checkJs": false,
 
+    "rootDir": "./src",
+
     // Decorators
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
 
     // Types
-    "types": ["mocha", "node", "@iobroker/adapter-core"],
+    "types": ["node", "@iobroker/adapter-core", "vitest/globals"],
     "lib": ["ESNext", "DOM", "DOM.Iterable"]
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.json"],
   "exclude": ["node_modules", "src/www"]
 }

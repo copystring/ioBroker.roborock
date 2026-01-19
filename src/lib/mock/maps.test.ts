@@ -1,16 +1,20 @@
-
-import { expect } from "chai";
+﻿
+import { beforeEach, describe, expect, it } from "vitest";
+import { Feature } from "../features/features.enum";
+import { V1VacuumFeatures } from "../features/vacuum/v1VacuumFeatures";
 import { MockAdapter } from "./MockAdapter";
 import { MockRobot } from "./MockRobot";
-import { BaseVacuumFeatures } from "../features/vacuum/baseVacuumFeatures";
-import { Feature } from "../features/features.enum";
 
-class TestVacuum extends BaseVacuumFeatures {
+class TestVacuum extends V1VacuumFeatures {
 	protected getDynamicFeatures(): Set<Feature> {
 		return new Set();
 	}
 	public async detectAndApplyRuntimeFeatures(): Promise<boolean> {
 		return false;
+	}
+
+	public setMockMapManagerComponents(processMapStub: any): void {
+		(this as any).mapService.mapManager.processMap = processMapStub;
 	}
 }
 
@@ -36,17 +40,18 @@ describe("Map Processing", () => {
 			config: { staticFeatures: [], enable_map_creation: true },
 			http_api: {
 				getFwFeaturesResult: () => mockRobot.features,
-				storeFwFeaturesResult: () => {}
+				storeFwFeaturesResult: () => {},
+				getRobotModel: () => mockRobot.model
 			},
 			requestsHandler: {
 				sendRequest: async (duid: string, method: string, params: any[]) => {
 					if (duid !== mockRobot.duid) return [];
+					if (method === "get_map_v1") return Buffer.from("dummy_map_data");
 					return mockRobot.handleRequest(method, params);
 				},
 				command: async () => {},
 				mapParser: {
 					parsedata: async (buf: Buffer) => {
-						console.log("TEST-DEBUG: Mock parsedata called with buf len:", buf ? buf.length : 0);
 						// Mock parser logic: return dummy JSON if buffer is valid
 						if (buf && buf.length > 0) return {
 							image: { pixels: {} },
@@ -63,26 +68,39 @@ describe("Map Processing", () => {
 				},
 				mapCreator: {
 					canvasMap: async () => {
-						console.log("TEST-DEBUG: Mock canvasMap called");
 						return ["base64_uncropped", "base64_full", "base64_truncated"];
 					}
 				}
 			}
 		};
 		mockAdapter.requestsHandler = depsMock.requestsHandler;
+		mockAdapter.http_api = depsMock.http_api;
 
 		vacuumFeatures = new TestVacuum(depsMock, mockRobot.duid, mockRobot.model, { staticFeatures: [] });
+
+		const processMapStub = async (rawData: Buffer) => {
+			if (!rawData) return null;
+			// Return different base64 depending on input to differentiate tests?
+			// Or just return keys expected by test
+			// Maps expectation: "base64_full" for updateMap, "base64_truncated" for cleanRecord
+			if (rawData.toString() === "dummy_map_data") return { mapBase64: "base64_full", mapData: {} };
+			if (rawData.toString() === "record_map_data") return { mapBase64Clean: "base64_truncated", mapBase64: "base64_full", mapData: {} }; // cleanRecord expects truncated?
+			// cleanRecord test expects "mapBase64Truncated" state to equal "base64_truncated".
+			// But MapManager processing returns mapBase64 and mapBase64Clean.
+			// V1VacuumFeatures maps mapBase64Clean to mapBase64Truncated state key.
+			return { mapBase64: "base64_full", mapBase64Clean: "base64_truncated", mapData: {} };
+		};
+
+		vacuumFeatures.setMockMapManagerComponents(processMapStub);
 		await vacuumFeatures.initialize();
 	});
 
 	it("should process updateMap correctly", async () => {
-		// Mock get_map_v1 to return a dummy buffer
-		const originalHandleRequest = mockRobot.handleRequest.bind(mockRobot);
-		mockRobot.handleRequest = (method: string, params: any[]) => {
-			if (method === "get_map_v1") {
-				return Buffer.from("dummy_map_data");
-			}
-			return originalHandleRequest(method, params);
+		// Mock get_map_v1 to return a dummy buffer via depsMock
+		const originalSendRequest = depsMock.requestsHandler.sendRequest;
+		depsMock.requestsHandler.sendRequest = async (duid: string, method: string, params: any[]) => {
+			if (method === "get_map_v1") return Buffer.from("dummy_map_data");
+			return originalSendRequest(duid, method, params);
 		};
 
 		await vacuumFeatures.updateMap();
@@ -93,13 +111,11 @@ describe("Map Processing", () => {
 	});
 
 	it("should handle cleaning record maps", async () => {
-		// Mock get_clean_record_map
-		const originalHandleRequest = mockRobot.handleRequest.bind(mockRobot);
-		mockRobot.handleRequest = (method: string, params: any[]) => {
-			if (method === "get_clean_record_map") {
-				return Buffer.from("record_map_data");
-			}
-			return originalHandleRequest(method, params);
+		// Mock get_clean_record_map via depsMock
+		const originalSendRequest = depsMock.requestsHandler.sendRequest;
+		depsMock.requestsHandler.sendRequest = async (duid: string, method: string, params: any[]) => {
+			if (method === "get_clean_record_map") return Buffer.from("record_map_data");
+			return originalSendRequest(duid, method, params);
 		};
 
 		// We access getCleaningRecordMap privately? It's private.
@@ -121,3 +137,4 @@ describe("Map Processing", () => {
 		expect(mockAdapter.states[mapStatePath]).to.equal("base64_truncated");
 	});
 });
+

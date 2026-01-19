@@ -1,11 +1,11 @@
-
-import { expect } from "chai";
+﻿
+import { beforeEach, describe, expect, it } from "vitest";
+import { Feature } from "../features/features.enum";
+import { V1VacuumFeatures } from "../features/vacuum/v1VacuumFeatures";
 import { MockAdapter } from "./MockAdapter";
 import { MockRobot } from "./MockRobot";
-import { BaseVacuumFeatures } from "../features/vacuum/baseVacuumFeatures";
-import { Feature } from "../features/features.enum";
 
-class TestVacuum extends BaseVacuumFeatures {
+class TestVacuum extends V1VacuumFeatures {
 	protected getDynamicFeatures(): Set<Feature> {
 		return new Set();
 	}
@@ -36,7 +36,8 @@ describe("State Machine Deep Dive", () => {
 			config: { staticFeatures: [] },
 			http_api: {
 				getFwFeaturesResult: () => mockRobot.features,
-				storeFwFeaturesResult: () => {}
+				storeFwFeaturesResult: () => {},
+				getRobotModel: () => mockRobot.model
 			},
 			requestsHandler: {
 				sendRequest: async (duid: string, method: string, params: any[]) => {
@@ -47,6 +48,7 @@ describe("State Machine Deep Dive", () => {
 			}
 		};
 		mockAdapter.requestsHandler = depsMock.requestsHandler;
+		mockAdapter.http_api = depsMock.http_api;
 
 		vacuumFeatures = new TestVacuum(depsMock, mockRobot.duid, mockRobot.model, { staticFeatures: [] });
 		await vacuumFeatures.initialize();
@@ -82,3 +84,4 @@ describe("State Machine Deep Dive", () => {
 		expect(mockAdapter.states[`Devices.${mockRobot.duid}.deviceStatus.error_code`]).to.equal(0);
 	});
 });
+

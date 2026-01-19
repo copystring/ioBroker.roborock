@@ -1,1 +1,0 @@
-{"version":3,"file":"buildInfo.js","sourceRoot":"","sources":["../../src/lib/buildInfo.ts"],"names":[],"mappings":";;;AAAa,QAAA,SAAS,GAAG;IACxB,SAAS,EAAE,oBAAoB;IAC/B,UAAU,EAAE,QAAQ;CACpB,CAAC","sourcesContent":["export const buildInfo = {\n\tbuildDate: \"4.1.2026, 19:00:56\",\n\tcommitHash: \"0.6.19\",\n};\n"]}

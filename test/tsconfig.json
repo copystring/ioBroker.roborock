@@ -1,9 +1,21 @@
 {
 	"extends": "../tsconfig.json",
 	"compilerOptions": {
-		"noImplicitAny": false
+		"noImplicitAny": false,
+		"allowJs": true,
+		"checkJs": false,
+		"noEmit": true,
+		"module": "CommonJS",
+		"target": "ES2022",
+		"rootDir": ".."
 	},
 	"include": [
-		"./**/*.js"
+		"./**/*.ts",
+		"./**/*.js",
+		"../src/**/*.ts"
+	],
+	"exclude": [
+		"../node_modules",
+		"../src/www"
 	]
 }

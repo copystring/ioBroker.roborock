@@ -1,34 +1,23 @@
+import EXTRACTED_ERRORS from "../../protocols/s7_maxv_dataset.json";
+
+interface S7Dataset {
+	[lang: string]: Record<string, string>;
+}
+
 export const VACUUM_CONSTANTS = {
 	errorCodes: {
 		0: "No error",
-		1: "Laser sensor fault",
-		2: "Collision sensor fault",
-		3: "Wheel floating",
-		4: "Cliff sensor fault",
-		5: "Main brush blocked",
-		6: "Side brush blocked",
-		7: "Wheel blocked",
-		8: "Device stuck",
-		9: "Dust bin missing",
-		10: "Filter blocked",
-		11: "Magnetic field detected",
-		12: "Low battery",
-		13: "Charging problem",
-		14: "Battery failure",
-		15: "Wall sensor fault",
-		16: "Uneven surface",
-		17: "Side brush failure",
-		18: "Suction fan failure",
-		19: "Unpowered charging station",
-		20: "Unknown Error",
-		21: "Laser pressure sensor problem",
-		22: "Charge sensor problem",
-		23: "Dock problem",
-		24: "No-go zone or invisible wall detected",
+		// Use S7 MaxV dataset as the standardized error definition for the entire adapter
+		// This supersedes legacy hardcoded lists and serves as the baseline for V1 and B01
+		// SCHEMA VERIFIED: The S7 dataset structure is flat: { [lang]: { [code]: "text" } }.
+		// It does NOT follow the Q7 nested structure.
+		...((EXTRACTED_ERRORS as unknown as S7Dataset)["en"] || {}),
+		// Add legacy/missing codes
 		254: "Bin full",
 		255: "Internal error",
 		"-1": "Unknown Error",
 	},
+	errorCodes_languages: EXTRACTED_ERRORS as Record<string, Record<string, string>>,
 	stateCodes: {
 		0: "Unknown",
 		1: "Initiating",
@@ -73,6 +62,23 @@ export const VACUUM_CONSTANTS = {
 		17: "Empty Wash Fill Dry Dock (Qrevo Curv)",
 		18: "Empty Wash Fill Dry Dock (S8 Pro)",
 	},
+	// B01 Devices: Property lists from user sniff logs (Protocol 101/102 via prop.get)
+	b01StatusProps: [
+		"status", "fault", "wind", "water", "mode", "quantity", "repeat_state", "tank_state",
+		"sweep_type", "clean_path_preference", "cloth_state", "time_zone", "time_zone_info",
+		"language", "cleaning_time", "real_clean_time", "cleaning_area", "custom_type",
+		"work_mode", "charge_state", "current_map_id", "map_num", "dust_action",
+		"quiet_is_open", "clean_finish", "build_map", "dust_frequency", "multi_floor",
+		"pv_charging", "recommend", "add_sweep_status"
+	],
+	b01SettingsProps: [
+		"alarm", "volume", "hypa", "main_brush", "side_brush", "mop_life", "main_sensor",
+		"net_status", "sound", "station_act", "quiet_begin_time", "quiet_end_time",
+		"voice_type", "voice_type_version", "order_total", "privacy", "dust_auto_state",
+		"light_mode", "order_save_mode", "manufacturer", "child_lock", "charge_station_type",
+		"carpet_turbo", "green_laser"
+	],
+
 	baseCommands: {
 		app_start: { type: "boolean", def: false },
 		app_segment_clean: { type: "boolean", def: false },
@@ -175,6 +181,51 @@ export const VACUUM_CONSTANTS = {
 		water_shortage_status: { type: "number" },
 		cleaned_area: { type: "number", unit: "m²" },
 		clean_times: { type: "number" },
+		along_floor: { type: "number", def: 0, states: { 0: "Off", 1: "On" }, write: true },
+		green_laser: { type: "number", def: 0, states: { 0: "Off", 1: "On" }, write: true },
+		dust_bag_used: { type: "number", def: 0 },
+		add_sweep_status: { type: "number", def: 0, states: { 0: "None", 1: "Active" } },
+		status: {
+			type: "number",
+			def: 3,
+			states: {
+				1: "Start",
+				2: "Stop",
+				3: "Idle",
+				5: "Cleaning",
+				6: "Home",
+				7: "Manual",
+				8: "Charging",
+				9: "Charge Error",
+				10: "Pause",
+				11: "Spot",
+				12: "Error",
+				14: "Updating",
+				15: "Docking",
+				16: "Go To",
+				17: "Zone Clean",
+				18: "Room Clean",
+				22: "Emptying",
+				23: "Washing",
+				26: "Going to Wash",
+				28: "In Call",
+				29: "Mapping",
+				100: "Fully Charged",
+			},
+			write: true,
+		},
+		wind: {
+			type: "number",
+			def: 102,
+			states: { 101: "Quiet", 102: "Balanced", 103: "Turbo", 104: "Max", 105: "Off", 108: "Max+" },
+			write: true,
+		},
+		water: {
+			type: "number",
+			def: 201,
+			states: { 200: "Off", 201: "Mild", 202: "Moderate", 203: "Intense", 204: "Custom" },
+			write: true,
+		},
 	},
 	consumables: {
 		main_brush_work_time: { type: "number", unit: "h" },
@@ -188,7 +239,7 @@ export const VACUUM_CONSTANTS = {
 		filter_life: { type: "number", unit: "%" },
 		strainer_work_times: { type: "number", unit: "h" },
 		cleaning_brush_work_times: { type: "number", unit: "%" },
-	},
+	} as const,
 	resetConsumables: new Set([
 		"main_brush_work_time",
 		"side_brush_work_time",
@@ -253,6 +304,24 @@ export const VACUUM_CONSTANTS = {
 		123: "isOrderCleanSupported",
 		125: "isRemoteSupported",
 	} as const,
+
+	/**
+	 * Helper to resolve language fallback for error codes.
+	 * Returns the localized error map or undefined if not found.
+	 */
+	resolveErrorCodeFallback(lang: string | undefined | null): Record<string, string> | undefined {
+		if (!lang) return undefined;
+		// Check exact match first
+		if (this.errorCodes_languages[lang]) return this.errorCodes_languages[lang];
+
+		// Check base language (e.g., 'es' from 'es-LA' or 'es-MX')
+		if (lang.includes("-")) {
+			const baseLang = lang.split("-")[0].toLowerCase();
+			if (this.errorCodes_languages[baseLang]) return this.errorCodes_languages[baseLang];
+		}
+
+		return undefined;
+	},
 };
 
 export type FirmwareFeatures = typeof VACUUM_CONSTANTS.firmwareFeatures;

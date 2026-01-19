@@ -1,0 +1,29 @@
+{
+	"Example Service": {
+		"scope": "typescript",
+		"prefix": "roborock-service",
+		"body": [
+			"import { FeatureDependencies } from \"../../baseDeviceFeatures\";",
+			"",
+			"export class ${1:ServiceName} {",
+			"\tconstructor(",
+			"\t\tprivate deps: FeatureDependencies,",
+			"\t\tprivate duid: string",
+			"\t) {}",
+			"",
+			"\tpublic async ${2:methodName}(): Promise<void> {",
+			"\t\tthis.deps.adapter.rLog(\"System\", this.duid, \"Debug\", \"${3:Category}\", undefined, \"${4:LogMessage}\", \"debug\");",
+			"\t}",
+			"}"
+		],
+		"description": "Create a new Roborock Service Class"
+	},
+	"Roborock Log": {
+		"scope": "typescript",
+		"prefix": "rlog",
+		"body": [
+			"this.deps.adapter.rLog(\"System\", this.duid, \"${1|Debug,Info,Warn,Error|}\", \"${2:Category}\", undefined, \"${3:Message}\", \"${4:debug}\");"
+		],
+		"description": "Log using rLog"
+	}
+}

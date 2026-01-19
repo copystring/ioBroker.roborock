@@ -1,5 +1,6 @@
 // src/lib/features/base_device_features.ts
 import { z } from "zod";
+
 import type { Roborock } from "../../main";
 import { Feature } from "./features.enum";
 
@@ -76,15 +77,18 @@ export const BaseStatusSchema = z
 		error_code: z.number().int().optional(),
 		// Add generic status fields if applicable
 	})
+	// eslint-disable-next-line
 	.passthrough();
 
 // --- Generic Base Class ---
 
 /**
  * Base class for device features. Handles init, feature application, and commands.
- * Extended by specific types (e.g. BaseVacuumFeatures).
+ * Extended by specific types (e.g. V1VacuumFeatures).
  */
 export abstract class BaseDeviceFeatures {
+	protected createdStates = new Set<string>();
+
 	protected deps: FeatureDependencies;
 	public commands: Record<string, CommandSpec | any>; // Command definitions for this device
 	protected duid: string;
@@ -119,7 +123,6 @@ export abstract class BaseDeviceFeatures {
 	public static DeviceFeature(feature: Feature) {
 		return function (target: any, propertyKey: string) {
 			// 'target' is the prototype
-			// console.log(`[DEBUG] Decorator called for ${Feature[feature]} on ${propertyKey}`);
 			let registry: Map<Feature, string> = target[BaseDeviceFeatures.FEATURE_METADATA_KEY];
 			if (!registry) {
 				registry = new Map();
@@ -127,7 +130,6 @@ export abstract class BaseDeviceFeatures {
 				target[BaseDeviceFeatures.FEATURE_METADATA_KEY] = registry;
 			}
 			registry.set(feature, propertyKey);
-			// console.log(`[DEBUG] Registry size: ${registry.size} for ${target.constructor.name}`);
 		};
 	}
 
@@ -145,8 +147,8 @@ export abstract class BaseDeviceFeatures {
 		this.duid = duid;
 		this.robotModel = robotModel;
 		this.config = config;
-		// Start with generic base commands
-		this.commands = JSON.parse(JSON.stringify(BaseDeviceFeatures.CONSTANTS.baseCommands));
+		// Initialize empty commands map. Actual commands will be populated during setupProtocolFeatures.
+		this.commands = {};
 	}
 
 
@@ -194,6 +196,7 @@ export abstract class BaseDeviceFeatures {
 			}
 			return false;
 		}
+
 	}
 
 	// --- Abstract / Overridable Methods ---
@@ -210,7 +213,7 @@ export abstract class BaseDeviceFeatures {
 	 * @param dockType Numeric dock type identifier.
 	 */
 	public async processDockType(dockType: number): Promise<void> {
-		this.deps.log.silly(`[${this.duid}] Base processDockType called for type ${dockType}. No default actions.`);
+		this.deps.adapter.rLog("System", this.duid, "Debug", undefined, undefined, `Base processDockType called for type ${dockType}. No default actions.`, "debug");
 	}
 
 	/**
@@ -240,31 +243,62 @@ export abstract class BaseDeviceFeatures {
 	 * @param initialStatus Optional initial status.
 	 * @param initialFwFeatures Optional initial firmware features.
 	 */
-	public async initialize(): Promise<void> {
-		this.deps.log.info(`[FeatureInit|${this.robotModel}|${this.duid}] Starting feature initialization...`);
+	public async initialize(online: boolean = false): Promise<void> {
+		this.deps.adapter.rLog("System", this.duid, "Info", undefined, undefined, "Starting feature initialization...", "info");
 
-		// Flow: Base -> Type -> Specific -> Runtime -> Dock
+		// Flow: Protocol -> Model Specifics -> Runtime Detection -> Dock Processing -> Command Objects
+
+		// 0. Setup Protocol Features (Command Sets)
+		try {
+			await this.setupProtocolFeatures();
+		} catch (e: any) {
+			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error setting up protocol features: ${e.message}`, "error");
+		}
 
 		// 1. Apply Model Specifics
 		try {
 			await this.applyModelSpecifics();
-			// Explicitly fetch FW features early, as they might be needed for dynamic detections
-			await this.updateFirmwareFeatures();
 		} catch (e: any) {
-			this.deps.log.error(`[FeatureInit|${this.robotModel}|${this.duid}] Error applying model specifics: ${e.message} ${e.stack}`);
+			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error applying model specifics: ${e.message}`, "error");
 		}
 
-		// 2. Runtime Detection & Dock Processing (implemented by concrete base)
+		// 2. Fetch initial data if online
+		if (online) {
+			try {
+				await this.initializeDeviceData();
+			} catch (e: any) {
+				this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error initializing device data: ${e.message}`, "error");
+			}
+		}
 
-		// 4. Create/Update ioBroker Objects
+		// 3. Create/Update ioBroker Objects
 		try {
 			await this.createCommandObjects();
 		} catch (e: any) {
-			this.deps.log.error(`[FeatureInit|${this.robotModel}|${this.duid}] Error creating command objects: ${e.message} ${e.stack}`);
+			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error creating command objects: ${e.message}`, "error");
 		}
 
-		this.deps.log.info(`[FeatureInit|${this.robotModel}|${this.duid}] Initialization complete.`);
+		this.deps.adapter.rLog("System", this.duid, "Info", undefined, undefined, "Initialization complete.", "info");
 	}
+
+	/**
+	 * Fetches initial runtime data (status, consumables, map).
+	 */
+	public async initializeDeviceData(): Promise<void> {
+		// Default implementation: update status if online
+		await this.updateStatus();
+		await this.updateFirmwareFeatures();
+	}
+
+	public async setupProtocolFeatures(): Promise<void> {
+		const version = await this.deps.adapter.getDeviceProtocolVersion(this.duid);
+		this.deps.adapter.rLog("System", this.duid, "Debug", undefined, version, "Configuring Command Set...", "debug");
+
+		// Initialize with generic base commands
+		this.commands = JSON.parse(JSON.stringify(BaseDeviceFeatures.CONSTANTS.baseCommands));
+	}
+
+
 
 	/**
 	 * Logs summary of applied features and commands. Call after init.
@@ -272,12 +306,13 @@ export abstract class BaseDeviceFeatures {
 	public printSummary(): void {
 		const featureList = Array.from(this.appliedFeatures).sort().join(", ");
 		const commandList = Object.keys(this.commands).sort().join(", ");
-		this.deps.log.info(`[FeatureInit|${this.robotModel}|${this.duid}] Summary -> Features: [${featureList}] | Commands: [${commandList}]`);
+		this.deps.adapter.rLog("System", this.duid, "Info", undefined, undefined, `Summary -> Features: [${featureList}] | Commands: [${commandList}]`, "info");
 	}
 
 	// --- Core Helper Methods ---
 
 	/**
+
 	 * Maps dynamic feature keys (e.g. 'is...') to action keys (e.g. 'MopWash').
 	 * @param detectedFeature Detected Feature enum key.
 	 * @returns Mapped action Feature key, detected key if actionable, or null.
@@ -295,22 +330,22 @@ export abstract class BaseDeviceFeatures {
 			const actionFeatureEnum = Feature[mappedActionKey];
 			// Check if mapped action has registered implementation
 			if (registry && registry.has(actionFeatureEnum)) {
-				this.deps.log.silly(`[${this.duid}] Mapping dynamic feature '${detectedFeature}' to action '${actionFeatureEnum}'`);
+				this.deps.adapter.rLog("System", this.duid, "Debug", undefined, undefined, `Mapping dynamic feature '${detectedFeature}' to action '${actionFeatureEnum}'`, "debug");
 				return actionFeatureEnum;
 			} else {
-				this.deps.log.silly(`[${this.duid}] Dynamic feature '${detectedFeature}' mapped to '${actionFeatureEnum}', but no action registered.`);
+				this.deps.adapter.rLog("System", this.duid, "Debug", undefined, undefined, `Dynamic feature '${detectedFeature}' mapped to '${actionFeatureEnum}', but no action registered.`, "debug");
 				return null;
 			}
 		}
 
 		// Check if detected feature has registered action
 		if (registry && registry.has(detectedFeature)) {
-			this.deps.log.silly(`[${this.duid}] Using dynamic feature '${detectedFeature}' directly.`);
+			this.deps.adapter.rLog("System", this.duid, "Debug", undefined, undefined, `Using dynamic feature '${detectedFeature}' directly.`, "debug");
 			return detectedFeature;
 		}
 
 		// No mapping or action found
-		this.deps.log.silly(`[${this.duid}] Dynamic feature '${detectedFeature}' detected but has no registered action or mapping.`);
+		this.deps.adapter.rLog("System", this.duid, "Debug", undefined, undefined, `Dynamic feature '${detectedFeature}' detected but has no registered action or mapping.`, "debug");
 		return null;
 	}
 
@@ -323,14 +358,17 @@ export abstract class BaseDeviceFeatures {
 		try {
 			await this.deps.ensureFolder(folderPath);
 		} catch (e: any) {
-			this.deps.log.error(`[${this.duid}] Failed to ensure commands folder ${folderPath}: ${e.message}`);
+			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Failed to ensure commands folder ${folderPath}: ${e.message}`, "error");
 			return;
 		}
 
 		const promises: Promise<void>[] = [];
+		const keys = Object.keys(this.commands);
+		this.deps.adapter.rLog("System", this.duid, "Info", undefined, undefined, `Starting createCommandObjects. Commands to create: ${keys.length} -> [${keys.join(", ")}]`, "info");
 
 		for (const [command, commonCommand] of Object.entries(this.commands)) {
 			promises.push(this.processCommand(folderPath, command, commonCommand));
+
 		}
 
 		try {
@@ -418,7 +456,7 @@ export abstract class BaseDeviceFeatures {
 	 */
 	protected addCommand(name: string, spec: CommandSpec | any): void {
 		if (!name || typeof name !== "string") {
-			this.deps.log.error(`[${this.duid}] addCommand: Invalid command name provided: ${name}`);
+			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `addCommand: Invalid command name provided: ${name}`, "error");
 			return;
 		}
 		try {
@@ -441,7 +479,7 @@ export abstract class BaseDeviceFeatures {
 			this.commands[name] = spec;
 			this.deps.log.silly(`[${this.duid}] Added/Updated command '${name}'`);
 		} catch (e: any) {
-			this.deps.log.error(`[${this.duid}] Error in addCommand for '${name}': ${e.message}`);
+			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error in addCommand for '${name}': ${e.message}`, "error");
 		}
 	}
 
@@ -458,7 +496,7 @@ export abstract class BaseDeviceFeatures {
 			// Validate type before ensureState
 			const validTypes: ioBroker.CommonType[] = ["string", "number", "boolean", "object", "array", "mixed"];
 			if (commonOptions.type && !validTypes.includes(commonOptions.type as ioBroker.CommonType)) {
-				this.deps.log.warn(`[${this.duid}] Invalid type '${commonOptions.type}' in ensureState for ${path}, defaulting to 'string'.`);
+				this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Invalid type '${commonOptions.type}' in ensureState for ${path}, defaulting to 'string'.`, "warn");
 				commonOptions.type = "string";
 			}
 
@@ -476,7 +514,7 @@ export abstract class BaseDeviceFeatures {
 			// Standard ensure (creates if not exists)
 			await this.deps.ensureState(path, commonOptions as ioBroker.StateCommon, native); // Cast after validation
 		} catch (e: any) {
-			this.deps.log.error(`[${this.duid}] Error in ensureState for ${path}: ${e.message}`);
+			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error in ensureState for ${path}: ${e.message}`, "error");
 		}
 	}
 
@@ -506,6 +544,23 @@ export abstract class BaseDeviceFeatures {
 		return this.config.staticFeatures.includes(feature);
 	}
 
+	public hasFeature(feature: Feature): boolean {
+		return this.appliedFeatures.has(feature) || this.config.staticFeatures.includes(feature);
+	}
+
+	/**
+	 * Helper to safely access dynamic feature methods.
+	 * Encapsulates type casting for readability.
+	 */
+	protected getFeatureMethod(name: string): Function {
+		// Safe access using keyof assertion
+		const method = this[name as keyof this];
+		if (typeof method === "function") {
+			return method as Function;
+		}
+		throw new Error(`Feature method '${name}' not found or is not a function.`);
+	}
+
 
 
 	// --- Command Parameter Interception ---
@@ -530,23 +585,27 @@ export abstract class BaseDeviceFeatures {
 	 * @param folder Target folder.
 	 * @param mapper Optional data mapper.
 	 */
-	protected async requestAndProcess(method: string, params: any[], folder: string, mapper?: (data: any) => Record<string, any>): Promise<void> {
+	protected async requestAndProcess(method: string, params: any[], folder: string, mapper?: (data: any) => Record<string, any> | Promise<Record<string, any>>): Promise<void> {
 		try {
 			const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, method, params);
+			this.deps.adapter.rLog("System", this.duid, "Debug", method, folder, `Raw result: ${JSON.stringify(result)}`, "debug");
 
 			let resultObj: Record<string, unknown> | undefined;
 
-			// Handle Array responses
-			if (Array.isArray(result) && result.length > 0 && typeof result[0] === "object") {
-				resultObj = result[0] as Record<string, unknown>;
-			} else if (typeof result === "object" && result !== null && !Array.isArray(result)) {
-				resultObj = result as Record<string, unknown>;
+			// Recursively unwrap single-element arrays (common in B01/Tuya responses)
+			let unwrapped = result;
+			while (Array.isArray(unwrapped) && unwrapped.length === 1) {
+				unwrapped = unwrapped[0];
+			}
+
+			if (typeof unwrapped === "object" && unwrapped !== null && !Array.isArray(unwrapped)) {
+				resultObj = unwrapped as Record<string, unknown>;
 			}
 
 			if (resultObj) {
 				// Apply mapper
 				if (mapper) {
-					resultObj = mapper(resultObj);
+					resultObj = await mapper(resultObj);
 				}
 
 				await this.deps.ensureFolder(`Devices.${this.duid}.${folder}`);
@@ -556,7 +615,7 @@ export abstract class BaseDeviceFeatures {
 				}
 			}
 		} catch (e: any) {
-			this.deps.log.warn(`[${this.duid}] Failed to update ${folder} (method: ${method}): ${e.message}`);
+			this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Failed to update ${folder} (method: ${method}): ${e.message}`, "warn");
 		}
 	}
 
@@ -565,7 +624,18 @@ export abstract class BaseDeviceFeatures {
 	 */
 	protected async processResultKey(folder: string, key: string, val: unknown): Promise<void> {
 		// Determine common options (type, role, unit)
-		const common = this.getCommonDeviceStates(key) || { name: key, type: typeof val as ioBroker.CommonType, read: true, write: false };
+		let common: Partial<ioBroker.StateCommon> | undefined;
+		if (folder === "deviceStatus") {
+			common = this.getCommonDeviceStates(key);
+		} else if (folder === "cleaningInfo") {
+			common = this.getCommonCleaningInfo(key);
+		} else if (folder === "cleaningRecords") {
+			common = this.getCommonCleaningRecords(key);
+		}
+
+		if (!common) {
+			common = { name: key, type: typeof val as ioBroker.CommonType, read: true, write: false };
+		}
 
 		// Handle Objects/Arrays by stringifying them so they don't crash the state
 		if (typeof val === "object" && val !== null) {
@@ -573,7 +643,7 @@ export abstract class BaseDeviceFeatures {
 		}
 
 		// Formatting for specific keys (e.g. timestamps)
-		if (key === "last_clean_t" && typeof (val as any) === "number") {
+		if ((key === "last_clean_t" || key === "clean_finish") && typeof (val as any) === "number") {
 			val = new Date((val as number) * 1000).toString();
 			common.type = "string"; // Update type to match new value
 		}
@@ -587,8 +657,15 @@ export abstract class BaseDeviceFeatures {
 			val = !!val;
 		}
 
-		await this.deps.ensureState(`Devices.${this.duid}.${folder}.${key}`, common);
-		await this.deps.adapter.setStateChanged(`Devices.${this.duid}.${folder}.${key}`, { val: val as ioBroker.StateValue, ack: true });
+		const fullPath = `Devices.${this.duid}.${folder}.${key}`;
+
+		if (!this.createdStates.has(fullPath)) {
+			await this.deps.ensureState(fullPath, common);
+			this.createdStates.add(fullPath);
+		}
+
+		this.deps.adapter.rLog("System", this.duid, "Debug", folder, key, `processResultKey: ${val} (${common?.type})`, "debug");
+		await this.deps.adapter.setStateChanged(fullPath, { val: val as ioBroker.StateValue, ack: true });
 	}
 
 	// --- Helper Methods ---
@@ -608,27 +685,33 @@ export abstract class BaseDeviceFeatures {
 	}
 
 	public async updateConsumables(): Promise<void> {
+		if (!this.hasFeature(Feature.Consumables)) return;
 		await this.requestAndProcess("get_consumable", [], "consumables");
 	}
 
 	public async updateNetworkInfo(): Promise<void> {
+		if (!this.hasFeature(Feature.NetworkInfo)) return;
 		await this.requestAndProcess("get_network_info", [], "networkInfo");
 	}
 
 	public async updateTimers(): Promise<void> {
+		if (!this.hasFeature(Feature.Timers)) return;
 		await this.requestAndProcess("get_timer", [], "timers");
 		await this.requestAndProcess("get_server_timer", [], "timers");
 	}
 
 	public async updateFirmwareFeatures(): Promise<void> {
+		if (!this.hasFeature(Feature.FirmwareInfo)) return;
 		await this.requestAndProcess("get_fw_features", [], "firmwareFeatures");
 	}
 
 	public async updateMultiMapsList(): Promise<void> {
+		if (!this.hasFeature(Feature.MultiMap)) return;
 		await this.requestAndProcess("get_multi_maps_list", [], "map");
 	}
 
 	public async updateRoomMapping(): Promise<void> {
+		if (!this.hasFeature(Feature.RoomMapping)) return;
 		await this.requestAndProcess("get_room_mapping", [], "map");
 	}
 

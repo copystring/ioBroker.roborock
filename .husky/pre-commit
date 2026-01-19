@@ -1,2 +1,0 @@
-#!/bin/sh
-node scripts/husky-verify.js

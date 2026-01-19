@@ -65,18 +65,7 @@
             "lg": 6,
             "xl": 6
 		},
-		"map_creation_interval": {
-			"type": "number",
-			"label": "Map Creation Interval",
-			"newLine": true,
-			"min": 1,
-			"max": 240,
-			"xs": 12,
-			"sm": 12,
-            "md": 6,
-            "lg": 6,
-            "xl": 6
-		},
+
 		"updateInterval": {
 			"type": "number",
 			"label": "Update interval",
@@ -114,16 +103,6 @@
 		"cameraPin": {
 			"type": "number",
 			"label": "PIN for streaming the camera",
-			"newLine": true,
-			"xs": 12,
-			"sm": 12,
-            "md": 6,
-            "lg": 6,
-            "xl": 6
-		},
-		"downloadRoborockImages": {
-			"type": "checkbox",
-			"label": "Download Roborock Images",
 			"newLine": true,
 			"xs": 12,
 			"sm": 12,
