@@ -369,7 +369,8 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			1: [Feature.AutoEmptyDock, Feature.DockingStationStatus],
 			2: [Feature.MopWash, Feature.DockingStationStatus],
 			3: [Feature.AutoEmptyDock, Feature.MopWash, Feature.DockingStationStatus],
-			4: [Feature.AutoEmptyDock, Feature.MopWash, Feature.DockingStationStatus]
+			4: [Feature.AutoEmptyDock, Feature.MopWash, Feature.DockingStationStatus],
+			22: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry, Feature.DockingStationStatus]
 		};
 		const features = dockFeatureMap[dockType];
 		if (features) {
@@ -377,5 +378,62 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 				await this.applyFeature(feature);
 			}
 		}
+	}
+
+	@BaseDeviceFeatures.DeviceFeature(Feature.AutoEmptyDock)
+	public async initAutoEmptyDock(): Promise<void> {
+		const translations = this.deps.adapter.translations;
+
+		this.addCommand("app_start_dust_collection", {
+			type: "boolean",
+			role: "button",
+			name: translations["app_start_dust_collection"] || "Empty Dust",
+			def: false
+		});
+
+		this.addCommand("app_stop_dust_collection", {
+			type: "boolean",
+			role: "button",
+			name: translations["app_stop_dust_collection"] || "Stop Emptying",
+			def: false
+		});
+	}
+
+	@BaseDeviceFeatures.DeviceFeature(Feature.MopWash)
+	public async initMopWash(): Promise<void> {
+		const translations = this.deps.adapter.translations;
+
+		this.addCommand("app_start_wash", {
+			type: "boolean",
+			role: "button",
+			name: translations["app_start_wash"] || "Wash Mop",
+			def: false
+		});
+
+		this.addCommand("app_stop_wash", {
+			type: "boolean",
+			role: "button",
+			name: translations["app_stop_wash"] || "Stop Washing",
+			def: false
+		});
+	}
+
+	@BaseDeviceFeatures.DeviceFeature(Feature.MopDry)
+	public async initMopDry(): Promise<void> {
+		const translations = this.deps.adapter.translations;
+
+		this.addCommand("app_start_dry", {
+			type: "boolean",
+			role: "button",
+			name: translations["app_start_dry"] || "Start Drying",
+			def: false
+		});
+
+		this.addCommand("app_stop_dry", {
+			type: "boolean",
+			role: "button",
+			name: translations["app_stop_dry"] || "Stop Drying",
+			def: false
+		});
 	}
 }

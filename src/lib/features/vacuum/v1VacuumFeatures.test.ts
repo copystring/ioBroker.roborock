@@ -155,4 +155,16 @@ describe("V1VacuumFeatures", () => {
 			expect.any(Object)
 		);
 	});
+
+	it("should apply correct features for dock type 22", async () => {
+		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a70", { staticFeatures: [] });
+
+		await vacuum.processDockType(22);
+
+		const appliedFeatures = Array.from((vacuum as any).appliedFeatures);
+		expect(appliedFeatures).toContain(Feature.AutoEmptyDock);
+		expect(appliedFeatures).toContain(Feature.MopWash);
+		expect(appliedFeatures).toContain(Feature.MopDry);
+		expect(appliedFeatures).toContain(Feature.DockingStationStatus);
+	});
 });

@@ -61,6 +61,7 @@ export const VACUUM_CONSTANTS = {
 		16: "Empty Wash Fill Dry Dock (Saros 10R)",
 		17: "Empty Wash Fill Dry Dock (Qrevo Curv)",
 		18: "Empty Wash Fill Dry Dock (S8 Pro)",
+		22: "Empty Wash Fill Dry Dock (Qrevo S5V)",
 	},
 	// B01 Devices: Property lists from user sniff logs (Protocol 101/102 via prop.get)
 	b01StatusProps: [
