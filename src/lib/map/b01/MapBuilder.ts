@@ -420,7 +420,7 @@ export class MapBuilder {
 		ctx.fillStyle = "#000000"; // Black background
 		ctx.fillRect(0, 0, width, height);
 
-		// 2. Render Map Pixels
+		// 2. Render Map Pixels (Offscreen Canvas)
 		const roomColorMap: Record<number, number> = {};
 		if (data.rooms) {
 			data.rooms.forEach(r => {
@@ -428,9 +428,10 @@ export class MapBuilder {
 			});
 		}
 
-
-
-		const imgData = ctx.createImageData(width, height);
+		// Create offscreen canvas for correct scaling (putImageData ignores transforms)
+		const tempCanvas = createCanvas(width, height);
+		const tempCtx = tempCanvas.getContext("2d");
+		const imgData = tempCtx.createImageData(width, height);
 		const buffer = imgData.data;
 
 		const COLOR_SET = SC_MAP_COLORS.LEVEL_1;
@@ -441,6 +442,7 @@ export class MapBuilder {
 			const r = parseInt(hex.slice(1, 3), 16);
 			const g = parseInt(hex.slice(3, 5), 16);
 			const b = parseInt(hex.slice(5, 7), 16);
+			// Fix alpha logic (hex.length 9 is #RRGGBBAA)
 			const a = hex.length === 9 ? parseInt(hex.slice(7, 9), 16) : 255;
 			return [r, g, b, a];
 		};
@@ -449,7 +451,7 @@ export class MapBuilder {
 		const floorColor = hexToBytes(PALETTE.FLOOR);
 		const unknownColor = hexToBytes(PALETTE.UNKNOWN);
 		// Pre-compute room colors
-		const roomColors = COLOR_SET.map(c => hexToBytes(c));
+		const roomColors = COLOR_SET.map((c: string) => hexToBytes(c));
 
 		for (let i = 0; i < data.mapGrid.length; i++) {
 			const val = data.mapGrid[i];
@@ -479,7 +481,10 @@ export class MapBuilder {
 			}
 		}
 
-		ctx.putImageData(imgData, 0, 0);
+		tempCtx.putImageData(imgData, 0, 0);
+
+		// Draw the 1x1 map onto the 8x8 main canvas (scaled)
+		ctx.drawImage(tempCanvas, 0, 0);
 
 		const toPixel = (wx: number, wy: number) => {
 			return robotToPixel({
