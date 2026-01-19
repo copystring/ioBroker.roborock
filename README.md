@@ -20,6 +20,12 @@ This adapter allows you the control, get states, cleaning history and view the m
 
 ### This adapter cannot work on on MacOS
 
+## Requirements
+
+- Node.js >= 22.0.0
+- ioBroker.admin >= 7.6.17
+- ioBroker.js-controller >= 6.0.11
+
 ## The supported robots are:
 
 - Roborock S4
