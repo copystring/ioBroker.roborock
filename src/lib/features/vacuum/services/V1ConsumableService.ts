@@ -75,7 +75,7 @@ export class V1ConsumableService {
 
 			if (key.endsWith("_work_time") || key.endsWith("_dirty_time")) {
 				const resetKey = key.replace("_work_time", "").replace("_dirty_time", "");
-				await this.deps.ensureState(`Devices.${this.duid}.resetConsumables.${resetKey}`, { name: `Reset ${resetKey}`, type: "boolean", role: "button", write: true, def: false });
+				await this.deps.ensureState(`Devices.${this.duid}.resetConsumables.reset_${resetKey}`, { name: `Reset ${resetKey}`, type: "boolean", role: "button", write: true, def: false });
 			}
 		}
 	}

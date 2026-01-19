@@ -113,7 +113,7 @@ describe("V1ConsumableService", () => {
 			await service.updateConsumables(data);
 
 			expect(mockAdapter.ensureState).toHaveBeenCalledWith(
-				`Devices.${testDuid}.resetConsumables.main_brush`,
+				`Devices.${testDuid}.resetConsumables.reset_main_brush`,
 				expect.objectContaining({ role: "button" })
 			);
 		});
