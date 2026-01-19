@@ -38,7 +38,7 @@
     "ping": "^1.0.0",
     "protobufjs": "^8.0.0",
     "uuid": "13.0.0",
-    "zod": "^3.24.1"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@alcalzone/release-script": "5.0.0",
