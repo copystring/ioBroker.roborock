@@ -1,0 +1,2 @@
+node scripts/updateCommitInfo.js --force-current-date
+git add src/lib/commitInfo.ts
