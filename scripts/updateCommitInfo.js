@@ -4,7 +4,7 @@ const { execSync } = require("child_process");
 
 const commitInfoPath = path.join(__dirname, "../src/lib/commitInfo.ts");
 
-console.log("--- [ioBroker.roborock] Build Info Script Started ---");
+console.log("--- [ioBroker.roborock] Commit Info Script Started ---");
 
 let commitHash = "unknown";
 let commitDate = new Date().toLocaleString("de-DE", { timeZone: "Europe/Berlin" });
@@ -27,7 +27,7 @@ try {
 	// We do nothing (return) to preserve the existing file.
 	// If the file is missing for some reason, the TypeScript compiler will complain later.
 	console.log("   [Info] Install via GitHub URL detected. Using existing info from src/lib/commitInfo.ts");
-	console.log("--- [ioBroker.roborock] Build Info Script Finished (Fallback) ---");
+	console.log("--- [ioBroker.roborock] Commit Info Script Finished (Fallback) ---");
 	return;
 }
 
@@ -51,4 +51,4 @@ if (currentContent !== content) {
 } else {
 	console.log(`   [Info] commitInfo.ts is up to date (hash: ${commitHash})`);
 }
-console.log("--- [ioBroker.roborock] Build Info Script Finished (Success) ---");
+console.log("--- [ioBroker.roborock] Commit Info Script Finished (Success) ---");
