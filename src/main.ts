@@ -5,10 +5,10 @@ import * as utils from "@iobroker/adapter-core";
 import { ChildProcess, spawn } from "child_process";
 import { randomBytes } from "crypto";
 import go2rtcPath from "go2rtc-static";
+import { commitInfo } from "./lib/commitInfo";
 
 // --- API & Helper Imports ---
 import { AppPluginManager } from "./lib/AppPluginManager";
-import { buildInfo } from "./lib/buildInfo";
 import { DeviceManager } from "./lib/deviceManager";
 import { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
 import { Feature } from "./lib/features/features.enum";
@@ -97,7 +97,7 @@ export class Roborock extends utils.Adapter {
 		this.translations = require(`../admin/i18n/${this.language || "en"}/translations.json`);
 
 		this.rLog("System", null, "Info", undefined, undefined, "Starting adapter. This might take a few minutes...", "info");
-		this.rLog("System", null, "Info", undefined, undefined, `Build Info: Date=${buildInfo.buildDate}, Commit=${buildInfo.commitHash}`, "info");
+		this.rLog("System", null, "Info", undefined, undefined, `Build Info: Date=${commitInfo.commitDate}, Commit=${commitInfo.commitHash}`, "info");
 
 		// Log redacted config
 		const configSummary = {
