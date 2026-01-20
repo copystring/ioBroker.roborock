@@ -97,7 +97,7 @@
     "test:unit": "vitest run",
     "test": "npm run test:unit && npm run test:integration && npm run test:package",
     "build:git": "npm run clean && tsc -b tsconfig.json && npm run build:www",
-    "prepare": "husky && npm run build:git",
+    "prepare": "node -e \"if (process.env.HUSKY!=='0') require('child_process').execSync('husky', {stdio:'inherit'})\" && npm run build:git",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:integration": "mocha test/integration.js --exit",
