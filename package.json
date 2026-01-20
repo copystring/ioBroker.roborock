@@ -97,6 +97,8 @@
     "watch:www": "esbuild src/www/map.ts --bundle --sourcemap --outfile=www/map.js --format=esm --watch",
     "test:unit": "vitest run",
     "test": "npm run test:unit && npm run test:integration && npm run test:package",
+    "build:git": "npm run clean && node scripts/updateBuildInfo.js && npm run copy:protocols && tsc -b tsconfig.json && npm run build:www",
+    "prepare": "npm run build:git",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:integration": "mocha test/integration.js --exit",
