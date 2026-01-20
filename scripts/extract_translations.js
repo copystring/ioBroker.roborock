@@ -3,7 +3,7 @@ const path = require('path');
 
 // Configuration
 const modulePath = process.env.SOURCE_MODULE || path.join(__dirname, '../.Roborock Q7 Series/output/module_518.js');
-const datasetPath = path.join(__dirname, '../src/lib/protocols/q7_dataset.json');
+const datasetPath = path.join(__dirname, '../lib/protocols/q7_dataset.json');
 
 // Translations automatically loaded from admin/words.js below
 

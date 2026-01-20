@@ -1,4 +1,4 @@
-import * as datasetRaw from '../src/lib/protocols/q7_dataset.json';
+import * as datasetRaw from '../lib/protocols/q7_dataset.json';
 import { RoborockLocales } from '../src/lib/roborock_locales';
 
 const dataset = datasetRaw as any;

@@ -6,7 +6,7 @@ import { B01ConsumableService } from "./services/B01ConsumableService";
 import { B01ControlService } from "./services/B01ControlService";
 import { B01MapService } from "./services/B01MapService";
 import { VACUUM_CONSTANTS } from "./vacuumConstants";
-import deviceDataSet = require("../../protocols/q7_dataset.json");
+import deviceDataSet = require("../../../../lib/protocols/q7_dataset.json");
 
 export class B01VacuumFeatures extends BaseDeviceFeatures {
 
