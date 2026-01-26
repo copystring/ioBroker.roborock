@@ -62,7 +62,8 @@ export class B01ControlService {
 					}
 				}
 
-				return params;
+				// Consistency: Wrap simple parameters in an array so messageParser can consistently use params[0] for B01 status props.
+				return Array.isArray(params) ? params : [params];
 		}
 	}
 }

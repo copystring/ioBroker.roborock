@@ -119,7 +119,7 @@ export class DeviceManager {
 					const version = await this.adapter.getDeviceProtocolVersion(duid);
 					const handler = createFeaturesForModel(this.adapter, duid, model, category, version);
 
-					// Store handler
+					// Store handler and initialize
 					this.deviceFeatureHandlers.set(duid, handler);
 
 					await this.adapter.extendObject(`Devices.${duid}`, {
@@ -157,9 +157,7 @@ export class DeviceManager {
 
 		await Promise.all(initPromises);
 
-		// Wait for startup requests
-		await this.adapter.requestsHandler.waitForStartup();
-
+		// Fire cleaning summary (background)
 		this.adapter.rLog("System", null, "Info", undefined, undefined, `Processing ${cleanSummaryHandlers.length} clean summaries...`, "info");
 		for (const handler of cleanSummaryHandlers) {
 			handler.updateCleanSummary().catch(e => this.adapter.log.warn(`Background summary update failed for ${(handler as any).duid}: ${e.message}`));
@@ -167,8 +165,10 @@ export class DeviceManager {
 
 		this.adapter.rLog("System", null, "Info", undefined, undefined, "All devices initialized.", "info");
 
-		// Cleanup orphaned devices
-		await this.cleanupOrphanedDevices(devices.map((d) => d.duid));
+		// Cleanup orphaned devices (non-blocking)
+		this.cleanupOrphanedDevices(devices.map((d) => d.duid)).catch(e =>
+			this.adapter.rLog("System", null, "Warn", undefined, undefined, `Device cleanup failed: ${e.message}`, "warn")
+		);
 	}
 
 
@@ -245,45 +245,62 @@ export class DeviceManager {
 		this.mainUpdateInterval = this.adapter.setInterval(async () => {
 			mainUpdateCount++;
 
-			// --- Slow Loop ---
-			if (mainUpdateCount >= mainPollInterval) {
+			// --- Independent Polling Logic ---
+			// 1. Check for Slow Tick (HomeData update)
+			const isSlowTick = mainUpdateCount >= mainPollInterval;
+
+			if (isSlowTick) {
 				mainUpdateCount = 0;
-				this.adapter.rLog("System", null, "Debug", undefined, undefined, "Running scheduled main device update...", "debug");
-
+				this.adapter.rLog("System", null, "Debug", undefined, undefined, "Running scheduled main device update...", "silly");
 				await this.adapter.http_api.updateHomeData();
-				const cloudDevices = this.adapter.http_api.getDevices();
+			}
 
-				for (const device of cloudDevices) {
-					const duid = device.duid;
-					if (!device.online) {
-						this.adapter.rLog("System", duid, "Debug", undefined, undefined, "Device is offline. Skipping poll.", "debug");
-						continue;
-					}
+			// 2. Poll Devices (Fast or Slow)
+			const cloudDevices = this.adapter.http_api.getDevices();
 
-					const handler = this.deviceFeatureHandlers.get(duid);
-					if (!handler) continue;
+			for (const device of cloudDevices) {
+				const duid = device.duid;
+				if (!device.online) continue;
 
-					try {
+				const handler = this.deviceFeatureHandlers.get(duid);
+				if (!handler) continue;
+
+				// Determine activity
+				const lastState = this.lastStateCode.get(duid) || 0;
+				const isActive = this.isActiveState(lastState);
+
+				// Poll if:
+				// a) Slow Tick (Base Interval)
+				// b) Device is Active AND Fast Tick (every 2s)
+				const isFastTick = (mainUpdateCount % 2 === 0);
+				const shouldPoll = isSlowTick || (isActive && isFastTick);
+
+				if (!shouldPoll) continue;
+
+				try {
+					// Update basic info only on slow tick (optional optimization)
+					if (isSlowTick) {
 						await this.adapter.updateDeviceInfo(duid, cloudDevices);
-						const version = await this.adapter.getDeviceProtocolVersion(duid);
-
-						// Switch on version for separate polling paths
-						switch (version) {
-							case "B01":
-								await this.pollB01Device(handler, duid);
-								break;
-							case "A01":
-								await this.pollA01Device(handler, duid);
-								break;
-							case "1.0":
-								await this.pollV1Device(handler, duid);
-								break;
-							default:
-								this.adapter.rLog("System", duid, "Warn", version, undefined, "Unknown protocol version. Skipping poll.", "warn");
-						}
-					} catch (error: any) {
-						this.adapter.catchError(error, "mainUpdateInterval", duid);
 					}
+
+					const version = await this.adapter.getDeviceProtocolVersion(duid);
+
+					// Switch on version
+					switch (version) {
+						case "B01":
+							await this.pollB01Device(handler, duid);
+							break;
+						case "A01":
+							await this.pollA01Device(handler, duid);
+							break;
+						case "1.0":
+							await this.pollV1Device(handler, duid);
+							break;
+						default:
+							this.adapter.rLog("System", duid, "Warn", version, undefined, "Unknown protocol version. Skipping poll.", "warn");
+					}
+				} catch (error: any) {
+					this.adapter.catchError(error, "mainUpdateInterval", duid);
 				}
 			}
 		}, 1000); // 1s ticker
@@ -302,7 +319,9 @@ export class DeviceManager {
 		const isActive = this.isActiveState(currentState);
 		const wasActive = this.isActiveState(lastState);
 
-		this.adapter.rLog("System", duid, "Debug", "B01", undefined, `State: ${lastState} -> ${currentState} | Active: ${wasActive} -> ${isActive}`, "debug");
+		if (lastState !== currentState || wasActive !== isActive) {
+			this.adapter.rLog("System", duid, "Debug", "B01", undefined, `State: ${lastState} -> ${currentState} | Active: ${wasActive} -> ${isActive}`, "debug");
+		}
 
 		// Determine if we need to update the map (Active = polling map)
 		if (isActive) {
@@ -336,7 +355,9 @@ export class DeviceManager {
 		const isActive = this.isActiveState(currentState);
 		const wasActive = this.isActiveState(lastState);
 
-		this.adapter.rLog("System", duid, "Debug", "A01", undefined, `State: ${lastState} -> ${currentState} | Active: ${wasActive} -> ${isActive}`, "debug");
+		if (lastState !== currentState || wasActive !== isActive) {
+			this.adapter.rLog("System", duid, "Debug", "A01", undefined, `State: ${lastState} -> ${currentState} | Active: ${wasActive} -> ${isActive}`, "debug");
+		}
 
 		// Determine if we need to update the map (Active = polling map)
 		if (isActive) {
@@ -376,7 +397,9 @@ export class DeviceManager {
 		const isActive = this.isActiveState(currentState);
 		const wasActive = this.isActiveState(lastState);
 
-		this.adapter.rLog("System", duid, "Debug", "V1", undefined, `State: ${lastState} -> ${currentState} | Active: ${wasActive} -> ${isActive}`, "debug");
+		if (lastState !== currentState || wasActive !== isActive) {
+			this.adapter.rLog("System", duid, "Debug", "1.0", undefined, `State: ${lastState} -> ${currentState} | Active: ${wasActive} -> ${isActive}`, "debug");
+		}
 
 		// Determine if we need to update the map (Active = polling map)
 		if (isActive) {
@@ -385,7 +408,7 @@ export class DeviceManager {
 
 		// Transition: Active -> Inactive
 		if (wasActive && !isActive) {
-			this.adapter.rLog("System", duid, "Info", "V1", undefined, `Activity finished (State ${lastState} -> ${currentState}). Fetching full data...`, "info");
+			this.adapter.rLog("System", duid, "Info", "1.0", undefined, `Activity finished (State ${lastState} -> ${currentState}). Fetching full data...`, "info");
 
 			// Trigger full update
 			await handler.initializeDeviceData();

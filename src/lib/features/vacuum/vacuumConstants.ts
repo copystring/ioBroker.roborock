@@ -1,4 +1,4 @@
-import EXTRACTED_ERRORS from "../../protocols/s7_maxv_dataset.json";
+import EXTRACTED_ERRORS from "../../../../lib/protocols/s7_maxv_dataset.json";
 
 interface S7Dataset {
 	[lang: string]: Record<string, string>;
