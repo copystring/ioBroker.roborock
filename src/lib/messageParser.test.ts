@@ -1,7 +1,8 @@
 // test/messageParser.test.ts
 
 import { describe, expect, it } from "vitest";
-import { messageParser, type Frame } from "./messageParser"; // Adjust path if necessary
+import type { Frame } from "./messageParser"; // Adjust path if necessary
+import { messageParser } from "./messageParser";
 
 // Mocking the Roborock adapter structure
 const mockAdapter: any = {

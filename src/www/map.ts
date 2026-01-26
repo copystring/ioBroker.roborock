@@ -1,8 +1,9 @@
 import * as d3 from "d3";
 import { localCoordsToRobotCoords, robotCoordsToLocalCoords } from "../common/coordTransformation";
-import { processPaths, type PathResult } from "../common/pathProcessor";
+import { IMG_CHARGER, IMG_GO_TO_PIN, IMG_ROBOT_ORIGINAL } from "../common/images";
+import type { PathResult } from "../common/pathProcessor";
+import { processPaths } from "../common/pathProcessor";
 import { Connection } from "./conn.js";
-import { IMG_CHARGER, IMG_GO_TO_PIN, IMG_ROBOT_ORIGINAL } from "./images.js";
 
 // Interfaces
 // -----------------------------------------------------------------------------

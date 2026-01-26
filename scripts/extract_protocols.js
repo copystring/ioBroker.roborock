@@ -10,7 +10,7 @@ const SOURCES = {
     "Q7": {
         type: "module_parsing",
         sourceDir: path.join(BASE_DIR, ".Roborock Q7 Series", "output"),
-        outputJson: path.join(BASE_DIR, "src/lib/protocols/q7_dataset.json"),
+        outputJson: path.join(BASE_DIR, "lib/protocols/q7_dataset.json"),
         docDir: path.join(BASE_DIR, "docs/protocols/Q7"),
         // Specifics for Q7 module parsing
         module519: "module_519.js",
@@ -24,7 +24,7 @@ const SOURCES = {
         // Previous script used absolute: C:\iobroker\iobroker.roborock\.AppPlugins...
         // Let's assume it's in the repo root based on user info.
         sourceDir: path.join(BASE_DIR, ".AppPlugins", "S7 MaxV", "8328da4abbd14f0f99d6c32e17af5a8b", "raw"),
-        outputJson: path.join(BASE_DIR, "src/lib/protocols/s7_maxv_dataset.json"),
+        outputJson: path.join(BASE_DIR, "lib/protocols/s7_maxv_dataset.json"),
         docDir: path.join(BASE_DIR, "docs/protocols/S7_MaxV"),
         // Specifics for App strings
         errorMapping: {

@@ -78,23 +78,60 @@ export class mqtt_api {
 		}
 
 		const rriot = this.adapter.http_api.get_rriot();
-		this.adapter.rLog("MQTT", null, "Info", "MQTT", undefined, `Connecting to MQTT Broker at ${rriot.r.m}...`, "info");
+		this.adapter.rLog("MQTT", null, "Info", undefined, undefined, `Connecting to MQTT Broker at ${rriot.r.m}...`, "info");
 
 		const client = mqtt.connect(rriot.r.m, this.mqttOptions);
 		this.client = client;
 
-		try {
-			// Set up listeners and subscriptions
-			await this.subscribe_mqtt_events(client);
-			await this.subscribe_mqtt_message(client);
-
-			// Note: 'connect' event handler sets this.connected = true
-		} catch (error: any) {
-			this.adapter.rLog("MQTT", null, "Error", "MQTT", undefined, `MQTT connection setup failed. Error: ${error.message}`, "error");
+		// Robust global error handling to prevent uncaught exceptions (like EPIPE)
+		client.on("error", (err: Error) => {
+			this.adapter.rLog("MQTT", null, "Error", "Info", undefined, `MQTT Client Error: ${err.message}`, "error");
 			this.connected = false;
-			client.removeAllListeners();
-			client.end();
-		}
+		});
+
+		// Set up persistent listeners early
+		this.subscribe_mqtt_message(client);
+
+		return new Promise((resolve, reject) => {
+			let connectionHandled = false;
+
+			const onConnect = () => {
+				if (!connectionHandled) {
+					connectionHandled = true;
+					this.connected = true;
+
+					// Now set up event listeners and WAIT for initial subscription
+					this.subscribe_mqtt_events(client)
+						.then(() => resolve())
+						.catch((err) => reject(err));
+				}
+			};
+
+			if (client.connected) {
+				onConnect();
+			} else {
+				client.once("connect", onConnect);
+			}
+
+			client.once("error", (error: Error) => {
+				if (!connectionHandled) {
+					connectionHandled = true;
+					this.adapter.rLog("MQTT", null, "Error", "Info", undefined, `MQTT connection setup failed. Error: ${error.message}`, "error");
+					this.connected = false;
+					client.end();
+					reject(error);
+				}
+			});
+
+			// Timeout after 10s to prevent infinite wait
+			this.adapter.setTimeout(() => {
+				if (!connectionHandled) {
+					connectionHandled = true;
+					client.end();
+					reject(new Error("MQTT connection timeout after 10s"));
+				}
+			}, 10000);
+		});
 	}
 
 	/**
@@ -104,38 +141,64 @@ export class mqtt_api {
 	async subscribe_mqtt_events(client: any): Promise<void> {
 		const rriot = this.adapter.http_api.get_rriot();
 
-		client.on("connect", () => {
-			this.connected = true;
-			this.adapter.rLog("MQTT", null, "Info", "MQTT", undefined, `MQTT connection established.`, "info");
+		return new Promise((resolveSubscription, rejectSubscription) => {
+			let initialSubscriptionHandled = false;
 
-			// Subscribe to the specific topic for this user
-			const topic = `rr/m/o/${rriot.u}/${this.mqttUser}/#`;
-			client.subscribe(topic, (err: Error | null) => {
-				if (err) {
-					this.adapter.rLog("MQTT", null, "Error", "MQTT", undefined, `Failed to subscribe to ${topic}! Error: ${err}`, "error");
-				} else {
-					this.adapter.rLog("MQTT", null, "Info", "MQTT", undefined, `Subscribed to ${topic}`, "debug");
+			const doSubscribe = () => {
+				this.connected = true;
+				this.adapter.rLog("MQTT", null, "Info", undefined, undefined, `MQTT connection established. subscribing...`, "info");
+
+				const topic = `rr/m/o/${rriot.u}/${this.mqttUser}/#`;
+				client.subscribe(topic, (err: Error | null) => {
+					if (err) {
+						this.adapter.rLog("MQTT", null, "Error", "Info", undefined, `Failed to subscribe to ${topic}! Error: ${err}`, "error");
+						if (!initialSubscriptionHandled) {
+							initialSubscriptionHandled = true;
+							rejectSubscription(err);
+						}
+					} else {
+						this.adapter.rLog("MQTT", null, "Info", undefined, undefined, `Subscribed to ${topic}`, "debug");
+						if (!initialSubscriptionHandled) {
+							initialSubscriptionHandled = true;
+							resolveSubscription();
+						}
+					}
+				});
+			};
+
+			client.on("connect", doSubscribe);
+
+			if (client.connected) {
+				doSubscribe();
+			}
+
+			// Safety timeout for subscription
+			this.adapter.setTimeout(() => {
+				if (!initialSubscriptionHandled) {
+					initialSubscriptionHandled = true;
+					this.adapter.rLog("MQTT", null, "Warn", "MQTT", undefined, `Initial subscription timed out, continuing anyway.`, "warn");
+					resolveSubscription(); // Don't block forever if sub fails but conn is up
 				}
-			});
+			}, 5000);
 		});
 
 		client.on("disconnect", () => {
-			this.adapter.rLog("MQTT", null, "Info", "MQTT", undefined, `MQTT disconnected.`, "info");
+			this.adapter.rLog("MQTT", null, "Info", undefined, undefined, `MQTT disconnected.`, "info");
 			this.connected = false;
 		});
 
 		client.on("error", (error: Error) => {
-			this.adapter.rLog("MQTT", null, "Error", "MQTT", undefined, `MQTT connection error: ${error.message}. Broker: ${rriot.r.m}`, "error");
+			this.adapter.rLog("MQTT", null, "Error", "Info", undefined, `MQTT connection error: ${error.message}. Broker: ${rriot.r.m}`, "error");
 			this.connected = false;
 		});
 
 		client.on("close", () => {
-			this.adapter.rLog("MQTT", null, "Info", "MQTT", undefined, `MQTT connection closed. Reconnecting in 60 seconds...`, "info");
+			this.adapter.rLog("MQTT", null, "Info", undefined, undefined, `MQTT connection closed. Reconnecting in 60 seconds...`, "info");
 			this.connected = false;
 		});
 
 		client.on("reconnect", () => {
-			this.adapter.rLog("MQTT", null, "Info", "MQTT", undefined, `MQTT attempting to reconnect...`, "info");
+			this.adapter.rLog("MQTT", null, "Info", undefined, undefined, `MQTT attempting to reconnect...`, "info");
 			// Subscription is usually handled automatically by MQTT client on reconnect if clean=false,
 			// but if we need to re-subscribe manually:
 			const topic = `rr/m/o/${rriot.u}/${this.mqttUser}/#`;
@@ -145,7 +208,7 @@ export class mqtt_api {
 		});
 
 		client.on("offline", () => {
-			this.adapter.rLog("MQTT", null, "Info", "MQTT", undefined, "MQTT connection went offline.", "warn");
+			this.adapter.rLog("MQTT", null, "Info", undefined, undefined, "MQTT connection went offline.", "warn");
 			this.connected = false;
 		});
 	}
@@ -155,7 +218,6 @@ export class mqtt_api {
 	 * @param client - The MQTT client instance.
 	 */
 	async subscribe_mqtt_message(client: any): Promise<void> {
-		const endpoint = await this.ensureEndpoint();
 
 		client.on("message", async (topic: string, message: Buffer) => {
 			try {
@@ -163,31 +225,61 @@ export class mqtt_api {
 				 * Listens for incoming MQTT messages and dispatches them to the appropriate handlers.
 				 * @see test/unit/transport_specification.test.ts for the MQTT topic structure.
 				 */
-				// Topic structure: rr/m/o/<uID>/<userID>/<endpoint>/<duid>
 				const parts = topic.split("/");
-				const duid = parts.pop();
-				const topicEndpoint = parts.pop(); // Segment before duid (e.g. i8szGYLK)
+				const duid = parts[parts.length - 1]; // ALWAYS use the last segment as the DUID
+				const topicEndpoint = parts[parts.length - 2]; // Use the penultimate as endpoint
 
 				if (!duid) {
 					this.adapter.rLog("MQTT", null, "Error", "MQTT", undefined, `Could not extract DUID from topic: ${topic}`, "warn");
 					return;
 				}
 
-				this.adapter.rLog("MQTT", duid, "<-", "RAW", undefined, `Received Packet. Topic: ${topicEndpoint}, Size: ${message.length}`, "debug");
+				// this.adapter.rLog("MQTT", null, "Debug", "MQTT", undefined, `Incoming Topic: ${topic} | Extracted DUID: ${duid}`, "debug");
+
+				let finalDuid = duid;
+
+				// Verify identity against known devices
+				const knownDevices = this.adapter.http_api.getDevices();
+				if (knownDevices.some(d => d.duid === duid)) {
+					// Direct match
+				} else {
+					// Fallback: If last segment is NOT a known DUID, it might be an endpoint-only response message.
+					// Search backwards through path for any known DUID.
+					const safeParts = [...parts];
+					for (let i = safeParts.length - 2; i >= 0; i--) {
+						const seg = safeParts[i];
+						if (knownDevices.some(d => d.duid === seg)) {
+							finalDuid = seg;
+							break;
+						}
+					}
+				}
+
+
 
 				// Decode the Roborock binary message wrapper
 				const dataArr = this.adapter.requestsHandler.messageParser.decodeMsg(message, duid);
 				const allMessages = Array.isArray(dataArr) ? dataArr : dataArr ? [dataArr] : [];
 
+				// Check binary after decode to avoid logging binary content as RAW text unnecessarily
+				const isBinary = allMessages.some((d: any) => d.protocol === 300 || d.protocol === 301);
+
+				// Only log RAW packets if they are NOT binary (maps/photos) to reduce spam, or if level is silly
+				if (!isBinary) {
+					this.adapter.rLog("MQTT", finalDuid, "<-", "RAW", undefined, `Packet: ${topicEndpoint} | byteLen: ${message.length}`, "silly");
+				} else {
+					this.adapter.rLog("MQTT", finalDuid, "<-", "RAW", undefined, `Packet: ${topicEndpoint} | byteLen: ${message.length}`, "silly");
+				}
+
 				for (const data of allMessages) {
-					await this.handleDecodedMessage(duid, data, endpoint, topicEndpoint);
+					await this.handleDecodedMessage(finalDuid, data);
 				}
 			} catch (error: any) {
 				this.adapter.rLog("MQTT", null, "Error", "MQTT", undefined, `Error processing MQTT message on ${topic}: ${error.stack}`, "error");
 			}
 		});
 
-		this.adapter.rLog("MQTT", null, "Info", "MQTT", undefined, `MQTT message listener initialized.`, "info");
+		this.adapter.rLog("MQTT", null, "Info", undefined, undefined, `MQTT message listener initialized.`, "info");
 	}
 
 	/**
@@ -235,7 +327,7 @@ export class mqtt_api {
 		const isSuccessOk = result === "ok" || (Array.isArray(result) && result[0] === "ok");
 
 		if (isMapOrPhoto && isSuccessOk) {
-			this.adapter.rLog("MQTT", duid, "<-", "B01", reqId, `Map/Photo ACK for ${pending.method}. Waiting for data.`, "debug");
+			this.adapter.rLog("MQTT", duid, "<-", "B01", reqId, `Map/Photo ACK for ${pending.method}. Waiting for data.`, "debug", reqId);
 		} else {
 			this.adapter.requestsHandler.resolvePendingRequest(reqId, result, `MQTT-B01`, duid, "MQTT");
 		}
@@ -268,17 +360,17 @@ export class mqtt_api {
 			return;
 		}
 
-		// Suppress warnings for common B01 pushes that are not responses
+		// Suppress logs for common B01 pushes or unsolicited responses
 		const method = response.method || "";
 		if (!["prop.post", "service.post"].includes(method)) {
-			this.adapter.rLog("MQTT", duid, "<-", "B01", reqId, `Response not found in pending requests`, "debug");
+			this.adapter.rLog("MQTT", duid, "<-", "B01", reqId, `Response not found in pending requests. Discarding.`, "silly");
 		}
 	}
 
 	/**
 	 * Processes a single decoded Roborock message frame.
 	 */
-	async handleDecodedMessage(duid: string, data: any, endpoint: string, topicEndpoint?: string): Promise<void> {
+	async handleDecodedMessage(duid: string, data: any): Promise<void> {
 		// 1. Protocol A01 / B01 (Tuya-like / JSON payload)
 		const isJsonProtocol = (data.version === "A01" || data.version === "B01") && data.protocol !== 300 && data.protocol !== 301;
 		if (isJsonProtocol) {
@@ -298,7 +390,7 @@ export class mqtt_api {
 
 		// 3. Protocol 300 & 301 (Binary Data: Photos, Maps)
 		if (data.protocol === 300 || data.protocol === 301) {
-			await this.handlePhotoOrMapData(duid, data, endpoint, topicEndpoint);
+			await this.handlePhotoOrMapData(duid, data);
 			return;
 		}
 
@@ -309,7 +401,8 @@ export class mqtt_api {
 		}
 
 		// 5. Unknown Protocol
-		this.adapter.rLog("MQTT", duid, "<-", String(data.protocol), undefined, "Unknown Protocol", "warn");
+		const version = await this.adapter.getDeviceProtocolVersion(duid).catch(() => "1.0");
+		this.adapter.rLog("MQTT", duid, "<-", version, String(data.protocol), "Unknown Protocol", "warn");
 	}
 
 	/**
@@ -378,8 +471,18 @@ export class mqtt_api {
 			const pendingRequest = this.adapter.pendingRequests.get(dps102.id);
 			if (pendingRequest) {
 				await this.resolveProtocol102Request(duid, data.protocol, dps102, pendingRequest);
-			} else if (!this.adapter.requestsHandler.isRequestRecentlyFinished(dps102.id) && dps102.method !== "prop.post") {
-				this.adapter.rLog("MQTT", duid, "<-", "102", dps102.id, `Response not found in pending requests | Payload: ${JSON.stringify(dps102)}`, "debug");
+			} else {
+				// UNSOLICITED STATUS / RESPONSE FROM OTHER CLIENT (App)
+				const isRecentlyFinished = this.adapter.requestsHandler.isRequestRecentlyFinished(dps102.id);
+				const isPropPost = dps102.method === "prop.post";
+				const hasStatusResult = Array.isArray(dps102.result) && dps102.result[0] && typeof dps102.result[0] === "object" && "state" in dps102.result[0];
+
+				if (hasStatusResult || isPropPost) {
+					// Discard unsolicited updates from official App silently
+					this.adapter.rLog("MQTT", duid, "<-", "102", dps102.id, `Unsolicited Status update discarded (App Response).`, "silly", dps102.id);
+				} else if (!isRecentlyFinished) {
+					this.adapter.rLog("MQTT", duid, "<-", "102", dps102.id, `Response not found in pending requests. Discarding.`, "silly", dps102.id);
+				}
 			}
 		} catch (e) {
 			this.adapter.rLog("MQTT", duid, "Error", "102", undefined, `Failed to parse Protocol 102: ${e}`, "error");
@@ -392,12 +495,11 @@ export class mqtt_api {
 		if (isBinaryDataMethod) {
 			const isSuccessOk = dps102.result === "ok" || (Array.isArray(dps102.result) && dps102.result[0] === "ok");
 			if (isSuccessOk) {
-				this.adapter.rLog("MQTT", duid, "<-", "102", dps102.id, `Map/Photo ACK for ${pending.method}. Waiting for data.`, "debug");
+				this.adapter.rLog("MQTT", duid, "<-", pending.version || "1.0", "102", `Map/Photo ACK for ${pending.method}. Waiting for data.`, "silly", dps102.id);
 			} else {
 				this.adapter.requestsHandler.resolvePendingRequest(dps102.id, dps102.result, protocol, duid, "MQTT");
 			}
 		} else {
-			this.adapter.rLog("MQTT", duid, "<-", "102", dps102.id, `Response ${pending.method} | ${JSON.stringify(dps102.result)}`, "debug");
 			this.adapter.requestsHandler.resolvePendingRequest(dps102.id, dps102.result, protocol, duid, "MQTT");
 		}
 	}
@@ -408,25 +510,27 @@ export class mqtt_api {
 	private async handleProtocol500(duid: string, data: any): Promise<void> {
 		try {
 			const parsedData = JSON.parse(data.payload.toString("utf8"));
+			const version = await this.adapter.getDeviceProtocolVersion(duid).catch(() => "1.0");
 
 			if (parsedData.mqttOtaData) {
 				const status = parsedData.mqttOtaData.mqttOtaStatus?.status;
 				const progress = parsedData.mqttOtaData.mqttOtaProgress?.progress;
 
-				if (status) this.adapter.rLog("MQTT", duid, "Info", "500", undefined, `Firmware Update Status: ${status}`, "info");
-				if (progress !== undefined) this.adapter.rLog("MQTT", duid, "Info", "500", undefined, `Firmware Update Progress: ${progress}%`, "info");
+				if (status) this.adapter.rLog("MQTT", duid, "Info", version, "500", `Firmware Update Status: ${status}`, "info");
+				if (progress !== undefined) this.adapter.rLog("MQTT", duid, "Info", version, "500", `Firmware Update Progress: ${progress}%`, "info");
 			} else if (parsedData.online === false) {
-				this.adapter.rLog("MQTT", duid, "Info", "500", undefined, `Device OFFLINE.`, "info");
+				this.adapter.rLog("MQTT", duid, "Info", version, "500", `Device OFFLINE.`, "info");
 			}
 		} catch (error: any) {
-			this.adapter.rLog("MQTT", duid, "Error", "500", undefined, `Parse Error | ${error.message}`, "warn");
+			const version = await this.adapter.getDeviceProtocolVersion(duid).catch(() => "1.0");
+			this.adapter.rLog("MQTT", duid, "Error", version, "500", `Parse Error | ${error.message}`, "warn");
 		}
 	}
 
 	/**
 	 * Handles binary data messages (Protocol 300/301) for Photos or Maps.
 	 */
-	async handlePhotoOrMapData(duid: string, data: any, endpoint: string, topicEndpoint?: string): Promise<void> {
+	async handlePhotoOrMapData(duid: string, data: any): Promise<void> {
 		const payloadBuf = data.payload as Buffer;
 		const isRoborockHeader = payloadBuf.length > 8 && payloadBuf.subarray(0, 8).equals(Buffer.from("ROBOROCK"));
 
@@ -447,7 +551,7 @@ export class mqtt_api {
 			if (pv === "B01") {
 				await this.handleB01Map(duid, data, payloadBuf);
 			} else {
-				await this.handleV1Map(duid, data, payloadBuf, endpoint, topicEndpoint);
+				await this.handleV1Map(duid, data, payloadBuf);
 			}
 		}
 	}
@@ -455,46 +559,56 @@ export class mqtt_api {
 	/**
 	 * Handles V1 Map Data (Standard Encryption with 24-byte header)
 	 */
-	private async handleV1Map(duid: string, data: any, payloadBuf: Buffer, endpoint: string, topicEndpoint?: string): Promise<void> {
+	private async handleV1Map(duid: string, data: any, payloadBuf: Buffer): Promise<void> {
 		if (payloadBuf.length < 24) {
 			this.adapter.rLog("MQTT", duid, "Warn", "301", undefined, `V1 Data too short (${payloadBuf.length}b)`, "warn");
 			return;
 		}
 
 		try {
-			const parsedHeader = protocol301Parser.parse(payloadBuf.subarray(0, 24));
-			const matchEndpoint = endpoint && parsedHeader.endpoint && endpoint.startsWith(parsedHeader.endpoint);
-			const matchTopic = topicEndpoint && parsedHeader.endpoint && topicEndpoint.startsWith(parsedHeader.endpoint);
+			// this.adapter.rLog("MQTT", duid, "Debug", "301", undefined, `Handling V1 Map... Payload: ${payloadBuf.length}b`, "debug");
 
-			if (!matchEndpoint && !matchTopic) {
-				this.adapter.rLog("MQTT", duid, "Warn", "301", undefined, `V1 Header Endpoint mismatch or invalid. Got: '${parsedHeader.endpoint}'`, "warn");
+			const parsedHeader = protocol301Parser.parse(payloadBuf.subarray(0, 24));
+			const msgId = parsedHeader.id;
+
+			// Verify if this is OUR request. In V1, map packets are strictly request-response.
+			const pending = this.adapter.pendingRequests.get(msgId);
+			const isOurs = pending && pending.duid === duid && (pending.method === "get_map_v1" || pending.method === "get_clean_record_map");
+
+			if (!isOurs) {
+				// Packet from another client (e.g. Roborock App) or already timed out. Silently discard.
+				this.adapter.rLog("MQTT", duid, "<-", "1.0", "301", `V1 Map packet ignored (ID not in pending requests).`, "silly", msgId);
 				return;
 			}
 
-			const unzipped = this.decryptAndUnzipV1Map(payloadBuf);
-			const foundId = this.findPendingMapRequest(duid);
-
-			if (foundId !== -1) {
-				this.adapter.requestsHandler.resolvePendingRequest(foundId, unzipped, data.protocol, duid, "MQTT", "V1");
-			} else {
-				const robotModel = this.adapter.http_api.getRobotModel(duid) || "default";
-				this.adapter.mapManager.processMap(unzipped, "V1", robotModel, duid, null, duid, "MQTT");
+			let unzipped: Buffer;
+			try {
+				unzipped = this.decryptAndUnzipV1Map(payloadBuf);
+			} catch (e: any) {
+				this.adapter.rLog("MQTT", duid, "Warn", "1.0", "301", `Failed to decrypt OUR map response: ${e.message}`, "warn", msgId);
+				return;
 			}
+
+			this.adapter.requestsHandler.resolvePendingRequest(msgId, unzipped, data.protocol, duid, "MQTT", "1.0");
 		} catch (e: any) {
-			this.adapter.rLog("MQTT", duid, "Error", "301", undefined, `V1 Map processing failed: ${e.message}`, "error");
+			this.adapter.rLog("MQTT", duid, "Error", "1.0", "301", `V1 Map processing failed: ${e.message}`, "error");
 		}
 	}
 
 	private decryptAndUnzipV1Map(payloadBuf: Buffer): Buffer {
-		const iv = Buffer.alloc(16, 0);
-		const decipher = crypto.createDecipheriv("aes-128-cbc", this.adapter.nonce, iv);
-		let decrypted = decipher.update(payloadBuf.subarray(24) as Uint8Array);
-		decrypted = Buffer.concat([decrypted as Uint8Array, decipher.final()]);
-
 		try {
-			return zlib.gunzipSync(decrypted as Uint8Array);
-		} catch {
-			return decrypted;
+			const iv = Buffer.alloc(16, 0);
+			const decipher = crypto.createDecipheriv("aes-128-cbc", this.adapter.nonce, iv);
+			let decrypted = decipher.update(payloadBuf.subarray(24) as Uint8Array);
+			decrypted = Buffer.concat([decrypted as Uint8Array, decipher.final()]);
+
+			try {
+				return zlib.gunzipSync(decrypted as Uint8Array);
+			} catch {
+				return decrypted;
+			}
+		} catch (err: any) {
+			throw new Error(`Decryption failed (likely wrong nonce): ${err.message}`);
 		}
 	}
 
@@ -509,7 +623,8 @@ export class mqtt_api {
 			if (foundId !== -1) {
 				this.adapter.requestsHandler.resolvePendingRequest(foundId, workingBuf, data.protocol, duid, "MQTT", "B01");
 			} else {
-				await this.processUnsolicitedB01Map(duid, workingBuf);
+				// Discard unsolicited B01 maps silenty (often from Official App)
+				this.adapter.rLog("MQTT", duid, "<-", "B01", "301", `Unsolicited B01 Map packet ignored.`, "silly");
 			}
 		} catch (e: any) {
 			this.adapter.rLog("MQTT", duid, "Error", "B01", undefined, `B01 Map processing failed: ${e.message}`, "error");
@@ -535,15 +650,6 @@ export class mqtt_api {
 		}
 	}
 
-	private findPendingMapRequest(duid: string): number {
-		for (const [id, req] of this.adapter.pendingRequests) {
-			if ((req.method === "get_map_v1" || req.method === "get_clean_record_map") && req.duid === duid) {
-				return id;
-			}
-		}
-		return -1;
-	}
-
 	private findPendingB01MapRequest(duid: string): number {
 		for (const [id, req] of this.adapter.pendingRequests) {
 			const methods = ["get_map_v1", "get_clean_record_map", "service.upload_by_maptype", "service.upload_record_by_url"];
@@ -552,30 +658,6 @@ export class mqtt_api {
 			}
 		}
 		return -1;
-	}
-
-	private async processUnsolicitedB01Map(duid: string, workingBuf: Buffer): Promise<void> {
-		try {
-			const robotModel = this.adapter.http_api.getRobotModel(duid) || "roborock.vacuum.a27";
-			const res = await this.adapter.mapManager.processMap(workingBuf, "B01", robotModel, duid, null, duid, "MQTT");
-			if (!res) return;
-
-			await this.adapter.ensureFolder(`Devices.${duid}.map`);
-			if (res.mapBase64) {
-				await this.adapter.ensureState(`Devices.${duid}.map.mapBase64`, { name: "Map Image", type: "string", role: "text.png" });
-				await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapBase64`, { val: res.mapBase64, ack: true });
-			}
-			if (res.mapBase64Clean) {
-				await this.adapter.ensureState(`Devices.${duid}.map.mapBase64Clean`, { name: "Map Image (Clean)", type: "string", role: "text.png" });
-				await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapBase64Clean`, { val: res.mapBase64Clean, ack: true });
-			}
-			if (res.mapData) {
-				await this.adapter.ensureState(`Devices.${duid}.map.mapData`, { name: "Map Data", type: "string", role: "json" });
-				await this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapData`, { val: JSON.stringify(res.mapData), ack: true });
-			}
-		} catch (err: any) {
-			this.adapter.rLog("MQTT", duid, "Error", "B01", undefined, `Failed to process unsolicited B01 map: ${err}`, "error");
-		}
 	}
 
 	/**

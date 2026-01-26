@@ -2,13 +2,12 @@
   "extends": "@tsconfig/node22/tsconfig.json",
   "compilerOptions": {
     // Output
-    "noEmit": false,
-    "outDir": "./build",
+    "noEmit": true,
     "sourceMap": true,
     "inlineSources": true,
     "declaration": true,
     "composite": true,
-    "tsBuildInfoFile": "./build/tsconfig.tsbuildinfo",
+    "tsBuildInfoFile": "./tsconfig.tsbuildinfo",
     "newLine": "lf",
 
     // Module Resolution

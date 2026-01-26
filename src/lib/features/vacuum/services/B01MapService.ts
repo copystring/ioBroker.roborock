@@ -6,7 +6,8 @@ export class B01MapService {
 	constructor(
 		private deps: FeatureDependencies,
 		private duid: string,
-		private locales: RoborockLocales
+		private locales: RoborockLocales,
+		private onRoomsDetected?: (rooms: any[]) => void
 	) {}
 
 	public async updateMap(): Promise<void> {
@@ -47,12 +48,17 @@ export class B01MapService {
 	}
 
 	protected async processUpdateMapResponse(data: Buffer): Promise<void> {
-		this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `Received Map Data (${data.length} bytes)`, "debug");
+		this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `Received Map Data (${data.length} bytes)`, "silly");
 
 		const mapRes = await this.deps.adapter.mapManager.processMap(data, "B01", this.deps.adapter.http_api.getRobotModel(this.duid) || "B01", this.duid, null, this.duid, "B01History");
 
 		if (mapRes) {
 			await this.processMapResults(mapRes);
+
+			// Populate mappedRooms in feature handler if we found them in the map
+			if (mapRes.mapData && Array.isArray(mapRes.mapData.rooms) && this.onRoomsDetected) {
+				this.onRoomsDetected(mapRes.mapData.rooms);
+			}
 		} else {
 			this.deps.adapter.rLog("System", this.duid, "Warn", "B01", undefined, "B01 Map processing returned null.", "warn");
 		}
@@ -281,7 +287,7 @@ export class B01MapService {
 				return;
 			}
 
-			this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `Received History Map Data (${data.length} bytes)`, "debug");
+			this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `Received History Map Data (${data.length} bytes)`, "silly");
 
 			const mapRes = await this.deps.adapter.mapManager.processMap(
 				data,
