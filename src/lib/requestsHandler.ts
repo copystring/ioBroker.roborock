@@ -1,16 +1,12 @@
+import PQueue from "p-queue";
 import type { Roborock } from "../main";
 import type { BaseDeviceFeatures } from "./features/baseDeviceFeatures";
-import { MapParser } from "./map/v1/MapParser";
 import { MapBuilder } from "./map/v1/MapBuilder";
-import PQueue from "p-queue";
+import { MapParser } from "./map/v1/MapParser";
 import { messageParser } from "./messageParser";
 
-type AbortSignalWithStatic = typeof AbortSignal & {
-	any?(signals: AbortSignal[]): AbortSignal;
-	timeout?(ms: number): AbortSignal;
-};
 
-const REQUEST_TIMEOUT = 30000;
+const REQUEST_TIMEOUT = 10000;
 
 export enum RequestPriority {
 	LOW = -10,
@@ -18,32 +14,6 @@ export enum RequestPriority {
 	HIGH = 10
 }
 
-// ============================================================
-// AbortSignal polyfill for Node < 20
-// ============================================================
-function anySignal(signals: AbortSignal[]): AbortSignal {
-	if ((AbortSignal as AbortSignalWithStatic).any) {
-		return (AbortSignal as AbortSignalWithStatic).any!(signals);
-	}
-	const controller = new AbortController();
-	for (const signal of signals) {
-		if (signal.aborted) {
-			controller.abort(signal.reason);
-			return controller.signal;
-		}
-		signal.addEventListener("abort", () => controller.abort(signal.reason), { once: true });
-	}
-	return controller.signal;
-}
-
-function timeoutSignal(ms: number): AbortSignal {
-	if ((AbortSignal as AbortSignalWithStatic).timeout) {
-		return (AbortSignal as AbortSignalWithStatic).timeout!(ms);
-	}
-	const controller = new AbortController();
-	setTimeout(() => controller.abort(new Error("Timeout")), ms);
-	return controller.signal;
-}
 
 // ============================================================
 // RequestManager Class
@@ -52,9 +22,6 @@ class RequestManager {
 	queue: PQueue;
 	timeoutMs: number;
 	tasks: Map<string, AbortController>;
-	private activeBackgroundTasks = 0;
-	private readonly MAX_BACKGROUND = 10; // Reserve slots for normal/high priority
-
 	constructor(concurrency = 20, timeoutMs = 30000) {
 		this.queue = new PQueue({ concurrency });
 		this.timeoutMs = timeoutMs;
@@ -65,18 +32,9 @@ class RequestManager {
 		const manualController = new AbortController();
 		this.tasks.set(id, manualController);
 
-		const isBackground = priority <= RequestPriority.LOW;
-		if (isBackground) {
-			while (this.activeBackgroundTasks >= this.MAX_BACKGROUND) {
-				// Wait for a slot to free up. Check every 100ms.
-				// This happens OUTSIDE the queue.add to avoid blocking all slots.
-				await new Promise(resolve => setTimeout(resolve, 100));
-				if (manualController.signal.aborted) throw new Error("CANCELLED_BY_USER");
-			}
-			this.activeBackgroundTasks++;
-		}
 
 		try {
+
 			return await this.queue.add(async () => {
 				try {
 					if (manualController.signal.aborted) {
@@ -95,9 +53,6 @@ class RequestManager {
 				}
 			}, { priority });
 		} finally {
-			if (isBackground) {
-				this.activeBackgroundTasks--;
-			}
 			this.tasks.delete(id);
 		}
 	}
@@ -132,25 +87,54 @@ class RoborockRequest {
 	resolvePromise!: (value: unknown) => void;
 	rejectPromise!: (reason?: unknown) => void;
 	promise: Promise<unknown>;
+	version: string; // Store protocol version for logging
+	creationTime: number; // For detailed lifecycle tracking
 	startTime: number;
+	timeoutTimer: ioBroker.Timeout | undefined;
 
-	constructor(handler: requestsHandler, duid: string, method: string, params: unknown, messageID: number) {
+	timeout: number;
+	manager: RequestManager;
+	queueName: string;
+
+	constructor(handler: requestsHandler, duid: string, method: string, params: unknown, messageID: number, manager: RequestManager, queueName: string, version = "1.0", timeout = REQUEST_TIMEOUT) {
 		this.handler = handler;
 		this.adapter = handler.adapter;
 		this.duid = duid;
 		this.method = method;
 		this.params = params;
 		this.messageID = messageID;
+		this.version = version;
+		this.creationTime = Date.now();
 		this.startTime = Date.now();
+		this.timeout = timeout;
+		this.manager = manager;
+		this.queueName = queueName;
 
 		this.promise = new Promise((resolve, reject) => {
 			this.resolvePromise = resolve;
 			this.rejectPromise = reject;
 		});
+		// Prevent unhandled rejections if we reject before anyone awaits it
+		this.promise.catch(() => { });
 	}
 
 	async send(signal?: AbortSignal) {
+		const queueDuration = Date.now() - this.creationTime;
+
+		// Lifecycle Log: Started (Silly level as it is now combined with network log)
+		this.adapter.rLog("System", this.duid, "Debug", "Lifecycle", undefined, `[Task ${this.messageID}] start (${this.method}) | waited: ${queueDuration}ms`, "silly");
+
 		if (signal?.aborted) throw new Error("Aborted");
+
+		// Register in pendingRequests immediately to ensure we can cleanup if anything fails
+		this.adapter.pendingRequests.set(this.messageID, this);
+
+		// Handle Manual Cancellation
+		if (signal) {
+			signal.addEventListener("abort", () => {
+				this.reject(new Error(`Task ${this.messageID} was cancelled manually.`));
+			}, { once: true });
+		}
 
 		const remoteConnection = await this.handler.isCloudDevice(this.duid);
 		let protocol = 101;
@@ -161,36 +145,22 @@ class RoborockRequest {
 			protocol = 4;
 		}
 
-		// --- Start precision 30s timeout NOW (at dispatch) ---
-		const tSignal = timeoutSignal(REQUEST_TIMEOUT);
-		const combinedSignal = signal ? anySignal([signal, tSignal]) : tSignal;
-
-		combinedSignal.addEventListener("abort", () => {
-			// Check if it was a timeout or manual cancel
-			if (tSignal.aborted) {
-				this.rejectPromise(new Error(`Task ${this.messageID} timed out after ${REQUEST_TIMEOUT}ms.`));
-			} else if (signal?.aborted) {
-				this.rejectPromise(new Error(`Task ${this.messageID} was cancelled manually.`));
-			} else {
-				this.rejectPromise(new Error("Aborted"));
-			}
-		}, { once: true });
-
-
 		const payload = await this.handler.messageParser.buildPayload(protocol, this.messageID, this.method, this.params, version);
-		const isMapRequest = this.method.includes("map");
 
 		const mqttConnectionState = this.adapter.mqtt_api.isConnected();
 		// Connection inference
 		const connectionType = (mqttConnectionState && (await this.handler.isCloudRequest(this.duid, this.method, version))) ? "MQTT" : "TCP";
 
-		const logPayload = (isMapRequest && payload.length > 500) || payload.length > 5000 ? payload.substring(0, 500) + `... [truncated ${payload.length - 500} chars]` : payload;
+		const logParams = this.params ? ` | Params: ${JSON.stringify(this.params)}` : "";
+
+		const logLevel = requestsHandler.getLogLevelForMethod(this.method);
+		const qSize = this.manager.queue.size;
 
 		if (connectionType === "MQTT") {
-			// Log Request (Method + inner JSON potentially)
-			this.adapter.rLog("MQTT", this.duid, "->", `${version}`, protocol, `Request (ID: ${this.messageID}) ${this.method}: ${logPayload}`, "info");
+			// Log Message (Method + Params) + Performance data
+			this.adapter.rLog("MQTT", this.duid, "->", `${version}`, protocol, `${this.method}${logParams} | qSize: ${qSize} | waited: ${queueDuration}ms`, logLevel, this.messageID);
 		} else {
-			this.adapter.rLog("TCP", this.duid, "->", `${version}`, protocol, `Send ${this.method} (ID: ${this.messageID}) | ${logPayload}`, "debug");
+			this.adapter.rLog("TCP", this.duid, "->", `${version}`, protocol, `${this.method}${logParams} | qSize: ${qSize} | waited: ${queueDuration}ms`, "debug", this.messageID);
 		}
 		const roborockMessage = await this.handler.messageParser.buildRoborockMessage(this.duid, protocol, timestamp, payload, version, this.messageID);
 
@@ -200,30 +170,36 @@ class RoborockRequest {
 		if (!roborockMessage) {
 			const errorMsg = "Failed to build buildRoborockMessage!";
 			this.adapter.catchError(errorMsg, "function sendRequest", this.duid);
-			this.rejectPromise(new Error(errorMsg));
+			this.reject(new Error(errorMsg));
 			return this.promise;
 		}
 
 		if (version == "A01") {
 			this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage);
-			this.resolvePromise(null);
+			this.resolve(null);
 			return this.promise;
 		}
 
 		if (!mqttConnectionState && remoteConnection) {
 			const errorMsg = `Cloud connection not available. Not sending for method ${this.method} request!`;
 			this.adapter.rLog("System", this.duid, "Debug", "N/A", undefined, errorMsg, "debug");
-			this.rejectPromise(new Error(errorMsg));
+			this.reject(new Error(errorMsg));
 			return this.promise;
 		} else if (!localConnectionState && !mqttConnectionState && this.method != "get_network_info") {
 			const errorMsg = `Adapter locally or remotely not connected to robot ${this.duid}. Sending request for ${this.method} not possible!`;
 			this.adapter.rLog("System", this.duid, "Debug", "N/A", undefined, errorMsg, "debug");
-			this.rejectPromise(new Error(errorMsg));
+			this.reject(new Error(errorMsg));
 			return this.promise;
 		}
 
-		// Register in pendingRequests
-		this.adapter.pendingRequests.set(this.messageID, this);
+		// --- Start Precision Timer NOW ---
+		// We start the timer only when the message is about to touch the wire.
+		this.startTime = Date.now();
+		this.timeoutTimer = this.adapter.setTimeout(() => {
+			const runDuration = Date.now() - this.startTime;
+			this.adapter.rLog("System", this.duid, "Debug", "Lifecycle", undefined, `[Task ${this.messageID}] TIMEOUT (${this.method}) after ${runDuration}ms | limit: ${this.timeout}ms`, "debug");
+			this.reject(new Error(`Task ${this.messageID} timed out after ${this.timeout}ms.`));
+		}, this.timeout);
 
 		// Send
 		if (this.handler.isCloudRequest(this.duid, this.method, version) || !localConnectionState) {
@@ -239,6 +215,7 @@ class RoborockRequest {
 	}
 
 	resolve(result: unknown, version?: string) {
+		if (this.timeoutTimer) this.adapter.clearTimeout(this.timeoutTimer);
 		this.adapter.pendingRequests.delete(this.messageID);
 		// Return an object if version is present, otherwise just the result
 		if (version) {
@@ -249,7 +226,15 @@ class RoborockRequest {
 	}
 
 	reject(reason: unknown) {
-		this.adapter.pendingRequests.delete(this.messageID);
+		if (this.timeoutTimer) this.adapter.clearTimeout(this.timeoutTimer);
+
+		// Debug logging to verify deletion
+		const existed = this.adapter.pendingRequests.delete(this.messageID);
+		if (!existed) {
+			// This might happen if someone else deleted it, which shouldn't happen with single-threaded guard
+			this.adapter.rLog("System", this.duid, "Debug", "Requests", undefined, `Warning: MessageID ${this.messageID} was NOT found in pendingRequests during rejection.`, "debug");
+		}
+
 		this.rejectPromise(reason);
 	}
 }
@@ -259,14 +244,14 @@ export class requestsHandler {
 	idCounter: number;
 	photoIdCounter: number;
 	lastB01Id: number; // For B01 timestamp-based IDs
-	private globalManager: RequestManager;
+	private globalManager: RequestManager; // For commands (High Concurrency)
+	private mapManager: RequestManager; // For maps (Low Concurrency)
 	messageParser: messageParser;
 	mapParser: MapParser;
 	mapCreator: MapBuilder;
 	mqttResetInterval: ioBroker.Interval | undefined = undefined;
 
-	public startupFinished: boolean = false;
-	private startupPromises: Promise<void>[] = [];
+	public startupFinished: boolean = true;
 	private finishedRequests: Set<number> = new Set();
 
 	constructor(adapter: Roborock) {
@@ -275,13 +260,38 @@ export class requestsHandler {
 		this.idCounter = (this.adapter.instance * 20000) + 300;
 		this.photoIdCounter = 0;
 		this.lastB01Id = 0;
-		this.globalManager = new RequestManager(10, REQUEST_TIMEOUT);
+		this.globalManager = new RequestManager(10, REQUEST_TIMEOUT); // Fast commands queue
+		this.mapManager = new RequestManager(2, REQUEST_TIMEOUT); // Serialized map queue (prevent saturation)
 		this.messageParser = new messageParser(this.adapter);
 		this.mapParser = new MapParser(this.adapter);
 		this.mapCreator = new MapBuilder(this.adapter);
 		this.scheduleMqttReset();
 	}
 
+
+	private static readonly POLL_METHODS = [
+		"get_prop",
+		"get_status",
+		"get_consumable",
+		"get_timer",
+		"get_network_info",
+		"get_room_mapping",
+		"get_multi_maps_list",
+		"get_clean_summary",
+		"get_clean_record",
+		"get_clean_record_map",
+		"get_map_v1",
+		"get_photo",
+		"service.get_record_list",
+		"service.upload_record_by_url",
+		"service.upload_by_maptype"
+	];
+
+	public static getLogLevelForMethod(method: string): "info" | "debug" {
+		const m = method.toLowerCase();
+		const isPoll = requestsHandler.POLL_METHODS.some(pollMethod => m.includes(pollMethod)) || m.startsWith("service.get");
+		return isPoll ? "debug" : "info";
+	}
 
 	private scheduleMqttReset() {
 		if (this.mqttResetInterval) this.adapter.clearInterval(this.mqttResetInterval);
@@ -292,16 +302,12 @@ export class requestsHandler {
 	}
 
 	async waitForStartup() {
-		this.adapter.rLog("System", null, "Info", "Startup", undefined, `[Startup] Waiting for ${this.startupPromises.length} initial requests to finish...`, "info");
-
-		await Promise.all(this.startupPromises);
-
+		this.adapter.rLog("System", null, "Info", "Startup", undefined, `[Startup] Skipping wait for initial requests...`, "info");
 		this.startupFinished = true;
-		this.startupPromises = [];
 		this.adapter.rLog("System", null, "Info", "Startup", undefined, "[Startup] All initial requests finished. Adapter is ready.", "info");
 	}
 
-	public _processResult<T>(requestPromise: Promise<T>, callback: (result: T) => Promise<void>, identifier: string, duid: string, alwaysBackground: boolean = false): void {
+	public _processResult<T>(requestPromise: Promise<T>, callback: (result: T) => Promise<void>, identifier: string, duid: string): void {
 		const executionWrapper = async () => {
 			try {
 				const result = await requestPromise;
@@ -316,8 +322,10 @@ export class requestsHandler {
 					if (errorMsg.includes("ADAPTER_STOPPED")) {
 						this.adapter.rLog("System", duid, "Warn", "N/A", undefined, `[${identifier}] Request cancelled (Adapter stopped). ID: ${reqId}`, "warn");
 					} else {
-						// Standardized Timeout Log
-						this.adapter.rLog("System", duid, "Warn", "Timeout", undefined, `Request ${identifier} timed out after 30000ms. ID: ${reqId}`, "warn");
+						// Standardized Timeout Log (using dynamic timeout from error if possible)
+						const timeoutLimit = errorMsg.match(/limit: (\d+)ms/) || errorMsg.match(/after (\d+)ms/);
+						const displayLimit = timeoutLimit ? timeoutLimit[1] : REQUEST_TIMEOUT;
+						this.adapter.rLog("System", duid, "Warn", "Timeout", undefined, `Request ${identifier} timed out after ${displayLimit}ms. ID: ${reqId}`, "warn");
 					}
 				} else {
 					this.adapter.catchError(e, `Processing-${identifier}`, duid);
@@ -326,19 +334,29 @@ export class requestsHandler {
 		};
 
 		const promise = executionWrapper();
-
-		if (alwaysBackground) {
-			promise.catch(() => {});
-		} else if (!this.startupFinished) {
-			this.startupPromises.push(promise);
-		} else {
-			promise.catch(() => {});
-		}
+		promise.catch(() => {});
 	}
 
-	async sendRequest(duid: string, method: string, params: unknown, options: { priority?: number } = {}) {
-		const manager = this.globalManager;
+	async sendRequest(duid: string, method: string, params: unknown, options: { priority?: number; timeout?: number } = {}) {
+		let manager = this.globalManager;
+		let queueName = "CommandQueue";
+
+		if (method === "get_map_v1" || method === "get_clean_record_map") {
+			manager = this.mapManager;
+			queueName = "MapQueue";
+		}
+
+
 		const priority = options.priority ?? RequestPriority.NORMAL;
+		let timeout = options.timeout ?? REQUEST_TIMEOUT;
+
+
+		// Map and room-related requests need more time (especially on slow connections or when robot is busy), so we give them 20s.
+		if (method.includes("map") || method.includes("room") || method === "get_clean_record_map") {
+			timeout = 20000;
+		}
+
+		const version = await this.adapter.getDeviceProtocolVersion(duid);
 
 		const attempt = async (retryCount: number): Promise<unknown> => {
 			let messageID: number;
@@ -348,7 +366,6 @@ export class requestsHandler {
 				messageID = this.photoIdCounter;
 			} else {
 				// Detect version to determine ID strategy
-				const version = await this.adapter.getDeviceProtocolVersion(duid);
 				if (version === "B01") {
 					// B01 uses timestamp-based IDs (e.g. 1766102306357)
 					messageID = Date.now();
@@ -366,11 +383,12 @@ export class requestsHandler {
 				}
 			}
 
-			const req = new RoborockRequest(this, duid, method, params, messageID);
+
+			const req = new RoborockRequest(this, duid, method, params, messageID, manager, queueName, version, timeout);
 			const taskId = `req_${messageID}_${Date.now()}`;
 
 			try {
-				this.adapter.rLog("System", duid, "Debug", "Queue", undefined, `Queuing task ${taskId} (Method: ${method})`, "debug");
+				this.adapter.rLog("System", duid, "Debug", "Queue", undefined, `[Task ${messageID}] queue (${method}) | ${queueName}: ${manager.queue.size} | pend: ${manager.queue.pending}`, "silly");
 				const result = await manager.add(taskId, (signal) => req.send(signal), priority);
 
 				if (Array.isArray(result) && result[0] === "retry" && retryCount < 3) {
@@ -400,7 +418,7 @@ export class requestsHandler {
 				finalParams = intercepted;
 			}
 		}
-		const requestPromise = this.sendRequest(duid, finalMethod, finalParams, { priority: 1 });
+		const requestPromise = this.sendRequest(duid, finalMethod, finalParams, { priority: 1, timeout: method === "load_multi_map" ? 20000 : undefined });
 
 		this._processResult(
 			requestPromise,
@@ -414,9 +432,11 @@ export class requestsHandler {
 
 
 
-	isCloudDevice(_duid: string): Promise<boolean> {
-		void _duid;
-		return Promise.resolve(true);
+	async isCloudDevice(duid: string): Promise<boolean> {
+		if (this.adapter.local_api && this.adapter.local_api.isConnected(duid)) {
+			return false;
+		}
+		return true;
 	}
 
 	isCloudRequest(_duid: string, method: string, version?: string): boolean {
@@ -454,17 +474,26 @@ export class requestsHandler {
 				// We can just log what we have.
 				let extraInfo = "";
 				if (Buffer.isBuffer(result)) {
-					extraInfo = `Buffer Len: ${result.length}`;
-				} else if (typeof result === "object") {
-					extraInfo = "Object";
+					extraInfo = `Buffer (${result.length}b)`;
+				} else if (typeof result === "object" && result !== null) {
+					const str = JSON.stringify(result);
+					extraInfo = str.length > 200 ? str.substring(0, 200) + "..." : str;
 				} else {
 					extraInfo = String(result);
 				}
 
-				const duration = req instanceof RoborockRequest ? Date.now() - req.startTime : 0;
-				const durationStr = duration > 0 ? `Duration: ${duration}ms` : "";
+				const now = Date.now();
+				const totalDuration = req instanceof RoborockRequest ? now - req.creationTime : 0;
+				const execDuration = req instanceof RoborockRequest ? now - req.startTime : 0;
+				const queueDuration = req instanceof RoborockRequest ? req.startTime - req.creationTime : 0;
+				const qSize = req instanceof RoborockRequest ? req.manager.queue.size : 0;
 
-				this.adapter.rLog(connectionType as any, reqDuid, "<-", String(protocol), messageID, `Received response. ${extraInfo}. ${durationStr} (Detected: ${version || "Any"})`, "debug");
+				const durationStr = totalDuration > 0 ? `Total: ${totalDuration}ms (Queue: ${queueDuration}ms, Exec: ${execDuration}ms, qSize: ${qSize})` : "";
+				const method = (req as any).method || "";
+				const reqVersion = (req as any).version || version || "1.0";
+				const logLevel = requestsHandler.getLogLevelForMethod(method);
+
+				this.adapter.rLog(connectionType as any, reqDuid, "<-", reqVersion, String(protocol), `${method}: ${extraInfo} | ${durationStr}`, logLevel, messageID);
 			}
 
 			// Add to finished set to prevent race conditions
@@ -484,7 +513,7 @@ export class requestsHandler {
 			this.adapter.pendingRequests.delete(messageID);
 		} else {
 			if (!this.finishedRequests.has(messageID)) {
-				this.adapter.rLog("System", duid || null, "<-", String(protocol), messageID, `Request not found in pending requests`, "debug");
+				this.adapter.rLog("System", duid || null, "<-", String(protocol), messageID, `ID not found in Map (timed out/finished)`, "debug");
 			}
 		}
 	}
@@ -499,6 +528,7 @@ export class requestsHandler {
 
 		// Clear global queue
 		this.globalManager.clear();
+		this.mapManager.clear();
 
 		// Reject pending requests
 		this.adapter.pendingRequests.forEach((req) => {

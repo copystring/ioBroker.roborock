@@ -6,7 +6,7 @@ import { B01ConsumableService } from "./services/B01ConsumableService";
 import { B01ControlService } from "./services/B01ControlService";
 import { B01MapService } from "./services/B01MapService";
 import { VACUUM_CONSTANTS } from "./vacuumConstants";
-import deviceDataSet = require("../../protocols/q7_dataset.json");
+import deviceDataSet = require("../../../../lib/protocols/q7_dataset.json");
 
 export class B01VacuumFeatures extends BaseDeviceFeatures {
 
@@ -37,7 +37,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 		// Initialize Services
 		this.consumableService = new B01ConsumableService(dependencies, duid, this.locales);
-		this.mapService = new B01MapService(dependencies, duid, this.locales);
+		this.mapService = new B01MapService(dependencies, duid, this.locales, (rooms) => this.setMappedRooms(rooms));
 		this.controlService = new B01ControlService();
 
 		this.deps.adapter.rLog("System", this.duid, "Info", "B01", undefined, `Constructing B01VacuumFeatures for ${robotModel}`, "info");
@@ -237,26 +237,32 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 
 	public override async initializeDeviceData(): Promise<void> {
+		this.deps.adapter.rLog("System", this.duid, "Info", "B01", undefined, `[initializeDeviceData] Starting sequential initialization...`, "debug");
 		await this.updateStatus();
-		await Promise.all([
-			this.updateFirmwareFeatures(),
-			this.updateMultiMapsList(),
-			this.updateRoomMapping(),
-		]);
+		await this.updateMap(); // Fetch map first to set current index
+		await this.updateMultiMapsList(); // Then get floors
+		await this.updateRoomMapping(); // Finally map rooms
 
 		await this.deps.adapter.checkForNewFirmware(this.duid);
 
 		// Model-specific requests
-		await this.updateExtraStatus();
-
-		// Initial Map
-		await this.updateMap();
+		await Promise.all([
+			this.updateFirmwareFeatures(),
+			this.updateExtraStatus(),
+			this.updateNetworkInfo()
+		]);
+		this.deps.adapter.rLog("System", this.duid, "Info", "B01", undefined, `[initializeDeviceData] Sequential initialization complete.`, "debug");
 	}
 
 	public async updateRoomMapping(): Promise<void> {
 		if (this.mappedRooms && this.mapService) {
 			await this.mapService.updateRoomMapping(this.mappedRooms);
 		}
+	}
+
+	public setMappedRooms(rooms: Array<{ id: number; name: string }>): void {
+		this.mappedRooms = rooms;
+		this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `Updated mappedRooms: ${JSON.stringify(rooms)}`, "debug");
 	}
 
 	// Override updateStatus to use strict B01 prop.get
@@ -377,14 +383,9 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			val = String(val);
 		}
 
-		// Force object update to ensure units/states are applied
-		// extendObject ensures that if the object exists, it gets updated with new common properties
-		// Check if update is needed to avoid write storm
-		// Check if update is needed to avoid write storm
+		// Use ensureState for optimized change detection to prevent write storms
 		const stateId = `Devices.${this.duid}.deviceStatus.${key}`;
-		// The adapter's extendObject is generally idempotent and should handle this check efficiently,
-		// avoiding an extra getObjectAsync call for every property.
-		await this.deps.adapter.extendObject(stateId, { type: "state", common });
+		await this.deps.ensureState(stateId, common);
 
 
 		this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.${key}`, { val: val as ioBroker.StateValue, ack: true });

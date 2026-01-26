@@ -1,3 +1,4 @@
+import PQueue from "p-queue";
 import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
 import { V1ConsumableService } from "./services/V1ConsumableService";
@@ -60,16 +61,20 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 	}
 
 	public override async initializeDeviceData(): Promise<void> {
-		await this.updateStatus();
+		this.deps.adapter.rLog("System", this.duid, "Info", "1.0", undefined, `[initializeDeviceData] Starting sequential initialization...`, "debug");
+		await this.updateMultiMapsList(); // 1. Load Floor List first (for names/metadata)
+		await this.updateStatus();        // 2. Get Status (triggers Room sync via first floor detection)
+		await this.updateMap();           // 3. Get Map Image
+
+		// These can still be parallel as they don't depend on each other as much
 		await Promise.all([
 			this.updateFirmwareFeatures(),
-			this.updateMultiMapsList(),
-			this.updateRoomMapping(),
 			this.updateConsumables(),
 			this.updateNetworkInfo(),
 			this.updateTimers(),
 		]);
 		await this.updateConsumablesPercent();
+		this.deps.adapter.rLog("System", this.duid, "Info", "1.0", undefined, `[initializeDeviceData] Sequential initialization complete.`, "debug");
 	}
 
 
@@ -89,12 +94,45 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 		this.addCommand("app_charge", { type: "boolean", role: "button", name: translations["app_charge"] || "Charge", def: false });
 		this.addCommand("find_me", { type: "boolean", role: "button", name: translations["find_me"] || "Find Me", def: false });
 		this.addCommand("app_spot", { type: "boolean", role: "button", name: translations["app_spot"] || "Spot Cleaning", def: false });
+		this.addCommand("app_segment_clean", { type: "boolean", role: "button", name: "Segment Cleaning", def: false });
+
+		// Restore missing standard V1 commands
+		this.addCommand("app_zoned_clean", { type: "json", role: "json", name: "Zone Clean" }); // No default for JSON usually, or "[]"
+		this.addCommand("resume_zoned_clean", { type: "boolean", role: "button", name: "Resume Zone Clean", def: false });
+		this.addCommand("stop_zoned_clean", { type: "boolean", role: "button", name: "Stop Zone Clean", def: false });
+
+		this.addCommand("resume_segment_clean", { type: "boolean", role: "button", name: "Resume Segment Clean", def: false });
+		this.addCommand("stop_segment_clean", { type: "boolean", role: "button", name: "Stop Segment Clean", def: false });
+
+		this.addCommand("app_goto_target", { type: "json", role: "json", name: "Go To Target" });
+
+		this.addCommand("load_multi_map", { type: "number", role: "level", name: "Load Map", def: 0 });
+
+
 
 		this.addCommand("set_custom_mode", {
 			type: "number",
 			role: "level",
 			name: translations["fan_power"] || "Fan Power",
-			states: this.profile.mappings.fan_power
+			states: this.profile.mappings.fan_power,
+			def: Number(Object.keys(this.profile.mappings.fan_power)[0])
+		});
+
+		// Consolidated cleaning mode with all parameters (Custom Mode)
+		// We define states (Presets) to make it selectable in UI
+		this.addCommand("set_clean_motor_mode", {
+			type: "string",
+			role: "value", // changed from json to value to support dropdown
+			name: "Set Custom Cleaning Mode",
+			def: '{"fan_power":102,"mop_mode":300,"water_box_mode":201}',
+			states: {
+				'{"fan_power":102,"mop_mode":300,"water_box_mode":201}': "Indv.",
+				'{"fan_power":102,"mop_mode":300,"water_box_mode":200}': "Saugen",
+				'{"fan_power":105,"mop_mode":303,"water_box_mode":202}': "Wischen",
+				'{"fan_power":102,"mop_mode":301,"water_box_mode":201}': "Vac & Mop",
+				'{"fan_power":102,"mop_mode":306,"water_box_mode":201}': "Saugen, dann Wischen",
+				'{"fan_power":106,"mop_mode":302,"water_box_mode":204}': "Smart Plan"
+			}
 		});
 
 		if (this.profile.mappings.water_box_mode) {
@@ -102,7 +140,8 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 				type: "number",
 				role: "level",
 				name: translations["water_box_mode"] || "Water Box Mode",
-				states: this.profile.mappings.water_box_mode
+				states: this.profile.mappings.water_box_mode,
+				def: Number(Object.keys(this.profile.mappings.water_box_mode)[0])
 			});
 		}
 
@@ -111,7 +150,8 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 				type: "number",
 				role: "level",
 				name: translations["mop_mode"] || "Mop Mode",
-				states: this.profile.mappings.mop_mode
+				states: this.profile.mappings.mop_mode,
+				def: Number(Object.keys(this.profile.mappings.mop_mode)[0])
 			});
 		}
 	}
@@ -196,42 +236,196 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 
 	@BaseDeviceFeatures.DeviceFeature(Feature.MultiMap)
 	public async updateMultiMapsList(): Promise<void> {
-		if (!await this.mapService.updateMultiMapsList()) {
+		const mapList = await this.mapService.updateMultiMapsList();
+		if (mapList && Array.isArray(mapList)) {
+			// Update the load_multi_map command states to populate dropdown
+			const states: Record<string, string> = {};
+			for (const map of mapList) {
+				states[String(map.mapFlag)] = map.name || `Map ${map.mapFlag}`;
+			}
+
+			await this.deps.adapter.extendObject(`Devices.${this.duid}.commands.load_multi_map`, {
+				common: {
+					type: "number",
+					role: "value",
+					states: states
+				}
+			});
+		} else {
 			await super.updateMultiMapsList();
 		}
 	}
 
 	@BaseDeviceFeatures.DeviceFeature(Feature.RoomMapping)
 	public async updateRoomMapping(): Promise<void> {
-		await super.updateRoomMapping();
+		await this.mapService.updateRoomMapping();
+	}
+
+	public override async getCommandParams(method: string, params?: unknown): Promise<unknown> {
+		if (method === "set_clean_motor_mode") {
+			// Log shows "set_clean_motor_mode" works, but expects params as array: [{...}]
+			let finalParams = params;
+
+			// If input is a string (e.g. from Dropdown/Presets), parse it first
+			if (typeof finalParams === "string") {
+				try {
+					finalParams = JSON.parse(finalParams);
+				} catch (e: any) {
+					this.deps.adapter.log.warn(`[getCommandParams] Failed to parse set_clean_motor_mode params: ${finalParams} - Error: ${e.message}`);
+				}
+			}
+
+			if (finalParams && !Array.isArray(finalParams)) {
+				finalParams = [finalParams];
+			}
+			return {
+				method: "set_clean_motor_mode",
+				params: finalParams
+			};
+		}
+
+		if (method === "load_multi_map") {
+			// Reset current map index -> Next status update triggers room refresh
+			this.mapService.resetCurrentMapIndex();
+
+			// User request: active fetch status after map load to ensure trigger
+			// We trigger these in the background immediately
+			(async () => {
+				await new Promise(r => setTimeout(r, 2000));
+				await this.updateStatus().catch(() => {});
+				// Trigger map and room sync directly like 0.6.19
+				await this.mapService.updateMap().catch(() => {});
+				await this.mapService.updateRoomMapping().catch(() => {});
+			})();
+
+			// V1 protocol (0.6.19) expects [number] for load_multi_map
+			return [params];
+		}
+
+		if (method === "app_segment_clean") {
+			// If params are explicitly provided (e.g. from single room button), use them.
+			if (params && (Array.isArray(params) || typeof params === "object")) {
+				// If it's just a room ID or array of IDs, wrap it in the correct payload structure
+				if (Array.isArray(params) && typeof params[0] === "number") {
+					const roomIds = params as number[];
+					this.deps.adapter.rLog("System", this.duid, "Info", "1.0", undefined, `Starting segment cleaning for specific rooms: ${roomIds.join(", ")}`, "info");
+					return [{
+						segments: roomIds,
+						repeat: 1,
+						clean_order_mode: 0,
+						clean_mop: 0
+					}];
+				}
+				return params;
+			}
+
+			// Gather selected rooms from floors
+			const namespace = this.deps.adapter.namespace;
+			// Pattern to find states under floors. Structure: Devices.<duid>.floors.<floorID>.<roomID>
+			const pattern = `${namespace}.Devices.${this.duid}.floors.*.*`;
+			const states = await this.deps.adapter.getStatesAsync(pattern);
+			const roomIds: number[] = [];
+
+			if (states) {
+				for (const [id, state] of Object.entries(states)) {
+					if (state && (state.val === true || state.val === "true" || state.val === 1)) {
+						// Extract Room ID directly from the state path (last segment)
+						const parts = id.split(".");
+						const rid = Number(parts[parts.length - 1]);
+						if (!isNaN(rid)) {
+							roomIds.push(rid);
+						}
+					}
+				}
+			}
+
+			if (roomIds.length > 0) {
+				this.deps.adapter.rLog("System", this.duid, "Info", "1.0", undefined, `Starting segment cleaning for rooms: ${roomIds.join(", ")}`, "info");
+
+				// Payload based on user sniff:
+				// params: [{"clean_mop":0,"clean_order_mode":0,"repeat":1,"segments":[2,1]}]
+				const payload = [{
+					segments: roomIds,
+					repeat: 1,
+					clean_order_mode: 0,
+					clean_mop: 0
+				}];
+
+				return payload;
+			} else {
+				this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, `No rooms selected for segment cleaning!`, "warn");
+				return [];
+			}
+		}
+		return params;
 	}
 
 	public async updateCleanSummary(): Promise<void> {
 		await this.requestAndProcess("get_clean_summary", [], "cleaningInfo", async (data) => {
-			if (data.clean_time) data.clean_time = Math.round(data.clean_time / 3600 * 10) / 10;
-			if (data.clean_area) data.clean_area = Math.round(data.clean_area / 1000000 * 10) / 10;
+			if (data.clean_time) data.clean_time = Math.round((data.clean_time / 3600) * 10) / 10;
+			if (data.clean_area) data.clean_area = Math.round((data.clean_area / 1000000) * 10) / 10;
 
-			// Fetch maps for records if enabled
+			// Fetch maps for records in parallel to avoid blocking
 			if (this.deps.config.enable_map_creation && Array.isArray(data.records)) {
-				// Process records sequentially to avoid overwhelming the device/API
-				for (let i = 0; i < data.records.length; i++) {
-					const startTime = data.records[i];
-					const mapResult = await this.mapService.getCleaningRecordMap(startTime);
+				// Use a local queue to limit concurrency strictly for map downloads
+				// Concurrency 3 balances speed (UI) vs Congestion
+				const mapQueue = new PQueue({ concurrency: 3 });
 
-					if (mapResult) {
-						const recordPath = `records.${i}.map`;
-						await this.deps.ensureFolder(`Devices.${this.duid}.cleaningInfo.${recordPath}`);
+				// Sort records descending (newest first) to prioritize recent maps
+				const sortedRecords = [...data.records].sort((a, b) => b - a);
 
-						await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.${recordPath}.mapBase64`, { name: "Map Image", type: "string", role: "text.png" });
-						await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.${recordPath}.mapBase64`, { val: mapResult.mapBase64, ack: true });
+				sortedRecords.forEach((startTime: number, index: number) => {
+					// Prio 10 for first 3 maps (Newest), Prio 0 for rest (Background)
+					const priority = index < 3 ? 10 : 0;
 
-						await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.${recordPath}.mapBase64Truncated`, { name: "Map Image (Truncated)", type: "string", role: "text.png" });
-						await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.${recordPath}.mapBase64Truncated`, { val: mapResult.mapBase64Truncated, ack: true });
+					mapQueue.add(async () => {
+						try {
+							const originalIndex = data.records.indexOf(startTime);
+							const recordPath = `records.${originalIndex}`;
+							const fullRecordPath = `cleaningInfo.${recordPath}`;
+							await this.deps.ensureFolder(`Devices.${this.duid}.${fullRecordPath}`);
 
-						await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.${recordPath}.mapData`, { name: "Map Data", type: "string", role: "json" });
-						await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.${recordPath}.mapData`, { val: mapResult.mapData, ack: true });
-					}
-				}
+							// 1. Fetch detailed record metadata (Duration, Area, Status)
+							const recordsDetails = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_clean_record", [startTime]);
+							if (Array.isArray(recordsDetails) && recordsDetails.length > 0) {
+								const record = recordsDetails[0];
+								if (typeof record === "object" && record !== null) {
+									for (const key in record) {
+										let val = record[key];
+
+										// Scale specific fields
+										if (key === "area" || key === "cleaned_area") {
+											val = Math.round((val / 1000000) * 10) / 10;
+										} else if (key === "duration") {
+											val = Math.round(val / 60);
+										}
+
+										await this.processResultKey(fullRecordPath, key, val);
+									}
+								}
+							}
+
+							// 2. Fetch Map Image
+							const mapResult = await this.mapService.getCleaningRecordMap(startTime);
+							if (mapResult) {
+								const mapFolder = `${recordPath}.map`;
+								await this.deps.ensureFolder(`Devices.${this.duid}.cleaningInfo.${mapFolder}`);
+
+								await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.${mapFolder}.mapBase64`, { name: "Map Image", type: "string", role: "text.png" });
+								await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.${mapFolder}.mapBase64`, { val: mapResult.mapBase64, ack: true });
+
+								await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.${mapFolder}.mapBase64Truncated`, { name: "Map Image (Truncated)", type: "string", role: "text.png" });
+								await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.${mapFolder}.mapBase64Truncated`, { val: mapResult.mapBase64Truncated, ack: true });
+
+								await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.${mapFolder}.mapData`, { name: "Map Data", type: "string", role: "json" });
+								await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.${mapFolder}.mapData`, { val: JSON.stringify(mapResult.mapData), ack: true });
+							}
+						} catch (e: any) {
+							this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, `Background fetch for record ${startTime} failed: ${e.message}`, "warn");
+						}
+					}, { priority });
+				});
+				await mapQueue.onIdle();
 			}
 
 			return data;
@@ -247,7 +441,7 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			const timers = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_timer", []);
 			if (Array.isArray(timers)) {
 				await this.deps.ensureFolder(`Devices.${this.duid}.schedules`);
-				for (const timer of timers) {
+				await Promise.all(timers.map(async (timer) => {
 					// timer structure: [id, enabled, [cron, [cmd, params], createTime]]
 					if (Array.isArray(timer) && timer.length >= 3) {
 						const id = timer[0];
@@ -263,7 +457,7 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 						await this.deps.ensureState(`Devices.${this.duid}.schedules.${id}.cron`, { name: "CRON", type: "string", role: "text", write: false });
 						await this.deps.adapter.setStateChanged(`Devices.${this.duid}.schedules.${id}.cron`, { val: cron, ack: true });
 					}
-				}
+				}));
 			}
 		} catch (e: any) {
 			this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Failed to update timers: ${e.message}`, "warn");
@@ -291,30 +485,26 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
     		fan_power: async (val) => {
     			await this.deps.ensureState("deviceStatus.fan_power", { type: "number", states: this.profile.mappings.fan_power });
     			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.fan_power`, { val, ack: true });
+				// Sync to command state
+				await this.deps.adapter.setStateChanged(`Devices.${this.duid}.commands.set_custom_mode`, { val, ack: true });
     		},
     		mop_mode: async (val) => {
     			if (this.profile.mappings.mop_mode) {
     				await this.deps.ensureState("deviceStatus.mop_mode", { type: "number", states: this.profile.mappings.mop_mode });
     				await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.mop_mode`, { val, ack: true });
+					// Sync to command state
+					await this.deps.adapter.setStateChanged(`Devices.${this.duid}.commands.set_mop_mode`, { val, ack: true });
     			}
     		},
     		water_box_mode: async (val) => {
     			if (this.profile.mappings.water_box_mode) {
     				await this.deps.ensureState("deviceStatus.water_box_mode", { type: "number", states: this.profile.mappings.water_box_mode });
     				await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.water_box_mode`, { val, ack: true });
+					// Sync to command state
+					await this.deps.adapter.setStateChanged(`Devices.${this.duid}.commands.set_water_box_custom_mode`, { val, ack: true });
     			}
-    		},
-			dock_type: async (val) => {
-				await this.processDockType(Number(val));
-				await this.processResultKey("deviceStatus", "dock_type", val);
-			}
+    		}
     	};
-
-    	// Prioritize dock_type to enable features before processing other states
-    	if (validStatus.dock_type !== undefined) {
-    		await processors.dock_type(validStatus.dock_type);
-    		delete validStatus.dock_type;
-    	}
 
     	// Parallel processing of remaining status properties
     	const promises: Promise<void>[] = [];
@@ -421,4 +611,25 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			}
 		}
 	}
+
+	protected override async processResultKey(folder: string, key: string, val: unknown): Promise<void> {
+		if (key === "map_status") {
+			const mapIdxChanged = this.mapService.updateCurrentMapIndex(Number(val));
+
+			if (mapIdxChanged) {
+				this.deps.adapter.rLog("MapManager", this.duid, "Info", "1.0", undefined, `[MapSync] Map changed to index ${this.mapService.currentIndex}. Updating room mapping.`, "info");
+				await this.updateRoomMapping();
+			}
+		} else if (key === "dock_type") {
+			await this.processDockType(Number(val));
+		}
+
+		await super.processResultKey(folder, key, val);
+	}
+
+	public override getCurrentMapIndex(): number {
+		return this.mapService.currentIndex;
+	}
+
 }
+
