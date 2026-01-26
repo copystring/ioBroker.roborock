@@ -183,7 +183,7 @@ export class MapParser {
 	 */
 	async parsedata(buf: Buffer, mappedRooms: any[] | null, options: { isHistoryMap: boolean } = { isHistoryMap: false }): Promise<ParsedMapData | {}> {
 		if (buf.length < 8) {
-			this.adapter.rLog("MapManager", null, "Warn", "V1", undefined, `Received map buffer is too small (< 8 bytes). Length: ${buf.length}`, "warn");
+			this.adapter.rLog("MapManager", null, "Warn", "1.0", undefined, `Received map buffer is too small (< 8 bytes). Length: ${buf.length}`, "warn");
 			return {};
 		}
 
@@ -192,27 +192,27 @@ export class MapParser {
 		let dataLength = buf.length;
 
 		if (buf.length >= 20 && buf[0x00] === 0x72 && buf[0x01] === 0x72) {
-			this.adapter.rLog("MapManager", null, "Debug", "V1", undefined, "Found 'rr' header. Parsing as Standard Map.", "debug");
+			this.adapter.rLog("MapManager", null, "Debug", "1.0", undefined, "Found 'rr' header. Parsing as Standard Map.", "silly");
 			metaData = this.parseHeader(buf);
 
 			if (!metaData.header_length) {
-				this.adapter.rLog("MapManager", null, "Error", "V1", undefined, "Failed to parse LIVE map header (Invalid structure).", "error");
+				this.adapter.rLog("MapManager", null, "Error", "1.0", undefined, "Failed to parse LIVE map header (Invalid structure).", "error");
 				return {};
 			}
 			if (metaData.SHA1 !== metaData.expectedSHA1) {
-				this.adapter.rLog("MapManager", null, "Error", "V1", undefined, "Invalid map hash!", "error");
+				this.adapter.rLog("MapManager", null, "Error", "1.0", undefined, "Invalid map hash!", "error");
 				return {};
 			}
 
 			dataPosition = 0x14; // Skip 20-byte header
 			dataLength = metaData.data_length;
 		} else if (options.isHistoryMap) {
-			this.adapter.rLog("MapManager", null, "Debug", "V1", undefined, "Parsing as History Map (No 'rr' Header).", "debug");
+			this.adapter.rLog("MapManager", null, "Debug", "1.0", undefined, "Parsing as History Map (No 'rr' Header).", "silly");
 			metaData = { map_index: -1 } as any;
 			dataPosition = 0;
 			dataLength = buf.length;
 		} else {
-			this.adapter.rLog("MapManager", null, "Warn", "V1", undefined, "Invalid map header signature (expected 'rr').", "warn");
+			this.adapter.rLog("MapManager", null, "Warn", "1.0", undefined, "Invalid map header signature (expected 'rr').", "warn");
 			return {};
 		}
 
@@ -223,7 +223,7 @@ export class MapParser {
 		// Loop through all blocks
 		while (dataPosition < dataLength) {
 			if (dataPosition + OFFSETS.LENGTH + 4 > buf.length) {
-				this.adapter.rLog("MapManager", null, "Warn", "V1", undefined, "Reached end of buffer prematurely while reading block header.", "warn");
+				this.adapter.rLog("MapManager", null, "Warn", "1.0", undefined, "Reached end of buffer prematurely while reading block header.", "warn");
 				break;
 			}
 
@@ -232,7 +232,7 @@ export class MapParser {
 			const length = buf.readUInt32LE(dataPosition + OFFSETS.LENGTH);
 
 			if (dataPosition + hlength + length > buf.length) {
-				this.adapter.rLog("MapManager", null, "Warn", "V1", undefined, `Block (Type ${type}) claims to be larger than buffer. Stopping parse.`, "warn");
+				this.adapter.rLog("MapManager", null, "Warn", "1.0", undefined, `Block (Type ${type}) claims to be larger than buffer. Stopping parse.`, "warn");
 				break;
 			}
 
@@ -410,14 +410,14 @@ export class MapParser {
 							break;
 						case TYPES.UNKNOWN_40:
 						case TYPES.UNKNOWN_56:
-							this.adapter.rLog("MapManager", null, "Debug", "V1", undefined, `Received known unknown block type ${type} with length ${length}. Data: ${blockBuffer.toString("hex")}`, "debug");
+							this.adapter.rLog("MapManager", null, "Debug", "1.0", undefined, `Received known unknown block type ${type} with length ${length}. Data: ${blockBuffer.toString("hex")}`, "silly");
 							break;
 					}
 				} catch (e: any) {
-					this.adapter.rLog("MapManager", null, "Error", "V1", undefined, `Error parsing block ${typeName} (Type ${type}): ${e.stack}`, "error");
+					this.adapter.rLog("MapManager", null, "Error", "1.0", undefined, `Error parsing block ${typeName} (Type ${type}): ${e.stack}`, "error");
 				}
 			} else {
-				this.adapter.rLog("MapManager", null, "Warn", "V1", undefined, `Unknown block type: ${type} with length ${length}. Data: ${blockBuffer.toString("hex")}`, "warn");
+				this.adapter.rLog("MapManager", null, "Warn", "1.0", undefined, `Unknown block type: ${type} with length ${length}. Data: ${blockBuffer.toString("hex")}`, "warn");
 			}
 			dataPosition += length + hlength;
 		}
@@ -510,6 +510,7 @@ export class MapParser {
 		}
 
 		// --- Process all found segments ---
+
 		for (const segId of segmentIDsInImage) {
 			if (segId === 0) continue; // Skip "no segment"
 

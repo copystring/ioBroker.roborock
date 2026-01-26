@@ -78,9 +78,9 @@
     "vitest": "^4.0.16",
     "yaml-lint": "^1.7.0"
   },
-  "main": "build/main.js",
+  "main": "src/main.ts",
   "files": [
-    "build/",
+    "src/",
     "admin{,/!(src)/**}/!(tsconfig|tsconfig.*|.eslintrc).json",
     "admin{,/!(src)/**}/*.{html,css,png,svg,jpg,js}",
     "www/",
@@ -89,15 +89,13 @@
     "LICENSE"
   ],
   "scripts": {
-    "clean": "rimraf build",
-    "build": "npm run clean && npm run lint && tsc -b tsconfig.json && npm run build:www && npm run docs",
-    "build:www": "esbuild src/www/map.ts --bundle --minify --sourcemap --outfile=www/map.js --format=esm",
-    "watch": "npm run clean && tsc -b tsconfig.json --watch",
-    "watch:www": "esbuild src/www/map.ts --bundle --sourcemap --outfile=www/map.js --format=esm --watch",
+    "clean": "shx rm -rf www/*.js www/*.js.map www/*.d.ts www/*.tsbuildinfo",
+    "build": "npm run clean && npm run lint && npm run build:www && npm run docs",
+    "build:www": "esbuild src/www/map.ts --bundle --minify --sourcemap --outfile=www/app.js --format=esm",
+    "watch": "npm run clean && npm run watch:www",
+    "watch:www": "esbuild src/www/map.ts --bundle --sourcemap --outfile=www/app.js --format=esm --watch",
     "test:unit": "vitest run",
     "test": "npm run test:unit && npm run test:integration && npm run test:package",
-    "build:git": "npm run clean && tsc -b tsconfig.json && npm run build:www",
-    "prepare": "node -e \"if (process.env.HUSKY!=='0') require('child_process').execSync('husky', {stdio:'inherit'})\" && npm run build:git",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:integration": "mocha test/integration.js --exit",

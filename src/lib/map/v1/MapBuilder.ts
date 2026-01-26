@@ -1,22 +1,19 @@
-import { createCanvas, Image, loadImage, type Canvas, type CanvasRenderingContext2D } from "@napi-rs/canvas";
+import type { Canvas, CanvasRenderingContext2D } from "@napi-rs/canvas";
+import { createCanvas, Image, loadImage } from "@napi-rs/canvas";
 import * as fs from "fs";
 import * as path from "path";
 import { robotToPixel } from "../../../common/coordTransformation";
-import { processPaths, type PathPoint, type PathResult } from "../../../common/pathProcessor";
+import * as Images from "../../../common/images";
+import type { PathPoint, PathResult } from "../../../common/pathProcessor";
+import { processPaths } from "../../../common/pathProcessor";
 import { Roborock } from "../../../main";
-import * as Images from "../../images";
 import { assignRoborockRoomColorsToHex } from "../../roomColoring";
-import { LEGACY_COLORS, ROBOROCK_PALETTE, VISUAL_BLOCK_SIZE } from "../MapHelper"; // Import shared resources
-
-// ... Constants removed (using MapHelper or internal logic) ...
+import { hexToRgba, LEGACY_COLORS, ROBOROCK_PALETTE, VISUAL_BLOCK_SIZE } from "../MapHelper"; // Import shared resources
 
 const OFFSET = 60;
 const MAX_BLOCK_NUM = 32;
-// VISUAL_BLOCK_SIZE imported
 
 const ORG_COLORS = ROBOROCK_PALETTE;
-
-// LEGACY_COLORS imported
 
 interface CanvasMapOptions {
 	selectedMap?: any;
@@ -239,20 +236,27 @@ export class MapBuilder {
 		const canvas = createCanvas(mapdata.IMAGE.dimensions.width, mapdata.IMAGE.dimensions.height);
 		const ctx = canvas.getContext("2d") as unknown as ExtendedContext2D;
 
+		const t0 = Date.now();
+
 		// 1. Draw Floor & Walls
 		const bounds = this.drawFloorAndWalls(ctx, mapdata.IMAGE);
+		const t1 = Date.now();
 
 		// 2. Draw Segments
 		const segmentsData = this.drawSegments(ctx, mapdata.IMAGE, mapdata.CURRENTLY_CLEANED_BLOCKS);
+		const t2 = Date.now();
 
 		// --- SAVE CLEAN MAP (WITHOUT CARPET) ---
 		const cleanMapUncroppedBase64 = this.getCleanMapBase64(canvas);
+		const t3 = Date.now();
 
 		// 3. Draw Carpet
 		this.drawCarpet(ctx, mapdata.CARPET_MAP, mapdata.IMAGE);
+		const t4 = Date.now();
 
 		// 4. Draw Paths
 		this.drawPaths(ctx, mapdata);
+		const t5 = Date.now();
 
 		// 5. Draw Active Zones
 		this.drawActiveZones(ctx, mapdata.CURRENTLY_CLEANED_ZONES, mapdata.IMAGE);
@@ -265,6 +269,7 @@ export class MapBuilder {
 
 		// 8. Draw Obstacles
 		await this.drawObstacles(ctx, mapdata.OBSTACLES2, mapdata.IMAGE, params.model);
+		const t6 = Date.now();
 
 		// 9. Draw Robot & Charger & Target
 		this.drawRobotChargerTarget(ctx, mapdata, imgRobot, imgCharger, imgGoToPin);
@@ -274,9 +279,15 @@ export class MapBuilder {
 
 		// --- Get full uncropped map (INCLUDES Carpet) ---
 		const fullMapUncroppedBase64 = canvas.toDataURL();
+		const t7 = Date.now();
 
 		// 11. Crop & Return
 		const croppedMapBase64 = this.cropMap(canvas, ctx, bounds);
+		const t8 = Date.now();
+
+		if (t8 - t0 > 1000) {
+			this.adapter.rLog("MapManager", params.model || null, "Warn", "MapProfiler", undefined, `[Slow Map] Total: ${t8 - t0}ms | Floor: ${t1 - t0}ms | Segments: ${t2 - t1}ms | CleanBase64: ${t3 - t2}ms | Carpet: ${t4 - t3}ms | Path: ${t5 - t4}ms | Obstacles/Misc: ${t6 - t5}ms | FullBase64: ${t7 - t6}ms | Crop: ${t8 - t7}ms`, "debug");
+		}
 
 		return [cleanMapUncroppedBase64, fullMapUncroppedBase64, croppedMapBase64];
 	}
@@ -323,52 +334,103 @@ export class MapBuilder {
 				minleft = image.pixels.floor[0] % image.dimensions.width;
 				mintop = image.dimensions.height - 1 - Math.floor(image.pixels.floor[0] / image.dimensions.width);
 			}
-			["floor", "obstacle"].forEach((key) => {
-				if (!image.pixels[key]) return;
-				ctx.beginPath();
-				image.pixels[key].forEach((px: any) => {
+
+			const width = ctx.canvas.width;
+			const height = ctx.canvas.height;
+			const imgData = ctx.getImageData(0, 0, width, height);
+			const data = imgData.data;
+
+			const setRect = (x: number, y: number, r: number, g: number, b: number, a: number) => {
+				for (let dy = 0; dy < VISUAL_BLOCK_SIZE; dy++) {
+					const py = y + dy;
+					if (py >= height) continue;
+					for (let dx = 0; dx < VISUAL_BLOCK_SIZE; dx++) {
+						const px = x + dx;
+						if (px >= width) continue;
+						const idx = (py * width + px) * 4;
+						data[idx] = r;
+						data[idx + 1] = g;
+						data[idx + 2] = b;
+						data[idx + 3] = a;
+					}
+				}
+			};
+
+			const floorColorHex = this.colors.newmap ? ORG_COLORS[5] : this.colors.floor;
+			const [fR, fG, fB, fA] = hexToRgba(floorColorHex || "#E9E9E9");
+			const [oR, oG, oB, oA] = hexToRgba("#6B7174");
+
+			if (image.pixels.floor) {
+				image.pixels.floor.forEach((px: any) => {
 					const x = this.getX(image.dimensions, px);
 					const y = this.getY(image.dimensions, px);
-					ctx.fillStyle = key === "obstacle" ? "#6B7174" : this.colors.newmap ? ORG_COLORS[5] : this.colors.floor;
-					ctx.rect(x, y, VISUAL_BLOCK_SIZE, VISUAL_BLOCK_SIZE);
+					setRect(x, y, fR, fG, fB, fA);
+
 					maxtop = Math.max(maxtop, y);
 					maxleft = Math.max(maxleft, x);
 					minleft = Math.min(minleft, x);
 					mintop = Math.min(mintop, y);
 				});
-				ctx.fill();
-			});
+			}
+
+			if (image.pixels.obstacle) {
+				image.pixels.obstacle.forEach((px: any) => {
+					const x = this.getX(image.dimensions, px);
+					const y = this.getY(image.dimensions, px);
+					setRect(x, y, oR, oG, oB, oA);
+
+					maxtop = Math.max(maxtop, y);
+					maxleft = Math.max(maxleft, x);
+					minleft = Math.min(minleft, x);
+					mintop = Math.min(mintop, y);
+				});
+			}
+
+			ctx.putImageData(imgData, 0, 0);
 		}
 		return { minleft, mintop, maxleft, maxtop };
 	}
 
 	private drawSegments(ctx: ExtendedContext2D, image: any, currentlyCleanedBlocks: number[]) {
 		const segmentsData: Record<number, any> = {};
-		if (image.pixels.segments && this.colors.newmap) {
+
+		if (image.pixels.segments) {
+			const width = ctx.canvas.width;
+			const height = ctx.canvas.height;
+
+			// Step 1: Pre-process segments data (bounds & points list? we don't need points list for ImageData approach!)
 			image.pixels.segments.forEach((px: any) => {
-				const segnum = px >> 21;
+				const segnum = px >>> 21;
 				const pixelIndex = px & 0x1fffff;
 				if (segnum >= MAX_BLOCK_NUM) return;
+
 				const x = this.getX(image.dimensions, pixelIndex);
 				const y = this.getY(image.dimensions, pixelIndex);
-				if (!segmentsData[segnum]) segmentsData[segnum] = { points: [], minX: x, maxX: x, minY: y, maxY: y };
-				const segment = segmentsData[segnum];
-				segment.points.push({ x, y });
-				segment.minX = Math.min(segment.minX, x);
-				segment.maxX = Math.max(segment.maxX, x);
-				segment.minY = Math.min(segment.minY, y);
-				segment.maxY = Math.max(segment.maxY, y);
+
+				if (!segmentsData[segnum]) {
+					segmentsData[segnum] = { minX: x, maxX: x, minY: y, maxY: y, count: 0 };
+				} else {
+					const s = segmentsData[segnum];
+					if (x < s.minX) s.minX = x;
+					if (x > s.maxX) s.maxX = x;
+					if (y < s.minY) s.minY = y;
+					if (y > s.maxY) s.maxY = y;
+					s.count++;
+				}
 			});
 
 			const segmentNums = Object.keys(segmentsData).map(Number);
 			const maxId = segmentNums.length ? Math.max(...segmentNums) : 0;
 			const matrixSize = MAX_BLOCK_NUM;
+
+			// Adjacency Matrix (Math - Fast)
 			const adjacencyMatrix = this.buildAdjacencyMatrix(image.pixels.segments, image.dimensions.width, image.dimensions.height, maxId);
+
 			const pointsCount = new Array(matrixSize).fill(0);
-			for (const segStr of Object.keys(segmentsData)) {
-				const seg = Number(segStr);
-				if (seg >= 0 && seg < matrixSize) pointsCount[seg] = segmentsData[seg].points.length;
+			for (const segStr of segmentNums) {
+				if (segStr >= 0 && segStr < matrixSize) pointsCount[segStr] = segmentsData[segStr].count;
 			}
+
 			const neighborInfo = new Array(matrixSize * matrixSize).fill(0);
 			for (let i = 0; i < matrixSize; i++) {
 				for (let j = 0; j < matrixSize; j++) {
@@ -376,38 +438,73 @@ export class MapBuilder {
 				}
 				if (pointsCount[i] > 0) neighborInfo[i * matrixSize + i] = 1;
 			}
-			const coloring = assignRoborockRoomColorsToHex({ maxBlockNum: matrixSize, neighborInfo, pointsCount }, { oneBased: true });
 
-			Object.keys(segmentsData).forEach((segStr) => {
-				const segnum = Number(segStr);
-				if (segnum < 0 || segnum >= matrixSize) return;
-				const isCurrentlyCleaned = currentlyCleanedBlocks?.includes(segnum);
-				let fillColor = coloring.colorHex?.[segnum] || "#CCCCCC";
-				if (isCurrentlyCleaned) fillColor = segnum >= 0 && segnum < ORG_COLORS.length ? ORG_COLORS[segnum] : "#AA0000";
-				ctx.fillStyle = fillColor;
-				ctx.beginPath();
-				segmentsData[segnum].points.forEach((p: any) => {
-					ctx.rect(p.x, p.y, VISUAL_BLOCK_SIZE, VISUAL_BLOCK_SIZE);
-				});
-				ctx.fill();
-			});
-		} else if (image.pixels.segments) {
-			let segnum: number, lastcolor: number | undefined;
-			ctx.beginPath();
-			image.pixels.segments.forEach((px: any) => {
-				segnum = px >> 21;
-				if (currentlyCleanedBlocks?.includes(segnum)) {
-					if (segnum !== lastcolor) {
-						ctx.fill();
-						ctx.beginPath();
-						ctx.fillStyle = segnum >= 0 && segnum < ORG_COLORS.length ? ORG_COLORS[segnum] : "#CCCCCC";
-						lastcolor = segnum;
+			// Color Calculation
+			const coloring = this.colors.newmap
+				? assignRoborockRoomColorsToHex({ maxBlockNum: matrixSize, neighborInfo, pointsCount }, { oneBased: true })
+				: { colorHex: [] };
+
+			// Pre-calculate RGBA for each segment
+			const segColors: Record<number, [number, number, number, number]> = {};
+			for (let i = 0; i < matrixSize; i++) {
+				if (pointsCount[i] > 0) {
+					if (this.colors.newmap) {
+						const isCurrentlyCleaned = currentlyCleanedBlocks?.includes(i);
+						let hex = coloring.colorHex?.[i] || "#CCCCCC";
+						if (isCurrentlyCleaned) hex = i >= 0 && i < ORG_COLORS.length ? ORG_COLORS[i] : "#AA0000";
+						// Fallback if ORG_COLORS[i] is undefined
+						if (!hex) hex = "#CCCCCC";
+						segColors[i] = hexToRgba(hex);
+					} else {
+						// Old map style
+						const isCurrentlyCleaned = currentlyCleanedBlocks?.includes(i);
+						if (isCurrentlyCleaned) {
+							const hex = i >= 0 && i < ORG_COLORS.length ? ORG_COLORS[i] : "#CCCCCC";
+							segColors[i] = hexToRgba(hex || "#CCCCCC");
+						}
+						// If not cleaned in old mode, valid segments are not drawn?
+						// Logic says: if (currentlyCleanedBlocks?.includes(segnum)) draw.
 					}
-					px = px & 0xfffff;
-					ctx.rect(this.getX(image.dimensions, px), this.getY(image.dimensions, px), VISUAL_BLOCK_SIZE, VISUAL_BLOCK_SIZE);
+				}
+			}
+
+			// Step 2: Draw Pixels (ImageData - Fast)
+			const imgData = ctx.getImageData(0, 0, width, height);
+			const data = imgData.data;
+
+			// Helper to fill a visual block
+			const setBlock = (x: number, y: number, r: number, g: number, b: number, a: number) => {
+				for (let dy = 0; dy < VISUAL_BLOCK_SIZE; dy++) {
+					const py = y + dy;
+					if (py >= height) continue;
+					for (let dx = 0; dx < VISUAL_BLOCK_SIZE; dx++) {
+						const px = x + dx;
+						if (px >= width) continue;
+						const idx = (py * width + px) * 4;
+						data[idx] = r;
+						data[idx + 1] = g;
+						data[idx + 2] = b;
+						data[idx + 3] = a;
+					}
+				}
+			};
+
+			image.pixels.segments.forEach((px: any) => {
+				const segnum = px >>> 21;
+				const pixelIndex = px & 0x1fffff;
+
+				// Skip if not changing color (Old Map Mode check)
+				if (!this.colors.newmap && !currentlyCleanedBlocks?.includes(segnum)) return;
+
+				const color = segColors[segnum];
+				if (color) {
+					const x = this.getX(image.dimensions, pixelIndex);
+					const y = this.getY(image.dimensions, pixelIndex);
+					setBlock(x, y, color[0], color[1], color[2], color[3]);
 				}
 			});
-			ctx.fill();
+
+			ctx.putImageData(imgData, 0, 0);
 		}
 		return segmentsData;
 	}
@@ -512,9 +609,46 @@ export class MapBuilder {
 		}
 	}
 
+	// Static cache to avoid repeated file system checks
+	private static obstacleImageCache = new Map<string, string | null>();
+
+	private static readonly OBSTACLE_MAPPING: Record<number, string> = {
+		"-99": "99",
+		0: "0",
+		1: "1",
+		2: "2",
+		3: "3",
+		4: "3",
+		5: "5_cn",
+		9: "9",
+		10: "10",
+		18: "18",
+		25: "25",
+		26: "26",
+		27: "26",
+		34: "10",
+		42: "18",
+		48: "48",
+		49: "49",
+		51: "51",
+		54: "54",
+		65: "65",
+		67: "67",
+		69: "69",
+		70: "70",
+		99: "99",
+	};
+
 	private async findObstacleImage(suffix: string, model?: string): Promise<string | null> {
+		const cacheKey = `${model || "default"}_${suffix}`;
+		if (MapBuilder.obstacleImageCache.has(cacheKey)) {
+			return MapBuilder.obstacleImageCache.get(cacheKey)!;
+		}
+
 		const assetModels = [model, "roborock.vacuum.a147"].filter((m): m is string => !!m);
 		const fileName = `projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`;
+
+		let foundPath: string | null = null;
 
 		for (const m of assetModels) {
 			const potentialPaths = [
@@ -529,54 +663,40 @@ export class MapBuilder {
 			];
 
 			for (const imagePath of potentialPaths) {
-				if (fs.existsSync(imagePath)) {
-					return imagePath;
+				try {
+					await fs.promises.access(imagePath);
+					foundPath = imagePath;
+					break;
+				} catch {
+					// File does not exist, continue
 				}
 			}
+			if (foundPath) break;
 		}
-		return null;
+
+		MapBuilder.obstacleImageCache.set(cacheKey, foundPath);
+		return foundPath;
 	}
 
 	private async drawObstacles(ctx: ExtendedContext2D, obstacles: any, image: any, model?: string) {
-		const OBSTACLE_MAPPING: Record<number, string> = {
-			"-99": "99",
-			0: "0",
-			1: "1",
-			2: "2",
-			3: "3",
-			4: "3",
-			5: "5_cn",
-			9: "9",
-			10: "10",
-			18: "18",
-			25: "25",
-			26: "26",
-			27: "26",
-			34: "10",
-			42: "18",
-			48: "48",
-			49: "49",
-			51: "51",
-			54: "54",
-			65: "65",
-			67: "67",
-			69: "69",
-			70: "70",
-			99: "99",
-		};
-
 		if (obstacles) {
-			for (const obstacle of obstacles) {
+			// Optimization: Load images in parallel, then draw sequentially to ensure context safety
+			const items = await Promise.all(obstacles.map(async (obstacle: any) => {
+				const type = obstacle[2];
+				const suffix = MapBuilder.OBSTACLE_MAPPING[type] || "18";
+				const imagePath = await this.findObstacleImage(suffix, model);
+				return { obstacle, imagePath, suffix };
+			}));
+
+			for (const { obstacle, imagePath, suffix } of items) {
 				const type = obstacle[2];
 				const p = this.robotToCanvas(image, obstacle[0], obstacle[1]);
 				const x = p.x; // + VISUAL_BLOCK_SIZE / 2; // robotToCanvas already centers it
 				const y = p.y; // + VISUAL_BLOCK_SIZE / 2;
 
-				const suffix = OBSTACLE_MAPPING[type] || "18";
-				const imagePath = await this.findObstacleImage(suffix, model);
-
 				if (!imagePath) {
-					this.adapter.rLog("MapManager", model || null, "Warn", undefined, undefined, `Could not find obstacle image for type ${type} (mapped to ${suffix}) in any search path.`, "warn");
+					// Debounce warnings? Maybe later.
+					this.adapter.rLog("MapManager", model || null, "Warn", undefined, undefined, `Could not find obstacle image for type ${type} (mapped to ${suffix})`, "debug"); // Downgraded to debug to reduce log noise
 				}
 
 				// Draw background circle (Grey with white border)

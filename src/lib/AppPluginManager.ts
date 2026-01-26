@@ -91,7 +91,7 @@ export class AppPluginManager {
 			this.adapter.rLog("Cloud", duid, "Warn", undefined, undefined, `Falling back to request with string productId ${device.productId} (might fail)`, "warn");
 		}
 
-		this.adapter.rLog("Cloud", duid, "Info", undefined, undefined, `Requesting assets for ProductID: ${numericProductId || device.productId}`, "info");
+		this.adapter.rLog("Cloud", duid, "Debug", undefined, undefined, `Requesting assets for ProductID: ${numericProductId || device.productId}`, "debug");
 		this.adapter.rLog("Cloud", duid, "Debug", undefined, undefined, `Payload: ${JSON.stringify(appPluginRequest)}`, "debug");
 
 		const vacuumIDs: Record<string, string> = {
@@ -200,11 +200,8 @@ export class AppPluginManager {
 										const targetPath = path.join(assetPath, relativePath);
 										const targetDir = path.dirname(targetPath);
 
-										if (!fs.existsSync(targetDir)) {
-											fs.mkdirSync(targetDir, { recursive: true });
-										}
-
-										fs.writeFileSync(targetPath, fileContent as Uint8Array);
+										await fs.promises.mkdir(targetDir, { recursive: true });
+										await fs.promises.writeFile(targetPath, fileContent as Uint8Array);
 										extractedCount++;
 									}
 								})());

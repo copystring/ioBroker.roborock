@@ -139,7 +139,7 @@ export class local_api {
 				client.connect(TCP_CONNECTION_PORT, ip, async () => {
 					client.removeListener("error", onErrorOnce);
 					client.setTimeout(0); // Disable timeout after connection
-					this.adapter.rLog("TCP", duid, "Info", "TCP", undefined, `TCP client connected`, "info");
+					this.adapter.rLog("TCP", duid, "Info", undefined, undefined, `TCP client connected`, "info");
 
 
 
@@ -161,11 +161,11 @@ export class local_api {
 					// Buffering logic
 					if (client.chunkBuffer.length === 0) {
 						if (!this.checkComplete(message)) {
-							this.adapter.rLog("TCP", duid, "<-", "TCP", undefined, `Starting new chunk buffer`, "debug");
+							this.adapter.rLog("TCP", duid, "<-", "TCP", undefined, `Starting new chunk buffer`, "silly");
 						}
 						client.chunkBuffer = message;
 					} else {
-						this.adapter.rLog("TCP", duid, "<-", "TCP", undefined, `Appending to chunk buffer`, "debug");
+						this.adapter.rLog("TCP", duid, "<-", "TCP", undefined, `Appending to chunk buffer`, "silly");
 						client.chunkBuffer = Buffer.concat([client.chunkBuffer, message] as Uint8Array[]);
 					}
 
@@ -173,12 +173,12 @@ export class local_api {
 					// Process buffer if it contains at least one complete message
 					if (this.checkComplete(client.chunkBuffer)) {
 						if (client.chunkBuffer.length !== message.length) {
-							this.adapter.rLog("TCP", duid, "<-", "TCP", undefined, `Chunk buffer complete. Processing...`, "debug");
+							this.adapter.rLog("TCP", duid, "<-", "TCP", undefined, `Chunk buffer complete. Processing...`, "silly");
 						}
 
 						while (offset + 4 <= client.chunkBuffer.length) {
 							const segmentLength = client.chunkBuffer.readUInt32BE(offset);
-							this.adapter.rLog("TCP", duid, "<-", "TCP", undefined, `Segment length: ${segmentLength} at offset ${offset}`, "debug");
+							this.adapter.rLog("TCP", duid, "<-", "TCP", undefined, `Segment length: ${segmentLength} at offset ${offset}`, "silly");
 
 
 
@@ -195,15 +195,15 @@ export class local_api {
 										if (this.localDevices[duid]) {
 											this.localDevices[duid].ackNonce = nonce;
 										}
-										this.adapter.rLog("TCP", duid, "<-", "Control", 1, `hello_response | ackNonce=${nonce}`, "debug");
+										this.adapter.rLog("TCP", duid, "<-", "Control", 1, `hello_response | ackNonce=${nonce}`, "silly");
 										break;
 
 									case 5: // ping_response
-										this.adapter.rLog("TCP", duid, "<-", "Control", 5, `ping_response`, "debug");
+										this.adapter.rLog("TCP", duid, "<-", "Control", 5, `ping_response`, "silly");
 										break;
 
 									default:
-										this.adapter.rLog("TCP", duid, "<-", "Control", protocol, `Short frame ${protocol}`, "debug");
+										this.adapter.rLog("TCP", duid, "<-", "Control", protocol, `Short frame ${protocol}`, "silly");
 								}
 							} else {
 								// Decode standard data message
@@ -239,7 +239,7 @@ export class local_api {
 												const id = inner.msgId || inner.id;
 												const result = inner.code === 0 ? inner.data : (inner.error || inner.result);
 
-												this.adapter.rLog("TCP", duid, "<-", "B01", id, `Response | ${JSON.stringify(inner)}`, "debug");
+												// Redundant log removed. resolvePendingRequest handles it.
 
 												if (id) {
 													this.adapter.requestsHandler.resolvePendingRequest(id, result, `Local-${data.version}`, duid, "TCP");
@@ -260,7 +260,7 @@ export class local_api {
 													} catch {}
 												}
 
-												this.adapter.rLog("TCP", duid, "<-", "4", undefined, `Message | ${JSON.stringify(content)}`, "debug");
+												// Redundant log removed. resolvePendingRequest handles it.
 
 												if (content.id) {
 													this.adapter.requestsHandler.resolvePendingRequest(content.id, content.result, String(data.protocol), duid, "TCP");
@@ -285,10 +285,10 @@ export class local_api {
 			client.on("error", (error) => this.scheduleReconnect(duid, `connection error: ${error.message}`));
 			client.on("end", () => this.scheduleReconnect(duid, "connection ended"));
 
-			this.adapter.rLog("TCP", duid, "Info", "TCP", undefined, `TCP client established for ${duid}`, "info");
+			this.adapter.rLog("TCP", duid, "Info", undefined, undefined, `TCP client established for ${duid}`, "info");
 			this.cloudDevices.delete(duid);
 		} catch (err: any) {
-			this.adapter.rLog("TCP", duid, "Error", "TCP", undefined, `TCP connect failed for ${duid}: ${err?.message || err}`, "warn");
+			this.adapter.rLog("TCP", duid, "Error", undefined, undefined, `TCP connect failed for ${duid}: ${err?.message || err}`, "warn");
 			this.scheduleReconnect(duid, "connect failed");
 			this.cloudDevices.add(duid);
 		} finally {
@@ -300,7 +300,7 @@ export class local_api {
 	 * Schedules a reconnection attempt after a delay.
 	 */
 	scheduleReconnect(duid: string, reason: string): void {
-		this.adapter.rLog("TCP", duid, "Warn", "TCP", undefined, `TCP ${reason} for ${duid}, retry in 5s`, "warn");
+		this.adapter.rLog("TCP", duid, "Warn", undefined, undefined, `TCP ${reason} for ${duid}, retry in 5s`, "warn");
 
 		const old = this.deviceSockets[duid];
 		if (old) {
@@ -317,7 +317,7 @@ export class local_api {
 
 			// Retry only if device is still considered local
 			if (this.getIpForDuid(duid)) {
-				this.initiateClient(duid).catch((e) => this.adapter.rLog("TCP", duid, "Error", "TCP", undefined, `Reconnect attempt failed for ${duid}: ${e?.message || e}`, "warn"));
+				this.initiateClient(duid).catch((e) => this.adapter.rLog("TCP", duid, "Error", undefined, undefined, `Reconnect attempt failed for ${duid}: ${e?.message || e}`, "warn"));
 			} else {
 				this.adapter.rLog("TCP", duid, "Debug", "TCP", undefined, `Skip reconnect for ${duid}, no longer in localDevices. Trying again next time.`, "debug");
 				this.scheduleReconnect(duid, "waiting for IP");
@@ -458,7 +458,7 @@ export class local_api {
 
 		this.discoveryServer.on("listening", () => {
 			const addr = this.discoveryServer!.address();
-			this.adapter.rLog("UDP", null, "Info", "N/A", undefined, `UDP listening on ${addr.address}:${addr.port}`, "info");
+			this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP listening on ${addr.address}:${addr.port}`, "info");
 		});
 
 		this.discoveryServer.on("error", (error) => this.adapter.rLog("UDP", null, "Error", "N/A", undefined, `Server error: ${error.stack}`, "error"));
@@ -483,7 +483,7 @@ export class local_api {
 						this.discoveryTimer = null;
 					}
 					this.stopUdpDiscovery();
-					this.adapter.rLog("UDP", null, "Info", "N/A", undefined, `UDP discovery finished early: all ${expectedCount} expected devices found.`, "info");
+					this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP discovery finished early: all ${expectedCount} expected devices found.`, "info");
 					this.localDevices = { ...devices };
 					resolve();
 					return true;
@@ -507,7 +507,7 @@ export class local_api {
 
 			this.discoveryTimer = setTimeout(() => {
 				this.stopUdpDiscovery();
-				this.adapter.rLog("UDP", null, "Info", "N/A", undefined, `UDP discovery finished after ${timeoutMs / 1000}s. Found ${Object.keys(devices).length}/${expectedCount} devices.`, "info");
+				this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP discovery finished after ${timeoutMs / 1000}s. Found ${Object.keys(devices).length}/${expectedCount} devices.`, "info");
 				// Update main list of local devices
 				this.localDevices = { ...devices };
 				resolve();
@@ -528,7 +528,7 @@ export class local_api {
 				// ignore close errors
 			}
 			this.discoveryServer = null;
-			this.adapter.rLog("UDP", null, "Info", "N/A", undefined, "UDP discovery stopped", "info");
+			this.adapter.rLog("UDP", null, "Info", undefined, undefined, "UDP discovery stopped", "info");
 		}
 	}
 

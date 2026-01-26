@@ -11,16 +11,16 @@
 			}
 		</script>
 		<script src="/socket.io/socket.io.js"></script>
-		<script type="module" src="./map.js"></script>
+		<script type="module" src="./app.js"></script>
 
 		<style>
-			/* Dein komplettes CSS (unverändert) */
+			/* Main Layout */
 			body {
 				display: flex;
 				align-items: center;
 				background-color: #000000;
-				margin: 0; /* Verhindert unerwarteten Scrollbalken */
-				overflow: hidden; /* Verhindert Scrollbalken durch D3-Zoom */
+				margin: 0;
+				overflow: hidden; /* Prevents scrollbars from D3 zoom */
 				font-family:
 					system-ui,
 					-apple-system,
@@ -36,35 +36,34 @@
 			}
 
 			#mapSvgContainer {
-				/* Container für das SVG, behält die Größe */
+				/* SVG Container */
 				width: 450px;
 				height: 450px;
 				border: 2px solid #4f4f4f;
 				box-shadow: 0px 0px 10px #333;
 				border-radius: 15px;
-				overflow: hidden; /* Wichtig für Pan/Zoom-Grenzen */
-				position: relative; /* Für absolute Positionierung des Popups */
-				background-color: #1a1a1a; /* Hintergrund während des Ladens */
+				overflow: hidden; /* Important for Pan/Zoom constraints */
+				position: relative;
+				background-color: #1a1a1a;
 			}
 
 			#mapSvg {
-				/* SVG füllt den Container, Cursor anpassen */
 				width: 100%;
 				height: 100%;
-				display: block; /* Verhindert extra Platz unter dem SVG */
-				cursor: grab; /* Standard-Cursor für Pan */
+				display: block;
+				cursor: grab;
 			}
 
 			#mapSvg:active {
-				cursor: grabbing; /* Cursor während des Pannens */
+				cursor: grabbing;
 			}
 
-			/* --- Interaktive SVG Elemente --- */
+			/* --- Interactive SVG Elements --- */
 			.zone-rect {
 				fill: rgba(255, 255, 255, 0.5);
 				stroke: white;
 				stroke-width: 1.5;
-				/* vector-effect: non-scaling-stroke; Hält Strichstärke konstant */
+				/* vector-effect: non-scaling-stroke; Keeps stroke width constant */
 				cursor: move;
 			}
 
@@ -79,27 +78,27 @@
 				stroke-width: 0.5;
 				vector-effect: non-scaling-stroke;
 				cursor: pointer;
-				transition: r 0.1s ease-in-out; /* Kleine Animation */
+				transition: r 0.1s ease-in-out;
 			}
 			.obstacle-marker:hover {
 				fill: rgba(0, 200, 255, 0.9);
 			}
 
 			.go-to-pin {
-				cursor: crosshair; /* Deutlicher machen, dass hier geklickt wird */
+				cursor: crosshair;
 			}
 
-			/* --- Popup Styling (angepasst für SVG-Container) --- */
+			/* --- Popup Styling --- */
 			#popup {
 				display: none;
-				position: absolute; /* Absolut zum #mapSvgContainer */
+				position: absolute;
 				background-color: white;
 				border-radius: 5px;
 				padding: 5px;
 				box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
-				pointer-events: none; /* Wichtig, damit es Klicks nicht blockiert */
-				transform: translate(-50%, -100%); /* Zentriert über dem Punkt, oberhalb */
-				margin-top: -15px; /* Abstand + Platz für Dreieck */
+				pointer-events: none;
+				transform: translate(-50%, -100%);
+				margin-top: -15px;
 				z-index: 10;
 			}
 
@@ -108,14 +107,14 @@
 				width: 100px;
 				height: 100px;
 				border: 1px solid black;
-				cursor: pointer; /* Zeigt an, dass das Bild klickbar ist */
-				pointer-events: auto; /* Klicks auf Bild erlauben */
+				cursor: pointer;
+				pointer-events: auto;
 			}
 
 			#triangle {
 				display: none;
 				position: absolute;
-				bottom: -10px; /* Unter dem Popup */
+				bottom: -10px;
 				left: 50%;
 				transform: translateX(-50%);
 				width: 0;
@@ -127,12 +126,11 @@
 			}
 
 			#largePhoto {
-				/* Bleibt wie es war, wird über alles gelegt */
 				top: 50%;
 				left: 50%;
 				transform: translate(-50%, -50%);
 				display: none;
-				position: fixed; /* Fixed, damit es immer zentriert ist */
+				position: fixed;
 				z-index: 1000;
 				border: 2px solid white;
 				box-shadow: 0 0 15px rgba(0, 0, 0, 0.7);
@@ -140,8 +138,8 @@
 
 			#largePhoto-image {
 				display: block;
-				max-width: 80vw; /* Maximal 80% der Viewport-Breite */
-				max-height: 80vh; /* Maximal 80% der Viewport-Höhe */
+				max-width: 80vw;
+				max-height: 80vh;
 				width: auto;
 				height: auto;
 			}
@@ -155,8 +153,7 @@
 				z-index: 1001;
 			}
 
-
-			/* --- Restliches Styling (unverändert) --- */
+			/* --- General Styling --- */
 			#addButton,
 			#deleteButton {
 				display: inline-block;
@@ -226,13 +223,11 @@
 
 		<div id="largePhoto">
 			<img id="largePhoto-image" src="" alt="Obstacle Detail" />
-			<div id="largePhoto-bbox">
-			</div>
+			<div id="largePhoto-bbox"></div>
 		</div>
 
 		<div style="display: flex; flex-direction: column; align-items: center">
 			<div style="margin-left: auto">
-				<!-- Dein robotSelect ist hier, dein TS-Code muss ihn füllen -->
 				<select id="robotSelect"></select>
 			</div>
 			<div style="margin-left: auto">

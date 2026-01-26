@@ -81,7 +81,8 @@ export class PhotoManager {
 
 			const requestKey = `${duid}_${photoId}`;
 			const totalSize = payloadBuf.length >= 24 ? payloadBuf.readUInt32LE(20) : 0;
-			this.adapter.rLog("MQTT", duid, "Info", "300", pendingReqId, `[Photo] Metadata (300). ID: ${photoId} (Task: ${pendingReqId}, Target Size: ${totalSize})`, "debug");
+			const version = await this.adapter.getDeviceProtocolVersion(duid);
+			this.adapter.rLog("MQTT", duid, "Info", version, "300", `[Photo] Metadata (300). ID: ${photoId} (Task: ${pendingReqId}, Target Size: ${totalSize})`, "debug", pendingReqId);
 
 			const firstChunk = payloadBuf.length > 56 ? payloadBuf.subarray(56) : Buffer.alloc(0);
 			const photoData = this.initializePhotoRequest(duid, photoId, totalSize);
@@ -98,7 +99,8 @@ export class PhotoManager {
 			}
 			return true;
 		} catch (e: any) {
-			this.adapter.rLog("MQTT", duid, "Error", "300", undefined, `[Photo] Header parse failed: ${e.message}`, "error");
+			const version = await this.adapter.getDeviceProtocolVersion(duid).catch(() => "1.0");
+			this.adapter.rLog("MQTT", duid, "Error", version, "300", `[Photo] Header parse failed: ${e.message}`, "error");
 			return true;
 		}
 	}
@@ -131,7 +133,8 @@ export class PhotoManager {
 				dataSkip = 56;
 				isKnownPhoto = true;
 			} else if (isRoborockHeader) {
-				this.adapter.rLog("MQTT", duid, "Warn", "301", undefined, `Photo packet with ROBOROCK header too short: ${payloadBuf.length}b`, "warn");
+				const version = await this.adapter.getDeviceProtocolVersion(duid).catch(() => "1.0");
+				this.adapter.rLog("MQTT", duid, "Warn", version, "301", `Photo packet with ROBOROCK header too short: ${payloadBuf.length}b`, "warn");
 				return true;
 			} else {
 				// Non-standard header (likely Raw Stream for Type 0)
@@ -165,7 +168,8 @@ export class PhotoManager {
 				photoData.chunks[sequence - 1] = chunkData;
 				photoData.lastUpdateTime = Date.now();
 
-				this.adapter.rLog("MQTT", duid, "Info", "301", photoId, `[Photo] Chunk Seq: ${sequence}. Size: ${payloadBuf.length}. Skip: ${dataSkip}. Target: ${photoData.totalSize}`, "debug");
+				const version = await this.adapter.getDeviceProtocolVersion(duid).catch(() => "1.0");
+				this.adapter.rLog("MQTT", duid, "Info", version, "301", `[Photo] Chunk Seq: ${sequence}. Size: ${payloadBuf.length}. Skip: ${dataSkip}. Target: ${photoData.totalSize}`, "debug", photoId);
 
 				if (await this.isPhotoComplete(photoData, duid, photoId)) {
 					await this.processAndResolvePhoto(photoData, duid, requestKey, 301);
@@ -173,7 +177,8 @@ export class PhotoManager {
 				return true;
 			}
 		} catch (e: any) {
-			this.adapter.rLog("MQTT", duid, "Error", "301", undefined, `Protocol 301 photo reassembly error: ${e.message}`, "error");
+			const version = await this.adapter.getDeviceProtocolVersion(duid).catch(() => "1.0");
+			this.adapter.rLog("MQTT", duid, "Error", version, "301", `Protocol 301 photo reassembly error: ${e.message}`, "error");
 			return true;
 		}
 
@@ -190,15 +195,18 @@ export class PhotoManager {
 		const keys = Object.keys(photoData.chunks).map(Number);
 		const currentSize = keys.reduce((sum, k) => sum + photoData.chunks[k].length, 0);
 
-		this.adapter.rLog("MQTT", duid, "Debug", "PHOTO", photoId, `[Photo] Progress: ${currentSize} / ${photoData.totalSize} bytes`, "debug");
+		const version = await this.adapter.getDeviceProtocolVersion(duid).catch(() => "1.0");
+		this.adapter.rLog("MQTT", duid, "Debug", version, "PHOTO", `[Photo] Progress: ${currentSize} / ${photoData.totalSize} bytes`, "debug", photoId);
 
 		if (currentSize === photoData.totalSize) {
-			this.adapter.rLog("MQTT", duid, "Info", "PHOTO", photoId, `[Photo] All chunks received. Total Size: ${currentSize}`, "debug");
+			const version = await this.adapter.getDeviceProtocolVersion(duid).catch(() => "1.0");
+			this.adapter.rLog("MQTT", duid, "Info", version, "PHOTO", `[Photo] All chunks received. Total Size: ${currentSize}`, "debug", photoId);
 			return true;
 		}
 
 		if (currentSize > photoData.totalSize) {
-			this.adapter.rLog("MQTT", duid, "Error", "PHOTO", photoId, `[Photo] Data overflow: ${currentSize} > ${photoData.totalSize}. Resetting request.`, "error");
+			const version = await this.adapter.getDeviceProtocolVersion(duid).catch(() => "1.0");
+			this.adapter.rLog("MQTT", duid, "Error", version, "PHOTO", `[Photo] Data overflow: ${currentSize} > ${photoData.totalSize}. Resetting request.`, "error", photoId);
 			// Clean up invalid request
 			const requestKey = `${duid}_${photoId}`;
 			delete this.pendingPhotoRequests[requestKey];
@@ -235,7 +243,8 @@ export class PhotoManager {
 				}
 			}
 		} catch (err: any) {
-			this.adapter.rLog("MQTT", duid, "Error", protocol.toString(), photoData.id, `Failed to reassemble/extract photo: ${err.message}`, "error");
+			const version = await this.adapter.getDeviceProtocolVersion(duid).catch(() => "1.0");
+			this.adapter.rLog("MQTT", duid, "Error", version, protocol.toString(), `Failed to reassemble/extract photo: ${err.message}`, "error", photoData.id);
 		}
 
 		delete this.pendingPhotoRequests[requestKey];
