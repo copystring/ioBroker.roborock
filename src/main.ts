@@ -112,30 +112,47 @@ export class Roborock extends utils.Adapter {
 		try {
 			const clientID = await this.ensureClientID();
 			await this.http_api.init(clientID);
-			await this.mqtt_api.init();
+
+			// 1. Start Cloud Data Sync (Get Keys & DUIDs)
 			await this.http_api.updateHomeData();
 
-			// Download Roborock images (Assets)
-			this.rLog("System", null, "Info", undefined, undefined, "Ensuring product images are available...", "info");
-			await this.http_api.downloadProductImages();
-
-			// Always check for App Plugin (assets) updates
-			const devices = this.http_api.getDevices();
-			for (const device of devices) {
-				await this.appPluginManager.updateProduct(device.duid);
-			}
-
+			// 2a. Start UDP Discovery (Essential for determining Local/Cloud mode before Init)
 			await this.local_api.startUdpDiscovery();
-			await this.deviceManager.initializeDevices();
-			await this.processScenes();
-			this.deviceManager.startPolling();
-			await this.start_go2rtc();
 
-			this.subscribeStatesAsync("Devices.*.commands.*");
-			this.subscribeStatesAsync("Devices.*.resetConsumables.*");
-			this.subscribeStatesAsync("Devices.*.programs.startProgram");
-			this.subscribeStatesAsync("Devices.*.deviceInfo.online");
-			this.subscribeStatesAsync("Devices.*.floors.*.load");
+			// 2b. Start MQTT and WAIT for the connection to be established
+			await this.mqtt_api.init();
+
+			// 3. Initialize Devices (now that communication channels are ready)
+			await this.deviceManager.initializeDevices();
+
+			// Download Assets and Updates in background to avoid blocking startup
+			this.rLog("System", null, "Info", undefined, undefined, "Starting background asset and plugin updates...", "info");
+
+			// Non-blocking background tasks
+			(async () => {
+				try {
+					await this.http_api.downloadProductImages();
+					const devices = this.http_api.getDevices();
+					for (const device of devices) {
+						await this.appPluginManager.updateProduct(device.duid).catch(e =>
+							this.rLog("System", device.duid, "Warn", undefined, undefined, `Background plugin update failed: ${e.message}`, "warn")
+						);
+					}
+				} catch (e: any) {
+					this.rLog("System", null, "Warn", undefined, undefined, `Background maintenance failed: ${e.message}`, "warn");
+				}
+			})();
+
+			// Parallelize non-dependent startup tasks
+			await Promise.all([
+				this.processScenes(),
+				this.start_go2rtc(),
+				this.subscribeStatesAsync("Devices.*.commands.*"),
+				this.subscribeStatesAsync("Devices.*.resetConsumables.*"),
+				this.subscribeStatesAsync("loginCode")
+			]);
+
+			this.deviceManager.startPolling();
 
 			this.rLog("System", null, "Info", undefined, undefined, "Adapter startup finished. Let's go!", "info");
 			this.isInitializing = false;
@@ -186,6 +203,7 @@ export class Roborock extends utils.Adapter {
 			}
 
 			if (this.go2rtcProcess) {
+				this.log.info("Killing go2rtc process...");
 				this.go2rtcProcess.kill();
 				this.go2rtcProcess = null;
 			}
@@ -228,14 +246,16 @@ export class Roborock extends utils.Adapter {
 		const command = idParts[5];
 
 		// Special handling for floors (deeply nested: Devices.duid.floors.mapFlag.load)
-		if (folder === "floors" && idParts.length >= 7 && idParts[6] === "load") {
+		if (folder === "floors" && idParts.length >= 7) {
 			const mapFlag = parseInt(idParts[5], 10);
-			if (state.val === true || state.val === "true" || state.val === 1) {
-				await this.handleFloorSwitch(duid, mapFlag, id);
-			}
-			return;
-		}
+			const target = idParts[6];
 
+			// Load Map Button
+			if (target === "load" && (state.val === true || state.val === "true" || state.val === 1)) {
+				await this.handleFloorSwitch(duid, mapFlag, id);
+				return;
+			}
+		}
 		this.log.info(`[onStateChange] Processing command: ${command} for ${duid} in folder: ${folder}`);
 
 		const handler = this.deviceFeatureHandlers.get(duid);
@@ -267,10 +287,13 @@ export class Roborock extends utils.Adapter {
 			try {
 				await this.executeCommand(handler, duid, command, state);
 			} finally {
-				// Reset boolean command state
-				if (this.isTruthy(state.val)) {
 
-					this.log.info(`[handleCommand] Scheduling reset for ${id}`);
+				// Reset boolean command state ONLY if it is defined as boolean
+				const cmdDef = handler.commands[command];
+				const isBoolean = cmdDef && cmdDef.type === "boolean";
+
+				if (isBoolean && this.isTruthy(state.val)) {
+					this.log.info(`[handleCommand] Scheduling reset for ${id} (type: boolean)`);
 					this.setResetTimeout(id);
 				}
 			}
@@ -281,48 +304,33 @@ export class Roborock extends utils.Adapter {
 	 * Executes a specific command for a device.
 	 */
 	private async executeCommand(handler: BaseDeviceFeatures, duid: string, command: string, state: ioBroker.State) {
-		switch (command) {
-			case "load_multi_map":
-				await this.requestsHandler.command(handler, duid, command, [state.val]);
-				break;
-			case "app_start":
-			case "app_charge":
-			case "app_spot":
-				this.log.info(`[handleCommand] Checking boolean command ${command}. Val: ${state.val}`);
-				if (this.isTruthy(state.val)) {
-					this.log.info(`[handleCommand] Triggering command ${command} for ${duid}`);
-					await this.requestsHandler.command(handler, duid, command);
-				} else {
-					this.log.info(`[handleCommand] Command ${command} NOT triggered because value is not true.`);
-				}
-				break;
-			case "app_segment_clean":
-				if (this.isTruthy(state.val)) {
-					this.log.info(`[handleCommand] Triggering app_segment_clean for ${duid}`);
-					await this.requestsHandler.command(handler, duid, command);
-				}
-				break;
-			case "app_zoned_clean":
-			case "app_goto_target":
-				if (typeof state.val !== "string") {
-					this.log.warn(`[executeCommand] Expected string for ${command}, but got ${typeof state.val}`);
-					break;
-				}
-				try {
-					const params = JSON.parse(state.val);
-					await this.requestsHandler.command(handler, duid, command, params);
-				} catch {
-					this.log.error(`Invalid JSON for ${command}: ${state.val}`);
-				}
-				break;
-			default:
-				if (typeof state.val === "boolean") {
-					if (state.val === true) {
-						await this.requestsHandler.command(handler, duid, command, state.val);
-					}
-				} else {
-					await this.requestsHandler.command(handler, duid, command, state.val);
-				}
+		const val = state.val;
+
+		// 1. Common command types handling
+		const cmdDef = handler.commands[command];
+		const isButton = cmdDef?.role === "button" || cmdDef?.type === "boolean";
+
+		if (isButton) {
+			if (this.isTruthy(val)) {
+				this.log.info(`[executeCommand] Triggering button command: ${command} for ${duid}`);
+				await this.requestsHandler.command(handler, duid, command);
+			} else {
+				this.log.debug(`[executeCommand] Ignoring button command: ${command} (val: ${val})`);
+			}
+			return;
+		}
+
+
+		// Log start of command execution for diagnostics
+		this.log.info(`[executeCommand] Starting command ${command} with params ${typeof val === "object" ? JSON.stringify(val) : val}`);
+
+		// 2. Generic data commands (Numbers, Strings, JSON strings)
+		// We pass the raw value. getCommandParams in feature handlers will do the packaging (e.g. [val]).
+		if (typeof val === "string") {
+			const parsed = this.tryParseJson(val);
+			await this.requestsHandler.command(handler, duid, command, parsed !== undefined ? parsed : val);
+		} else {
+			await this.requestsHandler.command(handler, duid, command, val);
 		}
 	}
 
@@ -495,7 +503,8 @@ export class Roborock extends utils.Adapter {
 	 */
 	public async ensureState(path: string, commonOptions: Partial<ioBroker.StateCommon>, native: Record<string, any> = {}) {
 		const stateName = path.split(".").pop() || path;
-		const translatedName = commonOptions.name || this.translations[stateName] || stateName;
+		// Allow empty string as name if explicitly provided. Only use fallback if name is undefined.
+		const translatedName = commonOptions.name !== undefined ? commonOptions.name : (this.translations[stateName] || stateName);
 
 		const baseCommon: ioBroker.StateCommon = {
 			name: translatedName,
@@ -525,7 +534,7 @@ export class Roborock extends utils.Adapter {
 		try {
 			if (oldObj) {
 				// Object exists, but metadata changed
-				this.log.debug(`[ensureState] Updating metadata for "${path}".`);
+				this.log.silly(`[ensureState] Updating metadata for "${path}".`);
 
 				// Safely merge common properties
 				const newCommon = { ...oldObj.common, ...finalCommon };
@@ -678,10 +687,10 @@ export class Roborock extends utils.Adapter {
 		const localKeys = this.http_api.getMatchedLocalKeys();
 		const { u, s, k } = this.http_api.get_rriot();
 
-		const port = 8554 + this.instance; // API/Web Port
-		const rtspPort = 1984 + this.instance; // RTSP Port
+		const apiPort = 1984 + this.instance; // API/Web Port
+		const rtspPort = 8554 + this.instance; // RTSP Port
 		const go2rtcConfig = {
-			server: { listen: `:${port}` },
+			server: { listen: `:${apiPort}` },
 			rtsp: { listen: `:${rtspPort}` },
 			streams: {} as Record<string, string>,
 		};
@@ -822,15 +831,23 @@ export class Roborock extends utils.Adapter {
 
 	/**
 	 * Centralized Logging Function for Protocol Messages
-	 * Format: [Connection] [duid] direction (PV: version) (Protocol: protocol) payload
+	 * Format: [Connection] [duid] direction [version] [protocol] [ID: id] | payload
 	 */
-	rLog(connection: "MQTT" | "TCP" | "UDP" | "HTTP" | "Cloud" | "Local" | "System" | "MapManager" | "Requests" | "Unknown", duid: string | null | undefined, direction: "<-" | "->" | "Info" | "Error" | "Warn" | "Debug", version: string | undefined, protocol: string | number | undefined, message: string, level: "debug" | "info" | "warn" | "error" = "debug"): void {
-		const duidStr = duid ? `[${duid}] ` : "";
-		const versionStr = version ? ` (PV: ${version})` : "";
-		const protoStr = protocol ? ` (P: ${protocol})` : "";
-		const logMsg = `[${connection}] ${duidStr}${direction}${versionStr}${protoStr} ${message}`;
+	rLog(connection: "MQTT" | "TCP" | "UDP" | "HTTP" | "Cloud" | "Local" | "System" | "MapManager" | "Requests" | "Unknown", duid: string | null | undefined, direction: "<-" | "->" | "Info" | "Error" | "Warn" | "Debug", version: string | undefined, protocol: string | number | undefined, message: string, level: "silly" | "debug" | "info" | "warn" | "error" = "debug", msgId?: string | number): void {
+		// Use == as a neutral placeholder for alignment if it's not actual traffic (<- or ->).
+		const directionDisplay = (direction === "<-" || direction === "->") ? direction : "==";
+
+		// Construct prefix and message body using parts to ensure clean spacing.
+		const parts = [directionDisplay, `[${connection}]`];
+		if (duid) parts.push(`[${duid}]`);
+		if (version) parts.push(`[${version}]`);
+		if (protocol) parts.push(`[${protocol}]`);
+		if (msgId !== undefined) parts.push(`[ID: ${msgId}]`);
+
+		const logMsg = `${parts.join(" ")} | ${message}`;
 
 		switch (level) {
+			case "silly": this.log.silly(logMsg); break;
 			case "debug": this.log.debug(logMsg); break;
 			case "info": this.log.info(logMsg); break;
 			case "warn": this.log.warn(logMsg); break;
@@ -843,35 +860,51 @@ export class Roborock extends utils.Adapter {
 		const handler = this.deviceFeatureHandlers.get(duid);
 		if (!handler) return;
 
-		this.log.info(`[onStateChange] Loading map ${mapFlag} for ${duid}`);
-		await this.requestsHandler.command(handler, duid, "load_multi_map", [mapFlag]);
+		try {
+			this.log.info(`[onStateChange] Loading map ${mapFlag} for ${duid}`);
+			// 1. Send load command and wait for robot ACK
+			await this.requestsHandler.sendRequest(duid, "load_multi_map", [mapFlag], { timeout: 60000 });
 
-		// Trigger update of room mapping and map after switching floors
-		const timeoutKey = `${duid}_floorSwitch`;
-		if (this.commandTimeouts.has(timeoutKey)) {
-			this.clearTimeout(this.commandTimeouts.get(timeoutKey)!);
-			this.commandTimeouts.delete(timeoutKey);
-		}
+			this.log.info(`[onStateChange] Verified map load result. Verifying robot state sync for ${duid}`);
 
-		const timeout = this.setTimeout(async () => {
-			if (!this.mqtt_api) return;
-			try {
-				this.log.info(`[onStateChange] Updating map and rooms after floor switch for ${duid}`);
-				await handler.updateRoomMapping();
-				await handler.updateMap();
-			} catch (e) {
-				this.catchError(e, "floorSwitchUpdate", duid);
-			} finally {
-				this.commandTimeouts.delete(timeoutKey);
+			// Failsafe: Robot says "ok" but might need a few seconds to switch currentMapIndex
+			const startTime = Date.now();
+			let verified = false;
+			for (let i = 0; i < 10; i++) {
+				await handler.updateStatus();
+				const currentIndex = handler.getCurrentMapIndex();
+				// Use exposed method if available or cast to any to access internal if needed (assuming logic added to V1Feature)
+				// For now relying on public interface which delegates to V1MapService
+				const rawStatus = (handler as any).mapService ? (handler as any).mapService.lastMapStatus : -1;
+
+				const elapsed = Date.now() - startTime;
+
+				// Verify using both index match and verifying raw status supports it
+				if (currentIndex === mapFlag) {
+					this.log.info(`[onStateChange] Robot synced map index to ${currentIndex} (Status: ${rawStatus} | Attempt ${i + 1}/10 | Elapsed: ${elapsed}ms)`);
+					verified = true;
+					break;
+				}
+				this.log.info(`[onStateChange] Waiting for robot to sync map index (Current: ${currentIndex}, Target: ${mapFlag}, Status: ${rawStatus} | Attempt ${i + 1}/10 | Elapsed: ${elapsed}ms)`);
+				await new Promise(resolve => setTimeout(resolve, 2000));
 			}
-		}, 2000); // Small delay to let the robot process the switch
 
-		if (timeout) {
-			this.commandTimeouts.set(timeoutKey, timeout);
+			if (!verified) {
+				this.log.warn(`[onStateChange] Robot failed to sync map index to ${mapFlag} after several attempts. Proceeding anyway.`);
+			}
+
+			// Sequential verification: 1. MultiMap List (Room IDs synced) -> 2. Mapping -> 3. Map
+			await handler.updateMultiMapsList();
+			await handler.updateRoomMapping();
+			await handler.updateMap();
+
+			this.log.info(`[onStateChange] Floor switch to ${mapFlag} complete for ${duid}`);
+		} catch (e: any) {
+			this.catchError(e, "floorSwitch", duid);
+		} finally {
+			// Reset button
+			this.setResetTimeout(stateId);
 		}
-
-		// Reset button
-		this.setResetTimeout(stateId);
 	}
 
 }

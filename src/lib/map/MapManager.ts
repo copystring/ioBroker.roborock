@@ -36,18 +36,16 @@ export class MapManager {
 				deviceStatus = await this.getDeviceStatusForB01(duid);
 			}
 
-
 			const startTime = Date.now();
-			this.adapter.rLog("MapManager", duid || null, "Info", version, 301, `Processing B01 map... Input Size: ${rawData.length}, Model: ${model}`, "debug");
 
 			if (version === "B01") {
 				const mapData = this.parserB01.parse(rawData, serial, model, duid || "", connectionType);
 				if (mapData) {
-					this.adapter.rLog(connectionType as any, duid || "unknown", "Info", version, 301, `B01 Parse Result -> Header: ${JSON.stringify(mapData.header)}, GridLen: ${mapData.mapGrid?.length}, Rooms: ${mapData.rooms?.length}`, "info");
+					this.adapter.rLog(connectionType as any, duid || "unknown", "Info", version, 301, `B01 Parse Result -> Header: ${JSON.stringify(mapData.header)}, GridLen: ${mapData.mapGrid?.length}, Rooms: ${mapData.rooms?.length}`, "debug");
 
 					const mapBuf = await this.builderB01.buildMap(mapData, model, duid, deviceStatus);
 					const duration = Date.now() - startTime;
-					this.adapter.rLog("MapManager", duid || null, "Info", version, 301, `B01 Map Built. Buffer Size: ${mapBuf.length}. Duration: ${duration}ms`, "debug");
+					this.adapter.rLog("MapManager", duid || null, "Info", version, 301, `B01 Map Built. Buffer Size: ${mapBuf.length}. Duration: ${duration}ms`, "silly");
 
 					const mapBase64 = "data:image/png;base64," + mapBuf.toString("base64");
 					return {
@@ -112,5 +110,43 @@ export class MapManager {
 			isDustCollect: dustCollectObj ? (dustCollectObj.val === 1 || dustCollectObj.val === true || dustCollectObj.val === "1") : false,
 			deviceFault: faultObj ? Number(faultObj.val) : 0
 		};
+	}
+
+	/**
+	 * Saves the generated map results to ioBroker states.
+	 * @param duid Device Unique ID
+	 * @param res The processed map result object
+	 */
+	public async saveGeneratedMap(duid: string, res: { mapBase64: string, mapBase64Clean?: string, mapData?: any }): Promise<void> {
+		if (!res) return;
+
+		try {
+			await this.adapter.ensureFolder(`Devices.${duid}.map`);
+			const tasks: Promise<any>[] = [];
+
+			if (res.mapBase64) {
+				tasks.push(
+					this.adapter.ensureState(`Devices.${duid}.map.mapBase64`, { name: "Map Image", type: "string", role: "text.png" })
+						.then(() => this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapBase64`, { val: res.mapBase64, ack: true }))
+				);
+			}
+			if (res.mapBase64Clean) {
+				tasks.push(
+					this.adapter.ensureState(`Devices.${duid}.map.mapBase64Clean`, { name: "Map Image (Clean)", type: "string", role: "text.png" })
+						.then(() => this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapBase64Clean`, { val: res.mapBase64Clean, ack: true }))
+				);
+			}
+			if (res.mapData) {
+				tasks.push(
+					this.adapter.ensureState(`Devices.${duid}.map.mapData`, { name: "Map Data", type: "string", role: "json" })
+						.then(() => this.adapter.setStateChangedAsync(`Devices.${duid}.map.mapData`, { val: JSON.stringify(res.mapData), ack: true }))
+				);
+			}
+
+			await Promise.all(tasks);
+			this.adapter.rLog("MapManager", duid, "Debug", "Map", undefined, `Saved map to states. Base64 Len: ${res.mapBase64.length}`, "silly");
+		} catch (e: any) {
+			this.adapter.rLog("MapManager", duid, "Error", "Map", undefined, `Failed to save map states: ${e.message}`, "error");
+		}
 	}
 }

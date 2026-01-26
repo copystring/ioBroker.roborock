@@ -82,8 +82,8 @@ describe("B01ControlService", () => {
 		expect(result).toEqual({ method: "service.reset_consumable", params: { consumable: 4 } });
 	});
 
-	it("should return original params for unknown methods", () => {
+	it("should return wrapped params for unknown methods", () => {
 		const result = service.getCommandParams("unknown_method", { foo: "bar" });
-		expect(result).toEqual({ foo: "bar" });
+		expect(result).toEqual([{ foo: "bar" }]);
 	});
 });
