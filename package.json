@@ -106,7 +106,7 @@
     "translate": "translate-adapter",
     "watch:all": "node scripts/watch-build.js",
     "docs": "node scripts/generate-docs.js",
-    "build:git": "npm run clean && node scripts/updateBuildInfo.js && npm run copy:protocols && tsc -b tsconfig.json && npm run build:www",
+    "build:git": "npm run clean && node scripts/updateCommitInfo.js && npm run copy:protocols && tsc -b tsconfig.json && npm run build:www",
     "prepare": "npm run build:git"
   },
   "bugs": {
