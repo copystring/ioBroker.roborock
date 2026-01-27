@@ -137,9 +137,9 @@ describe("Features - State Creation", () => {
 		// Check for RESET buttons - Main Key Checks
 		// We know resetConsumables contains: main_brush_work_time, side_brush_work_time, filter_work_time, etc.
 		const duid = mockRobot.duid; // Use duid from mockRobot
-		const resetMainBrushPath = `Devices.${duid}.resetConsumables.main_brush`;
-		const resetSideBrush = `Devices.${duid}.resetConsumables.side_brush`;
-		const resetFilter = `Devices.${duid}.resetConsumables.filter`;
+		const resetMainBrushPath = `Devices.${duid}.resetConsumables.reset_main_brush`;
+		const resetSideBrush = `Devices.${duid}.resetConsumables.reset_side_brush`;
+		const resetFilter = `Devices.${duid}.resetConsumables.reset_filter`;
 		const resetUnknown = `Devices.${duid}.resetConsumables.unknown_consumable`;
 
 		expect(mockAdapter.objects).to.have.property(resetMainBrushPath);

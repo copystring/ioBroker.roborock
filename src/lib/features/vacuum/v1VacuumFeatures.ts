@@ -261,7 +261,18 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 		await this.mapService.updateRoomMapping();
 	}
 
-	public override async getCommandParams(method: string, params?: unknown): Promise<unknown> {
+	public override async getCommandParams(method: string, params?: unknown, id?: string): Promise<unknown> {
+		if (method === "reset_consumable" && id) {
+			const obj = await this.deps.adapter.getObjectAsync(id);
+			if (obj && obj.native && obj.native.resetParam) {
+				const resetParam = obj.native.resetParam;
+				this.deps.adapter.rLog("System", this.duid, "Info", "1.0", undefined, `Resetting consumable: ${resetParam} (via native param)`, "info");
+				return [resetParam];
+			}
+			// Fallback if no native param (should not happen with new setup)
+			this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, `Reset consumable called without native param for ${id}`, "warn");
+		}
+
 		if (method === "set_clean_motor_mode") {
 			// Log shows "set_clean_motor_mode" works, but expects params as array: [{...}]
 			let finalParams = params;

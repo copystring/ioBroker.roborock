@@ -583,8 +583,9 @@ export abstract class BaseDeviceFeatures {
 	 * @param method Command method name.
 	 * @param params Existing parameters passed from caller.
 	 */
-	public async getCommandParams(method: string, params?: unknown): Promise<unknown> {
+	public async getCommandParams(method: string, params?: unknown, id?: string): Promise<unknown> {
 		void method;
+		void id;
 		return params;
 	}
 

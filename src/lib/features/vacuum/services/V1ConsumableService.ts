@@ -46,8 +46,8 @@ export class V1ConsumableService {
 			const common = this.getCommonDeviceStates(key) || { name: key, type: typeof val as ioBroker.CommonType, role: "value", write: false };
 
 			// Check for specific consumables
-			if (["main_brush_work_time", "side_brush_work_time", "filter_work_time", "filter_element_work_time", "sensor_dirty_time"].includes(key)) {
-				const deviceName = key.replace("_work_time", "").replace("_dirty_time", "");
+			if (["main_brush_work_time", "side_brush_work_time", "filter_work_time", "filter_element_work_time", "sensor_dirty_time", "strainer_work_times", "cleaning_brush_work_times"].includes(key)) {
+				const deviceName = key.replace("_work_time", "").replace("_dirty_time", "").replace("_work_times", "");
 				await this.deps.ensureState(`Devices.${this.duid}.consumables.${deviceName}`, { ...common, unit: "%" });
 
 				const fullLifeHours = this.profile.consumableLifeHours || {
@@ -55,7 +55,9 @@ export class V1ConsumableService {
 					"side_brush": 200,
 					"filter": 150,
 					"filter_element": 150,
-					"sensor": 30
+					"sensor": 30,
+					"strainer": 150, // Default assumption
+					"cleaning_brush": 300 // Default assumption
 				};
 				const totalTime = (fullLifeHours[deviceName] || 0) * 3600;
 
@@ -67,15 +69,21 @@ export class V1ConsumableService {
 				// Only process if it looks like a consumable (has work_time or dirty_time) OR is in a whitelist
 				// For now, to keep it simple but safe, we only process keys that are either work_time/dirty_time
 				// or explicitly defined as consumables in constants.
-				if (key.endsWith("_work_time") || key.endsWith("_dirty_time") || VACUUM_CONSTANTS.consumables[key as keyof typeof VACUUM_CONSTANTS.consumables]) {
+				if (key.endsWith("_work_time") || key.endsWith("_dirty_time") || key.endsWith("_work_times") || VACUUM_CONSTANTS.consumables[key as keyof typeof VACUUM_CONSTANTS.consumables]) {
 					await this.deps.ensureState(`Devices.${this.duid}.consumables.${key}`, common);
 					await this.adapter.setStateChanged(`Devices.${this.duid}.consumables.${key}`, { val: val, ack: true });
 				}
 			}
 
-			if (key.endsWith("_work_time") || key.endsWith("_dirty_time")) {
-				const resetKey = key.replace("_work_time", "").replace("_dirty_time", "");
-				await this.deps.ensureState(`Devices.${this.duid}.resetConsumables.${resetKey}`, { name: `Reset ${resetKey}`, type: "boolean", role: "button", write: true, def: false });
+			if (key.endsWith("_work_time") || key.endsWith("_dirty_time") || key.endsWith("_work_times")) {
+				const resetKey = key.replace("_work_time", "").replace("_dirty_time", "").replace("_work_times", "");
+				await this.deps.ensureState(`Devices.${this.duid}.resetConsumables.reset_${resetKey}`, {
+					name: `Reset ${resetKey}`,
+					type: "boolean",
+					role: "button",
+					write: true,
+					def: false
+				}, { resetParam: key });
 			}
 		}
 	}
