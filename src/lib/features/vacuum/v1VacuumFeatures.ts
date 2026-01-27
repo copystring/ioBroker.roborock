@@ -475,6 +475,20 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 		}
 	}
 
+	public async updateStatus(): Promise<void> {
+		try {
+			// V1 standard: get_status (returns array with one object [ { ... } ])
+			const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_status", []);
+			this.deps.adapter.log.debug(`[V1] get_status result: ${JSON.stringify(result)}`);
+
+			if (Array.isArray(result) && result.length > 0) {
+				await this.processStatus(result[0]);
+			}
+		} catch (e: any) {
+			this.deps.adapter.log.warn(`[V1] Failed to update status: ${e.message}`);
+		}
+	}
+
 	public async processStatus(status: any): Promise<void> {
     	const validStatus = status || {};
 
@@ -486,36 +500,52 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
     	// Define property processing map
     	const processors: Record<string, (val: any) => Promise<void>> = {
     		state: async (val) => {
-    			await this.deps.ensureState("deviceStatus.state", { type: "number", states: this.profile.mappings.state || VACUUM_CONSTANTS.stateCodes });
+    			await this.ensureState("deviceStatus", "state", { type: "number", states: this.profile.mappings.state || VACUUM_CONSTANTS.stateCodes });
     			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.state`, { val, ack: true });
     		},
     		error_code: async (val) => {
-    			await this.deps.ensureState("deviceStatus.error_code", { type: "number", states: this.profile.mappings.error_code || VACUUM_CONSTANTS.errorCodes });
+				const lang = this.deps.adapter.language || "en";
+				let states = this.profile.mappings.error_code;
+
+				// Check if states is undefined OR empty object
+				if (!states || Object.keys(states).length === 0) {
+					// Fallback to standard constants with localization
+					const standardErrors = VACUUM_CONSTANTS.errorCodes;
+					states = { ...standardErrors };
+				}
+
+				// Always try to overlay localized errors
+				const localized = VACUUM_CONSTANTS.resolveErrorCodeFallback(lang);
+				if (localized) {
+					Object.assign(states, localized);
+				}
+
+    			await this.ensureState("deviceStatus", "error_code", { type: "number", states: states });
     			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.error_code`, { val, ack: true });
     		},
     		clean_time: async (val) => {
     			if (typeof val === "number") {
     				val = Math.round(val / 60); // Seconds to Minutes (Integer)
     			}
-    			await this.deps.ensureState("deviceStatus.clean_time", { type: "number", unit: "min" });
+    			await this.ensureState("deviceStatus", "clean_time", { type: "number", unit: "min" });
     			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.clean_time`, { val, ack: true });
     		},
     		clean_area: async (val) => {
     			if (typeof val === "number") {
     				val = Math.round((val / 1000000) * 10) / 10; // mm² to m² (1 decimal)
     			}
-    			await this.deps.ensureState("deviceStatus.clean_area", { type: "number", unit: "m²" });
+    			await this.ensureState("deviceStatus", "clean_area", { type: "number", unit: "m²" });
     			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.clean_area`, { val, ack: true });
     		},
     		fan_power: async (val) => {
-    			await this.deps.ensureState("deviceStatus.fan_power", { type: "number", states: this.profile.mappings.fan_power });
+    			await this.ensureState("deviceStatus", "fan_power", { type: "number", states: this.profile.mappings.fan_power });
     			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.fan_power`, { val, ack: true });
 				// Sync to command state
 				await this.deps.adapter.setStateChanged(`Devices.${this.duid}.commands.set_custom_mode`, { val, ack: true });
     		},
     		mop_mode: async (val) => {
     			if (this.profile.mappings.mop_mode) {
-    				await this.deps.ensureState("deviceStatus.mop_mode", { type: "number", states: this.profile.mappings.mop_mode });
+    				await this.ensureState("deviceStatus", "mop_mode", { type: "number", states: this.profile.mappings.mop_mode });
     				await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.mop_mode`, { val, ack: true });
 					// Sync to command state
 					await this.deps.adapter.setStateChanged(`Devices.${this.duid}.commands.set_mop_mode`, { val, ack: true });
@@ -523,7 +553,7 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
     		},
     		water_box_mode: async (val) => {
     			if (this.profile.mappings.water_box_mode) {
-    				await this.deps.ensureState("deviceStatus.water_box_mode", { type: "number", states: this.profile.mappings.water_box_mode });
+    				await this.ensureState("deviceStatus", "water_box_mode", { type: "number", states: this.profile.mappings.water_box_mode });
     				await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.water_box_mode`, { val, ack: true });
 					// Sync to command state
 					await this.deps.adapter.setStateChanged(`Devices.${this.duid}.commands.set_water_box_custom_mode`, { val, ack: true });

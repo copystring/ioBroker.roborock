@@ -4,19 +4,21 @@ interface S7Dataset {
 	[lang: string]: Record<string, string>;
 }
 
+const ERROR_CODES = {
+	0: "No error",
+	// Use S7 MaxV dataset as the standardized error definition for the entire adapter
+	// This supersedes legacy hardcoded lists and serves as the baseline for V1 and B01
+	// SCHEMA VERIFIED: The S7 dataset structure is flat: { [lang]: { [code]: "text" } }.
+	// It does NOT follow the Q7 nested structure.
+	...((EXTRACTED_ERRORS as unknown as S7Dataset)["en"] || {}),
+	// Add legacy/missing codes
+	254: "Bin full",
+	255: "Internal error",
+	"-1": "Unknown Error",
+};
+
 export const VACUUM_CONSTANTS = {
-	errorCodes: {
-		0: "No error",
-		// Use S7 MaxV dataset as the standardized error definition for the entire adapter
-		// This supersedes legacy hardcoded lists and serves as the baseline for V1 and B01
-		// SCHEMA VERIFIED: The S7 dataset structure is flat: { [lang]: { [code]: "text" } }.
-		// It does NOT follow the Q7 nested structure.
-		...((EXTRACTED_ERRORS as unknown as S7Dataset)["en"] || {}),
-		// Add legacy/missing codes
-		254: "Bin full",
-		255: "Internal error",
-		"-1": "Unknown Error",
-	},
+	errorCodes: ERROR_CODES,
 	errorCodes_languages: EXTRACTED_ERRORS as Record<string, Record<string, string>>,
 	stateCodes: {
 		0: "Unknown",
@@ -98,7 +100,7 @@ export const VACUUM_CONSTANTS = {
 	},
 	deviceStates: {
 		dock_type: { type: "number", states: {} },
-		error_code: { type: "number", states: {} },
+		error_code: { type: "number", states: ERROR_CODES },
 		clean_area: { type: "number", unit: "m²" },
 		clean_time: { type: "number", unit: "min" },
 		battery: { type: "number", unit: "%" },
