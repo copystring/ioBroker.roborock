@@ -308,7 +308,7 @@ export class mqtt_api {
 		}
 
 		if (!this.adapter.pendingRequests.has(reqId)) {
-			this.handleUnknownB01Response(duid, reqId, response);
+			this.handleUnknownB01Response(duid, reqId);
 			return;
 		}
 
@@ -354,17 +354,14 @@ export class mqtt_api {
 	/**
 	 * Handles a B01 response that doesn't match any pending request.
 	 */
-	private handleUnknownB01Response(duid: string, reqId: number, response: any): void {
+	private handleUnknownB01Response(duid: string, reqId: number): void {
 		if (this.adapter.requestsHandler.isRequestRecentlyFinished(reqId)) {
 			this.adapter.rLog("MQTT", duid, "<-", "B01", reqId, `Response finished recently.`, "debug");
 			return;
 		}
 
 		// Suppress logs for common B01 pushes or unsolicited responses
-		const method = response.method || "";
-		if (!["prop.post", "service.post"].includes(method)) {
-			this.adapter.rLog("MQTT", duid, "<-", "B01", reqId, `Response not found in pending requests. Discarding.`, "silly");
-		}
+		this.adapter.rLog("MQTT", duid, "<-", "B01", reqId, `Response not found in pending requests. Discarding.`, "silly");
 	}
 
 	/**
@@ -466,7 +463,7 @@ export class mqtt_api {
 				dps102 = JSON.parse(dps102);
 			}
 
-			if (!dps102) return;
+			if (!dps102 || typeof dps102 !== "object") return;
 
 			const pendingRequest = this.adapter.pendingRequests.get(dps102.id);
 			if (pendingRequest) {
@@ -484,6 +481,8 @@ export class mqtt_api {
 					this.adapter.rLog("MQTT", duid, "<-", "102", dps102.id, `Response not found in pending requests. Discarding.`, "silly", dps102.id);
 				}
 			}
+
+
 		} catch (e) {
 			this.adapter.rLog("MQTT", duid, "Error", "102", undefined, `Failed to parse Protocol 102: ${e}`, "error");
 		}

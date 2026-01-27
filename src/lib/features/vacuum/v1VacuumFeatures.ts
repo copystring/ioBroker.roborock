@@ -565,12 +565,55 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 	public getCommonCleaningInfo(attribute: string | number): Partial<ioBroker.StateCommon> | undefined {
 		return (VACUUM_CONSTANTS.cleaningInfo as any)[attribute];
 	}
+
+	@BaseDeviceFeatures.DeviceFeature(Feature.AutoEmptyDock)
+	public async initAutoEmptyDock(): Promise<void> {
+		this.addCommand("app_start_dust_collection", {
+			type: "boolean",
+			role: "button",
+			name: "Empty Dust",
+			def: false
+		});
+	}
+
+	@BaseDeviceFeatures.DeviceFeature(Feature.MopWash)
+	public async initMopWash(): Promise<void> {
+		this.addCommand("app_start_wash", {
+			type: "boolean",
+			role: "button",
+			name: "Start Mop Wash",
+			def: false
+		});
+		this.addCommand("app_stop_wash", {
+			type: "boolean",
+			role: "button",
+			name: "Stop Mop Wash",
+			def: false
+		});
+	}
+
+	@BaseDeviceFeatures.DeviceFeature(Feature.MopDry)
+	public async initMopDry(): Promise<void> {
+		this.addCommand("app_start_mop_drying", {
+			type: "boolean",
+			role: "button",
+			name: "Start Mop Drying",
+			def: false
+		});
+		this.addCommand("app_stop_mop_drying", {
+			type: "boolean",
+			role: "button",
+			name: "Stop Mop Drying",
+			def: false
+		});
+	}
 	public override async processDockType(dockType: number): Promise<void> {
 		const dockFeatureMap: Record<number, Feature[]> = {
 			1: [Feature.AutoEmptyDock, Feature.DockingStationStatus],
 			2: [Feature.MopWash, Feature.DockingStationStatus],
 			3: [Feature.AutoEmptyDock, Feature.MopWash, Feature.DockingStationStatus],
-			4: [Feature.AutoEmptyDock, Feature.MopWash, Feature.DockingStationStatus]
+			4: [Feature.AutoEmptyDock, Feature.MopWash, Feature.DockingStationStatus],
+			17: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry, Feature.DockingStationStatus]
 		};
 		const features = dockFeatureMap[dockType];
 		if (features) {
