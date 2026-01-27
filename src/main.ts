@@ -413,8 +413,6 @@ export class Roborock extends utils.Adapter {
 
 				await this.ensureState(`Devices.${duid}.programs.${id}.enabled`, { name: "Enabled", type: "boolean" });
 				this.setState(`Devices.${duid}.programs.${id}.enabled`, enabled, true);
-
-				// ... (rest of scene item processing)
 			} catch (e: any) {
 				this.log.warn(`[processScenes] Failed to process scene '${program.name}' (ID: ${program.id}): ${e.message}`);
 			}
