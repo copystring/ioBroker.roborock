@@ -405,12 +405,12 @@ export class requestsHandler {
 		return attempt(0);
 	}
 
-	async command(_handler: BaseDeviceFeatures, duid: string, method: string, params?: unknown) {
+	async command(_handler: BaseDeviceFeatures, duid: string, method: string, params?: unknown, id?: string) {
 		let finalParams = params;
 		let finalMethod = method;
 
 		if (_handler) {
-			const intercepted = await _handler.getCommandParams(method, params);
+			const intercepted = await _handler.getCommandParams(method, params, id);
 			if (typeof intercepted === "object" && intercepted !== null && "method" in intercepted && "params" in intercepted) {
 				finalMethod = (intercepted as any).method;
 				finalParams = (intercepted as any).params;

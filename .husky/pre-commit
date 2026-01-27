@@ -1,2 +1,4 @@
+npm run build:www
+git add www/app.js www/app.js.map
 node scripts/updateCommitInfo.js --force-current-date
 git add src/lib/commitInfo.ts
