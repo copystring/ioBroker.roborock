@@ -114,7 +114,8 @@ describe("V1ConsumableService", () => {
 
 			expect(mockAdapter.ensureState).toHaveBeenCalledWith(
 				`Devices.${testDuid}.resetConsumables.reset_main_brush`,
-				expect.objectContaining({ role: "button" })
+				expect.objectContaining({ role: "button" }),
+				expect.objectContaining({ resetParam: "main_brush_work_time" })
 			);
 		});
 	});

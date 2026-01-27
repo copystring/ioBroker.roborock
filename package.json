@@ -105,9 +105,7 @@
     "verify": "npm run lint && tsc --noEmit && npm run test",
     "translate": "translate-adapter",
     "watch:all": "node scripts/watch-build.js",
-    "docs": "node scripts/generate-docs.js",
-    "build:git": "npm run clean && node scripts/updateBuildInfo.js && npm run copy:protocols && tsc -b tsconfig.json && npm run build:www",
-    "prepare": "npm run build:git"
+    "docs": "node scripts/generate-docs.js"
   },
   "bugs": {
     "url": "https://github.com/copystring/ioBroker.roborock/issues"

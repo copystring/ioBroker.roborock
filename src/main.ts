@@ -276,7 +276,7 @@ export class Roborock extends utils.Adapter {
 	 */
 	private async handleCommand(duid: string, folder: string, command: string, state: ioBroker.State, handler: BaseDeviceFeatures, id: string) {
 		if (folder === "resetConsumables" && state.val === true) {
-			await this.requestsHandler.command(handler, duid, command, []);
+			await this.requestsHandler.command(handler, duid, "reset_consumable", command, id);
 			// Reset button
 			// Reset button
 			this.setResetTimeout(id);

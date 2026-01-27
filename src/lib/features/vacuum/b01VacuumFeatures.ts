@@ -229,7 +229,8 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 	 * Allows feature handlers to provide/modify parameters for a command before sending.
 	 * B01 uses this to map individual command states to prop.set or service calls.
 	 */
-	public override async getCommandParams(method: string, params?: unknown): Promise<unknown> {
+	public override async getCommandParams(method: string, params?: unknown, id?: string): Promise<unknown> {
+		void id;
 		// Delegate all command parameter mapping to the Control Service to centralize this logic.
 		return this.controlService.getCommandParams(method, params);
 	}
