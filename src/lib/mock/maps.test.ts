@@ -76,6 +76,11 @@ describe("Map Processing", () => {
 		mockAdapter.requestsHandler = depsMock.requestsHandler;
 		mockAdapter.http_api = depsMock.http_api;
 
+		// Attach helpers that MapManager expects on the adapter
+		(mockAdapter as any).ensureState = depsMock.ensureState;
+		(mockAdapter as any).ensureFolder = depsMock.ensureFolder;
+		(mockAdapter as any).setStateChangedAsync = mockAdapter.setStateAsync;
+
 		vacuumFeatures = new TestVacuum(depsMock, mockRobot.duid, mockRobot.model, { staticFeatures: [] });
 
 		const processMapStub = async (rawData: Buffer) => {

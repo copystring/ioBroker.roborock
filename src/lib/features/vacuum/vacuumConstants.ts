@@ -1,4 +1,4 @@
-import EXTRACTED_ERRORS from "../../protocols/s7_maxv_dataset.json";
+import EXTRACTED_ERRORS from "../../../../lib/protocols/s7_maxv_dataset.json";
 
 interface S7Dataset {
 	[lang: string]: Record<string, string>;
@@ -185,6 +185,8 @@ export const VACUUM_CONSTANTS = {
 		green_laser: { type: "number", def: 0, states: { 0: "Off", 1: "On" }, write: true },
 		dust_bag_used: { type: "number", def: 0 },
 		add_sweep_status: { type: "number", def: 0, states: { 0: "None", 1: "Active" } },
+		clean_finish: { type: "string" },
+
 		status: {
 			type: "number",
 			def: 3,

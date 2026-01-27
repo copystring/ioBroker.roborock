@@ -1,4 +1,5 @@
-import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from "axios";
+import type { AxiosInstance, InternalAxiosRequestConfig } from "axios";
+import axios from "axios";
 import * as crypto from "crypto";
 import { Roborock } from "../main";
 import { LoginV4Response, ProductV5Response } from "./apiTypes";
@@ -333,10 +334,12 @@ export class http_api {
 					// or using the instance's baseURL if config.url is relative
 					const fullUrl = axios.getUri(config);
 					try {
-						urlPath = new URL(fullUrl).pathname;
+						// Provide a dummy base to handle relative URLs returned by getUri
+						const urlObj = new URL(fullUrl, "http://dummy");
+						urlPath = urlObj.pathname + urlObj.search;
 					} catch {
 						// Fallback if URL construction fails
-						urlPath = config.url;
+						urlPath = config.url || "";
 					}
 				}
 
@@ -554,7 +557,6 @@ export class http_api {
 		if (!this.realApi) throw new Error("realApi is not initialized. Call initializeRealApi() first");
 
 		if (this.homeID) {
-			this.adapter.rLog("HTTP", null, "->", "Cloud", undefined, `Fetching Home Data (HomeID: ${this.homeID})...`, "debug");
 			try {
 				// Fetch home details from V2 API
 				const resV2 = await this.realApi.get(`v2/user/homes/${this.homeID}`);
@@ -562,16 +564,12 @@ export class http_api {
 
 				// Fetch home details from V3 API
 				try {
-					this.adapter.rLog("HTTP", null, "->", "Cloud", undefined, `Attempting to fetch V3 HomeData...`, "debug");
 					const resV3 = await this.realApi.get(`v3/user/homes/${this.homeID}`);
 
 					if (resV3.data.success && resV3.data.result) {
 						const v3Data = resV3.data.result as HomeData;
-						this.adapter.rLog("HTTP", null, "<-", "Cloud", undefined, `Fetched V3 HomeData. Merging...`, "debug");
 
 						// Merge arrays ensuring unique items by key
-						// Prioritize V3 data (additional) as it contains 'pv' and other new fields.
-						// mergeUnique takes (initial, additional). We want V3 to be 'initial' so it wins.
 						const mergeUnique = (priority: any[], secondary: any[], key: string) => {
 							const initial = priority || [];
 							const additional = secondary || [];
@@ -590,17 +588,17 @@ export class http_api {
 							this.homeData.devices = mergeUnique(v3Data.devices, this.homeData.devices, "duid");
 							this.homeData.receivedDevices = mergeUnique(v3Data.receivedDevices, this.homeData.receivedDevices, "duid");
 							this.homeData.products = mergeUnique(v3Data.products, this.homeData.products, "id");
-							// Rooms usually don't need merging (mostly UI), but we can if needed.
 							this.homeData.rooms = mergeUnique(v3Data.rooms, this.homeData.rooms, "id");
 						} else {
 							this.homeData = v3Data;
 						}
-						this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, `V3 Merge complete. Total Devices: ${this.homeData?.devices?.length}`, "debug");
 					}
 				} catch (e3: any) {
 					// V3 might fail on older accounts/regions? Log debug but don't crash main init.
 					this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `Failed to fetch V3 HomeData (optional): ${e3.message}`, "warn");
 				}
+
+				this.adapter.rLog("HTTP", null, "<-", "Cloud", undefined, `HomeData updated (HomeID: ${this.homeID}, Devices: ${this.homeData?.devices?.length})`, "debug");
 
 				await this.adapter.setState("HomeData", { val: JSON.stringify(this.homeData), ack: true });
 			} catch (e: any) {
@@ -699,10 +697,8 @@ export class http_api {
 	 * Returns the list of products from HomeData.
 	 */
 	getProducts(): Product[] {
-		if (!this.homeData) {
-			throw new Error("this.homeData is not initialized. Initialize via updateHomeData() first");
-		}
-		return this.homeData.products;
+		if (!this.homeData) return [];
+		return this.homeData.products || [];
 	}
 
 	/**
@@ -717,10 +713,8 @@ export class http_api {
 	}
 
 	getReceivedDevices(): Device[] {
-		if (!this.homeData) {
-			throw new Error("this.homeData is not initialized. Initialize via updateHomeData() first");
-		}
-		return this.homeData.receivedDevices;
+		if (!this.homeData) return [];
+		return this.homeData.receivedDevices || [];
 	}
 
 	/**
@@ -767,9 +761,7 @@ export class http_api {
 	 * Maps all devices to their local keys.
 	 */
 	getMatchedLocalKeys(): Map<string, string> {
-		if (!this.homeData) {
-			throw new Error("this.homeData is not initialized. Initialize via updateHomeData() first");
-		}
+		if (!this.homeData) return new Map();
 
 		const devices = this.getDevices();
 		return new Map(devices.map((device) => [device.duid, device.localKey]));

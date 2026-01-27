@@ -288,11 +288,12 @@ export abstract class BaseDeviceFeatures {
 		// Default implementation: update status if online
 		await this.updateStatus();
 		await this.updateFirmwareFeatures();
+		await this.updateMap();
 	}
 
 	public async setupProtocolFeatures(): Promise<void> {
 		const version = await this.deps.adapter.getDeviceProtocolVersion(this.duid);
-		this.deps.adapter.rLog("System", this.duid, "Debug", undefined, version, "Configuring Command Set...", "debug");
+		this.deps.adapter.rLog("System", this.duid, "Debug", version, undefined, "Configuring Command Set...", "debug");
 
 		// Initialize with generic base commands
 		this.commands = JSON.parse(JSON.stringify(BaseDeviceFeatures.CONSTANTS.baseCommands));
@@ -402,6 +403,17 @@ export abstract class BaseDeviceFeatures {
 				else options.role = "state";
 			}
 
+			// Enforce default value if missing (User requirement: no null defaults)
+			if (options.def === undefined || options.def === null) {
+				if (options.type === "boolean" || options.role === "button") {
+					options.def = false;
+				} else if (options.type === "number") {
+					options.def = options.min ?? 0;
+				} else if (options.type === "string") {
+					options.def = "";
+				}
+			}
+
 			// Adjust type
 			if (originalType === "json") {
 				options.type = "string";
@@ -435,7 +447,7 @@ export abstract class BaseDeviceFeatures {
 			}
 
 			// Reset button states
-			if (options.role === "button") {
+			if (options.role === "button" && options.type === "boolean") {
 				const currentState = await this.deps.adapter.getStateAsync(path);
 				// Reset to false if needed
 				if (!currentState || currentState.val !== false) {
@@ -571,8 +583,9 @@ export abstract class BaseDeviceFeatures {
 	 * @param method Command method name.
 	 * @param params Existing parameters passed from caller.
 	 */
-	public async getCommandParams(method: string, params?: unknown): Promise<unknown> {
+	public async getCommandParams(method: string, params?: unknown, id?: string): Promise<unknown> {
 		void method;
+		void id;
 		return params;
 	}
 
@@ -588,7 +601,7 @@ export abstract class BaseDeviceFeatures {
 	protected async requestAndProcess(method: string, params: any[], folder: string, mapper?: (data: any) => Record<string, any> | Promise<Record<string, any>>): Promise<void> {
 		try {
 			const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, method, params);
-			this.deps.adapter.rLog("System", this.duid, "Debug", method, folder, `Raw result: ${JSON.stringify(result)}`, "debug");
+			this.deps.adapter.rLog("System", this.duid, "Debug", method, folder, `Raw result: ${JSON.stringify(result)}`, "silly");
 
 			let resultObj: Record<string, unknown> | undefined;
 
@@ -629,7 +642,7 @@ export abstract class BaseDeviceFeatures {
 			common = this.getCommonDeviceStates(key);
 		} else if (folder === "cleaningInfo") {
 			common = this.getCommonCleaningInfo(key);
-		} else if (folder === "cleaningRecords") {
+		} else if (folder === "cleaningRecords" || folder.includes("records")) {
 			common = this.getCommonCleaningRecords(key);
 		}
 
@@ -643,8 +656,8 @@ export abstract class BaseDeviceFeatures {
 		}
 
 		// Formatting for specific keys (e.g. timestamps)
-		if ((key === "last_clean_t" || key === "clean_finish") && typeof (val as any) === "number") {
-			val = new Date((val as number) * 1000).toString();
+		if ((key === "last_clean_t" || key === "clean_finish" || key === "begin" || key === "end") && typeof (val as any) === "number") {
+			val = new Date((val as number) * 1000).toLocaleString();
 			common.type = "string"; // Update type to match new value
 		}
 
@@ -664,7 +677,6 @@ export abstract class BaseDeviceFeatures {
 			this.createdStates.add(fullPath);
 		}
 
-		this.deps.adapter.rLog("System", this.duid, "Debug", folder, key, `processResultKey: ${val} (${common?.type})`, "debug");
 		await this.deps.adapter.setStateChanged(fullPath, { val: val as ioBroker.StateValue, ack: true });
 	}
 
@@ -726,6 +738,10 @@ export abstract class BaseDeviceFeatures {
 
 	public async updateExtraStatus(): Promise<void> {
 		// Default: no-op. Override for model-specifics.
+	}
+
+	public getCurrentMapIndex(): number {
+		return 0;
 	}
 
 	public async getPhoto(imgId: string, type: number): Promise<any> {
