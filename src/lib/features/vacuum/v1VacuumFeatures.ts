@@ -493,6 +493,20 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
     			await this.deps.ensureState("deviceStatus.error_code", { type: "number", states: this.profile.mappings.error_code || VACUUM_CONSTANTS.errorCodes });
     			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.error_code`, { val, ack: true });
     		},
+    		clean_time: async (val) => {
+    			if (typeof val === "number") {
+    				val = Math.round(val / 60); // Seconds to Minutes (Integer)
+    			}
+    			await this.deps.ensureState("deviceStatus.clean_time", { type: "number", unit: "min" });
+    			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.clean_time`, { val, ack: true });
+    		},
+    		clean_area: async (val) => {
+    			if (typeof val === "number") {
+    				val = Math.round((val / 1000000) * 10) / 10; // mm² to m² (1 decimal)
+    			}
+    			await this.deps.ensureState("deviceStatus.clean_area", { type: "number", unit: "m²" });
+    			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.clean_area`, { val, ack: true });
+    		},
     		fan_power: async (val) => {
     			await this.deps.ensureState("deviceStatus.fan_power", { type: "number", states: this.profile.mappings.fan_power });
     			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.fan_power`, { val, ack: true });

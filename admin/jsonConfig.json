@@ -17,6 +17,17 @@
 			"lg": 6,
 			"xl": 6
 		},
+		"loginCodeHint": {
+			"type": "staticText",
+			"text": "login_code_hint",
+			"style": { "color": "red", "fontStyle": "italic", "fontSize": "16px" },
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 12,
+			"lg": 12,
+			"xl": 12
+		},
 		"region": {
 			"type": "select",
 			"label": "Region",
@@ -78,18 +89,7 @@
             "lg": 6,
             "xl": 6
 		},
-		"map_scale": {
-			"type": "number",
-			"label": "Quality of map (higher = better)",
-			"newLine": true,
-			"min": 1,
-			"max": 32,
-			"xs": 12,
-			"sm": 12,
-            "md": 6,
-            "lg": 6,
-            "xl": 6
-		},
+
 		"hostname_ip": {
 			"type": "text",
 			"label": "Hostname/IP for camera stream",

@@ -130,5 +130,6 @@
     "reset_filter_element_work_time": "Reset Filterelement",
     "reset_side_brush_work_time": "Reset Seitenbürste",
     "start_type": "Starttyp",
-    "cleaningInfo_description": "Beschreibung der Reinigungsinformationen."
+    "cleaningInfo_description": "Beschreibung der Reinigungsinformationen.",
+    "login_code_hint": "Hinweis: Sollten Sie einen Verifizierungscode per E-Mail erhalten, muss dieser im Datenpunkt 'LoginCode' eingetragen werden, damit der Adapter starten kann."
 }

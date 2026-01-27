@@ -11,7 +11,7 @@ declare global {
 			username: string;
 			password: string;
 			updateInterval: number;
-			map_scale: number;
+
 			enable_map_creation: boolean;
 			cameraPin: string;
 			hostname_ip?: string;
@@ -24,4 +24,5 @@ declare global {
 }
 
 // This is required to make TypeScript treat this file as a module
-export {};
+export { };
+

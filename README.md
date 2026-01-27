@@ -38,6 +38,7 @@ This adapter allows you the control, get states, cleaning history and view the m
 - Roborock S7 MaxV (Ultra)
 - Roborock Q7
 - Roborock Q7 Max
+- Roborock Q7 L5 (+)
 - Roborock S7 Pro Ultra
 - Roborock S7 Max Ultra
 - Roborock S8
