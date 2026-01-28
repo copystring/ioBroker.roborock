@@ -568,6 +568,7 @@ export class http_api {
 			}
 		} catch (error: any) {
 			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error getting HomeID: ${error.message}`, "error");
+			throw error;
 		}
 	}
 
