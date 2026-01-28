@@ -140,7 +140,25 @@ export class http_api {
 		await this.loadUserData();
 
 		await this.initializeRealApi();
-		await this.getHomeID();
+
+		try {
+			await this.getHomeID();
+		} catch (e: any) {
+			if (e.message && (e.message.includes("invalid token") || e.message.includes("auth_failed"))) {
+				this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "Token expired or invalid. Clearing session and re-authenticating...", "warn");
+
+				// Clear bad data
+				this.userData = null;
+				this.homeID = null;
+				await this.adapter.setState("UserData", { val: "", ack: true });
+
+				// Re-initialize (will force fresh login because userData is null)
+				await this.initializeRealApi();
+				await this.getHomeID();
+			} else {
+				throw e; // Rethrow other errors
+			}
+		}
 	}
 
 	/**
@@ -543,9 +561,14 @@ export class http_api {
 				this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, `this.homeID: ${this.homeID}`, "debug");
 			} else {
 				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `failed to get getHomeDetail: ${response.data.msg}`, "error");
+
+				if (response.data.msg === "invalid token" || response.data.code === 401) {
+					throw new Error("invalid token");
+				}
 			}
 		} catch (error: any) {
 			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error getting HomeID: ${error.message}`, "error");
+			throw error;
 		}
 	}
 
