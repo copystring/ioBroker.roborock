@@ -124,8 +124,8 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			type: "string",
 			role: "value", // changed from json to value to support dropdown
 			name: "Set Custom Cleaning Mode",
-			def: '{"fan_power":102,"mop_mode":300,"water_box_mode":201}',
-			states: {
+			def: this.profile.cleanMotorModePresets ? Object.keys(this.profile.cleanMotorModePresets)[0] : '{"fan_power":102,"mop_mode":300,"water_box_mode":201}',
+			states: this.profile.cleanMotorModePresets || {
 				'{"fan_power":102,"mop_mode":300,"water_box_mode":201}': "Indv.",
 				'{"fan_power":102,"mop_mode":300,"water_box_mode":200}': "Saugen",
 				'{"fan_power":105,"mop_mode":303,"water_box_mode":202}': "Wischen",

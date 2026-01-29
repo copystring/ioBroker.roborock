@@ -1,6 +1,6 @@
-﻿import { V1VacuumFeatures, VacuumProfile, BASE_FAN, BASE_WATER, BASE_MOP } from "./v1VacuumFeatures";
-import { RegisterModel, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
+﻿import { DeviceModelConfig, FeatureDependencies, RegisterModel } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
+import { BASE_FAN, BASE_MOP, BASE_WATER, V1VacuumFeatures, VacuumProfile } from "./v1VacuumFeatures";
 
 const PROFILE_A101: VacuumProfile = {
 	name: "Roborock Q Revo Pro (a101)",
@@ -9,9 +9,15 @@ const PROFILE_A101: VacuumProfile = {
 		hasSmartPlan: true
 	},
 	mappings: {
-		fan_power: { ...BASE_FAN, 108: "Max+" },
-		water_box_mode: BASE_WATER,
-		mop_mode: BASE_MOP
+		fan_power: { ...BASE_FAN, 106: "Custom", 108: "Max+", 110: "Smart" },
+		water_box_mode: { ...BASE_WATER, 204: "Custom", 209: "Smart" },
+		mop_mode: { ...BASE_MOP, 302: "Custom", 306: "Smart" }
+	},
+	cleanMotorModePresets: {
+		'{"fan_power":110,"mop_mode":306,"water_box_mode":209}': "Smart",
+		'{"fan_power":102,"mop_mode":300,"water_box_mode":201}': "Vac & Mop / Wischen",
+		'{"fan_power":102,"mop_mode":300,"water_box_mode":200}': "Saugen",
+		'{"fan_power":106,"mop_mode":302,"water_box_mode":204}': "Indiv"
 	}
 };
 
