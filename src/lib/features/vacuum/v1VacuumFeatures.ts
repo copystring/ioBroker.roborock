@@ -154,9 +154,30 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 				def: Number(Object.keys(this.profile.mappings.mop_mode)[0])
 			});
 		}
+
+		// A101 Specific: Water Box Distance Off (1-30 -> 230-85)
+		if (this.profile.features?.hasDistanceOff) {
+			this.addCommand("set_water_box_distance_off", {
+				type: "number",
+				role: "level",
+				name: translations["water_box_distance_off"] || "Water Box Distance Off (1-30)",
+				min: 1,
+				max: 30,
+				unit: "",
+				def: 1
+			});
+		}
+
+		this.addCommand("set_clean_repeat_times", {
+			type: "number",
+			role: "value",
+			name: "Clean Repeat Times",
+			min: 1,
+			max: 2,
+			def: 1,
+			states: { 1: "1x", 2: "2x" }
+		});
 	}
-
-
 
 	public async detectAndApplyRuntimeFeatures(statusData: Readonly<Record<string, any>>): Promise<boolean> {
 		let changed = false;
@@ -368,6 +389,25 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 				return [];
 			}
 		}
+
+		if (method === "set_water_box_distance_off") {
+			// Convert 1-30 slider to 230-85 robot value
+			// Formula: 230 - ((val - 1) * 5)
+			let val = Number(params);
+			if (isNaN(val)) val = 1;
+			if (val < 1) val = 1;
+			if (val > 30) val = 30;
+
+			const distance_off = 230 - ((val - 1) * 5);
+			return { distance_off };
+		}
+
+		if (method === "set_clean_repeat_times") {
+			let repeat = Number(params);
+			if (isNaN(repeat)) repeat = 1;
+			return { repeat };
+		}
+
 		return params;
 	}
 
