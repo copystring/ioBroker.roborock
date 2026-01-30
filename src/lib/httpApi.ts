@@ -129,7 +129,7 @@ export class http_api {
 			baseURL: regionConfig.apiBaseUrl,
 			headers: {
 				header_clientid: crypto.createHash("md5").update(this.adapter.config.username).update(clientID).digest().toString("base64"),
-				header_appversion: "4.54.02",
+				header_appversion: "4.57.02",
 				header_clientlang: "de",  // Assuming DE based on dump, or use adapter.config.language/system lang
 				header_phonemodel: "Pixel 9 Pro XL", // Using dump value to mimic real device
 				header_phonesystem: "Android",
@@ -335,7 +335,17 @@ export class http_api {
 			const rriot = this.get_rriot();
 
 			// Initialize the real API with Hawk Authentication Interceptor
-			const realApi = axios.create({ baseURL: this.userData.rriot.r.a });
+			const realApi = axios.create({
+				baseURL: this.userData.rriot.r.a,
+				headers: {
+					"x-iotsdk-version": "1.0.1",
+					"x-app-name": "com.roborock.smart",
+					"x-app-version-code": "100834",
+					"x-app-version-name": "4.57.02",
+					"x-uid": this.userData.rriot.u,
+					"User-Agent": "UA=RRSDKAndroid/1.0.1",
+				},
+			});
 
 			realApi.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 				const timestamp = Math.floor(Date.now() / 1000);
