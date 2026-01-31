@@ -688,14 +688,7 @@ export class http_api {
 		return await this.realApi.get(`user/scene/home/${this.homeID}`).then((res) => res.data);
 	}
 
-	/**
-	 * Executes a specific scene.
-	 */
-	async executeScene(sceneID: { val: string | number }): Promise<void> {
-		if (!this.realApi) throw new Error("realApi is not initialized.");
 
-		await this.realApi.post(`user/scene/${sceneID.val}/execute`);
-	}
 
 	/**
 	 * Stores firmware feature IDs in the cache for a specific device.
