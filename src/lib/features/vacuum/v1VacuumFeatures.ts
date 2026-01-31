@@ -430,70 +430,135 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 
 			// Fetch maps for records in parallel to avoid blocking
 			if (this.deps.config.enable_map_creation && Array.isArray(data.records)) {
-				// Use a local queue to limit concurrency strictly for map downloads
-				// Concurrency 3 balances speed (UI) vs Congestion
+			// Use a local queue to limit concurrency strictly for map downloads
 				const mapQueue = new PQueue({ concurrency: 3 });
 
-				// Sort records descending (newest first) to prioritize recent maps
+				// Get all existing start times in one go to detect shifts
+				const existingStartTimes: Record<string, number> = {}; // timestamp -> index
+				const states = await this.deps.adapter.getStatesAsync(`Devices.${this.duid}.cleaningInfo.records.*.startTime`);
+
+				if (states) {
+					for (const id in states) {
+						if (states[id] && states[id].val) {
+							const parts = id.split(".");
+							// ID structure: roborock.0.Devices.<duid>.cleaningInfo.records.<index>.startTime
+							// We need <index> which is 2nd from last
+							const index = parseInt(parts[parts.length - 2]);
+							if (!isNaN(index)) {
+								existingStartTimes[states[id].val as number] = index;
+							}
+						}
+					}
+				}
+
+				// Sort records descending (newest first)
 				const sortedRecords = [...data.records].sort((a, b) => b - a);
 
-				sortedRecords.forEach((startTime: number, index: number) => {
-					// Prio 10 for first 3 maps (Newest), Prio 0 for rest (Background)
-					const priority = index < 3 ? 10 : 0;
+				// Process shifts safely:
+				// - Shift Left (Deletion: index moves 2 -> 1): Must process ASCENDING (1, 2, 3...) to avoid overwriting source.
+				// - Shift Right (Insertion: index moves 1 -> 2): Must process DESCENDING (3, 2, 1...) to avoid overwriting source.
 
-					mapQueue.add(async () => {
-						try {
-							const originalIndex = data.records.indexOf(startTime);
-							const recordPath = `records.${originalIndex}`;
-							const fullRecordPath = `cleaningInfo.${recordPath}`;
-							await this.deps.ensureFolder(`Devices.${this.duid}.${fullRecordPath}`);
+				const moves: { old: number, new: number }[] = [];
+				const newRecs: { index: number, time: number }[] = [];
 
-							// 1. Fetch detailed record metadata (Duration, Area, Status)
-							const recordsDetails = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_clean_record", [startTime]);
-							if (Array.isArray(recordsDetails) && recordsDetails.length > 0) {
-								const record = recordsDetails[0];
-								if (typeof record === "object" && record !== null) {
-									for (const key in record) {
-										let val = record[key];
+				for (let i = 0; i < sortedRecords.length; i++) {
+					const time = sortedRecords[i];
+					const oldIndex = existingStartTimes[time];
 
-										// Scale specific fields
-										if (key === "area" || key === "cleaned_area") {
-											val = Math.round((val / 1000000) * 10) / 10;
-										} else if (key === "duration") {
-											val = Math.round(val / 60);
-										}
+					if (oldIndex !== undefined && oldIndex !== i) {
+						moves.push({ old: oldIndex, new: i });
+					} else if (oldIndex === undefined) {
+						newRecs.push({ index: i, time });
+					}
+				}
 
-										await this.processResultKey(fullRecordPath, key, val);
-									}
-								}
-							}
+				// 1. Handle Deletions/Left Shifts (e.g. Clean history shortened) - Ascending Order
+				const leftShifts = moves.filter(m => m.old > m.new).sort((a, b) => a.new - b.new);
+				for (const m of leftShifts) {
+					await this.copyRecordStates(m.old, m.new);
+				}
 
-							// 2. Fetch Map Image
-							const mapResult = await this.mapService.getCleaningRecordMap(startTime);
-							if (mapResult) {
-								const mapFolder = `${recordPath}.map`;
-								await this.deps.ensureFolder(`Devices.${this.duid}.cleaningInfo.${mapFolder}`);
+				// 2. Handle Insertions/Right Shifts (New record added at top) - Descending Order
+				const rightShifts = moves.filter(m => m.old < m.new).sort((a, b) => b.new - a.new);
+				for (const m of rightShifts) {
+					await this.copyRecordStates(m.old, m.new);
+				}
 
-								await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.${mapFolder}.mapBase64`, { name: "Map Image", type: "string", role: "text.png" });
-								await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.${mapFolder}.mapBase64`, { val: mapResult.mapBase64, ack: true });
-
-								await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.${mapFolder}.mapBase64Truncated`, { name: "Map Image (Truncated)", type: "string", role: "text.png" });
-								await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.${mapFolder}.mapBase64Truncated`, { val: mapResult.mapBase64Truncated, ack: true });
-
-								await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.${mapFolder}.mapData`, { name: "Map Data", type: "string", role: "json" });
-								await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.${mapFolder}.mapData`, { val: JSON.stringify(mapResult.mapData), ack: true });
-							}
-						} catch (e: any) {
-							this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, `Background fetch for record ${startTime} failed: ${e.message}`, "warn");
-						}
-					}, { priority });
-				});
+				// 3. Process New Records
+				for (const { index, time } of newRecs) {
+					const i = index;
+					const newIndex = index;
+					const startTime = time;
+					await this.fetchAndSaveRecord(startTime, newIndex, i < 3 ? 10 : 0, mapQueue);
+				}
 				await mapQueue.onIdle();
 			}
 
 			return data;
 		});
 	}
+
+	private async copyRecordStates(from: number, to: number): Promise<void> {
+		const prefix = `Devices.${this.duid}.cleaningInfo.records`;
+		const states = await this.deps.adapter.getStatesAsync(`${prefix}.${from}.*`);
+		if (!states) return;
+
+		await Promise.all(Object.entries(states).map(async ([id, state]) => {
+			if (!state || state.val === null) return;
+			const obj = await this.deps.adapter.getObjectAsync(id);
+			if (!obj?.common) return;
+
+			// Replace index in path (roborock.0.Devices...records.5... -> ...records.6...)
+			const destRel = id.substring(this.deps.adapter.namespace.length + 1).replace(`.records.${from}.`, `.records.${to}.`);
+			await this.deps.ensureState(destRel, obj.common as Partial<ioBroker.StateCommon>);
+			await this.deps.adapter.setStateChanged(destRel, { val: state.val, ack: true });
+		}));
+	}
+
+	private async fetchAndSaveRecord(startTime: number, index: number, priority: number, queue: PQueue): Promise<void> {
+		queue.add(async () => {
+			try {
+				const fullRecordPath = `cleaningInfo.records.${index}`;
+
+				// 1. Set Timestamp
+				await this.deps.ensureState(`Devices.${this.duid}.${fullRecordPath}.startTime`, { name: "Start Time", type: "number", role: "value.time", write: false });
+				await this.deps.adapter.setStateChanged(`Devices.${this.duid}.${fullRecordPath}.startTime`, { val: startTime, ack: true });
+
+				// 2. Fetch Metadata
+				const recordsDetails = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_clean_record", [startTime]);
+				if (Array.isArray(recordsDetails) && recordsDetails.length > 0 && recordsDetails[0]) {
+					const record = recordsDetails[0];
+					for (const key in record) {
+						let val = record[key];
+						if (key === "area" || key === "cleaned_area") val = Math.round((val / 1000000) * 10) / 10;
+						else if (key === "duration") val = Math.round(val / 60);
+						await this.processResultKey(fullRecordPath, key, val);
+					}
+				}
+
+				// 3. Fetch Map (No limits)
+				const mapResult = await this.mapService.getCleaningRecordMap(startTime);
+				if (mapResult) {
+					const mapFolder = `records.${index}.map`;
+					await this.deps.ensureFolder(`Devices.${this.duid}.cleaningInfo.${mapFolder}`);
+
+					const saveMap = async (suffix: string, name: string, val: string, role = "text.png") => {
+						await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.${mapFolder}.${suffix}`, { name, type: "string", role });
+						await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.${mapFolder}.${suffix}`, { val, ack: true });
+					};
+
+					await saveMap("mapBase64", "Map Image", mapResult.mapBase64);
+					await saveMap("mapBase64Truncated", "Map Image (Truncated)", mapResult.mapBase64Truncated);
+					await saveMap("mapData", "Map Data", mapResult.mapData, "json");
+				} else {
+					this.deps.adapter.rLog("MapManager", this.duid, "Warn", "1.0", undefined, `No map found for record ${startTime}`, "warn");
+				}
+			} catch (e: any) {
+				this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, `Background fetch for record ${startTime} failed: ${e.message}`, "warn");
+			}
+		}, { priority });
+	}
+
 
 	public async updateNetworkInfo(): Promise<void> {
 		await this.requestAndProcess("get_network_info", [], "networkInfo");
