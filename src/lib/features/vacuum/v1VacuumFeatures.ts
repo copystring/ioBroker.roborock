@@ -390,6 +390,18 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			}
 		}
 
+		if (method === "set_custom_mode") {
+			return [Number(params)];
+		}
+
+		if (method === "set_mop_mode") {
+			return [Number(params)];
+		}
+
+		if (method === "set_water_box_custom_mode") {
+			return [Number(params)];
+		}
+
 		if (method === "set_water_box_distance_off") {
 			// Convert 1-30 slider to 230-85 robot value
 			// Formula: 230 - ((val - 1) * 5)
