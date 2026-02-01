@@ -207,7 +207,8 @@
     "updateInterval": 60,
     "hostname_ip": "iobroker",
     "cameraPin": 1234,
-    "region": "eu"
+    "region": "eu",
+    "map_theme": "dark"
   },
   "objects": [],
   "instanceObjects": [
