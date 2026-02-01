@@ -540,8 +540,14 @@ export class MapBuilder {
 			};
 		};
 
-		const pathSegments: PathResult = (mapdata.PATH?.points && mapdata.MOP_PATH)
-			? processPaths(mapdata.PATH.points, mapdata.MOP_PATH, robotToScaledPixel, VISUAL_BLOCK_SIZE, mapdata.IMAGE)
+		// If MOP_PATH is missing but PATH exists (e.g. S6 MaxV), default to all 0s (standard vacuuming)
+		let mopPath = mapdata.MOP_PATH;
+		if (!mopPath && mapdata.PATH?.points?.length) {
+			mopPath = new Array(mapdata.PATH.points.length).fill(0);
+		}
+
+		const pathSegments: PathResult = (mapdata.PATH?.points && mopPath)
+			? processPaths(mapdata.PATH.points, mopPath, robotToScaledPixel, VISUAL_BLOCK_SIZE, mapdata.IMAGE)
 			: {
 				mainPath: [[]],
 				backwashPath: [[]],
