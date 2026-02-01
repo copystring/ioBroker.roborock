@@ -422,8 +422,16 @@ export class requestsHandler {
 
 		this._processResult(
 			requestPromise,
-			async () => {
-				// Command success
+			async (res: any) => {
+				// Command success validation for set_ commands
+				if (method.startsWith("set_")) {
+					const data = (res && typeof res === "object" && "data" in res) ? res.data : res;
+					const isOk = Array.isArray(data) && data.length === 1 && data[0] === "ok";
+
+					if (!isOk) {
+						this.adapter.rLog("System", duid, "Error", "Command", undefined, `Command ${method} returned unexpected result: ${JSON.stringify(data)} (Expected: ["ok"])`, "error");
+					}
+				}
 			},
 			`command-${method}-${duid}`,
 			duid

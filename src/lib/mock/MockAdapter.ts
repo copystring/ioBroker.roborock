@@ -155,6 +155,19 @@ export class MockAdapter {
 		}
 	};
 
+	public async getStatesAsync(pattern: string): Promise<Record<string, ioBroker.State> | null> {
+		const result: Record<string, ioBroker.State> = {};
+		const regexPattern = new RegExp("^" + pattern.replace(/\./g, "\\.").replace(/\*/g, ".*") + "$");
+
+		for (const id in this.states) {
+			if (regexPattern.test(id)) {
+				result[id] = { val: this.states[id], ack: true, ts: Date.now(), lc: Date.now(), from: "mock" };
+			}
+		}
+
+		return Object.keys(result).length > 0 ? result : null;
+	}
+
 	public async getStateAsync(id: string): Promise<any> {
 		return { val: this.states[id], ack: true };
 	}
