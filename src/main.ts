@@ -149,6 +149,7 @@ export class Roborock extends utils.Adapter {
 				this.start_go2rtc(),
 				this.subscribeStatesAsync("Devices.*.commands.*"),
 				this.subscribeStatesAsync("Devices.*.resetConsumables.*"),
+				this.subscribeStatesAsync("Devices.*.programs.*"),
 				this.subscribeStatesAsync("loginCode")
 			]);
 
@@ -181,6 +182,86 @@ export class Roborock extends utils.Adapter {
 				this.rLog("Requests", null, "Error", undefined, undefined, `Failed to execute command ${obj.command}: ${err.message}`, "error");
 				this.sendTo(obj.from, obj.command, { error: err.message }, obj.callback);
 			}
+		}
+	}
+
+	/**
+	 * Executes a scene locally by parsing the scene definition and sending commands to the device.
+	 */
+	async executeSceneLocal(sceneId: string | number): Promise<void> {
+		try {
+			this.log.info(`[executeSceneLocal] specific scene execution for ID: ${sceneId}`);
+
+			// 1. Fetch scenes
+			const scenes = await this.http_api.getScenes();
+			if (!scenes || !scenes.result) {
+				this.log.error(`[executeSceneLocal] Failed to fetch scenes or no result.`);
+				return;
+			}
+
+			// 2. Find target scene
+			// Scene ID from state might be string, API returns number. Compare loosely or convert.
+			const scene = scenes.result.find((s: any) => s.id == sceneId);
+
+			if (!scene) {
+				this.log.error(`[executeSceneLocal] Scene with ID ${sceneId} not found.`);
+				return;
+			}
+
+			this.log.debug(`[executeSceneLocal] Found scene: ${scene.name}`);
+
+			// 3. Parse 'param' field
+			let params;
+			try {
+				params = JSON.parse(scene.param);
+			} catch (e) {
+				this.log.error(`[executeSceneLocal] Failed to parse scene params: ${e}`);
+				return;
+			}
+
+			// 4. Iterate actions and execute
+			if (params.action && params.action.items) {
+				for (const item of params.action.items) {
+					if (item.type === "CMD") {
+						const targetDuid = item.entityId;
+						let commandPayload;
+
+						try {
+							commandPayload = JSON.parse(item.param);
+						} catch (e) {
+							this.log.error(`[executeSceneLocal] Failed to parse command params for item ${item.id}: ${e}`);
+							continue;
+						}
+
+						const method = commandPayload.method;
+						const args = commandPayload.params;
+
+						this.log.info(`[executeSceneLocal] Executing scene '${scene.name}': sending '${method}' to ${targetDuid}`);
+
+						// 5. Send command via requestsHandler
+						// We pass 'null' as handler because we are sending a raw command directly via specific method/args
+						// and don't need the abstraction of 'BaseDeviceFeatures' here if we go direct.
+						// However, requestsHandler.command expects a handler.
+						// Let's resolve the handler for the target Duid if possible, or cast/hack if needed.
+						const handler = this.deviceFeatureHandlers.get(targetDuid);
+
+						if (handler) {
+							await this.requestsHandler.command(handler, targetDuid, method, args);
+						} else {
+							this.log.warn(`[executeSceneLocal] No handler found for device ${targetDuid}. Attempting raw send.`);
+							// Fallback if no handler (though rare for known devices)
+							// We can cheat requestsHandler types or use sendRequest directly if public?
+							// It is public.
+							await this.requestsHandler.sendRequest(targetDuid, method, args);
+						}
+					}
+				}
+			} else {
+				this.log.warn(`[executeSceneLocal] Scene ${sceneId} has no actions.`);
+			}
+
+		} catch (e: any) {
+			this.log.error(`[executeSceneLocal] Error executing scene: ${e} ${e.stack}`);
 		}
 	}
 
@@ -281,7 +362,11 @@ export class Roborock extends utils.Adapter {
 			// Reset button
 			this.setResetTimeout(id);
 		} else if (folder === "programs" && command === "startProgram") {
-			await this.http_api.executeScene(state as any);
+			await this.executeSceneLocal(state.val as string);
+			this.setResetTimeout(id); // Use setResetTimeout to reset to null/empty after 1s?
+			// Actually executeSceneLocal takes time.
+			// Better: explicit reset.
+			await this.setState(id, { val: null, ack: true });
 		} else if (folder === "commands") {
 			this.log.info(`[handleCommand] Entering commands block for ${command}`);
 			try {
