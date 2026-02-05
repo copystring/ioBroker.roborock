@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assignRoborockRoomColorsToHex, ROBOROCK_PALETTE } from "./roomColoring";
+import { assignRoborockRoomColorsToHex, getPalette } from "./roomColoring";
 
 describe("roomColoring", () => {
 	const options = {
@@ -16,14 +16,13 @@ describe("roomColoring", () => {
 		const setNeighbor = (a: number, b: number) => {
 			neighborInfo[a * maxBlockNum + b] = 1;
 			neighborInfo[b * maxBlockNum + a] = 1;
+
+			// Also set self-neighbor to mark as valid room (as per new logic)
+			neighborInfo[a * maxBlockNum + a] = 1;
+			neighborInfo[b * maxBlockNum + b] = 1;
 		};
 		setNeighbor(1, 2);
 		setNeighbor(2, 3);
-
-		// Setup Existence & Size
-		neighborInfo[1 * maxBlockNum + 1] = 1;
-		neighborInfo[2 * maxBlockNum + 2] = 1;
-		neighborInfo[3 * maxBlockNum + 3] = 1;
 
 		pointsCount[1] = 100;
 		pointsCount[2] = 100;
@@ -53,6 +52,8 @@ describe("roomColoring", () => {
 		const result = assignRoborockRoomColorsToHex(data, options);
 
 		// Unused room 5 should be the background color (Index 0)
-		expect(result.colorHex[5]).to.equal(ROBOROCK_PALETTE[0]);
+		const hex = result.getColor(5, "light_highlight");
+		const palette = getPalette("light_highlight");
+		expect(hex).to.equal(palette[0]);
 	});
 });

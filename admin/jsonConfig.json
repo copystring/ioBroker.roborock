@@ -78,17 +78,22 @@
             "lg": 6,
             "xl": 6
 		},
-		"map_scale": {
-			"type": "number",
-			"label": "Quality of map (higher = better)",
+
+		"map_theme": {
+			"type": "select",
+			"label": "Map Theme",
+			"options": [
+				{ "label": "Dark", "value": "dark" },
+				{ "label": "Light", "value": "light" }
+			],
+			"default": "dark",
 			"newLine": true,
-			"min": 1,
-			"max": 32,
+			"hidden": "!data.enable_map_creation",
 			"xs": 12,
 			"sm": 12,
-            "md": 6,
-            "lg": 6,
-            "xl": 6
+			"md": 6,
+			"lg": 6,
+			"xl": 6
 		},
 		"hostname_ip": {
 			"type": "text",

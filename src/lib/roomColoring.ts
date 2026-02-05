@@ -1,17 +1,77 @@
 // src/lib/roomColoring.ts
 
 /**
- * Standard Roborock color palette (Dark Mode style).
- * Index 0 is the background/default. Indices 1-4 are the main room colors.
+ * Palette: Light Normal (Standard/Inactive)
+ * Used for inactive rooms in cleaning mode when Light Theme is active.
+ * Indices 5-8 from PngColor.js/Palette.js in decompiled source.
  */
-export const ROBOROCK_PALETTE = [
-	"#DFDFDFff", // 0: Default (background/no color)
-	"#50A4FF", // 1: Blue
-	"#FF744D", // 2: Orange
-	"#008FA8", // 3: Cyan
-	"#F5AF10", // 4: Yellow
-	"#E9E9E9ff", // 5: Reserve/Fallback
+export const PALETTE_LIGHT_NORMAL = [
+	"#DFDFDFff", // 0: Background
+	"#82BEFF", // 1: Pale Blue
+	"#FF9478", // 2: Pale Orange
+	"#2BCDBB", // 3: Pale Teal
+	"#FFCF4E", // 4: Pale Yellow
+	"#E9E9E9ff", // 5: Fallback
 ];
+
+/**
+ * Palette: Light Highlight (Vibrant/Active)
+ * Used for active rooms or default map view when Light Theme is active.
+ * Indices 14-17 from PngColor.js/Palette.js in decompiled source.
+ */
+export const PALETTE_LIGHT_HIGHLIGHT = [
+	"#DFDFDFff", // 0: Background
+	"#50A4FF", // 1: Roborock Blue
+	"#FF744D", // 2: Vibrant Orange
+	"#008FA8", // 3: Vibrant Teal
+	"#F5AF10", // 4: Vibrant Yellow
+	"#E9E9E9ff", // 5: Fallback
+];
+
+/**
+ * Palette: Dark Normal (Standard/Inactive)
+ * Used for inactive rooms in cleaning mode when Dark Theme is active.
+ * Indices 9-12 from PngColor.js/Palette.js in decompiled source.
+ */
+export const PALETTE_DARK_NORMAL = [
+	"#DFDFDFff", // 0: Background
+	"#4579B5", // 1: Dark Blue
+	"#C05A40", // 2: Dark Orange
+	"#007E81", // 3: Dark Teal
+	"#BD7C00", // 4: Dark Yellow
+	"#E9E9E9ff", // 5: Fallback
+];
+
+/**
+ * Palette: Dark Highlight (Vibrant/Active)
+ * Used for active rooms or default map view when Dark Theme is active.
+ * Indices 18-21 from PngColor.js/Palette.js in decompiled source.
+ */
+export const PALETTE_DARK_HIGHLIGHT = [
+	"#DFDFDFff", // 0: Background
+	"#5394DF", // 1: Lighter Dark Blue
+	"#EA6B4B", // 2: Lighter Dark Orange
+	"#00B1B6", // 3: Lighter Dark Teal
+	"#E99900", // 4: Lighter Dark Yellow
+	"#E9E9E9ff", // 5: Fallback
+];
+
+export type PaletteType = "light_normal" | "light_highlight" | "dark_normal" | "dark_highlight";
+
+export function getPalette(type: PaletteType): string[] {
+	switch (type) {
+		case "light_normal":
+			return PALETTE_LIGHT_NORMAL;
+		case "light_highlight":
+			return PALETTE_LIGHT_HIGHLIGHT;
+		case "dark_normal":
+			return PALETTE_DARK_NORMAL;
+		case "dark_highlight":
+			return PALETTE_DARK_HIGHLIGHT;
+		default:
+			return PALETTE_DARK_HIGHLIGHT;
+	}
+}
 
 /**
  * Defines the input data required for the coloring algorithm.
@@ -42,8 +102,12 @@ export interface ColoringOptions {
 export interface ColoringResult {
 	/** Maps room ID to a logical color bucket index (1-4). */
 	colorBucket: number[];
-	/** Maps room ID to the final hex color string. */
-	colorHex: string[];
+	/**
+	 * Gets the hex color for a given room using the assigned bucket and specified palette.
+	 * @param roomId The room ID.
+	 * @param paletteType The palette to use (e.g., 'light_highlight').
+	 */
+	getColor: (roomId: number, paletteType: PaletteType) => string;
 }
 
 /**
@@ -51,7 +115,7 @@ export interface ColoringResult {
  * Ensures that adjacent rooms receive different colors where possible.
  * @param data The room topology and neighbor data.
  * @param options Configuration options (e.g. is index 1-based?).
- * @returns The color assignments (buckets and hex codes).
+ * @returns The color assignments.
  */
 export function assignRoborockRoomColorsToHex(data: ColoringData, options: ColoringOptions): ColoringResult {
 	const { maxBlockNum, neighborInfo, pointsCount } = data;
@@ -69,13 +133,17 @@ export function assignRoborockRoomColorsToHex(data: ColoringData, options: Color
 	const neighbourColorSet: [number, number][] = [];
 
 	for (let i = idOffset; i < matrixSize; i++) {
-		let count = 0;
-		for (let j = idOffset; j < matrixSize; j++) {
-			if (i !== j && neighborInfo[i * matrixSize + j] === 1) {
-				count++;
+		// Only consider room valid if it has itself as neighbor (diagonal == 1) or has points (area)
+		// Roborock logic checks neighbourInfo[i*size+i] == 1 for validity.
+		if (neighborInfo[i * matrixSize + i] === 1) {
+			let count = 0;
+			for (let j = idOffset; j < matrixSize; j++) {
+				if (i !== j && neighborInfo[i * matrixSize + j] === 1) {
+					count++;
+				}
 			}
+			neighbourColorSet.push([i, count]);
 		}
-		neighbourColorSet.push([i, count]);
 	}
 
 	// Sort rooms by number of neighbors descending (most connected rooms first)
@@ -108,13 +176,6 @@ export function assignRoborockRoomColorsToHex(data: ColoringData, options: Color
 	for (const [roomId] of neighbourColorSet) {
 		// Skip the largest room as it is already colored
 		if (roomId === maxIndex) continue;
-
-		// Check if the room actually exists (diagonal element must be 1, or check logic)
-		// If neighborInfo[i][i] == 0, the room is considered empty/non-existent
-		if (neighborInfo[roomId * matrixSize + roomId] === 0) {
-			colorData[roomId] = 0;
-			continue;
-		}
 
 		// Determine which colors are blocked by neighbors
 		const colorOccupied = new Array(numColors + 1).fill(0);
@@ -156,17 +217,19 @@ export function assignRoborockRoomColorsToHex(data: ColoringData, options: Color
 			if (sourceID < 0 || sourceID >= numColors || colorUsed[sourceID].length <= 1) continue;
 
 			const sourceLength = colorUsed[sourceID].length;
-			const startIndex = Math.floor(sourceLength / 2);
+			const startIndex = Math.ceil(sourceLength / 2);
 
 			const itemsToMove: number[] = [];
 			for (let j = sourceLength - 1; j >= startIndex; j--) {
 				itemsToMove.push(colorUsed[sourceID][j]);
 			}
 
+			// Push to NEW bucket in reverse order
 			for (let k = itemsToMove.length - 1; k >= 0; k--) {
 				colorUsed[i].push(itemsToMove[k]);
 			}
 
+			// Remove from OLD bucket
 			for (let j = 0; j < itemsToMove.length; j++) {
 				colorUsed[sourceID].pop();
 			}
@@ -208,22 +271,21 @@ export function assignRoborockRoomColorsToHex(data: ColoringData, options: Color
 		}
 	}
 
-	// 8. Generate Hex Colors
-	const colorHex = new Array(matrixSize).fill(ROBOROCK_PALETTE[0]);
+	// Helper to get hex
+	const getColor = (roomId: number, paletteType: PaletteType) => {
+		const palette = getPalette(paletteType);
+		const colorIndex = colorData[roomId];
 
-	for (let i = idOffset; i < matrixSize; i++) {
-		const colorIndex = colorData[i];
-
-		if (colorIndex > 0 && colorIndex < ROBOROCK_PALETTE.length) {
-			colorHex[i] = ROBOROCK_PALETTE[colorIndex];
+		if (colorIndex > 0 && colorIndex < palette.length) {
+			return palette[colorIndex];
 		} else if (colorIndex !== 0) {
-			// Fallback for indices outside range (wrap around 1-4)
-			colorHex[i] = ROBOROCK_PALETTE[1 + ((colorIndex - 1) % numColors)];
+			return palette[1 + ((colorIndex - 1) % numColors)];
 		}
-	}
+		return palette[0];
+	};
 
 	return {
 		colorBucket: colorData,
-		colorHex: colorHex,
+		getColor: getColor,
 	};
 }

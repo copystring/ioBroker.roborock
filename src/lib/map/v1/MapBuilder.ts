@@ -442,18 +442,35 @@ export class MapBuilder {
 			// Color Calculation
 			const coloring = this.colors.newmap
 				? assignRoborockRoomColorsToHex({ maxBlockNum: matrixSize, neighborInfo, pointsCount }, { oneBased: true })
-				: { colorHex: [] };
+				: { colorBucket: [], getColor: () => "#CCCCCC" };
 
 			// Pre-calculate RGBA for each segment
 			const segColors: Record<number, [number, number, number, number]> = {};
 			for (let i = 0; i < matrixSize; i++) {
 				if (pointsCount[i] > 0) {
 					if (this.colors.newmap) {
-						const isCurrentlyCleaned = currentlyCleanedBlocks?.includes(i);
-						let hex = coloring.colorHex?.[i] || "#CCCCCC";
-						if (isCurrentlyCleaned) hex = i >= 0 && i < ORG_COLORS.length ? ORG_COLORS[i] : "#AA0000";
-						// Fallback if ORG_COLORS[i] is undefined
-						if (!hex) hex = "#CCCCCC";
+						// Check which palette to use
+						let theme = this.adapter.config.map_theme;
+						if (theme !== "light") theme = "dark";
+
+						const isCleanMode = currentlyCleanedBlocks && currentlyCleanedBlocks.length > 0;
+						const isCurrentlyCleaned = isCleanMode && currentlyCleanedBlocks?.includes(i);
+						let paletteType: "light_normal" | "light_highlight" | "dark_normal" | "dark_highlight";
+
+						if (isCleanMode) {
+							if (isCurrentlyCleaned) {
+								// Active room: Vibrant
+								paletteType = theme === "dark" ? "dark_highlight" : "light_highlight";
+							} else {
+								// Inactive room: Pale
+								paletteType = theme === "dark" ? "dark_normal" : "light_normal";
+							}
+						} else {
+							// Standard view: All Vibrant
+							paletteType = theme === "dark" ? "dark_highlight" : "light_highlight";
+						}
+
+						const hex = coloring.getColor(i, paletteType);
 						segColors[i] = hexToRgba(hex);
 					} else {
 						// Old map style
@@ -540,8 +557,14 @@ export class MapBuilder {
 			};
 		};
 
-		const pathSegments: PathResult = (mapdata.PATH?.points && mapdata.MOP_PATH)
-			? processPaths(mapdata.PATH.points, mapdata.MOP_PATH, robotToScaledPixel, VISUAL_BLOCK_SIZE, mapdata.IMAGE)
+		// If MOP_PATH is missing but PATH exists (e.g. S6 MaxV), default to all 0s (standard vacuuming)
+		let mopPath = mapdata.MOP_PATH;
+		if (!mopPath && mapdata.PATH?.points?.length) {
+			mopPath = new Array(mapdata.PATH.points.length).fill(0);
+		}
+
+		const pathSegments: PathResult = (mapdata.PATH?.points && mopPath)
+			? processPaths(mapdata.PATH.points, mopPath, robotToScaledPixel, VISUAL_BLOCK_SIZE, mapdata.IMAGE)
 			: {
 				mainPath: [[]],
 				backwashPath: [[]],

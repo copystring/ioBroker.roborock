@@ -65,13 +65,21 @@ This feature only works when map creation is enabled in the adapter options!
 	### **WORK IN PROGRESS**
 -->
 ### **WORK IN PROGRESS**
-* (copystring) Update dependencies
-* (copystring) Update translations
-* (copystring) Bugfixes for map creator, clientID, network objects and local device discovery
-* (copystring) Get clean history when robot state changes to charging
-* (copystring) Q5 Pro does not support any water box modes. Removed them.
-* (copystring) Add basic read only support for Wet Dry Vacuums
-* (copystring) Add basic support for Saros 10R
+* (copystring) **Breaking Change:** Major refactoring of the entire adapter structure.
+* (copystring) **New Feature:** Implemented 'Strict Startup' - Adapter prevents startup without valid login to avoid bootloops.
+* (copystring) **Improvement:** Enhanced 2FA logging and instructions for easier login troubleshooting.
+* (copystring) **Feature:** Responsive Design for Admin UI (thanks to simatec).
+* (copystring) **New Protocol:** Added support for B01 protocol (AES-128-CBC) used by newer devices (e.g., Qrevo Slim).
+* (copystring) **Map System:** Complete overhaul of map generation using `@napi-rs/canvas`:
+    *   Improved room coloring and dark mode support.
+    *   Fixed coordinate scaling and Y-axis inversion issues.
+* (copystring) **Stability:** Fixed auto-relogin logic for invalid tokens.
+* (copystring) **Stability:** Resolved MQTT race conditions and connection instability.
+* (copystring) **Fix:** S6 MaxV Water Box & Fan Power attributes.
+* (copystring) **Fix:** Consumables life calculation and reset behavior.
+* (copystring) **Internal:** Modular feature handling and introduction of `lib/features/`.
+* (copystring) **Build:** Persistent caching for faster CI/CD.
+* (copystring) **Cleanup:** Removed daily build workflows.
 
 ### 0.6.19 (2025-02-08)
 * (copystring) Rewrite of mqtt connection logic
