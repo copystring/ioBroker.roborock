@@ -76,6 +76,7 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) **Stability:** Fixed auto-relogin logic for invalid tokens.
 * (copystring) **Stability:** Resolved MQTT race conditions and connection instability.
 * (copystring) **Fix:** S6 MaxV Water Box & Fan Power attributes.
+* (copystring) **Fix:** Suction and mop intensity not showing (#1053).
 * (copystring) **Fix:** Consumables life calculation and reset behavior.
 * (copystring) **Internal:** Modular feature handling and introduction of `lib/features/`.
 * (copystring) **Build:** Persistent caching for faster CI/CD.
