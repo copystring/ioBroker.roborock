@@ -620,17 +620,32 @@ export class local_api {
 
 		try {
 			await this.initiateClient(duid, timeoutMs, suppressLog);
+
 			if (this.isConnected(duid)) {
 				this.adapter.rLog("TCP", duid, "Info", "TCP", undefined, `Network Probe success! Device ${duid} is reachable at ${ip}. Promoted to Local Control.`, "info");
 				return true;
 			}
-			// If not connected but no error thrown, assume handshake is pending (L01).
-			// Do NOT delete localDevices[duid] here, as it clears the nonce needed for the handshake.
-			this.adapter.rLog("TCP", duid, "Debug", "TCP", undefined, `Connection initiated but not yet fully confirmed (Handshake pending). Keeping ${ip} as candidate.`, "debug");
-			return false;
+
+			// Check if we at least have a connected socket (waiting for L01 handshake)
+			const socket = this.deviceSockets[duid];
+			if (socket && socket.connected) {
+				this.adapter.rLog("TCP", duid, "Debug", "TCP", undefined, `Connection initiated but not yet fully confirmed (Handshake pending). Keeping ${ip} as candidate.`, "debug");
+				return false;
+			}
+
+			// If we are here, TCP failed hard (timeout/refused), but initiateClient swallowed the error.
+			// We must clean up to prevent infinite reconnect loops.
+			throw new Error("TCP Connection failed (No socket established)");
+
 		} catch (e: any) {
-			// Probe failed - cleanup temporary registration to prevent infinite retries
+			// Probe failed - cleanup temporary registration AND cancel any scheduled reconnects
 			delete this.localDevices[duid];
+
+			// Important: initiateClient schedules a reconnect on failure. We must cancel it here.
+			if (this.reconnectPlanned.has(duid)) {
+				this.reconnectPlanned.delete(duid);
+				this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `Cancelled scheduled reconnect for failed probe.`, "debug");
+			}
 
 			this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `Network Probe failed for ${ip}: ${e.message}`, "debug");
 			return false;
