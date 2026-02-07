@@ -60,6 +60,12 @@ export class MockAdapter {
 		this.setState = this.setState.bind(this);
 		this.setStateAsync = this.setStateAsync.bind(this);
 		this.setStateChanged = this.setStateChanged.bind(this);
+		this.http_api = {
+			getMatchedRoomIDs: () => [],
+			getRobotModel: () => "",
+			getFwFeaturesResult: () => ({}),
+			storeFwFeaturesResult: () => {}
+		};
 	}
 
 	public async setObject(id: string, obj: any): Promise<void> {

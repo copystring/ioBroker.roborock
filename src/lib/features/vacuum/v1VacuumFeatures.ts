@@ -56,8 +56,10 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 	constructor(dependencies: FeatureDependencies, duid: string, robotModel: string, config: DeviceModelConfig = { staticFeatures: [] }, profile: VacuumProfile = DEFAULT_PROFILE) {
 		super(dependencies, duid, robotModel, config);
 
+
 		// Deep clone profile to avoid mutating shared static objects
 		this.profile = structuredClone(profile);
+		this.queue = new PQueue({ concurrency: 1 });
 	}
 
 	public override async initializeDeviceData(): Promise<void> {
@@ -548,7 +550,7 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 					};
 
 					await saveMap("mapBase64", "Map Image", mapResult.mapBase64);
-					await saveMap("mapBase64Truncated", "Map Image (Truncated)", mapResult.mapBase64Truncated);
+
 					await saveMap("mapData", "Map Data", mapResult.mapData, "json");
 				} else {
 					this.deps.adapter.rLog("MapManager", this.duid, "Warn", "1.0", undefined, `No map found for record ${startTime}`, "warn");
