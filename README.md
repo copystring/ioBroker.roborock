@@ -81,6 +81,10 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) **Internal:** Modular feature handling and introduction of `lib/features/`.
 * (copystring) **Build:** Persistent caching for faster CI/CD.
 * (copystring) **Cleanup:** Removed daily build workflows.
+* (copystring) **Improved Map Retrieval:** Fixed issue where maps were not received over TCP by ignoring the initial "ok" acknowledgement and waiting for the actual map data via MQTT.
+* (copystring) **Network Probe:** Added Pre-Init Network Probe to detect local IP addresses via Cloud API before initialization, enabling faster local connection establishment (especially for Docker/VLAN setups).
+* (copystring) **UDP Discovery:** Implemented a 1.5s grace period for UDP discovery to better detect shared devices on the local network.
+* (copystring) **Code Cleanup:** Removed extensive debug logging, buffering logic, and unused code for a cleaner codebase.
 
 ### 0.6.19 (2025-02-08)
 * (copystring) Rewrite of mqtt connection logic
