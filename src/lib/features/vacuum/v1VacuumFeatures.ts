@@ -1,5 +1,5 @@
 import PQueue from "p-queue";
-import { BaseDeviceFeatures } from "../baseDeviceFeatures";
+import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
 import { V1ConsumableService } from "./services/V1ConsumableService";
 import { V1MapService } from "./services/V1MapService";
