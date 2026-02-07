@@ -154,10 +154,6 @@ describe("Map Processing", () => {
 		// Logic in updateCleanSummary:
 		// loops records, if enable_map_creation, calls getCleaningRecordMap(startTime)
 
-		// loops records, if enable_map_creation, calls getCleaningRecordMap(startTime)
-		// The map fetch is queued in PQueue, so we must wait for it to finish.
-		await (vacuumFeatures as any).queue.onIdle();
-
 		const mapStatePath = `Devices.${mockRobot.duid}.cleaningInfo.records.0.map.mapBase64`;
 		expect(mockAdapter.states[mapStatePath]).to.equal("base64_full");
 	});

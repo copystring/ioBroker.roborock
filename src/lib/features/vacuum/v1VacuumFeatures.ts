@@ -1,5 +1,5 @@
 import PQueue from "p-queue";
-import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
+import { BaseDeviceFeatures } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
 import { V1ConsumableService } from "./services/V1ConsumableService";
 import { V1MapService } from "./services/V1MapService";
@@ -59,7 +59,6 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 
 		// Deep clone profile to avoid mutating shared static objects
 		this.profile = structuredClone(profile);
-		this.queue = new PQueue({ concurrency: 1 });
 	}
 
 	public override async initializeDeviceData(): Promise<void> {

@@ -373,8 +373,8 @@ export class mqtt_api {
 			return;
 		}
 
-		// 3. Protocol 300 & 301 (Binary Data: Photos, Maps)
-		if (data.protocol === 300 || data.protocol === 301) {
+		// 3. Protocol 300 & 301 & 302 (Binary Data: Photos, Maps, B01 Maps)
+		if (data.protocol === 300 || data.protocol === 301 || data.protocol === 302) {
 			await this.handlePhotoOrMapData(duid, data);
 			return;
 		}
@@ -544,6 +544,11 @@ export class mqtt_api {
 			const pending = this.adapter.pendingRequests.get(msgId);
 
 			if (!pending || pending.duid !== duid) return;
+
+			// Verify this is actually a map request to avoid ID collisions
+			if (pending.method !== "get_map_v1" && pending.method !== "get_clean_record_map") {
+				return;
+			}
 
 			const unzipped = this.decryptAndUnzipV1MapCore(payloadBuf.subarray(24), duid);
 			this.adapter.requestsHandler.resolvePendingRequest(msgId, unzipped, data.protocol, duid, "MQTT", "1.0");

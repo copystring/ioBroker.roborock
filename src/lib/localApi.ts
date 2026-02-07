@@ -624,8 +624,9 @@ export class local_api {
 				this.adapter.rLog("TCP", duid, "Info", "TCP", undefined, `Network Probe success! Device ${duid} is reachable at ${ip}. Promoted to Local Control.`, "info");
 				return true;
 			}
-			// If not connected but no error thrown, assume failure
-			delete this.localDevices[duid];
+			// If not connected but no error thrown, assume handshake is pending (L01).
+			// Do NOT delete localDevices[duid] here, as it clears the nonce needed for the handshake.
+			this.adapter.rLog("TCP", duid, "Debug", "TCP", undefined, `Connection initiated but not yet fully confirmed (Handshake pending). Keeping ${ip} as candidate.`, "debug");
 			return false;
 		} catch (e: any) {
 			// Probe failed - cleanup temporary registration to prevent infinite retries
