@@ -104,8 +104,8 @@
     "watch:all": "node scripts/watch-build.js",
     "docs": "node scripts/generate-docs.js",
     "copy:protocols": "shx mkdir -p build/lib/protocols && shx cp lib/protocols/*.json build/lib/protocols/",
-    "build:git": "npm run clean && npm run copy:protocols && tsc -b tsconfig.json && npm run build:www",
-    "prepare": "husky"
+    "build:git": "npm run clean && npm run copy:protocols && tsc -b tsconfig.json && npm run build:www"
+
   },
   "bugs": {
     "url": "https://github.com/copystring/ioBroker.roborock/issues"
