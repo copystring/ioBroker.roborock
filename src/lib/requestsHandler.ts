@@ -1,8 +1,6 @@
 import PQueue from "p-queue";
 import type { Roborock } from "../main";
 import type { BaseDeviceFeatures } from "./features/baseDeviceFeatures";
-import { MapBuilder } from "./map/v1/MapBuilder";
-import { MapParser } from "./map/v1/MapParser";
 import { messageParser } from "./messageParser";
 
 
@@ -136,20 +134,20 @@ class RoborockRequest {
 			}, { once: true });
 		}
 
-		const remoteConnection = await this.handler.isCloudDevice(this.duid);
 		let protocol = 101;
 		const version = await this.adapter.getDeviceProtocolVersion(this.duid);
 		const timestamp = Math.floor(Date.now() / 1000);
 
-		if (!this.handler.isCloudRequest(this.duid, this.method, version)) {
+		if (this.adapter.local_api.isConnected(this.duid) && version != "B01" && !["service.upload_by_maptype", "service.upload_record_by_url"].includes(this.method)) {
 			protocol = 4;
 		}
 
 		const payload = await this.handler.messageParser.buildPayload(protocol, this.messageID, this.method, this.params, version);
 
 		const mqttConnectionState = this.adapter.mqtt_api.isConnected();
+
 		// Connection inference
-		const connectionType = (mqttConnectionState && (await this.handler.isCloudRequest(this.duid, this.method, version))) ? "MQTT" : "TCP";
+		const connectionType = (protocol == 101) ? "MQTT" : "TCP";
 
 		const logParams = this.params ? ` | Params: ${JSON.stringify(this.params)}` : "";
 
@@ -164,7 +162,6 @@ class RoborockRequest {
 		}
 		const roborockMessage = await this.handler.messageParser.buildRoborockMessage(this.duid, protocol, timestamp, payload, version, this.messageID);
 
-		// mqttConnectionState is already defined above
 		const localConnectionState = this.adapter.local_api.isConnected(this.duid);
 
 		if (!roborockMessage) {
@@ -180,7 +177,7 @@ class RoborockRequest {
 			return this.promise;
 		}
 
-		if (!mqttConnectionState && remoteConnection) {
+		if (protocol == 101 && !mqttConnectionState) {
 			const errorMsg = `Cloud connection not available. Not sending for method ${this.method} request!`;
 			this.adapter.rLog("System", this.duid, "Debug", "N/A", undefined, errorMsg, "debug");
 			this.reject(new Error(errorMsg));
@@ -201,8 +198,8 @@ class RoborockRequest {
 			this.reject(new Error(`Task ${this.messageID} timed out after ${this.timeout}ms.`));
 		}, this.timeout);
 
-		// Send
-		if (this.handler.isCloudRequest(this.duid, this.method, version) || !localConnectionState) {
+		// Use the forced connectionType logic for decision making
+		if (protocol == 101 || !localConnectionState) {
 			this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage);
 		} else {
 			const lengthBuffer = Buffer.alloc(4);
@@ -247,8 +244,6 @@ export class requestsHandler {
 	private globalManager: RequestManager; // For commands (High Concurrency)
 	private mapManager: RequestManager; // For maps (Low Concurrency)
 	messageParser: messageParser;
-	mapParser: MapParser;
-	mapCreator: MapBuilder;
 	mqttResetInterval: ioBroker.Interval | undefined = undefined;
 
 	public startupFinished: boolean = true;
@@ -263,8 +258,6 @@ export class requestsHandler {
 		this.globalManager = new RequestManager(10, REQUEST_TIMEOUT); // Fast commands queue
 		this.mapManager = new RequestManager(2, REQUEST_TIMEOUT); // Serialized map queue (prevent saturation)
 		this.messageParser = new messageParser(this.adapter);
-		this.mapParser = new MapParser(this.adapter);
-		this.mapCreator = new MapBuilder(this.adapter);
 		this.scheduleMqttReset();
 	}
 
@@ -438,58 +431,24 @@ export class requestsHandler {
 		);
 	}
 
-
-
-	async isCloudDevice(duid: string): Promise<boolean> {
-		if (this.adapter.local_api && this.adapter.local_api.isConnected(duid)) {
-			return false;
-		}
-		return true;
-	}
-
-	isCloudRequest(_duid: string, method: string, version?: string): boolean {
-		// Some methods should always go via cloud
-		if (["get_network_info"].includes(method)) {
-			return true;
-		}
-
-		// B01 protocol is cloud-only (MQTT)
-		if (version === "B01") {
-			return true;
-		}
-
-		// A01 is also local-capable
-		if (version === "A01") {
-			return false;
-		}
-
-		// For L01/1.0, favor Cloud to avoid potential local ID mismatch issues issues observed in past versions.
-		// TODO: Re-evaluate local preference for L01 once stable.
-		if (version === "L01" || version === "1.0") {
-			return true;
-		}
-
-		return false;
-	}
-
 	public resolvePendingRequest(messageID: number, result: unknown, protocol?: unknown, duid?: string, connectionType: string = "Unknown", version?: string): void {
 		const req = this.adapter.pendingRequests.get(messageID);
 		if (req) {
+			const reqDuid = (req as any).duid || (duid || "unknown");
+			const method = (req as any).method || "";
+
+			// Log response details
+			let extraInfo = "";
+			if (Buffer.isBuffer(result)) {
+				extraInfo = `Buffer (${result.length}b)`;
+			} else if (typeof result === "object" && result !== null) {
+				const str = JSON.stringify(result);
+				extraInfo = str.length > 200 ? str.substring(0, 200) + "..." : str;
+			} else {
+				extraInfo = String(result);
+			}
+
 			if (protocol) {
-				const reqDuid = (req as any).duid || (duid || "unknown");
-
-				// resolvePendingRequest caller usually knows protocol (from MQTT/Local).
-				// We can just log what we have.
-				let extraInfo = "";
-				if (Buffer.isBuffer(result)) {
-					extraInfo = `Buffer (${result.length}b)`;
-				} else if (typeof result === "object" && result !== null) {
-					const str = JSON.stringify(result);
-					extraInfo = str.length > 200 ? str.substring(0, 200) + "..." : str;
-				} else {
-					extraInfo = String(result);
-				}
-
 				const now = Date.now();
 				const totalDuration = req instanceof RoborockRequest ? now - req.creationTime : 0;
 				const execDuration = req instanceof RoborockRequest ? now - req.startTime : 0;
@@ -497,7 +456,6 @@ export class requestsHandler {
 				const qSize = req instanceof RoborockRequest ? req.manager.queue.size : 0;
 
 				const durationStr = totalDuration > 0 ? `Total: ${totalDuration}ms (Queue: ${queueDuration}ms, Exec: ${execDuration}ms, qSize: ${qSize})` : "";
-				const method = (req as any).method || "";
 				const reqVersion = (req as any).version || version || "1.0";
 				const logLevel = requestsHandler.getLogLevelForMethod(method);
 
@@ -511,18 +469,37 @@ export class requestsHandler {
 			}, 60000);
 
 			if (typeof (req as any).resolve === "function") {
+				// Special Handling for Map Requests via TCP
+				// If we get ["ok"] via TCP, it's just an ACK. The real data comes via MQTT.
+				// We must NOT resolve the promise yet.
+				if ((method === "get_map_v1" || method === "get_clean_record_map") &&
+					Array.isArray(result) && result.length === 1 && result[0] === "ok") {
+
+					const v = (req as any).version || version || "1.0";
+					this.adapter.rLog(connectionType as any, reqDuid, "<-", v, String(protocol), `Received TCP ACK for ${method}. Keeping request pending for MQTT data...`, "debug", messageID);
+					// Important: Do NOT delete from pendingRequests yet!
+					this.finishedRequests.delete(messageID); // Also remove from finished set so we can process the real response later
+					return;
+				}
+
 				(req as any).resolve(result, version);
 			} else {
 				// Fallback for cases where resolve is not a method (rare in current codebase)
 				if (req instanceof RoborockRequest) {
+					// Same check for RoborockRequest
+					if ((method === "get_map_v1" || method === "get_clean_record_map") &&
+						Array.isArray(result) && result.length === 1 && result[0] === "ok") {
+
+						const v = req.version || version || "1.0";
+						this.adapter.rLog(connectionType as any, reqDuid, "<-", v, String(protocol), `Received TCP ACK for ${method}. Keeping request pending for MQTT data...`, "debug", messageID);
+						this.finishedRequests.delete(messageID);
+						return;
+					}
+
 					req.resolve(result, version);
 				}
 			}
 			this.adapter.pendingRequests.delete(messageID);
-		} else {
-			if (!this.finishedRequests.has(messageID)) {
-				this.adapter.rLog("System", duid || null, "<-", String(protocol), messageID, `ID not found in Map (timed out/finished)`, "debug");
-			}
 		}
 	}
 

@@ -1,4 +1,3 @@
-import { Parser } from "binary-parser";
 import * as crypto from "crypto";
 import * as mqtt from "mqtt";
 import * as zlib from "zlib";
@@ -7,18 +6,7 @@ import { MapDecryptor as B01MapDecryptor } from "./map/b01/MapDecryptor";
 
 import { PhotoManager } from "./PhotoManager";
 
-// Parser for protocol 301 messages (often Map Data)
-const protocol301Parser = new Parser()
-	.endianess("little")
-	.string("endpoint", {
-		length: 15,
-		stripNull: true,
-	})
-	.uint8("unknown1")
-	.uint16("id")
-	.buffer("unknown2", {
-		length: 6,
-	});
+// PhotoManager logic handles protocol 300/301 for camera images
 
 export class mqtt_api {
 	adapter: Roborock;
@@ -234,7 +222,7 @@ export class mqtt_api {
 					return;
 				}
 
-				// this.adapter.rLog("MQTT", null, "Debug", "MQTT", undefined, `Incoming Topic: ${topic} | Extracted DUID: ${duid}`, "debug");
+
 
 				let finalDuid = duid;
 
@@ -385,8 +373,8 @@ export class mqtt_api {
 			return;
 		}
 
-		// 3. Protocol 300 & 301 (Binary Data: Photos, Maps)
-		if (data.protocol === 300 || data.protocol === 301) {
+		// 3. Protocol 300 & 301 & 302 (Binary Data: Photos, Maps, B01 Maps)
+		if (data.protocol === 300 || data.protocol === 301 || data.protocol === 302) {
 			await this.handlePhotoOrMapData(duid, data);
 			return;
 		}
@@ -536,70 +524,52 @@ export class mqtt_api {
 		if (data.protocol === 300) {
 			const isPhotoPacket = await this.photoManager.handlePhotoProtocol300(duid, payloadBuf, isRoborockHeader);
 			if (isPhotoPacket) return;
+		} else if (data.protocol === 301) {
+			const isPhotoPacket = await this.photoManager.handlePhotoProtocol301(duid, payloadBuf, isRoborockHeader);
+			if (isPhotoPacket) return;
 		}
 
 		if (data.protocol === 301) {
-			const isPhotoPacket = await this.photoManager.handlePhotoProtocol301(duid, payloadBuf, isRoborockHeader);
-			if (isPhotoPacket) return;
-
-			// Fallthrough to Map Logic
-			const devices = this.adapter.http_api.getDevices();
-			const device = devices.find((d: any) => d.duid === duid);
-			const pv = device?.pv || data.version;
-
-			if (pv === "B01") {
-				await this.handleB01Map(duid, data, payloadBuf);
-			} else {
-				await this.handleV1Map(duid, data, payloadBuf);
-			}
+			await this.handleV1MapPacket(duid, data, payloadBuf);
+		} else if (data.protocol === 302) {
+			await this.handleB01Map(duid, data, payloadBuf);
 		}
 	}
 
-	/**
-	 * Handles V1 Map Data (Standard Encryption with 24-byte header)
-	 */
-	private async handleV1Map(duid: string, data: any, payloadBuf: Buffer): Promise<void> {
-		if (payloadBuf.length < 24) {
-			this.adapter.rLog("MQTT", duid, "Warn", "301", undefined, `V1 Data too short (${payloadBuf.length}b)`, "warn");
-			return;
-		}
+	private async handleV1MapPacket(duid: string, data: any, payloadBuf: Buffer): Promise<void> {
+		if (payloadBuf.length < 24) return;
 
 		try {
-			// this.adapter.rLog("MQTT", duid, "Debug", "301", undefined, `Handling V1 Map... Payload: ${payloadBuf.length}b`, "debug");
-
-			const parsedHeader = protocol301Parser.parse(payloadBuf.subarray(0, 24));
-			const msgId = parsedHeader.id;
-
-			// Verify if this is OUR request. In V1, map packets are strictly request-response.
+			const msgId = payloadBuf.readUInt16LE(16);
 			const pending = this.adapter.pendingRequests.get(msgId);
-			const isOurs = pending && pending.duid === duid && (pending.method === "get_map_v1" || pending.method === "get_clean_record_map");
 
-			if (!isOurs) {
-				// Packet from another client (e.g. Roborock App) or already timed out. Silently discard.
-				this.adapter.rLog("MQTT", duid, "<-", "1.0", "301", `V1 Map packet ignored (ID not in pending requests).`, "silly", msgId);
+			if (!pending || pending.duid !== duid) return;
+
+			// Verify this is actually a map request to avoid ID collisions
+			if (pending.method !== "get_map_v1" && pending.method !== "get_clean_record_map") {
 				return;
 			}
 
-			let unzipped: Buffer;
-			try {
-				unzipped = this.decryptAndUnzipV1Map(payloadBuf);
-			} catch (e: any) {
-				this.adapter.rLog("MQTT", duid, "Warn", "1.0", "301", `Failed to decrypt OUR map response: ${e.message}`, "warn", msgId);
-				return;
-			}
-
+			const unzipped = this.decryptAndUnzipV1MapCore(payloadBuf.subarray(24), duid);
 			this.adapter.requestsHandler.resolvePendingRequest(msgId, unzipped, data.protocol, duid, "MQTT", "1.0");
 		} catch (e: any) {
-			this.adapter.rLog("MQTT", duid, "Error", "1.0", "301", `V1 Map processing failed: ${e.message}`, "error");
+			this.adapter.rLog("MQTT", duid, "Error", "1.0", String(data.protocol), `V1 Map processing failed: ${e.message}`, "error");
 		}
 	}
 
-	private decryptAndUnzipV1Map(payloadBuf: Buffer): Buffer {
+	private decryptAndUnzipV1MapCore(decryptedPayload: Buffer, duid?: string): Buffer {
+		// Note: The outer payload (decryptedPayload) is already decrypted by the messageParser (Protocol 101/301 wrapper).
+		// However, for V1 Maps, the inner content is encrypted AGAIN using AES-128-CBC with the adapter nonce.
 		try {
 			const iv = Buffer.alloc(16, 0);
 			const decipher = crypto.createDecipheriv("aes-128-cbc", this.adapter.nonce, iv);
-			let decrypted = decipher.update(payloadBuf.subarray(24) as Uint8Array);
+			let decrypted = decipher.update(decryptedPayload as Uint8Array);
 			decrypted = Buffer.concat([decrypted as Uint8Array, decipher.final()]);
+
+			if (duid) {
+				const sig = decrypted.subarray(0, 2).toString("ascii");
+				this.adapter.rLog("MQTT", duid, "Debug", "1.0", "301", `Decrypted Reassembled Map | Sig: ${sig} (${decrypted.subarray(0, 4).toString("hex")}) | Size: ${decrypted.length}`, "debug");
+			}
 
 			try {
 				return zlib.gunzipSync(decrypted as Uint8Array);
@@ -607,7 +577,7 @@ export class mqtt_api {
 				return decrypted;
 			}
 		} catch (err: any) {
-			throw new Error(`Decryption failed (likely wrong nonce): ${err.message}`);
+			throw new Error(`Inner decryption failed: ${err.message}`);
 		}
 	}
 

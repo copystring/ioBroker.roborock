@@ -124,7 +124,7 @@ export class V1MapService {
 		}
 	}
 
-	public async getCleaningRecordMap(startTime: number): Promise<{ mapBase64CleanUncropped: string; mapBase64: string; mapBase64Truncated: string; mapData: string } | null> {
+	public async getCleaningRecordMap(startTime: number): Promise<{ mapBase64CleanUncropped: string; mapBase64: string; mapData: string } | null> {
 		try {
 			// B01 devices are handled via override/other logic.
 			// V1 devices (1.0) expect an object with start_time.
@@ -160,14 +160,14 @@ export class V1MapService {
 			}
 			const t1 = Date.now();
 
-			const mapData = await this.deps.adapter.requestsHandler.mapParser.parsedata(mapBuf, null, { isHistoryMap: true });
+			const mapData = await this.deps.adapter.mapManager.mapParser.parsedata(mapBuf, null, { isHistoryMap: true });
 			if (!mapData) {
 				return null;
 			}
 			const t2 = Date.now();
 
 			// Generate images
-			const [mapBase64CleanUncropped, mapBase64, mapBase64Truncated] = await this.deps.adapter.requestsHandler.mapCreator.canvasMap(mapData);
+			const [mapBase64CleanUncropped, mapBase64] = await this.deps.adapter.mapManager.mapCreator.canvasMap(mapData);
 			const t3 = Date.now();
 
 			this.adapter.rLog("MapManager", this.duid, "Debug", "Profiler", undefined, `[MapProfiler] History Map ${startTime} processed. Total: ${t3 - t0}ms | Unzip: ${t1 - t0}ms | Parse: ${t2 - t1}ms | Canvas: ${t3 - t2}ms | Size: ${cleaningRecordMap.length}`, "silly");
@@ -175,7 +175,7 @@ export class V1MapService {
 			return {
 				mapBase64CleanUncropped,
 				mapBase64,
-				mapBase64Truncated,
+
 				mapData: JSON.stringify(mapData),
 			};
 		} catch (e: any) {

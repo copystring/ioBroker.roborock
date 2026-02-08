@@ -15,7 +15,7 @@ import { Feature } from "./lib/features/features.enum";
 
 import { http_api } from "./lib/httpApi";
 import { local_api } from "./lib/localApi";
-import { MapManager } from "./lib/map/MapManager"; // Add import
+import { MapManager } from "./lib/map/MapManager";
 import { mqtt_api } from "./lib/mqttApi";
 import { requestsHandler } from "./lib/requestsHandler";
 import { socketHandler } from "./lib/socketHandler";
@@ -29,7 +29,7 @@ export class Roborock extends utils.Adapter {
 	public requestsHandler: requestsHandler;
 	public socketHandler!: socketHandler;
 	public deviceManager!: DeviceManager;
-	public mapManager: MapManager; // Add property
+	public mapManager: MapManager;
 
 	// --- Internal Properties ---
 	public deviceFeatureHandlers: Map<string, BaseDeviceFeatures>;
@@ -58,11 +58,11 @@ export class Roborock extends utils.Adapter {
 		this.local_api = new local_api(this);
 		this.mqtt_api = new mqtt_api(this);
 		this.requestsHandler = new requestsHandler(this);
-		this.mapManager = new MapManager(this); // Initialize
+		this.mapManager = new MapManager(this);
 
 		this.deviceManager = new DeviceManager(this);
 		this.socketHandler = new socketHandler(this);
-		this.deviceFeatureHandlers = this.deviceManager.deviceFeatureHandlers; // Reference DM's map
+		this.deviceFeatureHandlers = this.deviceManager.deviceFeatureHandlers;
 
 		this.appPluginManager = new AppPluginManager(this);
 
@@ -121,6 +121,40 @@ export class Roborock extends utils.Adapter {
 
 			// 2b. Start MQTT and WAIT for the connection to be established
 			await this.mqtt_api.init();
+
+			// --- Pre-Init Network Probe (Docker/VLAN Support) ---
+			this.rLog("System", null, "Info", undefined, undefined, "Starting Pre-Init Network Probe...", "info");
+			const allDevices = this.http_api.getDevices();
+			const probePromises = allDevices.map(async (device) => {
+				const duid = device.duid;
+				// If already local (UDP found it), skip
+				if (this.local_api.isConnected(duid)) return;
+
+				try {
+					// 1. Get Network Info (via MQTT as we have no TCP yet)
+					this.rLog("System", duid, "Debug", undefined, undefined, "Probing network info via Cloud...", "debug");
+					const result = await this.requestsHandler.sendRequest(duid, "get_network_info", []);
+
+					// 2. Extract IP
+					let networkData: any = result;
+					if (Array.isArray(result)) networkData = result[0];
+
+					if (networkData && networkData.ip) {
+						// 3. Attempt TCP Connect with short timeout (1.5s) and silent logging
+						await this.local_api.checkAndPromoteLocalConnection(duid, networkData.ip, 1500, true);
+					}
+				} catch (e: any) {
+					this.rLog("System", duid, "Debug", undefined, undefined, `Probe failed: ${e.message}`, "debug");
+				}
+			});
+
+			// Wait for all probes to finish (with timeout to not block forever)
+			await Promise.race([
+				Promise.all(probePromises),
+				new Promise(resolve => setTimeout(resolve, 2000)) // Max 2s probe time
+			]);
+			this.rLog("System", null, "Info", undefined, undefined, "Network Probe finished.", "info");
+			// ----------------------------------------------------
 
 			// 3. Initialize Devices (now that communication channels are ready)
 			await this.deviceManager.initializeDevices();
@@ -250,8 +284,6 @@ export class Roborock extends utils.Adapter {
 						} else {
 							this.log.warn(`[executeSceneLocal] No handler found for device ${targetDuid}. Attempting raw send.`);
 							// Fallback if no handler (though rare for known devices)
-							// We can cheat requestsHandler types or use sendRequest directly if public?
-							// It is public.
 							await this.requestsHandler.sendRequest(targetDuid, method, args);
 						}
 					}
@@ -358,7 +390,6 @@ export class Roborock extends utils.Adapter {
 	private async handleCommand(duid: string, folder: string, command: string, state: ioBroker.State, handler: BaseDeviceFeatures, id: string) {
 		if (folder === "resetConsumables" && state.val === true) {
 			await this.requestsHandler.command(handler, duid, "reset_consumable", command, id);
-			// Reset button
 			// Reset button
 			this.setResetTimeout(id);
 		} else if (folder === "programs" && command === "startProgram") {
@@ -753,9 +784,11 @@ export class Roborock extends utils.Adapter {
 	async getDeviceProtocolVersion(duid: string): Promise<string> {
 		const tcpConnected = this.local_api.isConnected(duid);
 
-		if (tcpConnected && !this.requestsHandler.isCloudDevice(duid)) {
-			return this.local_api.getLocalProtocolVersion(duid) || "1.0";
+		if (tcpConnected) {
+			const localPv = this.local_api.getLocalProtocolVersion(duid);
+			if (localPv) return localPv;
 		}
+
 		const device = this.http_api.getDevices().find((d) => d.duid == duid);
 		return device?.pv || "1.0";
 	}

@@ -293,6 +293,7 @@ export class DeviceManager {
 						case "A01":
 							await this.pollA01Device(handler, duid);
 							break;
+						case "L01":
 						case "1.0":
 							await this.pollV1Device(handler, duid);
 							break;

@@ -8,15 +8,15 @@ import { MapParser as MapParserV1 } from "./v1/MapParser";
 
 export class MapManager {
 	private adapter: Roborock;
-	private parserV1: MapParserV1;
-	private builderV1: MapBuilderV1;
+	public mapParser: MapParserV1;
+	public mapCreator: MapBuilderV1;
 	private parserB01: MapParserB01;
 	private builderB01: MapBuilderB01;
 
 	constructor(adapter: Roborock) {
 		this.adapter = adapter;
-		this.parserV1 = new MapParserV1(adapter);
-		this.builderV1 = new MapBuilderV1(adapter);
+		this.mapParser = new MapParserV1(adapter);
+		this.mapCreator = new MapBuilderV1(adapter);
 		this.parserB01 = new MapParserB01(adapter);
 		this.builderB01 = new MapBuilderB01(adapter);
 	}
@@ -65,12 +65,12 @@ export class MapManager {
 				}
 
 				// V1 parser returns ParsedMapData OR empty object
-				const mapData = await this.parserV1.parsedata(mapBuf, mappedRooms);
+				const mapData = await this.mapParser.parsedata(mapBuf, mappedRooms);
 
 				if (mapData && Object.keys(mapData).length > 0) {
 					// Legacy MapCreator returns [clean, full]
 					// We cast builderV1 to any to avoid type issues if CanvasMap isn't explicitly typed in class definition yet
-					const [mapBase64Clean, mapBase64] = await this.builderV1.canvasMap(mapData, { mappedRooms, model });
+					const [mapBase64Clean, mapBase64] = await this.mapCreator.canvasMap(mapData, { mappedRooms, model });
 					return {
 						mapBase64: mapBase64,
 						mapBase64Clean: mapBase64Clean,
