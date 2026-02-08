@@ -138,7 +138,7 @@ class RoborockRequest {
 		const version = await this.adapter.getDeviceProtocolVersion(this.duid);
 		const timestamp = Math.floor(Date.now() / 1000);
 
-		if (this.adapter.local_api.isConnected(this.duid) && version != "B01" && !["service.upload_by_maptype", "service.upload_record_by_url"].includes(this.method)) {
+		if (this.adapter.local_api.isConnected(this.duid) && version != "B01" && !["service.upload_by_maptype", "service.upload_record_by_url", "get_photo"].includes(this.method)) {
 			protocol = 4;
 		}
 
