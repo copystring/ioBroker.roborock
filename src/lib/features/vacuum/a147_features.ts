@@ -61,7 +61,7 @@ export class A147Features extends V1VacuumFeatures {
 	public override async getPhoto(imgId: string, type: number): Promise<any> {
 		return this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_photo", {
 			data_filter: {
-				img_id: Number(imgId),
+				img_id: imgId,
 				type: type
 			}
 		});
