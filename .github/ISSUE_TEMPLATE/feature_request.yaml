@@ -1,0 +1,98 @@
+name: Feature request
+description: Suggest an idea or enhancement for the adapter
+title: "[FEATURE] "
+labels: enhancement
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Thank you for your suggestion!
+        Please review the following guidelines before submitting your request.
+
+        ### 🚨 Is this a new device request?
+        If you want support for a NEW Roborock device, please provide:
+        1. **Model ID** (e.g., `roborock.vacuum.a70`).
+        2. **Debug Log** during startup (essential to see capabilities).
+
+        ### 💡 Is this a new feature for an existing device?
+        1. Describe the feature clearly.
+        2. Provide screenshots from the **Roborock App** showing the feature (if applicable).
+        3. Explain *why* this feature is useful.
+
+  - type: dropdown
+    id: request_type
+    attributes:
+      label: Type of Request
+      options:
+        - New Device Support
+        - New Feature for Existing Device
+        - General Adapter Enhancement
+        - Documentation Improvement
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: device_model
+    attributes:
+      label: Device Model
+      description: "Required for new device requests or feature requests specific to a model (e.g., roborock.vacuum.a70). otherwise leave empty."
+      placeholder: "e.g., roborock.vacuum.a70"
+    validations:
+      required: false
+
+  - type: input
+    id: firmware_version
+    attributes:
+      label: Device Firmware Version
+      description: "Required if the feature depends on a specific firmware version. otherwise leave empty."
+      placeholder: "e.g., 4.3.5_2860"
+    validations:
+      required: false
+
+  - type: textarea
+    id: problem_description
+    attributes:
+      label: Is your feature request related to a problem?
+      description: A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+      placeholder: "I'm always frustrated when..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: solution_description
+    attributes:
+      label: Describe the solution you'd like
+      description: A clear and concise description of what you want to happen.
+      placeholder: "I would like the adapter to..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives_considered
+    attributes:
+      label: Describe alternatives you've considered
+      description: A clear and concise description of any alternative solutions or features you've considered.
+      placeholder: "I tried using a script but..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional context / Screenshots / Logs
+      description: "Add any other context, screenshots, or logs here. Drag & drop files if needed."
+      placeholder: "Drag & drop files here..."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched for existing feature requests (issues) to avoid duplicates.
+          required: true
+        - label: I agree to provide feedback or test the feature if implemented.
+          required: false

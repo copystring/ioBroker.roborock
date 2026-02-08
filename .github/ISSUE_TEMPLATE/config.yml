@@ -4,5 +4,5 @@ contact_links:
     url: /issues/new?template=bug_report.yaml
     about: Report a bug with the required information and debug logs.
   - name: Feature Request
-    url: /issues/new?template=feature_request.md
+    url: /issues/new?template=feature_request.yaml
     about: Suggest a new feature or enhancement.
