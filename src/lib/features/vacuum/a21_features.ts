@@ -1,6 +1,6 @@
-﻿import { V1VacuumFeatures, VacuumProfile, BASE_FAN, BASE_WATER, BASE_MOP } from "./v1VacuumFeatures";
-import { RegisterModel, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
+﻿import { DeviceModelConfig, FeatureDependencies, RegisterModel } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
+import { BASE_FAN, BASE_MOP, BASE_WATER, V1VacuumFeatures, VacuumProfile } from "./v1VacuumFeatures";
 
 const PROFILE_A21: VacuumProfile = {
 	name: "Roborock Qrevo Slim (a21)",
@@ -34,7 +34,10 @@ const a21Config: DeviceModelConfig = {
 		Feature.RobotStatus,
 		Feature.CommonStatus,
 		Feature.SwitchStatus,
-		Feature.LastCleanTime
+		Feature.LastCleanTime,
+		Feature.AutoEmptyDock,
+		Feature.MopWash,
+		Feature.MopDry
 	]
 };
 
