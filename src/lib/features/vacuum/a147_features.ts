@@ -1,6 +1,6 @@
-﻿import { V1VacuumFeatures, VacuumProfile, BASE_FAN, BASE_WATER, BASE_MOP } from "./v1VacuumFeatures";
-import { RegisterModel, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
+﻿import { DeviceModelConfig, FeatureDependencies, RegisterModel } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
+import { BASE_FAN, BASE_MOP, BASE_WATER, V1VacuumFeatures, VacuumProfile } from "./v1VacuumFeatures";
 
 const PROFILE_A147: VacuumProfile = {
 	name: "Roborock Saros 10 (a147)",
@@ -56,5 +56,14 @@ const a147Config: DeviceModelConfig = {
 export class A147Features extends V1VacuumFeatures {
 	constructor(dependencies: FeatureDependencies, duid: string) {
 		super(dependencies, duid, "roborock.vacuum.a147", a147Config, PROFILE_A147);
+	}
+
+	public override async getPhoto(imgId: string, type: number): Promise<any> {
+		return this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_photo", {
+			data_filter: {
+				img_id: Number(imgId),
+				type: type
+			}
+		});
 	}
 }
