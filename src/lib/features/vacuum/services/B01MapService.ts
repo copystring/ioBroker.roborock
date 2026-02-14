@@ -152,7 +152,9 @@ export class B01MapService {
 				records: recordList.map((r: any) => {
 					try {
 						return typeof r.detail === "string" ? JSON.parse(r.detail) : r.detail;
-					} catch { return null; }
+					} catch {
+						return null;
+					}
 				}).filter((r: any) => r !== null)
 			};
 

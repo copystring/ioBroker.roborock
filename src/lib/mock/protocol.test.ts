@@ -57,7 +57,9 @@ describe("Protocol Deep Dive (messageParser)", () => {
 		// So checking logs for "Decryption failed" vs "CRC mismatch" separates the two.
 
 		let logError = "";
-		mockAdapter.log.error = (msg: string) => { logError += msg + "\n"; };
+		mockAdapter.log.error = (msg: string) => {
+			logError += msg + "\n";
+		};
 
 		parser.decodeMsg(buf, "duid");
 

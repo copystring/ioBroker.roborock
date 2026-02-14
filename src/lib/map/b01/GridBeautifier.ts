@@ -575,8 +575,7 @@ function extractCorners(corner_map: any, extract_corner: Point[], contour: Point
 			if (gray_count == 2 && black_count == 2) {
 				extract_corner.push(new Point(contour[i].x, contour[i].y));
 				corner_map[contour[i].x * size_x + contour[i].y] = external_corner_value;
-			} else if ((white_count == 2) && (black_count == 2))
-			{
+			} else if ((white_count == 2) && (black_count == 2)) {
 				corner_map[contour[i].x * size_x + contour[i].y] = inner_corner_value;
 			}
 		}
@@ -2617,19 +2616,16 @@ function findContourConnectComponent(temp_map: any, contour: Point[], rect: Rect
       y < rect.y + rect.width
 	);
 
-	while (temp_contour.length != 0)
-	{
+	while (temp_contour.length != 0) {
 		const seed = temp_contour.shift()!;
-		for (let k = 0; k < 8; k++)
-		{
+		for (let k = 0; k < 8; k++) {
 			const temp_idy = seed.x + eight_neighbourhood[k][0];
 			const temp_idx = seed.y + eight_neighbourhood[k][1];
 
 			if (!isInBounds(temp_idx, temp_idy))
 				continue;
 
-			if (temp_map[temp_idy * size_x + temp_idx] == CONSTANTS.BLACK)
-			{
+			if (temp_map[temp_idy * size_x + temp_idx] == CONSTANTS.BLACK) {
 				temp_map[temp_idy * size_x + temp_idx] = 30;
 
 				temp_contour.push(new Point(temp_idy, temp_idx));
@@ -2644,10 +2640,8 @@ function findContourConnectComponent(temp_map: any, contour: Point[], rect: Rect
 }
 
 function findInternalObstacles(temp_map: any, point_deque: Point[], rect: Rect, size_x: number): { result: Point[] } {
-	for (let idy = rect.y; idy < rect.y + rect.width; idy++)
-	{
-		for (let idx = rect.x; idx < rect.x + rect.height; idx++)
-		{
+	for (let idy = rect.y; idy < rect.y + rect.width; idy++) {
+		for (let idx = rect.x; idx < rect.x + rect.height; idx++) {
 			if (temp_map[idy * size_x + idx] == CONSTANTS.BLACK)
 				point_deque.push(new Point(idy, idx));
 		}

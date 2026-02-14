@@ -574,7 +574,10 @@ export class MapBuilder {
 			data.carpetInfo.forEach(carpet => {
 				if (carpet.points && carpet.points.length > 0) {
 					let sumX = 0, sumY = 0;
-					carpet.points.forEach(p => { sumX += p.x; sumY += p.y; });
+					carpet.points.forEach(p => {
+						sumX += p.x;
+						sumY += p.y;
+					});
 					const cx = sumX / carpet.points.length;
 					const cy = sumY / carpet.points.length;
 					const pt = toPixel(cx, cy);

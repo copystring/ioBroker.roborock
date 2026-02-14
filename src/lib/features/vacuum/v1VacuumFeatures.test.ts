@@ -58,8 +58,12 @@ describe("V1VacuumFeatures", () => {
 	});
 
 	class TestVacuum extends V1VacuumFeatures {
-		protected getDynamicFeatures(): Set<Feature> { return new Set(); }
-		public async detectAndApplyRuntimeFeatures(): Promise<boolean> { return false; }
+		protected getDynamicFeatures(): Set<Feature> {
+			return new Set();
+		}
+		public async detectAndApplyRuntimeFeatures(): Promise<boolean> {
+			return false;
+		}
 	}
 
 	it("should parse dss bitmask correctly in updateDockingStationStatus", async () => {

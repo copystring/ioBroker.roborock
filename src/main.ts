@@ -950,10 +950,18 @@ export class Roborock extends utils.Adapter {
 		const logMsg = `${parts.join(" ")} | ${message}`;
 
 		switch (level) {
-			case "debug": this.log.debug(logMsg); break;
-			case "info": this.log.info(logMsg); break;
-			case "warn": this.log.warn(logMsg); break;
-			case "error": this.log.error(logMsg); break;
+			case "debug":
+				this.log.debug(logMsg);
+				break;
+			case "info":
+				this.log.info(logMsg);
+				break;
+			case "warn":
+				this.log.warn(logMsg);
+				break;
+			case "error":
+				this.log.error(logMsg);
+				break;
 		}
 	}
 

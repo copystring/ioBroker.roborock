@@ -139,9 +139,7 @@ export class socketHandler {
 				// Check for JPEG (FF D8)
 				if (potentialBuffer[0] === 0xff && potentialBuffer[1] === 0xd8) {
 					mimeType = "image/jpeg";
-				}
-				// Check for PNG (89 50 4E 47)
-				else if (potentialBuffer[0] === 0x89 && potentialBuffer[1] === 0x50 && potentialBuffer[2] === 0x4e && potentialBuffer[3] === 0x47) {
+				} else if (potentialBuffer[0] === 0x89 && potentialBuffer[1] === 0x50 && potentialBuffer[2] === 0x4e && potentialBuffer[3] === 0x47) {
 					mimeType = "image/png";
 				} else {
 					this.adapter.rLog("MapManager", duid, "Warn", undefined, undefined, `[Photo] Unknown image format. Header: ${potentialBuffer.subarray(0, 8).toString("hex")}`, "warn");
