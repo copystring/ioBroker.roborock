@@ -574,24 +574,10 @@ export class requestsHandler {
 					return match16;
 				}
 			}
-
-			// 3. Stage 3: DUID Fallback (for headerless Type 0 streams)
-			const photoManager = this.adapter.mqtt_api.photoManager;
-			if (photoManager && typeof photoManager.getPendingRequest === "function") {
-				const photoReq = photoManager.getPendingRequest(duid);
-				if (photoReq) {
-					const match = this.adapter.pendingRequests.get(photoReq.id as any);
-					if (match) {
-						return match;
-					}
-				}
-			}
-
-			// Diagnostic for failed matches (Manual Header Analysis phase)
+			return undefined;
 		} catch (e: any) {
-			this.adapter.rLog("MQTT", duid, "Error", "Binary", undefined, `Match logic crashed: ${e.message}`, "error");
+			this.adapter.rLog("System", duid, "Warn", undefined, undefined, `Failed to extract ID from binary payload: ${e.message}`, "warn");
 			return undefined;
 		}
-		return undefined;
 	}
 }
