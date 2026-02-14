@@ -576,7 +576,7 @@ export class requestsHandler {
 			}
 
 			// 3. Stage 3: DUID Fallback (for headerless Type 0 streams)
-			const photoManager = (this.adapter as any).photoManager;
+			const photoManager = this.adapter.mqtt_api.photoManager;
 			if (photoManager && typeof photoManager.getPendingRequest === "function") {
 				const photoReq = photoManager.getPendingRequest(duid);
 				if (photoReq) {
