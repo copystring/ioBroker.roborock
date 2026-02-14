@@ -1,6 +1,6 @@
-﻿import { V1VacuumFeatures, VacuumProfile, BASE_FAN, BASE_WATER, BASE_MOP } from "./v1VacuumFeatures";
-import { RegisterModel, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
+﻿import { DeviceModelConfig, FeatureDependencies, RegisterModel } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
+import { BASE_FAN, BASE_MOP, BASE_WATER, V1VacuumFeatures, VacuumProfile } from "./v1VacuumFeatures";
 
 const PROFILE_A147: VacuumProfile = {
 	name: "Roborock Saros 10 (a147)",
@@ -48,7 +48,8 @@ const a147Config: DeviceModelConfig = {
 		Feature.FanMaxPlus,
 		Feature.SmartModeCommand,
 		Feature.CleanRepeat,
-		Feature.CleanedArea
+		Feature.CleanedArea,
+		Feature.GetPhoto // A147 supports photo retrieval
 	]
 };
 

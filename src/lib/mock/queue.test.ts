@@ -1,4 +1,3 @@
-
 import { beforeEach, describe, expect, it } from "vitest";
 import { requestsHandler } from "../requestsHandler"; // Real class
 import { MockAdapter } from "./MockAdapter";
@@ -32,7 +31,6 @@ describe("Queue Deep Dive (requestsHandler)", () => {
 
 		// We hijack manager.add to count executions
 		const originalAdd = manager.add.bind(manager);
-
 
 		manager.add = <T>(id: string, _task: (signal: AbortSignal) => Promise<T>, priority?: number): Promise<T> => {
 			return originalAdd(id, async () => {
@@ -68,7 +66,6 @@ describe("Queue Deep Dive (requestsHandler)", () => {
 		manager.queue.concurrency = 1;
 
 		const executionOrder: string[] = [];
-
 
 		// Mock message parser to avoid overhead
 		handler.messageParser.buildPayload = async () => "payload";

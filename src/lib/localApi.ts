@@ -86,7 +86,7 @@ export class local_api {
 	localDevices: Record<string, LocalDevice> = {};
 	localDevicesInterval: NodeJS.Timeout | null = null;
 	private reconnectPlanned = new Set<string>();
-	private connecting = new Set<string>();
+	private connectPromises = new Map<string, Promise<void>>();
 	private discoveryServer: dgram.Socket | null = null;
 	private discoveryTimer: NodeJS.Timeout | null = null;
 	private gracePeriodTimer: NodeJS.Timeout | null = null;
@@ -104,204 +104,204 @@ export class local_api {
 	 * Used for local control if an IP is available.
 	 */
 
-	async initiateClient(duid: string, timeoutMs = 5000, suppressLog = false): Promise<void> {
-		if (this.connecting.has(duid)) return;
-		this.connecting.add(duid);
+	async initiateClient(duid: string, suppressLog: boolean = false, timeoutMs = 5000): Promise<void> {
+		let promise = this.connectPromises.get(duid);
+
+		if (!promise) {
+			promise = this._performConnection(duid, timeoutMs)
+				.finally(() => {
+					// We do NOT delete from the map here immediately if we want to cache the "success" state?
+					// No, we only cache the "Connecting" state.
+					this.connectPromises.delete(duid);
+				});
+			this.connectPromises.set(duid, promise);
+		}
 
 		try {
-			const ip = this.getIpForDuid(duid);
-			if (!ip) {
-				this.adapter.rLog("Local", duid, "Debug", "N/A", undefined, `No local IP -> falling back to MQTT`, "debug");
-				this.cloudDevices.add(duid);
-				return;
-			}
-
-			// Check if already connected
-			const existing = this.deviceSockets?.[duid];
-			if (existing?.connected) {
-				this.adapter.rLog("TCP", duid, "Debug", "TCP", undefined, `Already connected via TCP`, "debug");
-				this.cloudDevices.delete(duid);
-				return;
-			}
-
-			// Attempt TCP connection
-			const client = new EnhancedSocket();
-
-			await new Promise<void>((resolve, reject) => {
-				const onErrorOnce = (err: Error) => reject(err);
-				client.once("error", onErrorOnce); // Only catch error during initial connection
-
-				client.setTimeout(timeoutMs, () => {
-					client.destroy();
-					reject(new Error("TCP connect timeout"));
-				});
-
-				client.connect(TCP_CONNECTION_PORT, ip, async () => {
-					client.removeListener("error", onErrorOnce);
-					client.setTimeout(0); // Disable timeout after connection
-					this.adapter.rLog("TCP", duid, "Info", undefined, undefined, `TCP client connected`, "info");
-
-
-
-					this.deviceSockets[duid] = client;
-					this.reconnectPlanned.delete(duid);
-
-					const version = this.getLocalProtocolVersion(duid);
-					if (version === "L01") {
-						await this.initHandshake(duid, version);
-					}
-					// B01 is stateless TCP, no handshake needed
-					resolve();
-				});
-			});
-
-			// Handle incoming data
-			client.on("data", async (message: Buffer) => {
-				try {
-					// Buffering logic
-					if (client.chunkBuffer.length === 0) {
-						if (!this.checkComplete(message)) {
-							this.adapter.rLog("TCP", duid, "<-", "TCP", undefined, `Starting new chunk buffer`, "silly");
-						}
-						client.chunkBuffer = message;
-					} else {
-						this.adapter.rLog("TCP", duid, "<-", "TCP", undefined, `Appending to chunk buffer`, "silly");
-						client.chunkBuffer = Buffer.concat([client.chunkBuffer, message] as Uint8Array[]);
-					}
-
-					let offset = 0;
-					// Process buffer if it contains at least one complete message
-					if (this.checkComplete(client.chunkBuffer)) {
-						if (client.chunkBuffer.length !== message.length) {
-							this.adapter.rLog("TCP", duid, "<-", "TCP", undefined, `Chunk buffer complete. Processing...`, "silly");
-						}
-
-						while (offset + 4 <= client.chunkBuffer.length) {
-							const segmentLength = client.chunkBuffer.readUInt32BE(offset);
-							this.adapter.rLog("TCP", duid, "<-", "TCP", undefined, `Segment length: ${segmentLength} at offset ${offset}`, "silly");
-
-
-
-							const currentBuffer = client.chunkBuffer.subarray(offset + 4, offset + segmentLength + 4);
-
-							// Check for Control Frames (Hello Response, Ping Response)
-							// Protocol 1 (Hello Response) is unencrypted and critical for L01 handshake
-							const protocol = currentBuffer.readUInt16BE(15);
-
-							if (protocol === 1) { // hello_response (CONNACK)
-								const nonce = currentBuffer.readUInt32BE(7);
-								if (this.localDevices[duid]) {
-									this.localDevices[duid].ackNonce = nonce;
-								}
-								this.adapter.rLog("TCP", duid, "<-", "Control", 1, `hello_response | ackNonce=${nonce}`, "debug");
-							} else if (segmentLength === 17 || segmentLength === 21) {
-
-
-								// Short frames logic (Ping Response etc)
-								switch (protocol) {
-									case 5: // ping_response
-										this.adapter.rLog("TCP", duid, "<-", "Control", 5, `ping_response`, "silly");
-										break;
-
-									default:
-										this.adapter.rLog("TCP", duid, "<-", "Control", protocol, `Short frame ${protocol}`, "silly");
-								}
-							} else {
-								// Decode standard data message
-								const dataArr = this.adapter.requestsHandler.messageParser.decodeMsg(currentBuffer, duid);
-
-								const allMessages = Array.isArray(dataArr) ? dataArr : dataArr ? [dataArr] : [];
-								for (const data of allMessages) {
-									// Protocol 4: Device Status Update
-									if (data.protocol === 4 || data.version === "B01") {
-										const payloadStr = data.payload.toString();
-										let parsedPayload;
-										try {
-											parsedPayload = JSON.parse(payloadStr);
-										} catch (e) {
-											this.adapter.rLog("TCP", duid, "Error", data.version, undefined, `Parse Error | ${e}`, "warn");
-											continue;
-										}
-
-										this.adapter.rLog("TCP", duid, "<-", data.version, undefined, `Message | ${payloadStr}`, "debug");
-
-										if (data.version === "B01") {
-											const dps = parsedPayload.dps;
-											if (dps?.["10001"]) {
-												let inner = dps["10001"];
-												if (typeof inner === "string") {
-													try {
-														inner = JSON.parse(inner);
-													} catch (e) {
-														this.adapter.rLog("TCP", duid, "Error", "B01", undefined, `Nested JSON Parse Error | ${e}`, "warn");
-														continue;
-													}
-												}
-												const id = inner.msgId || inner.id;
-												const result = inner.code === 0 ? inner.data : (inner.error || inner.result);
-
-												if (id) {
-													this.adapter.requestsHandler.resolvePendingRequest(id, result, `Local-${data.version}`, duid, "TCP");
-												} else {
-													this.adapter.rLog("TCP", duid, "<-", "B01", undefined, `Received B01 message without ID.`, "warn");
-												}
-											}
-										} else if (data.protocol === 4) {
-											// Standard protocol 4 nested JSON in 'dps'
-											const dps = parsedPayload.dps;
-											if (dps) {
-												// Often dps["102"] is nested stringified loop
-												// Try to unpack if standard fields like 102 are present
-												let content = dps;
-												if (dps["102"]) {
-													try {
-														content = JSON.parse(dps["102"]);
-													} catch {}
-												}
-
-												if (content.id) {
-													this.adapter.requestsHandler.resolvePendingRequest(content.id, content.result, String(data.protocol), duid, "TCP");
-												}
-											}
-										}
-									} else {
-										// Explicitly log unknown protocols as Error to identify missing handlers
-										this.adapter.rLog("TCP", duid, "Error", data.version, data.protocol, `Unhandled Protocol ${data.protocol}`, "error");
-									}
-								}
-							}
-
-							offset += 4 + segmentLength;
-						}
-
-						this.clearChunkBuffer(duid);
-					}
-				} catch (error: any) {
-					this.adapter.catchError(`Failed to process TCP data: ${error.stack}`, `function initiateClient`, duid);
-				}
-			});
-
-			client.on("close", () => this.scheduleReconnect(duid, `connection closed`));
-			client.on("error", (error) => this.scheduleReconnect(duid, `connection error: ${error.message}`));
-			client.on("end", () => this.scheduleReconnect(duid, "connection ended"));
-
-			this.adapter.rLog("TCP", duid, "Info", undefined, undefined, `TCP client established for ${duid}`, "info");
-			this.cloudDevices.delete(duid);
+			await promise;
 		} catch (err: any) {
+			if (suppressLog === true) {
+				// Don't log internally, don't retry immediately. Let caller handle summary log.
+				this.cloudDevices.add(duid);
+				throw err;
+			}
 			const logLevel = suppressLog ? "debug" : "warn";
 			this.adapter.rLog("TCP", duid, "Error", undefined, undefined, `TCP connect failed for ${duid}: ${err?.message || err}`, logLevel);
-			this.scheduleReconnect(duid, "connect failed");
+			this.scheduleReconnect(duid, "connect failed", !!suppressLog);
 			this.cloudDevices.add(duid);
-		} finally {
-			this.connecting.delete(duid);
 		}
+	}
+
+	private async _performConnection(duid: string, timeoutMs: number): Promise<void> {
+		const ip = this.getIpForDuid(duid);
+		if (!ip) {
+			this.adapter.rLog("Local", duid, "Debug", "N/A", undefined, `No local IP -> falling back to MQTT`, "debug");
+			this.cloudDevices.add(duid);
+			return; // Resolves void
+		}
+
+		// Check if already connected
+		const existing = this.deviceSockets?.[duid];
+		if (existing?.connected) {
+			this.adapter.rLog("TCP", duid, "Debug", "TCP", undefined, `Already connected via TCP`, "debug");
+			this.cloudDevices.delete(duid);
+			return; // Resolves void
+		}
+
+		// Attempt TCP connection
+		const client = new EnhancedSocket();
+
+		await new Promise<void>((resolve, reject) => {
+			const onErrorOnce = (err: Error) => reject(err);
+			client.once("error", onErrorOnce); // Only catch error during initial connection
+
+			client.setTimeout(timeoutMs, () => {
+				client.destroy();
+				reject(new Error("TCP connect timeout"));
+			});
+
+			client.connect(TCP_CONNECTION_PORT, ip, async () => {
+				client.removeListener("error", onErrorOnce);
+				client.setTimeout(0); // Disable timeout after connection
+				this.deviceSockets[duid] = client;
+				this.reconnectPlanned.delete(duid);
+
+				const version = this.getLocalProtocolVersion(duid);
+				if (version === "L01") {
+					await this.initHandshake(duid, version);
+				}
+				// B01 is stateless TCP, no handshake needed
+				resolve();
+			});
+		});
+
+		// Handle incoming data
+		client.on("data", async (message: Buffer) => {
+			try {
+				// Buffering logic
+				if (client.chunkBuffer.length === 0) {
+					if (!this.checkComplete(message)) {
+					}
+					client.chunkBuffer = message;
+				} else {
+					client.chunkBuffer = Buffer.concat([client.chunkBuffer, message] as Uint8Array[]);
+				}
+
+				let offset = 0;
+				// Process buffer if it contains at least one complete message
+				if (this.checkComplete(client.chunkBuffer)) {
+					if (client.chunkBuffer.length !== message.length) {
+
+					}
+
+					while (offset + 4 <= client.chunkBuffer.length) {
+						const segmentLength = client.chunkBuffer.readUInt32BE(offset);
+						const currentBuffer = client.chunkBuffer.subarray(offset + 4, offset + segmentLength + 4);
+
+						// Check for Control Frames (Hello Response, Ping Response)
+						// Protocol 1 (Hello Response) is unencrypted and critical for L01 handshake
+						const protocol = currentBuffer.readUInt16BE(15);
+
+						if (protocol === 1) { // hello_response (CONNACK)
+							const nonce = currentBuffer.readUInt32BE(7);
+							if (this.localDevices[duid]) {
+								this.localDevices[duid].ackNonce = nonce;
+							}
+							this.adapter.rLog("TCP", duid, "<-", "Control", 1, `hello_response | ackNonce=${nonce}`, "debug");
+						} else if (segmentLength === 17 || segmentLength === 21) {
+							// Short frames logic (Ping Response etc)
+							switch (protocol) {
+								case 5: // ping_response
+
+									break;
+
+								default:
+							}
+						} else {
+							// Decode standard data message
+							const dataArr = this.adapter.requestsHandler.messageParser.decodeMsg(currentBuffer, duid);
+
+							const allMessages = Array.isArray(dataArr) ? dataArr : dataArr ? [dataArr] : [];
+							for (const data of allMessages) {
+								// Protocol 4: Device Status Update
+								if (data.protocol === 4 || data.version === "B01") {
+									const payloadStr = data.payload.toString();
+									let parsedPayload;
+									try {
+										parsedPayload = JSON.parse(payloadStr);
+									} catch (e) {
+										this.adapter.rLog("TCP", duid, "Error", data.version, undefined, `Parse Error | ${e}`, "warn");
+										continue;
+									}
+									if (data.version === "B01") {
+										const dps = parsedPayload.dps;
+										if (dps?.["10001"]) {
+											let inner = dps["10001"];
+											if (typeof inner === "string") {
+												try {
+													inner = JSON.parse(inner);
+												} catch (e) {
+													this.adapter.rLog("TCP", duid, "Error", "B01", undefined, `Nested JSON Parse Error | ${e}`, "warn");
+													continue;
+												}
+											}
+											const id = inner.msgId || inner.id;
+											const result = inner.code === 0 ? inner.data : (inner.error || inner.result);
+
+											if (id) {
+												this.adapter.requestsHandler.resolvePendingRequest(id, result, `Local-${data.version}`, duid, "TCP");
+											} else {
+												this.adapter.rLog("TCP", duid, "<-", "B01", undefined, `Received B01 message without ID.`, "warn");
+											}
+										}
+									} else if (data.protocol === 4) {
+										// Standard protocol 4 nested JSON in 'dps'
+										const dps = parsedPayload.dps;
+										if (dps) {
+											// Often dps["102"] is nested stringified loop
+											// Try to unpack if standard fields like 102 are present
+											let content = dps;
+											if (dps["102"]) {
+												try {
+													content = JSON.parse(dps["102"]);
+												} catch {}
+											}
+
+											if (content.id) {
+												this.adapter.requestsHandler.resolvePendingRequest(content.id, content.result, String(data.protocol), duid, "TCP");
+											}
+										}
+									}
+								} else {
+									// Explicitly log unknown protocols as Error to identify missing handlers
+									this.adapter.rLog("TCP", duid, "Error", data.version, data.protocol, `Unhandled Protocol ${data.protocol}`, "error");
+								}
+							}
+						}
+
+						offset += 4 + segmentLength;
+					}
+
+					this.clearChunkBuffer(duid);
+				}
+			} catch (error: any) {
+				this.adapter.catchError(`Failed to process TCP data: ${error.stack}`, `function initiateClient`, duid);
+			}
+		});
+
+		client.on("close", () => this.scheduleReconnect(duid, `connection closed`));
+		client.on("error", (error) => this.scheduleReconnect(duid, `connection error: ${error.message}`));
+		client.on("end", () => this.scheduleReconnect(duid, "connection ended"));
+
+		this.adapter.rLog("TCP", duid, "Info", undefined, undefined, `Connected`, "debug");
+		this.cloudDevices.delete(duid);
 	}
 
 	/**
 	 * Schedules a reconnection attempt after a delay.
 	 */
-	scheduleReconnect(duid: string, reason: string): void {
-		this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `TCP ${reason} for ${duid}, retry in 5s`, "debug");
+	scheduleReconnect(duid: string, reason: string, silent = false): void {
+		this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `TCP ${reason} for ${duid}, retry in 5s`, silent ? "debug" : "debug");
 
 		const old = this.deviceSockets[duid];
 		if (old) {
@@ -318,8 +318,8 @@ export class local_api {
 
 			// Retry only if device is still considered local
 			if (this.getIpForDuid(duid)) {
-				this.initiateClient(duid).catch((e) => this.adapter.rLog("TCP", duid, "Error", undefined, undefined, `Reconnect attempt failed for ${duid}: ${e?.message || e}`, "warn"));
-			} else {
+				this.initiateClient(duid, silent).catch((e) => this.adapter.rLog("TCP", duid, "Error", undefined, undefined, `Reconnect attempt failed for ${duid}: ${e?.message || e}`, silent ? "debug" : "warn"));
+			} else if (!silent) {
 				this.adapter.rLog("TCP", duid, "Debug", "TCP", undefined, `Skip reconnect for ${duid}, no longer in localDevices.`, "debug");
 			}
 		}, 5000);
@@ -368,7 +368,6 @@ export class local_api {
 
 	isConnected(duid: string): boolean {
 		if (this.deviceSockets[duid] && this.deviceSockets[duid].connected) {
-
 			const dev = this.localDevices[duid];
 			if (dev && dev.version === "L01") {
 				return dev.ackNonce !== undefined;
@@ -389,7 +388,6 @@ export class local_api {
 			return;
 		}
 
-		this.adapter.rLog("UDP", null, "Debug", "N/A", undefined, "UDP Discovery started", "debug");
 		const devices: Record<string, LocalDevice> = {};
 
 		// Create UDP socket
@@ -398,7 +396,6 @@ export class local_api {
 		this.discoveryServer = dgram.createSocket(socketOptions);
 
 		this.discoveryServer.on("message", async (msg) => {
-			this.adapter.rLog("UDP", null, "<-", "N/A", undefined, `UDP message received: ${msg.toString("hex")}`, "silly");
 			let decodedMessage: string | null = null;
 			let parsedMessage: any; // Structure depends on version
 
@@ -449,7 +446,6 @@ export class local_api {
 
 				if (!devices[duid]) {
 					devices[duid] = { ip, version };
-					this.adapter.rLog("UDP", duid, "Info", version, undefined, `Found local device: ${duid} @ ${ip} using version ${version}`, "debug");
 				}
 			} catch (error: any) {
 				this.adapter.rLog("UDP", null, "Error", "N/A", undefined, `Failed to process UDP message: ${error.stack}`, "warn");
@@ -458,7 +454,9 @@ export class local_api {
 
 		this.discoveryServer.on("listening", () => {
 			const addr = this.discoveryServer!.address();
-			this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP listening on ${addr.address}:${addr.port}`, "info");
+			const allDevices = this.adapter.http_api.getDevices();
+			const ownedDevices = allDevices.filter(d => !this.adapter.http_api.isSharedDevice(d.duid));
+			this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP listening on ${addr.address}:${addr.port} (Expecting ${ownedDevices.length} owned devices)`, "info");
 		});
 
 		this.discoveryServer.on("error", (error) => this.adapter.rLog("UDP", null, "Error", "N/A", undefined, `Server error: ${error.stack}`, "error"));
@@ -477,10 +475,7 @@ export class local_api {
 			const ownedDevices = allDevices.filter(d => !this.adapter.http_api.isSharedDevice(d.duid));
 			const expectedCount = ownedDevices.length;
 
-			this.adapter.rLog("UDP", null, "Debug", "N/A", undefined, `Expecting ${expectedCount} owned devices (of ${allDevices.length} total) for fast startup.`, "debug");
-
 			const checkFinished = () => {
-
 				// We check if we found ALL owned devices.
 				// (We might have found shared ones too, which is fine, but we only care about owned for the count)
 				let foundOwnedCount = 0;
@@ -494,8 +489,6 @@ export class local_api {
 					// All OWNED devices found!
 					// Enter Grace Period to catch potential Local Shared devices.
 					if (!this.gracePeriodTimer) {
-						this.adapter.rLog("UDP", null, "Debug", undefined, undefined, `All ${expectedCount} owned devices found. Waiting 1500ms for potential shared devices...`, "debug");
-
 						// Cancel the main timeout (10s) immediately, as we are now in "Finishing" mode.
 						if (this.discoveryTimer) {
 							clearTimeout(this.discoveryTimer);
@@ -504,7 +497,8 @@ export class local_api {
 
 						this.gracePeriodTimer = setTimeout(() => {
 							this.stopUdpDiscovery();
-							this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP discovery finished after grace period. Found ${Object.keys(devices).length} total devices.`, "info");
+							const duids = Object.keys(devices).join(", ");
+							this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP discovery finished. Found ${Object.keys(devices).length} total devices: [${duids}]`, "info");
 							this.localDevices = { ...devices };
 
 							// Trigger connection for all found devices
@@ -536,7 +530,8 @@ export class local_api {
 
 			this.discoveryTimer = setTimeout(() => {
 				this.stopUdpDiscovery();
-				this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP discovery finished after ${timeoutMs / 1000}s. Found ${Object.keys(devices).length}/${expectedCount} devices.`, "info");
+				const duids = Object.keys(devices).join(", ");
+				this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP discovery finished. Found ${Object.keys(devices).length}/${expectedCount} devices: [${duids}]`, "info");
 				// Update main list of local devices
 				this.localDevices = { ...devices };
 
@@ -567,7 +562,6 @@ export class local_api {
 				// ignore close errors
 			}
 			this.discoveryServer = null;
-			this.adapter.rLog("UDP", null, "Info", undefined, undefined, "UDP discovery stopped", "info");
 		}
 	}
 
@@ -598,15 +592,10 @@ export class local_api {
 	 */
 
 	async checkAndPromoteLocalConnection(duid: string, ip: string, timeoutMs = 5000, suppressLog = false): Promise<boolean> {
-		if (this.isConnected(duid)) return true;
-
-		this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `Probing ${ip} for local connection...`, "debug");
-
-		// Register temporarily to allow initiateClient to work
+		if (this.isConnected(duid)) return true;		// Register temporarily to allow initiateClient to work
 		if (!this.localDevices[duid]) {
 			// Fetch protocol version (mapped from cloud pv)
 			const version = await this.adapter.getDeviceProtocolVersion(duid);
-			this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `Probe using version: ${version}`, "debug");
 
 			this.localDevices[duid] = {
 				ip: ip,
@@ -619,7 +608,7 @@ export class local_api {
 		}
 
 		try {
-			await this.initiateClient(duid, timeoutMs, suppressLog);
+			await this.initiateClient(duid, suppressLog, timeoutMs);
 
 			if (this.isConnected(duid)) {
 				this.adapter.rLog("TCP", duid, "Info", "TCP", undefined, `Network Probe success! Device ${duid} is reachable at ${ip}. Promoted to Local Control.`, "info");
@@ -636,18 +625,11 @@ export class local_api {
 			// If we are here, TCP failed hard (timeout/refused), but initiateClient swallowed the error.
 			// We must clean up to prevent infinite reconnect loops.
 			throw new Error("TCP Connection failed (No socket established)");
-
 		} catch (e: any) {
 			// Probe failed - cleanup temporary registration AND cancel any scheduled reconnects
 			delete this.localDevices[duid];
 
-			// Important: initiateClient schedules a reconnect on failure. We must cancel it here.
-			if (this.reconnectPlanned.has(duid)) {
-				this.reconnectPlanned.delete(duid);
-				this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `Cancelled scheduled reconnect for failed probe.`, "debug");
-			}
-
-			this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `Network Probe failed for ${ip}: ${e.message}`, "debug");
+			this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `Network Probe failed for ${ip}: ${e.message} (Cloud Fallback)`, "debug");
 			return false;
 		}
 	}
@@ -679,7 +661,6 @@ export class local_api {
 		lenBuf.writeUInt32BE(msg.length, 0);
 
 		const wrapped = Buffer.concat([lenBuf, msg] as Uint8Array[]);
-
 
 		this.sendMessage(duid, wrapped);
 

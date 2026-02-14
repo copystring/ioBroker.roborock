@@ -448,7 +448,6 @@ export class Connection {
 	public async subscribeState(id: string): Promise<void> {
 		await this._checkReady("subscribeState"); // Wait for auth to complete
 		return new Promise((resolve) => {
-			// console.log(`[conn] Subscribing to ${id}`);
 			this._socket.emit("subscribe", id, () => {
 				resolve();
 			});
@@ -461,7 +460,6 @@ export class Connection {
 	public async unsubscribeState(id: string): Promise<void> {
 		await this._checkReady("unsubscribeState"); // Wait for auth to complete
 		return new Promise((resolve) => {
-			// console.log(`[conn] Unsubscribing from ${id}`);
 			this._socket.emit("unsubscribe", id, () => {
 				resolve();
 			});

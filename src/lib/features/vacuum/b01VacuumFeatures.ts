@@ -1,4 +1,4 @@
-﻿import { MapManager } from "../../map/MapManager";
+import { MapManager } from "../../map/MapManager";
 import { RoborockLocales } from "../../roborock_locales";
 import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
@@ -9,7 +9,6 @@ import { VACUUM_CONSTANTS } from "./vacuumConstants";
 import deviceDataSet = require("../../../../lib/protocols/q7_dataset.json");
 
 export class B01VacuumFeatures extends BaseDeviceFeatures {
-
 	// B01-specific properties
 	protected mapManager: MapManager;
 	protected locales: RoborockLocales;
@@ -18,10 +17,8 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 	protected consumableService: B01ConsumableService;
 	protected mapService: B01MapService;
 	protected controlService: B01ControlService;
-	// private cleanedLegacySegments = false;
+
 	private mappedRooms: Array<{ id: number; name: string }> | null = null;
-
-
 
 	constructor(
 		dependencies: FeatureDependencies,
@@ -42,8 +39,6 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 		this.deps.adapter.rLog("System", this.duid, "Info", "B01", undefined, `Constructing B01VacuumFeatures for ${robotModel}`, "info");
 	}
-
-
 
 	/**
 	 * Configures the command set for B01 devices.
@@ -85,7 +80,6 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			name: this.deps.adapter.translations["app_pause"] || "Pause Cleaning",
 			def: false
 		});
-
 
 		this.addCommand("app_charge", {
 			type: "boolean",
@@ -129,13 +123,6 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 				3: "High"
 			}
 		});
-
-
-
-
-
-
-
 
 		// 12. Update Map
 		this.addCommand("update_map", {
@@ -235,10 +222,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		return this.controlService.getCommandParams(method, params);
 	}
 
-
-
 	public override async initializeDeviceData(): Promise<void> {
-		this.deps.adapter.rLog("System", this.duid, "Info", "B01", undefined, `[initializeDeviceData] Starting sequential initialization...`, "debug");
 		await this.updateStatus();
 		await this.updateMap(); // Fetch map first to set current index
 		await this.updateMultiMapsList(); // Then get floors
@@ -252,7 +236,6 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			this.updateExtraStatus(),
 			this.updateNetworkInfo()
 		]);
-		this.deps.adapter.rLog("System", this.duid, "Info", "B01", undefined, `[initializeDeviceData] Sequential initialization complete.`, "debug");
 	}
 
 	public async updateRoomMapping(): Promise<void> {
@@ -388,7 +371,6 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		const stateId = `Devices.${this.duid}.deviceStatus.${key}`;
 		await this.deps.ensureState(stateId, common);
 
-
 		this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.${key}`, { val: val as ioBroker.StateValue, ack: true });
 	}
 
@@ -409,7 +391,6 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 	protected async processCleanSummary(result: unknown): Promise<void> {
 		await this.mapService.processCleanSummary(result);
 	}
-
 
 	public override async detectAndApplyRuntimeFeatures(statusData: Readonly<Record<string, unknown>>): Promise<boolean> {
 		// B01 features are statically defined, parameter unused but required by signature
@@ -600,7 +581,6 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 				states: states,
 			};
 		}
-
 
 		// 5. Dock Status
 		if (attribute === "dock_status") {
@@ -827,8 +807,6 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			};
 		}
 
-
-
 		// 22. Custom Type
 		if (attribute === "custom_type") {
 			return {
@@ -938,11 +916,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		}
 	}
 
-
-
-
 	protected static readonly MAPPED_CLEAN_SUMMARY: Record<string, string> = { 0: "clean_time", 1: "clean_area", 2: "clean_count", 3: "records", record_list: "records" };
-
 
 	public getCommonConsumable(attribute: string | number): Partial<ioBroker.StateCommon> | undefined {
 		return VACUUM_CONSTANTS.consumables[attribute as keyof typeof VACUUM_CONSTANTS.consumables] as Partial<ioBroker.StateCommon>;
@@ -997,7 +971,3 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		}
 	}
 }
-
-
-
-

@@ -1,5 +1,4 @@
-﻿
-import { beforeEach, describe, expect, it, vi } from "vitest";
+﻿import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Feature } from "../features/features.enum";
 import { V1VacuumFeatures } from "../features/vacuum/v1VacuumFeatures";
 import { MockAdapter } from "./MockAdapter";

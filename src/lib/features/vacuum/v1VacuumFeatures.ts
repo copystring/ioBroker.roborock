@@ -56,13 +56,11 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 	constructor(dependencies: FeatureDependencies, duid: string, robotModel: string, config: DeviceModelConfig = { staticFeatures: [] }, profile: VacuumProfile = DEFAULT_PROFILE) {
 		super(dependencies, duid, robotModel, config);
 
-
 		// Deep clone profile to avoid mutating shared static objects
 		this.profile = structuredClone(profile);
 	}
 
 	public override async initializeDeviceData(): Promise<void> {
-		this.deps.adapter.rLog("System", this.duid, "Info", "1.0", undefined, `[initializeDeviceData] Starting sequential initialization...`, "debug");
 		await this.updateMultiMapsList(); // 1. Load Floor List first (for names/metadata)
 		await this.updateStatus();        // 2. Get Status (triggers Room sync via first floor detection)
 		await this.updateMap();           // 3. Get Map Image
@@ -75,9 +73,7 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			this.updateTimers(),
 		]);
 		await this.updateConsumablesPercent();
-		this.deps.adapter.rLog("System", this.duid, "Info", "1.0", undefined, `[initializeDeviceData] Sequential initialization complete.`, "debug");
 	}
-
 
 	/**
 	 * Configures the standard command set for Protocol V1 devices.
@@ -108,8 +104,6 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 		this.addCommand("app_goto_target", { type: "json", role: "json", name: "Go To Target" });
 
 		this.addCommand("load_multi_map", { type: "number", role: "level", name: "Load Map", def: 0 });
-
-
 
 		this.addCommand("set_custom_mode", {
 			type: "number",
@@ -435,18 +429,26 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 				const mapQueue = new PQueue({ concurrency: 3 });
 
 				// Get all existing start times in one go to detect shifts
+				// Get all existing start times in one go using explicit IDs to avoid wildcard scan warning
 				const existingStartTimes: Record<string, number> = {}; // timestamp -> index
-				const states = await this.deps.adapter.getStatesAsync(`Devices.${this.duid}.cleaningInfo.records.*.startTime`);
+				// Use dynamic count from the device response.
+				// If a record was previously at a higher index (list shrank), it will be treated as new and re-fetched.
+				const scanLimit = data.records.length;
+				const checkIndices = Array.from({ length: scanLimit }, (_, i) => i);
+				const namespace = this.deps.adapter.namespace;
+				const recordIds = checkIndices.map(i => `${namespace}.Devices.${this.duid}.cleaningInfo.records.${i}.startTime`);
+
+				const states = await this.deps.adapter.getForeignStatesAsync(recordIds);
 
 				if (states) {
 					for (const id in states) {
 						if (states[id] && states[id].val) {
-							const parts = id.split(".");
 							// ID structure: roborock.0.Devices.<duid>.cleaningInfo.records.<index>.startTime
+							const parts = id.split(".");
 							// We need <index> which is 2nd from last
 							const index = parseInt(parts[parts.length - 2]);
 							if (!isNaN(index)) {
-								existingStartTimes[states[id].val as number] = index;
+								existingStartTimes[String(states[id].val)] = index;
 							}
 						}
 					}
@@ -559,7 +561,6 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			}
 		}, { priority });
 	}
-
 
 	public async updateNetworkInfo(): Promise<void> {
 		await this.requestAndProcess("get_network_info", [], "networkInfo");
@@ -759,6 +760,4 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 	public override getCurrentMapIndex(): number {
 		return this.mapService.currentIndex;
 	}
-
 }
-

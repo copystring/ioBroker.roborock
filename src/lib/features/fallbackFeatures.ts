@@ -1,7 +1,7 @@
 ﻿// src/lib/features/fallback_features.ts
 import { BaseDeviceFeatures, FeatureDependencies } from "./baseDeviceFeatures";
-import { V1VacuumFeatures } from "./vacuum/v1VacuumFeatures"; // Import Vacuum-Basis
 import { Feature } from "./features.enum";
+import { V1VacuumFeatures } from "./vacuum/v1VacuumFeatures"; // Import Vacuum-Basis
 
 // --- Generic fallback ---
 export class FallbackBaseFeatures extends BaseDeviceFeatures {
@@ -59,7 +59,7 @@ export class FallbackBaseFeatures extends BaseDeviceFeatures {
 
 // --- Specific Vacuum Fallback ---
 // ... imports
-import { VacuumProfile, DEFAULT_PROFILE } from "./vacuum/v1VacuumFeatures";
+import { DEFAULT_PROFILE, VacuumProfile } from "./vacuum/v1VacuumFeatures";
 
 // ...
 
@@ -77,11 +77,3 @@ export class FallbackVacuumFeatures extends V1VacuumFeatures {
 }
 
 // --- Example for future fallbacks ---
-// export class FallbackWashingMachineFeatures extends BaseWashingMachineFeatures {
-//     constructor(deps: FeatureDependencies, duid: string, robotModel: string) {
-//         super(deps, duid, robotModel, { staticFeatures: [] });
-//         this.deps.log.warn(`[${this.duid}] Using FallbackWashingMachineFeatures for model ${robotModel}.`);
-//     }
-//     // Implement specific fallback logic for washing machines here if needed
-// }
-

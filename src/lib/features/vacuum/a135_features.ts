@@ -59,4 +59,3 @@ export class A135Features extends V1VacuumFeatures {
 		super(dependencies, duid, "roborock.vacuum.a135", a135Config, PROFILE_A135);
 	}
 }
-

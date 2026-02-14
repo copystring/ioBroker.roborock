@@ -3,7 +3,6 @@ import * as mqtt from "mqtt";
 import * as zlib from "zlib";
 import type { Roborock } from "../main";
 import { MapDecryptor as B01MapDecryptor } from "./map/b01/MapDecryptor";
-
 import { PhotoManager } from "./PhotoManager";
 
 // PhotoManager logic handles protocol 300/301 for camera images
@@ -16,6 +15,7 @@ export class mqtt_api {
 	connected: boolean;
 	public photoManager: PhotoManager;
 	mqttOptions: any;
+	reconnectTimer: any;
 
 	constructor(adapter: Roborock) {
 		this.adapter = adapter;
@@ -25,6 +25,7 @@ export class mqtt_api {
 		this.client = null;
 		this.connected = false;
 		this.mqttOptions = null;
+		this.reconnectTimer = null;
 
 		this.photoManager = new PhotoManager(this.adapter);
 	}
@@ -206,7 +207,6 @@ export class mqtt_api {
 	 * @param client - The MQTT client instance.
 	 */
 	async subscribe_mqtt_message(client: any): Promise<void> {
-
 		client.on("message", async (topic: string, message: Buffer) => {
 			try {
 				/**
@@ -215,15 +215,11 @@ export class mqtt_api {
 				 */
 				const parts = topic.split("/");
 				const duid = parts[parts.length - 1]; // ALWAYS use the last segment as the DUID
-				const topicEndpoint = parts[parts.length - 2]; // Use the penultimate as endpoint
 
 				if (!duid) {
 					this.adapter.rLog("MQTT", null, "Error", "MQTT", undefined, `Could not extract DUID from topic: ${topic}`, "warn");
 					return;
 				}
-
-
-
 				let finalDuid = duid;
 
 				// Verify identity against known devices
@@ -242,22 +238,8 @@ export class mqtt_api {
 						}
 					}
 				}
-
-
-
-				// Decode the Roborock binary message wrapper
 				const dataArr = this.adapter.requestsHandler.messageParser.decodeMsg(message, duid);
 				const allMessages = Array.isArray(dataArr) ? dataArr : dataArr ? [dataArr] : [];
-
-				// Check binary after decode to avoid logging binary content as RAW text unnecessarily
-				const isBinary = allMessages.some((d: any) => d.protocol === 300 || d.protocol === 301);
-
-				// Only log RAW packets if they are NOT binary (maps/photos) to reduce spam, or if level is silly
-				if (!isBinary) {
-					this.adapter.rLog("MQTT", finalDuid, "<-", "RAW", undefined, `Packet: ${topicEndpoint} | byteLen: ${message.length}`, "silly");
-				} else {
-					this.adapter.rLog("MQTT", finalDuid, "<-", "RAW", undefined, `Packet: ${topicEndpoint} | byteLen: ${message.length}`, "silly");
-				}
 
 				for (const data of allMessages) {
 					await this.handleDecodedMessage(finalDuid, data);
@@ -347,9 +329,6 @@ export class mqtt_api {
 			this.adapter.rLog("MQTT", duid, "<-", "B01", reqId, `Response finished recently.`, "debug");
 			return;
 		}
-
-		// Suppress logs for common B01 pushes or unsolicited responses
-		this.adapter.rLog("MQTT", duid, "<-", "B01", reqId, `Response not found in pending requests. Discarding.`, "silly");
 	}
 
 	/**
@@ -397,9 +376,6 @@ export class mqtt_api {
 		try {
 			const payloadStr = data.payload.toString();
 			const parsedPayload = JSON.parse(payloadStr);
-
-			this.adapter.rLog("MQTT", duid, "<-", data.version, undefined, `Message | ${payloadStr}`, "debug");
-
 			if (data.version === "B01") {
 				await this.dispatchB01Message(duid, parsedPayload);
 			} else {
@@ -464,13 +440,9 @@ export class mqtt_api {
 
 				if (hasStatusResult || isPropPost) {
 					// Discard unsolicited updates from official App silently
-					this.adapter.rLog("MQTT", duid, "<-", "102", dps102.id, `Unsolicited Status update discarded (App Response).`, "silly", dps102.id);
 				} else if (!isRecentlyFinished) {
-					this.adapter.rLog("MQTT", duid, "<-", "102", dps102.id, `Response not found in pending requests. Discarding.`, "silly", dps102.id);
 				}
 			}
-
-
 		} catch (e) {
 			this.adapter.rLog("MQTT", duid, "Error", "102", undefined, `Failed to parse Protocol 102: ${e}`, "error");
 		}
@@ -482,7 +454,6 @@ export class mqtt_api {
 		if (isBinaryDataMethod) {
 			const isSuccessOk = dps102.result === "ok" || (Array.isArray(dps102.result) && dps102.result[0] === "ok");
 			if (isSuccessOk) {
-				this.adapter.rLog("MQTT", duid, "<-", pending.version || "1.0", "102", `Map/Photo ACK for ${pending.method}. Waiting for data.`, "silly", dps102.id);
 			} else {
 				this.adapter.requestsHandler.resolvePendingRequest(dps102.id, dps102.result, protocol, duid, "MQTT");
 			}
@@ -519,18 +490,40 @@ export class mqtt_api {
 	 */
 	async handlePhotoOrMapData(duid: string, data: any): Promise<void> {
 		const payloadBuf = data.payload as Buffer;
-		const isRoborockHeader = payloadBuf.length > 8 && payloadBuf.subarray(0, 8).equals(Buffer.from("ROBOROCK"));
 
-		if (data.protocol === 300) {
-			const isPhotoPacket = await this.photoManager.handlePhotoProtocol300(duid, payloadBuf, isRoborockHeader);
-			if (isPhotoPacket) return;
-		} else if (data.protocol === 301) {
-			const isPhotoPacket = await this.photoManager.handlePhotoProtocol301(duid, payloadBuf, isRoborockHeader);
-			if (isPhotoPacket) return;
+		const pending: any = this.adapter.requestsHandler.getPendingBinaryRequest(payloadBuf, duid);
+
+		if (pending) {
+			const binaryType = pending.binaryType;
+			const msgId = pending.messageID;
+
+			if (binaryType === "photo") {
+				if (data.protocol === 300) {
+					await this.photoManager.handlePhotoProtocol300(duid, payloadBuf);
+				} else {
+					// Force processing as photo (even if mapped as generic P301)
+					await this.photoManager.handlePhotoProtocol301(duid, payloadBuf, msgId);
+				}
+				return;
+			} else if (binaryType === "map") {
+				if (data.protocol === 301) {
+					await this.handleV1MapPacket(duid, data, payloadBuf);
+				} else if (data.protocol === 302) {
+					await this.handleB01Map(duid, data, payloadBuf);
+				}
+				return;
+			}
 		}
 
-		if (data.protocol === 301) {
-			await this.handleV1MapPacket(duid, data, payloadBuf);
+		// Absolute fallback for unexpected or unflagged data (e.g. unsolicited packets or headerless Type 0 chunks)
+		if (data.protocol === 300) {
+			await this.photoManager.handlePhotoProtocol300(duid, payloadBuf);
+		} else if (data.protocol === 301) {
+			// Try PhotoManager first as it tracks active raw photo streams (Type 0)
+			const handledAsPhoto = await this.photoManager.handlePhotoProtocol301(duid, payloadBuf);
+			if (!handledAsPhoto) {
+				await this.handleV1MapPacket(duid, data, payloadBuf);
+			}
 		} else if (data.protocol === 302) {
 			await this.handleB01Map(duid, data, payloadBuf);
 		}
@@ -550,14 +543,14 @@ export class mqtt_api {
 				return;
 			}
 
-			const unzipped = this.decryptAndUnzipV1MapCore(payloadBuf.subarray(24), duid);
+			const unzipped = this.decryptAndUnzipV1MapCore(payloadBuf.subarray(24));
 			this.adapter.requestsHandler.resolvePendingRequest(msgId, unzipped, data.protocol, duid, "MQTT", "1.0");
 		} catch (e: any) {
 			this.adapter.rLog("MQTT", duid, "Error", "1.0", String(data.protocol), `V1 Map processing failed: ${e.message}`, "error");
 		}
 	}
 
-	private decryptAndUnzipV1MapCore(decryptedPayload: Buffer, duid?: string): Buffer {
+	private decryptAndUnzipV1MapCore(decryptedPayload: Buffer): Buffer {
 		// Note: The outer payload (decryptedPayload) is already decrypted by the messageParser (Protocol 101/301 wrapper).
 		// However, for V1 Maps, the inner content is encrypted AGAIN using AES-128-CBC with the adapter nonce.
 		try {
@@ -565,12 +558,6 @@ export class mqtt_api {
 			const decipher = crypto.createDecipheriv("aes-128-cbc", this.adapter.nonce, iv);
 			let decrypted = decipher.update(decryptedPayload as Uint8Array);
 			decrypted = Buffer.concat([decrypted as Uint8Array, decipher.final()]);
-
-			if (duid) {
-				const sig = decrypted.subarray(0, 2).toString("ascii");
-				this.adapter.rLog("MQTT", duid, "Debug", "1.0", "301", `Decrypted Reassembled Map | Sig: ${sig} (${decrypted.subarray(0, 4).toString("hex")}) | Size: ${decrypted.length}`, "debug");
-			}
-
 			try {
 				return zlib.gunzipSync(decrypted as Uint8Array);
 			} catch {
@@ -591,9 +578,6 @@ export class mqtt_api {
 
 			if (foundId !== -1) {
 				this.adapter.requestsHandler.resolvePendingRequest(foundId, workingBuf, data.protocol, duid, "MQTT", "B01");
-			} else {
-				// Discard unsolicited B01 maps silenty (often from Official App)
-				this.adapter.rLog("MQTT", duid, "<-", "B01", "301", `Unsolicited B01 Map packet ignored.`, "silly");
 			}
 		} catch (e: any) {
 			this.adapter.rLog("MQTT", duid, "Error", "B01", undefined, `B01 Map processing failed: ${e.message}`, "error");
@@ -679,8 +663,18 @@ export class mqtt_api {
 		return crypto.createHash("md5").update(str).digest();
 	}
 
-	clearIntervals(): void {
-		this.photoManager.clearIntervals();
+	public clearIntervals(): void {
+		if (this.reconnectTimer) {
+			this.adapter.clearTimeout(this.reconnectTimer);
+			this.reconnectTimer = null;
+		}
+
+		if (this.photoManager) {
+			this.photoManager.clearIntervals();
+		}
+
+		this.client?.end();
+		this.client = undefined;
 	}
 
 	cleanup(): void {

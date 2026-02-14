@@ -1,4 +1,3 @@
-
 import type { RoborockLocales } from "../../../roborock_locales";
 import { FeatureDependencies } from "../../baseDeviceFeatures";
 
@@ -41,14 +40,13 @@ export class B01MapService {
 					this.deps.adapter.pendingRequests.delete(dummyId);
 				}
 			}, 15000);
-
 		} catch (e: any) {
 			this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Failed to trigger B01 map update: ${e.message}`, "warn");
 		}
 	}
 
 	protected async processUpdateMapResponse(data: Buffer): Promise<void> {
-		this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `Received Map Data (${data.length} bytes)`, "silly");
+		this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `Received Map Data (${data.length} bytes)`, "debug");
 
 		const mapRes = await this.deps.adapter.mapManager.processMap(data, "B01", this.deps.adapter.http_api.getRobotModel(this.duid) || "B01", this.duid, null, this.duid, "B01History");
 
@@ -154,7 +152,9 @@ export class B01MapService {
 				records: recordList.map((r: any) => {
 					try {
 						return typeof r.detail === "string" ? JSON.parse(r.detail) : r.detail;
-					} catch { return null; }
+					} catch {
+						return null;
+					}
 				}).filter((r: any) => r !== null)
 			};
 
@@ -287,7 +287,7 @@ export class B01MapService {
 				return;
 			}
 
-			this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `Received History Map Data (${data.length} bytes)`, "silly");
+			this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `Received History Map Data (${data.length} bytes)`, "debug");
 
 			const mapRes = await this.deps.adapter.mapManager.processMap(
 				data,
@@ -325,7 +325,6 @@ export class B01MapService {
 		await this.deps.ensureFolder(floorFolder, floorName);
 
 		// We assume mappedRooms is [{ id: 10, name: "Living Room" }, ...] or [{ roomId: 10, roomName: "Living Room" }, ...]
-
 
 		const rooms = mappedRooms || [];
 

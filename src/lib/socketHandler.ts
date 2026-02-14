@@ -9,7 +9,7 @@ interface Robot {
 }
 
 // Message handler type
-type MessageHandler = (message: any) => Promise<any>;
+type MessageHandler = (message: any, id?: string | number) => Promise<any>;
 
 export class socketHandler {
 	private adapter: Roborock;
@@ -24,12 +24,12 @@ export class socketHandler {
 		this.commandHandlers = new Map<string, MessageHandler>();
 		this.commandHandlers.set("getDeviceList", () => this.handleGetDeviceList());
 
-		this.commandHandlers.set("app_start", (msg) => this.handleSimpleCommand(msg.duid, "app_start"));
-		this.commandHandlers.set("app_pause", (msg) => this.handleSimpleCommand(msg.duid, "app_pause"));
-		this.commandHandlers.set("app_stop", (msg) => this.handleSimpleCommand(msg.duid, "app_stop"));
-		this.commandHandlers.set("app_charge", (msg) => this.handleSimpleCommand(msg.duid, "app_charge"));
-		this.commandHandlers.set("app_goto_target", (msg) => this.handleGotoTarget(msg));
-		this.commandHandlers.set("app_zoned_clean", (msg) => this.handleZonedClean(msg));
+		this.commandHandlers.set("app_start", (msg, id) => this.handleSimpleCommand(msg.duid, "app_start", id));
+		this.commandHandlers.set("app_pause", (msg, id) => this.handleSimpleCommand(msg.duid, "app_pause", id));
+		this.commandHandlers.set("app_stop", (msg, id) => this.handleSimpleCommand(msg.duid, "app_stop", id));
+		this.commandHandlers.set("app_charge", (msg, id) => this.handleSimpleCommand(msg.duid, "app_charge", id));
+		this.commandHandlers.set("app_goto_target", (msg, id) => this.handleGotoTarget(msg, id));
+		this.commandHandlers.set("app_zoned_clean", (msg, id) => this.handleZonedClean(msg, id));
 	}
 
 	/**
@@ -62,8 +62,8 @@ export class socketHandler {
 
 		// Centralized error handling
 		try {
-			// Extract message payload
-			const result = await handler(obj.message);
+			// Extract message payload and pass callback ID
+			const result = await handler(obj.message, obj.callback?.id);
 			if (obj.callback) {
 				this.adapter.sendTo(obj.from, obj.command, result, obj.callback);
 			}
@@ -89,16 +89,16 @@ export class socketHandler {
 			return;
 		}
 
-		const obstacleId = msg.message.obstacleId;
+		const obstacleId = msg.message.obstacleId || msg.message.imgId || msg.message.img_id;
 
 		if (obstacleId === undefined || obstacleId === null) {
-			this.adapter.rLog("MapManager", duid, "Warn", undefined, undefined, "[Photo] Received get_obstacle_image request without obstacleId", "warn");
-			if (msg.callback) this.adapter.sendTo(msg.from, msg.command, { error: "Missing obstacleId" }, msg.callback);
+			this.adapter.rLog("MapManager", duid, "Warn", undefined, undefined, "[Photo] Received get_photo request without obstacleId or imgId", "warn");
+			if (msg.callback) this.adapter.sendTo(msg.from, msg.command, { error: "Missing ID" }, msg.callback);
 			return;
 		}
 
-		const imageType = msg.message.type !== undefined ? msg.message.type : 1;
-		this.adapter.rLog("MapManager", duid, "Info", undefined, undefined, `[Photo] Requesting obstacle image type: ${imageType}`, "info");
+		const imageType = msg.message.type !== undefined ? Number(msg.message.type) : 1;
+		this.adapter.rLog("MapManager", duid, "Debug", undefined, undefined, `[Photo] Requesting image type: ${imageType} (ID: ${obstacleId})`, "debug");
 
 		try {
 			if (!this.adapter.requestsHandler) {
@@ -110,7 +110,7 @@ export class socketHandler {
 				throw new Error(`No device handler found for DUID ${duid}`);
 			}
 
-			const photoResponse = await handler.getPhoto(obstacleId, imageType);
+			const photoResponse = await handler.getPhoto(obstacleId, imageType, msg.callback ? msg.callback.id : undefined);
 
 			let potentialBuffer: Buffer | null = null;
 			let bbox: any = null;
@@ -136,19 +136,25 @@ export class socketHandler {
 
 			if (Buffer.isBuffer(potentialBuffer)) {
 				let mimeType = "image/png";
+				// Check for JPEG (FF D8)
 				if (potentialBuffer[0] === 0xff && potentialBuffer[1] === 0xd8) {
 					mimeType = "image/jpeg";
+				} else if (potentialBuffer[0] === 0x89 && potentialBuffer[1] === 0x50 && potentialBuffer[2] === 0x4e && potentialBuffer[3] === 0x47) {
+					mimeType = "image/png";
+				} else {
+					this.adapter.rLog("MapManager", duid, "Warn", undefined, undefined, `[Photo] Unknown image format. Header: ${potentialBuffer.subarray(0, 8).toString("hex")}`, "warn");
 				}
-				this.adapter.rLog("MapManager", duid, "Debug", undefined, undefined, `[Photo] Converting Buffer to Base64. Length: ${potentialBuffer.length}. Mime: ${mimeType}`, "debug");
+
+				const base64Str = potentialBuffer.toString("base64");
 				payload = {
-					image: `data:${mimeType};base64,` + potentialBuffer.toString("base64"),
+					image: `data:${mimeType};base64,` + base64Str,
 					bbox: bbox
 				};
 			}
 
 			if (msg.callback) {
 				const imageLen = (payload && payload.image) ? payload.image.length : 0;
-				this.adapter.rLog("MapManager", duid, "Info", undefined, undefined, `[Photo] Sending photo response to frontend (Image length: ${imageLen})`, "info");
+				this.adapter.rLog("MapManager", duid, "Debug", undefined, undefined, `[Photo] Sending photo response to frontend (Image length: ${imageLen})`, "debug");
 				this.adapter.sendTo(msg.from, msg.command, payload, msg.callback);
 			}
 		} catch (error: any) {
@@ -207,50 +213,50 @@ export class socketHandler {
 	/**
 	 * Handles simple commands.
 	 */
-	private async handleSimpleCommand(duid: string, command: string): Promise<{ result: string }> {
+	private async handleSimpleCommand(duid: string, command: string, id?: string | number): Promise<{ result: string }> {
 		if (!duid) throw new Error(`Invalid message: '${command}' requires a 'duid'.`);
-		this.adapter.rLog("System", duid, "Info", undefined, undefined, `Received '${command}'`, "info");
+		this.adapter.rLog("System", duid, "Info", undefined, undefined, `Received '${command}' (ID: ${id})`, "info");
 
 		const handler = this.adapter.deviceFeatureHandlers.get(duid);
 		if (!handler) throw new Error(`No handler for DUID ${duid}`);
 
-		await this.adapter.requestsHandler.command(handler, duid, command);
+		await this.adapter.requestsHandler.command(handler, duid, command, undefined, id ? String(id) : undefined);
 		return { result: "ok" };
 	}
 
 	/**
 	 * Handles 'app_goto_target'.
 	 */
-	private async handleGotoTarget(message: { duid: string; points: [number, number] }): Promise<{ result: string }> {
+	private async handleGotoTarget(message: { duid: string; points: [number, number] }, id?: string | number): Promise<{ result: string }> {
 		const { duid, points } = message;
 		if (!duid || !points || !Array.isArray(points) || points.length !== 2) {
 			throw new Error("Invalid 'app_goto_target' message: requires 'duid' and 'points' array [x, y]");
 		}
 
-		this.adapter.rLog("System", duid, "Info", undefined, undefined, `Received 'app_goto_target' with points: ${JSON.stringify(points)}`, "info");
+		this.adapter.rLog("System", duid, "Info", undefined, undefined, `Received 'app_goto_target' with points: ${JSON.stringify(points)} (ID: ${id})`, "info");
 
 		const handler = this.adapter.deviceFeatureHandlers.get(duid);
 		if (!handler) throw new Error(`No handler for DUID ${duid}`);
 
-		await this.adapter.requestsHandler.command(handler, duid, "app_goto_target", points);
+		await this.adapter.requestsHandler.command(handler, duid, "app_goto_target", points, id ? String(id) : undefined);
 		return { result: "ok" };
 	}
 
 	/**
 	 * Handles 'app_zoned_clean'.
 	 */
-	private async handleZonedClean(message: { duid: string; zones: any[] }): Promise<{ result: string }> {
+	private async handleZonedClean(message: { duid: string; zones: any[] }, id?: string | number): Promise<{ result: string }> {
 		const { duid, zones } = message;
 		if (!duid || !zones || !Array.isArray(zones)) {
 			throw new Error("Invalid 'app_zoned_clean' message: requires 'duid' and 'zones' array");
 		}
 
-		this.adapter.rLog("System", duid, "Info", undefined, undefined, `Received 'app_zoned_clean' with zones: ${JSON.stringify(zones)}`, "info");
+		this.adapter.rLog("System", duid, "Info", undefined, undefined, `Received 'app_zoned_clean' with zones: ${JSON.stringify(zones)} (ID: ${id})`, "info");
 
 		const handler = this.adapter.deviceFeatureHandlers.get(duid);
 		if (!handler) throw new Error(`No handler for DUID ${duid}`);
 
-		await this.adapter.requestsHandler.command(handler, duid, "app_zoned_clean", zones);
+		await this.adapter.requestsHandler.command(handler, duid, "app_zoned_clean", zones, id ? String(id) : undefined);
 		return { result: "ok" };
 	}
 }

@@ -58,8 +58,12 @@ describe("V1VacuumFeatures", () => {
 	});
 
 	class TestVacuum extends V1VacuumFeatures {
-		protected getDynamicFeatures(): Set<Feature> { return new Set(); }
-		public async detectAndApplyRuntimeFeatures(): Promise<boolean> { return false; }
+		protected getDynamicFeatures(): Set<Feature> {
+			return new Set();
+		}
+		public async detectAndApplyRuntimeFeatures(): Promise<boolean> {
+			return false;
+		}
 	}
 
 	it("should parse dss bitmask correctly in updateDockingStationStatus", async () => {
@@ -132,8 +136,6 @@ describe("V1VacuumFeatures", () => {
 		requestsHandlerMock.sendRequest.mockResolvedValue(null);
 
 		await (vacuum as any).getCleaningRecordMap(1234567890);
-
-
 
 		expect(requestsHandlerMock.sendRequest).toHaveBeenCalledWith(
 			"duid1",

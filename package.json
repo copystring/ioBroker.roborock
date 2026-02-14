@@ -25,7 +25,7 @@
   "dependencies": {
     "@iobroker/adapter-core": "^3.3.2",
     "@napi-rs/canvas": "^0.1.85",
-    "axios": "^1.13.5",
+    "axios": "^1.13.2",
     "binary-parser": "^2.3.0",
     "crc-32": "^1.2.2",
     "d3": "^7.9.0",

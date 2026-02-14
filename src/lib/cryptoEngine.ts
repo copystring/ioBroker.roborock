@@ -43,27 +43,105 @@ function toBuffer(input: string | Buffer): Buffer {
 export const cryptoEngine = {
 	/**
 	 * Generates an RSA keypair if one does not already exist.
+	 * 1024 bits are required for the Roborock photo protocol to fit the 128-byte block.
 	 */
 	ensureRsaKeys() {
 		if (rsaKeys) return rsaKeys;
-		const kp = forge.pki.rsa.generateKeyPair(2048);
+		// Standard 1024-bit key generation as per original code
+		const kp = forge.pki.rsa.generateKeyPair(1024);
+
+		const padHex = (hex: string): string => (hex.length % 2 === 1 ? "0" + hex : hex);
+
 		rsaKeys = {
 			public: {
-				n: kp.publicKey.n.toString(16),
+				n: padHex(kp.publicKey.n.toString(16)),
 				e: kp.publicKey.e.toString(16),
 			},
 			private: {
-				n: kp.privateKey.n.toString(16),
+				n: padHex(kp.privateKey.n.toString(16)),
 				e: kp.privateKey.e.toString(16),
-				d: kp.privateKey.d.toString(16),
-				p: kp.privateKey.p.toString(16),
-				q: kp.privateKey.q.toString(16),
-				dmp1: kp.privateKey.dP.toString(16),
-				dmq1: kp.privateKey.dQ.toString(16),
-				coeff: kp.privateKey.qInv.toString(16),
+				d: padHex(kp.privateKey.d.toString(16)),
+				p: padHex(kp.privateKey.p.toString(16)),
+				q: padHex(kp.privateKey.q.toString(16)),
+				dmp1: padHex(kp.privateKey.dP.toString(16)),
+				dmq1: padHex(kp.privateKey.dQ.toString(16)),
+				coeff: padHex(kp.privateKey.qInv.toString(16)),
 			},
 		};
 		return rsaKeys;
+	},
+
+	/**
+	 * Decrypts data using RSA private key (PKCS#1 v1.5 padding).
+	 */
+	decryptRSA(ciphertext: Buffer): Buffer {
+		const keys = this.ensureRsaKeys();
+		const privateKey = forge.pki.setRsaPrivateKey(
+			new forge.jsbn.BigInteger(keys.private.n, 16),
+			new forge.jsbn.BigInteger(keys.private.e, 16),
+			new forge.jsbn.BigInteger(keys.private.d, 16),
+			new forge.jsbn.BigInteger(keys.private.p, 16),
+			new forge.jsbn.BigInteger(keys.private.q, 16),
+			new forge.jsbn.BigInteger(keys.private.dmp1, 16),
+			new forge.jsbn.BigInteger(keys.private.dmq1, 16),
+			new forge.jsbn.BigInteger(keys.private.coeff, 16)
+		);
+
+		let decryptedRawStr: string | null = null;
+
+		try {
+			// Use 'RAW' to bypass node-forge's strict checks and debug the actual decrypted content
+			decryptedRawStr = privateKey.decrypt(ciphertext.toString("binary"), "RAW");
+			const buf = Buffer.from(decryptedRawStr, "binary");
+
+			// Manual PKCS#1 v1.5 Unpadding (Block Type 2)
+			// Expected: 00 02 [padding...] 00 [data]
+
+			let offset = 0;
+			// Strict check for 128 bytes (1024 bits)
+			if (buf.length === 128) {
+				if (buf[0] === 0x00 && buf[1] === 0x02) {
+					offset = 2;
+				} else if (buf[0] === 0x02) {
+					// Tolerate missing leading zero if library stripped it (treating as number)
+					offset = 1;
+				} else {
+					throw new Error(`Invalid PKCS#1 header. Bytes: ${buf.subarray(0, 4).toString("hex")}`);
+				}
+			} else if (buf.length === 127 && buf[0] === 0x02) {
+				// Tolerate missing leading zero
+				offset = 1;
+			} else {
+				throw new Error(`Unexpected block length: ${buf.length}`);
+			}
+
+			// Scan for 0x00 separator
+			let separatorIndex = -1;
+			for (let i = offset; i < buf.length; i++) {
+				if (buf[i] === 0x00) {
+					separatorIndex = i;
+					break;
+				}
+			}
+
+			if (separatorIndex === -1) {
+				throw new Error("Invalid PKCS#1 padding: No separator 0x00 found");
+			}
+
+			// Data is after the separator
+			return buf.subarray(separatorIndex + 1);
+		} catch (e: any) {
+			throw new Error(`RSA Decrypt failed: ${e.message}`);
+		}
+	},
+
+	/**
+	 * Decrypts data using AES-128-CBC without auto-padding (manual unpadding or structured data).
+	 */
+	decryptAES_CBC(ciphertext: Buffer, key: Buffer, iv: Buffer): Buffer {
+		const decipher = crypto.createDecipheriv("aes-128-cbc", key, iv);
+		decipher.setAutoPadding(true);
+		return Buffer.concat([decipher.update(ciphertext as Uint8Array), decipher.final()]);
 	},
 
 	// ---------- V1 (AES-128-ECB) ----------
@@ -240,5 +318,51 @@ export const cryptoEngine = {
 		let encrypted = cipher.update(password, "utf8", "base64");
 		encrypted += cipher.final("base64");
 		return encrypted;
+	},
+
+	/**
+	 * Specialized for Roborock photos:
+	 * 1. Brute-force searches for an RSA-encrypted block (128 bytes) within the payload.
+	 * 2. Decrypts it to retrieve the AES Key and IV.
+	 * 3. Decrypts the remaining payload using AES-128-CBC.
+	 */
+	decryptPhotoPayload(encryptedData: Buffer): Buffer {
+		for (let offset = 0; offset < 256; offset++) {
+			if (offset + 128 > encryptedData.length) break;
+
+			try {
+				const block = encryptedData.subarray(offset, offset + 128);
+				let decryptedKeyBlock: Buffer | null = null;
+
+				// 1. Try Standard Decryption
+				try {
+					decryptedKeyBlock = this.decryptRSA(block);
+				} catch {
+					// Silent fail during brute force
+				}
+
+				// 2. Try Reversed Decryption (Fallback for some models)
+				if (!decryptedKeyBlock) {
+					const reversedBlock = Buffer.from(block).reverse();
+					try {
+						decryptedKeyBlock = this.decryptRSA(reversedBlock);
+					} catch {
+						// Silent fail
+					}
+				}
+
+				if (decryptedKeyBlock && decryptedKeyBlock.length >= 32) {
+					const aesIv = decryptedKeyBlock.subarray(0, 16);
+					const aesKey = decryptedKeyBlock.subarray(16, 48);
+					const encryptedPayload = encryptedData.subarray(offset + 128);
+
+					return this.decryptAES_CBC(encryptedPayload, aesKey, aesIv);
+				}
+			} catch {
+				// Unexpected error in logic, skip offset
+			}
+		}
+
+		throw new Error("RSA Search Failed: Could not find valid RSA block in photo payload.");
 	},
 };

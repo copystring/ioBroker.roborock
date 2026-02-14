@@ -45,7 +45,7 @@ export class MapManager {
 
 					const mapBuf = await this.builderB01.buildMap(mapData, model, duid, deviceStatus);
 					const duration = Date.now() - startTime;
-					this.adapter.rLog("MapManager", duid || null, "Info", version, 301, `B01 Map Built. Buffer Size: ${mapBuf.length}. Duration: ${duration}ms`, "silly");
+					this.adapter.rLog("MapManager", duid || null, "Info", version, 301, `B01 Map Built. Buffer Size: ${mapBuf.length}. Duration: ${duration}ms`, "debug");
 
 					const mapBase64 = "data:image/png;base64," + mapBuf.toString("base64");
 					return {
@@ -144,7 +144,6 @@ export class MapManager {
 			}
 
 			await Promise.all(tasks);
-			this.adapter.rLog("MapManager", duid, "Debug", "Map", undefined, `Saved map to states. Base64 Len: ${res.mapBase64.length}`, "silly");
 		} catch (e: any) {
 			this.adapter.rLog("MapManager", duid, "Error", "Map", undefined, `Failed to save map states: ${e.message}`, "error");
 		}

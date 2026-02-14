@@ -192,7 +192,6 @@ export class MapParser {
 		let dataLength = buf.length;
 
 		if (buf.length >= 20 && buf[0x00] === 0x72 && buf[0x01] === 0x72) {
-			this.adapter.rLog("MapManager", null, "Debug", "1.0", undefined, "Found 'rr' header. Parsing as Standard Map.", "silly");
 			metaData = this.parseHeader(buf);
 
 			if (!metaData.header_length) {
@@ -207,7 +206,7 @@ export class MapParser {
 			dataPosition = 0x14; // Skip 20-byte header
 			dataLength = metaData.data_length;
 		} else if (options.isHistoryMap) {
-			this.adapter.rLog("MapManager", null, "Debug", "1.0", undefined, "Parsing as History Map (No 'rr' Header).", "silly");
+			this.adapter.rLog("MapManager", null, "Debug", "1.0", undefined, "Parsing as History Map (No 'rr' Header).", "debug");
 			metaData = { map_index: -1 } as any;
 			dataPosition = 0;
 			dataLength = buf.length;
@@ -410,7 +409,7 @@ export class MapParser {
 							break;
 						case TYPES.UNKNOWN_40:
 						case TYPES.UNKNOWN_56:
-							this.adapter.rLog("MapManager", null, "Debug", "1.0", undefined, `Received known unknown block type ${type} with length ${length}. Data: ${blockBuffer.toString("hex")}`, "silly");
+							this.adapter.rLog("MapManager", null, "Debug", "1.0", undefined, `Received known unknown block type ${type} with length ${length}. Data: ${blockBuffer.toString("hex")}`, "debug");
 							break;
 					}
 				} catch (e: any) {

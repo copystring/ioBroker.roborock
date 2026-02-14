@@ -1,4 +1,3 @@
-
 import { createCanvas, Image, loadImage } from "@napi-rs/canvas";
 import * as fs from "fs";
 import * as path from "path";
@@ -16,8 +15,6 @@ import {
 	SCCleanType,
 	SUBTITLE_STATUS
 } from "./constants";
-
-
 
 export class MapBuilder {
 	private readonly SCALE = 8; // High Res output
@@ -138,7 +135,7 @@ export class MapBuilder {
 				// --- 3. Load Room Icons (Bubble Tags) ---
 				// The user has `roomtag_bubble_X.png`. We load specific IDs (1-32 is a safe range for room types)
 				// plus the mapped names from ROOM_TYPE_MAP just in case.
-				const roomIdsToLoad = Array.from({length: 32}, (_, i) => i + 1); // 1 to 32
+				const roomIdsToLoad = Array.from({ length: 32 }, (_, i) => i + 1); // 1 to 32
 
 				for (const id of roomIdsToLoad) {
 					// IMPORTANT: The 'tag' version is the white symbol without the blue bubble background.
@@ -190,12 +187,10 @@ export class MapBuilder {
 				]);
 				if (otherImg) this.assets!.rooms["other"] = otherImg;
 
-
 				if (Object.keys(this.assets!.robot).length === 0) {
 					missingCritical = true;
 					if (isRetry && this.adapter) this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, "SEVERE ERROR: No Robot assets found!", "error");
 				}
-
 			} catch (e: any) {
 				if (this.adapter) this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, `Error loading assets: ${e.message}`, "error");
 			}
@@ -211,14 +206,13 @@ export class MapBuilder {
 			try {
 				await this.adapter.appPluginManager.updateProduct(duid);
 				await attemptLoad(true);
-			} catch(e: any) {
+			} catch (e: any) {
 				this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, `Asset re-download failed: ${e.message}`, "error");
 				await attemptLoad(true);
 			}
 		} else if (!success && this.adapter) {
 			this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, "SEVERE ERROR: Assets missing, cannot re-download (No DUID/Manager).", "error");
 		}
-
 
 		this.assetsLoaded = true;
 	}
@@ -266,7 +260,6 @@ export class MapBuilder {
 		if (isBuildModel && isCleaning) {
 			key = "icon_93";
 		}
-
 
 		if (isGoCharging || deviceState === SUBTITLE_STATUS.BREAK_RECHARGING) {
 			key = isDarkMode ? "icon_94" : "icon_95";
@@ -500,7 +493,7 @@ export class MapBuilder {
 
 		// 3. Zones & Walls
 		const drawNoGoZone = (area: B01Area, isForbidden: boolean) => {
-			if(!area || !area.points || area.points.length < 4) return;
+			if (!area || !area.points || area.points.length < 4) return;
 			const lineWidth = 1.0;
 			// 1. Geometry Calculation
 			const p = area.points.map(pt => toPixel(pt.x, pt.y));
@@ -545,14 +538,14 @@ export class MapBuilder {
 		};
 
 		const drawVirtualWall = (points: B01Point[]) => {
-			if(!points || points.length < 2) return;
+			if (!points || points.length < 2) return;
 			const lineWidth = 1.0;
 			ctx.save();
 			ctx.beginPath();
 			points.forEach((p, idx) => {
 				const pix = toPixel(p.x, p.y);
 				pix.y -= 1.0; // Vertical Shift (-1.0)
-				if(idx===0) ctx.moveTo(pix.x, pix.y);
+				if (idx===0) ctx.moveTo(pix.x, pix.y);
 				else ctx.lineTo(pix.x, pix.y);
 			});
 			ctx.strokeStyle = "#FF453A";
@@ -579,9 +572,12 @@ export class MapBuilder {
 		// Render Carpets
 		if (data.carpetInfo) {
 			data.carpetInfo.forEach(carpet => {
-				if(carpet.points && carpet.points.length > 0) {
+				if (carpet.points && carpet.points.length > 0) {
 					let sumX = 0, sumY = 0;
-					carpet.points.forEach(p => { sumX += p.x; sumY += p.y; });
+					carpet.points.forEach(p => {
+						sumX += p.x;
+						sumY += p.y;
+					});
 					const cx = sumX / carpet.points.length;
 					const cy = sumY / carpet.points.length;
 					const pt = toPixel(cx, cy);
@@ -664,7 +660,6 @@ export class MapBuilder {
 					0, // Zero Offset
 					toPixel
 				);
-
 			} else {
 				// Fallback
 				const { x: fx, y: fy } = toPixel(data.chargerPos.x, data.chargerPos.y);
@@ -681,7 +676,6 @@ export class MapBuilder {
 				ctx.fillText("⚡", fx, fy + 2);
 			}
 		}
-
 
 		// 6. Robot Drawing logic
 		if (data.robotPos) {
@@ -721,9 +715,7 @@ export class MapBuilder {
 				);
 
 				if (this.adapter && this.adapter.log) {
-					// this.adapter.log.debug(`[MapBuilderB01] Robot: (${data.robotPos.x}, ${data.robotPos.y})`);
 				}
-
 			} else {
 				// Fallback circle
 				const { x: fx, y: fy } = toPixel(data.robotPos.x, data.robotPos.y);
@@ -738,7 +730,6 @@ export class MapBuilder {
 		} else {
 			if (this.adapter) this.adapter.rLog("MapManager", duid, "Warn", "B01", undefined, "No Robot Position in Map Data", "warn");
 		}
-
 
 		// 7. Room Labels
 		if (data.rooms) {
@@ -775,7 +766,6 @@ export class MapBuilder {
 					if (!roomIcon && finalType === "other") {
 						roomIcon = this.assets?.rooms["other"];
 					}
-
 
 					// 3. Select Color (Based STRICTLY on Room Color ID, not Name)
 					const colorIdx = this.getRoomLabelColorIndex(r.colorId);

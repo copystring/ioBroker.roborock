@@ -37,6 +37,7 @@ export enum Feature {
 	VoiceControl = "VoiceControl", // Model supports voice control (static)
 	ShakeMopStrength = "ShakeMopStrength", // Alias for WaterBox logic (static)
 	ElectronicWaterBox = "ElectronicWaterBox", // Alias for WaterBox logic (static)
+    GetPhoto = "GetPhoto", // Feature to enable the get_photo command
 
 	// --- Dynamic Bitfield/Firmware Features (Keys used in _getDynamicFeatures) ---
 	// These might map to Action Features above or just be flags themselves

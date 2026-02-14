@@ -21,7 +21,6 @@ export class MapParser {
 		}
 	}
 
-
 	public parse(rawData: Buffer, serial: string, model: string, duid: string, connectionType: string): B01MapData | null {
 		try {
 			this.adapter.rLog(connectionType as any, duid, "Debug", "B01", 301, `[MapParser] smartDecrypt start. Serial: ${serial}, Model: ${model}. Data Len: ${rawData.length}`, "debug");
@@ -40,7 +39,6 @@ export class MapParser {
 
 	/* Redundant methods removed - Moved to B01MapDecryptor */
 
-
 	/**
 	 * Delegates decryption to the centralized B01MapDecryptor.
 	 */
@@ -48,7 +46,6 @@ export class MapParser {
 		const localKey = this.adapter.http_api.getMatchedLocalKeys().get(duid);
 		return MapDecryptor.decrypt(buf, serial, model, duid, this.adapter, localKey);
 	}
-
 
 	/* Helper methods removed - Moved to MapDecryptor */
 
@@ -140,7 +137,6 @@ export class MapParser {
 
 			this.beautifyMap(mapData);
 			this.adapter.rLog(connectionType as any, duid, "Info", "B01", 301, `[MapParser] B01 Map Parsed Successfully. Header: ${JSON.stringify(mapData.header)}`, "info");
-
 		} catch (e: any) {
 			const hexDump = buffer.subarray(0, 32).toString("hex");
 			this.adapter.rLog(connectionType as any, duid, "Warn", "B01", 301, `[MapParser] Protobuf decode failure: ${e.message}. Buffer Head: ${hexDump}, Len: ${buffer.length}`, "warn");

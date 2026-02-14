@@ -1,4 +1,3 @@
-
 export class MockAdapter {
 	public objects: Record<string, any> = {};
 	public states: Record<string, any> = {};
@@ -10,6 +9,7 @@ export class MockAdapter {
 	public http_api: any;
 	// mock support methods
 	public instance: number = 0;
+	public namespace: string = "roborock.0";
 	public pendingRequests: Map<number, any> = new Map();
 	public nonce: Buffer = Buffer.alloc(16);
 	public translations: Record<string, string> = {};
@@ -20,11 +20,16 @@ export class MockAdapter {
 	public catchError(error: any, attribute: string): void {
 		this.log.error(`[CatchError] ${attribute}: ${error}`);
 	}
-	public setInterval(callback: (...args: any[]) => void, ms: number, ...args: any[]): any { return setInterval(callback, ms, ...args); }
-	public clearInterval(intervalId: any): void { clearInterval(intervalId); }
-	public clearTimeout(timeoutId: any): void { clearTimeout(timeoutId); }
+	public setInterval(callback: (...args: any[]) => void, ms: number, ...args: any[]): any {
+		return setInterval(callback, ms, ...args);
+	}
+	public clearInterval(intervalId: any): void {
+		clearInterval(intervalId);
+	}
+	public clearTimeout(timeoutId: any): void {
+		clearTimeout(timeoutId);
+	}
 	public getDeviceProtocolVersion = async (): Promise<string> => {
-		// console.log("[MockAdapter] getDeviceProtocolVersion called");
 		return "1.0";
 	};
 
@@ -82,12 +87,9 @@ export class MockAdapter {
 		this.objects[id] = { ...this.objects[id], ...obj };
 	};
 
-
 	public async getObjectAsync(id: string): Promise<any> {
 		return this.objects[id];
 	}
-
-
 
 	public setState = (id: string, state: any, ack?: boolean | ((err?: any) => void), callback?: (err?: any) => void): Promise<void> => {
 		if (typeof ack === "function") {
@@ -168,6 +170,26 @@ export class MockAdapter {
 		for (const id in this.states) {
 			if (regexPattern.test(id)) {
 				result[id] = { val: this.states[id], ack: true, ts: Date.now(), lc: Date.now(), from: "mock" };
+			}
+		}
+
+		return Object.keys(result).length > 0 ? result : null;
+	}
+
+	public async getForeignStatesAsync(pattern: string | string[]): Promise<Record<string, ioBroker.State> | null> {
+		const patterns = Array.isArray(pattern) ? pattern : [pattern];
+		const result: Record<string, ioBroker.State> = {};
+
+		for (const p of patterns) {
+			// Strip namespace for mock lookup if present
+			const lookupPattern = p.startsWith(this.namespace + ".") ? p.substring(this.namespace.length + 1) : p;
+			const matches = await this.getStatesAsync(lookupPattern);
+			if (matches) {
+				// We must return the original IDs (with namespace) if they were requested that way
+				for (const [id, state] of Object.entries(matches)) {
+					const finalId = p.includes("*") ? id : p; // simplistic for mock
+					result[finalId] = state;
+				}
 			}
 		}
 

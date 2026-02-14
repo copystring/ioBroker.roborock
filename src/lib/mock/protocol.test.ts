@@ -1,4 +1,3 @@
-
 import * as crc32 from "crc-32";
 import { beforeEach, describe, expect, it } from "vitest";
 import { messageParser } from "../messageParser"; // Real class
@@ -21,8 +20,6 @@ describe("Protocol Deep Dive (messageParser)", () => {
 
 	it("should reject invalid CRC", () => {
 		// Construct a fake frame
-		// const header = Buffer.alloc(23); // Header len 19 + CRC 4? No, header is 19.
-		// 3(ver) + 4(seq) + 4(rnd) + 4(ts) + 2(proto) + 2(len) = 19. + Payload + 4(CRC).
 
 		const buf = Buffer.alloc(19 + 5 + 4); // 5 bytes payload
 		buf.write("1.0");
@@ -60,7 +57,9 @@ describe("Protocol Deep Dive (messageParser)", () => {
 		// So checking logs for "Decryption failed" vs "CRC mismatch" separates the two.
 
 		let logError = "";
-		mockAdapter.log.error = (msg: string) => { logError += msg + "\n"; };
+		mockAdapter.log.error = (msg: string) => {
+			logError += msg + "\n";
+		};
 
 		parser.decodeMsg(buf, "duid");
 

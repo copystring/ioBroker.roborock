@@ -1,4 +1,3 @@
-
 /**
  * Utility functions for B01 map processing.
  */

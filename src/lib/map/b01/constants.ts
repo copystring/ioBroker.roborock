@@ -1,4 +1,3 @@
-
 // --- CONSTANTS from original Roborock modules ---
 
 export const SUBTITLE_STATUS = {

@@ -1,5 +1,4 @@
-﻿
-import { beforeEach, describe, expect, it } from "vitest";
+﻿import { beforeEach, describe, expect, it } from "vitest";
 import { Feature } from "../features/features.enum";
 import { V1VacuumFeatures } from "../features/vacuum/v1VacuumFeatures";
 import { MockAdapter } from "./MockAdapter";
@@ -7,17 +6,35 @@ import { MockRobot } from "./MockRobot";
 
 // We need a concrete implementation of abstract V1VacuumFeatures to test it
 class TestVacuumFeatures extends V1VacuumFeatures {
-	public getDescriptor(): any { return {}; }
-	public getDynamicFeatures(): Set<Feature> { return new Set(); }
-	public async detectAndApplyRuntimeFeatures(): Promise<boolean> { return false; }
+	public getDescriptor(): any {
+		return {};
+	}
+	public getDynamicFeatures(): Set<Feature> {
+		return new Set();
+	}
+	public async detectAndApplyRuntimeFeatures(): Promise<boolean> {
+		return false;
+	}
 
 	// Abstract getters implementation - minimal valid return for test
-	public getCommonConsumable(): any { return {}; }
-	public isResetableConsumable(): boolean { return false; }
-	public getCommonDeviceStates(): any { return {}; }
-	public getCommonCleaningRecords(): any { return {}; }
-	public getFirmwareFeatureName(): string { return ""; }
-	public getCommonCleaningInfo(): any { return {}; }
+	public getCommonConsumable(): any {
+		return {};
+	}
+	public isResetableConsumable(): boolean {
+		return false;
+	}
+	public getCommonDeviceStates(): any {
+		return {};
+	}
+	public getCommonCleaningRecords(): any {
+		return {};
+	}
+	public getFirmwareFeatureName(): string {
+		return "";
+	}
+	public getCommonCleaningInfo(): any {
+		return {};
+	}
 
 	// Expose protected method for testing
 	// Expose protected method for testing
@@ -155,4 +172,3 @@ describe("Features - State Creation", () => {
 		expect(btnObj.common.write).to.equal(true);
 	});
 });
-

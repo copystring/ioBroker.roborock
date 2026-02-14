@@ -317,7 +317,6 @@ export class http_api {
 				} catch (err) {
 					this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `Failed to get product info V5: ${err}`, "warn");
 				}
-
 			} catch (error: any) {
 				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error in initializeRealApi: ${error.message}`, "error");
 				throw error;
@@ -687,8 +686,6 @@ export class http_api {
 
 		return await this.realApi.get(`user/scene/home/${this.homeID}`).then((res) => res.data);
 	}
-
-
 
 	/**
 	 * Stores firmware feature IDs in the cache for a specific device.

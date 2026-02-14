@@ -93,6 +93,7 @@ export abstract class BaseDeviceFeatures {
 	public commands: Record<string, CommandSpec | any>; // Command definitions for this device
 	protected duid: string;
 	protected robotModel: string;
+	public protocolVersion: string | null = null;
 	protected config: DeviceModelConfig; // Static feature config from model class
 	protected appliedFeatures = new Set<Feature>(); // Tracks applied features
 	protected pendingFeatures = new Set<Feature>(); // Tracks features currently being applied (Race Condition Guard)
@@ -151,7 +152,6 @@ export abstract class BaseDeviceFeatures {
 		this.commands = {};
 	}
 
-
 	/**
 	 * Applies a feature if not already applied. Looks up implementation in registry.
 	 * @param feature Feature enum key.
@@ -165,7 +165,6 @@ export abstract class BaseDeviceFeatures {
 		}
 		// Check if already applied or pending
 		if (this.appliedFeatures.has(feature) || this.pendingFeatures.has(feature)) {
-			// this.deps.log.silly(`[${this.duid}] Feature '${feature}' already applied or pending.`);
 			return false;
 		}
 
@@ -188,15 +187,8 @@ export abstract class BaseDeviceFeatures {
 				this.pendingFeatures.delete(feature); // Unlock
 			}
 		} else {
-			// ...
-			if (registry) {
-				this.deps.log.silly(`[FeatureApply|${this.robotModel}|${this.duid}] Registry exists, no implementation for feature '${feature}'. Keys: ${Array.from(registry.keys()).join(", ")}`);
-			} else {
-				this.deps.log.silly(`[FeatureApply|${this.robotModel}|${this.duid}] No registry found on instance.`);
-			}
 			return false;
 		}
-
 	}
 
 	// --- Abstract / Overridable Methods ---
@@ -244,8 +236,6 @@ export abstract class BaseDeviceFeatures {
 	 * @param initialFwFeatures Optional initial firmware features.
 	 */
 	public async initialize(online: boolean = false): Promise<void> {
-		this.deps.adapter.rLog("System", this.duid, "Info", undefined, undefined, "Starting feature initialization...", "info");
-
 		// Flow: Protocol -> Model Specifics -> Runtime Detection -> Dock Processing -> Command Objects
 
 		// 0. Setup Protocol Features (Command Sets)
@@ -277,8 +267,6 @@ export abstract class BaseDeviceFeatures {
 		} catch (e: any) {
 			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error creating command objects: ${e.message}`, "error");
 		}
-
-		this.deps.adapter.rLog("System", this.duid, "Info", undefined, undefined, "Initialization complete.", "info");
 	}
 
 	/**
@@ -292,22 +280,14 @@ export abstract class BaseDeviceFeatures {
 	}
 
 	public async setupProtocolFeatures(): Promise<void> {
-		const version = await this.deps.adapter.getDeviceProtocolVersion(this.duid);
-		this.deps.adapter.rLog("System", this.duid, "Debug", version, undefined, "Configuring Command Set...", "debug");
-
 		// Initialize with generic base commands
 		this.commands = JSON.parse(JSON.stringify(BaseDeviceFeatures.CONSTANTS.baseCommands));
 	}
-
-
 
 	/**
 	 * Logs summary of applied features and commands. Call after init.
 	 */
 	public printSummary(): void {
-		const featureList = Array.from(this.appliedFeatures).sort().join(", ");
-		const commandList = Object.keys(this.commands).sort().join(", ");
-		this.deps.adapter.rLog("System", this.duid, "Info", undefined, undefined, `Summary -> Features: [${featureList}] | Commands: [${commandList}]`, "info");
 	}
 
 	// --- Core Helper Methods ---
@@ -364,12 +344,8 @@ export abstract class BaseDeviceFeatures {
 		}
 
 		const promises: Promise<void>[] = [];
-		const keys = Object.keys(this.commands);
-		this.deps.adapter.rLog("System", this.duid, "Info", undefined, undefined, `Starting createCommandObjects. Commands to create: ${keys.length} -> [${keys.join(", ")}]`, "info");
-
 		for (const [command, commonCommand] of Object.entries(this.commands)) {
 			promises.push(this.processCommand(folderPath, command, commonCommand));
-
 		}
 
 		try {
@@ -436,13 +412,9 @@ export abstract class BaseDeviceFeatures {
 			if (existingObj) {
 				// Extend if common differs. Stringify is good enough for now.
 				if (JSON.stringify(existingObj.common) !== JSON.stringify(options)) {
-					this.deps.log.silly(`[${this.duid}] Extending command object ${path}`);
 					await this.deps.adapter.extendObject(path, { common: options as ioBroker.StateCommon });
-				} else {
-					this.deps.log.silly(`[${this.duid}] Command object ${path} common part is up-to-date.`);
 				}
 			} else {
-				this.deps.log.silly(`[${this.duid}] Ensuring command object ${path}`);
 				await this.deps.ensureState(path, options as ioBroker.StateCommon);
 			}
 
@@ -477,7 +449,6 @@ export abstract class BaseDeviceFeatures {
 				const existingStatesJson = JSON.stringify(this.commands[name].states);
 				const newStatesJson = JSON.stringify(spec.states);
 				if (existingStatesJson !== newStatesJson) {
-					this.deps.log.silly(`[${this.duid}] Command '${name}' merge: Merging states.`);
 					// Merge: New states overwrite/add
 					spec.states = { ...this.commands[name].states, ...spec.states };
 				} else {
@@ -489,7 +460,6 @@ export abstract class BaseDeviceFeatures {
 				spec.states = this.commands[name].states;
 			}
 			this.commands[name] = spec;
-			this.deps.log.silly(`[${this.duid}] Added/Updated command '${name}'`);
 		} catch (e: any) {
 			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error in addCommand for '${name}': ${e.message}`, "error");
 		}
@@ -573,8 +543,6 @@ export abstract class BaseDeviceFeatures {
 		throw new Error(`Feature method '${name}' not found or is not a function.`);
 	}
 
-
-
 	// --- Command Parameter Interception ---
 
 	/**
@@ -601,7 +569,6 @@ export abstract class BaseDeviceFeatures {
 	protected async requestAndProcess(method: string, params: any[], folder: string, mapper?: (data: any) => Record<string, any> | Promise<Record<string, any>>): Promise<void> {
 		try {
 			const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, method, params);
-			this.deps.adapter.rLog("System", this.duid, "Debug", method, folder, `Raw result: ${JSON.stringify(result)}`, "silly");
 
 			let resultObj: Record<string, unknown> | undefined;
 
@@ -744,10 +711,37 @@ export abstract class BaseDeviceFeatures {
 		return 0;
 	}
 
-	public async getPhoto(imgId: string, type: number): Promise<any> {
-		void imgId;
-		void type;
-		throw new Error("getPhoto not implemented for this device");
+	public async getPhoto(imgId: string, type: number, id?: string | number): Promise<any> {
+		if (!this.hasFeature(Feature.GetPhoto)) {
+			throw new Error("getPhoto feature not enabled for this device");
+		}
+
+		try {
+			const res = (await this.deps.adapter.requestsHandler.sendRequest(
+				this.duid,
+				"get_photo",
+				{
+					data_filter: {
+						img_id: imgId,
+						type: type,
+					},
+				},
+				{
+					externalId: id ? Number(id) : undefined
+				}
+				// Removed 4th and 5th args as sendRequest likely only takes (duid, method, params) or (duid, method, params, timeout?)
+				// Based on previous files, sendRequest(duid, method, params) is standard.
+			)) as any;
+			// PhotoManager handles the async 300/301 packets and resolves the promise with the final image.
+			// The data returned here is the result of that resolution.
+			// If the robot supports encryption (Cipher 1), PhotoManager now automatically handles RSA/AES decryption.
+			const responseData = (res as any).buffer ? res : (res as any).data || res;
+
+			return responseData;
+		} catch (e: any) {
+			this.deps.adapter.log.error(`[BaseDeviceFeatures] getPhoto failed: ${e.message}`);
+			throw e;
+		}
 	}
 
 	// --- Instance Getters for Constants (Abstract Declarations) ---

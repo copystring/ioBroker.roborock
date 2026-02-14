@@ -1,4 +1,3 @@
-
 export interface B01MapHeader {
     viewId?: number;
     sizeX: number;
@@ -39,7 +38,6 @@ export interface B01RoomChain {
     points: { x: number; y: number }[];
     door_info?: { door_point: { x: number; y: number }[]; area_id: number[] }[];
 }
-
 
 export interface B01Point {
     x: number;
