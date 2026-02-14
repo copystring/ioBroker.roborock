@@ -1,5 +1,3 @@
-
-
 export class B01ControlService {
 	constructor() {}
 
@@ -40,7 +38,6 @@ export class B01ControlService {
 					method: "service.upload_by_maptype",
 					params: { "force": 1, "map_type": 0 }
 				};
-
 
 				// Props (wind, water, etc.) validation could also go here in future
 

@@ -60,4 +60,3 @@ export class A179Features extends V1VacuumFeatures {
 		super(dependencies, duid, "roborock.vacuum.a179", a179Config, PROFILE_A179);
 	}
 }
-

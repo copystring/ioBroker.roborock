@@ -1,5 +1,4 @@
-﻿
-import { beforeEach, describe, expect, it } from "vitest";
+﻿import { beforeEach, describe, expect, it } from "vitest";
 import { Feature } from "../features/features.enum";
 import { V1VacuumFeatures } from "../features/vacuum/v1VacuumFeatures";
 import { MockAdapter } from "./MockAdapter";
@@ -79,4 +78,3 @@ describe("Adapter Type Verification", () => {
 		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.clean_time`]).to.equal(122.6);
 	});
 });
-

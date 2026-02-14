@@ -3,7 +3,6 @@ import { cryptoEngine } from "../../cryptoEngine";
 import * as MapHelper from "../MapHelper";
 
 export class MapDecryptor {
-
 	/**
 	 * @doc:Encryption.md
 	 * ### B01 Map Decryption
@@ -108,8 +107,6 @@ export class MapDecryptor {
 		return current;
 	}
 
-
-
 	private static unwrapDecompression(current: Buffer, adapter?: any): Buffer {
 		const decompressed = MapHelper.decompress(current);
 		if (decompressed !== current) {
@@ -124,7 +121,7 @@ export class MapDecryptor {
 		const modelSuffix = model.includes(".") ? (model.split(".").pop() as string) : model;
 
 		// Standard key derivation
-		// let p=x; while(p.length<16)p+="0";
+
 		let p = modelSuffix;
 		while (p.length < 16) p += "0";
 		const key = Buffer.from(p.substring(0, 16), "utf8");
@@ -133,7 +130,7 @@ export class MapDecryptor {
 		const inputBuf = Buffer.from(inputStr, "utf8");
 
 		// Apply PKCS7 padding
-		// const z=16-(Buffer.byteLength(t)%16),e=Buffer.concat([c.update(Buffer.concat([Buffer.from(t),Buffer.alloc(z,z)])),c.final()]);
+
 		const z = 16 - (inputBuf.length % 16);
 		const paddedInput = Buffer.concat([inputBuf, Buffer.alloc(z, z)]);
 

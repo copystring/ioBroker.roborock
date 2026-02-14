@@ -81,7 +81,7 @@ export function beautify(tMapStruct: TMapStruct): { result: Int8Array | Uint8Arr
 
 	const expandSingleConvexBoundary_result = expandSingleConvexBoundary(50, CONSTANTS.BLACK, 4, 4, tRect, map, size_x);
 	map = expandSingleConvexBoundary_result.result;
-	if(typeof global !== "undefined") (global as any).mapSnapshotOrig = new Int8Array(map);
+	if (typeof global !== "undefined") (global as any).mapSnapshotOrig = new Int8Array(map);
 
 	const all_region_result = findWhiteConnectComponent(all_region, 150, tRect, size_x, map);
 	all_region = all_region_result.result;
@@ -111,7 +111,7 @@ export function beautify(tMapStruct: TMapStruct): { result: Int8Array | Uint8Arr
 		map = roomColorByChainAndDoor_result.map;
 	}
 
-	return {result: map};
+	return { result: map };
 }
 
 function findRoiMap(rect: Rect, map: Int8Array | Uint8Array, size_x: number, size_y: number): { result: Rect } {
@@ -192,14 +192,14 @@ function findRoiMap(rect: Rect, map: Int8Array | Uint8Array, size_x: number, siz
 		rect.y = left_bound;
 		rect.width = width;
 		rect.height = height;
-		return {result: rect};
+		return { result: rect };
 	} else {
 		rect.x = 0;
 		rect.y = 0;
 		rect.width = size_y;
 		rect.height = size_x;
 	}
-	return {result: rect};
+	return { result: rect };
 }
 
 function expandBlackRect(kernel_size_x: number, kernel_size_y: number, threshold: number, rect: Rect, map: any, size_x: number, size_y: number): { result: any } {
@@ -247,7 +247,7 @@ function expandBlackRect(kernel_size_x: number, kernel_size_y: number, threshold
 		}
 	}
 	map = dst;
-	return {result: map};
+	return { result: map };
 }
 
 function expandWhiteRect(kernel_size_x: number, kernel_size_y: number, threshold: number, rect: Rect, map: any, size_x: number, size_y: number): { result: any } {
@@ -296,7 +296,7 @@ function expandWhiteRect(kernel_size_x: number, kernel_size_y: number, threshold
 	}
 
 	map = dst;
-	return {result: map};
+	return { result: map };
 }
 
 function refineBoundary(threshold_black: number, threshold_white: number, rect: Rect, map: any, size_x: number): { result: any } {
@@ -327,7 +327,7 @@ function refineBoundary(threshold_black: number, threshold_white: number, rect: 
 	for (let i = 0; i < Qx.length; i++) {
 		map[Qx[i] * size_x + Qy[i]] = 0;
 	}
-	return {result: map};
+	return { result: map };
 }
 
 function eliminateNonBoundaryNoise(nonBoundaryNoise: Point[], rect: Rect, noise_color: number, border_color: number, outer_border_color: number, map: any, size_x: number): { map: any, tempnonBoundaryNoise: Point[] } {
@@ -363,7 +363,6 @@ function expandSingleConvexBoundary(external_corner_value: number, fill_value: n
 	try {
 		let contour: Point[] = [];
 
-
 		let contour_map = [...map];
 
 		const result = extractExternalContoursNewStrategy(contour_map, contour, rect, size_x);
@@ -377,7 +376,7 @@ function expandSingleConvexBoundary(external_corner_value: number, fill_value: n
 
 		for (let i = 0; i < times; i++) {
 			let extract_corners: Point[] = [];
-			// let contour = [];
+
 			let fill_edges: Point[][] = [];
 			const inner_corner_value = external_corner_value + 5;
 			const four_neighbourhood = [[-1, 0], [1, 0], [0, -1], [0, 1]];
@@ -387,11 +386,9 @@ function expandSingleConvexBoundary(external_corner_value: number, fill_value: n
 			contour_map = result.temp_map;
 			contour = result.contour;
 
-
 			const corner_map = [...map];
 
 			const result1 = extractCorners(corner_map, extract_corners, contour, external_corner_value, inner_corner_value, rect, map, size_x);
-
 
 			let result2_delete_point: Point[] = [];
 			result1.extract_corners.forEach((it: Point) => {
@@ -435,7 +432,7 @@ function expandSingleConvexBoundary(external_corner_value: number, fill_value: n
 			fill_edges = [];
 		}
 		contour = [];
-		return {result: map};
+		return { result: map };
 	} catch (e: any) {
 		console.error("expandSingle CRASH:", e);
 		throw e;
@@ -571,14 +568,14 @@ function extractCorners(corner_map: any, extract_corner: Point[], contour: Point
 				black_count++;
 			} else if (temp_map[temp_idy * size_x + temp_idx] == 0) {
 				gray_count++;
-			} else if(temp_map[temp_idy * size_x + temp_idx] == CONSTANTS.WHITE) {
+			} else if (temp_map[temp_idy * size_x + temp_idx] == CONSTANTS.WHITE) {
 				white_count++;
 			}
 
 			if (gray_count == 2 && black_count == 2) {
 				extract_corner.push(new Point(contour[i].x, contour[i].y));
 				corner_map[contour[i].x * size_x + contour[i].y] = external_corner_value;
-			} else if((white_count == 2) && (black_count == 2))
+			} else if ((white_count == 2) && (black_count == 2))
 			{
 				corner_map[contour[i].x * size_x + contour[i].y] = inner_corner_value;
 			}
@@ -591,25 +588,24 @@ function extractCorners(corner_map: any, extract_corner: Point[], contour: Point
 	};
 }
 
-
 function statisticalLineLength(temp_map: any, p_oint: Point, external_corner_value: number, inner_corner_value: number, valid_length: number, rect: Rect, size_x: number): { result: boolean } {
 	const result1 = upSearchStatisticalLineLength(temp_map, p_oint, external_corner_value, inner_corner_value, valid_length, rect, size_x);
 	if (result1.result) {
-		return {result: true};
+		return { result: true };
 	}
 	const result2 = downSearchStatisticalLineLength(temp_map, p_oint, external_corner_value, inner_corner_value, valid_length, rect, size_x);
 	if (result2.result) {
-		return {result: true};
+		return { result: true };
 	}
 	const result3 = leftSearchStatisticalLineLength(temp_map, p_oint, external_corner_value, inner_corner_value, valid_length, rect, size_x);
 	if (result3.result) {
-		return {result: true};
+		return { result: true };
 	}
 	const result4 = rightSearchStatisticalLineLength(temp_map, p_oint, external_corner_value, inner_corner_value, valid_length, rect, size_x);
 	if (result4.result) {
-		return {result: true};
+		return { result: true };
 	}
-	return {result: false};
+	return { result: false };
 }
 
 function upSearchStatisticalLineLength(temp_map: any, p_oint: Point, external_corner_value: number, inner_corner_value: number, valid_length: number, rect: Rect, size_x: number): { result: boolean } {
@@ -651,12 +647,12 @@ function upSearchStatisticalLineLength(temp_map: any, p_oint: Point, external_co
 		}
 
 		if (line.length > valid_length) {
-			return {result: true};
+			return { result: true };
 		} else {
-			return {result: false};
+			return { result: false };
 		}
 	}
-	return {result: false};
+	return { result: false };
 }
 
 function downSearchStatisticalLineLength(temp_map: any, p_oint: Point, external_corner_value: number, inner_corner_value: number, valid_length: number, rect: Rect, size_x: number): { result: boolean } {
@@ -699,9 +695,9 @@ function downSearchStatisticalLineLength(temp_map: any, p_oint: Point, external_
 			}
 		}
 
-		return {result: line.length > valid_length};
+		return { result: line.length > valid_length };
 	}
-	return {result: false};
+	return { result: false };
 }
 
 function leftSearchStatisticalLineLength(temp_map: any, p_oint: Point, external_corner_value: number, inner_corner_value: number, valid_length: number, rect: Rect, size_x: number): { result: boolean } {
@@ -743,9 +739,9 @@ function leftSearchStatisticalLineLength(temp_map: any, p_oint: Point, external_
 			}
 		}
 
-		return {result: line.length > valid_length};
+		return { result: line.length > valid_length };
 	}
-	return {result: false};
+	return { result: false };
 }
 
 function rightSearchStatisticalLineLength(temp_map: any, p_oint: Point, external_corner_value: number, inner_corner_value: number, valid_length: number, rect: Rect, size_x: number): { result: boolean } {
@@ -787,9 +783,9 @@ function rightSearchStatisticalLineLength(temp_map: any, p_oint: Point, external
 			}
 		}
 
-		return {result: line.length > valid_length};
+		return { result: line.length > valid_length };
 	}
-	return {result: false};
+	return { result: false };
 }
 
 function fourNeighbourhoodSearchForExtractCorners(temp_map: any, p_oint: Point, fill_edges: Point[][], delete_point: Point[], external_corner_value: number, inner_corner_value: number, valid_length: number, is_valid_length: boolean, rect: Rect, map: any, size_x: number): { result: any } {
@@ -797,7 +793,7 @@ function fourNeighbourhoodSearchForExtractCorners(temp_map: any, p_oint: Point, 
 	const result2 = downSearchForExtractCorners(temp_map, p_oint, result1.fill_edges, result1.delete_point, external_corner_value, inner_corner_value, valid_length, is_valid_length, rect, result1.map, size_x);
 	const result3 = leftSearchForExtractCorners(temp_map, p_oint, result2.fill_edges, result2.delete_point, external_corner_value, inner_corner_value, valid_length, is_valid_length, rect, result2.map, size_x);
 	const result4 = rightSearchForExtractCorners(temp_map, p_oint, result3.fill_edges, result3.delete_point, external_corner_value, inner_corner_value, valid_length, is_valid_length, rect, result3.map, size_x);
-	return {result: result4};
+	return { result: result4 };
 }
 
 function upSearchForExtractCorners(temp_map: any, p_oint: Point, fill_edges: Point[][], delete_point: Point[], external_corner_value: number, inner_corner_value: number, valid_length: number, is_valid_length: boolean, rect: Rect, map: any, size_x: number): { delete_point: Point[], fill_edges: Point[][], map: any } {
@@ -1170,14 +1166,13 @@ function rightSearchForExtractCorners(temp_map: any, p_oint: Point, fill_edges: 
 function updateContour(contour: Point[], delete_points: Point[]): { result: Point[] } {
 	const delete_point_size = delete_points.length;
 
-
 	for (let i = 0; i < delete_point_size; i++) {
 		const delete_point = delete_points[i];
 
 		contour = contour.filter((it: Point) => !(it.x === delete_point.x && it.y === delete_point.y));
 	}
 
-	return {result: contour};
+	return { result: contour };
 }
 
 function fillEdges(map: any, contour: Point[], fill_edges: Point[][], value: number, size_x: number): { contour: Point[], map: any } {
@@ -1196,7 +1191,6 @@ function fillEdges(map: any, contour: Point[], fill_edges: Point[][], value: num
 }
 
 function findWhiteConnectComponent(all_region: { first: Point[], second: Point[] }[], valid_area: number, rect: Rect, size_x: number, map: any): { result: { first: Point[], second: Point[] }[] } {
-
 	let temp_map = [...map];
 
 	const four_neighbourhood = [[-1, 0], [0, 1], [1, 0], [0, -1]];
@@ -1267,7 +1261,7 @@ function findWhiteConnectComponent(all_region: { first: Point[], second: Point[]
 		all_region.sort((a, b) => b.first.length - a.first.length);
 	}
 
-	return {result: all_region};
+	return { result: all_region };
 }
 
 function findBlackTPoint(temp_map: any, seed: Point, black_region: Point[], size_x: number, tRect: Rect): { temp_map: any, tmp_black_region: Point[] } {
@@ -1294,7 +1288,6 @@ function findBlackTPoint(temp_map: any, seed: Point, black_region: Point[], size
 function removeIndependentRegion(all_region: { first: Point[], second: Point[] }[], black_boundary: Point[], valid_length: number, rect: Rect, map: any, size_x: number): { temp_black_boundary: Point[], map: any } {
 	let temp_black_boundary = black_boundary;
 	if (all_region.length > 0) {
-
 		let temp_map = [...map];
 
 		const tmp_all_region: { first: Point[], second: Point[] }[] = [];
@@ -1354,7 +1347,7 @@ function fillConnectComponent(temp_map: any, all_region: { first: Point[], secon
 			temp_map[all_region[i].second[j2].x * size_x + all_region[i].second[j2].y] = value;
 		}
 	}
-	return {result: temp_map};
+	return { result: temp_map };
 }
 
 interface SearchAreaResult {
@@ -1584,7 +1577,7 @@ function fillBlackComponent(temp_map: any, black_region: Point[], value: number,
 	for (let i = 0; i < black_region.length; i++) {
 		temp_map[black_region[i].x * size_x + black_region[i].y] = value;
 	}
-	return {result: temp_map};
+	return { result: temp_map };
 }
 
 function filterSmallAreas(map: any, rect: Rect, size_x: number, size_y: number, m_four_Dir: any, m_eight_Dir: any): { result: any } {
@@ -1598,7 +1591,7 @@ function filterSmallAreas(map: any, rect: Rect, size_x: number, size_y: number, 
 	for (let i = rect.x; i < rect.x + rect.height; i++) {
 		for (let j = rect.y; j < rect.y + rect.width; j++) {
 			if (show_map[j * size_x + i] == CONSTANTS.WHITE) {
-				const findAllFillRegional_result = findAllFillRegional(show_map, new Point(i , j), size_x, size_y, m_four_Dir);
+				const findAllFillRegional_result = findAllFillRegional(show_map, new Point(i, j), size_x, size_y, m_four_Dir);
 				areas = findAllFillRegional_result.areas;
 				show_map = findAllFillRegional_result.tmp_map;
 				areas_vec.push(areas);
@@ -1610,7 +1603,7 @@ function filterSmallAreas(map: any, rect: Rect, size_x: number, size_y: number, 
 	let test_map = [...map];
 	const filter_pt_vec: Point[] = [];
 	for (let i = 0; i < areas_vec.length; i++) {
-		let tmp_pt = new Point(-1 , -1);
+		let tmp_pt = new Point(-1, -1);
 		for (let j = 0; j < areas_vec[i].second.length; j++) {
 			tmp_pt = areas_vec[i].second[j];
 			test_map[tmp_pt.y * size_x + tmp_pt.x] = 80;
@@ -1637,7 +1630,7 @@ function filterSmallAreas(map: any, rect: Rect, size_x: number, size_y: number, 
 		for (let j = rect.y; j < rect.y + rect.width; j++) {
 			if (test_map[j * size_x + i] == 80) {
 				test_map[j * size_x + i] = CONSTANTS.WHITE;
-			} else if(test_map[j * size_x + i] == CONSTANTS.BLACK) {
+			} else if (test_map[j * size_x + i] == CONSTANTS.BLACK) {
 				black_pt_vec.push(new Point(i, j));
 			}
 		}
@@ -1856,7 +1849,7 @@ function filterIslandPt(dst_img: any, pt_vec: Point[], size_x: number, size_y: n
 
 	for (let x = 0; x < size_x; x++) {
 		for (let y = 0; y < size_y; y++) {
-			if(dst_img[y * size_x + x] == 80) {
+			if (dst_img[y * size_x + x] == 80) {
 				dst_img[y * size_x + x] = CONSTANTS.BLACK;
 			}
 		}
@@ -2449,7 +2442,6 @@ function getEachDoorPointColor(extend_door_point: any, fill_door_point: any, col
 					max_index = color_id_map.get(color_id);
 					max_color = color_id;
 				}
-
 			});
 			if (max_color !== -1) {
 				map[rowOffset + col] = max_color;
@@ -2517,7 +2509,6 @@ function floodfillEachPoint(fill_array: Point[], close_array: Point[], map: any,
 	};
 }
 
-
 function scanLineFloodFill(dst: any, initial_seed: Point, raw_value: number, new_value: number, size_x: number, size_y: number): { result: any } {
 	let scan_line_seed: Point[] = [];
 	scan_line_seed.push(initial_seed);
@@ -2539,7 +2530,7 @@ function scanLineFloodFill(dst: any, initial_seed: Point, raw_value: number, new
 		scan_line_seed = searchLineForNewSeed_result2.result;
 	}
 
-	return {result: tempDst};
+	return { result: tempDst };
 }
 
 function floodFillLine(dst: any, initial_seed: any, direction: number, raw_value: number, new_value: number, size_x: number) {
@@ -2569,7 +2560,7 @@ function floodFillLine(dst: any, initial_seed: any, direction: number, raw_value
 
 function searchLineForNewSeed(dst: any, x_left: number, x_right: number, line_row: number, raw_value: number, scan_line_seed: any, size_x: number, size_y: number) {
 	if (line_row < 0 || line_row > size_y - 1) {
-		return {result: scan_line_seed};
+		return { result: scan_line_seed };
 	}
 
 	let x_right_copy = x_right;
@@ -2588,7 +2579,7 @@ function searchLineForNewSeed(dst: any, x_left: number, x_right: number, line_ro
 
 		x_right_copy--;
 	}
-	return {result: scan_line_seed};
+	return { result: scan_line_seed };
 }
 
 function fillInternalObstacles(map: any, tRect: Rect, size_x: number): { result: any } {
@@ -2612,7 +2603,7 @@ function fillInternalObstacles(map: any, tRect: Rect, size_x: number): { result:
 	const map_result = fillBlackComponent(map, internal_obstacles, -9, size_x);
 	map = map_result.result;
 
-	return {result: map};
+	return { result: map };
 }
 
 function findContourConnectComponent(temp_map: any, contour: Point[], rect: Rect, size_x: number): { temp_map: any, contour: Point[] } {
@@ -2626,18 +2617,18 @@ function findContourConnectComponent(temp_map: any, contour: Point[], rect: Rect
       y < rect.y + rect.width
 	);
 
-	while(temp_contour.length != 0)
+	while (temp_contour.length != 0)
 	{
 		const seed = temp_contour.shift()!;
-		for(let k = 0; k < 8; k++)
+		for (let k = 0; k < 8; k++)
 		{
 			const temp_idy = seed.x + eight_neighbourhood[k][0];
 			const temp_idx = seed.y + eight_neighbourhood[k][1];
 
-			if(!isInBounds(temp_idx, temp_idy))
+			if (!isInBounds(temp_idx, temp_idy))
 				continue;
 
-			if(temp_map[temp_idy * size_x + temp_idx] == CONSTANTS.BLACK)
+			if (temp_map[temp_idy * size_x + temp_idx] == CONSTANTS.BLACK)
 			{
 				temp_map[temp_idy * size_x + temp_idx] = 30;
 
@@ -2653,17 +2644,13 @@ function findContourConnectComponent(temp_map: any, contour: Point[], rect: Rect
 }
 
 function findInternalObstacles(temp_map: any, point_deque: Point[], rect: Rect, size_x: number): { result: Point[] } {
-	for(let idy = rect.y; idy < rect.y + rect.width; idy++)
+	for (let idy = rect.y; idy < rect.y + rect.width; idy++)
 	{
-		for(let idx = rect.x; idx < rect.x + rect.height; idx++)
+		for (let idx = rect.x; idx < rect.x + rect.height; idx++)
 		{
-			if(temp_map[idy * size_x + idx] == CONSTANTS.BLACK)
+			if (temp_map[idy * size_x + idx] == CONSTANTS.BLACK)
 				point_deque.push(new Point(idy, idx));
 		}
 	}
-	return {result: point_deque};
+	return { result: point_deque };
 }
-
-
-
-

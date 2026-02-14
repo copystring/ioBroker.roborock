@@ -133,8 +133,6 @@ describe("V1VacuumFeatures", () => {
 
 		await (vacuum as any).getCleaningRecordMap(1234567890);
 
-
-
 		expect(requestsHandlerMock.sendRequest).toHaveBeenCalledWith(
 			"duid1",
 			"get_clean_record_map",

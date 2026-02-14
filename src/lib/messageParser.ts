@@ -89,8 +89,6 @@ const encryptors: Record<ProtocolVersion, (...args: any[]) => Buffer> = {
 	"\x81S\x19": (payload, key, random) => cryptoEngine.encryptB01(payload, key, random),
 };
 
-
-
 export class messageParser {
 	adapter: Roborock;
 
@@ -196,18 +194,40 @@ export class messageParser {
 		// Standard payload
 		const inner: any = { id: messageID, method, params };
 
-		// Add security context
-		if (method === "get_photo") {
+		// Add security context ONLY for MQTT
+		if (method === "get_photo" && protocol === 101) {
 			const kp = cryptoEngine.ensureRsaKeys();
-			(params as any).endpoint = endpoint;
-			(params as any).security = { cipher_suite: 0, pub_key: kp.public };
+			// converting params to any to avoid TS errors
+			const p = params as any;
+
+			// FORCE Endpoint to "xxx" as per S7 MaxV protocol (and user log)
+			p.endpoint = "xxx";
+
+			// FORCE Cipher Suite 1 (RSA+AES)
+			const cipherSuite = 1;
+
+			// FORCE Security Object to match S7 MaxV (Cipher 1 + RSA, NO NONCE here)
+			p.security = {
+				cipher_suite: cipherSuite,
+				pub_key: {
+					e: kp.public.e,
+					n: kp.public.n,
+				},
+			};
+
+			// Add root-level security (nonce/endpoint)
+			inner.security = {
+				endpoint: endpoint,
+				nonce: this.adapter.nonce.toString("hex").toUpperCase(),
+			};
 		} else if (["get_map_v1", "get_clean_record_map"].includes(method)) {
+			// For TCP get_photo (and maps), we need the basic security wrapper (endpoint+nonce)
+			// but NOT the RSA keys in params.
 			inner.security = {
 				endpoint,
 				nonce: this.adapter.nonce.toString("hex").toUpperCase(),
 			};
 		}
-
 
 		// B01 payload (Nested Object, key "10000" refers to the control endpoint)
 		if (version === "B01") {
@@ -346,7 +366,6 @@ export class messageParser {
 		if (version === "L01") {
 			const connectNonce = this.adapter.local_api.localDevices[duid]?.connectNonce;
 			const ackNonce = this.adapter.local_api.localDevices[duid]?.ackNonce;
-			this.adapter.rLog("Requests", duid, "Debug", version, undefined, `Using connectNonce=${connectNonce} ackNonce=${ackNonce}`, "debug");
 
 			if (!connectNonce || ackNonce == null) return false;
 

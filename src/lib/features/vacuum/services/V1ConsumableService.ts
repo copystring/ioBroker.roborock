@@ -111,9 +111,6 @@ export class V1ConsumableService {
 		}
 	}
 
-
-
-
 	// Helper from V1VacuumFeatures but using CONSTANTS directly
 	private getCommonDeviceStates(attribute: string | number): Partial<ioBroker.StateCommon> | undefined {
 		const stateDef = VACUUM_CONSTANTS.deviceStates[attribute as keyof typeof VACUUM_CONSTANTS.deviceStates];

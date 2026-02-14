@@ -1,4 +1,3 @@
-
 // Define types for the dataset structure
 interface Dataset {
     meta: {
@@ -47,8 +46,6 @@ export class RoborockLocales {
 	private isDatasetValid(): boolean {
 		return !!this.dataset;
 	}
-
-
 
 	/**
      * Get translated text for a generic key.
@@ -120,7 +117,6 @@ export class RoborockLocales {
 		return translations;
 	}
 
-
 	/**
      * Get translated error text.
      * @param errorCode The error code
@@ -167,7 +163,6 @@ export class RoborockLocales {
 		}
 		return undefined;
 	}
-
 
 	public getErrorCodes(): number[] {
 		if (!this.dataset.fault_codes) return [];
@@ -243,7 +238,6 @@ export class RoborockLocales {
 				return trans as ioBroker.StringOrTranslated;
 			}
 		}
-
 
 		// If translation missing, return key (if mapped) or raw attribute name as fallback string.
 		// This ensures we can use keys like 'water_tank' that are defined in words.js but not in the dataset.

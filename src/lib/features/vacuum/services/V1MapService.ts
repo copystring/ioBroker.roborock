@@ -57,12 +57,9 @@ export class V1MapService {
 	}
 
 	private async processMapResults(mapResult: { mapBase64: string, mapBase64Clean?: string, mapData?: any } | null): Promise<void> {
-		this.adapter.rLog("MapManager", this.duid, "Debug", undefined, undefined, `mapResult: ${!!mapResult}, keys: ${mapResult ? Object.keys(mapResult).join(",") : "none"}`, "debug");
 		if (!mapResult) return;
 
 		await this.mapManager.saveGeneratedMap(this.duid, mapResult);
-
-
 
 		// Logic to determine current floor (mapFlag) based on active map slot
 		if (this.lastMapStatus !== -1 && this.lastMapStatus < 250) {
@@ -75,7 +72,6 @@ export class V1MapService {
 
 		// Sync extra rooms found in map data (visual segments) that might be missing from get_room_mapping
 		if (mapResult.mapData && mapResult.mapData.IMAGE && mapResult.mapData.IMAGE.segments && Array.isArray(mapResult.mapData.IMAGE.segments.list)) {
-
 			// Ensure floors.<mapIndex> exists (using current map index)
 			const currentMapFlag = this.currentMapIndex;
 			await this.deps.ensureFolder(`Devices.${this.duid}.floors.${currentMapFlag}`);
@@ -170,7 +166,7 @@ export class V1MapService {
 			const [mapBase64CleanUncropped, mapBase64] = await this.deps.adapter.mapManager.mapCreator.canvasMap(mapData);
 			const t3 = Date.now();
 
-			this.adapter.rLog("MapManager", this.duid, "Debug", "Profiler", undefined, `[MapProfiler] History Map ${startTime} processed. Total: ${t3 - t0}ms | Unzip: ${t1 - t0}ms | Parse: ${t2 - t1}ms | Canvas: ${t3 - t2}ms | Size: ${cleaningRecordMap.length}`, "silly");
+			this.adapter.rLog("MapManager", this.duid, "Debug", "Profiler", undefined, `[MapProfiler] History Map ${startTime} processed. Total: ${t3 - t0}ms | Unzip: ${t1 - t0}ms | Parse: ${t2 - t1}ms | Canvas: ${t3 - t2}ms | Size: ${cleaningRecordMap.length}`, "debug");
 
 			return {
 				mapBase64CleanUncropped,

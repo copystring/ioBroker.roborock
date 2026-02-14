@@ -3,7 +3,6 @@ import type { Roborock } from "../main";
 import type { BaseDeviceFeatures } from "./features/baseDeviceFeatures";
 import { messageParser } from "./messageParser";
 
-
 const REQUEST_TIMEOUT = 10000;
 
 export enum RequestPriority {
@@ -11,7 +10,6 @@ export enum RequestPriority {
 	NORMAL = 0,
 	HIGH = 10
 }
-
 
 // ============================================================
 // RequestManager Class
@@ -30,9 +28,7 @@ class RequestManager {
 		const manualController = new AbortController();
 		this.tasks.set(id, manualController);
 
-
 		try {
-
 			return await this.queue.add(async () => {
 				try {
 					if (manualController.signal.aborted) {
@@ -86,8 +82,9 @@ class RoborockRequest {
 	rejectPromise!: (reason?: unknown) => void;
 	promise: Promise<unknown>;
 	version: string; // Store protocol version for logging
-	creationTime: number; // For detailed lifecycle tracking
-	startTime: number;
+	public creationTime: number;
+	public startTime: number = 0;
+	public binaryType: "photo" | "map" | undefined;
 	timeoutTimer: ioBroker.Timeout | undefined;
 
 	timeout: number;
@@ -108,6 +105,13 @@ class RoborockRequest {
 		this.manager = manager;
 		this.queueName = queueName;
 
+		// Set strict binary type based on method
+		if (this.method === "get_photo") {
+			this.binaryType = "photo";
+		} else if (this.method === "get_map_v1" || this.method === "get_clean_record_map") {
+			this.binaryType = "map";
+		}
+
 		this.promise = new Promise((resolve, reject) => {
 			this.resolvePromise = resolve;
 			this.rejectPromise = reject;
@@ -118,9 +122,6 @@ class RoborockRequest {
 
 	async send(signal?: AbortSignal) {
 		const queueDuration = Date.now() - this.creationTime;
-
-		// Lifecycle Log: Started (Silly level as it is now combined with network log)
-		this.adapter.rLog("System", this.duid, "Debug", "Lifecycle", undefined, `[Task ${this.messageID}] start (${this.method}) | waited: ${queueDuration}ms`, "silly");
 
 		if (signal?.aborted) throw new Error("Aborted");
 
@@ -135,10 +136,16 @@ class RoborockRequest {
 		}
 
 		let protocol = 101;
-		const version = await this.adapter.getDeviceProtocolVersion(this.duid);
+		let version = await this.adapter.getDeviceProtocolVersion(this.duid);
 		const timestamp = Math.floor(Date.now() / 1000);
 
-		if (this.adapter.local_api.isConnected(this.duid) && version != "B01" && !["service.upload_by_maptype", "service.upload_record_by_url"].includes(this.method)) {
+		// FORCE Protocol 1.0 for get_photo as it uses a specific RSA handshake
+		// that is known to work with 1.0 but fails/times out with L01.
+		if (this.method === "get_photo") {
+			version = "1.0";
+		}
+
+		if (this.adapter.local_api.isConnected(this.duid) && version != "B01" && !["service.upload_by_maptype", "service.upload_record_by_url", "get_photo"].includes(this.method)) {
 			protocol = 4;
 		}
 
@@ -261,7 +268,6 @@ export class requestsHandler {
 		this.scheduleMqttReset();
 	}
 
-
 	private static readonly POLL_METHODS = [
 		"get_prop",
 		"get_status",
@@ -330,7 +336,7 @@ export class requestsHandler {
 		promise.catch(() => {});
 	}
 
-	async sendRequest(duid: string, method: string, params: unknown, options: { priority?: number; timeout?: number } = {}) {
+	async sendRequest(duid: string, method: string, params: unknown, options: { priority?: number; timeout?: number; externalId?: number } = {}) {
 		let manager = this.globalManager;
 		let queueName = "CommandQueue";
 
@@ -339,13 +345,11 @@ export class requestsHandler {
 			queueName = "MapQueue";
 		}
 
-
 		const priority = options.priority ?? RequestPriority.NORMAL;
 		let timeout = options.timeout ?? REQUEST_TIMEOUT;
 
-
-		// Map and room-related requests need more time (especially on slow connections or when robot is busy), so we give them 20s.
-		if (method.includes("map") || method.includes("room") || method === "get_clean_record_map") {
+		// Map and room-related requests need more time (especially on slow connections or when robot is busy)
+		if (method.includes("map") || method.includes("room") || method === "get_clean_record_map" || method === "get_photo") {
 			timeout = 20000;
 		}
 
@@ -354,8 +358,10 @@ export class requestsHandler {
 		const attempt = async (retryCount: number): Promise<unknown> => {
 			let messageID: number;
 
-			if (method === "get_photo") {
-				this.photoIdCounter = this.photoIdCounter >= 250 ? 1 : this.photoIdCounter + 1;
+			if (options.externalId !== undefined) {
+				messageID = options.externalId;
+			} else if (method === "get_photo") {
+				this.photoIdCounter = this.photoIdCounter >= 255 ? 1 : this.photoIdCounter + 1;
 				messageID = this.photoIdCounter;
 			} else {
 				// Detect version to determine ID strategy
@@ -376,12 +382,15 @@ export class requestsHandler {
 				}
 			}
 
-
 			const req = new RoborockRequest(this, duid, method, params, messageID, manager, queueName, version, timeout);
+			if (method === "get_photo") {
+				req.binaryType = "photo";
+			} else if (method === "get_map_v1" || method === "get_clean_record_map") {
+				req.binaryType = "map";
+			}
 			const taskId = `req_${messageID}_${Date.now()}`;
 
 			try {
-				this.adapter.rLog("System", duid, "Debug", "Queue", undefined, `[Task ${messageID}] queue (${method}) | ${queueName}: ${manager.queue.size} | pend: ${manager.queue.pending}`, "silly");
 				const result = await manager.add(taskId, (signal) => req.send(signal), priority);
 
 				if (Array.isArray(result) && result[0] === "retry" && retryCount < 3) {
@@ -411,7 +420,11 @@ export class requestsHandler {
 				finalParams = intercepted;
 			}
 		}
-		const requestPromise = this.sendRequest(duid, finalMethod, finalParams, { priority: 1, timeout: method === "load_multi_map" ? 20000 : undefined });
+		const requestPromise = this.sendRequest(duid, finalMethod, finalParams, {
+			priority: 1,
+			timeout: method === "load_multi_map" ? 20000 : undefined,
+			externalId: id ? Number(id) : undefined
+		});
 
 		this._processResult(
 			requestPromise,
@@ -442,8 +455,16 @@ export class requestsHandler {
 			if (Buffer.isBuffer(result)) {
 				extraInfo = `Buffer (${result.length}b)`;
 			} else if (typeof result === "object" && result !== null) {
-				const str = JSON.stringify(result);
-				extraInfo = str.length > 200 ? str.substring(0, 200) + "..." : str;
+				const resAny = result as any;
+				if (resAny.buffer && Buffer.isBuffer(resAny.buffer)) {
+					const bboxStr = resAny.bbox ? ` | BBox: [${resAny.bbox.x},${resAny.bbox.y},${resAny.bbox.w},${resAny.bbox.h}]` : "";
+					extraInfo = `[Binary] Payload: ${(resAny.buffer.length / 1024).toFixed(1)} KB${bboxStr}`;
+				} else if (resAny.map && Buffer.isBuffer(resAny.map)) {
+					extraInfo = `[Binary] Map: ${(resAny.map.length / 1024).toFixed(1)} KB`;
+				} else {
+					const str = JSON.stringify(result);
+					extraInfo = str.length > 200 ? str.substring(0, 200) + "..." : str;
+				}
 			} else {
 				extraInfo = String(result);
 			}
@@ -474,9 +495,7 @@ export class requestsHandler {
 				// We must NOT resolve the promise yet.
 				if ((method === "get_map_v1" || method === "get_clean_record_map") &&
 					Array.isArray(result) && result.length === 1 && result[0] === "ok") {
-
-					const v = (req as any).version || version || "1.0";
-					this.adapter.rLog(connectionType as any, reqDuid, "<-", v, String(protocol), `Received TCP ACK for ${method}. Keeping request pending for MQTT data...`, "debug", messageID);
+					// TCP ACK received. Keeping request pending for MQTT data...
 					// Important: Do NOT delete from pendingRequests yet!
 					this.finishedRequests.delete(messageID); // Also remove from finished set so we can process the real response later
 					return;
@@ -489,9 +508,6 @@ export class requestsHandler {
 					// Same check for RoborockRequest
 					if ((method === "get_map_v1" || method === "get_clean_record_map") &&
 						Array.isArray(result) && result.length === 1 && result[0] === "ok") {
-
-						const v = req.version || version || "1.0";
-						this.adapter.rLog(connectionType as any, reqDuid, "<-", v, String(protocol), `Received TCP ACK for ${method}. Keeping request pending for MQTT data...`, "debug", messageID);
 						this.finishedRequests.delete(messageID);
 						return;
 					}
@@ -529,5 +545,53 @@ export class requestsHandler {
 			}
 		});
 		this.adapter.pendingRequests.clear();
+	}
+
+	/**
+	 * Extracts the global Request ID from binary headers and returns the corresponding pending request.
+	 * Checks offset 8 (ROBOROCK header LSB) and offset 16 (Map header/Protocol 30x full ID).
+	 * Fallback: Uses DUID context if the ID match fails (especially for headerless Type 0 streams).
+	 */
+	public getPendingBinaryRequest(payloadBuf: Buffer, duid: string): any | undefined {
+		if (payloadBuf.length < 4) return undefined;
+
+		try {
+			const id8 = payloadBuf.length >= 12 ? payloadBuf.readUInt32LE(8) : -1;
+			const id16 = payloadBuf.length >= 18 ? payloadBuf.readUInt16LE(16) : -1;
+
+			// 1. Stage 1: Explicit ID Check - Offset 8 (ROBOROCK header ID field)
+			if (payloadBuf.length >= 12 && payloadBuf.subarray(0, 8).toString("ascii").startsWith("ROBOROCK")) {
+				const match8 = this.adapter.pendingRequests.get(id8);
+				if (match8 && (match8 as any).duid === duid) {
+					return match8;
+				}
+			}
+
+			// 2. Stage 2: Explicit ID Check - Offset 16 (Map header / Universal 30x Protocol ID)
+			if (payloadBuf.length >= 18) {
+				const match16 = this.adapter.pendingRequests.get(id16);
+				if (match16 && (match16 as any).duid === duid) {
+					return match16;
+				}
+			}
+
+			// 3. Stage 3: DUID Fallback (for headerless Type 0 streams)
+			const photoManager = (this.adapter as any).photoManager;
+			if (photoManager && typeof photoManager.getPendingRequest === "function") {
+				const photoReq = photoManager.getPendingRequest(duid);
+				if (photoReq) {
+					const match = this.adapter.pendingRequests.get(photoReq.id as any);
+					if (match) {
+						return match;
+					}
+				}
+			}
+
+			// Diagnostic for failed matches (Manual Header Analysis phase)
+		} catch (e: any) {
+			this.adapter.rLog("MQTT", duid, "Error", "Binary", undefined, `Match logic crashed: ${e.message}`, "error");
+			return undefined;
+		}
+		return undefined;
 	}
 }

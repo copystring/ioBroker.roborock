@@ -1,4 +1,3 @@
-
 export const MOCK_ROBOT_DATA = {
 	duid: "52E5XuBOSFE0s2oEmQWxPd",
 	model: "roborock.vacuum.a147",

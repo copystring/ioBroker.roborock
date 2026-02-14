@@ -3,7 +3,6 @@ import * as JSZip from "jszip";
 import * as path from "path";
 import { Roborock } from "../main";
 
-
 export class AppPluginManager {
 	adapter: Roborock;
 
@@ -44,7 +43,6 @@ export class AppPluginManager {
 			return;
 		}
 
-
 		const appPluginRequest: any = {
 			apilevel: 1000,
 			type: 2, // Android
@@ -53,7 +51,6 @@ export class AppPluginManager {
 		// Resolve numeric Product ID from V5 Product Info
 		let numericProductId = 0;
 		await this.adapter.http_api.ensureProductInfo();
-
 
 		let vacuumModel = "unknown_model";
 		const modelStr = this.adapter.http_api.getRobotModel(duid);
@@ -71,7 +68,6 @@ export class AppPluginManager {
 			// Log minimal info
 			const hasV3 = !!(this.adapter.http_api.homeData && this.adapter.http_api.homeData.products);
 			const hasV5 = !!(productInfo && productInfo.data);
-
 
 			let v5Count = 0;
 			if (productInfo?.data?.categoryDetailList) {
@@ -150,7 +146,6 @@ export class AppPluginManager {
 						const remoteVersion = parseInt(newVersion);
 
 						if (!isNaN(remoteVersion) && (!isNaN(currentVersion) ? remoteVersion > currentVersion : true)) {
-
 							shouldDownload = true;
 							reason = `New version (Local: ${currentVersion}, Remote: ${newVersion})`;
 						} else {

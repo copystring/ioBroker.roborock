@@ -1,4 +1,3 @@
-
 import { MOCK_ROBOT_DATA } from "./mockData";
 
 export class MockRobot {

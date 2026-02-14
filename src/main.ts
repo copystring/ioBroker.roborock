@@ -20,7 +20,6 @@ import { mqtt_api } from "./lib/mqttApi";
 import { requestsHandler } from "./lib/requestsHandler";
 import { socketHandler } from "./lib/socketHandler";
 
-
 export class Roborock extends utils.Adapter {
 	// --- Public APIs (accessible by helpers) ---
 	public http_api: http_api;
@@ -96,8 +95,7 @@ export class Roborock extends utils.Adapter {
 		this.sentryInstance = this.getPluginInstance("sentry");
 		this.translations = require(`../admin/i18n/${this.language || "en"}/translations.json`);
 
-		this.rLog("System", null, "Info", undefined, undefined, "Starting adapter. This might take a few minutes...", "info");
-		this.rLog("System", null, "Info", undefined, undefined, `Build Info: Date=${commitInfo.commitDate}, Commit=${commitInfo.commitHash}`, "info");
+		this.rLog("System", null, "Info", undefined, undefined, `Build Info: Date=${commitInfo.commitDate}, Commit=${commitInfo.commitHash}`, "debug");
 
 		// Log redacted config
 		const configSummary = {
@@ -105,7 +103,7 @@ export class Roborock extends utils.Adapter {
 			password: this.config.password ? "******" : "NOT_SET",
 			cameraPin: this.config.cameraPin ? "******" : undefined,
 		};
-		this.rLog("System", null, "Info", undefined, undefined, `Config: ${JSON.stringify(configSummary)}`, "info");
+		this.rLog("System", null, "Info", undefined, undefined, `Config: ${JSON.stringify(configSummary)}`, "debug");
 
 		await this.setupBasicObjects();
 
@@ -123,7 +121,7 @@ export class Roborock extends utils.Adapter {
 			await this.mqtt_api.init();
 
 			// --- Pre-Init Network Probe (Docker/VLAN Support) ---
-			this.rLog("System", null, "Info", undefined, undefined, "Starting Pre-Init Network Probe...", "info");
+			this.rLog("System", null, "Info", undefined, undefined, "Starting Pre-Init Network Probe...", "debug");
 			const allDevices = this.http_api.getDevices();
 			const probePromises = allDevices.map(async (device) => {
 				const duid = device.duid;
@@ -132,7 +130,6 @@ export class Roborock extends utils.Adapter {
 
 				try {
 					// 1. Get Network Info (via MQTT as we have no TCP yet)
-					this.rLog("System", duid, "Debug", undefined, undefined, "Probing network info via Cloud...", "debug");
 					const result = await this.requestsHandler.sendRequest(duid, "get_network_info", []);
 
 					// 2. Extract IP
@@ -209,7 +206,6 @@ export class Roborock extends utils.Adapter {
 	async onMessage(obj: ioBroker.Message) {
 		if (obj && obj.command && obj.callback) {
 			try {
-				this.rLog("Requests", null, "Debug", undefined, undefined, `Received message: ${JSON.stringify(obj)}`, "debug");
 				// Forward to the dedicated handler
 				await this.socketHandler.handleMessage(obj);
 			} catch (err: any) {
@@ -291,7 +287,6 @@ export class Roborock extends utils.Adapter {
 			} else {
 				this.log.warn(`[executeSceneLocal] Scene ${sceneId} has no actions.`);
 			}
-
 		} catch (e: any) {
 			this.log.error(`[executeSceneLocal] Error executing scene: ${e} ${e.stack}`);
 		}
@@ -403,7 +398,6 @@ export class Roborock extends utils.Adapter {
 			try {
 				await this.executeCommand(handler, duid, command, state);
 			} finally {
-
 				// Reset boolean command state ONLY if it is defined as boolean
 				const cmdDef = handler.commands[command];
 				const isBoolean = cmdDef && cmdDef.type === "boolean";
@@ -435,7 +429,6 @@ export class Roborock extends utils.Adapter {
 			}
 			return;
 		}
-
 
 		// Log start of command execution for diagnostics
 		this.log.info(`[executeCommand] Starting command ${command} with params ${typeof val === "object" ? JSON.stringify(val) : val}`);
@@ -610,8 +603,6 @@ export class Roborock extends utils.Adapter {
 		}
 	}
 
-
-
 	/**
 	 * Creates a state if it doesn't exist, applying translations.
 	 */
@@ -648,7 +639,7 @@ export class Roborock extends utils.Adapter {
 		try {
 			if (oldObj) {
 				// Object exists, but metadata changed
-				this.log.silly(`[ensureState] Updating metadata for "${path}".`);
+				this.log.debug(`[ensureState] Updating metadata for "${path}".`);
 
 				// Safely merge common properties
 				const newCommon = { ...oldObj.common, ...finalCommon };
@@ -793,8 +784,6 @@ export class Roborock extends utils.Adapter {
 		return device?.pv || "1.0";
 	}
 
-
-
 	/**
 	 * Starts the go2rtc process if cameras are present.
 	 */
@@ -858,8 +847,6 @@ export class Roborock extends utils.Adapter {
 			this.log.warn(`[A01|${duid}] Invalid response: ${JSON.stringify(response)}`);
 			return;
 		}
-
-		// this.log.debug(`[A01] Update for ${duid}: ${JSON.stringify(response.dps)}`);
 
 		const determineType = (value: any): ioBroker.CommonType => {
 			const t = typeof value;
@@ -949,7 +936,7 @@ export class Roborock extends utils.Adapter {
 	 * Centralized Logging Function for Protocol Messages
 	 * Format: [Connection] [duid] direction [version] [protocol] [ID: id] | payload
 	 */
-	rLog(connection: "MQTT" | "TCP" | "UDP" | "HTTP" | "Cloud" | "Local" | "System" | "MapManager" | "Requests" | "Unknown", duid: string | null | undefined, direction: "<-" | "->" | "Info" | "Error" | "Warn" | "Debug", version: string | undefined, protocol: string | number | undefined, message: string, level: "silly" | "debug" | "info" | "warn" | "error" = "debug", msgId?: string | number): void {
+	rLog(connection: "MQTT" | "TCP" | "UDP" | "HTTP" | "Cloud" | "Local" | "System" | "MapManager" | "Requests" | "Unknown", duid: string | null | undefined, direction: "<-" | "->" | "Info" | "Error" | "Warn" | "Debug", version: string | undefined, protocol: string | number | undefined, message: string, level: "debug" | "info" | "warn" | "error" = "debug", msgId?: string | number): void {
 		// Use == as a neutral placeholder for alignment if it's not actual traffic (<- or ->).
 		const directionDisplay = (direction === "<-" || direction === "->") ? direction : "==";
 
@@ -963,7 +950,6 @@ export class Roborock extends utils.Adapter {
 		const logMsg = `${parts.join(" ")} | ${message}`;
 
 		switch (level) {
-			case "silly": this.log.silly(logMsg); break;
 			case "debug": this.log.debug(logMsg); break;
 			case "info": this.log.info(logMsg); break;
 			case "warn": this.log.warn(logMsg); break;
@@ -1022,7 +1008,6 @@ export class Roborock extends utils.Adapter {
 			this.setResetTimeout(stateId);
 		}
 	}
-
 }
 
 if (require.main !== module) {

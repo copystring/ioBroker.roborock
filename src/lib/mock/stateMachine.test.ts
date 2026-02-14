@@ -1,5 +1,4 @@
-﻿
-import { beforeEach, describe, expect, it } from "vitest";
+﻿import { beforeEach, describe, expect, it } from "vitest";
 import { Feature } from "../features/features.enum";
 import { V1VacuumFeatures } from "../features/vacuum/v1VacuumFeatures";
 import { MockAdapter } from "./MockAdapter";
@@ -84,4 +83,3 @@ describe("State Machine Deep Dive", () => {
 		expect(mockAdapter.states[`Devices.${mockRobot.duid}.deviceStatus.error_code`]).to.equal(0);
 	});
 });
-

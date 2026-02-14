@@ -1,4 +1,3 @@
-
 export class MockAdapter {
 	public objects: Record<string, any> = {};
 	public states: Record<string, any> = {};
@@ -24,7 +23,6 @@ export class MockAdapter {
 	public clearInterval(intervalId: any): void { clearInterval(intervalId); }
 	public clearTimeout(timeoutId: any): void { clearTimeout(timeoutId); }
 	public getDeviceProtocolVersion = async (): Promise<string> => {
-		// console.log("[MockAdapter] getDeviceProtocolVersion called");
 		return "1.0";
 	};
 
@@ -82,12 +80,9 @@ export class MockAdapter {
 		this.objects[id] = { ...this.objects[id], ...obj };
 	};
 
-
 	public async getObjectAsync(id: string): Promise<any> {
 		return this.objects[id];
 	}
-
-
 
 	public setState = (id: string, state: any, ack?: boolean | ((err?: any) => void), callback?: (err?: any) => void): Promise<void> => {
 		if (typeof ack === "function") {

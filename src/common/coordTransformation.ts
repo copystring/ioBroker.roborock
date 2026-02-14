@@ -1,4 +1,3 @@
-
 export interface TransformationParams {
     x: number;      // Input X (robot coord in mm)
     y: number;      // Input Y (robot coord in mm)
