@@ -46,6 +46,9 @@ describe("V1VacuumFeatures", () => {
 				getDevices: vi.fn().mockReturnValue([]) // For V1ConsumableService
 			},
 			rLog: vi.fn(),
+			translationManager: {
+				get: vi.fn().mockImplementation((key, def) => def || key),
+			},
 		};
 		depsMock = {
 			adapter: adapterMock,

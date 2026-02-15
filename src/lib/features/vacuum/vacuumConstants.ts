@@ -1,23 +1,16 @@
-import EXTRACTED_ERRORS from "../../../../lib/protocols/s7_maxv_dataset.json";
-
-interface S7Dataset {
-	[lang: string]: Record<string, string>;
-}
+import { ADAPTER_ERRORS_EN } from "./adapterErrorMapping";
 
 export const VACUUM_CONSTANTS = {
 	errorCodes: {
 		0: "No error",
-		// Use S7 MaxV dataset as the standardized error definition for the entire adapter
+		// Use S7 MaxV English defaults as the standardized error definition for the entire adapter
 		// This supersedes legacy hardcoded lists and serves as the baseline for V1 and B01
-		// SCHEMA VERIFIED: The S7 dataset structure is flat: { [lang]: { [code]: "text" } }.
-		// It does NOT follow the Q7 nested structure.
-		...((EXTRACTED_ERRORS as unknown as S7Dataset)["en"] || {}),
+		...ADAPTER_ERRORS_EN,
 		// Add legacy/missing codes
 		254: "Bin full",
 		255: "Internal error",
 		"-1": "Unknown Error",
 	},
-	errorCodes_languages: EXTRACTED_ERRORS as Record<string, Record<string, string>>,
 	stateCodes: {
 		0: "Unknown",
 		1: "Initiating",
@@ -69,7 +62,7 @@ export const VACUUM_CONSTANTS = {
 		"language", "cleaning_time", "real_clean_time", "cleaning_area", "custom_type",
 		"work_mode", "charge_state", "current_map_id", "map_num", "dust_action",
 		"quiet_is_open", "clean_finish", "build_map", "dust_frequency", "multi_floor",
-		"pv_charging", "recommend", "add_sweep_status"
+		"pv_charging", "recommend", "add_sweep_status", "clean_fluid"
 	],
 	b01SettingsProps: [
 		"alarm", "volume", "hypa", "main_brush", "side_brush", "mop_life", "main_sensor",
@@ -216,6 +209,16 @@ export const VACUUM_CONSTANTS = {
 			},
 			write: true,
 		},
+		washingTaskStatus: {
+			type: "number",
+			def: 0,
+			states: {},
+		},
+		washingMode: {
+			type: "number",
+			def: 0,
+			states: {},
+		},
 		wind: {
 			type: "number",
 			def: 102,
@@ -230,17 +233,34 @@ export const VACUUM_CONSTANTS = {
 		},
 	},
 	consumables: {
+		// Raw keys from robot (converted to hours/cycles where applicable)
 		main_brush_work_time: { type: "number", unit: "h" },
 		side_brush_work_time: { type: "number", unit: "h" },
 		filter_work_time: { type: "number", unit: "h" },
 		filter_element_work_time: { type: "number", unit: "h" },
 		sensor_dirty_time: { type: "number", unit: "h" },
-		dust_collection_work_times: { type: "number", unit: "h" },
-		main_brush_life: { type: "number", unit: "%" },
-		side_brush_life: { type: "number", unit: "%" },
-		filter_life: { type: "number", unit: "%" },
-		strainer_work_times: { type: "number", unit: "h" },
-		cleaning_brush_work_times: { type: "number", unit: "%" },
+		dust_collection_work_times: { type: "number", unit: "cycles" },
+		strainer_work_times: { type: "number", unit: "cycles" },
+		cleaning_brush_work_times: { type: "number", unit: "cycles" },
+	} as const,
+	consumableTranslationKeys: {
+		main_brush: "localization_strings_Setting_Supplies_Common_4",
+		side_brush: "localization_strings_Setting_Supplies_Common_2",
+		filter: "localization_strings_Setting_Supplies_Common_0",
+		filter_element: "supplies_waterbox_chip_name",
+		sensor: "supplies_sensors_name",
+		mop: "custom_mode_panel_mop_gear_title",
+		strainer: "supplies_strainer_name",
+		dust_collection: "dust_collection_life5",
+		cleaning_brush: "home_page_supplies_cleaning_brush1"
+	} as const,
+	dockingStationTranslationKeys: {
+		cleanFluidStatus: "dock_info_clean_fluid_title",
+		waterBoxFilterStatus: "dock_info_water_box_filter_title",
+		dustBagStatus: "dust_collection_life5",
+		dirtyWaterBoxStatus: "dock_info_dirty_water_box_title",
+		clearWaterBoxStatus: "dock_info_clear_water_box_title",
+		isUpdownWaterReady: "inner_error_name_152"
 	} as const,
 	resetConsumables: new Set([
 		"main_brush_work_time",
@@ -306,24 +326,6 @@ export const VACUUM_CONSTANTS = {
 		123: "isOrderCleanSupported",
 		125: "isRemoteSupported",
 	} as const,
-
-	/**
-	 * Helper to resolve language fallback for error codes.
-	 * Returns the localized error map or undefined if not found.
-	 */
-	resolveErrorCodeFallback(lang: string | undefined | null): Record<string, string> | undefined {
-		if (!lang) return undefined;
-		// Check exact match first
-		if (this.errorCodes_languages[lang]) return this.errorCodes_languages[lang];
-
-		// Check base language (e.g., 'es' from 'es-LA' or 'es-MX')
-		if (lang.includes("-")) {
-			const baseLang = lang.split("-")[0].toLowerCase();
-			if (this.errorCodes_languages[baseLang]) return this.errorCodes_languages[baseLang];
-		}
-
-		return undefined;
-	},
 };
 
 export type FirmwareFeatures = typeof VACUUM_CONSTANTS.firmwareFeatures;

@@ -238,8 +238,7 @@ export class mqtt_api {
 						}
 					}
 				}
-				const dataArr = this.adapter.requestsHandler.messageParser.decodeMsg(message, duid);
-				const allMessages = Array.isArray(dataArr) ? dataArr : dataArr ? [dataArr] : [];
+				const allMessages = this.adapter.requestsHandler.messageParser.decodeMsg(message, duid);
 
 				for (const data of allMessages) {
 					await this.handleDecodedMessage(finalDuid, data);
@@ -277,12 +276,11 @@ export class mqtt_api {
 			return;
 		}
 
-		if (!this.adapter.pendingRequests.has(reqId)) {
+		const pending = this.adapter.pendingRequests.get(reqId);
+		if (!pending) {
 			this.handleUnknownB01Response(duid, reqId);
 			return;
 		}
-
-		const pending = this.adapter.pendingRequests.get(reqId);
 
 		// Handle inner payload (Map/Photo)
 		if (response.payload && await this.processB01InnerPayload(duid, reqId, response.payload)) {

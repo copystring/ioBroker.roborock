@@ -33,15 +33,15 @@ function createFeaturesForModel(adapter: Roborock, duid: string, robotModel: str
 		const errorMappings = ProductHelper.getStateDefinitions(productInfo, robotModel, "error");
 		const stateMappings = ProductHelper.getStateDefinitions(productInfo, robotModel, "state");
 
-		if (fanMappings || mopMappings || waterMappings || errorMappings || stateMappings) {
+		if (Object.keys(fanMappings).length > 0 || Object.keys(mopMappings).length > 0 || Object.keys(waterMappings).length > 0 || Object.keys(errorMappings).length > 0 || Object.keys(stateMappings).length > 0) {
 			dynamicProfile = {
 				...DEFAULT_PROFILE,
 				mappings: {
-					fan_power: fanMappings || DEFAULT_PROFILE.mappings.fan_power,
-					mop_mode: mopMappings || DEFAULT_PROFILE.mappings.mop_mode,
-					water_box_mode: waterMappings || DEFAULT_PROFILE.mappings.water_box_mode,
-					error_code: errorMappings || undefined,
-					state: stateMappings || undefined,
+					fan_power: Object.keys(fanMappings).length > 0 ? fanMappings : DEFAULT_PROFILE.mappings.fan_power,
+					mop_mode: Object.keys(mopMappings).length > 0 ? mopMappings : DEFAULT_PROFILE.mappings.mop_mode,
+					water_box_mode: Object.keys(waterMappings).length > 0 ? waterMappings : DEFAULT_PROFILE.mappings.water_box_mode,
+					error_code: Object.keys(errorMappings).length > 0 ? errorMappings : undefined,
+					state: Object.keys(stateMappings).length > 0 ? stateMappings : undefined,
 				}
 			};
 		}
@@ -94,6 +94,7 @@ export class DeviceManager {
 	 */
 	public async initializeDevices(): Promise<void> {
 		const devices = this.adapter.http_api.getDevices();
+
 		this.adapter.rLog("System", null, "Info", undefined, undefined, `Initializing data for ${devices.length} devices...`, "info");
 
 		const initPromises: Promise<void>[] = [];
@@ -178,6 +179,13 @@ export class DeviceManager {
 			// Get all device objects (more efficient than getting all objects)
 			const devices = await this.adapter.getDevicesAsync();
 			const deviceFolders = devices.map((obj) => obj._id).filter((id) => id.startsWith(`${namespace}.Devices.`) && id.split(".").length === 4);
+
+			// Safety guard: NEVER delete all devices at once.
+			// This covers the case where the cloud returns an empty list incorrectly.
+			if (activeDuids.length === 0 && deviceFolders.length > 0) {
+				this.adapter.rLog("System", null, "Warn", undefined, undefined, "Cleanup of orphaned devices blocked: API returned 0 devices, but local states exist. Mass deletion prevented.", "warn");
+				return;
+			}
 
 			for (const folderId of deviceFolders) {
 				const duid = folderId.split(".").pop();
@@ -372,12 +380,6 @@ export class DeviceManager {
 		// 1. Update Status (fast)
 		await handler.updateStatus();
 
-		// Check Dock Type
-		const dockTypeState = await this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.dock_type`);
-		if (dockTypeState && dockTypeState.val !== null) {
-			await handler.processDockType(Number(dockTypeState.val));
-		}
-
 		// 2. Check State Transitions
 		const currentState = await this.getDeviceState(duid);
 		const lastState = this.lastStateCode.get(duid) || 0;
@@ -439,7 +441,9 @@ export class DeviceManager {
 		const handler = this.deviceFeatureHandlers.get(duid);
 		if (!handler) return;
 
-		const device = this.adapter.http_api.getDevices().find((d) => d.duid === duid);
+		const devices = this.adapter.http_api.getDevices();
+
+		const device = devices.find((d) => d.duid === duid);
 		if (!device?.deviceStatus) return; // 'deviceStatus' exists on Device type
 		const status = device.deviceStatus as Record<string, number>;
 

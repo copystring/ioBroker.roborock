@@ -71,6 +71,7 @@ export class MockAdapter {
 			getFwFeaturesResult: () => ({}),
 			storeFwFeaturesResult: () => {}
 		};
+		(this as any).translationManager = { get: (key: string, def?: string) => def || key };
 	}
 
 	public async setObject(id: string, obj: any): Promise<void> {

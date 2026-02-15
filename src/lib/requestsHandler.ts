@@ -71,7 +71,7 @@ class RequestManager {
 	}
 }
 
-class RoborockRequest {
+export class RoborockRequest {
 	adapter: Roborock;
 	handler: requestsHandler;
 	duid: string;
@@ -85,25 +85,27 @@ class RoborockRequest {
 	public creationTime: number;
 	public startTime: number = 0;
 	public binaryType: "photo" | "map" | undefined;
+	private externalId?: number;
 	timeoutTimer: ioBroker.Timeout | undefined;
 
 	timeout: number;
 	manager: RequestManager;
 	queueName: string;
 
-	constructor(handler: requestsHandler, duid: string, method: string, params: unknown, messageID: number, manager: RequestManager, queueName: string, version = "1.0", timeout = REQUEST_TIMEOUT) {
+	constructor(handler: requestsHandler, duid: string, method: string, params: unknown, manager: RequestManager, queueName: string, version = "1.0", timeout = REQUEST_TIMEOUT, externalId?: number) {
 		this.handler = handler;
 		this.adapter = handler.adapter;
 		this.duid = duid;
 		this.method = method;
 		this.params = params;
-		this.messageID = messageID;
+		this.messageID = externalId || 0;
 		this.version = version;
 		this.creationTime = Date.now();
 		this.startTime = Date.now();
 		this.timeout = timeout;
 		this.manager = manager;
 		this.queueName = queueName;
+		this.externalId = externalId;
 
 		// Set strict binary type based on method
 		if (this.method === "get_photo") {
@@ -124,6 +126,27 @@ class RoborockRequest {
 		const queueDuration = Date.now() - this.creationTime;
 
 		if (signal?.aborted) throw new Error("Aborted");
+
+		// Assign fresh Message ID right before sending
+		if (this.externalId !== undefined) {
+			this.messageID = this.externalId;
+		} else if (this.method === "get_photo") {
+			this.handler.photoIdCounter = this.handler.photoIdCounter >= 255 ? 1 : this.handler.photoIdCounter + 1;
+			this.messageID = this.handler.photoIdCounter;
+		} else {
+			if (this.version === "B01") {
+				this.messageID = Date.now();
+				if (this.messageID <= this.handler.lastB01Id) {
+					this.messageID = this.handler.lastB01Id + 1;
+				}
+				this.handler.lastB01Id = this.messageID;
+			} else {
+				const minId = (this.adapter.instance * 20000) + 300;
+				const maxId = (this.adapter.instance * 20000) + 20000;
+				this.handler.idCounter = this.handler.idCounter > maxId ? minId : this.handler.idCounter + 1;
+				this.messageID = this.handler.idCounter;
+			}
+		}
 
 		// Register in pendingRequests immediately to ensure we can cleanup if anything fails
 		this.adapter.pendingRequests.set(this.messageID, this);
@@ -356,39 +379,13 @@ export class requestsHandler {
 		const version = await this.adapter.getDeviceProtocolVersion(duid);
 
 		const attempt = async (retryCount: number): Promise<unknown> => {
-			let messageID: number;
-
-			if (options.externalId !== undefined) {
-				messageID = options.externalId;
-			} else if (method === "get_photo") {
-				this.photoIdCounter = this.photoIdCounter >= 255 ? 1 : this.photoIdCounter + 1;
-				messageID = this.photoIdCounter;
-			} else {
-				// Detect version to determine ID strategy
-				if (version === "B01") {
-					// B01 uses timestamp-based IDs (e.g. 1766102306357)
-					messageID = Date.now();
-					// Ensure uniqueness if multiple requests happen in same ms
-					if (messageID <= this.lastB01Id) {
-						messageID = this.lastB01Id + 1;
-					}
-					this.lastB01Id = messageID;
-				} else {
-					// Legacy/Standard uses sequential small integer
-					const minId = (this.adapter.instance * 20000) + 300;
-					const maxId = (this.adapter.instance * 20000) + 20000;
-					this.idCounter = this.idCounter > maxId ? minId : this.idCounter + 1;
-					messageID = this.idCounter;
-				}
-			}
-
-			const req = new RoborockRequest(this, duid, method, params, messageID, manager, queueName, version, timeout);
+			const req = new RoborockRequest(this, duid, method, params, manager, queueName, version, timeout, options.externalId);
 			if (method === "get_photo") {
 				req.binaryType = "photo";
 			} else if (method === "get_map_v1" || method === "get_clean_record_map") {
 				req.binaryType = "map";
 			}
-			const taskId = `req_${messageID}_${Date.now()}`;
+			const taskId = `${method}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
 			try {
 				const result = await manager.add(taskId, (signal) => req.send(signal), priority);
@@ -438,6 +435,14 @@ export class requestsHandler {
 						this.adapter.rLog("System", duid, "Error", "Command", undefined, `Command ${method} returned unexpected result: ${JSON.stringify(data)} (Expected: ["ok"])`, "error");
 					}
 				}
+
+				// Trigger follow-up status update after 1s to refresh states in ioBroker
+				this.adapter.setTimeout(() => {
+					this.adapter.rLog("System", duid, "Debug", "Command", undefined, `Triggering follow-up status update after command: ${method}`, "debug");
+					_handler.updateStatus().catch((e) => {
+						this.adapter.rLog("System", duid, "Error", "Command", undefined, `Error during follow-up status update for ${method}: ${e.message}`, "error");
+					});
+				}, 1000);
 			},
 			`command-${method}-${duid}`,
 			duid
@@ -462,8 +467,7 @@ export class requestsHandler {
 				} else if (resAny.map && Buffer.isBuffer(resAny.map)) {
 					extraInfo = `[Binary] Map: ${(resAny.map.length / 1024).toFixed(1)} KB`;
 				} else {
-					const str = JSON.stringify(result);
-					extraInfo = str.length > 200 ? str.substring(0, 200) + "..." : str;
+					extraInfo = JSON.stringify(result);
 				}
 			} else {
 				extraInfo = String(result);
@@ -533,16 +537,7 @@ export class requestsHandler {
 
 		// Reject pending requests
 		this.adapter.pendingRequests.forEach((req) => {
-			if (req instanceof RoborockRequest) {
-				req.reject(new Error("Queue cleared (adapter stopped or disconnected)"));
-			} else {
-				// Legacy fallback
-				if (req.timeout) this.adapter.clearTimeout(req.timeout);
-				// Reject or delete
-				if (typeof req.reject === "function") {
-					req.reject(new Error("Queue cleared (adapter stopped or disconnected)"));
-				}
-			}
+			req.reject(new Error("Queue cleared (adapter stopped or disconnected)"));
 		});
 		this.adapter.pendingRequests.clear();
 	}
@@ -552,7 +547,7 @@ export class requestsHandler {
 	 * Checks offset 8 (ROBOROCK header LSB) and offset 16 (Map header/Protocol 30x full ID).
 	 * Fallback: Uses DUID context if the ID match fails (especially for headerless Type 0 streams).
 	 */
-	public getPendingBinaryRequest(payloadBuf: Buffer, duid: string): any | undefined {
+	public getPendingBinaryRequest(payloadBuf: Buffer, duid: string): RoborockRequest | undefined {
 		if (payloadBuf.length < 4) return undefined;
 
 		try {
@@ -562,7 +557,7 @@ export class requestsHandler {
 			// 1. Stage 1: Explicit ID Check - Offset 8 (ROBOROCK header ID field)
 			if (payloadBuf.length >= 12 && payloadBuf.subarray(0, 8).toString("ascii").startsWith("ROBOROCK")) {
 				const match8 = this.adapter.pendingRequests.get(id8);
-				if (match8 && (match8 as any).duid === duid) {
+				if (match8 && match8.duid === duid) {
 					return match8;
 				}
 			}
@@ -570,7 +565,7 @@ export class requestsHandler {
 			// 2. Stage 2: Explicit ID Check - Offset 16 (Map header / Universal 30x Protocol ID)
 			if (payloadBuf.length >= 18) {
 				const match16 = this.adapter.pendingRequests.get(id16);
-				if (match16 && (match16 as any).duid === duid) {
+				if (match16 && match16.duid === duid) {
 					return match16;
 				}
 			}

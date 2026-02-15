@@ -82,6 +82,8 @@ describe("Features - State Creation", () => {
 			ensureState: async (id: string, common: any) => mockAdapter.setObjectNotExistsAsync(id, { type: "state", common } as any),
 		};
 
+		(deps.adapter as any).translationManager = { get: (key: string, def?: string) => def || key };
+
 		// Double-ensure setState is present even if class binding fails
 		if (!deps.adapter.setState) {
 			deps.adapter.setState = mockAdapter.setState;
@@ -138,6 +140,7 @@ describe("Features - State Creation", () => {
 		if (!deps.adapter.setState) {
 			deps.adapter.setState = mockAdapter.setState;
 		}
+		(deps.adapter as any).translationManager = { get: (key: string, def?: string) => def || key };
 		const features = new TestVacuumFeatures(deps as any, mockRobot.duid, mockRobot.model, { staticFeatures: [] } as any);
 
 		// 1. Initial: No reset buttons

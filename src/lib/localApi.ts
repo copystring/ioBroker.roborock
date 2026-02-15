@@ -219,9 +219,8 @@ export class local_api {
 							}
 						} else {
 							// Decode standard data message
-							const dataArr = this.adapter.requestsHandler.messageParser.decodeMsg(currentBuffer, duid);
+							const allMessages = this.adapter.requestsHandler.messageParser.decodeMsg(currentBuffer, duid);
 
-							const allMessages = Array.isArray(dataArr) ? dataArr : dataArr ? [dataArr] : [];
 							for (const data of allMessages) {
 								// Protocol 4: Device Status Update
 								if (data.protocol === 4 || data.version === "B01") {

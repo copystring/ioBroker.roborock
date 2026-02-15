@@ -6,17 +6,12 @@ describe("V1ConsumableService", () => {
 	let service: V1ConsumableService;
 	let mockAdapter: any;
 	let mockRequestsHandler: any;
-	let mockHttpApi: any;
 
 	const testDuid = "test_duid";
 
 	beforeEach(() => {
 		mockRequestsHandler = {
 			sendRequest: vi.fn(),
-		};
-
-		mockHttpApi = {
-			getDevices: vi.fn().mockReturnValue([]),
 		};
 
 		mockAdapter = {
@@ -30,8 +25,10 @@ describe("V1ConsumableService", () => {
 			ensureFolder: vi.fn().mockResolvedValue(undefined),
 			ensureState: vi.fn().mockResolvedValue(undefined),
 			setStateChanged: vi.fn().mockResolvedValue(undefined),
+			translationManager: {
+				get: vi.fn((key, def) => def || key),
+			},
 			requestsHandler: mockRequestsHandler,
-			http_api: mockHttpApi,
 		};
 
 		const mockDeps = {
@@ -64,8 +61,8 @@ describe("V1ConsumableService", () => {
 
 			expect(mockRequestsHandler.sendRequest).toHaveBeenCalledWith(testDuid, "get_consumable", []);
 			expect(mockAdapter.setStateChanged).toHaveBeenCalledWith(
-				expect.stringContaining("main_brush"),
-				expect.objectContaining({ val: expect.any(Number) })
+				expect.stringContaining("main_brush_work_time"),
+				expect.objectContaining({ val: 299, ack: true })
 			);
 		});
 
@@ -75,8 +72,8 @@ describe("V1ConsumableService", () => {
 
 			expect(mockRequestsHandler.sendRequest).not.toHaveBeenCalled();
 			expect(mockAdapter.setStateChanged).toHaveBeenCalledWith(
-				expect.stringContaining("main_brush"),
-				expect.objectContaining({ val: expect.any(Number) })
+				expect.stringContaining("main_brush_work_time"),
+				expect.objectContaining({ val: 298, ack: true })
 			);
 		});
 	});
@@ -91,20 +88,20 @@ describe("V1ConsumableService", () => {
 
 			// Consumable content
 			expect(mockAdapter.setStateChanged).toHaveBeenCalledWith(
-				`Devices.${testDuid}.consumables.main_brush`,
-				expect.anything()
+				`Devices.${testDuid}.consumables.main_brush_work_time`,
+				expect.objectContaining({ val: 299, ack: true })
 			);
 		});
 
-		it("should calculate percent for known consumables", async () => {
-			// main_brush life is 300h. 150h usage = 50% remaining.
+		it("should calculate remaining hours for known consumables", async () => {
+			// main_brush life is 300h. 150h usage = 150h remaining.
 			// 150 * 3600 = 540000
 			const data = { main_brush_work_time: 540000 };
 			await service.updateConsumables(data);
 
 			expect(mockAdapter.setStateChanged).toHaveBeenCalledWith(
-				`Devices.${testDuid}.consumables.main_brush`,
-				{ val: 50, ack: true }
+				`Devices.${testDuid}.consumables.main_brush_work_time`,
+				{ val: 150, ack: true }
 			);
 		});
 
@@ -117,40 +114,6 @@ describe("V1ConsumableService", () => {
 				expect.objectContaining({ role: "button" }),
 				expect.objectContaining({ resetParam: "main_brush_work_time" })
 			);
-		});
-	});
-
-	describe("updateConsumablesPercent", () => {
-		it("should update percentages from device status", async () => {
-			mockHttpApi.getDevices.mockReturnValue([{
-				duid: testDuid,
-				deviceStatus: {
-					"125": 80, // main_brush_life
-					"126": 90, // side_brush_life
-					"127": 40  // filter_life
-				}
-			}]);
-
-			await service.updateConsumablesPercent();
-
-			expect(mockAdapter.setStateChanged).toHaveBeenCalledWith(
-				`Devices.${testDuid}.consumables.main_brush_life`,
-				{ val: 80, ack: true }
-			);
-			expect(mockAdapter.setStateChanged).toHaveBeenCalledWith(
-				`Devices.${testDuid}.consumables.side_brush_life`,
-				{ val: 90, ack: true }
-			);
-			expect(mockAdapter.setStateChanged).toHaveBeenCalledWith(
-				`Devices.${testDuid}.consumables.filter_life`,
-				{ val: 40, ack: true }
-			);
-		});
-
-		it("should do nothing if device status not found", async () => {
-			mockHttpApi.getDevices.mockReturnValue([]);
-			await service.updateConsumablesPercent();
-			expect(mockAdapter.setStateChanged).not.toHaveBeenCalled();
 		});
 	});
 });

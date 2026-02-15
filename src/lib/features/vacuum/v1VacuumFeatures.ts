@@ -1,6 +1,7 @@
 import PQueue from "p-queue";
 import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
+import { StationService } from "./services/StationService";
 import { V1ConsumableService } from "./services/V1ConsumableService";
 import { V1MapService } from "./services/V1MapService";
 import { VACUUM_CONSTANTS } from "./vacuumConstants";
@@ -35,29 +36,22 @@ export const DEFAULT_PROFILE: VacuumProfile = {
 };
 
 export class V1VacuumFeatures extends BaseDeviceFeatures {
-	protected profile: VacuumProfile = DEFAULT_PROFILE;
-	private _consumableService?: V1ConsumableService;
-	private _mapService?: V1MapService;
+	protected profile: VacuumProfile;
+	protected consumableService: V1ConsumableService;
+	protected stationService: StationService;
+	protected lastMapUpdate = 0;
+	protected detectionComplete = false;
 
-	private get consumableService(): V1ConsumableService {
-		if (!this._consumableService) {
-			this._consumableService = new V1ConsumableService(this.deps, this.duid, this.profile);
-		}
-		return this._consumableService;
-	}
-
-	private get mapService(): V1MapService {
-		if (!this._mapService) {
-			this._mapService = new V1MapService(this.deps, this.duid);
-		}
-		return this._mapService;
-	}
+	protected mapService: V1MapService;
 
 	constructor(dependencies: FeatureDependencies, duid: string, robotModel: string, config: DeviceModelConfig = { staticFeatures: [] }, profile: VacuumProfile = DEFAULT_PROFILE) {
 		super(dependencies, duid, robotModel, config);
 
 		// Deep clone profile to avoid mutating shared static objects
 		this.profile = structuredClone(profile);
+		this.consumableService = new V1ConsumableService(this.deps, this.duid, this.profile);
+		this.stationService = new StationService(this.deps, this.duid);
+		this.mapService = new V1MapService(this.deps, this.duid);
 	}
 
 	public override async initializeDeviceData(): Promise<void> {
@@ -72,7 +66,6 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			this.updateNetworkInfo(),
 			this.updateTimers(),
 		]);
-		await this.updateConsumablesPercent();
 	}
 
 	/**
@@ -193,9 +186,19 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 		// Consumables detection (usually static, but can check for keys)
 		if (await this.applyFeature(Feature.Consumables)) changed = true;
 
-		// Initial status
-		if (statusData["state"] !== undefined) {
-			await this.processStatus(statusData);
+		if (statusData["dss"] !== undefined) {
+			const dss = Number(statusData["dss"]);
+			await this.applyFeature(Feature.DockingStationStatus);
+
+			// Bits 6-7: Dust bag status (0=not supported/missing)
+			if (((dss >> 6) & 0b11) > 0) {
+				await this.applyFeature(Feature.AutoEmptyDock);
+			}
+			// Bits 4-5: Dirty water tank status (0=not supported/missing)
+			// Bits 10-11: Clean water tank status
+			if (((dss >> 4) & 0b11) > 0 || ((dss >> 10) & 0b11) > 0) {
+				await this.applyFeature(Feature.MopWash);
+			}
 		}
 
 		if (!this.runtimeDetectionComplete) {
@@ -210,10 +213,6 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 		await this.consumableService.updateConsumables();
 	}
 
-	public async updateConsumablesPercent(): Promise<void> {
-		await this.consumableService.updateConsumablesPercent();
-	}
-
 	@BaseDeviceFeatures.DeviceFeature(Feature.Map)
 	public async updateMap(): Promise<void> {
 		await this.mapService.updateMap();
@@ -225,29 +224,14 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 
 	@BaseDeviceFeatures.DeviceFeature(Feature.DockingStationStatus)
 	protected async initDockingStationStatus(): Promise<void> {
-		await this.deps.ensureFolder(`Devices.${this.duid}.dockingStationStatus`);
-		const statusNames = ["cleanFluidStatus", "waterBoxFilterStatus", "dustBagStatus", "dirtyWaterBoxStatus", "clearWaterBoxStatus", "isUpdownWaterReady"];
-		for (const name of statusNames) {
-			await this.deps.ensureState(`Devices.${this.duid}.dockingStationStatus.${name}`, { name, type: "number", role: "value", read: true, write: false });
-		}
+		await this.stationService.initDockingStationStatus();
 	}
 
 	public async updateDockingStationStatus(dss: number): Promise<void> {
 		// Guard: Feature must be active
 		if (!this.appliedFeatures.has(Feature.DockingStationStatus)) return;
 
-		const status = {
-			cleanFluidStatus: (dss >> 10) & 0b11,
-			waterBoxFilterStatus: (dss >> 8) & 0b11,
-			dustBagStatus: (dss >> 6) & 0b11,
-			dirtyWaterBoxStatus: (dss >> 4) & 0b11,
-			clearWaterBoxStatus: (dss >> 2) & 0b11,
-			isUpdownWaterReady: dss & 0b11,
-		};
-
-		for (const [name, val] of Object.entries(status)) {
-			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.dockingStationStatus.${name}`, { val, ack: true });
-		}
+		await this.stationService.updateDockingStationStatus(dss);
 	}
 
 	@BaseDeviceFeatures.DeviceFeature(Feature.MultiMap)
@@ -420,13 +404,12 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 
 	public async updateCleanSummary(): Promise<void> {
 		await this.requestAndProcess("get_clean_summary", [], "cleaningInfo", async (data) => {
-			if (data.clean_time) data.clean_time = Math.round((data.clean_time / 3600) * 10) / 10;
-			if (data.clean_area) data.clean_area = Math.round((data.clean_area / 1000000) * 10) / 10;
+			// Mapper now only handles list processing, value conversion moved to processResultKey
 
 			// Fetch maps for records in parallel to avoid blocking
 			if (this.deps.config.enable_map_creation && Array.isArray(data.records)) {
 			// Use a local queue to limit concurrency strictly for map downloads
-				const mapQueue = new PQueue({ concurrency: 3 });
+				const mapQueue = new PQueue({ concurrency: 1 });
 
 				// Get all existing start times in one go to detect shifts
 				// Get all existing start times in one go using explicit IDs to avoid wildcard scan warning
@@ -533,7 +516,7 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 					const record = recordsDetails[0];
 					for (const key in record) {
 						let val = record[key];
-						if (key === "area" || key === "cleaned_area") val = Math.round((val / 1000000) * 10) / 10;
+						if (key === "area" || key === "cleaned_area") val = Math.round(val / 1000000);
 						else if (key === "duration") val = Math.round(val / 60);
 						await this.processResultKey(fullRecordPath, key, val);
 					}
@@ -562,8 +545,20 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 		}, { priority });
 	}
 
-	public async updateNetworkInfo(): Promise<void> {
-		await this.requestAndProcess("get_network_info", [], "networkInfo");
+	public override async updateStatus(): Promise<void> {
+		try {
+			const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_prop", ["get_status"]);
+			const statusData = Array.isArray(result) ? result[0] : result;
+
+			if (statusData && typeof statusData === "object") {
+				if (!this.runtimeDetectionComplete) {
+					await this.detectAndApplyRuntimeFeatures(statusData);
+				}
+				await this.processStatus(statusData);
+			}
+		} catch (e: any) {
+			this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Failed to update status: ${e.message}`, "warn");
+		}
 	}
 
 	public async updateTimers(): Promise<void> {
@@ -605,22 +600,22 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
     	// Define property processing map
     	const processors: Record<string, (val: any) => Promise<void>> = {
     		state: async (val) => {
-    			await this.deps.ensureState("deviceStatus.state", { type: "number", states: this.profile.mappings.state || VACUUM_CONSTANTS.stateCodes });
+    			await this.deps.ensureState(`Devices.${this.duid}.deviceStatus.state`, { type: "number", states: this.profile.mappings.state || VACUUM_CONSTANTS.stateCodes });
     			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.state`, { val, ack: true });
     		},
     		error_code: async (val) => {
-    			await this.deps.ensureState("deviceStatus.error_code", { type: "number", states: this.profile.mappings.error_code || VACUUM_CONSTANTS.errorCodes });
+    			await this.deps.ensureState(`Devices.${this.duid}.deviceStatus.error_code`, { type: "number", states: this.profile.mappings.error_code || VACUUM_CONSTANTS.errorCodes });
     			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.error_code`, { val, ack: true });
     		},
     		fan_power: async (val) => {
-    			await this.deps.ensureState("deviceStatus.fan_power", { type: "number", states: this.profile.mappings.fan_power });
+    			await this.deps.ensureState(`Devices.${this.duid}.deviceStatus.fan_power`, { type: "number", states: this.profile.mappings.fan_power });
     			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.fan_power`, { val, ack: true });
 				// Sync to command state
 				await this.deps.adapter.setStateChanged(`Devices.${this.duid}.commands.set_custom_mode`, { val, ack: true });
     		},
     		mop_mode: async (val) => {
     			if (this.profile.mappings.mop_mode) {
-    				await this.deps.ensureState("deviceStatus.mop_mode", { type: "number", states: this.profile.mappings.mop_mode });
+    				await this.deps.ensureState(`Devices.${this.duid}.deviceStatus.mop_mode`, { type: "number", states: this.profile.mappings.mop_mode });
     				await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.mop_mode`, { val, ack: true });
 					// Sync to command state
 					await this.deps.adapter.setStateChanged(`Devices.${this.duid}.commands.set_mop_mode`, { val, ack: true });
@@ -628,7 +623,7 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
     		},
     		water_box_mode: async (val) => {
     			if (this.profile.mappings.water_box_mode) {
-    				await this.deps.ensureState("deviceStatus.water_box_mode", { type: "number", states: this.profile.mappings.water_box_mode });
+    				await this.deps.ensureState(`Devices.${this.duid}.deviceStatus.water_box_mode`, { type: "number", states: this.profile.mappings.water_box_mode });
     				await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.water_box_mode`, { val, ack: true });
 					// Sync to command state
 					await this.deps.adapter.setStateChanged(`Devices.${this.duid}.commands.set_water_box_custom_mode`, { val, ack: true });
@@ -726,21 +721,6 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			def: false
 		});
 	}
-	public override async processDockType(dockType: number): Promise<void> {
-		const dockFeatureMap: Record<number, Feature[]> = {
-			1: [Feature.AutoEmptyDock, Feature.DockingStationStatus],
-			2: [Feature.MopWash, Feature.DockingStationStatus],
-			3: [Feature.AutoEmptyDock, Feature.MopWash, Feature.DockingStationStatus],
-			4: [Feature.AutoEmptyDock, Feature.MopWash, Feature.DockingStationStatus],
-			17: [Feature.AutoEmptyDock, Feature.MopWash, Feature.MopDry, Feature.DockingStationStatus]
-		};
-		const features = dockFeatureMap[dockType];
-		if (features) {
-			for (const feature of features) {
-				await this.applyFeature(feature);
-			}
-		}
-	}
 
 	protected override async processResultKey(folder: string, key: string, val: unknown): Promise<void> {
 		if (key === "map_status") {
@@ -750,8 +730,12 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 				this.deps.adapter.rLog("MapManager", this.duid, "Info", "1.0", undefined, `[MapSync] Map changed to index ${this.mapService.currentIndex}. Updating room mapping.`, "info");
 				await this.updateRoomMapping();
 			}
-		} else if (key === "dock_type") {
-			await this.processDockType(Number(val));
+		} else if (key === "clean_time") {
+			// cleaningInfo (Total) = Hours, deviceStatus (Current) = Minutes
+			const divisor = folder.includes("cleaningInfo") ? 3600 : 60;
+			val = Math.round(Number(val) / divisor);
+		} else if (key === "clean_area") {
+			val = Math.round(Number(val) / 1000000); // mm² -> m²
 		}
 
 		await super.processResultKey(folder, key, val);

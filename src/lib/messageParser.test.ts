@@ -1,7 +1,6 @@
 // test/messageParser.test.ts
 
 import { describe, expect, it } from "vitest";
-import type { Frame } from "./messageParser"; // Adjust path if necessary
 import { messageParser } from "./messageParser";
 
 // Mocking the Roborock adapter structure
@@ -44,14 +43,15 @@ describe("messageParser", () => {
 		expect(msg).to.be.instanceOf(Buffer);
 
 		// Decode the generated message
-		const decoded = parser.decodeMsg(msg as Buffer, "test-duid") as Frame;
+		const decoded = parser.decodeMsg(msg as Buffer, "test-duid");
 
-		expect(decoded).to.be.ok;
-		expect(decoded.version).to.equal("1.0");
-		expect(decoded.protocol).to.equal(1000);
+		expect(decoded).to.be.an("array");
+		expect(decoded.length).to.equal(1);
+		expect(decoded[0].version).to.equal("1.0");
+		expect(decoded[0].protocol).to.equal(1000);
 
 		// Optional: Verify payload content matches
-		const decodedPayload = JSON.parse(decoded.payload.toString());
+		const decodedPayload = JSON.parse(decoded[0].payload.toString());
 		expect(decodedPayload.method).to.equal("get_status");
 	});
 });

@@ -1,12 +1,10 @@
-import type { RoborockLocales } from "../../../roborock_locales";
-import { FeatureDependencies } from "../../baseDeviceFeatures";
+import type { FeatureDependencies } from "../../baseDeviceFeatures";
 import { VACUUM_CONSTANTS } from "../vacuumConstants";
 
 export class B01ConsumableService {
 	constructor(
 		private deps: FeatureDependencies,
-		private duid: string,
-		private locales: RoborockLocales
+		private duid: string
 	) {}
 
 	private readonly PROP_MAP: Record<string, string> = {
@@ -28,10 +26,11 @@ export class B01ConsumableService {
 
 			if (Array.isArray(result) && result.length === props.length) {
 				resultObj = {};
-				props.forEach((key: string, index: number) => {
+				for (let i = 0; i < props.length; i++) {
+					const key = props[i];
 					const mappedKey = this.PROP_MAP[key] || key;
-					resultObj![mappedKey] = result[index];
-				});
+					resultObj[mappedKey] = result[i];
+				}
 			} else if (typeof result === "object" && result !== null) {
 				resultObj = result as Record<string, any>;
 			}
@@ -46,38 +45,55 @@ export class B01ConsumableService {
 		await this.deps.ensureFolder(`Devices.${this.duid}.consumables`);
 		await this.deps.ensureFolder(`Devices.${this.duid}.resetConsumables`);
 
-		const consumableKeys = [
-			"main_brush_work_time", "side_brush_work_time", "filter_work_time",
-			"filter_element_work_time", "sensor_dirty_time", "strainer_work_times",
-			"cleaning_brush_work_times", "dust_collection_work_times"
-		];
-
 		for (const key in resultObj) {
-			const val = resultObj[key];
-
-			// Only process strictly known consumable keys
-			if (consumableKeys.includes(key)) {
-				const common = this.getCommonDeviceStates(key) || {
-					name: this.locales.getNameAll(key) || key,
-					type: typeof val as ioBroker.CommonType,
-					role: "value",
-					write: false
-				};
-
-				const deviceName = key.replace("_work_time", "").replace("_dirty_time", "");
-				await this.deps.ensureState(`Devices.${this.duid}.consumables.${deviceName}`, { ...common, unit: "%" });
-
-				const totalTime = this.getConsumableLifeSpan(deviceName) * 3600;
-
-				if (totalTime > 0) {
-					const percent = Math.max(0, Math.min(100, Math.round(100 - ((val as number) / totalTime) * 100)));
-					await this.deps.adapter.setStateChanged(`Devices.${this.duid}.consumables.${deviceName}`, { val: percent, ack: true });
-				}
-
-				// Reset button
-				const resetKey = key.replace("_work_time", "").replace("_dirty_time", "");
-				await this.deps.ensureState(`Devices.${this.duid}.resetConsumables.${resetKey}`, { name: `Reset ${resetKey}`, type: "boolean", role: "button", write: true, def: false });
+			if (!key.endsWith("_work_time") && !key.endsWith("_work_times") && !key.endsWith("_dirty_time")) {
+				continue;
 			}
+			let val = resultObj[key] as number;
+
+			// Consumable name normalization
+			const deviceName = key.replace(/(_work_times|_work_time|_dirty_time)$/, "");
+			const translationKey = VACUUM_CONSTANTS.consumableTranslationKeys[deviceName as keyof typeof VACUUM_CONSTANTS.consumableTranslationKeys];
+			const localizedName = translationKey ? this.deps.adapter.translationManager.get(translationKey, deviceName) : deviceName;
+
+			let unit = "";
+			let suffix = "";
+			if (key.endsWith("_work_times")) {
+				unit = "cycles";
+				suffix = " cycles";
+			} else if (key.endsWith("_work_time") || key.endsWith("_dirty_time")) {
+				const totalSeconds = this.getConsumableLifeSpan(deviceName) * 3600;
+
+				if (totalSeconds > 0) {
+					// Convert seconds used to remaining hours
+					val = Math.max(0, Math.round((totalSeconds - val) / 3600));
+					unit = "h";
+					suffix = " remaining time";
+				} else {
+					unit = "s";
+					suffix = " work time";
+				}
+			}
+
+			// Create/Update the raw state exactly as it comes from the robot (but converted to h if applicable)
+			await this.deps.ensureState(`Devices.${this.duid}.consumables.${key}`, {
+				name: `${localizedName}${suffix}`,
+				type: "number",
+				role: "value",
+				unit: unit,
+				write: false
+			});
+			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.consumables.${key}`, { val: val, ack: true });
+
+			// Reset Button
+			const resetKey = `reset_${deviceName}`;
+			await this.deps.ensureState(`Devices.${this.duid}.resetConsumables.${resetKey}`, {
+				name: `Reset ${localizedName}`,
+				type: "boolean",
+				role: "button",
+				write: true,
+				def: false
+			}, { resetParam: key });
 		}
 	}
 
@@ -88,17 +104,9 @@ export class B01ConsumableService {
 			case "filter":
 			case "filter_element": return 150;
 			case "sensor": return 30;
+			case "strainer": return 150;
+			case "cleaning_brush": return 300;
 			default: return 0;
 		}
-	}
-
-	// Helper to mimic the base class lookup, or we can inject it.
-	// For now, simpler to implement a direct lookup or rely on constants.
-	private getCommonDeviceStates(key: string): Partial<ioBroker.StateCommon> | undefined {
-		// Simplified implementation tapping into VACUUM_CONSTANTS directly
-		if (VACUUM_CONSTANTS.consumables[key as keyof typeof VACUUM_CONSTANTS.consumables]) {
-			return VACUUM_CONSTANTS.consumables[key as keyof typeof VACUUM_CONSTANTS.consumables];
-		}
-		return undefined;
 	}
 }
