@@ -685,6 +685,10 @@ export class MapBuilder {
 				path.join(this.adapter.adapterDir, "www", "images", fileName),
 			];
 
+			if (MapBuilder.obstacleImageCache.size === 0) {
+				this.adapter.rLog("MapManager", model || null, "Debug", undefined, undefined, `MapBuilder searching assets in: ${this.adapter.adapterDir}. Model: ${m}`, "debug");
+			}
+
 			for (const imagePath of potentialPaths) {
 				try {
 					await fs.promises.access(imagePath);
@@ -695,6 +699,12 @@ export class MapBuilder {
 				}
 			}
 			if (foundPath) break;
+		}
+
+		if (!foundPath) {
+			// One-time log for the first failed attempt to show the exact path being used
+			const firstPath = path.join(this.adapter.adapterDir, "www", "assets", assetModels[0], "drawable-mdpi", fileName);
+			this.adapter.rLog("MapManager", model || null, "Debug", undefined, undefined, `Obstacle NOT found. Tried: ${firstPath}`, "debug");
 		}
 
 		MapBuilder.obstacleImageCache.set(cacheKey, foundPath);
