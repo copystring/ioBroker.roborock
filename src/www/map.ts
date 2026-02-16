@@ -883,9 +883,10 @@ class MapApplication {
 				const type = d[2];
 				const suffix = OBSTACLE_MAPPING[type] || "18";
 				const modelFolder = this.model || "default";
-				const shortModel = modelFolder.replace(/^roborock\.vacuum\./, "");
-				const url = `assets/${shortModel}/drawable-mdpi/projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`;
-				console.log(`[MapUI] Requesting obstacle icon: ${url} (Original model: ${modelFolder})`);
+				// modelFolder already contains the full name (e.g. roborock.vacuum.a147)
+				// We do NOT strip the prefix anymore, because backend creates folders with full names.
+				const url = `assets/${modelFolder}/drawable-mdpi/projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`;
+				console.log(`[MapUI] Requesting obstacle icon: ${url} (Model: ${modelFolder})`);
 				return url;
 			})
 			.on("error", function() {
