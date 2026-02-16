@@ -883,9 +883,18 @@ class MapApplication {
 				const type = d[2];
 				const suffix = OBSTACLE_MAPPING[type] || "18";
 				const modelFolder = this.model || "default";
-				const url = `assets/${modelFolder}/drawable-mdpi/projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`;
-				console.log(`[MapUI] Requesting obstacle icon: ${url}`);
+				const shortModel = modelFolder.replace(/^roborock\.vacuum\./, "");
+				const url = `assets/${shortModel}/drawable-mdpi/projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`;
+				console.log(`[MapUI] Requesting obstacle icon: ${url} (Original model: ${modelFolder})`);
 				return url;
+			})
+			.on("error", function() {
+				// Fallback to 'default' if the short model folder doesn't exist or doesn't have the file
+				const currentHref = d3.select(this).attr("href");
+				if (!currentHref.includes("/assets/default/")) {
+					const fallback = currentHref.replace(/\/assets\/[^/]+\//, "/assets/default/");
+					d3.select(this).attr("href", fallback);
+				}
 			});
 	}
 

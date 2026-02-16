@@ -101,6 +101,10 @@ export class Roborock extends utils.Adapter {
 			return;
 		}
 
+		// System Diags for Path Troubleshooting
+		const os = require("os");
+		this.rLog("System", null, "Info", undefined, undefined, `[PathTrace] System: OS=${os.platform()}, CWD=${process.cwd()}, AdapterDir=${this.adapterDir}`, "info");
+
 		this.translationManager.init();
 
 		this.sentryInstance = this.getPluginInstance("sentry") as SentryPlugin | undefined;

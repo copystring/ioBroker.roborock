@@ -163,6 +163,7 @@ export class AppPluginManager {
 					// Create directory if missing
 					if (!fs.existsSync(assetPath)) {
 						try {
+							this.adapter.rLog("System", duid, "Debug", undefined, undefined, `[PathTrace] Creating asset directory: ${assetPath}`, "debug");
 							fs.mkdirSync(assetPath, { recursive: true });
 						} catch (e) {
 							this.adapter.rLog("System", duid, "Error", undefined, undefined, `Could not create asset directory at ${assetPath}: ${e}`, "error");
@@ -194,6 +195,8 @@ export class AppPluginManager {
 										// Preserve structure: assets/<model>/drawable-xxhdpi/icon.png
 										const targetPath = path.join(assetPath, relativePath);
 										const targetDir = path.dirname(targetPath);
+
+										this.adapter.rLog("System", duid, "Debug", undefined, undefined, `[PathTrace] Writing asset: ${targetPath}`, "debug");
 
 										await fs.promises.mkdir(targetDir, { recursive: true });
 										await fs.promises.writeFile(targetPath, fileContent as Uint8Array);
@@ -228,13 +231,14 @@ export class AppPluginManager {
 											if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
 											fs.readdirSync(src).forEach(file => copyRecursive(path.join(src, file), path.join(dest, file)));
 										} else {
+											this.adapter.rLog("System", duid, "Debug", undefined, undefined, `[PathTrace] Copying to default: ${dest}`, "debug");
 											fs.copyFileSync(src, dest);
 										}
 									};
 									copyRecursive(assetPath, defaultAssetPath);
-									this.adapter.rLog("Cloud", duid, "Info", undefined, undefined, `Successfully established 'default' fallback folder.`, "info");
+									this.adapter.rLog("Cloud", duid, "Info", undefined, undefined, `[PathTrace] Successfully established 'default' fallback folder at ${defaultAssetPath}.`, "info");
 								} catch (copyErr: any) {
-									this.adapter.rLog("Cloud", duid, "Warn", undefined, undefined, `Failed to create 'default' fallback copy: ${copyErr.message}`, "warn");
+									this.adapter.rLog("Cloud", duid, "Warn", undefined, undefined, `[PathTrace] Failed to create 'default' fallback copy: ${copyErr.message}`, "warn");
 								}
 							}
 						} else {

@@ -669,11 +669,15 @@ export class MapBuilder {
 		}
 
 		const assetModels = [model, "roborock.vacuum.a147"].filter((m): m is string => !!m);
+		// Add short models (e.g. "a147" instead of "roborock.vacuum.a147")
+		const shortModels = assetModels.map(m => m.replace(/^roborock\.vacuum\./, ""));
+		const allModels = [...new Set([...assetModels, ...shortModels])];
+
 		const fileName = `projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`;
 
 		let foundPath: string | null = null;
 
-		for (const m of assetModels) {
+		for (const m of allModels) {
 			const potentialPaths = [
 				// Standard path
 				path.join(this.adapter.adapterDir, "www", "assets", m, "drawable-mdpi", fileName),
@@ -686,10 +690,11 @@ export class MapBuilder {
 			];
 
 			if (MapBuilder.obstacleImageCache.size === 0) {
-				this.adapter.rLog("MapManager", model || null, "Debug", undefined, undefined, `MapBuilder searching assets in: ${this.adapter.adapterDir}. Model: ${m}`, "debug");
+				this.adapter.rLog("MapManager", model || null, "Debug", undefined, undefined, `[PathTrace] MapBuilder search root: ${this.adapter.adapterDir}. Model: ${m}. CWD: ${process.cwd()}`, "debug");
 			}
 
 			for (const imagePath of potentialPaths) {
+				this.adapter.rLog("MapManager", model || null, "Debug", undefined, undefined, `[PathTrace] Checking path: ${imagePath}`, "debug");
 				try {
 					await fs.promises.access(imagePath);
 					foundPath = imagePath;

@@ -42,8 +42,19 @@ export class MapBuilder {
 
 				// 1. Model Specific Asset Path
 				if (model && this.adapter) {
-					const modelPath = path.join(this.adapter.adapterDir, "www", "assets", model);
-					if (fs.existsSync(modelPath)) searchPaths.push(modelPath);
+					const shortName = model.replace(/^roborock\.vacuum\./, "");
+					const paths = [
+						path.join(this.adapter.adapterDir, "www", "assets", model),
+						path.join(this.adapter.adapterDir, "www", "assets", shortName)
+					];
+
+					for (const p of paths) {
+						if (this.adapter) this.adapter.rLog("MapManager", duid, "Debug", "B01", undefined, `[PathTrace] Checking model path: ${p}`, "debug");
+						if (fs.existsSync(p) && !searchPaths.includes(p)) {
+							searchPaths.push(p);
+							if (this.adapter) this.adapter.rLog("MapManager", duid, "Debug", "B01", undefined, `[PathTrace] Valid search path found: ${p}`, "debug");
+						}
+					}
 				}
 
 				// 2. Fallbacks based on process.cwd()
@@ -54,13 +65,13 @@ export class MapBuilder {
 						if (fs.existsSync(p) && !searchPaths.includes(p)) searchPaths.push(p);
 					}
 				}
-
 				// 3. Recursive Helper to search in multiple folders and subfolders
 				const findAssetInPaths = async (candidates: string[]) => {
 					for (const dir of searchPaths) {
 						// 1. Check in root of asset dir
 						for (const c of candidates) {
 							const p = path.join(dir, c);
+							if (this.adapter) this.adapter.rLog("MapManager", duid, "Debug", "B01", undefined, `[PathTrace] Checking direct asset: ${p}`, "debug");
 							if (fs.existsSync(p)) return await loadImage(p);
 						}
 
@@ -74,12 +85,14 @@ export class MapBuilder {
 								for (const subdir of subdirs) {
 									for (const c of candidates) {
 										const p = path.join(dir, subdir, c);
+										if (this.adapter) this.adapter.rLog("MapManager", duid, "Debug", "B01", undefined, `[PathTrace] Checking subdir asset: ${p}`, "debug");
 										if (fs.existsSync(p)) return await loadImage(p);
 									}
 								}
 							} catch { /* ignore read error */ }
 						}
 					}
+					if (this.adapter) this.adapter.rLog("MapManager", duid, "Debug", "B01", undefined, `Asset candidates NOT found in: ${searchPaths.join(", ")}`, "debug");
 					return null;
 				};
 
