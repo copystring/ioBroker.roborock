@@ -414,10 +414,13 @@ class MapApplication {
 							// Re-trigger listeners if we have a model now
 							if (this.currentRobotDuid && this.robotModels[this.currentRobotDuid]) {
 								this.model = this.robotModels[this.currentRobotDuid];
+								console.log(`[MapUI] Model resolved for ${this.currentRobotDuid}: ${this.model}`);
 								// Refresh obstacles if they were drawn with fallback
 								if (this.map && this.map.OBSTACLES2) {
 									this.drawObstacles(this.map.OBSTACLES2);
 								}
+							} else {
+								console.log(`[MapUI] Model NOT resolved yet for ${this.currentRobotDuid || "unknown"}. Fallback active.`);
 							}
 						} catch (e) {
 							console.error("Failed to parse HomeData:", e);
@@ -880,7 +883,9 @@ class MapApplication {
 				const type = d[2];
 				const suffix = OBSTACLE_MAPPING[type] || "18";
 				const modelFolder = this.model || "default";
-				return `assets/${modelFolder}/drawable-mdpi/projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`;
+				const url = `assets/${modelFolder}/drawable-mdpi/projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`;
+				console.log(`[MapUI] Requesting obstacle icon: ${url}`);
+				return url;
 			});
 	}
 

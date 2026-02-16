@@ -209,6 +209,34 @@ export class AppPluginManager {
 							this.adapter.rLog("Cloud", duid, "Info", undefined, undefined, `Extracted ${extractedCount} assets to ${assetPath}`, "info");
 							// Write version file on success
 							fs.writeFileSync(versionFilePath, newVersion.toString());
+
+							// Dynamic 'default' folder creation for JIT fallback
+							const defaultAssetPath = `${adapterRoot}/www/assets/default`;
+							if (!fs.existsSync(defaultAssetPath)) {
+								this.adapter.rLog("Cloud", duid, "Info", undefined, undefined, `Creating dynamic 'default' fallback folder from ${vacuumModel}`, "info");
+								try {
+									// Simple way to copy the directory structure and files
+									// Using recursive mkdir and write isn't ideal here, but it's "simple" as requested.
+									// Actually, let's just create the folder and we can copy files if needed,
+									// but for a "simple" fix, let's just make sure as soon as ONE robot is there,
+									// we have its assets as a baseline.
+									fs.mkdirSync(defaultAssetPath, { recursive: true });
+									// Copying logic (simplified)
+									const copyRecursive = (src: string, dest: string) => {
+										if (!fs.existsSync(src)) return;
+										if (fs.statSync(src).isDirectory()) {
+											if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+											fs.readdirSync(src).forEach(file => copyRecursive(path.join(src, file), path.join(dest, file)));
+										} else {
+											fs.copyFileSync(src, dest);
+										}
+									};
+									copyRecursive(assetPath, defaultAssetPath);
+									this.adapter.rLog("Cloud", duid, "Info", undefined, undefined, `Successfully established 'default' fallback folder.`, "info");
+								} catch (copyErr: any) {
+									this.adapter.rLog("Cloud", duid, "Warn", undefined, undefined, `Failed to create 'default' fallback copy: ${copyErr.message}`, "warn");
+								}
+							}
 						} else {
 							this.adapter.rLog("Cloud", duid, "Warn", undefined, undefined, `No assets found in zip for ${vacuumModel} (searched drawable-*/raw/). Version file NOT updated.`, "warn");
 						}

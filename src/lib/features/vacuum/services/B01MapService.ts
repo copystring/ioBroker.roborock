@@ -48,7 +48,9 @@ export class B01MapService {
 	protected async processUpdateMapResponse(data: Buffer): Promise<void> {
 		this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `Received Map Data (${data.length} bytes)`, "debug");
 
-		const mapRes = await this.deps.adapter.mapManager.processMap(data, "B01", this.deps.adapter.http_api.getRobotModel(this.duid) || "B01", this.duid, null, this.duid, "B01History");
+		const model = this.deps.adapter.http_api.getRobotModel(this.duid) || "default";
+		this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `Processing B01 map with model: ${model}`, "debug");
+		const mapRes = await this.deps.adapter.mapManager.processMap(data, "B01", model, this.duid, null, this.duid, "B01History");
 
 		if (mapRes) {
 			await this.processMapResults(mapRes);
