@@ -1,6 +1,5 @@
 import * as fs from "fs";
 import * as JSZip from "jszip";
-import * as path from "path";
 import { Roborock } from "../main";
 
 export class AppPluginManager {
@@ -177,29 +176,37 @@ export class AppPluginManager {
 						const response = await loginApi.get(zipUrl, { responseType: "arraybuffer" });
 						const zip = await JSZip.loadAsync(response.data);
 
+						// Check if 'default' folder exists in ioBroker files
+						const defaultAssetPath = `assets/default`;
+						let shouldCreateDefault = false;
+						try {
+							const files = await this.adapter.readDirAsync(this.adapter.namespace, "assets");
+							if (!files.some((f: any) => f.file === "default")) {
+								shouldCreateDefault = true;
+								this.adapter.rLog("Cloud", duid, "Info", undefined, undefined, `Dynamic 'default' fallback folder missing. Will establish from ${vacuumModel}`, "info");
+							}
+						} catch {
+							shouldCreateDefault = true; // Error usually means it doesn't exist
+						}
+
 						// Extract all 'drawable-*' and 'raw' folders preserving structure
 						let extractedCount = 0;
 						const filePromises: Promise<void>[] = [];
 
 						zip.forEach((relativePath, file) => {
-							// Filter for drawable-* or raw folders
-							// relativePath example: "drawable-mdpi/icon.png" or "res/drawable-xhdpi/icon.png" depending on zip structure.
-							// The user screenshot shows root folders "drawable-hdpi", etc.
-							// So we check if it starts with "drawable-" or "raw/"
 							const isTarget = relativePath.startsWith("drawable-") || relativePath.startsWith("raw/");
 
 							if (isTarget && !file.dir) {
 								filePromises.push((async () => {
 									const fileContent = await file.async("nodebuffer");
 									if (fileContent) {
-										// Preserve structure: assets/<model>/drawable-xxhdpi/icon.png
-										const targetPath = path.join(assetPath, relativePath);
-										const targetDir = path.dirname(targetPath);
+										const relativePathForFiles = `assets/${vacuumModel}/${relativePath}`;
+										await this.adapter.writeFileAsync(this.adapter.namespace, relativePathForFiles, fileContent as Buffer);
 
-										this.adapter.rLog("System", duid, "Debug", undefined, undefined, `[PathTrace] Writing asset: ${targetPath}`, "debug");
-
-										await fs.promises.mkdir(targetDir, { recursive: true });
-										await fs.promises.writeFile(targetPath, fileContent as Uint8Array);
+										if (shouldCreateDefault) {
+											const defaultPath = `${defaultAssetPath}/${relativePath}`;
+											await this.adapter.writeFileAsync(this.adapter.namespace, defaultPath, fileContent as Buffer);
+										}
 										extractedCount++;
 									}
 								})());
@@ -209,38 +216,12 @@ export class AppPluginManager {
 						await Promise.all(filePromises);
 
 						if (extractedCount > 0) {
-							this.adapter.rLog("Cloud", duid, "Info", undefined, undefined, `Extracted ${extractedCount} assets to ${assetPath}`, "info");
+							this.adapter.rLog("Cloud", duid, "Info", undefined, undefined, `Extracted ${extractedCount} assets to ${vacuumModel} (ioBroker Files)`, "info");
+							if (shouldCreateDefault) {
+								this.adapter.rLog("Cloud", duid, "Info", undefined, undefined, `[PathTrace] Successfully established 'default' fallback folder.`, "info");
+							}
 							// Write version file on success
 							fs.writeFileSync(versionFilePath, newVersion.toString());
-
-							// Dynamic 'default' folder creation for JIT fallback
-							const defaultAssetPath = `${adapterRoot}/www/assets/default`;
-							if (!fs.existsSync(defaultAssetPath)) {
-								this.adapter.rLog("Cloud", duid, "Info", undefined, undefined, `Creating dynamic 'default' fallback folder from ${vacuumModel}`, "info");
-								try {
-									// Simple way to copy the directory structure and files
-									// Using recursive mkdir and write isn't ideal here, but it's "simple" as requested.
-									// Actually, let's just create the folder and we can copy files if needed,
-									// but for a "simple" fix, let's just make sure as soon as ONE robot is there,
-									// we have its assets as a baseline.
-									fs.mkdirSync(defaultAssetPath, { recursive: true });
-									// Copying logic (simplified)
-									const copyRecursive = (src: string, dest: string) => {
-										if (!fs.existsSync(src)) return;
-										if (fs.statSync(src).isDirectory()) {
-											if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
-											fs.readdirSync(src).forEach(file => copyRecursive(path.join(src, file), path.join(dest, file)));
-										} else {
-											this.adapter.rLog("System", duid, "Debug", undefined, undefined, `[PathTrace] Copying to default: ${dest}`, "debug");
-											fs.copyFileSync(src, dest);
-										}
-									};
-									copyRecursive(assetPath, defaultAssetPath);
-									this.adapter.rLog("Cloud", duid, "Info", undefined, undefined, `[PathTrace] Successfully established 'default' fallback folder at ${defaultAssetPath}.`, "info");
-								} catch (copyErr: any) {
-									this.adapter.rLog("Cloud", duid, "Warn", undefined, undefined, `[PathTrace] Failed to create 'default' fallback copy: ${copyErr.message}`, "warn");
-								}
-							}
 						} else {
 							this.adapter.rLog("Cloud", duid, "Warn", undefined, undefined, `No assets found in zip for ${vacuumModel} (searched drawable-*/raw/). Version file NOT updated.`, "warn");
 						}

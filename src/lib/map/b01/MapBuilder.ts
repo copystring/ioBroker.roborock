@@ -67,11 +67,33 @@ export class MapBuilder {
 				}
 				// 3. Recursive Helper to search in multiple folders and subfolders
 				const findAssetInPaths = async (candidates: string[]) => {
+					// --- FIRST: Try official managed file system (for Linux compatibility) ---
+					if (this.adapter) {
+						for (const modelDir of [model, "default"]) {
+							if (!modelDir) continue;
+							for (const subdir of ["drawable-mdpi", "drawable-hdpi", "drawable-xhdpi", "drawable-xxhdpi", "drawable-xxxhdpi", "raw", ""]) {
+								for (const c of candidates) {
+									const managedPath = `assets/${modelDir}/${subdir ? subdir + "/" : ""}${c}`;
+									try {
+										const buffer = await this.adapter.readFileAsync(this.adapter.namespace, managedPath);
+										if (buffer && buffer.file) {
+											this.adapter.rLog("MapManager", duid, "Debug", "B01", undefined, `[PathTrace] Found managed asset: ${managedPath}`, "debug");
+											return await loadImage(buffer.file as Buffer);
+										}
+									} catch {
+										// File does not exist in managed system, continue
+									}
+								}
+							}
+						}
+					}
+
+					// --- SECOND: Fallback to physical WWW folders (Legacy/Windows) ---
 					for (const dir of searchPaths) {
 						// 1. Check in root of asset dir
 						for (const c of candidates) {
 							const p = path.join(dir, c);
-							if (this.adapter) this.adapter.rLog("MapManager", duid, "Debug", "B01", undefined, `[PathTrace] Checking direct asset: ${p}`, "debug");
+							if (this.adapter) this.adapter.rLog("MapManager", duid, "Debug", "B01", undefined, `[PathTrace] Checking direct physical asset: ${p}`, "debug");
 							if (fs.existsSync(p)) return await loadImage(p);
 						}
 
@@ -85,14 +107,14 @@ export class MapBuilder {
 								for (const subdir of subdirs) {
 									for (const c of candidates) {
 										const p = path.join(dir, subdir, c);
-										if (this.adapter) this.adapter.rLog("MapManager", duid, "Debug", "B01", undefined, `[PathTrace] Checking subdir asset: ${p}`, "debug");
+										if (this.adapter) this.adapter.rLog("MapManager", duid, "Debug", "B01", undefined, `[PathTrace] Checking subdir physical asset: ${p}`, "debug");
 										if (fs.existsSync(p)) return await loadImage(p);
 									}
 								}
 							} catch { /* ignore read error */ }
 						}
 					}
-					if (this.adapter) this.adapter.rLog("MapManager", duid, "Debug", "B01", undefined, `Asset candidates NOT found in: ${searchPaths.join(", ")}`, "debug");
+					if (this.adapter) this.adapter.rLog("MapManager", duid, "Debug", "B01", undefined, `Asset candidates NOT found in managed or physical paths for ${searchPaths.join(", ")}`, "debug");
 					return null;
 				};
 

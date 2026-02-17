@@ -633,7 +633,7 @@ export class MapBuilder {
 	}
 
 	// Static cache to avoid repeated file system checks
-	private static obstacleImageCache = new Map<string, string | null>();
+	private static obstacleImageCache = new Map<string, string | Buffer | null>();
 
 	private static readonly OBSTACLE_MAPPING: Record<number, string> = {
 		"-99": "99",
@@ -662,58 +662,63 @@ export class MapBuilder {
 		99: "99",
 	};
 
-	private async findObstacleImage(suffix: string, model?: string): Promise<string | null> {
+	private async findObstacleImage(suffix: string, model?: string): Promise<string | Buffer | null> {
 		const cacheKey = `${model || "default"}_${suffix}`;
 		if (MapBuilder.obstacleImageCache.has(cacheKey)) {
 			return MapBuilder.obstacleImageCache.get(cacheKey)!;
 		}
 
-		const assetModels = [model, "roborock.vacuum.a147"].filter((m): m is string => !!m);
-		// Add short models (e.g. "a147" instead of "roborock.vacuum.a147")
-		const shortModels = assetModels.map(m => m.replace(/^roborock\.vacuum\./, ""));
-		const allModels = [...new Set([...assetModels, ...shortModels])];
-
 		const fileName = `projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`;
+		let foundResult: string | Buffer | null = null;
 
-		let foundPath: string | null = null;
-
-		for (const m of allModels) {
-			const potentialPaths = [
-				// Standard path
-				path.join(this.adapter.adapterDir, "www", "assets", m, "drawable-mdpi", fileName),
-				// Absolute path fallback (if adapterDir is pointing to build/ but assets are in root)
-				path.join(this.adapter.adapterDir, "..", "www", "assets", m, "drawable-mdpi", fileName),
-				// User's reported build path
-				path.join(this.adapter.adapterDir, "build", "lib", "www", "images", fileName),
-				// Fallback to images dir if it exists
-				path.join(this.adapter.adapterDir, "www", "images", fileName),
-			];
-
-			if (MapBuilder.obstacleImageCache.size === 0) {
-				this.adapter.rLog("MapManager", model || null, "Debug", undefined, undefined, `[PathTrace] MapBuilder search root: ${this.adapter.adapterDir}. Model: ${m}. CWD: ${process.cwd()}`, "debug");
-			}
-
-			for (const imagePath of potentialPaths) {
-				this.adapter.rLog("MapManager", model || null, "Debug", undefined, undefined, `[PathTrace] Checking path: ${imagePath}`, "debug");
+		// --- FIRST: Try official managed file system (for Linux compatibility) ---
+		if (this.adapter) {
+			const managedModels = [model, "default"].filter((m): m is string => !!m);
+			for (const mDir of managedModels) {
+				const managedPath = `assets/${mDir}/drawable-mdpi/${fileName}`;
 				try {
-					await fs.promises.access(imagePath);
-					foundPath = imagePath;
-					break;
+					const buffer = await this.adapter.readFileAsync(this.adapter.namespace, managedPath);
+					if (buffer && buffer.file) {
+						this.adapter.rLog("MapManager", model || null, "Debug", undefined, undefined, `[PathTrace] Found managed obstacle asset: ${managedPath}`, "debug");
+						foundResult = buffer.file as Buffer;
+						break;
+					}
 				} catch {
-					// File does not exist, continue
+					// Not found in managed system
 				}
 			}
-			if (foundPath) break;
 		}
 
-		if (!foundPath) {
-			// One-time log for the first failed attempt to show the exact path being used
-			const firstPath = path.join(this.adapter.adapterDir, "www", "assets", assetModels[0], "drawable-mdpi", fileName);
-			this.adapter.rLog("MapManager", model || null, "Debug", undefined, undefined, `Obstacle NOT found. Tried: ${firstPath}`, "debug");
+		// --- SECOND: Fallback to physical WWW folders (Legacy/Windows) ---
+		if (!foundResult) {
+			const assetModels = [model, "roborock.vacuum.a147"].filter((m): m is string => !!m);
+			const shortModels = assetModels.map(m => m.replace(/^roborock\.vacuum\./, ""));
+			const allModels = [...new Set([...assetModels, ...shortModels])];
+
+			for (const m of allModels) {
+				const potentialPaths = [
+					path.join(this.adapter.adapterDir, "www", "assets", m, "drawable-mdpi", fileName),
+					path.join(this.adapter.adapterDir, "..", "www", "assets", m, "drawable-mdpi", fileName),
+					path.join(this.adapter.adapterDir, "www", "images", fileName),
+				];
+
+				for (const imagePath of potentialPaths) {
+					this.adapter.rLog("MapManager", model || null, "Debug", undefined, undefined, `[PathTrace] Checking physical path: ${imagePath}`, "debug");
+					if (fs.existsSync(imagePath)) {
+						foundResult = imagePath;
+						break;
+					}
+				}
+				if (foundResult) break;
+			}
 		}
 
-		MapBuilder.obstacleImageCache.set(cacheKey, foundPath);
-		return foundPath;
+		if (!foundResult && this.adapter) {
+			this.adapter.rLog("MapManager", model || null, "Debug", undefined, undefined, `Obstacle NOT found in managed or physical paths for suffix ${suffix}`, "debug");
+		}
+
+		MapBuilder.obstacleImageCache.set(cacheKey, foundResult);
+		return foundResult;
 	}
 
 	private async drawObstacles(ctx: ExtendedContext2D, obstacles: any, image: any, model?: string) {

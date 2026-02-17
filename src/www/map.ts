@@ -864,10 +864,10 @@ class MapApplication {
 			.attr("height", imageSize)
 			.attr("x", -imageSize / 2)
 			.attr("y", -imageSize / 2)
-			.on("error", function () {
+			.on("error", (event: any) => {
 				// Revert to a generic fallback icon instead of making the obstacle invisible
-				// Use 'default' model folder which we know exists
-				d3.select(this).attr("href", `assets/default/drawable-mdpi/projects_comroborocktanos_resources_obstacle_new_p18.png`);
+				// Use official ioBroker /files/ path for persistent, indexed access
+				d3.select(event.currentTarget).attr("href", `/files/${this.instanceId}/assets/default/drawable-mdpi/projects_comroborocktanos_resources_obstacle_new_p18.png`);
 			});
 
 		const allGroups = enterGroups.merge(groups as any);
@@ -883,18 +883,19 @@ class MapApplication {
 				const type = d[2];
 				const suffix = OBSTACLE_MAPPING[type] || "18";
 				const modelFolder = this.model || "default";
-				// modelFolder already contains the full name (e.g. roborock.vacuum.a147)
-				// We do NOT strip the prefix anymore, because backend creates folders with full names.
-				const url = `assets/${modelFolder}/drawable-mdpi/projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`;
+				// Use official ioBroker /files/ path for persistent, indexed access
+				const url = `/files/${this.instanceId}/assets/${modelFolder}/drawable-mdpi/projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`;
 				console.log(`[MapUI] Requesting obstacle icon: ${url} (Model: ${modelFolder})`);
 				return url;
 			})
-			.on("error", function() {
-				// Fallback to 'default' if the short model folder doesn't exist or doesn't have the file
-				const currentHref = d3.select(this).attr("href");
-				if (!currentHref.includes("/assets/default/")) {
+			.on("error", (event: any) => {
+				// Fallback to 'default' in managed storage
+				const currentHref = d3.select(event.currentTarget).attr("href");
+				if (currentHref && !currentHref.includes("/assets/default/")) {
+					// Replace the model part of the path with 'default'
+					// Path format: /files/roborock.0/assets/<model>/...
 					const fallback = currentHref.replace(/\/assets\/[^/]+\//, "/assets/default/");
-					d3.select(this).attr("href", fallback);
+					d3.select(event.currentTarget).attr("href", fallback);
 				}
 			});
 	}
