@@ -677,7 +677,8 @@ export class MapBuilder {
 			for (const mDir of managedModels) {
 				const managedPath = `assets/${mDir}/drawable-mdpi/${fileName}`;
 				try {
-					const buffer = await this.adapter.readFileAsync(this.adapter.namespace, managedPath);
+					const filesRoot = `${this.adapter.namespace}.assets`;
+					const buffer = await this.adapter.readFileAsync(filesRoot, managedPath);
 					if (buffer && buffer.file) {
 						this.adapter.rLog("MapManager", model || null, "Debug", undefined, undefined, `[PathTrace] Found managed obstacle asset: ${managedPath}`, "debug");
 						foundResult = buffer.file as Buffer;

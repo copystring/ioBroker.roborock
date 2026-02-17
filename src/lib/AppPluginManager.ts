@@ -179,8 +179,9 @@ export class AppPluginManager {
 						// Check if 'default' folder exists in ioBroker files
 						const defaultAssetPath = `assets/default`;
 						let shouldCreateDefault = false;
+						const filesRoot = `${this.adapter.namespace}.assets`;
 						try {
-							const files = await this.adapter.readDirAsync(this.adapter.namespace, "assets");
+							const files = await this.adapter.readDirAsync(filesRoot, "assets");
 							if (!files.some((f: any) => f.file === "default")) {
 								shouldCreateDefault = true;
 								this.adapter.rLog("Cloud", duid, "Info", undefined, undefined, `Dynamic 'default' fallback folder missing. Will establish from ${vacuumModel}`, "info");
@@ -201,11 +202,12 @@ export class AppPluginManager {
 									const fileContent = await file.async("nodebuffer");
 									if (fileContent) {
 										const relativePathForFiles = `assets/${vacuumModel}/${relativePath}`;
-										await this.adapter.writeFileAsync(this.adapter.namespace, relativePathForFiles, fileContent as Buffer);
+										const filesRoot = `${this.adapter.namespace}.assets`;
+										await this.adapter.writeFileAsync(filesRoot, relativePathForFiles, fileContent as Buffer);
 
 										if (shouldCreateDefault) {
 											const defaultPath = `${defaultAssetPath}/${relativePath}`;
-											await this.adapter.writeFileAsync(this.adapter.namespace, defaultPath, fileContent as Buffer);
+											await this.adapter.writeFileAsync(filesRoot, defaultPath, fileContent as Buffer);
 										}
 										extractedCount++;
 									}

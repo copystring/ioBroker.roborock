@@ -867,7 +867,7 @@ class MapApplication {
 			.on("error", (event: any) => {
 				// Revert to a generic fallback icon instead of making the obstacle invisible
 				// Use official ioBroker /files/ path for persistent, indexed access
-				d3.select(event.currentTarget).attr("href", `/files/${this.instanceId}/assets/default/drawable-mdpi/projects_comroborocktanos_resources_obstacle_new_p18.png`);
+				d3.select(event.currentTarget).attr("href", `/files/${this.instanceId}.assets/assets/default/drawable-mdpi/projects_comroborocktanos_resources_obstacle_new_p18.png`);
 			});
 
 		const allGroups = enterGroups.merge(groups as any);
@@ -884,7 +884,7 @@ class MapApplication {
 				const suffix = OBSTACLE_MAPPING[type] || "18";
 				const modelFolder = this.model || "default";
 				// Use official ioBroker /files/ path for persistent, indexed access
-				const url = `/files/${this.instanceId}/assets/${modelFolder}/drawable-mdpi/projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`;
+				const url = `/files/${this.instanceId}.assets/assets/${modelFolder}/drawable-mdpi/projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`;
 				console.log(`[MapUI] Requesting obstacle icon: ${url} (Model: ${modelFolder})`);
 				return url;
 			})
@@ -893,7 +893,7 @@ class MapApplication {
 				const currentHref = d3.select(event.currentTarget).attr("href");
 				if (currentHref && !currentHref.includes("/assets/default/")) {
 					// Replace the model part of the path with 'default'
-					// Path format: /files/roborock.0/assets/<model>/...
+					// Path format: /files/roborock.0.assets/assets/<model>/...
 					const fallback = currentHref.replace(/\/assets\/[^/]+\//, "/assets/default/");
 					d3.select(event.currentTarget).attr("href", fallback);
 				}

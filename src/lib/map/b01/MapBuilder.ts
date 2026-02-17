@@ -75,7 +75,8 @@ export class MapBuilder {
 								for (const c of candidates) {
 									const managedPath = `assets/${modelDir}/${subdir ? subdir + "/" : ""}${c}`;
 									try {
-										const buffer = await this.adapter.readFileAsync(this.adapter.namespace, managedPath);
+										const filesRoot = `${this.adapter.namespace}.assets`;
+										const buffer = await this.adapter.readFileAsync(filesRoot, managedPath);
 										if (buffer && buffer.file) {
 											this.adapter.rLog("MapManager", duid, "Debug", "B01", undefined, `[PathTrace] Found managed asset: ${managedPath}`, "debug");
 											return await loadImage(buffer.file as Buffer);

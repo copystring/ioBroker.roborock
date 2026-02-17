@@ -232,6 +232,15 @@
         "def": false
       },
       "native": {}
+    },
+    {
+      "_id": "assets",
+      "type": "meta",
+      "common": {
+        "name": "Plugin Assets",
+        "type": "meta.user"
+      },
+      "native": {}
     }
   ]
 }
