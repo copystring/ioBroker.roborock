@@ -98,8 +98,9 @@ export class messageParser {
 
 	/**
 	 * Decodes a buffer containing Roborock protocol messages.
+	 * Returns an array of frames (empty if none decoded).
 	 */
-	decodeMsg(message: Buffer, duid: string): Frame | Frame[] | null {
+	decodeMsg(message: Buffer, duid: string): Frame[] {
 		const decoded: Frame[] = [];
 		let offset = 0;
 
@@ -175,8 +176,7 @@ export class messageParser {
 			offset += msgLen;
 		}
 
-		if (decoded.length === 0) return null;
-		return decoded.length === 1 ? decoded[0] : decoded;
+		return decoded;
 	}
 
 	/**

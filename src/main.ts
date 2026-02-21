@@ -13,12 +13,19 @@ import { DeviceManager } from "./lib/deviceManager";
 import { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
 import { Feature } from "./lib/features/features.enum";
 
-import { http_api } from "./lib/httpApi";
+import { Device, http_api } from "./lib/httpApi";
 import { local_api } from "./lib/localApi";
 import { MapManager } from "./lib/map/MapManager";
 import { mqtt_api } from "./lib/mqttApi";
-import { requestsHandler } from "./lib/requestsHandler";
+import { RoborockRequest, requestsHandler } from "./lib/requestsHandler";
 import { socketHandler } from "./lib/socketHandler";
+import { TranslationManager } from "./lib/translationManager";
+
+interface SentryPlugin {
+	getSentryObject(): {
+		captureException(error: unknown): void;
+	};
+}
 
 export class Roborock extends utils.Adapter {
 	// --- Public APIs (accessible by helpers) ---
@@ -29,15 +36,16 @@ export class Roborock extends utils.Adapter {
 	public socketHandler!: socketHandler;
 	public deviceManager!: DeviceManager;
 	public mapManager: MapManager;
+	public translationManager!: TranslationManager;
 
 	// --- Internal Properties ---
 	public deviceFeatureHandlers: Map<string, BaseDeviceFeatures>;
 	public nonce: Buffer;
-	public pendingRequests: Map<number, any>;
+	public pendingRequests: Map<number, RoborockRequest>;
 	public appPluginManager: AppPluginManager;
 
 	public isInitializing: boolean;
-	public sentryInstance: any;
+	public sentryInstance: SentryPlugin | undefined;
 	public translations: Record<string, string> = {};
 
 	private commandTimeouts: Map<string, ioBroker.Timeout> = new Map();
@@ -58,6 +66,7 @@ export class Roborock extends utils.Adapter {
 		this.mqtt_api = new mqtt_api(this);
 		this.requestsHandler = new requestsHandler(this);
 		this.mapManager = new MapManager(this);
+		this.translationManager = new TranslationManager(this);
 
 		this.deviceManager = new DeviceManager(this);
 		this.socketHandler = new socketHandler(this);
@@ -92,7 +101,9 @@ export class Roborock extends utils.Adapter {
 			return;
 		}
 
-		this.sentryInstance = this.getPluginInstance("sentry");
+		this.translationManager.init();
+
+		this.sentryInstance = this.getPluginInstance("sentry") as SentryPlugin | undefined;
 		this.translations = require(`../admin/i18n/${this.language || "en"}/translations.json`);
 
 		this.rLog("System", null, "Info", undefined, undefined, `Build Info: Date=${commitInfo.commitDate}, Commit=${commitInfo.commitHash}`, "debug");
@@ -122,7 +133,7 @@ export class Roborock extends utils.Adapter {
 
 			// --- Pre-Init Network Probe (Docker/VLAN Support) ---
 			this.rLog("System", null, "Info", undefined, undefined, "Starting Pre-Init Network Probe...", "debug");
-			const allDevices = this.http_api.getDevices();
+			const allDevices = this.http_api.getDevices() || [];
 			const probePromises = allDevices.map(async (device) => {
 				const duid = device.duid;
 				// If already local (UDP found it), skip
@@ -133,15 +144,20 @@ export class Roborock extends utils.Adapter {
 					const result = await this.requestsHandler.sendRequest(duid, "get_network_info", []);
 
 					// 2. Extract IP
-					let networkData: any = result;
-					if (Array.isArray(result)) networkData = result[0];
+					let networkData: Record<string, unknown> | undefined;
+					if (Array.isArray(result)) {
+						networkData = result[0] as Record<string, unknown>;
+					} else if (result && typeof result === "object") {
+						networkData = result as Record<string, unknown>;
+					}
 
-					if (networkData && networkData.ip) {
+					if (networkData && typeof networkData.ip === "string") {
 						// 3. Attempt TCP Connect with short timeout (1.5s) and silent logging
 						await this.local_api.checkAndPromoteLocalConnection(duid, networkData.ip, 1500, true);
 					}
-				} catch (e: any) {
-					this.rLog("System", duid, "Debug", undefined, undefined, `Probe failed: ${e.message}`, "debug");
+				} catch (e: unknown) {
+					const errorMsg = e instanceof Error ? e.message : String(e);
+					this.rLog("System", duid, "Debug", undefined, undefined, `Probe failed: ${errorMsg}`, "debug");
 				}
 			});
 
@@ -163,14 +179,15 @@ export class Roborock extends utils.Adapter {
 			(async () => {
 				try {
 					await this.http_api.downloadProductImages();
-					const devices = this.http_api.getDevices();
+					const devices = this.http_api.getDevices() || [];
 					for (const device of devices) {
 						await this.appPluginManager.updateProduct(device.duid).catch(e =>
 							this.rLog("System", device.duid, "Warn", undefined, undefined, `Background plugin update failed: ${e.message}`, "warn")
 						);
 					}
-				} catch (e: any) {
-					this.rLog("System", null, "Warn", undefined, undefined, `Background maintenance failed: ${e.message}`, "warn");
+				} catch (e: unknown) {
+					const errorMsg = e instanceof Error ? e.message : String(e);
+					this.rLog("System", null, "Warn", undefined, undefined, `Background maintenance failed: ${errorMsg}`, "warn");
 				}
 			})();
 
@@ -231,7 +248,7 @@ export class Roborock extends utils.Adapter {
 
 			// 2. Find target scene
 			// Scene ID from state might be string, API returns number. Compare loosely or convert.
-			const scene = scenes.result.find((s: any) => s.id == sceneId);
+			const scene = scenes.result.find((s) => s.id == sceneId);
 
 			if (!scene) {
 				this.log.error(`[executeSceneLocal] Scene with ID ${sceneId} not found.`);
@@ -287,8 +304,8 @@ export class Roborock extends utils.Adapter {
 			} else {
 				this.log.warn(`[executeSceneLocal] Scene ${sceneId} has no actions.`);
 			}
-		} catch (e: any) {
-			this.log.error(`[executeSceneLocal] Error executing scene: ${e} ${e.stack}`);
+		} catch (e: unknown) {
+			this.log.error(`[executeSceneLocal] Error executing scene: ${e} ${e instanceof Error ? e.stack : ""}`);
 		}
 	}
 
@@ -443,7 +460,7 @@ export class Roborock extends utils.Adapter {
 		}
 	}
 
-	private isTruthy(val: any): boolean {
+	private isTruthy(val: unknown): boolean {
 		return val === true || val === "true" || val === 1 || val === "1";
 	}
 
@@ -478,8 +495,9 @@ export class Roborock extends utils.Adapter {
 			await this.setState("clientID", { val: randomClientID, ack: true });
 			this.log.info(`Generated and saved new clientID: ${randomClientID}`);
 			return randomClientID;
-		} catch (error: any) {
-			this.log.error(`Error ensuring clientID: ${error.message}`);
+		} catch (error: unknown) {
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			this.log.error(`Error ensuring clientID: ${errorMsg}`);
 			throw error;
 		}
 	}
@@ -508,7 +526,8 @@ export class Roborock extends utils.Adapter {
 		for (const program of data) {
 			try {
 				const { enabled, id, name, param } = program;
-				const duid = JSON.parse(param).action.items[0].entityId;
+				const params = JSON.parse(param);
+				const duid = params.action.items[0].entityId;
 
 				if (!programs[duid]) programs[duid] = {};
 				programs[duid][id] = name;
@@ -522,8 +541,9 @@ export class Roborock extends utils.Adapter {
 
 				await this.ensureState(`Devices.${duid}.programs.${id}.enabled`, { name: "Enabled", type: "boolean" });
 				this.setState(`Devices.${duid}.programs.${id}.enabled`, enabled, true);
-			} catch (e: any) {
-				this.log.warn(`[processScenes] Failed to process scene '${program.name}' (ID: ${program.id}): ${e.message}`);
+			} catch (e: unknown) {
+				const errorMsg = e instanceof Error ? e.message : String(e);
+				this.log.warn(`[processScenes] Failed to process scene '${program.name}' (ID: ${program.id}): ${errorMsg}`);
 			}
 		}
 
@@ -551,28 +571,29 @@ export class Roborock extends utils.Adapter {
 	/**
 	 * Updates general device info (online status, etc.).
 	 */
-	async updateDeviceInfo(duid: string, devices: any[]) {
+	async updateDeviceInfo(duid: string, devices: Device[]) {
 		const device = devices.find((d) => d.duid === duid);
 		if (!device) return;
 
 		for (const attr in device) {
-			if (typeof device[attr] !== "object") {
+			const value = (device as any)[attr];
+			if (typeof value !== "object") {
 				const common: Partial<ioBroker.StateCommon> = {};
-				let value = device[attr];
+				let finalValue = value;
 
 				if (attr === "activeTime") {
-					value = this.formatRoborockDate(value);
+					finalValue = this.formatRoborockDate(value);
 					common.unit = "";
 					common.type = "string";
 				} else if (attr === "createTime") {
-					value = this.formatRoborockDate(value);
+					finalValue = this.formatRoborockDate(value);
 					common.type = "string";
 				} else {
-					common.type = typeof value as ioBroker.CommonType;
+					common.type = typeof finalValue as ioBroker.CommonType;
 				}
 
 				await this.ensureState(`Devices.${duid}.deviceInfo.${attr}`, common);
-				await this.setStateChanged(`Devices.${duid}.deviceInfo.${attr}`, { val: value, ack: true });
+				await this.setStateChanged(`Devices.${duid}.deviceInfo.${attr}`, { val: finalValue, ack: true });
 			}
 		}
 	}
@@ -606,7 +627,7 @@ export class Roborock extends utils.Adapter {
 	/**
 	 * Creates a state if it doesn't exist, applying translations.
 	 */
-	public async ensureState(path: string, commonOptions: Partial<ioBroker.StateCommon>, native: Record<string, any> = {}) {
+	public async ensureState(path: string, commonOptions: Partial<ioBroker.StateCommon>, native: Record<string, unknown> = {}) {
 		const stateName = path.split(".").pop() || path;
 		// Allow empty string as name if explicitly provided. Only use fallback if name is undefined.
 		const translatedName = commonOptions.name !== undefined ? commonOptions.name : (this.translations[stateName] || stateName);
@@ -697,13 +718,13 @@ export class Roborock extends utils.Adapter {
 	/**
 	 * JSON.stringify with sorted keys for consistent object comparison.
 	 */
-	private stringifySorted(obj: any): string {
+	private stringifySorted(obj: unknown): string {
 		return JSON.stringify(obj, (_key, value) => {
 			if (value && typeof value === "object" && !Array.isArray(value)) {
 				return Object.keys(value)
 					.sort()
-					.reduce((sorted: any, key) => {
-						sorted[key] = value[key];
+					.reduce((sorted: Record<string, unknown>, key) => {
+						sorted[key] = (value as Record<string, unknown>)[key];
 						return sorted;
 					}, {});
 			}
@@ -721,7 +742,7 @@ export class Roborock extends utils.Adapter {
 	/**
 	 * Helper to safely parse JSON strings that look like objects/arrays.
 	 */
-	private tryParseJson(value: string): any | undefined {
+	private tryParseJson(value: string): unknown | undefined {
 		const trimmed = value.trim();
 		if ((trimmed.startsWith("{") || trimmed.startsWith("[")) && (trimmed.endsWith("}") || trimmed.endsWith("]"))) {
 			try {
@@ -780,7 +801,8 @@ export class Roborock extends utils.Adapter {
 			if (localPv) return localPv;
 		}
 
-		const device = this.http_api.getDevices().find((d) => d.duid == duid);
+		const devices = this.http_api.getDevices();
+		const device = devices ? devices.find((d) => d.duid == duid) : undefined;
 		return device?.pv || "1.0";
 	}
 
@@ -788,7 +810,7 @@ export class Roborock extends utils.Adapter {
 	 * Starts the go2rtc process if cameras are present.
 	 */
 	async start_go2rtc() {
-		const devices = this.http_api.getDevices();
+		const devices = this.http_api.getDevices() || [];
 		const localKeys = this.http_api.getMatchedLocalKeys();
 		const { u, s, k } = this.http_api.get_rriot();
 
@@ -842,13 +864,13 @@ export class Roborock extends utils.Adapter {
 	/**
 	 * Processes A01 (Tuya) protocol messages.
 	 */
-	async processA01(duid: string, response: { dps?: Record<string, any> }): Promise<void> {
+	async processA01(duid: string, response: { dps?: Record<string, unknown> }): Promise<void> {
 		if (!response?.dps) {
 			this.log.warn(`[A01|${duid}] Invalid response: ${JSON.stringify(response)}`);
 			return;
 		}
 
-		const determineType = (value: any): ioBroker.CommonType => {
+		const determineType = (value: unknown): ioBroker.CommonType => {
 			const t = typeof value;
 			if (t === "number") return "number";
 			if (t === "boolean") return "boolean";
@@ -857,14 +879,14 @@ export class Roborock extends utils.Adapter {
 		};
 
 		// Recursive helper for nested JSON objects
-		const processNested = async (basePath: string, obj: Record<string, any>) => {
+		const processNested = async (basePath: string, obj: Record<string, unknown>) => {
 			for (const [key, value] of Object.entries(obj)) {
 				const path = `${basePath}.${key}`;
 				if (typeof value === "object" && value !== null && !Array.isArray(value)) {
 					await this.ensureFolder(path);
-					await processNested(path, value);
+					await processNested(path, value as Record<string, unknown>);
 				} else {
-					const val = typeof value === "object" || value === null ? JSON.stringify(value) : value;
+					const val = typeof value === "object" || value === null ? JSON.stringify(value) : (value as ioBroker.StateValue);
 					await this.ensureState(path, { name: key, type: determineType(value), write: false });
 					await this.setStateChanged(path, { val, ack: true });
 				}
@@ -891,11 +913,11 @@ export class Roborock extends utils.Adapter {
 			if (isJson && typeof parsedValue === "object" && parsedValue !== null) {
 				const basePath = `Devices.${duid}.${id}`; // Use ID as folder name
 				await this.ensureFolder(basePath);
-				await processNested(basePath, parsedValue);
+				await processNested(basePath, parsedValue as Record<string, unknown>);
 			} else {
 				const path = `Devices.${duid}.deviceStatus.${id}`;
 				await this.ensureState(path, { name: stateName, type: determineType(value), write: false });
-				await this.setStateChanged(path, { val: parsedValue, ack: true });
+				await this.setStateChanged(path, { val: parsedValue as ioBroker.StateValue, ack: true });
 			}
 		}
 	}
@@ -918,11 +940,13 @@ export class Roborock extends utils.Adapter {
 	/**
 	 * Centralized error handler.
 	 */
-	async catchError(error: any, attribute?: string, duid?: string) {
+	async catchError(error: unknown, attribute?: string, duid?: string) {
 		const robotModel = duid ? this.http_api.getRobotModel(duid) : "unknown";
-		const msg = `Failed processing ${attribute || "task"} on ${duid || "adapter"} (${robotModel}): ${error?.stack || error}`;
+		const errorStack = error instanceof Error ? error.stack : String(error);
+		const errorMsg = error instanceof Error ? error.message : String(error);
+		const msg = `Failed processing ${attribute || "task"} on ${duid || "adapter"} (${robotModel}): ${errorStack}`;
 
-		if (error?.toString().includes("retry") || error?.toString().includes("locating") || error?.toString().includes("timed out")) {
+		if (errorMsg.includes("retry") || errorMsg.includes("locating") || errorMsg.includes("timed out")) {
 			this.log.warn(msg);
 		} else {
 			this.log.error(msg);
@@ -1003,13 +1027,12 @@ export class Roborock extends utils.Adapter {
 				this.log.warn(`[onStateChange] Robot failed to sync map index to ${mapFlag} after several attempts. Proceeding anyway.`);
 			}
 
-			// Sequential verification: 1. MultiMap List (Room IDs synced) -> 2. Mapping -> 3. Map
 			await handler.updateMultiMapsList();
 			await handler.updateRoomMapping();
 			await handler.updateMap();
 
 			this.log.info(`[onStateChange] Floor switch to ${mapFlag} complete for ${duid}`);
-		} catch (e: any) {
+		} catch (e: unknown) {
 			this.catchError(e, "floorSwitch", duid);
 		} finally {
 			// Reset button

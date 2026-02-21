@@ -87,7 +87,8 @@ export const BaseStatusSchema = z
  * Extended by specific types (e.g. V1VacuumFeatures).
  */
 export abstract class BaseDeviceFeatures {
-	protected createdStates = new Set<string>();
+	protected createdStates: Set<string> = new Set(); // Track created states to avoid redundant ensureState calls
+	protected runtimeDetectionComplete = false; // Initial runtime detection flag
 
 	protected deps: FeatureDependencies;
 	public commands: Record<string, CommandSpec | any>; // Command definitions for this device
@@ -97,7 +98,6 @@ export abstract class BaseDeviceFeatures {
 	protected config: DeviceModelConfig; // Static feature config from model class
 	protected appliedFeatures = new Set<Feature>(); // Tracks applied features
 	protected pendingFeatures = new Set<Feature>(); // Tracks features currently being applied (Race Condition Guard)
-	protected runtimeDetectionComplete = false; // Initial runtime detection flag
 	protected commandsCreated = false; // Command objects created flag
 
 	// --- Constants (Generic) ---
@@ -201,14 +201,6 @@ export abstract class BaseDeviceFeatures {
 	protected abstract getDynamicFeatures(): Set<Feature>;
 
 	/**
-	 * Handles dock type features. Override if needed.
-	 * @param dockType Numeric dock type identifier.
-	 */
-	public async processDockType(dockType: number): Promise<void> {
-		this.deps.adapter.rLog("System", this.duid, "Debug", undefined, undefined, `Base processDockType called for type ${dockType}. No default actions.`, "debug");
-	}
-
-	/**
 	 * Applies static features from config.
 	 * Override for pre-runtime model logic.
 	 * @param _statusData Optional initial status data.
@@ -252,20 +244,21 @@ export abstract class BaseDeviceFeatures {
 			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error applying model specifics: ${e.message}`, "error");
 		}
 
-		// 2. Fetch initial data if online
+		// 2. Create/Update ioBroker Objects (Commands)
+		// Must be done BEFORE fetching data, as data updates might sync to command states.
+		try {
+			await this.createCommandObjects();
+		} catch (e: any) {
+			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error creating command objects: ${e.message}`, "error");
+		}
+
+		// 3. Fetch initial data if online
 		if (online) {
 			try {
 				await this.initializeDeviceData();
 			} catch (e: any) {
 				this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error initializing device data: ${e.message}`, "error");
 			}
-		}
-
-		// 3. Create/Update ioBroker Objects
-		try {
-			await this.createCommandObjects();
-		} catch (e: any) {
-			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error creating command objects: ${e.message}`, "error");
 		}
 	}
 

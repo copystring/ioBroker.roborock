@@ -2,9 +2,11 @@ import { MapManager } from "../../map/MapManager";
 import { RoborockLocales } from "../../roborock_locales";
 import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
+import { ADAPTER_ERROR_MAPPING } from "./adapterErrorMapping";
 import { B01ConsumableService } from "./services/B01ConsumableService";
 import { B01ControlService } from "./services/B01ControlService";
 import { B01MapService } from "./services/B01MapService";
+import { StationService } from "./services/StationService";
 import { VACUUM_CONSTANTS } from "./vacuumConstants";
 import deviceDataSet = require("../../../../lib/protocols/q7_dataset.json");
 
@@ -15,6 +17,8 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 	// Services
 	protected consumableService: B01ConsumableService;
+	protected stationService: StationService;
+	protected lastMapUpdate = 0;
 	protected mapService: B01MapService;
 	protected controlService: B01ControlService;
 
@@ -32,8 +36,10 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		this.mapManager = new MapManager(this.deps.adapter);
 		this.locales = new RoborockLocales(deviceDataSet);
 
+		this.consumableService = new B01ConsumableService(this.deps, this.duid);
+		this.stationService = new StationService(this.deps, this.duid);
+
 		// Initialize Services
-		this.consumableService = new B01ConsumableService(dependencies, duid, this.locales);
 		this.mapService = new B01MapService(dependencies, duid, this.locales, (rooms) => this.setMappedRooms(rooms));
 		this.controlService = new B01ControlService();
 
@@ -267,8 +273,10 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			}
 
 			if (resultObj) {
+				if (!this.runtimeDetectionComplete) {
+					await this.detectAndApplyRuntimeFeatures(resultObj);
+				}
 				await this.processStatus(resultObj);
-				// B01: Features are static/protocol-defined, skipping dynamic detection
 			}
 		} catch (e: any) {
 			this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Failed to update status (B01): ${e.message}`, "warn");
@@ -283,17 +291,18 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 	// Override processStatus to apply B01 specific conversions (dm² to m²)
 	protected async processStatus(resultObj: Record<string, unknown>): Promise<void> {
-		// Prioritize dock_type processing to ensure feature flags are set
-		const dockType = resultObj["dock_type"];
-		if (dockType !== undefined) {
-			await this.processDockType(Number(dockType));
-		}
-
 		// Handle docking station status separately
 		const dssValue = resultObj["dss"];
-		if (dssValue !== undefined) {
-			delete resultObj["dss"];
-			await this.updateDockingStationStatus(Number(dssValue));
+		const washStatus = resultObj["wash_status"];
+		const washPhase = resultObj["wash_phase"];
+
+		if (dssValue !== undefined || washStatus !== undefined || washPhase !== undefined) {
+			if (dssValue !== undefined) delete resultObj["dss"];
+			await this.updateDockingStationStatus({
+				dss: dssValue !== undefined ? Number(dssValue) : undefined,
+				washStatus: washStatus !== undefined ? Number(washStatus) : undefined,
+				washPhase: washPhase !== undefined ? Number(washPhase) : undefined
+			});
 		}
 
 		// Map B01 specific keys to standard ioBroker states for compatibility
@@ -392,19 +401,86 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		await this.mapService.processCleanSummary(result);
 	}
 
+	@BaseDeviceFeatures.DeviceFeature(Feature.DockingStationStatus)
+	protected async initDockingStationStatus(): Promise<void> {
+		await this.stationService.initDockingStationStatus();
+
+		// B01 Specific Station States
+		await this.deps.ensureState(`Devices.${this.duid}.dockingStationStatus.washingTaskStatus`, {
+			name: "Washing Task Status",
+			type: "number",
+			role: "value",
+			read: true,
+			write: false,
+			states: {
+				"0": "Idle",
+				"1": "Washing",
+				"2": "Deep Washing",
+				"3": "Drying",
+				"4": "Completed",
+				"5": "Paused",
+				"6": "Error"
+			}
+		});
+
+		await this.deps.ensureState(`Devices.${this.duid}.dockingStationStatus.washingMode`, {
+			name: "Washing Mode",
+			type: "number",
+			role: "value",
+			read: true,
+			write: false,
+			states: {
+				"0": "Standard",
+				"1": "Deep"
+			}
+		});
+	}
+
+	public async updateDockingStationStatus(status: { dss?: number, washStatus?: number, washPhase?: number }): Promise<void> {
+		// Guard: Feature must be active
+		if (!this.appliedFeatures.has(Feature.DockingStationStatus)) return;
+
+		if (status.dss !== undefined) {
+			await this.stationService.updateDockingStationStatus(status.dss);
+		}
+
+		if (status.washStatus !== undefined) {
+			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.dockingStationStatus.washingTaskStatus`, { val: status.washStatus, ack: true });
+		}
+		if (status.washPhase !== undefined) {
+			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.dockingStationStatus.washingMode`, { val: status.washPhase, ack: true });
+		}
+	}
+
 	public override async detectAndApplyRuntimeFeatures(statusData: Readonly<Record<string, unknown>>): Promise<boolean> {
-		// B01 features are statically defined, parameter unused but required by signature
-		void statusData;
-		return false;
+		let changed = false;
+
+		if (statusData["dss"] !== undefined) {
+			const dss = Number(statusData["dss"]);
+			await this.applyFeature(Feature.DockingStationStatus);
+
+			// Bits 6-7: Dust bag status (0=not supported/missing)
+			if (((dss >> 6) & 0b11) > 0) {
+				await this.applyFeature(Feature.AutoEmptyDock);
+			}
+			// Bits 4-5: Dirty water tank status (0=not supported/missing)
+			// Bits 10-11: Clean water tank status
+			if (((dss >> 4) & 0b11) > 0 || ((dss >> 10) & 0b11) > 0) {
+				await this.applyFeature(Feature.MopWash);
+			}
+			changed = true;
+		}
+
+		if (!this.runtimeDetectionComplete) {
+			this.runtimeDetectionComplete = true;
+			changed = true;
+		}
+
+		return changed;
 	}
 
 	protected override getDynamicFeatures(): Set<Feature> {
 		return new Set<Feature>(); // B01 does not use bitfield feature flags
-	}
-
-	public override async processDockType(dockType: number): Promise<void> {
-		// B01 dock features are handled via static command definitions, parameter unused but required by signature
-		void dockType;
 	}
 
 	public override getCommonDeviceStates(attribute: string | number): Partial<ioBroker.StateCommon> | undefined {
@@ -539,11 +615,16 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 			// Use standard firmware error range (1-30) as the foundation before applying model-specific overrides to ensure basic faults are covered
 			// Provide localized fallback if available
-			let standardErrorsToUse = standardErrors;
-			if (VACUUM_CONSTANTS.errorCodes_languages) {
-				const fallbackErrors = VACUUM_CONSTANTS.resolveErrorCodeFallback(lang);
-				if (fallbackErrors) {
-					standardErrorsToUse = { ...standardErrors, ...fallbackErrors };
+			const standardErrorsToUse: Record<number, string> = { ...(standardErrors as unknown as Record<number, string>) };
+
+			// Apply Adapter Error Mapping for specific language using TranslationManager
+			// This replaces the legacy s7_maxv_dataset.json fallback
+			for (const [codeStr, key] of Object.entries(ADAPTER_ERROR_MAPPING)) {
+				const code = Number(codeStr);
+				// TranslationManager uses adapter.language internally via init()
+				const translated = this.deps.adapter.translationManager.get(key);
+				if (translated && translated !== key) {
+					standardErrorsToUse[code] = translated;
 				}
 			}
 
@@ -918,6 +999,21 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 	protected static readonly MAPPED_CLEAN_SUMMARY: Record<string, string> = { 0: "clean_time", 1: "clean_area", 2: "clean_count", 3: "records", record_list: "records" };
 
+	/**
+	 * Override to handle B01 specific unit conversions (mm² -> m², s -> min)
+	 */
+	protected override async processResultKey(folder: string, key: string, val: unknown): Promise<void> {
+		if (typeof val === "number") {
+			// Time: seconds -> minutes
+			if (key === "clean_time" || key === "cleaning_time" || key === "total_clean_time") {
+				val = Math.round(val / 60);
+			} else if (key === "clean_area" || key === "cleaning_area" || key === "last_clean_area" || key === "total_clean_area") {
+				val = Math.round(val / 1000000);
+			}
+		}
+		await super.processResultKey(folder, key, val);
+	}
+
 	public getCommonConsumable(attribute: string | number): Partial<ioBroker.StateCommon> | undefined {
 		return VACUUM_CONSTANTS.consumables[attribute as keyof typeof VACUUM_CONSTANTS.consumables] as Partial<ioBroker.StateCommon>;
 	}
@@ -936,38 +1032,5 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 	public getFirmwareFeatureName(featureID: string | number): string {
 		return (VACUUM_CONSTANTS.firmwareFeatures as any)[featureID] || `FeatureID_${featureID}`;
-	}
-
-	protected async updateDockingStationStatus(dss: number): Promise<void> {
-		// Guard: Feature must be active
-		if (!this.appliedFeatures.has(Feature.DockingStationStatus)) {
-			return;
-		}
-
-		// Parse 2-bit status fields
-		const status = {
-			cleanFluidStatus: (dss >> 10) & 0b11,        // Bits 10-11: Clean water tank status
-			waterBoxFilterStatus: (dss >> 8) & 0b11,     // Bits 8-9: Water box filter
-			dustBagStatus: (dss >> 6) & 0b11,            // Bits 6-7: Dust bag (Staubbeutel)
-			dirtyWaterBoxStatus: (dss >> 4) & 0b11,      // Bits 4-5: Dirty water tank
-			clearWaterBoxStatus: (dss >> 2) & 0b11,      // Bits 2-3: Clear water box
-			isUpdownWaterReady: dss & 0b11,              // Bits 0-1: Water ready status
-		};
-
-		await this.deps.ensureFolder(`Devices.${this.duid}.dockingStationStatus`);
-
-		for (const [name, val] of Object.entries(status)) {
-			await this.deps.ensureState(`Devices.${this.duid}.dockingStationStatus.${name}`, {
-				name: name,
-				type: "number",
-				role: "value",
-				read: true,
-				write: false
-			});
-			await this.deps.adapter.setStateChanged(
-				`Devices.${this.duid}.dockingStationStatus.${name}`,
-				{ val: val, ack: true }
-			);
-		}
 	}
 }

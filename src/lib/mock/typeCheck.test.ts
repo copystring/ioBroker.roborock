@@ -50,12 +50,14 @@ describe("Adapter Type Verification", () => {
 				command: async () => {} // Add dummy command handler
 			}
 		};
+
+		(depsMock.adapter as any).translationManager = { get: (key: string, def?: string) => def || key };
 		// Attach requestsHandler to mockAdapter as BaseDeviceFeatures expects it there
 		mockAdapter.requestsHandler = depsMock.requestsHandler;
 
 		// Instantiate the vacuum features handler for our mock device
 		// We use the A147 model from the log
-		vacuumFeatures = new TestVacuum(depsMock, mockRobot.duid, mockRobot.model, { staticFeatures: [] });
+		vacuumFeatures = new TestVacuum(depsMock, mockRobot.duid, mockRobot.model, { staticFeatures: [Feature.NetworkInfo, Feature.CleaningInfo] });
 	});
 
 	it("should process get_status and update states with correct types", async () => {
@@ -75,6 +77,6 @@ describe("Adapter Type Verification", () => {
 	it("should process clean summary and verify types", async () => {
 		await vacuumFeatures.initialize();
 		await vacuumFeatures.updateCleanSummary();
-		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.clean_time`]).to.equal(122.6);
+		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.clean_time`]).to.equal(123);
 	});
 });

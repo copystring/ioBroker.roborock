@@ -1,4 +1,4 @@
-import { ProductV5Response, CardSpecData } from "./apiTypes";
+import { CardSpecData, ProductV5Response } from "./apiTypes";
 import { Feature } from "./features/features.enum";
 
 export class ProductHelper {
@@ -100,13 +100,14 @@ export class ProductHelper {
 
 	/**
      * Returns a map of state values to their translated labels for a given state (e.g. 'fan_power').
+     * Returns an empty record if not found.
      */
-	public static getStateDefinitions(productInfo: ProductV5Response, model: string, stateName: string, lang: string = "en"): Record<number, string> | null {
+	public static getStateDefinitions(productInfo: ProductV5Response, model: string, stateName: string, lang: string = "en"): Record<number, string> {
 		const cardSpec = ProductHelper.getCardSpec(productInfo, model);
-		if (!cardSpec || !cardSpec.data[stateName]) return null;
+		if (!cardSpec || !cardSpec.data[stateName]) return {};
 
 		const item = cardSpec.data[stateName];
-		if (!item?.value) return null;
+		if (!item?.value) return {};
 
 		const result: Record<number, string> = {};
 		for (const v of item.value) {

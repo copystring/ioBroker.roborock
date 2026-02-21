@@ -16,11 +16,6 @@ export class FallbackBaseFeatures extends BaseDeviceFeatures {
 		return new Set<Feature>(); // Fallback returns no dynamic features
 	}
 
-	public async processDockType(dockType: number): Promise<void> {
-		this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Using fallback processDockType for dock type ${dockType}. No actions taken.`, "warn");
-		// Fallback does nothing with dock type
-	}
-
 	public async detectAndApplyRuntimeFeatures(): Promise<boolean> {
 		this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, "Using fallback detectAndApplyRuntimeFeatures. No features detected.", "warn");
 		return false; // Fallback does no runtime detection
@@ -72,7 +67,6 @@ export class FallbackVacuumFeatures extends V1VacuumFeatures {
 	// - registerFeatures (from V1VacuumFeatures, registers all known vacuum feature implementations)
 	// - _getDynamicFeatures (from V1VacuumFeatures, tries to detect vacuum bitfields)
 	// - detectAndApplyRuntimeFeatures (from V1VacuumFeatures, tries runtime detection based on status)
-	// - processDockType (from V1VacuumFeatures)
 	// - All the getter implementations (getCommonConsumable etc. from V1VacuumFeatures)
 }
 

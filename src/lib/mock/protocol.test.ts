@@ -34,8 +34,8 @@ describe("Protocol Deep Dive (messageParser)", () => {
 		buf.writeUInt32BE(0xDEADBEEF, 19 + 5);
 
 		const decoded = parser.decodeMsg(buf, "duid");
-		// Log error is called, returns null
-		expect(decoded).to.be.null; // Or [] depending on implementation
+		// Log error is called, returns empty array
+		expect(decoded).to.be.an("array").that.is.empty;
 	});
 
 	it("should accept valid CRC", () => {

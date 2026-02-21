@@ -77,7 +77,10 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) **Stability:** Resolved MQTT race conditions and connection instability.
 * (copystring) **Fix:** S6 MaxV Water Box & Fan Power attributes.
 * (copystring) **Fix:** Suction and mop intensity not showing (#1053).
-* (copystring) **Fix:** Consumables life calculation and reset behavior.
+* (copystring) **Consumables:** Major refactoring to a data-driven, deterministic system mirroring the official Roborock app's "Maintenance" screen.
+* (copystring) **Translations:** Enhanced `TranslationManager` with case-insensitive lookups and 1:1 matching of native app labels (e.g., "Staubbeutel").
+* (copystring) **Reliability:** Added regression test suite for consumables, translations, and hour conversion logic.
+* (copystring) **Cleanup:** Removed duplicate/virtual percentage states in favor of authentic robot data.
 * (copystring) **Internal:** Modular feature handling and introduction of `lib/features/`.
 * (copystring) **Build:** Persistent caching for faster CI/CD.
 * (copystring) **Cleanup:** Removed daily build workflows.

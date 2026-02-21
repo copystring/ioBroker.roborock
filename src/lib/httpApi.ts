@@ -66,7 +66,7 @@ export interface Device {
 	featureSet?: number;
 	newFeatureSet?: string;
 	online: boolean;
-	deviceStatus: any;
+	deviceStatus: Record<string, unknown>;
 	pv: string;
 	sn?: string;
 }
@@ -81,6 +81,17 @@ interface Product {
 interface Room {
 	id: number;
 	name: string;
+}
+
+export interface Scene {
+	id: number;
+	name: string;
+	enabled: boolean;
+	param: string; // JSON string
+}
+
+export interface SceneResponse {
+	result: Scene[];
 }
 
 interface HomeData {
@@ -680,7 +691,7 @@ export class http_api {
 	/**
 	 * Retrieves scenes for the current home.
 	 */
-	async getScenes(): Promise<any> {
+	async getScenes(): Promise<SceneResponse> {
 		if (!this.loginApi) throw new Error("loginApi is not initialized.");
 		if (!this.realApi) throw new Error("realApi is not initialized.");
 
@@ -726,10 +737,10 @@ export class http_api {
 
 	/**
 	 * Returns a combined list of owned and shared devices.
+	 * Returns an empty array if homeData is not initialized.
 	 */
 	getDevices(): Device[] {
 		if (!this.homeData) {
-			this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "homeData not initialized, returning empty devices list", "warn");
 			return [];
 		}
 		return [...(this.homeData.devices || []), ...(this.homeData.receivedDevices || [])];
@@ -784,8 +795,6 @@ export class http_api {
 	 * Maps all devices to their local keys.
 	 */
 	getMatchedLocalKeys(): Map<string, string> {
-		if (!this.homeData) return new Map();
-
 		const devices = this.getDevices();
 		return new Map(devices.map((device) => [device.duid, device.localKey]));
 	}
@@ -799,6 +808,7 @@ export class http_api {
 		}
 
 		const devices = this.getDevices();
+
 		try {
 			const products = this.getProducts();
 
@@ -821,6 +831,7 @@ export class http_api {
 	 */
 	getProductCategory(duid: string): string | null {
 		const devices = this.getDevices();
+
 		try {
 			const products = this.getProducts();
 
