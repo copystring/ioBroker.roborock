@@ -1,7 +1,5 @@
 import type { Canvas, CanvasRenderingContext2D } from "@napi-rs/canvas";
 import { createCanvas, Image, loadImage } from "@napi-rs/canvas";
-import * as fs from "fs";
-import * as path from "path";
 import { robotToPixel } from "../../../common/coordTransformation";
 import * as Images from "../../../common/images";
 import type { PathPoint, PathResult } from "../../../common/pathProcessor";
@@ -632,11 +630,11 @@ export class MapBuilder {
 		}
 	}
 
-	// Static cache to avoid repeated file system checks
 	private static obstacleImageCache = new Map<string, string | null>();
 
+	/** Type → suffix (429.js) */
 	private static readonly OBSTACLE_MAPPING: Record<number, string> = {
-		"-99": "99",
+		[-99]: "99",
 		0: "0",
 		1: "1",
 		2: "2",
@@ -653,6 +651,7 @@ export class MapBuilder {
 		42: "18",
 		48: "48",
 		49: "49",
+		50: "49",  // robot type 50 → p49 icon (p50 wrong for this type)
 		51: "51",
 		54: "54",
 		65: "65",
@@ -668,31 +667,29 @@ export class MapBuilder {
 			return MapBuilder.obstacleImageCache.get(cacheKey)!;
 		}
 
+		if (!this.adapter?.name) return null;
+
 		const assetModels = [model, "roborock.vacuum.a147"].filter((m): m is string => !!m);
-		const fileName = `projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`;
+		const fileNames = [
+			`projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`,
+			`projects_comroborocktanos_resources_map_object_top_${suffix}.png`,
+		];
 
 		let foundPath: string | null = null;
-
-		for (const m of assetModels) {
-			const potentialPaths = [
-				// Standard path
-				path.join(this.adapter.adapterDir, "www", "assets", m, "drawable-mdpi", fileName),
-				// Absolute path fallback (if adapterDir is pointing to build/ but assets are in root)
-				path.join(this.adapter.adapterDir, "..", "www", "assets", m, "drawable-mdpi", fileName),
-				// User's reported build path
-				path.join(this.adapter.adapterDir, "build", "lib", "www", "images", fileName),
-				// Fallback to images dir if it exists
-				path.join(this.adapter.adapterDir, "www", "images", fileName),
-			];
-
-			for (const imagePath of potentialPaths) {
-				try {
-					await fs.promises.access(imagePath);
-					foundPath = imagePath;
-					break;
-				} catch {
-					// File does not exist, continue
+		for (const fileName of fileNames) {
+			for (const m of assetModels) {
+				const potentialPaths = [
+					`assets/${m}/drawable-mdpi/${fileName}`,
+					`assets/${m}/drawable-hdpi/${fileName}`,
+					`images/${fileName}`,
+				];
+				for (const imagePath of potentialPaths) {
+					if (await this.adapter.fileExistsAsync(this.adapter.name, imagePath)) {
+						foundPath = imagePath;
+						break;
+					}
 				}
+				if (foundPath) break;
 			}
 			if (foundPath) break;
 		}
@@ -701,12 +698,21 @@ export class MapBuilder {
 		return foundPath;
 	}
 
+	private async loadImageFromAdapterPath(adapterPath: string): Promise<Image | null> {
+		if (!this.adapter?.name) return null;
+		try {
+			const res = await this.adapter.readFileAsync(this.adapter.name, adapterPath);
+			const buf = typeof res === "object" && res !== null && "file" in res ? (res as { file: Buffer }).file : Buffer.from(res as ArrayBuffer);
+			return await loadImage(buf);
+		} catch {
+			return null;
+		}
+	}
+
 	private async drawObstacles(ctx: ExtendedContext2D, obstacles: any, image: any, model?: string) {
 		if (obstacles) {
-			// Optimization: Load images in parallel, then draw sequentially to ensure context safety
 			const items = await Promise.all(obstacles.map(async (obstacle: any) => {
-				const type = obstacle[2];
-				const suffix = MapBuilder.OBSTACLE_MAPPING[type] || "18";
+				const suffix = MapBuilder.OBSTACLE_MAPPING[Number(obstacle[2])] ?? "18";
 				const imagePath = await this.findObstacleImage(suffix, model);
 				return { obstacle, imagePath, suffix };
 			}));
@@ -714,8 +720,8 @@ export class MapBuilder {
 			for (const { obstacle, imagePath, suffix } of items) {
 				const type = obstacle[2];
 				const p = this.robotToCanvas(image, obstacle[0], obstacle[1]);
-				const x = p.x; // + VISUAL_BLOCK_SIZE / 2; // robotToCanvas already centers it
-				const y = p.y; // + VISUAL_BLOCK_SIZE / 2;
+				const x = p.x;
+				const y = p.y;
 
 				if (!imagePath) {
 					// Debounce warnings? Maybe later.
@@ -734,9 +740,11 @@ export class MapBuilder {
 
 				if (imagePath) {
 					try {
-						const obstacleImg = await loadImage(imagePath);
-						const size = VISUAL_BLOCK_SIZE * 5;
-						ctx.drawImage(obstacleImg, x - size / 2, y - size / 2, size, size);
+						const obstacleImg = await this.loadImageFromAdapterPath(imagePath);
+						if (obstacleImg) {
+							const size = VISUAL_BLOCK_SIZE * 5;
+							ctx.drawImage(obstacleImg, x - size / 2, y - size / 2, size, size);
+						}
 					} catch (e: any) {
 						this.adapter.rLog("MapManager", model || null, "Error", undefined, undefined, `Failed to load image ${imagePath}: ${e.message}`, "error");
 					}

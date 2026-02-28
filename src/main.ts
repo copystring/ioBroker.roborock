@@ -17,7 +17,7 @@ import { Device, http_api } from "./lib/httpApi";
 import { local_api } from "./lib/localApi";
 import { MapManager } from "./lib/map/MapManager";
 import { mqtt_api } from "./lib/mqttApi";
-import { RoborockRequest, requestsHandler } from "./lib/requestsHandler";
+import { PendingMapEntry, RoborockRequest, requestsHandler } from "./lib/requestsHandler";
 import { socketHandler } from "./lib/socketHandler";
 import { TranslationManager } from "./lib/translationManager";
 
@@ -41,7 +41,7 @@ export class Roborock extends utils.Adapter {
 	// --- Internal Properties ---
 	public deviceFeatureHandlers: Map<string, BaseDeviceFeatures>;
 	public nonce: Buffer;
-	public pendingRequests: Map<number, RoborockRequest>;
+	public pendingRequests: Map<number, RoborockRequest | PendingMapEntry>;
 	public appPluginManager: AppPluginManager;
 
 	public isInitializing: boolean;
@@ -125,6 +125,9 @@ export class Roborock extends utils.Adapter {
 			// 1. Start Cloud Data Sync (Get Keys & DUIDs)
 			await this.http_api.updateHomeData();
 
+			// 1b. Asset download for account models (before device init)
+			await this.downloadAssetsForAccountModels();
+
 			// 2a. Start UDP Discovery (Essential for determining Local/Cloud mode before Init)
 			await this.local_api.startUdpDiscovery();
 
@@ -171,25 +174,6 @@ export class Roborock extends utils.Adapter {
 
 			// 3. Initialize Devices (now that communication channels are ready)
 			await this.deviceManager.initializeDevices();
-
-			// Download Assets and Updates in background to avoid blocking startup
-			this.rLog("System", null, "Info", undefined, undefined, "Starting background asset and plugin updates...", "info");
-
-			// Non-blocking background tasks
-			(async () => {
-				try {
-					await this.http_api.downloadProductImages();
-					const devices = this.http_api.getDevices() || [];
-					for (const device of devices) {
-						await this.appPluginManager.updateProduct(device.duid).catch(e =>
-							this.rLog("System", device.duid, "Warn", undefined, undefined, `Background plugin update failed: ${e.message}`, "warn")
-						);
-					}
-				} catch (e: unknown) {
-					const errorMsg = e instanceof Error ? e.message : String(e);
-					this.rLog("System", null, "Warn", undefined, undefined, `Background maintenance failed: ${errorMsg}`, "warn");
-				}
-			})();
 
 			// Parallelize non-dependent startup tasks
 			await Promise.all([
@@ -511,6 +495,33 @@ export class Roborock extends utils.Adapter {
 		await this.ensureState("HomeData", { name: "HomeData string", write: false });
 		await this.ensureState("clientID", { name: "Client ID", write: false });
 		await this.ensureState("endpoint", { name: "MQTT endpoint", write: false });
+	}
+
+	/** Obstacle assets for account models at startup (before device init). */
+	private async downloadAssetsForAccountModels(): Promise<void> {
+		try {
+			await this.http_api.ensureProductInfo();
+			let devices = this.http_api.getDevices() || [];
+			for (let wait = 0; wait < 6 && devices.length === 0; wait++) {
+				await new Promise((r) => setTimeout(r, 500));
+				devices = this.http_api.getDevices() || [];
+			}
+			const modelsInAccount = new Set<string>();
+			for (const d of devices) {
+				const m = this.http_api.getRobotModel(d.duid);
+				if (m && m !== "unknown" && m.includes(".")) modelsInAccount.add(m);
+			}
+			if (modelsInAccount.size === 0) return;
+			this.rLog("System", null, "Info", undefined, undefined, `Downloading obstacle assets for ${modelsInAccount.size} model(s)...`, "info");
+			await this.http_api.downloadProductImages();
+			for (const model of modelsInAccount) {
+				await this.appPluginManager.downloadAssetsForModelIfMissing(model).catch((e: unknown) => {
+					this.rLog("Cloud", null, "Debug", undefined, undefined, `Asset download for ${model}: ${e instanceof Error ? e.message : String(e)}`, "debug");
+				});
+			}
+		} catch (e: unknown) {
+			this.rLog("System", null, "Warn", undefined, undefined, `Obstacle asset download failed: ${e instanceof Error ? e.message : String(e)}`, "warn");
+		}
 	}
 
 	/**

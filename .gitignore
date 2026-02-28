@@ -1,5 +1,5 @@
-# No dot-directories except github/vscode/husky
-.*/
+# No dot-files/dot-dirs except github/vscode/husky
+.*
 !.vscode/
 !.github/
 !.husky/
@@ -20,9 +20,7 @@ admin/i18n/*/flat.txt
 *.rrmap.gz
 lib/go2rtc/go2rtc.exe
 lib/go2rtc/go2rtc_win64.zip
-.env
 images/products/
-.commitinfo
 # Build artifacts
 build/
 coverage/
@@ -38,4 +36,3 @@ expert-review.md
 # Logs and Test Artifacts
 *.log
 /*.txt
-.test-output/

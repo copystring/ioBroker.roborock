@@ -62,11 +62,13 @@ const watcher = chokidar.watch(SRC_DIR, {
     ignoreInitial: true
 });
 
+const DEBOUNCE_MS = 10000; // Wait 10s after last save before building (avoids build on every keystroke/save)
+
 watcher.on("all", (event, path) => {
     if (path && (path.endsWith(".ts") || path.endsWith(".json") || path.endsWith(".css") || path.endsWith(".html"))) {
         if (timer) clearTimeout(timer);
         timer = setTimeout(() => {
             build();
-        }, 300); // 300ms debounce
+        }, DEBOUNCE_MS);
     }
 });

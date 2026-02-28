@@ -1,4 +1,4 @@
-import * as fs from "fs";
+import type { AxiosInstance } from "axios";
 import * as JSZip from "jszip";
 import * as path from "path";
 import { Roborock } from "../main";
@@ -28,6 +28,144 @@ export class AppPluginManager {
 		}
 	}
 
+	private static readonly ASSETS_BASE = "assets";
+
+	private async hasAssetsForModel(model: string): Promise<boolean> {
+		if (!model || model === "default") return true;
+		const versionFilePath = `${AppPluginManager.ASSETS_BASE}/${model}/version`;
+		try {
+			return await this.adapter.fileExistsAsync(this.adapter.name, versionFilePath);
+		} catch {
+			return false;
+		}
+	}
+
+	/** Download assets for model if version file missing (startup only). */
+	public async downloadAssetsForModelIfMissing(model: string): Promise<void> {
+		if (!model || model === "default") return;
+		if (await this.hasAssetsForModel(model)) return;
+
+		const loginApi = this.adapter.http_api.loginApi;
+		if (!loginApi) return;
+
+		const devices = this.adapter.http_api.getDevices() || [];
+		const deviceWithModel = devices.find(d => this.adapter.http_api.getRobotModel(d.duid) === model);
+		if (deviceWithModel) {
+			await this.updateProduct(deviceWithModel.duid);
+			return;
+		}
+
+		await this.adapter.http_api.ensureProductInfo();
+		const numericProductId = this.adapter.http_api.getProductIdByModel(model) || 0;
+		if (numericProductId <= 0) return;
+
+		const appPluginRequest = { apilevel: 10042, type: 2, productids: [numericProductId] };
+		const vacuumIDs: Record<string, string> = { [numericProductId.toString()]: model };
+
+		try {
+			const packageData = await loginApi.post("api/v1/appplugin", appPluginRequest);
+			if (packageData.data.code !== 200) return;
+
+			const packages = packageData.data.data;
+			for (const rr_package in packages) {
+				let vacuumModel = vacuumIDs[packages[rr_package].productid];
+				if (!vacuumModel) vacuumModel = model;
+				if (vacuumModel !== model) continue;
+
+				const zipUrl = packages[rr_package].url;
+				const newVersion = packages[rr_package].version;
+				await this.downloadAndExtractAssetZip(loginApi, zipUrl, vacuumModel, newVersion, null);
+				return;
+			}
+		} catch {
+			// ignore
+		}
+	}
+
+	private async downloadAndExtractAssetZip(
+		loginApi: AxiosInstance,
+		zipUrl: string,
+		vacuumModel: string,
+		newVersion: string,
+		duid: string | null
+	): Promise<boolean> {
+		const assetDir = `${AppPluginManager.ASSETS_BASE}/${vacuumModel}`;
+		const versionFilePath = `${assetDir}/version`;
+
+		let reason = "";
+		const versionExists = await this.adapter.fileExistsAsync(this.adapter.name, versionFilePath);
+		if (!versionExists) {
+			try {
+				await this.adapter.readDirAsync(this.adapter.name, assetDir);
+				reason = "Version file missing";
+			} catch {
+				reason = "Assets missing";
+			}
+		} else {
+			const versionResult = await this.adapter.readFileAsync(this.adapter.name, versionFilePath);
+			const content = (typeof versionResult === "object" && versionResult !== null && "file" in versionResult)
+				? (versionResult as { file: Buffer }).file.toString("utf8").trim() : String(versionResult).trim();
+			const cur = parseInt(content, 10);
+			const rem = parseInt(newVersion, 10);
+			if (isNaN(rem) || (!isNaN(cur) && rem <= cur)) return true;
+			reason = `New version (${cur} → ${rem})`;
+		}
+
+		try {
+			await this.adapter.mkdirAsync(this.adapter.name, assetDir);
+		} catch (e) {
+			this.adapter.rLog("System", duid ?? null, "Error", undefined, undefined, `Could not create asset directory ${assetDir}: ${e}`, "error");
+			return false;
+		}
+
+		this.adapter.rLog("Cloud", duid ?? null, "Info", undefined, undefined, `Downloading assets for ${vacuumModel} (${reason})...`, "info");
+
+		try {
+			const response = await loginApi.get(zipUrl, { responseType: "arraybuffer" });
+			const zip = await JSZip.loadAsync(response.data);
+			let extractedCount = 0;
+			const filePromises: Promise<void>[] = [];
+			const createdDirs = new Set<string>();
+
+			zip.forEach((relativePath, file) => {
+				const isTarget = relativePath.startsWith("drawable-") || relativePath.startsWith("raw/");
+				if (isTarget && !file.dir) {
+					filePromises.push((async () => {
+						const fileContent = await file.async("nodebuffer");
+						if (fileContent) {
+							const targetPath = `${assetDir}/${relativePath}`;
+							const targetDir = path.dirname(targetPath).replace(/\\/g, "/");
+							if (!createdDirs.has(targetDir)) {
+								createdDirs.add(targetDir);
+								await this.adapter.mkdirAsync(this.adapter.name, targetDir);
+							}
+							await this.adapter.writeFileAsync(this.adapter.name, targetPath, fileContent as Buffer);
+							extractedCount++;
+						}
+					})());
+				}
+			});
+
+			await Promise.all(filePromises);
+
+			if (extractedCount > 0) {
+				this.adapter.rLog("Cloud", duid ?? null, "Info", undefined, undefined, `Extracted ${extractedCount} assets to ${assetDir}`, "info");
+				try {
+					const versionBuf = Buffer.from(String(newVersion), "utf8");
+					await this.adapter.writeFileAsync(this.adapter.name, versionFilePath, versionBuf);
+				} catch (e: any) {
+					this.adapter.rLog("Cloud", duid ?? null, "Error", undefined, undefined, `Failed to write version file ${versionFilePath}: ${e?.message}`, "error");
+					return false;
+				}
+				return true;
+			}
+			this.adapter.rLog("Cloud", duid ?? null, "Warn", undefined, undefined, `No assets found in zip for ${vacuumModel}.`, "warn");
+		} catch (err: any) {
+			this.adapter.rLog("Cloud", duid ?? null, "Error", undefined, undefined, `Failed to download/extract assets for ${vacuumModel}: ${err.message}`, "error");
+		}
+		return false;
+	}
+
 	async updateProduct(duid: string) {
 		const loginApi = this.adapter.http_api.loginApi;
 		if (!loginApi) {
@@ -43,12 +181,7 @@ export class AppPluginManager {
 			return;
 		}
 
-		const appPluginRequest: any = {
-			apilevel: 1000,
-			type: 2, // Android
-		};
-
-		// Resolve numeric Product ID from V5 Product Info
+		const appPluginRequest: any = { apilevel: 1000, type: 2 };
 		let numericProductId = 0;
 		await this.adapter.http_api.ensureProductInfo();
 
@@ -56,16 +189,12 @@ export class AppPluginManager {
 		const modelStr = this.adapter.http_api.getRobotModel(duid);
 		if (modelStr) vacuumModel = modelStr;
 
-		// Resolve numeric Product ID
 		const resolvedId = this.adapter.http_api.getProductIdByModel(vacuumModel);
 
 		if (resolvedId) {
 			numericProductId = resolvedId;
-			this.adapter.rLog("Cloud", duid, "Debug", undefined, undefined, `Resolved numeric ID ${numericProductId} for model ${vacuumModel}`, "debug");
 		} else {
-			// Try to see if V5 product info is at least fetched for debug
 			const productInfo = this.adapter.http_api.productInfo;
-			// Log minimal info
 			const hasV3 = !!(this.adapter.http_api.homeData && this.adapter.http_api.homeData.products);
 			const hasV5 = !!(productInfo && productInfo.data);
 
@@ -82,16 +211,12 @@ export class AppPluginManager {
 
 		if (numericProductId > 0) {
 			appPluginRequest.productids = [numericProductId];
-			appPluginRequest.apilevel = 10042; // Update to match sniff
+			appPluginRequest.apilevel = 10042;
 		} else {
 			this.adapter.rLog("Cloud", duid, "Warn", undefined, undefined, `Falling back to request with string productId ${device.productId} (might fail)`, "warn");
 		}
 
-		this.adapter.rLog("Cloud", duid, "Debug", undefined, undefined, `Requesting assets for ProductID: ${numericProductId || device.productId}`, "debug");
-		this.adapter.rLog("Cloud", duid, "Debug", undefined, undefined, `Payload: ${JSON.stringify(appPluginRequest)}`, "debug");
-
 		const vacuumIDs: Record<string, string> = {
-			// Map both string and numeric ID to the model for the extraction loop later
 			[device.productId]: vacuumModel,
 			[numericProductId.toString()]: vacuumModel
 		};
@@ -105,117 +230,23 @@ export class AppPluginManager {
 			}
 
 			const packages = packageData.data.data;
+			const processedModels = new Set<string>();
 			for (const rr_package in packages) {
-				// Determine model from the product ID returned in package info (can be numeric or string)
 				let vacuumModel = vacuumIDs[packages[rr_package].productid];
-				if (!vacuumModel) {
-					// Try finding by model name if possible, or fallback
-					vacuumModel = "unknown";
-				}
-
-				// If vacuumModel is valid...
-				if (!vacuumModel || vacuumModel === "unknown_model") {
-					// Try to match specific product ID from package
+				if (!vacuumModel) vacuumModel = "unknown";
+				if (vacuumModel === "unknown_model" || !vacuumModel) {
 					const pid = packages[rr_package].productid;
-					if (pid == numericProductId || pid == device.productId) {
-						vacuumModel = modelStr || "unknown";
-					}
+					if (pid == numericProductId || pid == device.productId) vacuumModel = modelStr || "unknown";
 				}
+				if (!vacuumModel || vacuumModel === "unknown" || processedModels.has(vacuumModel)) continue;
+				processedModels.add(vacuumModel);
 
-				if (!vacuumModel) continue;
+				// Skip if another caller already downloaded (e.g. single-flight finished)
+				if (await this.hasAssetsForModel(vacuumModel)) continue;
 
 				const zipUrl = packages[rr_package].url;
 				const newVersion = packages[rr_package].version;
-
-				// Target: c:\iobroker\iobroker.roborock\www\assets\<model>
-				const adapterRoot = this.adapter.adapterDir;
-				const assetPath = `${adapterRoot}/www/assets/${vacuumModel}`;
-				const versionFilePath = `${assetPath}/version`;
-
-				// Check if we need to download
-				let shouldDownload = false;
-				let reason = "";
-
-				if (!fs.existsSync(assetPath)) {
-					shouldDownload = true;
-					reason = "Assets missing";
-				} else {
-					if (fs.existsSync(versionFilePath)) {
-						const versionContent = fs.readFileSync(versionFilePath, "utf8").trim();
-						const currentVersion = parseInt(versionContent);
-						const remoteVersion = parseInt(newVersion);
-
-						if (!isNaN(remoteVersion) && (!isNaN(currentVersion) ? remoteVersion > currentVersion : true)) {
-							shouldDownload = true;
-							reason = `New version (Local: ${currentVersion}, Remote: ${newVersion})`;
-						} else {
-							// Check if directory is empty or missing key files?
-							// For now, version match is enough to skip.
-							this.adapter.rLog("Cloud", duid, "Debug", undefined, undefined, `Assets for ${vacuumModel} up to date (Version ${currentVersion}).`, "debug");
-						}
-					} else {
-						shouldDownload = true;
-						reason = "Version file missing";
-					}
-				}
-
-				if (shouldDownload) {
-					// Create directory if missing
-					if (!fs.existsSync(assetPath)) {
-						try {
-							fs.mkdirSync(assetPath, { recursive: true });
-						} catch (e) {
-							this.adapter.rLog("System", duid, "Error", undefined, undefined, `Could not create asset directory at ${assetPath}: ${e}`, "error");
-							continue;
-						}
-					}
-
-					this.adapter.rLog("Cloud", duid, "Info", undefined, undefined, `Downloading assets for ${vacuumModel} (${reason})...`, "info");
-
-					try {
-						const response = await loginApi.get(zipUrl, { responseType: "arraybuffer" });
-						const zip = await JSZip.loadAsync(response.data);
-
-						// Extract all 'drawable-*' and 'raw' folders preserving structure
-						let extractedCount = 0;
-						const filePromises: Promise<void>[] = [];
-
-						zip.forEach((relativePath, file) => {
-							// Filter for drawable-* or raw folders
-							// relativePath example: "drawable-mdpi/icon.png" or "res/drawable-xhdpi/icon.png" depending on zip structure.
-							// The user screenshot shows root folders "drawable-hdpi", etc.
-							// So we check if it starts with "drawable-" or "raw/"
-							const isTarget = relativePath.startsWith("drawable-") || relativePath.startsWith("raw/");
-
-							if (isTarget && !file.dir) {
-								filePromises.push((async () => {
-									const fileContent = await file.async("nodebuffer");
-									if (fileContent) {
-										// Preserve structure: assets/<model>/drawable-xxhdpi/icon.png
-										const targetPath = path.join(assetPath, relativePath);
-										const targetDir = path.dirname(targetPath);
-
-										await fs.promises.mkdir(targetDir, { recursive: true });
-										await fs.promises.writeFile(targetPath, fileContent as Uint8Array);
-										extractedCount++;
-									}
-								})());
-							}
-						});
-
-						await Promise.all(filePromises);
-
-						if (extractedCount > 0) {
-							this.adapter.rLog("Cloud", duid, "Info", undefined, undefined, `Extracted ${extractedCount} assets to ${assetPath}`, "info");
-							// Write version file on success
-							fs.writeFileSync(versionFilePath, newVersion.toString());
-						} else {
-							this.adapter.rLog("Cloud", duid, "Warn", undefined, undefined, `No assets found in zip for ${vacuumModel} (searched drawable-*/raw/). Version file NOT updated.`, "warn");
-						}
-					} catch (err: any) {
-						this.adapter.rLog("Cloud", duid, "Error", undefined, undefined, `Failed to download/extract assets for ${vacuumModel}: ${err.message}`, "error");
-					}
-				}
+				await this.downloadAndExtractAssetZip(loginApi, zipUrl, vacuumModel, newVersion, duid);
 			}
 		} catch (e: any) {
 			this.adapter.rLog("Cloud", duid, "Error", undefined, undefined, `Failed to update product assets: ${e.message}`, "error");

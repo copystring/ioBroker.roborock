@@ -71,6 +71,9 @@ class RequestManager {
 	}
 }
 
+/** B01 map-style pending entry (method, duid, resolve, reject only). */
+export type PendingMapEntry = { method: string; duid: string; resolve: (data: any) => void; reject: (err?: any) => void };
+
 export class RoborockRequest {
 	adapter: Roborock;
 	handler: requestsHandler;
@@ -547,7 +550,7 @@ export class requestsHandler {
 	 * Checks offset 8 (ROBOROCK header LSB) and offset 16 (Map header/Protocol 30x full ID).
 	 * Fallback: Uses DUID context if the ID match fails (especially for headerless Type 0 streams).
 	 */
-	public getPendingBinaryRequest(payloadBuf: Buffer, duid: string): RoborockRequest | undefined {
+	public getPendingBinaryRequest(payloadBuf: Buffer, duid: string): RoborockRequest | PendingMapEntry | undefined {
 		if (payloadBuf.length < 4) return undefined;
 
 		try {

@@ -65,6 +65,7 @@ This feature only works when map creation is enabled in the adapter options!
 	### **WORK IN PROGRESS**
 -->
 ### **WORK IN PROGRESS**
+* (copystring) **Maps:** Obstacle icons and map graphics are loaded automatically at startup so maps display correctly.
 * (copystring) **Breaking Change:** Major refactoring of the entire adapter structure.
 * (copystring) **New Feature:** Implemented 'Strict Startup' - Adapter prevents startup without valid login to avoid bootloops.
 * (copystring) **Improvement:** Enhanced 2FA logging and instructions for easier login troubleshooting.

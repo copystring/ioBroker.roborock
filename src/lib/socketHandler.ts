@@ -43,8 +43,6 @@ export class socketHandler {
 			return;
 		}
 
-		// --- Special Handlers ---
-		// get_obstacle_image has custom logic
 		if (obj.command === "get_obstacle_image") {
 			return this.handleGetObstacleImage(obj);
 		}
@@ -75,9 +73,6 @@ export class socketHandler {
 		}
 	}
 
-	/**
-	 * Handles 'get_obstacle_image' command.
-	 */
 	private async handleGetObstacleImage(msg: ioBroker.Message): Promise<void> {
 		const { duid } = msg.message;
 
