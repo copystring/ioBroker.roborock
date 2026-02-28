@@ -69,8 +69,10 @@ export class B01MapService {
 		await this.deps.ensureFolder(`Devices.${this.duid}.map`);
 
 		if (mapData) {
+			const model = this.deps.adapter.http_api.getRobotModel(this.duid);
+			const mapDataWithModel = { ...mapData, model: model || undefined };
 			await this.deps.ensureState(`Devices.${this.duid}.map.mapData`, { name: "Map Data", type: "string", role: "json" });
-			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.map.mapData`, { val: JSON.stringify(mapData), ack: true });
+			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.map.mapData`, { val: JSON.stringify(mapDataWithModel), ack: true });
 		}
 		if (mapBase64) {
 			await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64`, { name: "Map Image", type: "string", role: "text.png" });

@@ -87,7 +87,7 @@
   ],
   "scripts": {
     "clean": "shx rm -rf www/*.js www/*.js.map www/*.d.ts www/*.tsbuildinfo",
-    "build": "npm run clean && npm run lint && npm run build:www && npm run docs",
+    "build": "npm run clean && npm run lint && tsc --noEmit && npm run build:www && npm run docs",
     "build:www": "esbuild src/www/map.ts --bundle --minify --sourcemap --outfile=www/app.js --format=esm",
     "watch": "npm run clean && npm run watch:www",
     "watch:www": "esbuild src/www/map.ts --bundle --sourcemap --outfile=www/app.js --format=esm --watch",
@@ -97,7 +97,7 @@
     "test:coverage": "vitest run --coverage",
     "test:integration": "mocha test/integration.js --exit",
     "test:package": "mocha test/package.js --exit",
-    "lint": "eslint . --max-warnings 0 && npm run lint:yaml",
+    "lint": "eslint . --fix && eslint . --max-warnings 0 && npm run lint:yaml",
     "lint:yaml": "npx yaml-lint \"**/*.yml\" \"**/*.yaml\" --ignore \"node_modules\"",
     "verify": "npm run lint && tsc --noEmit && npm run test",
     "translate": "translate-adapter",

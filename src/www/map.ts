@@ -22,6 +22,7 @@ interface MapData {
 	MOP_PATH?: number[];
 	OBSTACLES2?: Array<[number, number, ...any]>;
 	CARPET_MAP?: number[];
+	model?: string; // e.g. roborock.vacuum.a147, for asset paths
 }
 
 interface PositionBlock {
@@ -96,8 +97,9 @@ const UI_CONSTANTS = {
 	PATH_BACKWASH_WIDTH_BASE: 0.5,
 };
 
+/** Type → suffix (429.js); asset obstacle_new_p{suffix}.png */
 const OBSTACLE_MAPPING: Record<number, string> = {
-	"-99": "99",
+	[-99]: "99",
 	0: "0",
 	1: "1",
 	2: "2",
@@ -114,7 +116,7 @@ const OBSTACLE_MAPPING: Record<number, string> = {
 	42: "18",
 	48: "48",
 	49: "49",
-	50: "50",
+	50: "49",  // robot type 50 → p49 icon (p50 wrong for this type)
 	51: "51",
 	54: "54",
 	65: "65",
@@ -123,6 +125,13 @@ const OBSTACLE_MAPPING: Record<number, string> = {
 	70: "70",
 	99: "99",
 };
+
+function obstacleAssetFileName(suffix: string): string {
+	return `projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`;
+}
+function obstacleAssetFileNameAlt(suffix: string): string {
+	return `projects_comroborocktanos_resources_map_object_top_${suffix}.png`;
+}
 
 // -----------------------------------------------------------------------------
 // Map Application Class
@@ -481,6 +490,7 @@ class MapApplication {
 					try {
 						this.map = typeof state.val === "string" ? JSON.parse(state.val) : state.val;
 						if (this.map && this.map.IMAGE) {
+							this.model = this.map.model ?? this.robotModels[this.currentRobotDuid] ?? null;
 							this.mapImage = this.map.IMAGE;
 							this.updateMapImageSize();
 							this.drawRobotAndCharger(this.map.ROBOT_POSITION, this.map.CHARGER_LOCATION);
@@ -860,12 +870,7 @@ class MapApplication {
 			.attr("width", imageSize)
 			.attr("height", imageSize)
 			.attr("x", -imageSize / 2)
-			.attr("y", -imageSize / 2)
-			.on("error", function () {
-				// Revert to a generic fallback icon instead of making the obstacle invisible
-				// Use 'default' model folder which we know exists
-				d3.select(this).attr("href", `assets/default/drawable-mdpi/projects_comroborocktanos_resources_obstacle_new_p18.png`);
-			});
+			.attr("y", -imageSize / 2);
 
 		const allGroups = enterGroups.merge(groups as any);
 
@@ -874,13 +879,28 @@ class MapApplication {
 			return `translate(${pos.x}, ${pos.y})`;
 		});
 
+		// Fallback icon first; then try obstacle_new_p, else map_object_top.
+		const modelFolder = this.model || (this.currentRobotDuid && this.robotModels[this.currentRobotDuid]) || (Object.keys(this.robotModels).length ? this.robotModels[Object.keys(this.robotModels)[0]] : null) || "roborock.vacuum.a147";
+		const baseUrl = `assets/${modelFolder}/drawable-mdpi/`;
+		const fallbackUrl = baseUrl + obstacleAssetFileName("18");
 		allGroups
 			.select("image")
-			.attr("href", (d: any) => {
-				const type = d[2];
-				const suffix = OBSTACLE_MAPPING[type] || "18";
-				const modelFolder = this.model || "default";
-				return `assets/${modelFolder}/drawable-mdpi/projects_comroborocktanos_resources_obstacle_new_p${suffix}.png`;
+			.attr("href", fallbackUrl)
+			.each(function (this: SVGImageElement, d: any) {
+				const suffix = OBSTACLE_MAPPING[Number(d[2])] ?? "18";
+				if (suffix === "18") return;
+				const primaryUrl = baseUrl + obstacleAssetFileName(suffix);
+				const altUrl = baseUrl + obstacleAssetFileNameAlt(suffix);
+				const el = this;
+				const img = new Image();
+				const tryAlt = () => {
+					img.onload = () => { d3.select(el).attr("href", altUrl); };
+					img.onerror = () => { /* keep fallback */ };
+					img.src = altUrl;
+				};
+				img.onload = () => { d3.select(el).attr("href", primaryUrl); };
+				img.onerror = tryAlt;
+				img.src = primaryUrl;
 			});
 	}
 

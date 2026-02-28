@@ -1,6 +1,4 @@
 import { createCanvas, Image, loadImage } from "@napi-rs/canvas";
-import * as fs from "fs";
-import * as path from "path";
 import { robotToPixel } from "../../../common/coordTransformation";
 import { B01Area, B01DeviceStatus, B01MapData, B01Point } from "./types";
 
@@ -31,189 +29,168 @@ export class MapBuilder {
 		if (this.assetsLoaded) return;
 		this.assets = { rooms: {}, robot: {}, charger: {} };
 
-		// Inner helper to attempt loading
-		const attemptLoad = async (isRetry: boolean): Promise<boolean> => {
-			let missingCritical = false;
-			try {
-				// Define search paths: WWW (priority)
-				const searchPaths: string[] = [];
+		try {
+			// assets/<model> in adapter file storage
+			const searchPaths: string[] = [];
 
-				if (this.adapter) this.adapter.rLog("MapManager", duid, "Debug", undefined, undefined, `loadAssets attempt (Retry=${isRetry}) for model: '${model}'`, "debug");
+			if (model && this.adapter) {
+				const modelPath = `assets/${model}`;
+				try {
+					await this.adapter.readDirAsync(this.adapter.name, modelPath);
+					searchPaths.push(modelPath);
+				} catch { /* dir missing */ }
+			}
 
-				// 1. Model Specific Asset Path
-				if (model && this.adapter) {
-					const modelPath = path.join(this.adapter.adapterDir, "www", "assets", model);
-					if (fs.existsSync(modelPath)) searchPaths.push(modelPath);
-				}
-
-				// 2. Fallbacks based on process.cwd()
-				const commonModels = ["roborock.vacuum.a147", "roborock.vacuum.sc01", "roborock.vacuum.a70"];
-				for (const m of commonModels) {
-					if (this.adapter) {
-						const p = path.join(this.adapter.adapterDir, "www", "assets", m);
-						if (fs.existsSync(p) && !searchPaths.includes(p)) searchPaths.push(p);
+			const commonModels = ["roborock.vacuum.a147", "roborock.vacuum.sc01", "roborock.vacuum.a70"];
+			for (const m of commonModels) {
+				if (this.adapter) {
+					const p = `assets/${m}`;
+					if (!searchPaths.includes(p)) {
+						try {
+							await this.adapter.readDirAsync(this.adapter.name, p);
+							searchPaths.push(p);
+						} catch { /* dir missing */ }
 					}
 				}
+			}
 
-				// 3. Recursive Helper to search in multiple folders and subfolders
-				const findAssetInPaths = async (candidates: string[]) => {
-					for (const dir of searchPaths) {
-						// 1. Check in root of asset dir
-						for (const c of candidates) {
-							const p = path.join(dir, c);
-							if (fs.existsSync(p)) return await loadImage(p);
+			const subdirsToTry = ["drawable-mdpi", "drawable-hdpi", "drawable-xhdpi", "drawable-xxhdpi", "raw"];
+			const findAssetInPaths = async (candidates: string[]) => {
+				for (const dir of searchPaths) {
+					for (const c of candidates) {
+						const rootPath = `${dir}/${c}`;
+						if (await this.adapter.fileExistsAsync(this.adapter.name, rootPath)) {
+							const res = await this.adapter.readFileAsync(this.adapter.name, rootPath);
+							const buf = typeof res === "object" && res !== null && "file" in res ? (res as { file: Buffer }).file : Buffer.from(res as ArrayBuffer);
+							return await loadImage(buf);
 						}
-
-						// 2. Check in subfolders (drawable-*, raw)
-						if (fs.existsSync(dir)) {
-							try {
-								const subdirs = fs.readdirSync(dir).filter(d =>
-									d.startsWith("drawable-") || d === "raw"
-								);
-
-								for (const subdir of subdirs) {
-									for (const c of candidates) {
-										const p = path.join(dir, subdir, c);
-										if (fs.existsSync(p)) return await loadImage(p);
-									}
+					}
+					try {
+						const entries = await this.adapter.readDirAsync(this.adapter.name, dir);
+						const dirs = Array.isArray(entries) ? [] : (entries as { dirs?: string[] }).dirs ?? [];
+						const subdirs = (dirs as string[]).filter(d => d.startsWith("drawable-") || d === "raw");
+						for (const subdir of subdirs.length > 0 ? subdirs : subdirsToTry) {
+							for (const c of candidates) {
+								const p = `${dir}/${subdir}/${c}`;
+								if (await this.adapter.fileExistsAsync(this.adapter.name, p)) {
+									const res = await this.adapter.readFileAsync(this.adapter.name, p);
+									const buf = typeof res === "object" && res !== null && "file" in res ? (res as { file: Buffer }).file : Buffer.from(res as ArrayBuffer);
+									return await loadImage(buf);
 								}
-							} catch { /* ignore read error */ }
+							}
 						}
-					}
-					return null;
-				};
-
-				// --- 1. Load Robot Assets (theme_dark preference) ---
-				// Load B01-specific robot asset
-				const b01RobotImg = await findAssetInPaths(["src_sc_components_resource_images_common_robot.png"]);
-				if (b01RobotImg) this.assets!.robot["b01_fixed"] = b01RobotImg;
-
-				const robotStates = ["charging", "cleaning", "error", "sleeping", "offline", "waiting"];
-				for (const state of robotStates) {
-					const candidates = [
-						// sc01 style
-						`src_sc_components_resource_images_common_robot_${state === "charging" ? "rechage" : (state === "error" ? "fault" : state)}.png`,
-						`src_sc_components_resource_images_common_robot_${state === "charging" ? "rechage" : (state === "error" ? "fault" : state)}_dark.png`,
-						// a147 style
-						`projects_comroborocktanos_theme_dark_resources_robot_icon_${state}.png`,
-						`projects_comroborocktanos_resources_robot_icon_${state}.png`,
-						`robot_icon_${state}.png`
-					];
-					const img = await findAssetInPaths(candidates);
-					if (img) this.assets!.robot[state] = img;
+					} catch { /* ignore */ }
 				}
-				// Robot Default
-				if (!Object.keys(this.assets!.robot).length) {
-					const fallback = await findAssetInPaths([
-						"projects_comroborocktanos_theme_dark_resources_robot_icon_cleaning.png",
-						"projects_comroborocktanos_resources_robot_icon_cleaning.png"
-					]);
-					if (fallback) this.assets!.robot["cleaning"] = fallback;
-				}
+				return null;
+			};
 
-				// --- 2. Load Charger Assets ---
-				const chargerCandidates = [
-					// Android style asset
-					"src_sc_components_resource_images_common_charge_android.png",
+			// --- 1. Load Robot Assets (theme_dark preference) ---
+			// Load B01-specific robot asset
+			const b01RobotImg = await findAssetInPaths(["src_sc_components_resource_images_common_robot.png"]);
+			if (b01RobotImg) this.assets!.robot["b01_fixed"] = b01RobotImg;
+
+			const robotStates = ["charging", "cleaning", "error", "sleeping", "offline", "waiting"];
+			for (const state of robotStates) {
+				const candidates = [
 					// sc01 style
-					"src_sc_components_resource_images_home_home_charge_charging.png",
-					"src_sc_components_resource_images_home_home_charge_charging_dark.png",
-					"src_sc_components_resource_images_home_home_charge_reccharg.png",
+					`src_sc_components_resource_images_common_robot_${state === "charging" ? "rechage" : (state === "error" ? "fault" : state)}.png`,
+					`src_sc_components_resource_images_common_robot_${state === "charging" ? "rechage" : (state === "error" ? "fault" : state)}_dark.png`,
 					// a147 style
-					"projects_comroborocktanos_resources_charger_special.png",
-					"projects_comroborocktanos_resources_charger_bubble_special.png",
-					"projects_comroborocktanos_resources_charger_bubble_normal.png",
-					"projects_comroborocktanos_theme_dark_resources_ic_home_topazs_charge_light.png"
+					`projects_comroborocktanos_theme_dark_resources_robot_icon_${state}.png`,
+					`projects_comroborocktanos_resources_robot_icon_${state}.png`,
+					`robot_icon_${state}.png`
 				];
-				const chargerImg = await findAssetInPaths(chargerCandidates);
-				if (chargerImg) this.assets!.charger["normal"] = chargerImg;
-				else {
-					missingCritical = true;
-					if (isRetry && this.adapter) this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, "Charger asset NOT found.", "error");
-				}
+				const img = await findAssetInPaths(candidates);
+				if (img) this.assets!.robot[state] = img;
+			}
+			// Robot Default
+			if (!Object.keys(this.assets!.robot).length) {
+				const fallback = await findAssetInPaths([
+					"projects_comroborocktanos_theme_dark_resources_robot_icon_cleaning.png",
+					"projects_comroborocktanos_resources_robot_icon_cleaning.png"
+				]);
+				if (fallback) this.assets!.robot["cleaning"] = fallback;
+			}
 
-				// --- 3. Load Room Icons (Bubble Tags) ---
-				// The user has `roomtag_bubble_X.png`. We load specific IDs (1-32 is a safe range for room types)
-				// plus the mapped names from ROOM_TYPE_MAP just in case.
-				const roomIdsToLoad = Array.from({ length: 32 }, (_, i) => i + 1); // 1 to 32
+			// --- 2. Load Charger Assets ---
+			const chargerCandidates = [
+				// Android style asset
+				"src_sc_components_resource_images_common_charge_android.png",
+				// sc01 style
+				"src_sc_components_resource_images_home_home_charge_charging.png",
+				"src_sc_components_resource_images_home_home_charge_charging_dark.png",
+				"src_sc_components_resource_images_home_home_charge_reccharg.png",
+				// a147 style
+				"projects_comroborocktanos_resources_charger_special.png",
+				"projects_comroborocktanos_resources_charger_bubble_special.png",
+				"projects_comroborocktanos_resources_charger_bubble_normal.png",
+				"projects_comroborocktanos_theme_dark_resources_ic_home_topazs_charge_light.png"
+			];
+			const chargerImg = await findAssetInPaths(chargerCandidates);
+			if (chargerImg) this.assets!.charger["normal"] = chargerImg;
+			else if (this.adapter) this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, "Charger asset NOT found.", "error");
 
-				for (const id of roomIdsToLoad) {
-					// IMPORTANT: The 'tag' version is the white symbol without the blue bubble background.
-					// We prioritize it so our colored background (circle) is visible.
-					const candidates = [
-						`projects_comroborocktanos_resources_roomtag_bubble_tag_${id}.png`,
-						`projects_comroborocktanos_resources_roomtag_bubble_${id}.png`,
-						`roomtag_bubble_tag_${id}.png`,
-						`roomtag_bubble_${id}.png`
-					];
-					const img = await findAssetInPaths(candidates);
-					if (img) {
+			// --- 3. Load Room Icons (Bubble Tags) ---
+			// The user has `roomtag_bubble_X.png`. We load specific IDs (1-32 is a safe range for room types)
+			// plus the mapped names from ROOM_TYPE_MAP just in case.
+			const roomIdsToLoad = Array.from({ length: 32 }, (_, i) => i + 1); // 1 to 32
+
+			for (const id of roomIdsToLoad) {
+				// IMPORTANT: The 'tag' version is the white symbol without the blue bubble background.
+				// We prioritize it so our colored background (circle) is visible.
+				const candidates = [
+					`projects_comroborocktanos_resources_roomtag_bubble_tag_${id}.png`,
+					`projects_comroborocktanos_resources_roomtag_bubble_${id}.png`,
+					`roomtag_bubble_tag_${id}.png`,
+					`roomtag_bubble_${id}.png`
+				];
+				const img = await findAssetInPaths(candidates);
+				if (img) {
 						this.assets!.rooms[`bubble_${id}`] = img;
 						// B01 IDs are often 2000 + assetID
 						this.assets!.rooms[`bubble_${id + 2000}`] = img;
-					}
 				}
+			}
 
-				// Load numbered robot icons from snippet
-				const snippetRobotIcons = [85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104];
-				for (const id of snippetRobotIcons) {
-					const candidates = [
-						`projects_comroborocktanos_resources_robot_icon_${id}.png`,
-						`robot_icon_${id}.png`
-					];
-					const img = await findAssetInPaths(candidates);
-					if (img) {
+			// Load numbered robot icons from snippet
+			const snippetRobotIcons = [85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104];
+			for (const id of snippetRobotIcons) {
+				const candidates = [
+					`projects_comroborocktanos_resources_robot_icon_${id}.png`,
+					`robot_icon_${id}.png`
+				];
+				const img = await findAssetInPaths(candidates);
+				if (img) {
 						this.assets!.robot[`icon_${id}`] = img;
-					}
 				}
-
-				// Also try the named ones from ROOM_TYPE_MAP (kitchen, bedroom, etc) IF they exist in some form,
-				// though file listing suggests they rely on ID-based bubbles.
-				// Also try the named ones from ROOM_TYPE_MAP (kitchen, bedroom, etc) IF they exist in some form
-				for (const name of Object.values(ROOM_TYPE_MAP)) {
-					if (!name || name === "other") continue;
-					const candidates = [
-						`src_sc_components_resource_images_maproom_select_${name}.png`,
-						`src_sc_components_resource_images_mapedit_map_edit_${name}.png`,
-						`src_sc_components_resource_images_maproom_select_${name}_select.png`
-					];
-					const img = await findAssetInPaths(candidates);
-					if (img) this.assets!.rooms[name] = img;
-				}
-				// Load 'other' fallback
-				const otherImg = await findAssetInPaths([
-					"src_sc_components_resource_images_maproom_select_other.png",
-					"projects_comroborocktanos_resources_roomtag_bubble_tag_1.png"
-				]);
-				if (otherImg) this.assets!.rooms["other"] = otherImg;
-
-				if (Object.keys(this.assets!.robot).length === 0) {
-					missingCritical = true;
-					if (isRetry && this.adapter) this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, "SEVERE ERROR: No Robot assets found!", "error");
-				}
-			} catch (e: any) {
-				if (this.adapter) this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, `Error loading assets: ${e.message}`, "error");
 			}
-			return !missingCritical;
-		};
 
-		// 1. Initial Attempt
-		const success = await attemptLoad(false);
-
-		// 2. Retry with Download
-		if (!success && duid && this.adapter && this.adapter.appPluginManager) {
-			this.adapter.rLog("MapManager", duid, "Info", undefined, undefined, `Missing Critical Assets. Triggering re-download for ${duid}...`, "info");
-			try {
-				await this.adapter.appPluginManager.updateProduct(duid);
-				await attemptLoad(true);
-			} catch (e: any) {
-				this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, `Asset re-download failed: ${e.message}`, "error");
-				await attemptLoad(true);
+			// Also try the named ones from ROOM_TYPE_MAP (kitchen, bedroom, etc) IF they exist in some form,
+			// though file listing suggests they rely on ID-based bubbles.
+			// Also try the named ones from ROOM_TYPE_MAP (kitchen, bedroom, etc) IF they exist in some form
+			for (const name of Object.values(ROOM_TYPE_MAP)) {
+				if (!name || name === "other") continue;
+				const candidates = [
+					`src_sc_components_resource_images_maproom_select_${name}.png`,
+					`src_sc_components_resource_images_mapedit_map_edit_${name}.png`,
+					`src_sc_components_resource_images_maproom_select_${name}_select.png`
+				];
+				const img = await findAssetInPaths(candidates);
+				if (img) this.assets!.rooms[name] = img;
 			}
-		} else if (!success && this.adapter) {
-			this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, "SEVERE ERROR: Assets missing, cannot re-download (No DUID/Manager).", "error");
+			// Load 'other' fallback
+			const otherImg = await findAssetInPaths([
+				"src_sc_components_resource_images_maproom_select_other.png",
+				"projects_comroborocktanos_resources_roomtag_bubble_tag_1.png"
+			]);
+			if (otherImg) this.assets!.rooms["other"] = otherImg;
+
+			if (Object.keys(this.assets!.robot).length === 0 && this.adapter) {
+				this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, "No Robot assets found.", "error");
+			}
+		} catch (e: any) {
+			if (this.adapter) this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, `Error loading assets: ${e.message}`, "error");
 		}
-
 		this.assetsLoaded = true;
 	}
 
