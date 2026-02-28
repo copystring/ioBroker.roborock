@@ -67,8 +67,10 @@ export class MapBuilder {
 					}
 					try {
 						const entries = await this.adapter.readDirAsync(this.adapter.name, dir);
-						const dirs = Array.isArray(entries) ? [] : (entries as { dirs?: string[] }).dirs ?? [];
-						const subdirs = (dirs as string[]).filter(d => d.startsWith("drawable-") || d === "raw");
+						const dirs: string[] = Array.isArray(entries)
+							? entries
+							: (entries as { dirs?: string[] }).dirs ?? [];
+						const subdirs = dirs.filter(d => d.startsWith("drawable-") || d === "raw");
 						for (const subdir of subdirs.length > 0 ? subdirs : subdirsToTry) {
 							for (const c of candidates) {
 								const p = `${dir}/${subdir}/${c}`;
