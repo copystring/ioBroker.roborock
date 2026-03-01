@@ -43,6 +43,8 @@ jobs:
           # Uncomment the following line if your adapter cannot be installed using 'npm ci'
           # install-command: 'npm install'
           lint: true
+      - name: TypeScript check
+        run: npm run typecheck
 
   # Runs adapter tests on all supported node versions and OSes
   adapter-tests:
