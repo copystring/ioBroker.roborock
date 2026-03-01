@@ -3,6 +3,7 @@
 !.vscode/
 !.github/
 !.husky/
+!.npmrc
 
 *.code-workspace
 node_modules

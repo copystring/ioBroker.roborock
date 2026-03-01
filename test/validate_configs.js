@@ -11,7 +11,12 @@ const VSCODE_DIR = path.join(ROOT_DIR, ".vscode");
 const JSON_CONFIG_PATH = path.join(ADMIN_DIR, "jsonConfig.json");
 const SCHEMA_URL = "https://raw.githubusercontent.com/ioBroker/ioBroker.admin/master/packages/jsonConfig/schemas/jsonConfig.json";
 
-const stripJsonComments = require("strip-json-comments");
+// strip-json-comments v5+ is ESM; require() yields { default: fn } in Node
+const stripJsonCommentsModule = require("strip-json-comments");
+const stripJsonComments =
+	typeof stripJsonCommentsModule === "function"
+		? stripJsonCommentsModule
+		: stripJsonCommentsModule.default;
 
 // Helper: Strip JSON comments (using library)
 function stripComments(jsonString) {
