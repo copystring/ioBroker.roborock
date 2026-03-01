@@ -61,7 +61,7 @@
     "@vitest/coverage-v8": "^4.0.17",
     "ajv": "^8.17.1",
     "chokidar": "^5.0.0",
-    "esbuild": "^0.27.2",
+    "esbuild": "^0.27.3",
     "eslint": "^9.39.2",
     "eslint-plugin-sonarjs": "^3.0.5",
     "eslint-plugin-unicorn": "^60.0.0",
