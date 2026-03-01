@@ -304,7 +304,6 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			(async () => {
 				await new Promise(r => setTimeout(r, 2000));
 				await this.updateStatus().catch(() => {});
-				// Trigger map and room sync directly like 0.6.19
 				await this.mapService.updateMap().catch(() => {});
 				await this.mapService.updateRoomMapping().catch(() => {});
 			})();

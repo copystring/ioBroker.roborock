@@ -7,6 +7,7 @@ import { FallbackBaseFeatures, FallbackVacuumFeatures } from "./features/fallbac
 import { DEFAULT_PROFILE, VacuumProfile } from "./features/vacuum/v1VacuumFeatures";
 
 import { ProductHelper } from "./productHelper";
+import { Feature } from "./features/features.enum";
 
 // Import indices to trigger decorators
 import "./features/vacuum/index";
@@ -56,27 +57,34 @@ function createFeaturesForModel(adapter: Roborock, duid: string, robotModel: str
 		return handler;
 	}
 
-	// Get registered model class
+	// Get registered model class (optional: only for model-specific overrides)
 	const ModelClass = BaseDeviceFeatures.getRegisteredModelClass(robotModel);
 
 	if (ModelClass) {
-		// Specific model classes typically define their own profiles internally
+		// Specific model class registered – use it (e.g. custom profile/features)
 		const handler = new ModelClass(dependencies, duid);
 		handler.protocolVersion = protocolVersion;
 		return handler;
-	} else {
-		adapter.rLog("System", duid, "Warn", undefined, undefined, `Model "${robotModel}" (Category: ${productCategory}) not registered. Using fallback (Protocol: ${protocolVersion || "Unknown"}).`, "warn");
-
-		if (productCategory === "robot.vacuum.cleaner" || productCategory === "roborock.vacuum") {
-			const handler = new FallbackVacuumFeatures(dependencies, duid, robotModel, dynamicProfile);
-			handler.protocolVersion = protocolVersion;
-			return handler;
-		} else {
-			const handler = new FallbackBaseFeatures(dependencies, duid, robotModel);
-			handler.protocolVersion = protocolVersion;
-			return handler;
-		}
 	}
+
+	// No model-specific class: auto-detect by category. Log once so users report unknown models for full support.
+	const isVacuum = productCategory === "robot.vacuum.cleaner" || productCategory === "roborock.vacuum";
+	if (isVacuum) {
+		adapter.rLog("System", duid, "Info", undefined, undefined, `Model "${robotModel}" is not explicitly supported yet; using auto-detected vacuum features. If something is missing or wrong, please report your model (e.g. via GitHub Issues) so we can add full support with correct parameters.`, "info");
+		const deducedFeatures = productInfo ? ProductHelper.deduceFeatures(productInfo, robotModel) : new Set<Feature>();
+		const handler = new FallbackVacuumFeatures(dependencies, duid, robotModel, dynamicProfile, {
+			staticFeatures: Array.from(deducedFeatures),
+			autoDetected: true
+		});
+		handler.protocolVersion = protocolVersion;
+		return handler;
+	}
+
+	// Unknown category: warn and use generic fallback
+	adapter.rLog("System", duid, "Warn", undefined, undefined, `Model "${robotModel}" (Category: ${productCategory}) not registered. Using fallback (Protocol: ${protocolVersion || "Unknown"}).`, "warn");
+	const handler = new FallbackBaseFeatures(dependencies, duid, robotModel);
+	handler.protocolVersion = protocolVersion;
+	return handler;
 }
 
 export class DeviceManager {

@@ -60,8 +60,16 @@ const TYPES = {
 	GARBAGE: 54,
 	ZONE_LINES: 55,
 	DIGEST: 1024,
+	/** Not in app workermapparser.jx (gap between 34 and 36). */
+	UNKNOWN_35: 35,
+	/** Not in app workermapparser.jx (gap between 39 and 41). */
 	UNKNOWN_40: 40,
+	/** Not in app workermapparser.jx (gap between 55 and 57). */
 	UNKNOWN_56: 56,
+	/** Block 59: curtain zones (门帘). From app workermapparser.jx type "curtain". */
+	CURTAIN: 59,
+	/** Block 60: missed-cleaning areas (漏扫的区域). From app workermapparser.jx type "missZone". */
+	MISS_ZONE: 60,
 };
 const TYPES_REVERSE = Object.fromEntries(Object.entries(TYPES).map(([key, value]) => [value, key]));
 const OFFSETS = {
@@ -407,16 +415,40 @@ export class MapParser {
 						case TYPES.PET_PATROL:
 							result[typeName] = this.getPatrol(blockBuffer, hlength);
 							break;
+						case TYPES.CURTAIN: {
+							const count = this.getCount(blockBuffer);
+							const zones: number[][] = [];
+							const dataStart = dataPosition + hlength;
+							const entryLen = 20; // 8 coords (16 B) + status (2 B) + count (2 B)
+							for (let i = 0; i < count && dataStart + (i + 1) * entryLen <= dataPosition + hlength + length; i++) {
+								zones.push(this.readUInt16LE(buf, dataStart + i * entryLen, 0, 8));
+							}
+							result[typeName] = zones;
+							break;
+						}
+						case TYPES.MISS_ZONE: {
+							const count = this.getCount(blockBuffer);
+							const zones: number[][] = [];
+							const dataStart = dataPosition + hlength;
+							const payloadLen = length;
+							const entryLen = count > 0 ? Math.floor(payloadLen / count) : 0; // 29 or 31
+							for (let i = 0; i < count && entryLen >= 29; i++) {
+								zones.push(this.readUInt16LE(buf, dataStart + i * entryLen + 12, 0, 8));
+							}
+							result[typeName] = zones;
+							break;
+						}
+						case TYPES.UNKNOWN_35:
 						case TYPES.UNKNOWN_40:
 						case TYPES.UNKNOWN_56:
-							this.adapter.rLog("MapManager", null, "Debug", "1.0", undefined, `Received known unknown block type ${type} with length ${length}. Data: ${blockBuffer.toString("hex")}`, "debug");
+							this.adapter.rLog("MapManager", null, "Info", "1.0", undefined, `Unknown map block (report for analysis): type=${type} length=${length} hex=${blockBuffer.toString("hex")}`, "info");
 							break;
 					}
 				} catch (e: any) {
 					this.adapter.rLog("MapManager", null, "Error", "1.0", undefined, `Error parsing block ${typeName} (Type ${type}): ${e.stack}`, "error");
 				}
 			} else {
-				this.adapter.rLog("MapManager", null, "Warn", "1.0", undefined, `Unknown block type: ${type} with length ${length}. Data: ${blockBuffer.toString("hex")}`, "warn");
+				this.adapter.rLog("MapManager", null, "Warn", "1.0", undefined, `Unknown map block (report for analysis): type=${type} length=${length} hex=${blockBuffer.toString("hex")}`, "warn");
 			}
 			dataPosition += length + hlength;
 		}

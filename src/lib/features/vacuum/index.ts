@@ -18,6 +18,7 @@ export * from "./a187_features";
 export * from "./a19_features";
 export * from "./a21_features";
 export * from "./a27_features";
+export * from "./a288_features";
 export * from "./a38_features";
 export * from "./a40_features";
 export * from "./a51_features";

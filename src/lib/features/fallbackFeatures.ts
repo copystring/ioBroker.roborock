@@ -1,4 +1,4 @@
-﻿// src/lib/features/fallback_features.ts
+// src/lib/features/fallback_features.ts
 import { BaseDeviceFeatures, FeatureDependencies } from "./baseDeviceFeatures";
 import { Feature } from "./features.enum";
 import { V1VacuumFeatures } from "./vacuum/v1VacuumFeatures"; // Import Vacuum-Basis
@@ -53,15 +53,27 @@ export class FallbackBaseFeatures extends BaseDeviceFeatures {
 }
 
 // --- Specific Vacuum Fallback ---
-// ... imports
 import { DEFAULT_PROFILE, VacuumProfile } from "./vacuum/v1VacuumFeatures";
 
-// ...
+export interface FallbackVacuumOptions {
+	/** Features deduced from product API (e.g. MopWash, WaterBox). Used when no model-specific class is registered. */
+	staticFeatures?: Feature[];
+	/** If true, this instance is used for auto-detected vacuums; no warning is logged. */
+	autoDetected?: boolean;
+}
 
 export class FallbackVacuumFeatures extends V1VacuumFeatures {
-	constructor(deps: FeatureDependencies, duid: string, robotModel: string, profile: VacuumProfile = DEFAULT_PROFILE) {
-		super(deps, duid, robotModel, { staticFeatures: [] }, profile);
-		this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Using FallbackVacuumFeatures for model ${robotModel}. Runtime detection and base vacuum features active.`, "warn");
+	constructor(
+		deps: FeatureDependencies,
+		duid: string,
+		robotModel: string,
+		profile: VacuumProfile = DEFAULT_PROFILE,
+		options?: FallbackVacuumOptions
+	) {
+		super(deps, duid, robotModel, { staticFeatures: options?.staticFeatures ?? [] }, profile);
+		if (!options?.autoDetected) {
+			this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Using FallbackVacuumFeatures for model ${robotModel}. Runtime detection and base vacuum features active.`, "warn");
+		}
 	}
 	// No overrides needed here. It inherits:
 	// - registerFeatures (from V1VacuumFeatures, registers all known vacuum feature implementations)
