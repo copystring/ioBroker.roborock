@@ -4,8 +4,13 @@ const chokidar = require("chokidar");
 
 const SRC_DIR = path.join(__dirname, "..", "src");
 const npmCmd = process.platform === "win32" ? "npm.cmd" : "npm";
+const DEBOUNCE_MS = 10000; // 10s after last save before building (avoids build on every keystroke)
+const RESTART_DELAY_MS = 3000; // delay before auto-restart after crash/error
+
 let timer = null;
 let isBuilding = false;
+let watcher = null;
+let restartTimeout = null;
 
 function runCheck(isInitial = false) {
     if (isBuilding) return;
@@ -29,26 +34,71 @@ function runCheck(isInitial = false) {
     }
 }
 
-console.log(`👀 Watching for changes in: ${SRC_DIR}`);
-console.log("   On save: ci:check = lint + typecheck + unit tests (after 10s debounce).");
-console.log("   For full CI (incl. integration/package): run 'npm run verify' with JS-Controller stopped.\n");
-
-const watcher = chokidar.watch(SRC_DIR, {
-    ignored: /(^|[\/\\])\../, // ignore dotfiles
-    persistent: true,
-    ignoreInitial: true
-});
-
-const DEBOUNCE_MS = 10000; // 10s after last save before building (avoids build on every keystroke)
-
-watcher.on("all", (event, filePath) => {
-    if (filePath && (filePath.endsWith(".ts") || filePath.endsWith(".json") || filePath.endsWith(".css") || filePath.endsWith(".html"))) {
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(() => {
-            runCheck(false);
-        }, DEBOUNCE_MS);
+function stopWatching() {
+    if (timer) {
+        clearTimeout(timer);
+        timer = null;
     }
+    if (watcher) {
+        try {
+            watcher.close();
+        } catch (e) {
+            // ignore
+        }
+        watcher = null;
+    }
+    if (restartTimeout) {
+        clearTimeout(restartTimeout);
+        restartTimeout = null;
+    }
+}
+
+function startWatching() {
+    stopWatching();
+    isBuilding = false;
+
+    console.log(`👀 Watching for changes in: ${SRC_DIR}`);
+    console.log("   On save: ci:check = lint + typecheck + unit tests (after 10s debounce).");
+    console.log("   For full CI (incl. integration/package): run 'npm run verify' with JS-Controller stopped.\n");
+
+    watcher = chokidar.watch(SRC_DIR, {
+        ignored: /(^|[\/\\])\../, // ignore dotfiles
+        persistent: true,
+        ignoreInitial: true
+    });
+
+    watcher.on("all", (event, filePath) => {
+        if (filePath && (filePath.endsWith(".ts") || filePath.endsWith(".json") || filePath.endsWith(".css") || filePath.endsWith(".html"))) {
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(() => {
+                runCheck(false);
+            }, DEBOUNCE_MS);
+        }
+    });
+
+    watcher.on("error", (err) => {
+        console.error("❌ Watcher error:", err.message || err);
+        stopWatching();
+        console.log(`🔄 Restarting watcher in ${RESTART_DELAY_MS / 1000}s...`);
+        restartTimeout = setTimeout(() => startWatching(), RESTART_DELAY_MS);
+    });
+
+    runCheck(true);
+}
+
+// Auto-restart on uncaught errors so "watch:all" keeps running
+process.on("uncaughtException", (err) => {
+    console.error("❌ Uncaught exception:", err.message || err);
+    stopWatching();
+    console.log(`🔄 Restarting watcher in ${RESTART_DELAY_MS / 1000}s...`);
+    restartTimeout = setTimeout(() => startWatching(), RESTART_DELAY_MS);
 });
 
-// Run ci:check once on startup, then watcher handles subsequent triggers
-runCheck(true);
+process.on("unhandledRejection", (reason, promise) => {
+    console.error("❌ Unhandled rejection:", reason);
+    stopWatching();
+    console.log(`🔄 Restarting watcher in ${RESTART_DELAY_MS / 1000}s...`);
+    restartTimeout = setTimeout(() => startWatching(), RESTART_DELAY_MS);
+});
+
+startWatching();
