@@ -13,36 +13,14 @@ function runShell(command, onDone) {
     child.on("close", (code) => onDone(code == null ? 1 : code));
 }
 
-// Simulate GitHub Actions: npm ci then lint. Same dependency tree as CI when npm ci works.
-// If npm ci fails (e.g. EPERM on Windows when node_modules is locked), run lint with
-// current node_modules so watch:all still starts; full CI check: npm run ci:check:full.
-function runCiSimulationThenStart(onSuccess) {
-    console.log("\n🔁 Simulating CI (npm ci + lint) so local matches GitHub...\n");
-    runShell("npm ci", (ciCode) => {
-        const runLintThenStart = () => {
-            runShell("npm run lint", (lintCode) => {
-                if (lintCode !== 0) {
-                    console.error("\n❌ Lint failed (same error GitHub would report).");
-                    console.error("   Your node_modules may be inconsistent (e.g. ESLint 9 vs 10, locked files).");
-                    console.error("   Try: Close other tools, then run  npm install  and start watch:all again.\n");
-                    process.exit(1);
-                }
-                console.log("\n✅ CI simulation passed. Starting watch...\n");
-                onSuccess();
-            });
-        };
-        if (ciCode === 0) {
-            runLintThenStart();
-        } else {
-            console.warn("\n⚠️  npm ci failed (e.g. EPERM on Windows). Running npm install to sync node_modules, then lint.\n");
-            runShell("npm install", (installCode) => {
-                if (installCode !== 0) {
-                    console.error("\n❌ npm install failed. Close other tools using node_modules and try again.\n");
-                    process.exit(1);
-                }
-                runLintThenStart();
-            });
+// Run lint once (includes check-eslint-peer-deps). Then start watch.
+function runLintThenStart(onSuccess) {
+    runShell("npm run lint", (lintCode) => {
+        if (lintCode !== 0) {
+            console.error("\n❌ Lint failed. Fix errors and run watch:all again.\n");
+            process.exit(1);
         }
+        onSuccess();
     });
 }
 
@@ -90,7 +68,7 @@ function build() {
 
 console.log(`👀 Watching for changes in: ${SRC_DIR}`);
 
-runCiSimulationThenStart(() => {
+runLintThenStart(() => {
     build();
 
     // Watch src directory using chokidar for cross-platform support
