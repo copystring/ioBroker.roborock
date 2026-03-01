@@ -1,4 +1,3 @@
-
 const { spawn } = require("child_process");
 const path = require("path");
 const chokidar = require("chokidar");
@@ -6,6 +5,27 @@ const chokidar = require("chokidar");
 const SRC_DIR = path.join(__dirname, "..", "src");
 let timer = null;
 let isBuilding = false;
+
+// Packages required for lint/CI (same as "npm ci" on GitHub). If any is missing, CI fails with
+// "Cannot find package ..." – this check surfaces that error before the first build.
+const REQUIRED_PACKAGES = ["@eslint/js", "eslint"];
+
+function checkCiDeps() {
+    const missing = [];
+    for (const pkg of REQUIRED_PACKAGES) {
+        try {
+            require.resolve(pkg);
+        } catch {
+            missing.push(pkg);
+        }
+    }
+    if (missing.length > 0) {
+        console.error("\n❌ Missing dependencies (CI would fail here too):");
+        missing.forEach((p) => console.error("   -", p));
+        console.error("\n   Run: npm install  (or npm ci)\n");
+        process.exit(1);
+    }
+}
 
 function build() {
     if (isBuilding) return;
@@ -52,7 +72,7 @@ function build() {
 
 console.log(`👀 Watching for changes in: ${SRC_DIR}`);
 
-// Initial build
+checkCiDeps();
 build();
 
 // Watch src directory using chokidar for cross-platform support
