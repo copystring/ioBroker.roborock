@@ -31,7 +31,7 @@
     "emitDecoratorMetadata": true,
 
     // Types
-    "types": ["node", "@iobroker/adapter-core", "vitest/globals"],
+    "types": ["node", "@iobroker/adapter-core", "@iobroker/types", "vitest/globals"],
     "lib": ["ESNext", "DOM", "DOM.Iterable"]
   },
   "include": ["src/**/*.ts", "src/**/*.json"],
