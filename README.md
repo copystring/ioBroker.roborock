@@ -49,6 +49,7 @@ This adapter allows you the control, get states, cleaning history and view the m
 - Roborock Qrevo S
 - Roborock Qrevo Curve
 - Roborock Saros 10R
+- Roborock Saros 20 / Saros 20X
 
 ## Zone cleaning
 This feature only works when map creation is enabled in the adapter options!
