@@ -8,7 +8,15 @@ let isBuilding = false;
 
 // Packages required for lint/CI (same as "npm ci" on GitHub). If any is missing, CI fails with
 // "Cannot find package ..." – this check surfaces that error before the first build.
-const REQUIRED_PACKAGES = ["@eslint/js", "eslint"];
+const REQUIRED_PACKAGES = [
+    "@eslint/js",
+    "@eslint/eslintrc",
+    "eslint",
+    "eslint-config-prettier",
+    "eslint-plugin-import",
+    "eslint-plugin-jsdoc",
+    "eslint-plugin-prettier"
+];
 
 function checkCiDeps() {
     const missing = [];
