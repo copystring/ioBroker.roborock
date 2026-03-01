@@ -184,8 +184,8 @@ export class PhotoManager {
 			// Not a header and not an expected raw stream -> Early Data?
 			this.bufferEarlyDataPacket(duid, payloadBuf);
 			return false;
-		} catch (e: any) {
-			this.adapter.rLog("MQTT", duid, "Error", undefined, protocol.toString(), `[Photo] Reassembly error: ${e.message}`, "error");
+		} catch (e: unknown) {
+			this.adapter.rLog("MQTT", duid, "Error", undefined, protocol.toString(), `[Photo] Reassembly error: ${this.adapter.errorMessage(e)}`, "error");
 			return true;
 		}
 	}
@@ -348,8 +348,8 @@ export class PhotoManager {
 				if (isCipher1) {
 					try {
 						decryptedBuffer = cryptoEngine.decryptPhotoPayload(totalBuffer);
-					} catch (e: any) {
-						this.adapter.rLog("MQTT", duid, "Error", undefined, protocol.toString(), `[Photo] Decryption failed: ${e.message}`, "error", photoData.id);
+					} catch (e: unknown) {
+						this.adapter.rLog("MQTT", duid, "Error", undefined, protocol.toString(), `[Photo] Decryption failed: ${this.adapter.errorMessage(e)}`, "error", photoData.id);
 						throw e;
 					}
 				}
@@ -368,9 +368,9 @@ export class PhotoManager {
 					this.expectedRawStreams.delete(duid);
 				}
 			}
-		} catch (err: any) {
+		} catch (err: unknown) {
 			const version = await this.adapter.getDeviceProtocolVersion(duid).catch(() => "1.0");
-			this.adapter.rLog("MQTT", duid, "Error", version, protocol.toString(), `[Photo] Failed to reassemble/extract: ${err.message}`, "error", photoData.id);
+			this.adapter.rLog("MQTT", duid, "Error", version, protocol.toString(), `[Photo] Failed to reassemble/extract: ${this.adapter.errorMessage(err)}`, "error", photoData.id);
 		}
 
 		delete this.pendingPhotoRequests[requestKey];
@@ -389,8 +389,8 @@ export class PhotoManager {
 		if (workingBuf.length > 2 && workingBuf[0] === 0x1f && workingBuf[1] === 0x8b) {
 			try {
 				workingBuf = (await unzipAsync(workingBuf)) as unknown as Buffer;
-			} catch (e: any) {
-				throw new Error(`GZIP decompression failed: ${e.message}`);
+			} catch (e: unknown) {
+				throw new Error(`GZIP decompression failed: ${this.adapter.errorMessage(e)}`);
 			}
 		}
 

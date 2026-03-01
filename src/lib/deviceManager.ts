@@ -142,8 +142,8 @@ export class DeviceManager {
 						// Fire cleaning summary (background)
 						cleanSummaryHandlers.push(handler);
 					}
-				} catch (error: any) {
-					this.adapter.rLog("System", duid, "Warn", undefined, undefined, `Failed initial poll: ${error.message}`, "warn");
+				} catch (error: unknown) {
+					this.adapter.rLog("System", duid, "Warn", undefined, undefined, `Failed initial poll: ${this.adapter.errorMessage(error)}`, "warn");
 				}
 			};
 			initPromises.push(initTask());
@@ -160,13 +160,15 @@ export class DeviceManager {
 
 		// Fire cleaning summary (background)
 		for (const handler of cleanSummaryHandlers) {
-			handler.updateCleanSummary().catch(e => this.adapter.log.warn(`Background summary update failed for ${(handler as any).duid}: ${e.message}`));
+			handler.updateCleanSummary().catch((e: unknown) => {
+				this.adapter.log.warn(`Background summary update failed for ${(handler as any).duid}: ${this.adapter.errorMessage(e)}`);
+			});
 		}
 
 		// Cleanup orphaned devices (non-blocking)
-		this.cleanupOrphanedDevices(devices.map((d) => d.duid)).catch(e =>
-			this.adapter.rLog("System", null, "Warn", undefined, undefined, `Device cleanup failed: ${e.message}`, "warn")
-		);
+		this.cleanupOrphanedDevices(devices.map((d) => d.duid)).catch((e: unknown) => {
+			this.adapter.rLog("System", null, "Warn", undefined, undefined, `Device cleanup failed: ${this.adapter.errorMessage(e)}`, "warn");
+		});
 	}
 	/**
 	 * Removes orphaned device folders.
@@ -194,8 +196,8 @@ export class DeviceManager {
 					await this.adapter.delObjectAsync(folderId, { recursive: true });
 				}
 			}
-		} catch (error: any) {
-			this.adapter.rLog("System", null, "Error", undefined, undefined, `Failed to cleanup orphaned devices: ${error.message}`, "error");
+		} catch (error: unknown) {
+			this.adapter.rLog("System", null, "Error", undefined, undefined, `Failed to cleanup orphaned devices: ${this.adapter.errorMessage(error)}`, "error");
 		}
 	}
 
@@ -302,7 +304,7 @@ export class DeviceManager {
 						default:
 							this.adapter.rLog("System", duid, "Warn", version, undefined, "Unknown protocol version. Skipping poll.", "warn");
 					}
-				} catch (error: any) {
+				} catch (error: unknown) {
 					this.adapter.catchError(error, "mainUpdateInterval", duid);
 				}
 			}

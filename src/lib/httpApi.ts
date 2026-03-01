@@ -154,8 +154,9 @@ export class http_api {
 
 		try {
 			await this.getHomeID();
-		} catch (e: any) {
-			if (e.message && (e.message.includes("invalid token") || e.message.includes("auth_failed"))) {
+		} catch (e: unknown) {
+			const msg = this.adapter.errorMessage(e);
+			if (msg && (msg.includes("invalid token") || msg.includes("auth_failed"))) {
 				this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "Token expired or invalid. Clearing session and re-authenticating...", "warn");
 
 				// Clear bad data
@@ -232,8 +233,8 @@ export class http_api {
 						} else {
 							throw new Error(`Login with password failed: ${JSON.stringify(loginResult)}`);
 						}
-					} catch (e: any) {
-						this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Password login error: ${e.message}`, "error");
+					} catch (e: unknown) {
+						this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Password login error: ${this.adapter.errorMessage(e)}`, "error");
 						// If explicit 2031 (handled above) or other error, we might decide to fallback or fail.
 						// Current logic: if it was 2031, usePasswordFlow is set to false, so we fall through to 2FA.
 						// If it was another error (e.g. wrong password), we should probably stop?
@@ -279,7 +280,7 @@ export class http_api {
 								}
 							}, 15 * 60 * 1000); // 15 min
 						});
-					} catch (e: any) {
+					} catch (e: unknown) {
 						throw e;
 					}
 
@@ -328,8 +329,8 @@ export class http_api {
 				} catch (err) {
 					this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `Failed to get product info V5: ${err}`, "warn");
 				}
-			} catch (error: any) {
-				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error in initializeRealApi: ${error.message}`, "error");
+			} catch (error: unknown) {
+				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error in initializeRealApi: ${this.adapter.errorMessage(error)}`, "error");
 				throw error;
 			}
 		}
@@ -392,8 +393,8 @@ export class http_api {
 			this.realApi = realApi;
 
 			await this.adapter.setState("info.connection", { val: true, ack: true });
-		} catch (error: any) {
-			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error in initializeRealApi: ${error.stack}`, "error");
+		} catch (error: unknown) {
+			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error in initializeRealApi: ${this.adapter.errorStack(error)}`, "error");
 			await this.adapter.setState("info.connection", { val: false, ack: true });
 		}
 	}
@@ -413,9 +414,10 @@ export class http_api {
 			if (res.data && res.data.code != 200) {
 				throw new Error(`Start 2FA failed: ${res.data.msg} (Code: ${res.data.code})`);
 			}
-		} catch (error: any) {
-			if (error.response && error.response.data) {
-				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Request email code failed with response: ${JSON.stringify(error.response.data)}`, "error");
+		} catch (error: unknown) {
+			const err = error as { response?: { data?: unknown } };
+			if (err?.response?.data !== undefined) {
+				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Request email code failed with response: ${JSON.stringify(err.response.data)}`, "error");
 			}
 			throw error; // Re-throw exact error to be caught by caller
 		}
@@ -429,8 +431,8 @@ export class http_api {
 			// axios.post(url) works.
 			const res = await this.loginApi.post(`${API_V3_SIGN}?s=${s}`);
 			return res.data.data;
-		} catch (e: any) {
-			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `SignRequest failed: ${e.message}`, "error");
+		} catch (e: unknown) {
+			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `SignRequest failed: ${this.adapter.errorMessage(e)}`, "error");
 			return null;
 		}
 	}
@@ -463,8 +465,8 @@ export class http_api {
 		try {
 			const res = await this.loginApi.post(API_V4_LOGIN_CODE, params.toString(), { headers });
 			return res.data;
-		} catch (e: any) {
-			throw new Error(`Login with code failed: ${e.message}`);
+		} catch (e: unknown) {
+			throw new Error(`Login with code failed: ${this.adapter.errorMessage(e)}`);
 		}
 	}
 
@@ -490,13 +492,14 @@ export class http_api {
 		try {
 			const res = await this.loginApi.post(API_V4_LOGIN_PASSWORD, params.toString(), { headers });
 			return res.data;
-		} catch (e: any) {
-			if (e.response && e.response.data) {
-				const errData = e.response.data;
+		} catch (e: unknown) {
+			const err = e as { response?: { data?: LoginV4Response } };
+			if (err?.response?.data) {
+				const errData = err.response.data as LoginV4Response;
 				this.adapter.rLog("HTTP", null, "<-", "Cloud", undefined, `Login Failed. Code: ${errData.code}, Msg: ${errData.msg}`, "error");
 				return errData;
 			}
-			throw new Error(`Login with password failed: ${e.message}`);
+			throw new Error(`Login with password failed: ${this.adapter.errorMessage(e)}`);
 		}
 	}
 
@@ -511,8 +514,8 @@ export class http_api {
 				return res.data;
 			}
 			return null;
-		} catch (e: any) {
-			this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `getProductInfoV5 failed: ${e.message}`, "warn");
+		} catch (e: unknown) {
+			this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `getProductInfoV5 failed: ${this.adapter.errorMessage(e)}`, "warn");
 			return null;
 		}
 	}
@@ -586,8 +589,8 @@ export class http_api {
 					throw new Error("invalid token");
 				}
 			}
-		} catch (error: any) {
-			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error getting HomeID: ${error.message}`, "error");
+		} catch (error: unknown) {
+			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error getting HomeID: ${this.adapter.errorMessage(error)}`, "error");
 			throw error;
 		}
 	}
@@ -636,16 +639,16 @@ export class http_api {
 							this.homeData = v3Data;
 						}
 					}
-				} catch (e3: any) {
+				} catch (e3: unknown) {
 					// V3 might fail on older accounts/regions? Log debug but don't crash main init.
-					this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `Failed to fetch V3 HomeData (optional): ${e3.message}`, "warn");
+					this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `Failed to fetch V3 HomeData (optional): ${this.adapter.errorMessage(e3)}`, "warn");
 				}
 
 				this.adapter.rLog("HTTP", null, "<-", "Cloud", undefined, `HomeData updated (HomeID: ${this.homeID}, Devices: ${this.homeData?.devices?.length})`, "debug");
 
 				await this.adapter.setState("HomeData", { val: JSON.stringify(this.homeData), ack: true });
-			} catch (e: any) {
-				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error updating HomeData: ${e?.stack || e}`, "error");
+			} catch (e: unknown) {
+				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error updating HomeData: ${this.adapter.errorStack(e)}`, "error");
 				this.homeData = null;
 			}
 		} else {
@@ -722,8 +725,8 @@ export class http_api {
 			if (!this.realApi) throw new Error("realApi is not initialized.");
 
 			return await this.realApi.get(`ota/firmware/${duid}/updatev2`);
-		} catch (error: any) {
-			throw new Error(`Error in getFirmwareStates: ${error.message}`);
+		} catch (error: unknown) {
+			throw new Error(`Error in getFirmwareStates: ${this.adapter.errorMessage(error)}`);
 		}
 	}
 
@@ -820,8 +823,8 @@ export class http_api {
 
 			const product = products.find((p) => p.id === device.productId);
 			return product ? product.model : null;
-		} catch (error: any) {
-			this.adapter.rLog("HTTP", duid, "Error", "Cloud", undefined, `Error in getRobotModel: ${error.message}`, "error");
+		} catch (error: unknown) {
+			this.adapter.rLog("HTTP", duid, "Error", "Cloud", undefined, `Error in getRobotModel: ${this.adapter.errorMessage(error)}`, "error");
 			return null;
 		}
 	}
@@ -840,8 +843,8 @@ export class http_api {
 
 			const product = products.find((p) => p.id == device.productId);
 			return product ? product.category : null;
-		} catch (error: any) {
-			this.adapter.rLog("HTTP", duid, "Error", "Cloud", undefined, `Error in getProductCategory: ${error.message}`, "error");
+		} catch (error: unknown) {
+			this.adapter.rLog("HTTP", duid, "Error", "Cloud", undefined, `Error in getProductCategory: ${this.adapter.errorMessage(error)}`, "error");
 			return null;
 		}
 	}

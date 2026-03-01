@@ -20,6 +20,17 @@ export class MockAdapter {
 	public catchError(error: any, attribute: string): void {
 		this.log.error(`[CatchError] ${attribute}: ${error}`);
 	}
+
+	/** Match real adapter: safe string from thrown value. */
+	public errorMessage(e: unknown): string {
+		return e instanceof Error ? e.message : String(e);
+	}
+
+	/** Match real adapter: stack if Error, else message, else String(e). */
+	public errorStack(e: unknown): string {
+		if (e instanceof Error) return e.stack ?? e.message;
+		return String(e);
+	}
 	public setInterval(callback: (...args: any[]) => void, ms: number, ...args: any[]): any {
 		return setInterval(callback, ms, ...args);
 	}
