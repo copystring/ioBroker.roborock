@@ -1,9 +1,3 @@
-/**
- * B01 control service. set_room_clean params aligned with app dump (553.js):
- * - clean_type: 0 = SCCleanModel.auto (normal clean)
- * - ctrl_value: 0 = STOP, 1 = START, 2 = PAUSE (POST_CMD_STATUS)
- * - room_ids: number[] (optional; [] = full/whole map clean)
- */
 export class B01ControlService {
 	constructor() {}
 
@@ -12,13 +6,13 @@ export class B01ControlService {
 			case "app_start":
 				return {
 					method: "service.set_room_clean",
-					params: { clean_type: 0, ctrl_value: 1, room_ids: [] }
+					params: { "clean_type": 0, "ctrl_value": 1, "room_ids": [] }
 				};
 
 			case "app_pause":
 				return {
 					method: "service.set_room_clean",
-					params: { clean_type: 0, ctrl_value: 2, room_ids: [] }
+					params: { "clean_type": 0, "ctrl_value": 2, "room_ids": [] }
 				};
 
 			case "app_charge":

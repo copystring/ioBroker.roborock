@@ -101,14 +101,6 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			def: false
 		});
 
-		// 3b. Segment / Room cleaning (B01: service.set_room_clean with room_ids)
-		this.addCommand("app_segment_clean", {
-			type: "boolean",
-			role: "button",
-			name: this.deps.adapter.translations["app_segment_clean"] || "Segment Cleaning",
-			def: false
-		});
-
 		// 4. Fan Power (wind)
 
 		this.addCommand("wind", {
@@ -232,39 +224,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 	 */
 	public override async getCommandParams(method: string, params?: unknown, id?: string): Promise<unknown> {
 		void id;
-
-		// B01 Room/Segment cleaning: gather selected room IDs from floors and send service.set_room_clean
-		if (method === "app_segment_clean") {
-			const namespace = this.deps.adapter.namespace;
-			const pattern = `${namespace}.Devices.${this.duid}.floors.*.*`;
-			const states = await this.deps.adapter.getStatesAsync(pattern);
-			const roomIds: number[] = [];
-
-			if (states) {
-				for (const [stateId, state] of Object.entries(states)) {
-					if (state && (state.val === true || state.val === "true" || state.val === 1)) {
-						const parts = stateId.split(".");
-						const rid = Number(parts[parts.length - 1]);
-						if (!isNaN(rid)) {
-							roomIds.push(rid);
-						}
-					}
-				}
-			}
-
-			if (roomIds.length > 0) {
-				this.deps.adapter.rLog("System", this.duid, "Info", "B01", undefined, `Starting room cleaning for rooms: ${roomIds.join(", ")}`, "info");
-			} else {
-				this.deps.adapter.rLog("System", this.duid, "Warn", "B01", undefined, "No rooms selected for segment cleaning. Start full clean (room_ids: []).", "warn");
-			}
-
-			return {
-				method: "service.set_room_clean",
-				params: { clean_type: 0, ctrl_value: 1, room_ids: roomIds }
-			};
-		}
-
-		// Delegate all other command parameter mapping to the Control Service
+		// Delegate all command parameter mapping to the Control Service to centralize this logic.
 		return this.controlService.getCommandParams(method, params);
 	}
 
