@@ -334,8 +334,7 @@ export class Roborock extends utils.Adapter {
 		const idParts = id.split(".");
 
 		if (state.ack) {
-			// ... (keep usage of id, state if needed, or previous code)
-			if (id.endsWith(".online")) {
+			if (id.endsWith(".online") && idParts.length >= 4) {
 				this.rLog("System", idParts[3], "Info", undefined, undefined, `Device is now ${state.val ? "online" : "offline"}`, "info");
 			}
 			return;
@@ -349,6 +348,7 @@ export class Roborock extends utils.Adapter {
 
 		// Devices logic
 		if (idParts[2] !== "Devices") return;
+		if (idParts.length < 6) return;
 
 		const duid = idParts[3];
 		const folder = idParts[4];
@@ -586,18 +586,18 @@ export class Roborock extends utils.Adapter {
 		const device = devices.find((d) => d.duid === duid);
 		if (!device) return;
 
-		for (const attr in device) {
-			const value = (device as any)[attr];
+		for (const attr of Object.keys(device)) {
+			const value = (device as unknown as Record<string, ioBroker.StateValue>)[attr];
 			if (typeof value !== "object") {
 				const common: Partial<ioBroker.StateCommon> = {};
-				let finalValue = value;
+				let finalValue: ioBroker.StateValue = value;
 
 				if (attr === "activeTime") {
-					finalValue = this.formatRoborockDate(value);
+					finalValue = this.formatRoborockDate(value as number);
 					common.unit = "";
 					common.type = "string";
 				} else if (attr === "createTime") {
-					finalValue = this.formatRoborockDate(value);
+					finalValue = this.formatRoborockDate(value as number);
 					common.type = "string";
 				} else {
 					common.type = typeof finalValue as ioBroker.CommonType;

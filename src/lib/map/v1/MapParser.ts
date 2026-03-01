@@ -62,6 +62,8 @@ const TYPES = {
 	DIGEST: 1024,
 	UNKNOWN_40: 40,
 	UNKNOWN_56: 56,
+	UNKNOWN_59: 59, // e.g. Saros 20 / newer V1 firmware
+	UNKNOWN_60: 60,
 };
 const TYPES_REVERSE = Object.fromEntries(Object.entries(TYPES).map(([key, value]) => [value, key]));
 const OFFSETS = {
@@ -409,6 +411,8 @@ export class MapParser {
 							break;
 						case TYPES.UNKNOWN_40:
 						case TYPES.UNKNOWN_56:
+						case TYPES.UNKNOWN_59:
+						case TYPES.UNKNOWN_60:
 							this.adapter.rLog("MapManager", null, "Debug", "1.0", undefined, `Received known unknown block type ${type} with length ${length}. Data: ${blockBuffer.toString("hex")}`, "debug");
 							break;
 					}
