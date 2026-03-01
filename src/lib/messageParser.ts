@@ -169,8 +169,8 @@ export class messageParser {
 					data.payload = decryptors.B01(data.payload, localKey, data.random);
 				}
 				decoded.push(data);
-			} catch (err: any) {
-				this.adapter.rLog("Requests", duid, "Error", version, undefined, `Decryption failed at offset ${offset}: ${err} | Hex: ${message.toString("hex")}`, "error");
+			} catch (err: unknown) {
+				this.adapter.rLog("Requests", duid, "Error", version, undefined, `Decryption failed at offset ${offset}: ${this.adapter.errorMessage(err)} | Hex: ${message.toString("hex")}`, "error");
 			}
 
 			offset += msgLen;

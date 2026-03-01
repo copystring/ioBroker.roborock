@@ -337,8 +337,8 @@ export class requestsHandler {
 			try {
 				const result = await requestPromise;
 				await callback(result);
-			} catch (e: any) {
-				const errorMsg = e?.message || e?.toString() || "";
+			} catch (e: unknown) {
+				const errorMsg = this.adapter.errorMessage(e);
 				// Handle timeouts/aborts gracefully
 				if (errorMsg.includes("Timeout") || errorMsg.includes("timed out") || errorMsg.includes("Aborted") || errorMsg.includes("CANCELLED") || errorMsg.includes("ADAPTER_STOPPED")) {
 					const idMatch = errorMsg.match(/Task (req_\d+_\d+)/);
@@ -573,8 +573,8 @@ export class requestsHandler {
 				}
 			}
 			return undefined;
-		} catch (e: any) {
-			this.adapter.rLog("System", duid, "Warn", undefined, undefined, `Failed to extract ID from binary payload: ${e.message}`, "warn");
+		} catch (e: unknown) {
+			this.adapter.rLog("System", duid, "Warn", undefined, undefined, `Failed to extract ID from binary payload: ${this.adapter.errorMessage(e)}`, "warn");
 			return undefined;
 		}
 	}

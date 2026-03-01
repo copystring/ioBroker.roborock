@@ -119,14 +119,14 @@ export class local_api {
 
 		try {
 			await promise;
-		} catch (err: any) {
+		} catch (err: unknown) {
 			if (suppressLog === true) {
 				// Don't log internally, don't retry immediately. Let caller handle summary log.
 				this.cloudDevices.add(duid);
 				throw err;
 			}
 			const logLevel = suppressLog ? "debug" : "warn";
-			this.adapter.rLog("TCP", duid, "Error", undefined, undefined, `TCP connect failed for ${duid}: ${err?.message || err}`, logLevel);
+			this.adapter.rLog("TCP", duid, "Error", undefined, undefined, `TCP connect failed for ${duid}: ${this.adapter.errorMessage(err)}`, logLevel);
 			this.scheduleReconnect(duid, "connect failed", !!suppressLog);
 			this.cloudDevices.add(duid);
 		}
@@ -283,8 +283,8 @@ export class local_api {
 
 					this.clearChunkBuffer(duid);
 				}
-			} catch (error: any) {
-				this.adapter.catchError(`Failed to process TCP data: ${error.stack}`, `function initiateClient`, duid);
+			} catch (error: unknown) {
+				this.adapter.catchError(error, "initiateClient", duid);
 			}
 		});
 
@@ -446,8 +446,8 @@ export class local_api {
 				if (!devices[duid]) {
 					devices[duid] = { ip, version };
 				}
-			} catch (error: any) {
-				this.adapter.rLog("UDP", null, "Error", "N/A", undefined, `Failed to process UDP message: ${error.stack}`, "warn");
+			} catch (error: unknown) {
+				this.adapter.rLog("UDP", null, "Error", "N/A", undefined, `Failed to process UDP message: ${this.adapter.errorStack(error)}`, "warn");
 			}
 		});
 
@@ -462,8 +462,8 @@ export class local_api {
 
 		try {
 			this.discoveryServer.bind(UDP_DISCOVERY_PORT);
-		} catch (e: any) {
-			this.adapter.rLog("UDP", null, "Error", "N/A", undefined, `Failed to bind UDP port: ${e.message}`, "error");
+		} catch (e: unknown) {
+			this.adapter.rLog("UDP", null, "Error", "N/A", undefined, `Failed to bind UDP port: ${this.adapter.errorMessage(e)}`, "error");
 		}
 
 		// Run discovery for specified timeout
@@ -580,8 +580,8 @@ export class local_api {
 			dev.ackNonce = undefined; // Reset for new handshake
 
 			await this.sendHello(duid, connectNonce, version);
-		} catch (err: any) {
-			this.adapter.rLog("TCP", duid, "Error", version, undefined, `initHandshake failed for ${duid}: ${err.message || err}`, "warn");
+		} catch (err: unknown) {
+			this.adapter.rLog("TCP", duid, "Error", version, undefined, `initHandshake failed for ${duid}: ${this.adapter.errorMessage(err)}`, "warn");
 		}
 	}
 
@@ -624,11 +624,11 @@ export class local_api {
 			// If we are here, TCP failed hard (timeout/refused), but initiateClient swallowed the error.
 			// We must clean up to prevent infinite reconnect loops.
 			throw new Error("TCP Connection failed (No socket established)");
-		} catch (e: any) {
+		} catch (e: unknown) {
 			// Probe failed - cleanup temporary registration AND cancel any scheduled reconnects
 			delete this.localDevices[duid];
 
-			this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `Network Probe failed for ${ip}: ${e.message} (Cloud Fallback)`, "debug");
+			this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `Network Probe failed for ${ip}: ${this.adapter.errorMessage(e)} (Cloud Fallback)`, "debug");
 			return false;
 		}
 	}
@@ -693,9 +693,9 @@ export class local_api {
 			let decrypted = decipher.update(input);
 			decrypted = Buffer.concat([decrypted, decipher.final()]);
 			return this.removePadding(decrypted.toString("utf8"));
-		} catch (e: any) {
+		} catch (e: unknown) {
 			// Log warning instead of error to avoid spamming if it's just a bad packet
-			this.adapter.rLog("UDP", null, "Warn", "N/A", undefined, `Failed to decrypt packet (ECB): ${e.message}`, "warn");
+			this.adapter.rLog("UDP", null, "Warn", "N/A", undefined, `Failed to decrypt packet (ECB): ${this.adapter.errorMessage(e)}`, "warn");
 			return "";
 		}
 	}
@@ -739,8 +739,8 @@ export class local_api {
 		try {
 			const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 			return decrypted.toString("utf8");
-		} catch (e: any) {
-			this.adapter.rLog("UDP", null, "Error", "N/A", undefined, `Failed to decrypt! Error: ${e.message} IV: ${iv.toString("hex")} Tag: ${tag.toString("hex")} Encrypted: ${ciphertext.toString("hex")}`, "error");
+		} catch (e: unknown) {
+			this.adapter.rLog("UDP", null, "Error", "N/A", undefined, `Failed to decrypt! Error: ${this.adapter.errorMessage(e)} IV: ${iv.toString("hex")} Tag: ${tag.toString("hex")} Encrypted: ${ciphertext.toString("hex")}`, "error");
 			return null;
 		}
 	}

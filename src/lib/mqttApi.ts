@@ -243,8 +243,8 @@ export class mqtt_api {
 				for (const data of allMessages) {
 					await this.handleDecodedMessage(finalDuid, data);
 				}
-			} catch (error: any) {
-				this.adapter.rLog("MQTT", null, "Error", "MQTT", undefined, `Error processing MQTT message on ${topic}: ${error.stack}`, "error");
+			} catch (error: unknown) {
+				this.adapter.rLog("MQTT", null, "Error", "MQTT", undefined, `Error processing MQTT message on ${topic}: ${this.adapter.errorStack(error)}`, "error");
 			}
 		});
 
@@ -477,9 +477,9 @@ export class mqtt_api {
 			} else if (parsedData.online === false) {
 				this.adapter.rLog("MQTT", duid, "Info", version, "500", `Device OFFLINE.`, "info");
 			}
-		} catch (error: any) {
+		} catch (error: unknown) {
 			const version = await this.adapter.getDeviceProtocolVersion(duid).catch(() => "1.0");
-			this.adapter.rLog("MQTT", duid, "Error", version, "500", `Parse Error | ${error.message}`, "warn");
+			this.adapter.rLog("MQTT", duid, "Error", version, "500", `Parse Error | ${this.adapter.errorMessage(error)}`, "warn");
 		}
 	}
 
@@ -543,8 +543,8 @@ export class mqtt_api {
 
 			const unzipped = this.decryptAndUnzipV1MapCore(payloadBuf.subarray(24));
 			this.adapter.requestsHandler.resolvePendingRequest(msgId, unzipped, data.protocol, duid, "MQTT", "1.0");
-		} catch (e: any) {
-			this.adapter.rLog("MQTT", duid, "Error", "1.0", String(data.protocol), `V1 Map processing failed: ${e.message}`, "error");
+		} catch (e: unknown) {
+			this.adapter.rLog("MQTT", duid, "Error", "1.0", String(data.protocol), `V1 Map processing failed: ${this.adapter.errorMessage(e)}`, "error");
 		}
 	}
 
@@ -561,8 +561,8 @@ export class mqtt_api {
 			} catch {
 				return decrypted;
 			}
-		} catch (err: any) {
-			throw new Error(`Inner decryption failed: ${err.message}`);
+		} catch (err: unknown) {
+			throw new Error(`Inner decryption failed: ${this.adapter.errorMessage(err)}`);
 		}
 	}
 
@@ -577,8 +577,8 @@ export class mqtt_api {
 			if (foundId !== -1) {
 				this.adapter.requestsHandler.resolvePendingRequest(foundId, workingBuf, data.protocol, duid, "MQTT", "B01");
 			}
-		} catch (e: any) {
-			this.adapter.rLog("MQTT", duid, "Error", "B01", undefined, `B01 Map processing failed: ${e.message}`, "error");
+		} catch (e: unknown) {
+			this.adapter.rLog("MQTT", duid, "Error", "B01", undefined, `B01 Map processing failed: ${this.adapter.errorMessage(e)}`, "error");
 		}
 	}
 

@@ -65,10 +65,10 @@ export class socketHandler {
 			if (obj.callback) {
 				this.adapter.sendTo(obj.from, obj.command, result, obj.callback);
 			}
-		} catch (error: any) {
-			this.adapter.rLog("System", null, "Error", undefined, undefined, `Error handling command '${obj.command}': ${error.message}`, "error");
+		} catch (error: unknown) {
+			this.adapter.rLog("System", null, "Error", undefined, undefined, `Error handling command '${obj.command}': ${this.adapter.errorMessage(error)}`, "error");
 			if (obj.callback) {
-				this.adapter.sendTo(obj.from, obj.command, { error: error.message || "Failed" }, obj.callback);
+				this.adapter.sendTo(obj.from, obj.command, { error: this.adapter.errorMessage(error) || "Failed" }, obj.callback);
 			}
 		}
 	}
@@ -152,12 +152,12 @@ export class socketHandler {
 				this.adapter.rLog("MapManager", duid, "Debug", undefined, undefined, `[Photo] Sending photo response to frontend (Image length: ${imageLen})`, "debug");
 				this.adapter.sendTo(msg.from, msg.command, payload, msg.callback);
 			}
-		} catch (error: any) {
-			this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, `[Photo] Failed to get obstacle image ${obstacleId}: ${error.message}`, "error");
+		} catch (error: unknown) {
+			this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, `[Photo] Failed to get obstacle image ${obstacleId}: ${this.adapter.errorMessage(error)}`, "error");
 			this.adapter.catchError(error, "handleGetObstacleImage", duid);
 
 			if (msg.callback) {
-				this.adapter.sendTo(msg.from, msg.command, { error: error.message || "Failed" }, msg.callback);
+				this.adapter.sendTo(msg.from, msg.command, { error: this.adapter.errorMessage(error) || "Failed" }, msg.callback);
 			}
 		}
 	}
@@ -176,8 +176,8 @@ export class socketHandler {
 			devices = Object.values(adapterObjects).filter(
 				(obj: any): obj is ioBroker.DeviceObject => obj && typeof obj === "object" && obj.type === "device" && obj._id.startsWith(this.adapter.namespace + ".Devices.")
 			);
-		} catch (e: any) {
-			this.adapter.rLog("System", null, "Error", undefined, undefined, `Error getting adapter objects: ${e.message}`, "error");
+		} catch (e: unknown) {
+			this.adapter.rLog("System", null, "Error", undefined, undefined, `Error getting adapter objects: ${this.adapter.errorMessage(e)}`, "error");
 			return []; // Return empty list on error
 		}
 

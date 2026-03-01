@@ -78,8 +78,8 @@ export class MapManager {
 					};
 				}
 			}
-		} catch (e: any) {
-			this.adapter.rLog("MapManager", duid || null, "Error", version, 301, `Failed to process map (Version: ${version}): ${e.message}`, "error");
+		} catch (e: unknown) {
+			this.adapter.rLog("MapManager", duid || null, "Error", version, 301, `Failed to process map (Version: ${version}): ${this.adapter.errorMessage(e)}`, "error");
 		}
 		return null;
 	}
@@ -144,8 +144,8 @@ export class MapManager {
 			}
 
 			await Promise.all(tasks);
-		} catch (e: any) {
-			this.adapter.rLog("MapManager", duid, "Error", "Map", undefined, `Failed to save map states: ${e.message}`, "error");
+		} catch (e: unknown) {
+			this.adapter.rLog("MapManager", duid, "Error", "Map", undefined, `Failed to save map states: ${this.adapter.errorMessage(e)}`, "error");
 		}
 	}
 }

@@ -180,8 +180,9 @@ export abstract class BaseDeviceFeatures {
 				await this[methodName].call(this);
 				this.appliedFeatures.add(feature); // Mark applied after success
 				return true;
-			} catch (e: any) {
-				this.deps.log.error(`[FeatureApply|${this.robotModel}|${this.duid}] Error applying feature '${feature}': ${e.message} ${e.stack}`);
+			} catch (e: unknown) {
+				const stack = e instanceof Error ? e.stack : "";
+				this.deps.log.error(`[FeatureApply|${this.robotModel}|${this.duid}] Error applying feature '${feature}': ${this.deps.adapter.errorMessage(e)} ${stack}`);
 				return false;
 			} finally {
 				this.pendingFeatures.delete(feature); // Unlock
@@ -233,31 +234,31 @@ export abstract class BaseDeviceFeatures {
 		// 0. Setup Protocol Features (Command Sets)
 		try {
 			await this.setupProtocolFeatures();
-		} catch (e: any) {
-			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error setting up protocol features: ${e.message}`, "error");
+		} catch (e: unknown) {
+			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error setting up protocol features: ${this.deps.adapter.errorMessage(e)}`, "error");
 		}
 
 		// 1. Apply Model Specifics
 		try {
 			await this.applyModelSpecifics();
-		} catch (e: any) {
-			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error applying model specifics: ${e.message}`, "error");
+		} catch (e: unknown) {
+			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error applying model specifics: ${this.deps.adapter.errorMessage(e)}`, "error");
 		}
 
 		// 2. Create/Update ioBroker Objects (Commands)
 		// Must be done BEFORE fetching data, as data updates might sync to command states.
 		try {
 			await this.createCommandObjects();
-		} catch (e: any) {
-			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error creating command objects: ${e.message}`, "error");
+		} catch (e: unknown) {
+			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error creating command objects: ${this.deps.adapter.errorMessage(e)}`, "error");
 		}
 
 		// 3. Fetch initial data if online
 		if (online) {
 			try {
 				await this.initializeDeviceData();
-			} catch (e: any) {
-				this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error initializing device data: ${e.message}`, "error");
+			} catch (e: unknown) {
+				this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error initializing device data: ${this.deps.adapter.errorMessage(e)}`, "error");
 			}
 		}
 	}
@@ -331,8 +332,8 @@ export abstract class BaseDeviceFeatures {
 		// Ensure folder exists before creating states
 		try {
 			await this.deps.ensureFolder(folderPath);
-		} catch (e: any) {
-			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Failed to ensure commands folder ${folderPath}: ${e.message}`, "error");
+		} catch (e: unknown) {
+			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Failed to ensure commands folder ${folderPath}: ${this.deps.adapter.errorMessage(e)}`, "error");
 			return;
 		}
 
@@ -344,9 +345,9 @@ export abstract class BaseDeviceFeatures {
 		try {
 			await Promise.all(promises); // Wait for all operations
 			this.commandsCreated = true; // Done
-		} catch (e: any) {
+		} catch (e: unknown) {
 			// Catch Promise.all errors (rare)
-			this.deps.log.error(`[${this.duid}] Critical error during parallel command object creation: ${e.message}`);
+			this.deps.log.error(`[${this.duid}] Critical error during parallel command object creation: ${this.deps.adapter.errorMessage(e)}`);
 		}
 	}
 
@@ -419,8 +420,8 @@ export abstract class BaseDeviceFeatures {
 					await this.deps.adapter.setState(path, false, true);
 				}
 			}
-		} catch (e: any) {
-			this.deps.log.error(`[${this.duid}] Error processing command object '${cmd}': ${e.message}`);
+		} catch (e: unknown) {
+			this.deps.log.error(`[${this.duid}] Error processing command object '${cmd}': ${this.deps.adapter.errorMessage(e)}`);
 		}
 	}
 
@@ -453,8 +454,8 @@ export abstract class BaseDeviceFeatures {
 				spec.states = this.commands[name].states;
 			}
 			this.commands[name] = spec;
-		} catch (e: any) {
-			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error in addCommand for '${name}': ${e.message}`, "error");
+		} catch (e: unknown) {
+			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error in addCommand for '${name}': ${this.deps.adapter.errorMessage(e)}`, "error");
 		}
 	}
 
@@ -488,8 +489,8 @@ export abstract class BaseDeviceFeatures {
 
 			// Standard ensure (creates if not exists)
 			await this.deps.ensureState(path, commonOptions as ioBroker.StateCommon, native); // Cast after validation
-		} catch (e: any) {
-			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error in ensureState for ${path}: ${e.message}`, "error");
+		} catch (e: unknown) {
+			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error in ensureState for ${path}: ${this.deps.adapter.errorMessage(e)}`, "error");
 		}
 	}
 
@@ -587,8 +588,8 @@ export abstract class BaseDeviceFeatures {
 					await this.processResultKey(folder, key, resultObj[key]);
 				}
 			}
-		} catch (e: any) {
-			this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Failed to update ${folder} (method: ${method}): ${e.message}`, "warn");
+		} catch (e: unknown) {
+			this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Failed to update ${folder} (method: ${method}): ${this.deps.adapter.errorMessage(e)}`, "warn");
 		}
 	}
 
@@ -731,8 +732,8 @@ export abstract class BaseDeviceFeatures {
 			const responseData = (res as any).buffer ? res : (res as any).data || res;
 
 			return responseData;
-		} catch (e: any) {
-			this.deps.adapter.log.error(`[BaseDeviceFeatures] getPhoto failed: ${e.message}`);
+		} catch (e: unknown) {
+			this.deps.adapter.log.error(`[BaseDeviceFeatures] getPhoto failed: ${this.deps.adapter.errorMessage(e)}`);
 			throw e;
 		}
 	}
