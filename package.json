@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@iobroker/adapter-core": "^3.3.2",
+    "@iobroker/types": "^7.1.0",
     "@napi-rs/canvas": "^0.1.85",
     "axios": "^1.13.6",
     "binary-parser": "^2.3.0",
@@ -49,7 +50,6 @@
     "@iobroker/adapter-dev": "^1.5.0",
     "@iobroker/eslint-config": "^2.2.0",
     "@iobroker/testing": "^5.2.2",
-    "@iobroker/types": "^7.1.0",
     "@tsconfig/node22": "^22.0.5",
     "@types/d3": "^7.4.3",
     "@types/node": "^25.3.3",
