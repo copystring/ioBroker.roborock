@@ -130,8 +130,8 @@ export const cryptoEngine = {
 
 			// Data is after the separator
 			return buf.subarray(separatorIndex + 1);
-		} catch (e: any) {
-			throw new Error(`RSA Decrypt failed: ${e.message}`);
+		} catch (e: unknown) {
+			throw new Error(`RSA Decrypt failed: ${e instanceof Error ? e.message : String(e)}`);
 		}
 	},
 

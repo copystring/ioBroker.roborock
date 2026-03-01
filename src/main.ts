@@ -195,8 +195,8 @@ export class Roborock extends utils.Adapter {
 				this.rLog("System", null, "Debug", undefined, undefined, "Running scheduled MQTT reconnect...", "debug");
 				await this.resetMqttApi();
 			}, 3600 * 1000);
-		} catch (e: any) {
-			this.rLog("System", null, "Error", undefined, undefined, `Failed to initialize adapter: ${e.message}`, "error");
+		} catch (e: unknown) {
+			this.rLog("System", null, "Error", undefined, undefined, `Failed to initialize adapter: ${this.errorMessage(e)}`, "error");
 			this.catchError(e, "onReady");
 		}
 	}
@@ -209,9 +209,9 @@ export class Roborock extends utils.Adapter {
 			try {
 				// Forward to the dedicated handler
 				await this.socketHandler.handleMessage(obj);
-			} catch (err: any) {
-				this.rLog("Requests", null, "Error", undefined, undefined, `Failed to execute command ${obj.command}: ${err.message}`, "error");
-				this.sendTo(obj.from, obj.command, { error: err.message }, obj.callback);
+			} catch (err: unknown) {
+				this.rLog("Requests", null, "Error", undefined, undefined, `Failed to execute command ${obj.command}: ${this.errorMessage(err)}`, "error");
+				this.sendTo(obj.from, obj.command, { error: this.errorMessage(err) }, obj.callback);
 			}
 		}
 	}
@@ -318,8 +318,8 @@ export class Roborock extends utils.Adapter {
 			}
 			this.setState("info.connection", { val: false, ack: true });
 			callback();
-		} catch (e: any) {
-			this.rLog("System", null, "Error", undefined, undefined, `Failed to unload adapter: ${e.stack}`, "error");
+		} catch (e: unknown) {
+			this.rLog("System", null, "Error", undefined, undefined, `Failed to unload adapter: ${this.errorStack(e)}`, "error");
 			callback();
 		}
 	}
@@ -375,7 +375,7 @@ export class Roborock extends utils.Adapter {
 
 		try {
 			await this.handleCommand(duid, folder, command, state, handler, id);
-		} catch (e: any) {
+		} catch (e: unknown) {
 			this.catchError(e, `onStateChange (${command})`, duid);
 		}
 	}
@@ -697,8 +697,8 @@ export class Roborock extends utils.Adapter {
 					native: native,
 				});
 			}
-		} catch (e: any) {
-			this.log.error(`[ensureState] Failed to update/create object for "${path}": ${e.message}`);
+		} catch (e: unknown) {
+			this.log.error(`[ensureState] Failed to update/create object for "${path}": ${this.errorMessage(e)}`);
 		}
 	}
 
@@ -741,6 +741,22 @@ export class Roborock extends utils.Adapter {
 			}
 			return value;
 		});
+	}
+
+	/**
+	 * Safe string from any thrown value (message if Error, else String(e)).
+	 * Use in catch (e: unknown) instead of repeating e instanceof Error ? e.message : String(e).
+	 */
+	public errorMessage(e: unknown): string {
+		return e instanceof Error ? e.message : String(e);
+	}
+
+	/**
+	 * Stack trace if Error, else message, else String(e).
+	 */
+	public errorStack(e: unknown): string {
+		if (e instanceof Error) return e.stack ?? e.message;
+		return String(e);
 	}
 
 	/**
@@ -794,8 +810,8 @@ export class Roborock extends utils.Adapter {
 			if (isDifferent) {
 				try {
 					await this.extendObject(path, { common: { name } });
-				} catch (e: any) {
-					this.log.error(`Failed to update folder name for ${path}: ${e.message}`);
+				} catch (e: unknown) {
+					this.log.error(`Failed to update folder name for ${path}: ${this.errorMessage(e)}`);
 				}
 			}
 		}
@@ -866,8 +882,8 @@ export class Roborock extends utils.Adapter {
 					}
 				};
 				process.on("exit", this.onExitBound);
-			} catch (error: any) {
-				this.log.error(`Failed to spawn go2rtc: ${error.message}`);
+			} catch (error: unknown) {
+				this.log.error(`Failed to spawn go2rtc: ${this.errorMessage(error)}`);
 			}
 		}
 	}
@@ -953,9 +969,9 @@ export class Roborock extends utils.Adapter {
 	 */
 	async catchError(error: unknown, attribute?: string, duid?: string) {
 		const robotModel = duid ? this.http_api.getRobotModel(duid) : "unknown";
-		const errorStack = error instanceof Error ? error.stack : String(error);
-		const errorMsg = error instanceof Error ? error.message : String(error);
-		const msg = `Failed processing ${attribute || "task"} on ${duid || "adapter"} (${robotModel}): ${errorStack}`;
+		const stack = this.errorStack(error);
+		const errorMsg = this.errorMessage(error);
+		const msg = `Failed processing ${attribute || "task"} on ${duid || "adapter"} (${robotModel}): ${stack}`;
 
 		if (errorMsg.includes("retry") || errorMsg.includes("locating") || errorMsg.includes("timed out")) {
 			this.log.warn(msg);

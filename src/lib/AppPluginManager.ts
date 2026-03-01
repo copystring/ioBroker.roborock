@@ -22,8 +22,8 @@ export class AppPluginManager {
 			await this.adapter.http_api.ensureProductInfo();
 
 			// Future: Integrate automated plugin discovery and background updates
-		} catch (e: any) {
-			this.adapter.rLog("System", null, "Error", undefined, undefined, `Failed to prepare for app plugin download: ${e.message}`, "error");
+		} catch (e: unknown) {
+			this.adapter.rLog("System", null, "Error", undefined, undefined, `Failed to prepare for app plugin download: ${this.adapter.errorMessage(e)}`, "error");
 			return;
 		}
 	}
@@ -153,15 +153,15 @@ export class AppPluginManager {
 				try {
 					const versionBuf = Buffer.from(String(newVersion), "utf8");
 					await this.adapter.writeFileAsync(this.adapter.name, versionFilePath, versionBuf);
-				} catch (e: any) {
-					this.adapter.rLog("Cloud", duid ?? null, "Error", undefined, undefined, `Failed to write version file ${versionFilePath}: ${e?.message}`, "error");
+				} catch (e: unknown) {
+					this.adapter.rLog("Cloud", duid ?? null, "Error", undefined, undefined, `Failed to write version file ${versionFilePath}: ${this.adapter.errorMessage(e)}`, "error");
 					return false;
 				}
 				return true;
 			}
 			this.adapter.rLog("Cloud", duid ?? null, "Warn", undefined, undefined, `No assets found in zip for ${vacuumModel}.`, "warn");
-		} catch (err: any) {
-			this.adapter.rLog("Cloud", duid ?? null, "Error", undefined, undefined, `Failed to download/extract assets for ${vacuumModel}: ${err.message}`, "error");
+		} catch (err: unknown) {
+			this.adapter.rLog("Cloud", duid ?? null, "Error", undefined, undefined, `Failed to download/extract assets for ${vacuumModel}: ${this.adapter.errorMessage(err)}`, "error");
 		}
 		return false;
 	}
@@ -248,8 +248,8 @@ export class AppPluginManager {
 				const newVersion = packages[rr_package].version;
 				await this.downloadAndExtractAssetZip(loginApi, zipUrl, vacuumModel, newVersion, duid);
 			}
-		} catch (e: any) {
-			this.adapter.rLog("Cloud", duid, "Error", undefined, undefined, `Failed to update product assets: ${e.message}`, "error");
+		} catch (e: unknown) {
+			this.adapter.rLog("Cloud", duid, "Error", undefined, undefined, `Failed to update product assets: ${this.adapter.errorMessage(e)}`, "error");
 		}
 	}
 }
