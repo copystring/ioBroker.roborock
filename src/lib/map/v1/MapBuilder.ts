@@ -874,8 +874,11 @@ export class MapBuilder {
 				ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
 			});
 		};
+		// App PngColor: forbidden/no-mop use red/blue; zone types use mapBlockColor [蓝,橙,绿,黄] = #bcdafc,#fac6b6,#73ebe6,#fae59e
 		drawRectArea(mapdata.FORBIDDEN_ZONES, "rgba(255, 0, 0, 0.5)", "rgba(255, 0, 0, 1)");
 		drawRectArea(mapdata.NO_MOP_ZONE, "rgba(0, 0, 255, 0.5)", "rgba(0, 0, 255, 1)");
+		drawRectArea(mapdata.CURTAIN, "rgba(250, 198, 182, 0.5)", "#fac6b6");   // 橙 (app mapBlockColor index 2)
+		drawRectArea(mapdata.MISS_ZONE, "rgba(250, 229, 158, 0.5)", "#fae59e"); // 黄 (app mapBlockColor index 4)
 		if (mapdata.VIRTUAL_WALLS) {
 			ctx.strokeStyle = "rgba(255, 0, 0, 1)";
 			ctx.lineWidth = 1 * VISUAL_BLOCK_SIZE;
