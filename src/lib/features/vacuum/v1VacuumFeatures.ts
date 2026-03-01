@@ -303,15 +303,9 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			// We trigger these in the background immediately
 			(async () => {
 				await new Promise(r => setTimeout(r, 2000));
-				await this.updateStatus().catch((e: unknown) => {
-					this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, `load_multi_map follow-up (updateStatus): ${this.deps.adapter.errorMessage(e)}`, "warn");
-				});
-				await this.mapService.updateMap().catch((e: unknown) => {
-					this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, `load_multi_map follow-up (updateMap): ${this.deps.adapter.errorMessage(e)}`, "warn");
-				});
-				await this.mapService.updateRoomMapping().catch((e: unknown) => {
-					this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, `load_multi_map follow-up (updateRoomMapping): ${this.deps.adapter.errorMessage(e)}`, "warn");
-				});
+				await this.updateStatus().catch(() => {});
+				await this.mapService.updateMap().catch(() => {});
+				await this.mapService.updateRoomMapping().catch(() => {});
 			})();
 
 			// V1 protocol (0.6.19) expects [number] for load_multi_map
