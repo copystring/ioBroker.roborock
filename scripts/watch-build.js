@@ -3,36 +3,47 @@ const path = require("path");
 const chokidar = require("chokidar");
 
 const SRC_DIR = path.join(__dirname, "..", "src");
+const npmCmd = process.platform === "win32" ? "npm.cmd" : "npm";
 let timer = null;
 let isBuilding = false;
 
-// Packages required for lint/CI (same as "npm ci" on GitHub). If any is missing, CI fails with
-// "Cannot find package ..." – this check surfaces that error before the first build.
-const REQUIRED_PACKAGES = [
-    "@eslint/js",
-    "@eslint/eslintrc",
-    "eslint",
-    "eslint-config-prettier",
-    "eslint-plugin-import",
-    "eslint-plugin-jsdoc",
-    "eslint-plugin-prettier"
-];
+// Run a full command string in the shell. Single string avoids DEP0190 and works on Windows (no spawn EINVAL).
+function runShell(command, onDone) {
+    const child = spawn(command, { stdio: "inherit", shell: true });
+    child.on("close", (code) => onDone(code == null ? 1 : code));
+}
 
-function checkCiDeps() {
-    const missing = [];
-    for (const pkg of REQUIRED_PACKAGES) {
-        try {
-            require.resolve(pkg);
-        } catch {
-            missing.push(pkg);
+// Simulate GitHub Actions: npm ci then lint. Same dependency tree as CI when npm ci works.
+// If npm ci fails (e.g. EPERM on Windows when node_modules is locked), run lint with
+// current node_modules so watch:all still starts; full CI check: npm run ci:check:full.
+function runCiSimulationThenStart(onSuccess) {
+    console.log("\n🔁 Simulating CI (npm ci + lint) so local matches GitHub...\n");
+    runShell("npm ci", (ciCode) => {
+        const runLintThenStart = () => {
+            runShell("npm run lint", (lintCode) => {
+                if (lintCode !== 0) {
+                    console.error("\n❌ Lint failed (same error GitHub would report).");
+                    console.error("   Your node_modules may be inconsistent (e.g. ESLint 9 vs 10, locked files).");
+                    console.error("   Try: Close other tools, then run  npm install  and start watch:all again.\n");
+                    process.exit(1);
+                }
+                console.log("\n✅ CI simulation passed. Starting watch...\n");
+                onSuccess();
+            });
+        };
+        if (ciCode === 0) {
+            runLintThenStart();
+        } else {
+            console.warn("\n⚠️  npm ci failed (e.g. EPERM on Windows). Running npm install to sync node_modules, then lint.\n");
+            runShell("npm install", (installCode) => {
+                if (installCode !== 0) {
+                    console.error("\n❌ npm install failed. Close other tools using node_modules and try again.\n");
+                    process.exit(1);
+                }
+                runLintThenStart();
+            });
         }
-    }
-    if (missing.length > 0) {
-        console.error("\n❌ Missing dependencies (CI would fail here too):");
-        missing.forEach((p) => console.error("   -", p));
-        console.error("\n   Run: npm install  (or npm ci)\n");
-        process.exit(1);
-    }
+    });
 }
 
 function build() {
@@ -42,7 +53,6 @@ function build() {
 
     try {
         // Run the build command
-        const npmCmd = process.platform === "win32" ? "npm.cmd" : "npm";
         // Passing the command as a string with shell: true avoids the DEP0190 security warning.
         // We pass --silent to npm to keep it quiet, and another -- --silent to pass it to generate-docs.js
         const buildProcess = spawn(`${npmCmd} run build --silent -- --silent`, { stdio: "inherit", shell: true });
@@ -80,23 +90,24 @@ function build() {
 
 console.log(`👀 Watching for changes in: ${SRC_DIR}`);
 
-checkCiDeps();
-build();
+runCiSimulationThenStart(() => {
+    build();
 
-// Watch src directory using chokidar for cross-platform support
-const watcher = chokidar.watch(SRC_DIR, {
-    ignored: /(^|[\/\\])\../, // ignore dotfiles
-    persistent: true,
-    ignoreInitial: true
-});
+    // Watch src directory using chokidar for cross-platform support
+    const watcher = chokidar.watch(SRC_DIR, {
+        ignored: /(^|[\/\\])\../, // ignore dotfiles
+        persistent: true,
+        ignoreInitial: true
+    });
 
-const DEBOUNCE_MS = 10000; // Wait 10s after last save before building (avoids build on every keystroke/save)
+    const DEBOUNCE_MS = 10000; // Wait 10s after last save before building (avoids build on every keystroke/save)
 
-watcher.on("all", (event, path) => {
-    if (path && (path.endsWith(".ts") || path.endsWith(".json") || path.endsWith(".css") || path.endsWith(".html"))) {
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(() => {
-            build();
-        }, DEBOUNCE_MS);
-    }
+    watcher.on("all", (event, filePath) => {
+        if (filePath && (filePath.endsWith(".ts") || filePath.endsWith(".json") || filePath.endsWith(".css") || filePath.endsWith(".html"))) {
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(() => {
+                build();
+            }, DEBOUNCE_MS);
+        }
+    });
 });

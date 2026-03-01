@@ -45,10 +45,10 @@
     "@alcalzone/release-script-plugin-iobroker": "^5.1.2",
     "@alcalzone/release-script-plugin-license": "^5.1.1",
     "@alcalzone/release-script-plugin-manual-review": "^5.1.1",
-    "@google/generative-ai": "^0.24.1",
-    "@iobroker/adapter-dev": "^1.5.0",
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^10.0.0",
+    "@google/generative-ai": "^0.24.1",
+    "@iobroker/adapter-dev": "^1.5.0",
     "@iobroker/eslint-config": "^2.2.0",
     "@iobroker/testing": "^5.2.2",
     "@tsconfig/node22": "^22.0.5",
@@ -70,6 +70,7 @@
     "eslint-plugin-jsdoc": "^54.1.1",
     "eslint-plugin-prettier": "^5.5.4",
     "eslint-plugin-sonarjs": "^4.0.0",
+    "prettier": "^3.8.1",
     "eslint-plugin-unicorn": "^63.0.0",
     "globals": "^17.3.0",
     "husky": "^9.1.7",
@@ -78,6 +79,7 @@
     "shx": "^0.4.0",
     "strip-json-comments": "^5.0.3",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.1",
     "vitest": "^4.0.16",
     "yaml-lint": "^1.7.0"
   },
@@ -113,7 +115,6 @@
     "docs": "node scripts/generate-docs.js",
     "copy:protocols": "shx mkdir -p build/lib/protocols && shx cp lib/protocols/*.json build/lib/protocols/",
     "build:git": "npm run clean && npm run copy:protocols && tsc -b tsconfig.json && npm run build:www"
-
   },
   "bugs": {
     "url": "https://github.com/copystring/ioBroker.roborock/issues"
