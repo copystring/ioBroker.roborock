@@ -188,7 +188,7 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 
 		if (statusData["dss"] !== undefined) {
 			const dss = Number(statusData["dss"]);
-			await this.applyFeature(Feature.DockingStationStatus);
+			// DockingStationStatus: no applyFeature – folder/states created lazily in updateDockingStationStatus()
 
 			// Bits 6-7: Dust bag status (0=not supported/missing)
 			if (((dss >> 6) & 0b11) > 0) {
@@ -227,10 +227,13 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 		await this.stationService.initDockingStationStatus();
 	}
 
+	/**
+	 * Updates docking station status from dss bitfield. Fully dynamic: if the device
+	 * sends dss in get_status, we ensure folder/states exist (lazy init) and update.
+	 * No per-model or feature-guard – presence of dss means the robot supports it.
+	 */
 	public async updateDockingStationStatus(dss: number): Promise<void> {
-		// Guard: Feature must be active
-		if (!this.appliedFeatures.has(Feature.DockingStationStatus)) return;
-
+		await this.stationService.initDockingStationStatus(); // idempotent: ensure folder + states
 		await this.stationService.updateDockingStationStatus(dss);
 	}
 

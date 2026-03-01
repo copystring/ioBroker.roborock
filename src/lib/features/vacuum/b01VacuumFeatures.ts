@@ -436,9 +436,15 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		});
 	}
 
+	/**
+	 * Updates docking station status. Dynamic: if the device sends dss/washStatus/washPhase,
+	 * we ensure folder/states exist (lazy init) and update. No feature-guard.
+	 */
 	public async updateDockingStationStatus(status: { dss?: number, washStatus?: number, washPhase?: number }): Promise<void> {
-		// Guard: Feature must be active
-		if (!this.appliedFeatures.has(Feature.DockingStationStatus)) return;
+		const hasAny = status.dss !== undefined || status.washStatus !== undefined || status.washPhase !== undefined;
+		if (!hasAny) return;
+
+		await this.initDockingStationStatus(); // idempotent: ensure folder + states (incl. B01 washingTaskStatus/washingMode)
 
 		if (status.dss !== undefined) {
 			await this.stationService.updateDockingStationStatus(status.dss);
@@ -457,7 +463,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 		if (statusData["dss"] !== undefined) {
 			const dss = Number(statusData["dss"]);
-			await this.applyFeature(Feature.DockingStationStatus);
+			// DockingStationStatus: no applyFeature – folder/states created lazily in updateDockingStationStatus()
 
 			// Bits 6-7: Dust bag status (0=not supported/missing)
 			if (((dss >> 6) & 0b11) > 0) {
