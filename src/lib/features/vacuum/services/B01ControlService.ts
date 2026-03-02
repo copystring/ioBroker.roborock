@@ -15,6 +15,12 @@ export class B01ControlService {
 					params: { clean_type: 0, ctrl_value: 1, room_ids: [] }
 				};
 
+			case "app_stop":
+				return {
+					method: "service.set_room_clean",
+					params: { clean_type: 0, ctrl_value: 0, room_ids: [] }
+				};
+
 			case "app_pause":
 				return {
 					method: "service.set_room_clean",

@@ -24,7 +24,7 @@ export class MapParser {
 	public parse(rawData: Buffer, serial: string, model: string, duid: string, connectionType: string): B01MapData | null {
 		try {
 			this.adapter.rLog(connectionType as any, duid, "Debug", "B01", 301, `[MapParser] smartDecrypt start. Serial: ${serial}, Model: ${model}. Data Len: ${rawData.length}`, "debug");
-			const decrypted = this.smartDecrypt(rawData, serial, model, duid);
+			const decrypted = this.smartDecrypt(rawData, serial, model, duid, connectionType);
 			if (!decrypted) {
 				this.adapter.rLog(connectionType as any, duid, "Error", "B01", 301, "[MapParser] Pipeline failed to produce valid data.", "error");
 				return null;
@@ -42,9 +42,9 @@ export class MapParser {
 	/**
 	 * Delegates decryption to the centralized B01MapDecryptor.
 	 */
-	private smartDecrypt(buf: Buffer, serial: string, model: string, duid: string): Buffer | null {
+	private smartDecrypt(buf: Buffer, serial: string, model: string, duid: string, connectionType?: string): Buffer | null {
 		const localKey = this.adapter.http_api.getMatchedLocalKeys().get(duid);
-		return MapDecryptor.decrypt(buf, serial, model, duid, this.adapter, localKey);
+		return MapDecryptor.decrypt(buf, serial, model, duid, this.adapter, localKey, connectionType === "B01History");
 	}
 
 	/* Helper methods removed - Moved to MapDecryptor */
@@ -139,7 +139,8 @@ export class MapParser {
 			this.adapter.rLog(connectionType as any, duid, "Info", "B01", 301, `[MapParser] B01 Map Parsed Successfully. Header: ${JSON.stringify(mapData.header)}`, "info");
 		} catch (e: any) {
 			const hexDump = buffer.subarray(0, 32).toString("hex");
-			this.adapter.rLog(connectionType as any, duid, "Warn", "B01", 301, `[MapParser] Protobuf decode failure: ${e.message}. Buffer Head: ${hexDump}, Len: ${buffer.length}`, "warn");
+			const level = connectionType === "B01History" ? "debug" : "warn";
+			this.adapter.rLog(connectionType as any, duid, level === "warn" ? "Warn" : "Debug", "B01", 301, `[MapParser] Protobuf decode failure: ${e.message}. Buffer Head: ${hexDump}, Len: ${buffer.length}`, level);
 		}
 
 		return mapData;

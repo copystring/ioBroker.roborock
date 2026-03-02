@@ -287,8 +287,13 @@ export class mqtt_api {
 			return;
 		}
 
-		// Map the response 'data' (on success) or fallback to 'result'/'error'
-		const result = response.code === 0 ? response.data : (response.error || response.result);
+		// B01 cloud sends code 1 (not 0) for success; use .data when it's an object
+		const result: unknown =
+			response.data != null && typeof response.data === "object"
+				? response.data
+				: response.code === 0
+					? (response.data ?? response.result)
+					: (response.error || response.result);
 
 		// Special handling for Map/Photo ACKs in B01
 		const isMapOrPhoto = ["get_map_v1", "get_clean_record_map", "get_photo"].includes(pending.method);
@@ -521,6 +526,14 @@ export class mqtt_api {
 			const handledAsPhoto = await this.photoManager.handlePhotoProtocol301(duid, payloadBuf);
 			if (!handledAsPhoto) {
 				await this.handleV1MapPacket(duid, data, payloadBuf);
+				// B01 map: match 301 to correct pending by request ID from payload (live vs history)
+				const workingBuf = await this.getB01MapBuffer(duid, payloadBuf);
+				if (workingBuf && workingBuf.length > 0) {
+					const foundId = this.resolveB01Map301ToPendingId(duid, payloadBuf);
+					if (foundId !== -1) {
+						this.adapter.requestsHandler.resolvePendingRequest(foundId, workingBuf, data.protocol, duid, "MQTT", "B01");
+					}
+				}
 			}
 		} else if (data.protocol === 302) {
 			await this.handleB01Map(duid, data, payloadBuf);
@@ -601,12 +614,72 @@ export class mqtt_api {
 		}
 	}
 
+	/**
+	 * Resolves the 301 payload to the correct pending map request ID so live maps go to map.mapBase64 and history to cleaninfo.
+	 * 1. Try trigger ID: if payload is JSON (B01 decrypted), use id/msgId; else binary offset 8 (ROBOROCK) or 16. If that ID matches upload_by_maptype → get_map_v1 (live). If upload_record_by_url → get_clean_record_map (history).
+	 * 2. Fallback: first pending map request for this duid (order-based).
+	 */
+	private resolveB01Map301ToPendingId(duid: string, payloadBuf: Buffer): number {
+		let triggerId: number | null = null;
+
+		// B01: decrypted 301 payload is often JSON with id or msgId (trigger request ID)
+		if (payloadBuf.length > 0 && payloadBuf[0] === 0x7B) {
+			try {
+				const json = JSON.parse(payloadBuf.toString("utf8"));
+				const raw = json.id ?? json.msgId;
+				if (raw !== undefined && raw !== null) triggerId = typeof raw === "number" ? raw : parseInt(String(raw), 10);
+			} catch { /* ignore */ }
+		}
+		// Binary: ROBOROCK header + id at 8, or V1-style id at 16
+		if (triggerId == null && payloadBuf.length >= 18) {
+			try {
+				if (payloadBuf.length >= 12 && payloadBuf.subarray(0, 8).toString("ascii").startsWith("ROBOROCK")) {
+					triggerId = payloadBuf.readUInt32LE(8);
+				} else {
+					triggerId = payloadBuf.readUInt16LE(16);
+				}
+			} catch { /* use fallback */ }
+		}
+
+		// Match by stored trigger ID (trigger request is already resolved when 301 arrives)
+		if (triggerId != null && !Number.isNaN(triggerId)) {
+			const triggers = this.adapter.b01MapTriggerIds?.get(duid);
+			if (triggers?.upload_by_maptype === triggerId) {
+				const id = this.findPendingB01MapRequestByMethod(duid, "get_map_v1");
+				if (id !== -1) return id;
+			} else if (triggers?.upload_record_by_url === triggerId) {
+				const id = this.findPendingB01MapRequestByMethod(duid, "get_clean_record_map");
+				if (id !== -1) return id;
+			}
+			// Fallback: trigger might still be pending (e.g. 301 before 102)
+			const triggerReq = this.adapter.pendingRequests.get(triggerId);
+			if (triggerReq && (triggerReq as any).duid === duid) {
+				if ((triggerReq as any).method === "service.upload_by_maptype") {
+					const id = this.findPendingB01MapRequestByMethod(duid, "get_map_v1");
+					if (id !== -1) return id;
+				} else if ((triggerReq as any).method === "service.upload_record_by_url") {
+					const id = this.findPendingB01MapRequestByMethod(duid, "get_clean_record_map");
+					if (id !== -1) return id;
+				}
+			}
+		}
+		return this.findPendingB01MapRequest(duid);
+	}
+
+	/** Returns the first pending map request for this duid (order-based fallback). */
 	private findPendingB01MapRequest(duid: string): number {
 		for (const [id, req] of this.adapter.pendingRequests) {
-			const methods = ["get_map_v1", "get_clean_record_map", "service.upload_by_maptype", "service.upload_record_by_url"];
-			if (methods.includes(req.method) && req.duid === duid) {
+			if ((req.method === "get_map_v1" || req.method === "get_clean_record_map") && req.duid === duid) {
 				return id;
 			}
+		}
+		return -1;
+	}
+
+	/** Returns the id of a pending request for this duid with the given method (get_map_v1 = live, get_clean_record_map = history). */
+	private findPendingB01MapRequestByMethod(duid: string, method: "get_map_v1" | "get_clean_record_map"): number {
+		for (const [id, req] of this.adapter.pendingRequests) {
+			if (req.method === method && req.duid === duid) return id;
 		}
 		return -1;
 	}

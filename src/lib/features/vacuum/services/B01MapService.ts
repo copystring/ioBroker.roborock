@@ -48,7 +48,8 @@ export class B01MapService {
 	protected async processUpdateMapResponse(data: Buffer): Promise<void> {
 		this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `Received Map Data (${data.length} bytes)`, "debug");
 
-		const mapRes = await this.deps.adapter.mapManager.processMap(data, "B01", this.deps.adapter.http_api.getRobotModel(this.duid) || "B01", this.duid, null, this.duid, "B01History");
+		// Live map only: connectionType "B01" so robot/charger are drawn; history uses B01History in getCleaningRecordMap
+		const mapRes = await this.deps.adapter.mapManager.processMap(data, "B01", this.deps.adapter.http_api.getRobotModel(this.duid) || "B01", this.duid, null, this.duid, "B01");
 
 		if (mapRes) {
 			await this.processMapResults(mapRes);
@@ -62,10 +63,15 @@ export class B01MapService {
 		}
 	}
 
+	/** Writes map result to Devices.<duid>.map (current/live map only). History maps are never passed here; they go to cleaningInfo.records.<index>.mapBase64 via getCleaningRecordMap. */
 	private async processMapResults(mapResult: { mapBase64: string, mapBase64Clean?: string, mapData?: any } | null): Promise<void> {
 		if (!mapResult) return;
 
-		const { mapBase64, mapBase64Clean, mapData } = mapResult;
+		const { mapData } = mapResult;
+		// B01 returns same image for both; use one for both if only one present so they never get out of sync
+		const mapBase64 = mapResult.mapBase64 || mapResult.mapBase64Clean;
+		const mapBase64Clean = mapResult.mapBase64Clean ?? mapResult.mapBase64;
+
 		await this.deps.ensureFolder(`Devices.${this.duid}.map`);
 
 		if (mapData) {
@@ -74,17 +80,47 @@ export class B01MapService {
 			await this.deps.ensureState(`Devices.${this.duid}.map.mapData`, { name: "Map Data", type: "string", role: "json" });
 			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.map.mapData`, { val: JSON.stringify(mapDataWithModel), ack: true });
 		}
-		if (mapBase64) {
+		if (mapBase64 || mapBase64Clean) {
 			await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64`, { name: "Map Image", type: "string", role: "text.png" });
-			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.map.mapBase64`, { val: mapBase64, ack: true });
-		}
-		if (mapBase64Clean) {
 			await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64Clean`, { name: "Map Image (Clean)", type: "string", role: "text.png" });
-			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.map.mapBase64Clean`, { val: mapBase64Clean, ack: true });
+			// Write both together so a concurrent history/live update cannot leave one stale
+			await Promise.all([
+				mapBase64 ? this.deps.adapter.setStateChanged(`Devices.${this.duid}.map.mapBase64`, { val: mapBase64, ack: true }) : Promise.resolve(),
+				mapBase64Clean ? this.deps.adapter.setStateChanged(`Devices.${this.duid}.map.mapBase64Clean`, { val: mapBase64Clean, ack: true }) : Promise.resolve()
+			]);
 		}
 	}
 
 	protected static readonly MAPPED_CLEAN_SUMMARY: Record<string, string> = { 0: "clean_time", 1: "clean_area", 2: "clean_count", 3: "records", record_list: "records" };
+
+	/**
+	 * B01: Load floor list via service.get_map_list and create Devices.<duid>.floors.<mapId> (name, mapFlag).
+	 * Enables room selection for app_segment_clean.
+	 */
+	public async updateMultiMapsList(): Promise<void> {
+		try {
+			const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "service.get_map_list", {});
+			const mapList = (result && typeof result === "object" && (result as any).map_list) || (result && typeof result === "object" && (result as any).data?.map_list);
+			if (!Array.isArray(mapList) || mapList.length === 0) {
+				this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, "B01 get_map_list: no map_list or empty", "debug");
+				return;
+			}
+			await this.deps.ensureFolder(`Devices.${this.duid}.floors`);
+			for (const map of mapList) {
+				const mapId = map.id;
+				const name = map.name || `Map ${mapId}`;
+				const folder = `Devices.${this.duid}.floors.${mapId}`;
+				await this.deps.ensureFolder(folder, name);
+				await this.deps.ensureState(`${folder}.name`, { name: "Floor Name", type: "string", role: "value", read: true, write: false });
+				await this.deps.adapter.setStateChanged(`${folder}.name`, { val: name, ack: true });
+				await this.deps.ensureState(`${folder}.mapFlag`, { name: "Map ID", type: "number", role: "value", read: true, write: false });
+				await this.deps.adapter.setStateChanged(`${folder}.mapFlag`, { val: mapId, ack: true });
+			}
+			this.deps.adapter.rLog("System", this.duid, "Info", "B01", undefined, `B01 floors updated: ${mapList.length} maps (${mapList.map((m: any) => m.name || m.id).join(", ")})`, "info");
+		} catch (e: any) {
+			this.deps.adapter.rLog("System", this.duid, "Warn", "B01", undefined, `B01 updateMultiMapsList failed: ${e.message}`, "warn");
+		}
+	}
 
 	public async updateCleanSummary(): Promise<void> {
 		try {
@@ -282,6 +318,7 @@ export class B01MapService {
 		}
 	}
 
+	/** History map: only resolve with result; do NOT write to Devices.xxx.map. Caller saves to cleaningInfo.records.<index>.mapBase64. */
 	private async processHistoryMapResponse(data: unknown, resolve: (val: any) => void): Promise<void> {
 		try {
 			if (!Buffer.isBuffer(data)) {
@@ -311,15 +348,15 @@ export class B01MapService {
 	public async updateRoomMapping(mappedRooms?: any[]): Promise<void> {
 		if (!mappedRooms) return;
 
-		const mapStatusState = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.deviceStatus.map_status`);
+		// B01: use current_map_id (map id like 1770281900); map_status is a small status code
+		const currentMapIdState = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.deviceStatus.current_map_id`);
 		let floorID = 0;
-		if (mapStatusState && typeof mapStatusState.val === "number") {
-			floorID = mapStatusState.val;
+		if (currentMapIdState && typeof currentMapIdState.val === "number" && currentMapIdState.val > 0) {
+			floorID = currentMapIdState.val;
 		} else {
-			// Fallback: try to use 'current_map_id' from device status
-			const currentMapIdState = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.deviceStatus.current_map_id`);
-			if (currentMapIdState && typeof currentMapIdState.val === "number") {
-				floorID = currentMapIdState.val;
+			const mapStatusState = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.deviceStatus.map_status`);
+			if (mapStatusState && typeof mapStatusState.val === "number") {
+				floorID = mapStatusState.val;
 			}
 		}
 		const floorFolder = `Devices.${this.duid}.floors.${floorID}`;
