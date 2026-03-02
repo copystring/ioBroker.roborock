@@ -154,6 +154,17 @@ export class RoborockRequest {
 		// Register in pendingRequests immediately to ensure we can cleanup if anything fails
 		this.adapter.pendingRequests.set(this.messageID, this);
 
+		// B01: remember trigger ID so 301 can be matched to live vs history after trigger request is resolved
+		if (this.version === "B01" && (this.method === "service.upload_by_maptype" || this.method === "service.upload_record_by_url")) {
+			let entry = this.adapter.b01MapTriggerIds.get(this.duid);
+			if (!entry) {
+				entry = {};
+				this.adapter.b01MapTriggerIds.set(this.duid, entry);
+			}
+			if (this.method === "service.upload_by_maptype") entry.upload_by_maptype = this.messageID;
+			else entry.upload_record_by_url = this.messageID;
+		}
+
 		// Handle Manual Cancellation
 		if (signal) {
 			signal.addEventListener("abort", () => {
@@ -188,7 +199,6 @@ export class RoborockRequest {
 		const qSize = this.manager.queue.size;
 
 		if (connectionType === "MQTT") {
-			// Log Message (Method + Params) + Performance data
 			this.adapter.rLog("MQTT", this.duid, "->", `${version}`, protocol, `${this.method}${logParams} | qSize: ${qSize} | waited: ${queueDuration}ms`, logLevel, this.messageID);
 		} else {
 			this.adapter.rLog("TCP", this.duid, "->", `${version}`, protocol, `${this.method}${logParams} | qSize: ${qSize} | waited: ${queueDuration}ms`, "debug", this.messageID);

@@ -42,6 +42,8 @@ export class Roborock extends utils.Adapter {
 	public deviceFeatureHandlers: Map<string, BaseDeviceFeatures>;
 	public nonce: Buffer;
 	public pendingRequests: Map<number, RoborockRequest | PendingMapEntry>;
+	/** B01: last message IDs for map triggers (301 response echoes this ID so we can match live vs history). */
+	public b01MapTriggerIds: Map<string, { upload_by_maptype?: number; upload_record_by_url?: number }> = new Map();
 	public appPluginManager: AppPluginManager;
 
 	public isInitializing: boolean;

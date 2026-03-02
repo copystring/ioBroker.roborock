@@ -12,7 +12,7 @@ export class MapDecryptor {
 	 * @see docs/map/B01_Map_Protocol.md for the full technical specification.
 	 * @see test/unit/b01_map_specification.test.ts for the executable specification.
 	 */
-	static decrypt(buf: Buffer, serial: string, model: string, _duid: string, adapter?: any, localKey?: string): Buffer | null {
+	static decrypt(buf: Buffer, serial: string, model: string, _duid: string, adapter?: any, localKey?: string, isHistoryMap?: boolean): Buffer | null {
 		MapDecryptor.logDebug(adapter, `Decrypting Block. Serial: ${serial}, Model: ${model}, Len: ${buf.length}`);
 
 		if (MapDecryptor.isLikelyProtobuf(buf)) {
@@ -35,7 +35,7 @@ export class MapDecryptor {
 		current = MapDecryptor.unwrapHex(current, adapter);
 
 		// 5. Layer 5: Decompression (ZLIB/GZIP)
-		current = MapDecryptor.unwrapDecompression(current, adapter);
+		current = MapDecryptor.unwrapDecompression(current, adapter, isHistoryMap);
 
 		return current;
 	}
@@ -107,12 +107,13 @@ export class MapDecryptor {
 		return current;
 	}
 
-	private static unwrapDecompression(current: Buffer, adapter?: any): Buffer {
+	private static unwrapDecompression(current: Buffer, adapter?: any, isHistoryMap?: boolean): Buffer {
 		const decompressed = MapHelper.decompress(current);
 		if (decompressed !== current) {
 			MapDecryptor.logDebug(adapter, `Layer 5: Decompressed SUCCESS. New Len=${decompressed.length}`);
 		} else if (!MapDecryptor.isSignatureMatch(decompressed)) {
-			MapDecryptor.logDebug(adapter, "Layer 5: Decompression skipped (no known signature found).", "warn");
+			const level = isHistoryMap ? "debug" : "warn";
+			MapDecryptor.logDebug(adapter, "Layer 5: Decompression skipped (no known signature found).", level);
 		}
 		return decompressed;
 	}

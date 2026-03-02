@@ -594,6 +594,7 @@ export class http_api {
 
 	/**
 	 * Downloads the latest Home Data (Devices, Rooms, Products) and stores it in state.
+	 * Uses GET v3/user/homes/{homeID} only (same as Roborock app).
 	 */
 	async updateHomeData(): Promise<void> {
 		if (!this.loginApi) throw new Error("loginApi is not initialized. Call init() first.");
@@ -601,47 +602,22 @@ export class http_api {
 
 		if (this.homeID) {
 			try {
-				// Fetch home details from V2 API
-				const resV2 = await this.realApi.get(`v2/user/homes/${this.homeID}`);
-				this.homeData = resV2.data.result;
+				const res = await this.realApi.get<{ success?: boolean; result?: { id: number; products?: Product[]; devices?: Device[]; receivedDevices?: Device[]; rooms?: Room[] } }>(`v3/user/homes/${this.homeID}`);
 
-				// Fetch home details from V3 API
-				try {
-					const resV3 = await this.realApi.get(`v3/user/homes/${this.homeID}`);
-
-					if (resV3.data.success && resV3.data.result) {
-						const v3Data = resV3.data.result as HomeData;
-
-						// Merge arrays ensuring unique items by key
-						const mergeUnique = (priority: any[], secondary: any[], key: string) => {
-							const initial = priority || [];
-							const additional = secondary || [];
-							const map = new Map(initial.map((item) => [item[key], item]));
-
-							for (const item of additional) {
-								if (!map.has(item[key])) {
-									map.set(item[key], item);
-								}
-							}
-							return Array.from(map.values());
-						};
-
-						if (this.homeData) {
-							// Pass v3Data first so it takes precedence
-							this.homeData.devices = mergeUnique(v3Data.devices, this.homeData.devices, "duid");
-							this.homeData.receivedDevices = mergeUnique(v3Data.receivedDevices, this.homeData.receivedDevices, "duid");
-							this.homeData.products = mergeUnique(v3Data.products, this.homeData.products, "id");
-							this.homeData.rooms = mergeUnique(v3Data.rooms, this.homeData.rooms, "id");
-						} else {
-							this.homeData = v3Data;
-						}
-					}
-				} catch (e3: any) {
-					// V3 might fail on older accounts/regions? Log debug but don't crash main init.
-					this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `Failed to fetch V3 HomeData (optional): ${e3.message}`, "warn");
+				if (res.data?.success && res.data?.result) {
+					const result = res.data.result;
+					this.homeData = {
+						rrHomeId: result.id,
+						products: result.products || [],
+						devices: result.devices || [],
+						receivedDevices: result.receivedDevices || [],
+						rooms: result.rooms || []
+					};
+					this.adapter.rLog("HTTP", null, "<-", "Cloud", undefined, `HomeData updated (HomeID: ${this.homeID}, Devices: ${this.homeData.devices?.length}, Received: ${this.homeData.receivedDevices?.length})`, "debug");
+				} else {
+					this.homeData = null;
+					this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "V3 HomeData response missing or not success.", "warn");
 				}
-
-				this.adapter.rLog("HTTP", null, "<-", "Cloud", undefined, `HomeData updated (HomeID: ${this.homeID}, Devices: ${this.homeData?.devices?.length})`, "debug");
 
 				await this.adapter.setState("HomeData", { val: JSON.stringify(this.homeData), ack: true });
 			} catch (e: any) {

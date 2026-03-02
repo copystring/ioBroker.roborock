@@ -229,24 +229,13 @@ export class messageParser {
 			};
 		}
 
-		// B01 payload (Nested Object, key "10000" refers to the control endpoint)
 		if (version === "B01") {
-			// B01 Protocol Specifics:
-			// 1. Wrapper is { dps: { "10000": innerObject } }
-			// 2. 'inner' is an OBJECT (not stringified)
-			// 3. 'id' is Number, 'msgId' is String
-			// 4. Timestamp 't' is in the header, not JSON body for commands (but standard wrapper adds it to root)
-
 			inner.msgId = String(messageID);
-			// inner.id is already Number from line 197
 
-			// 6. Map B01 payload structure based on method type.
-			// If method is already a direct B01 protocol command, pass it through.
 			if (method === "prop.get" || method === "prop.set" || method === "prop" || method.startsWith("service.")) {
 				inner.method = method === "prop" ? "prop.set" : method;
 				inner.params = params;
 
-				// Fix double-encoded JSON params (e.g. from generic 'prop' command state)
 				if (typeof inner.params === "string") {
 					try {
 						inner.params = JSON.parse(inner.params);
@@ -254,8 +243,6 @@ export class messageParser {
 						// Keep as string if parse fails
 					}
 				}
-
-				// Map legacy keys in params object if needed (e.g. fan_power -> wind)
 				if (typeof inner.params === "object" && inner.params !== null && !Array.isArray(inner.params)) {
 					const paramObj = inner.params as Record<string, any>;
 					if (paramObj.fan_power !== undefined) {
@@ -316,21 +303,14 @@ export class messageParser {
 				const key = keyMap[method] || method;
 				inner.method = "prop.set";
 				inner.params = { [key]: params[0] };
-			} else if (method === "app_segment_clean") {
-				inner.method = "service.segment_clean";
-				inner.params = { segments: params[0] };
 			} else if (method === "app_zoned_clean") {
 				inner.method = "service.zoned_clean";
 				inner.params = { zones: params[0] };
 			}
-			// Other methods (e.g. get_clean_record) are passed through as-is.
 
-			// Note: 'prop.set' and service commands are passed through if generated correctly by features.
-			// Ideally we would map set_custom_mode etc too, but that requires knowing the prop key.
-
-			// For B01 MQTT/Cloud, requests go to DPS 10000 as a nested object (not string).
-			// Responses come back on DPS 10001 as a nested stringified JSON.
-			return JSON.stringify({ dps: { "10000": inner }, t: timestamp });
+			// Cloud expects dps.10000 = { method, msgId, params } in this order (no id).
+			const b01Inner = { method: inner.method, msgId: String(messageID), params: inner.params };
+			return JSON.stringify({ dps: { "10000": b01Inner }, t: timestamp });
 		}
 
 		return JSON.stringify({ dps: { [protocol]: JSON.stringify(inner) }, t: timestamp });

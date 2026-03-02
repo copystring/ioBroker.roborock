@@ -615,8 +615,8 @@ export abstract class BaseDeviceFeatures {
 			val = JSON.stringify(val);
 		}
 
-		// Formatting for specific keys (e.g. timestamps)
-		if ((key === "last_clean_t" || key === "clean_finish" || key === "begin" || key === "end") && typeof (val as any) === "number") {
+		// Formatting for timestamp keys only (clean_finish is 0/1 flag, not a timestamp)
+		if ((key === "last_clean_t" || key === "begin" || key === "end") && typeof (val as any) === "number") {
 			val = new Date((val as number) * 1000).toLocaleString();
 			common.type = "string"; // Update type to match new value
 		}
