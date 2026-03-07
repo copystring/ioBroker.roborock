@@ -189,7 +189,7 @@ export class MapParser {
 	 * Parses the raw map data from V1 Roborock vacuums.
 	 * @see test/unit/v1_map_specification.test.ts for the binary format specification.
 	 */
-	async parsedata(buf: Buffer, mappedRooms: any[] | null, options: { isHistoryMap: boolean } = { isHistoryMap: false }): Promise<ParsedMapData | {}> {
+	async parsedata(buf: Buffer, mappedRooms: any[] | null, options: { isHistoryMap?: boolean; duid?: string } = { isHistoryMap: false }): Promise<ParsedMapData | {}> {
 		if (buf.length < 8) {
 			this.adapter.rLog("MapManager", null, "Warn", "1.0", undefined, `Received map buffer is too small (< 8 bytes). Length: ${buf.length}`, "warn");
 			return {};
@@ -225,7 +225,9 @@ export class MapParser {
 
 		const result: any = { metaData };
 
-		const roomIDsAll = this.adapter.http_api.getMatchedRoomIDs(false);
+		const roomIDsAll = options.duid && this.adapter.http_api.isSharedDevice(options.duid)
+			? await this.adapter.http_api.getSharedDeviceRooms(options.duid)
+			: this.adapter.http_api.getMatchedRoomIDs(false);
 
 		// Loop through all blocks
 		while (dataPosition < dataLength) {

@@ -72,13 +72,10 @@ export function RegisterModel(robotModelId: string) {
 /**
  * Base Zod schema for generic status properties.
  */
-export const BaseStatusSchema = z
-	.object({
-		error_code: z.number().int().optional(),
-		// Add generic status fields if applicable
-	})
-	// eslint-disable-next-line
-	.passthrough();
+export const BaseStatusSchema = z.looseObject({
+	error_code: z.number().int().optional(),
+	// Add generic status fields if applicable
+});
 
 // --- Generic Base Class ---
 
@@ -175,9 +172,9 @@ export abstract class BaseDeviceFeatures {
 			const methodName = registry.get(feature)!;
 			this.pendingFeatures.add(feature); // Lock
 			try {
-				// Execute method dynamically
-				// @ts-ignore
-				await this[methodName].call(this);
+				const applyMethod = (this as unknown as Record<string, () => Promise<void>>)[methodName];
+				if (typeof applyMethod !== "function") throw new Error(`Feature ${String(feature)}: missing method ${methodName}`);
+				await applyMethod.call(this);
 				this.appliedFeatures.add(feature); // Mark applied after success
 				return true;
 			} catch (e: unknown) {
@@ -663,7 +660,7 @@ export abstract class BaseDeviceFeatures {
 	}
 
 	public async updateNetworkInfo(): Promise<void> {
-		if (!this.hasFeature(Feature.NetworkInfo)) return;
+		// No feature guard: get_network_info is supported on all devices (V1/MQTT); B01 overrides and uses service.get_net_info.
 		await this.requestAndProcess("get_network_info", [], "networkInfo");
 	}
 

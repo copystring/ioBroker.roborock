@@ -1,5 +1,5 @@
 /**
- * B01 control service. set_room_clean params aligned with app dump (553.js):
+ * B01 control service. set_room_clean params (B01 protocol):
  * - clean_type: 0 = SCCleanModel.auto (normal clean)
  * - ctrl_value: 0 = STOP, 1 = START, 2 = PAUSE (POST_CMD_STATUS)
  * - room_ids: number[] (optional; [] = full/whole map clean)

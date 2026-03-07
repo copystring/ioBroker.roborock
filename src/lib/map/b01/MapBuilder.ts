@@ -379,9 +379,6 @@ export class MapBuilder {
 	}
 
 	public async buildMap(data: B01MapData, robotModel: string, duid?: string, deviceStatus?: B01DeviceStatus): Promise<Buffer> {
-		const startMsg = `Starting Build. Model: ${robotModel}, GridLen: ${data.mapGrid?.length}`;
-		if (this.adapter) this.adapter.rLog("MapManager", duid, "Debug", "B01", undefined, startMsg, "debug");
-
 		await this.loadAssets(robotModel, duid, !!(data.robotPos || data.chargerPos));
 
 		let { width, height } = { width: data.header.sizeX, height: data.header.sizeY };
@@ -721,9 +718,8 @@ export class MapBuilder {
 				ctx.fill();
 				ctx.shadowBlur = 0;
 			}
-		} else if (data.chargerPos) {
-			// Live map with station but missing robot position
-			if (this.adapter) this.adapter.rLog("MapManager", duid, "Warn", "B01", undefined, "No Robot Position in Map Data", "warn");
+		} else if (this.adapter && data.chargerPos) {
+			this.adapter.rLog("MapManager", duid, "Warn", "B01", undefined, "No Robot Position in Map Data", "warn");
 		}
 		// History maps have no robot and no station – nothing to draw, no log
 
@@ -739,11 +735,6 @@ export class MapBuilder {
 			const iconMargin = 4 * LABEL_SCALE;
 
 			data.rooms.forEach(r => {
-				// Debug Log for Room Data
-				if (this.adapter) {
-					this.adapter.rLog("MapManager", duid, "Debug", "B01", undefined, `Processing Room: ${r.roomName} (ID: ${r.roomTypeId}), LabelPos: ${JSON.stringify(r.labelPos)}`, "debug");
-				}
-
 				if (r.labelPos && r.roomName) {
 					// 1. Determine Semantic Type: Priority = ID
 					const finalType = ROOM_TYPE_MAP[r.roomTypeId || 0] || "other";
@@ -770,10 +761,6 @@ export class MapBuilder {
 
 					const bgColor = BG_COLOR_SET[colorIdx % BG_COLOR_SET.length] || BG_COLOR_SET[0];
 					const borderColor = BORDER_COLOR_SET[colorIdx % BORDER_COLOR_SET.length] || BORDER_COLOR_SET[0];
-
-					if (this.adapter) {
-						this.adapter.rLog("MapManager", duid, "Info", "B01", undefined, `Room: ${r.roomName} | ID: ${r.roomTypeId} | ColorId: ${r.colorId} -> BgColor: ${bgColor}`, "info");
-					}
 
 					const pt = toPixel(r.labelPos.x, r.labelPos.y);
 					const textWidth = ctx.measureText(r.roomName).width;
@@ -811,17 +798,11 @@ export class MapBuilder {
 					ctx.fillText(r.roomName, startX, centerY);
 				} else {
 					if (this.adapter && this.adapter.log) {
-						this.adapter.log.warn(`[MapBuilderB01] Skipping Room Label for ${r.roomName}: Missing labelPos`);
+						this.adapter.log.warn(`Skipping Room Label for ${r.roomName}: Missing labelPos`);
 					}
 				}
 			});
 		}
-
-		ctx.fillStyle = "white";
-		ctx.font = "2px sans-serif";
-		ctx.textAlign = "center";
-		// Explicit TEST string to verify code execution on map
-		ctx.fillText("Complete Map (HQ 8x) - TEST MODE", width / 2, height + 4);
 
 		return canvas.toBuffer("image/png");
 	}

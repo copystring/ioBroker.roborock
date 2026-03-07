@@ -155,7 +155,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 		// 13. Consumable Resets are handled in createCommandObjects and initializeDeviceData
 
-		// 14. Additional B01 Commands (Discovered in Sniffer)
+		// 14. Additional B01 Commands
 		this.addCommand("child_lock", {
 			type: "boolean",
 			role: "switch",
@@ -312,7 +312,6 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 	public setMappedRooms(rooms: Array<{ id: number; name: string }>): void {
 		this.mappedRooms = rooms;
-		this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `Updated mappedRooms: ${JSON.stringify(rooms)}`, "debug");
 		// When map arrives async, create room selection states under current floor
 		void this.updateRoomMapping();
 	}
@@ -419,7 +418,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 		// B01 Area/Time Conversion
 		if (["clean_time", "cleaning_time"].includes(key)) {
-			// sniffs show 'cleaning_time: 25' for 25 min -> already in minutes. No conversion needed.
+			// cleaning_time is in minutes; no conversion.
 			// last_clean_t might be timestamp or duration? usually timestamp if clean_finish.
 			const numericVal = Number(val as number | string);
 			val = isNaN(numericVal) ? 0 : numericVal;

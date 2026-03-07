@@ -153,6 +153,11 @@ export class messageParser {
 				continue;
 			}
 
+			// For B01 protocol 300/301/302: keep raw payload and full frame for chunk assembler / record_map
+			if (version === "B01" && (data.protocol === 300 || data.protocol === 301 || data.protocol === 302)) {
+				(data as any).rawPayload = Buffer.from(data.payload);
+				(data as any).rawFrame = Buffer.from(msgBuffer);
+			}
 			// Decrypt
 			try {
 				if (version === "L01") {
