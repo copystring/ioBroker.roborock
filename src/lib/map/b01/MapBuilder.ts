@@ -25,63 +25,72 @@ export class MapBuilder {
 		this.adapter = adapter;
 	}
 
-	private async loadAssets(model?: string, duid?: string): Promise<void> {
+	/** @param needRobotCharger If false (e.g. history map), do not log errors for missing robot/charger assets. */
+	private async loadAssets(model?: string, duid?: string, needRobotCharger: boolean = true): Promise<void> {
 		if (this.assetsLoaded) return;
 		this.assets = { rooms: {}, robot: {}, charger: {} };
 
 		try {
-			// assets/<model> in adapter file storage
+			// assets/<model> from adapter file storage; model comes from the device (e.g. roborock.vacuum.sc05)
 			const searchPaths: string[] = [];
-
 			if (model && this.adapter) {
 				const modelPath = `assets/${model}`;
 				try {
 					await this.adapter.readDirAsync(this.adapter.name, modelPath);
 					searchPaths.push(modelPath);
 				} catch { /* dir missing */ }
+				// Fallback namespace (e.g. files/roborock/ when instance is roborock.0)
+				if (searchPaths.length === 0 && this.adapter.name && this.adapter.name.includes(".")) {
+					try {
+						await this.adapter.readDirAsync(this.adapter.name.split(".")[0], modelPath);
+						searchPaths.push(modelPath);
+					} catch { /* dir missing */ }
+				}
+				// Always add path so we can try both namespaces with subdirsToTry even if readDirAsync failed for both
+				if (searchPaths.length === 0) searchPaths.push(modelPath);
 			}
 
-			const commonModels = ["roborock.vacuum.a147", "roborock.vacuum.sc01", "roborock.vacuum.a70"];
-			for (const m of commonModels) {
-				if (this.adapter) {
-					const p = `assets/${m}`;
-					if (!searchPaths.includes(p)) {
-						try {
-							await this.adapter.readDirAsync(this.adapter.name, p);
-							searchPaths.push(p);
-						} catch { /* dir missing */ }
-					}
-				}
-			}
+			const storageNamespaces = this.adapter.name && this.adapter.name.includes(".")
+				? [this.adapter.name, this.adapter.name.split(".")[0]]
+				: [this.adapter.name];
 
 			const subdirsToTry = ["drawable-mdpi", "drawable-hdpi", "drawable-xhdpi", "drawable-xxhdpi", "raw"];
 			const findAssetInPaths = async (candidates: string[]) => {
 				for (const dir of searchPaths) {
-					for (const c of candidates) {
-						const rootPath = `${dir}/${c}`;
-						if (await this.adapter.fileExistsAsync(this.adapter.name, rootPath)) {
-							const res = await this.adapter.readFileAsync(this.adapter.name, rootPath);
-							const buf = typeof res === "object" && res !== null && "file" in res ? (res as { file: Buffer }).file : Buffer.from(res as ArrayBuffer);
-							return await loadImage(buf);
-						}
-					}
-					try {
-						const entries = await this.adapter.readDirAsync(this.adapter.name, dir);
-						const dirs: string[] = Array.isArray(entries)
-							? entries
-							: (entries as { dirs?: string[] }).dirs ?? [];
-						const subdirs = dirs.filter(d => d.startsWith("drawable-") || d === "raw");
-						for (const subdir of subdirs.length > 0 ? subdirs : subdirsToTry) {
-							for (const c of candidates) {
-								const p = `${dir}/${subdir}/${c}`;
-								if (await this.adapter.fileExistsAsync(this.adapter.name, p)) {
-									const res = await this.adapter.readFileAsync(this.adapter.name, p);
+					for (const ns of storageNamespaces) {
+						for (const c of candidates) {
+							const rootPath = `${dir}/${c}`;
+							try {
+								if (await this.adapter.fileExistsAsync(ns, rootPath)) {
+									const res = await this.adapter.readFileAsync(ns, rootPath);
 									const buf = typeof res === "object" && res !== null && "file" in res ? (res as { file: Buffer }).file : Buffer.from(res as ArrayBuffer);
 									return await loadImage(buf);
 								}
+							} catch { /* try next */ }
+						}
+						// Prefer subdirs from listing; if readDirAsync fails (e.g. other namespace), still try subdirsToTry so we don't skip file checks
+						let subdirs = subdirsToTry;
+						try {
+							const entries = await this.adapter.readDirAsync(ns, dir);
+							const dirs: string[] = Array.isArray(entries)
+								? entries
+								: (entries as { dirs?: string[] }).dirs ?? [];
+							const fromList = dirs.filter(d => d.startsWith("drawable-") || d === "raw");
+							if (fromList.length > 0) subdirs = fromList;
+						} catch { /* use subdirsToTry for this namespace */ }
+						for (const subdir of subdirs) {
+							for (const c of candidates) {
+								const p = `${dir}/${subdir}/${c}`;
+								try {
+									if (await this.adapter.fileExistsAsync(ns, p)) {
+										const res = await this.adapter.readFileAsync(ns, p);
+										const buf = typeof res === "object" && res !== null && "file" in res ? (res as { file: Buffer }).file : Buffer.from(res as ArrayBuffer);
+										return await loadImage(buf);
+									}
+								} catch { /* try next */ }
 							}
 						}
-					} catch { /* ignore */ }
+					}
 				}
 				return null;
 			};
@@ -130,7 +139,6 @@ export class MapBuilder {
 			];
 			const chargerImg = await findAssetInPaths(chargerCandidates);
 			if (chargerImg) this.assets!.charger["normal"] = chargerImg;
-			else if (this.adapter) this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, "Charger asset NOT found.", "error");
 
 			// --- 3. Load Room Icons (Bubble Tags) ---
 			// The user has `roomtag_bubble_X.png`. We load specific IDs (1-32 is a safe range for room types)
@@ -187,8 +195,18 @@ export class MapBuilder {
 			]);
 			if (otherImg) this.assets!.rooms["other"] = otherImg;
 
-			if (Object.keys(this.assets!.robot).length === 0 && this.adapter) {
-				this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, "No Robot assets found.", "error");
+			// Only log missing robot/charger when this map needs them (live map); history maps have no robot/station
+			if (needRobotCharger) {
+				const missingRobot = Object.keys(this.assets!.robot).length === 0;
+				const missingCharger = Object.keys(this.assets!.charger).length === 0;
+				const pathsHint = searchPaths.length ? ` Searched in: ${searchPaths.join(", ")} (with subdirs drawable-*, raw).` : "";
+				const installHint = " Assets are downloaded at adapter start (Cloud/App Plugin) or can be placed in adapter file storage.";
+				if (missingCharger && this.adapter) {
+					this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, `Charger asset NOT found.${pathsHint}${installHint}`, "error");
+				}
+				if (missingRobot && this.adapter) {
+					this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, `No Robot assets found.${pathsHint}${installHint}`, "error");
+				}
 			}
 		} catch (e: any) {
 			if (this.adapter) this.adapter.rLog("MapManager", duid, "Error", undefined, undefined, `Error loading assets: ${e.message}`, "error");
@@ -361,10 +379,7 @@ export class MapBuilder {
 	}
 
 	public async buildMap(data: B01MapData, robotModel: string, duid?: string, deviceStatus?: B01DeviceStatus): Promise<Buffer> {
-		const startMsg = `Starting Build. Model: ${robotModel}, GridLen: ${data.mapGrid?.length}`;
-		if (this.adapter) this.adapter.rLog("MapManager", duid, "Debug", "B01", undefined, startMsg, "debug");
-
-		await this.loadAssets(robotModel, duid);
+		await this.loadAssets(robotModel, duid, !!(data.robotPos || data.chargerPos));
 
 		let { width, height } = { width: data.header.sizeX, height: data.header.sizeY };
 
@@ -656,7 +671,7 @@ export class MapBuilder {
 			}
 		}
 
-		// 6. Robot Drawing logic
+		// 6. Robot position (only on live maps; history maps and station have no robot position)
 		if (data.robotPos) {
 			const status = deviceStatus || {
 				deviceState: SUBTITLE_STATUS.IDEL,
@@ -692,9 +707,6 @@ export class MapBuilder {
 					0, // Zero Offset
 					toPixel
 				);
-
-				if (this.adapter && this.adapter.log) {
-				}
 			} else {
 				// Fallback circle
 				const { x: fx, y: fy } = toPixel(data.robotPos.x, data.robotPos.y);
@@ -706,9 +718,10 @@ export class MapBuilder {
 				ctx.fill();
 				ctx.shadowBlur = 0;
 			}
-		} else {
-			if (this.adapter) this.adapter.rLog("MapManager", duid, "Warn", "B01", undefined, "No Robot Position in Map Data", "warn");
+		} else if (this.adapter && data.chargerPos) {
+			this.adapter.rLog("MapManager", duid, "Warn", "B01", undefined, "No Robot Position in Map Data", "warn");
 		}
+		// History maps have no robot and no station – nothing to draw, no log
 
 		// 7. Room Labels
 		if (data.rooms) {
@@ -722,11 +735,6 @@ export class MapBuilder {
 			const iconMargin = 4 * LABEL_SCALE;
 
 			data.rooms.forEach(r => {
-				// Debug Log for Room Data
-				if (this.adapter) {
-					this.adapter.rLog("MapManager", duid, "Debug", "B01", undefined, `Processing Room: ${r.roomName} (ID: ${r.roomTypeId}), LabelPos: ${JSON.stringify(r.labelPos)}`, "debug");
-				}
-
 				if (r.labelPos && r.roomName) {
 					// 1. Determine Semantic Type: Priority = ID
 					const finalType = ROOM_TYPE_MAP[r.roomTypeId || 0] || "other";
@@ -753,10 +761,6 @@ export class MapBuilder {
 
 					const bgColor = BG_COLOR_SET[colorIdx % BG_COLOR_SET.length] || BG_COLOR_SET[0];
 					const borderColor = BORDER_COLOR_SET[colorIdx % BORDER_COLOR_SET.length] || BORDER_COLOR_SET[0];
-
-					if (this.adapter) {
-						this.adapter.rLog("MapManager", duid, "Info", "B01", undefined, `Room: ${r.roomName} | ID: ${r.roomTypeId} | ColorId: ${r.colorId} -> BgColor: ${bgColor}`, "info");
-					}
 
 					const pt = toPixel(r.labelPos.x, r.labelPos.y);
 					const textWidth = ctx.measureText(r.roomName).width;
@@ -794,17 +798,11 @@ export class MapBuilder {
 					ctx.fillText(r.roomName, startX, centerY);
 				} else {
 					if (this.adapter && this.adapter.log) {
-						this.adapter.log.warn(`[MapBuilderB01] Skipping Room Label for ${r.roomName}: Missing labelPos`);
+						this.adapter.log.warn(`Skipping Room Label for ${r.roomName}: Missing labelPos`);
 					}
 				}
 			});
 		}
-
-		ctx.fillStyle = "white";
-		ctx.font = "2px sans-serif";
-		ctx.textAlign = "center";
-		// Explicit TEST string to verify code execution on map
-		ctx.fillText("Complete Map (HQ 8x) - TEST MODE", width / 2, height + 4);
 
 		return canvas.toBuffer("image/png");
 	}

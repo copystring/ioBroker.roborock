@@ -1,9 +1,9 @@
 import * as d3 from "d3";
 import { localCoordsToRobotCoords, robotCoordsToLocalCoords } from "../common/coordTransformation";
+import { drawMapV1 } from "../common/mapDrawing/drawMapV1";
 import { IMG_CHARGER, IMG_GO_TO_PIN, IMG_ROBOT_ORIGINAL } from "../common/images";
-import type { PathResult } from "../common/pathProcessor";
-import { processPaths } from "../common/pathProcessor";
 import { Connection } from "./conn.js";
+import { SVGMapRenderer } from "./SVGMapRenderer";
 
 // Interfaces
 // -----------------------------------------------------------------------------
@@ -176,6 +176,7 @@ class MapApplication {
 	private robotGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
 	private roomNameGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
 	private zoneGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
+	private zonesOverlayGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
 	private obstacleGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
 	private pinGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
 	private zoom: d3.ZoomBehavior<Element, unknown>;
@@ -194,6 +195,9 @@ class MapApplication {
 	private rects: Rect[] = [];
 	private zones: number[][] = [];
 	private rectCounter = 0;
+	/** Cache: "duid.segmentId" -> room name (from get_room_names for cloud maps). */
+	private roomNamesFromStates: Record<string, string> = {};
+	private roomNamesRequestedForDuid: string | null = null;
 
 	// DOM Elements
 	private popup!: HTMLElement;
@@ -229,6 +233,7 @@ class MapApplication {
 		this.robotGroup = d3.select(null) as any;
 		this.roomNameGroup = d3.select(null) as any;
 		this.zoneGroup = d3.select(null) as any;
+		this.zonesOverlayGroup = d3.select(null) as any;
 		this.obstacleGroup = d3.select(null) as any;
 		this.pinGroup = d3.select(null) as any;
 		this.zoom = d3.zoom();
@@ -293,6 +298,7 @@ class MapApplication {
 		this.chargerGroup = this.mainGroup.append("g").attr("class", "charger");
 		this.obstacleGroup = this.mainGroup.append("g").attr("class", "obstacles");
 		this.zoneGroup = this.mainGroup.append("g").attr("class", "zones");
+		this.zonesOverlayGroup = this.mainGroup.append("g").attr("class", "zones-overlay");
 		this.robotGroup = this.mainGroup.append("g").attr("class", "robot");
 		this.pinGroup = this.mainGroup.append("g").attr("class", "pins");
 		this.roomNameGroup = this.mainGroup.append("g").attr("class", "room-names");
@@ -420,13 +426,10 @@ class MapApplication {
 							processDeviceList(homeData.devices);
 							processDeviceList(homeData.receivedDevices);
 
-							// Re-trigger listeners if we have a model now
+							// Re-trigger listeners if we have a model now (refresh overlays with correct asset URLs)
 							if (this.currentRobotDuid && this.robotModels[this.currentRobotDuid]) {
 								this.model = this.robotModels[this.currentRobotDuid];
-								// Refresh obstacles if they were drawn with fallback
-								if (this.map && this.map.OBSTACLES2) {
-									this.drawObstacles(this.map.OBSTACLES2);
-								}
+								if (this.map) this.drawOverlaysFromMap();
 							}
 						} catch (e) {
 							console.error("Failed to parse HomeData:", e);
@@ -444,12 +447,14 @@ class MapApplication {
 			});
 			this.currentMapSubscriptions = [];
 		}
+		this.roomNamesRequestedForDuid = null;
 
 		this.map = undefined;
 		this.mapImage = undefined;
 		this.mapImageElement.attr("href", null);
 		this.carpetGroup.selectAll("*").remove();
 		this.obstacleGroup.selectAll("*").remove();
+		this.zonesOverlayGroup.selectAll("*").remove();
 		this.pinGroup.select("image.goto-pin").style("display", "none").style("opacity", 0);
 		this.robotGroup.selectAll("*").remove();
 		this.chargerGroup.selectAll("*").remove();
@@ -493,11 +498,7 @@ class MapApplication {
 							this.model = this.map.model ?? this.robotModels[this.currentRobotDuid] ?? null;
 							this.mapImage = this.map.IMAGE;
 							this.updateMapImageSize();
-							this.drawRobotAndCharger(this.map.ROBOT_POSITION, this.map.CHARGER_LOCATION);
-							this.drawPaths(this.map.PATH, this.map.MOP_PATH);
-							this.drawObstacles(this.map.OBSTACLES2);
-							this.drawRoomNames(this.map.IMAGE.segments.list);
-							this.drawCarpet(this.map.CARPET_MAP);
+							this.drawOverlaysFromMap();
 						}
 					} catch (e) {
 						console.error("Failed to parse map data JSON:", state.val, e);
@@ -522,8 +523,132 @@ class MapApplication {
 		});
 	}
 	// -----------------------------------------------------------------------------
-	// Drawing Methods
+	// Drawing Methods (single source: drawMapV1 + SVGMapRenderer)
 	// -----------------------------------------------------------------------------
+
+	/** Draws all map overlays via shared drawMapV1. Call when map or mapData changes. */
+	private drawOverlaysFromMap(): void {
+		if (!this.map || !this.mapImage?.dimensions) return;
+		const params = this.getMapParams();
+		if (!params) return;
+
+		this.pinGroup.select("image.goto-pin").style("display", "none").style("opacity", "0");
+
+		const list = this.map.IMAGE?.segments?.list;
+		const duid = this.currentRobotDuid;
+		const cacheKey = (id: number) => (duid ? `${duid}.${id}` : "");
+		const segmentName = (s: SegmentInfo) => s.name || (duid ? this.roomNamesFromStates[cacheKey(s.id)] : "") || "";
+
+		let roomLabels = list
+			?.filter((s: SegmentInfo) => segmentName(s))
+			.map((s: SegmentInfo) => ({
+				segmentId: s.id,
+				x: this.robotToSvg({ x: s.center[0], y: s.center[1] }, params).x,
+				y: this.robotToSvg({ x: s.center[0], y: s.center[1] }, params).y,
+				text: segmentName(s),
+			}));
+
+		// Cloud maps: segment names may be empty; fetch from adapter room states and redraw once
+		if (duid && Array.isArray(list)) {
+			const missing = list.filter((s: SegmentInfo) => !s.name && !this.roomNamesFromStates[cacheKey(s.id)]);
+			if (missing.length > 0 && this.roomNamesRequestedForDuid !== duid) {
+				this.roomNamesRequestedForDuid = duid;
+				const segmentIds = missing.map((s: SegmentInfo) => s.id);
+				this.connection
+					.sendTo(this.instanceId, "get_room_names", { duid, floor: 0, segmentIds })
+					.then((res: any) => {
+						if (res && typeof res === "object" && !res.error) {
+							for (const [id, name] of Object.entries(res)) {
+								if (name && String(name).trim()) this.roomNamesFromStates[`${duid}.${id}`] = String(name).trim();
+							}
+							this.drawOverlaysFromMap();
+						}
+					})
+					.catch(() => {});
+			}
+		}
+
+		const modelFolder =
+			this.model ||
+			(this.currentRobotDuid && this.robotModels[this.currentRobotDuid]) ||
+			(Object.keys(this.robotModels).length ? this.robotModels[Object.keys(this.robotModels)[0]] : null) ||
+			"roborock.vacuum.a147";
+		const baseUrl = `assets/${modelFolder}/drawable-mdpi/`;
+
+		const renderer = new SVGMapRenderer({
+			groups: {
+				carpetGroup: this.carpetGroup,
+				pathGroup: this.pathGroup,
+				mopPathGroup: this.mopPathGroup,
+				backwashPathGroup: this.backwashPathGroup,
+				pureCleanPathGroup: this.pureCleanPathGroup,
+				chargerGroup: this.chargerGroup,
+				robotGroup: this.robotGroup,
+				pinGroup: this.pinGroup,
+				obstacleGroup: this.obstacleGroup,
+				roomNameGroup: this.roomNameGroup,
+				zonesOverlayGroup: this.zonesOverlayGroup,
+			},
+			pathMainWidth: this.rescaler.pathMainWidth(),
+			pathMopWidth: this.rescaler.pathMopWidth(),
+			pathBackwashWidth: this.rescaler.pathBackwashWidth(),
+			robotSize: this.rescaler.robotSize(),
+			chargerSize: this.rescaler.chargerSize(),
+			pinWidth: this.rescaler.pinWidth(),
+			pinHeight: this.rescaler.pinHeight(),
+			pinYOffset: this.rescaler.pinYOffset(),
+			obstacleRadius: this.rescaler.scale() * UI_CONSTANTS.OBSTACLE_RADIUS_BASE,
+			obstacleImageSize: this.rescaler.scale() * UI_CONSTANTS.OBSTACLE_RADIUS_BASE * 1.8,
+			obstacleAssetBaseUrl: baseUrl,
+			obstacleMapping: OBSTACLE_MAPPING,
+			obstacleFileName: obstacleAssetFileName,
+			obstacleFileNameAlt: obstacleAssetFileNameAlt,
+			onObstacleClick: (event: MouseEvent, obstacleData: unknown) => {
+				if (!this.currentRobotDuid) return;
+				event.stopPropagation();
+				const d = obstacleData as [number, number, number, unknown, unknown, unknown, unknown];
+				this.selectedObstacleID = d?.[6];
+				const robotPoint = { x: d[0], y: d[1] };
+				const worldPoint = robotCoordsToLocalCoords(robotPoint, params);
+				this.popupX = worldPoint.x;
+				this.popupY = worldPoint.y;
+				if (this.popupTimeout) clearTimeout(this.popupTimeout);
+				this.connection
+					.sendTo(this.instanceId, "get_obstacle_image", {
+						obstacleId: this.selectedObstacleID,
+						duid: this.currentRobotDuid,
+						type: 1,
+					})
+					.then((response: any) => {
+						if (response?.image) {
+							let imageData = response.image as string;
+							if (typeof imageData === "string" && !imageData.startsWith("data:image/"))
+								imageData = "data:image/png;base64," + imageData;
+							this.popupImage.src = imageData;
+							this.popup.style.display = "block";
+							this.triangle.style.display = "block";
+							this.updatePopupPosition();
+							this.popupTimeout = window.setTimeout(() => {
+								this.popup.style.display = "none";
+								this.triangle.style.display = "none";
+								this.popupTimeout = null;
+							}, 3000);
+						}
+					})
+					.catch((err) => console.error("Error getting obstacle image:", err));
+				this.updatePopupPosition();
+			},
+			robotImageHref: IMG_ROBOT_ORIGINAL,
+			chargerImageHref: IMG_CHARGER,
+			goToPinImageHref: IMG_GO_TO_PIN,
+		});
+
+		drawMapV1(this.map as any, renderer, {
+			scaleFactor: VISUAL_BLOCK_SIZE,
+			dimensionsAreScaled: false,
+			roomLabels: roomLabels?.length ? roomLabels : undefined,
+		});
+	}
 
 	private updateMapImageSize() {
 		if (!this.image.naturalWidth || !this.image.naturalHeight) return;
@@ -622,337 +747,9 @@ class MapApplication {
 			this.svgContainer.call(this.zoom.transform as any, this.initialTransform);
 
 			if (this.map) {
-				this.drawRobotAndCharger(this.map.ROBOT_POSITION, this.map.CHARGER_LOCATION);
-				this.drawPaths(this.map.PATH, this.map.MOP_PATH);
-				this.drawObstacles(this.map.OBSTACLES2);
-				this.drawRoomNames(this.map.IMAGE.segments.list);
-				this.drawCarpet(this.map.CARPET_MAP);
+				this.drawOverlaysFromMap();
 			}
 		};
-	}
-
-	private drawRobotAndCharger(robotPos?: PositionBlock, chargerPos?: PositionBlock) {
-		this.robotGroup.selectAll("image.robot").remove();
-		this.chargerGroup.selectAll("image.charger").remove();
-
-		if (!robotPos && !chargerPos) return;
-
-		const params = this.getMapParams();
-		if (!params) return;
-
-		const scaledChargerSize = this.rescaler.chargerSize();
-		const scaledRobotSize = this.rescaler.robotSize();
-
-		// Charger
-		const chargerData = chargerPos ? [chargerPos] : [];
-		const charger = this.chargerGroup.selectAll("image.charger").data(chargerData);
-		charger.exit().remove();
-		charger
-			.enter()
-			.append("image")
-			.attr("class", "charger")
-			.attr("href", IMG_CHARGER)
-			.merge(charger as any)
-			.attr("width", scaledChargerSize)
-			.attr("height", scaledChargerSize)
-			.attr("x", (d) => this.robotToSvg({ x: d.position[0], y: d.position[1] }, params).x - scaledChargerSize / 2)
-			.attr("y", (d) => this.robotToSvg({ x: d.position[0], y: d.position[1] }, params).y - scaledChargerSize / 2);
-
-		// Robot
-		const robotData = robotPos ? [robotPos] : [];
-		const robot = this.robotGroup.selectAll("image.robot").data(robotData);
-		robot.exit().remove();
-		robot
-			.enter()
-			.append("image")
-			.attr("class", "robot")
-			.attr("href", IMG_ROBOT_ORIGINAL)
-			.merge(robot as any)
-			.attr("width", scaledRobotSize)
-			.attr("height", scaledRobotSize)
-			.attr("transform", (d) => {
-				const svgCoords = this.robotToSvg({ x: d.position[0], y: d.position[1] }, params);
-				const angle = -(d.angle ?? 0) + 90;
-				return `translate(${svgCoords.x}, ${svgCoords.y}) rotate(${angle}) translate(${-scaledRobotSize / 2}, ${-scaledRobotSize / 2})`;
-			});
-	}
-
-	private drawRoomNames(segmentsList: SegmentInfo[]) {
-		const params = this.getMapParams();
-		if (!params || !segmentsList) {
-			this.roomNameGroup.selectAll("text.room-name").remove();
-			return;
-		}
-		const baseFontSize = 12;
-		const baseStrokeWidth = 2.5;
-
-		const textElements = this.roomNameGroup.selectAll("text.room-name").data(segmentsList, (d: any) => d.id);
-		textElements.exit().remove();
-		textElements
-			.enter()
-			.append("text")
-			.attr("class", "room-name")
-			.attr("text-anchor", "middle")
-			.attr("dominant-baseline", "middle")
-			.style("fill", "#000")
-			.style("stroke", "white")
-			.style("pointer-events", "none")
-			.style("font-weight", "900")
-			.style("font-size", `${baseFontSize}px`)
-			.style("stroke-width", `${baseStrokeWidth}px`)
-			.style("paint-order", "stroke")
-			.attr("shape-rendering", "geometricPrecision")
-			.merge(textElements as any)
-			.text((d) => d.name)
-			.attr("x", (d) => {
-				if (d.center && typeof d.center[0] === "number" && !isNaN(d.center[0]))
-					return this.robotToSvg({ x: d.center[0], y: d.center[1] }, params).x;
-				return -1000;
-			})
-			.attr("y", (d) => {
-				if (d.center && typeof d.center[1] === "number" && !isNaN(d.center[1]))
-					return this.robotToSvg({ x: d.center[0], y: d.center[1] }, params).y;
-				return -1000;
-			});
-	}
-
-	private drawPaths(pathData?: PathBlock, mopData?: number[]) {
-		const params = this.getMapParams();
-		if (!params || !pathData?.points || !mopData) {
-			this.pathGroup.selectAll("*").remove();
-			this.mopPathGroup.selectAll("*").remove();
-			this.backwashPathGroup.selectAll("*").remove();
-			this.pureCleanPathGroup.selectAll("*").remove();
-			return;
-		}
-
-		const scale = VISUAL_BLOCK_SIZE;
-
-		const paths: PathResult = processPaths(
-			pathData.points,
-			mopData,
-			(robotPoint, p) => this.robotToSvg({ x: robotPoint[0], y: robotPoint[1] }, p),
-			scale,
-			params
-		);
-
-		const scaledMopWidth = this.rescaler.pathMopWidth();
-		const scaledPathWidth = this.rescaler.pathMainWidth();
-		const scaledBackwashWidth = this.rescaler.pathBackwashWidth();
-
-		// 1. Main Path
-		const mainPath = this.pathGroup.selectAll("path.main-path").data(paths.mainPathD ? [paths.mainPathD] : []);
-		mainPath.exit().remove();
-		mainPath
-			.enter()
-			.append("path")
-			.attr("class", "main-path")
-			.merge(mainPath as any)
-			.attr("d", (d) => d)
-			.style("fill", "none")
-			.style("stroke", "rgba(255,255,255,1.0)")
-			.style("stroke-width", `${scaledPathWidth}px`)
-			.style("stroke-linecap", "round")
-			.style("stroke-linejoin", "round");
-
-		// 2. Backwash Path
-		const backwashPath = this.backwashPathGroup.selectAll("path.backwash-path").data(paths.backwashPathD ? [paths.backwashPathD] : []);
-		backwashPath.exit().remove();
-		backwashPath
-			.enter()
-			.append("path")
-			.attr("class", "backwash-path")
-			.merge(backwashPath as any)
-			.attr("d", (d) => d)
-			.style("fill", "none")
-			.style("stroke", "rgba(255,255,255,1.0)")
-			.style("stroke-width", `${scaledBackwashWidth}px`)
-			.style("stroke-dasharray", `${4}, ${8}`)
-			.style("stroke-linecap", "round")
-			.style("stroke-linejoin", "round");
-
-		// 3. PureClean Path
-		const pureCleanPath = this.pureCleanPathGroup.selectAll("path.pure-clean-path").data(paths.pureCleanPathD ? [paths.pureCleanPathD] : []);
-		pureCleanPath.exit().remove();
-		pureCleanPath
-			.enter()
-			.append("path")
-			.attr("class", "pure-clean-path")
-			.merge(pureCleanPath as any)
-			.attr("d", (d) => d)
-			.style("fill", "none")
-			.style("stroke", "rgba(255,255,255,1.0)")
-			.style("stroke-width", `${scaledBackwashWidth}px`)
-			.style("stroke-linecap", "round")
-			.style("stroke-linejoin", "round");
-
-		// 4. Mop Path
-		const mopPath = this.mopPathGroup.selectAll("path.mop-path").data(paths.mopPathD ? [paths.mopPathD] : []);
-		mopPath.exit().remove();
-		mopPath
-			.enter()
-			.append("path")
-			.attr("class", "mop-path")
-			.merge(mopPath as any)
-			.attr("d", (d) => d)
-			.style("fill", "none")
-			.style("stroke", "rgba(255,255,255,1.0)")
-			.style("stroke-width", `${scaledMopWidth}px`)
-			.style("stroke-linecap", "round")
-			.style("stroke-linejoin", "round");
-	}
-
-	private drawObstacles(obstaclesData?: Array<[number, number, ...any]>) {
-		const params = this.getMapParams();
-		if (!params || !obstaclesData) {
-			this.obstacleGroup.selectAll(".obstacle-group").remove();
-			return;
-		}
-		const fixedRadius = this.rescaler.scale() * UI_CONSTANTS.OBSTACLE_RADIUS_BASE;
-		const bgRadius = fixedRadius * 1.1;
-		const imageSize = fixedRadius * 1.8;
-
-		const groups = this.obstacleGroup.selectAll(".obstacle-group").data(obstaclesData);
-
-		groups.exit().remove();
-
-		const enterGroups = groups
-			.enter()
-			.append("g")
-			.attr("class", "obstacle-group")
-			.style("cursor", "default")
-			.on("click", (event: MouseEvent, d: any) => {
-				if (!this.currentRobotDuid) return;
-				event.stopPropagation();
-				this.selectedObstacleID = d[6];
-				const robotPoint = { x: d[0], y: d[1] };
-				const worldPoint = robotCoordsToLocalCoords(robotPoint, params!);
-				this.popupX = worldPoint.x;
-				this.popupY = worldPoint.y;
-
-				if (this.popupTimeout) clearTimeout(this.popupTimeout);
-
-				this.connection
-					.sendTo(this.instanceId, "get_obstacle_image", { obstacleId: this.selectedObstacleID, duid: this.currentRobotDuid, type: 1 })
-					.then((response) => {
-
-						if (response && (response as any).image) {
-							let imageData = (response as any).image as string;
-							if (typeof imageData === "string" && !imageData.startsWith("data:image/")) imageData = "data:image/png;base64," + imageData;
-							this.popupImage.src = imageData;
-							this.popup.style.display = "block";
-							this.triangle.style.display = "block";
-							this.updatePopupPosition();
-							this.popupTimeout = window.setTimeout(() => {
-								this.popup.style.display = "none";
-								this.triangle.style.display = "none";
-								this.popupTimeout = null;
-							}, 3000);
-						} else if (response && (response as any).data && (response as any).version === undefined) {
-							// Fallback for raw buffer if passed as object
-						}
-					})
-					.catch((err) => console.error("Error getting obstacle image:", err));
-				this.updatePopupPosition();
-			});
-
-		enterGroups
-			.append("circle")
-			.attr("class", "obstacle-bg")
-			.attr("r", bgRadius)
-			.attr("fill", "rgba(100, 100, 100, 0.2)") // More transparent
-			.attr("stroke", "white")
-			.attr("stroke-width", 0.5); // Thinner border
-
-		enterGroups
-			.append("image")
-			.attr("class", "obstacle-icon")
-			.attr("width", imageSize)
-			.attr("height", imageSize)
-			.attr("x", -imageSize / 2)
-			.attr("y", -imageSize / 2);
-
-		const allGroups = enterGroups.merge(groups as any);
-
-		allGroups.attr("transform", (d: any) => {
-			const pos = this.robotToSvg({ x: d[0] + 25, y: d[1] + 25 }, params); // Added +25 offset for obstacle center?
-			return `translate(${pos.x}, ${pos.y})`;
-		});
-
-		// Fallback icon first; then try obstacle_new_p, else map_object_top.
-		const modelFolder = this.model || (this.currentRobotDuid && this.robotModels[this.currentRobotDuid]) || (Object.keys(this.robotModels).length ? this.robotModels[Object.keys(this.robotModels)[0]] : null) || "roborock.vacuum.a147";
-		const baseUrl = `assets/${modelFolder}/drawable-mdpi/`;
-		const fallbackUrl = baseUrl + obstacleAssetFileName("18");
-		allGroups
-			.select("image")
-			.attr("href", fallbackUrl)
-			.each(function (this: SVGImageElement, d: any) {
-				const suffix = OBSTACLE_MAPPING[Number(d[2])] ?? "18";
-				if (suffix === "18") return;
-				const primaryUrl = baseUrl + obstacleAssetFileName(suffix);
-				const altUrl = baseUrl + obstacleAssetFileNameAlt(suffix);
-				const el = this;
-				const img = new Image();
-				const tryAlt = () => {
-					img.onload = () => { d3.select(el).attr("href", altUrl); };
-					img.onerror = () => { /* keep fallback */ };
-					img.src = altUrl;
-				};
-				img.onload = () => { d3.select(el).attr("href", primaryUrl); };
-				img.onerror = tryAlt;
-				img.src = primaryUrl;
-			});
-	}
-
-	private drawCarpet(carpetMap?: number[]) {
-		if (!carpetMap || !this.mapImage || !this.mapImage.dimensions) {
-			this.carpetGroup.selectAll("*").remove();
-			return;
-		}
-
-		// mapData provides UNSCALED dimensions (raw grid size)
-		// We do NOT divide by VISUAL_BLOCK_SIZE here because dimensions IS the grid size.
-		const gridWidth = this.mapImage.dimensions.width;
-		const gridHeight = this.mapImage.dimensions.height;
-		const stride = 3;
-
-		const pathCoords: string[] = [];
-
-		// Consistent Offsets with Coords.ts
-		// For grid-based elements (Carpet), we align to the grid cell (0,0), not the center (1.5, 1.5).
-		// Paths use 1.5 to be in the center of the cell. Carpets fill the cell.
-		const offsetX = 0;
-		const offsetY = 0;
-
-		carpetMap.forEach((px) => {
-			const col = px % gridWidth;
-			const row = Math.floor(px / gridWidth);
-			const invertedRow = gridHeight - row - 1;
-
-			const baseX = col * VISUAL_BLOCK_SIZE + offsetX;
-			const baseY = invertedRow * VISUAL_BLOCK_SIZE + offsetY;
-
-			for (let dx = 0; dx < VISUAL_BLOCK_SIZE; dx++) {
-				for (let dy = 0; dy < VISUAL_BLOCK_SIZE; dy++) {
-					if ((dx + dy) % stride === 2) {
-						pathCoords.push(`M${baseX + dx} ${baseY + dy}h1v1h-1z`);
-					}
-				}
-			}
-		});
-
-		const combinedPathData = pathCoords.join("");
-
-		const pathSelection = this.carpetGroup.selectAll("path.carpet-path").data([combinedPathData]);
-		pathSelection.exit().remove();
-		pathSelection
-			.enter()
-			.append("path")
-			.attr("class", "carpet-path")
-			.style("fill", "rgba(0, 0, 0, 0.4)")
-			.attr("shape-rendering", "crispEdges")
-			.merge(pathSelection as any)
-			.attr("d", (d) => d);
 	}
 
 	private drawZones() {
@@ -1073,33 +870,27 @@ class MapApplication {
 		this.zoneGroup.selectAll("circle.zone-handle").attr("r", this.rescaler.zoneHandleRadius());
 
 		const scaledRobotSize = this.rescaler.robotSize();
-		this.robotGroup
-			.selectAll("image.robot")
-			.attr("width", scaledRobotSize)
-			.attr("height", scaledRobotSize)
-			.attr("transform", (d: any) => {
-				const params = this.getMapParams();
-				if (!params) return "";
-				const svgCoords = this.robotToSvg({ x: d.position[0], y: d.position[1] }, params);
-				const angle = -(d.angle ?? 0) + 90;
-				return `translate(${svgCoords.x}, ${svgCoords.y}) rotate(${angle}) translate(${-scaledRobotSize / 2}, ${-scaledRobotSize / 2})`;
-			});
+		const params = this.getMapParams();
+		this.robotGroup.selectAll("image.robot").attr("width", scaledRobotSize).attr("height", scaledRobotSize);
+		if (params && this.map?.ROBOT_POSITION?.position) {
+			const pos = this.map.ROBOT_POSITION.position;
+			const svgCoords = this.robotToSvg({ x: pos[0], y: pos[1] }, params);
+			const angle = -(this.map.ROBOT_POSITION.angle ?? 0) + 90;
+			this.robotGroup
+				.selectAll("image.robot")
+				.attr("transform", `translate(${svgCoords.x}, ${svgCoords.y}) rotate(${angle}) translate(${-scaledRobotSize / 2}, ${-scaledRobotSize / 2})`);
+		}
 
 		const scaledChargerSize = this.rescaler.chargerSize();
-		this.chargerGroup
-			.selectAll("image.charger")
-			.attr("width", scaledChargerSize)
-			.attr("height", scaledChargerSize)
-			.attr("x", (d: any) => {
-				const params = this.getMapParams();
-				if (!params) return 0;
-				return this.robotToSvg({ x: d.position[0], y: d.position[1] }, params).x - scaledChargerSize / 2;
-			})
-			.attr("y", (d: any) => {
-				const params = this.getMapParams();
-				if (!params) return 0;
-				return this.robotToSvg({ x: d.position[0], y: d.position[1] }, params).y - scaledChargerSize / 2;
-			});
+		this.chargerGroup.selectAll("image.charger").attr("width", scaledChargerSize).attr("height", scaledChargerSize);
+		if (params && this.map?.CHARGER_LOCATION?.position) {
+			const pos = this.map.CHARGER_LOCATION.position;
+			const c = this.robotToSvg({ x: pos[0], y: pos[1] }, params);
+			this.chargerGroup
+				.selectAll("image.charger")
+				.attr("x", c.x - scaledChargerSize / 2)
+				.attr("y", c.y - scaledChargerSize / 2);
+		}
 
 		this.pathGroup.selectAll("path.main-path").style("stroke-width", `${this.rescaler.pathMainWidth()}px`);
 		this.backwashPathGroup.selectAll("path.backwash-path").style("stroke-width", `${this.rescaler.pathBackwashWidth()}px`);
@@ -1129,13 +920,17 @@ class MapApplication {
 		if (!this.mapImage || !this.mapImage.dimensions || this.mapMaxY === undefined) {
 			return null;
 		}
+		// coordTransformation expects imageWidth/imageHeight in display pixels (grid × VISUAL_BLOCK_SIZE)
+		// mapData stores grid dimensions (unscaled); carpet uses them as grid, paths/robot/obstacles need display size here
+		const imageWidth = this.mapImage.dimensions.width * VISUAL_BLOCK_SIZE;
+		const imageHeight = this.mapImage.dimensions.height * VISUAL_BLOCK_SIZE;
 		return {
 			scaleFactor: VISUAL_BLOCK_SIZE,
 			left: this.mapImage.position.left,
 			topMap: this.mapImage.position.top,
 			mapMaxY: this.mapMaxY,
-			imageHeight: this.mapImage.dimensions.height,
-			imageWidth: this.mapImage.dimensions.width,
+			imageHeight,
+			imageWidth,
 		};
 	}
 

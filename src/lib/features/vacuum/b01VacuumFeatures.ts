@@ -80,6 +80,13 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			def: false
 		});
 
+		this.addCommand("app_stop", {
+			type: "boolean",
+			role: "button",
+			name: this.deps.adapter.translations["app_stop"] || "Stop",
+			def: false
+		});
+
 		this.addCommand("app_pause", {
 			type: "boolean",
 			role: "button",
@@ -98,6 +105,14 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			type: "boolean",
 			role: "button",
 			name: this.deps.adapter.translations["find_me"] || "Find Me",
+			def: false
+		});
+
+		// 3b. Segment / Room cleaning (B01: service.set_room_clean with room_ids)
+		this.addCommand("app_segment_clean", {
+			type: "boolean",
+			role: "button",
+			name: this.deps.adapter.translations["app_segment_clean"] || "Segment Cleaning",
 			def: false
 		});
 
@@ -140,7 +155,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 		// 13. Consumable Resets are handled in createCommandObjects and initializeDeviceData
 
-		// 14. Additional B01 Commands (Discovered in Sniffer)
+		// 14. Additional B01 Commands
 		this.addCommand("child_lock", {
 			type: "boolean",
 			role: "switch",
@@ -224,15 +239,54 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 	 */
 	public override async getCommandParams(method: string, params?: unknown, id?: string): Promise<unknown> {
 		void id;
-		// Delegate all command parameter mapping to the Control Service to centralize this logic.
+
+		if (method === "app_segment_clean") {
+			const namespace = this.deps.adapter.namespace;
+			const currentMapIdState = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.deviceStatus.current_map_id`);
+			const currentMapId = (currentMapIdState && typeof currentMapIdState.val === "number" && currentMapIdState.val > 0)
+				? currentMapIdState.val
+				: null;
+			const pattern = currentMapId != null
+				? `${namespace}.Devices.${this.duid}.floors.${currentMapId}.*`
+				: `${namespace}.Devices.${this.duid}.floors.*.*`;
+			const states = await this.deps.adapter.getStatesAsync(pattern);
+			const roomIds: number[] = [];
+			const nonRoomKeys = new Set(["name", "mapFlag", "load", "map_id"]);
+
+			if (states) {
+				for (const [stateId, state] of Object.entries(states)) {
+					if (!state || (state.val !== true && state.val !== "true" && state.val !== 1)) continue;
+					const parts = stateId.split(".");
+					const lastSegment = parts[parts.length - 1];
+					if (nonRoomKeys.has(lastSegment)) continue;
+					const rid = Number(lastSegment);
+					if (!isNaN(rid) && rid >= 0 && !roomIds.includes(rid)) {
+						roomIds.push(rid);
+					}
+				}
+			}
+
+			if (roomIds.length > 0) {
+				this.deps.adapter.rLog("System", this.duid, "Info", "B01", undefined, `Starting room cleaning for rooms: ${roomIds.join(", ")}`, "info");
+			} else {
+				this.deps.adapter.rLog("System", this.duid, "Warn", "B01", undefined, "No rooms selected for segment cleaning. Start full clean (room_ids: []).", "warn");
+			}
+
+			return {
+				method: "service.set_room_clean",
+				params: { clean_type: 0, ctrl_value: 1, room_ids: roomIds }
+			};
+		}
+
+		// Delegate all other command parameter mapping to the Control Service
 		return this.controlService.getCommandParams(method, params);
 	}
 
 	public override async initializeDeviceData(): Promise<void> {
 		await this.updateStatus();
-		await this.updateMap(); // Fetch map first to set current index
-		await this.updateMultiMapsList(); // Then get floors
-		await this.updateRoomMapping(); // Finally map rooms
+		await this.updateMap(); // Fetch map first (async 301 push); rooms set when map arrives
+		await this.updateMultiMapsList(); // B01: service.get_map_list → floors.<mapId>
+		await this.updateRoomMapping(); // Create room selection states if mappedRooms already set
 
 		await this.deps.adapter.checkForNewFirmware(this.duid);
 
@@ -244,6 +298,12 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		]);
 	}
 
+	public override async updateMultiMapsList(): Promise<void> {
+		if (this.mapService) {
+			await this.mapService.updateMultiMapsList();
+		}
+	}
+
 	public async updateRoomMapping(): Promise<void> {
 		if (this.mappedRooms && this.mapService) {
 			await this.mapService.updateRoomMapping(this.mappedRooms);
@@ -252,7 +312,8 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 	public setMappedRooms(rooms: Array<{ id: number; name: string }>): void {
 		this.mappedRooms = rooms;
-		this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `Updated mappedRooms: ${JSON.stringify(rooms)}`, "debug");
+		// When map arrives async, create room selection states under current floor
+		void this.updateRoomMapping();
 	}
 
 	// Override updateStatus to use strict B01 prop.get
@@ -325,8 +386,8 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			}
 		}
 
-		// Formatting for specific keys (e.g. timestamps)
-		if ((key === "last_clean_t" || key === "clean_finish") && typeof val === "number") {
+		// Formatting for timestamps only (clean_finish is 0/1 flag, not a timestamp)
+		if (key === "last_clean_t" && typeof val === "number") {
 			val = this.deps.adapter.formatRoborockDate(val);
 		}
 
@@ -334,7 +395,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		const def = this.getCommonDeviceStates(key);
 		let type: ioBroker.CommonType = typeof val as ioBroker.CommonType;
 		if (type === "object" && val !== null) type = "object";
-		if ((key === "last_clean_t" || key === "clean_finish") && typeof val === "string") type = "string"; // Force string type if formatted
+		if (key === "last_clean_t" && typeof val === "string") type = "string";
 
 		const common: any = def ? { ...def } : { name: key, type: type, role: "value", read: true, write: false };
 
@@ -355,14 +416,9 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			val = JSON.stringify(val);
 		}
 
-		// Debug clean_finish value
-		if (key === "clean_finish") {
-			this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `clean_finish raw: ${val}`, "debug");
-		}
-
 		// B01 Area/Time Conversion
 		if (["clean_time", "cleaning_time"].includes(key)) {
-			// sniffs show 'cleaning_time: 25' for 25 min -> already in minutes. No conversion needed.
+			// cleaning_time is in minutes; no conversion.
 			// last_clean_t might be timestamp or duration? usually timestamp if clean_finish.
 			const numericVal = Number(val as number | string);
 			val = isNaN(numericVal) ? 0 : numericVal;
@@ -601,8 +657,8 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		}
 		if (attribute === "clean_finish") {
 			return {
-				type: "string",
-				role: "value.datetime",
+				type: "number",
+				role: "value",
 				name: this.locales.getNameAll(String(attribute)),
 			};
 		}
@@ -941,10 +997,10 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			};
 		}
 
-		// 26. Recommend
+		// 26. Recommend (B01 sends object e.g. { sill, wall, room_id[] }; store as JSON string)
 		if (attribute === "recommend") {
 			return {
-				type: "number",
+				type: "string",
 				name: this.locales.getNameAll(String(attribute)),
 			};
 		}

@@ -35,7 +35,7 @@ const REGION_CONFIG: Record<string, RegionConfig> = {
 		loginCountryCode: "86",
 	},
 	asia: {
-		apiBaseUrl: "https://api.roborock.com", // Fallback/General based on bundle analysis
+		apiBaseUrl: "https://api.roborock.com",
 		loginCountry: "SG", // Default to Singapore for general Asia
 		loginCountryCode: "65",
 	},
@@ -141,8 +141,8 @@ export class http_api {
 			headers: {
 				header_clientid: crypto.createHash("md5").update(this.adapter.config.username).update(clientID).digest().toString("base64"),
 				header_appversion: "4.57.02",
-				header_clientlang: "de",  // Assuming DE based on dump, or use adapter.config.language/system lang
-				header_phonemodel: "Pixel 9 Pro XL", // Using dump value to mimic real device
+				header_clientlang: "de",
+				header_phonemodel: "Pixel 9 Pro XL",
 				header_phonesystem: "Android",
 			},
 		});
@@ -403,11 +403,10 @@ export class http_api {
 		if (!this.loginApi) throw new Error("loginApi is not initialized.");
 
 		try {
-			// Match user dump: type=login&email=...&platform=
 			const params = new URLSearchParams();
 			params.append("type", "login");
 			params.append("email", username);
-			params.append("platform", ""); // empty in dump
+			params.append("platform", "");
 
 			const res = await this.loginApi.post(API_V4_EMAIL_CODE, params.toString());
 
@@ -427,8 +426,6 @@ export class http_api {
 		if (!this.loginApi) return null;
 
 		try {
-			// Dump shows POST to sign endpoint without body, params in URL.
-			// axios.post(url) works.
 			const res = await this.loginApi.post(`${API_V3_SIGN}?s=${s}`);
 			return res.data.data;
 		} catch (e: unknown) {
@@ -439,10 +436,6 @@ export class http_api {
 
 	async loginWithCode(code: string, k: string, s: string): Promise<LoginV4Response> {
 		if (!this.loginApi) throw new Error("loginApi not initialized");
-
-		// Dump shows x-mercy headers and specific body
-		// NO HMAC 'h' in body shown in dump for this request!
-		// Headers: x-mercy-k, x-mercy-ks
 
 		const headers = {
 			"x-mercy-k": k,
@@ -458,8 +451,8 @@ export class http_api {
 			countryCode: regionConfig.loginCountryCode,
 			email: this.adapter.config.username,
 			code: code,
-			majorVersion: "14", // from dump
-			minorVersion: "0"   // from dump
+			majorVersion: "14",
+			minorVersion: "0"
 		});
 
 		try {
@@ -597,6 +590,7 @@ export class http_api {
 
 	/**
 	 * Downloads the latest Home Data (Devices, Rooms, Products) and stores it in state.
+	 * Uses GET v3/user/homes/{homeID} only (same as Roborock app).
 	 */
 	async updateHomeData(): Promise<void> {
 		if (!this.loginApi) throw new Error("loginApi is not initialized. Call init() first.");
@@ -604,47 +598,22 @@ export class http_api {
 
 		if (this.homeID) {
 			try {
-				// Fetch home details from V2 API
-				const resV2 = await this.realApi.get(`v2/user/homes/${this.homeID}`);
-				this.homeData = resV2.data.result;
+				const res = await this.realApi.get<{ success?: boolean; result?: { id: number; products?: Product[]; devices?: Device[]; receivedDevices?: Device[]; rooms?: Room[] } }>(`v3/user/homes/${this.homeID}`);
 
-				// Fetch home details from V3 API
-				try {
-					const resV3 = await this.realApi.get(`v3/user/homes/${this.homeID}`);
-
-					if (resV3.data.success && resV3.data.result) {
-						const v3Data = resV3.data.result as HomeData;
-
-						// Merge arrays ensuring unique items by key
-						const mergeUnique = (priority: any[], secondary: any[], key: string) => {
-							const initial = priority || [];
-							const additional = secondary || [];
-							const map = new Map(initial.map((item) => [item[key], item]));
-
-							for (const item of additional) {
-								if (!map.has(item[key])) {
-									map.set(item[key], item);
-								}
-							}
-							return Array.from(map.values());
-						};
-
-						if (this.homeData) {
-							// Pass v3Data first so it takes precedence
-							this.homeData.devices = mergeUnique(v3Data.devices, this.homeData.devices, "duid");
-							this.homeData.receivedDevices = mergeUnique(v3Data.receivedDevices, this.homeData.receivedDevices, "duid");
-							this.homeData.products = mergeUnique(v3Data.products, this.homeData.products, "id");
-							this.homeData.rooms = mergeUnique(v3Data.rooms, this.homeData.rooms, "id");
-						} else {
-							this.homeData = v3Data;
-						}
-					}
-				} catch (e3: unknown) {
-					// V3 might fail on older accounts/regions? Log debug but don't crash main init.
-					this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `Failed to fetch V3 HomeData (optional): ${this.adapter.errorMessage(e3)}`, "warn");
+				if (res.data?.success && res.data?.result) {
+					const result = res.data.result;
+					this.homeData = {
+						rrHomeId: result.id,
+						products: result.products || [],
+						devices: result.devices || [],
+						receivedDevices: result.receivedDevices || [],
+						rooms: result.rooms || []
+					};
+					this.adapter.rLog("HTTP", null, "<-", "Cloud", undefined, `HomeData updated (HomeID: ${this.homeID}, Devices: ${this.homeData.devices?.length}, Received: ${this.homeData.receivedDevices?.length})`, "debug");
+				} else {
+					this.homeData = null;
+					this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "V3 HomeData response missing or not success.", "warn");
 				}
-
-				this.adapter.rLog("HTTP", null, "<-", "Cloud", undefined, `HomeData updated (HomeID: ${this.homeID}, Devices: ${this.homeData?.devices?.length})`, "debug");
 
 				await this.adapter.setState("HomeData", { val: JSON.stringify(this.homeData), ack: true });
 			} catch (e: unknown) {
@@ -760,6 +729,28 @@ export class http_api {
 	isSharedDevice(duid: string): boolean {
 		const sharedDevices = this.getReceivedDevices();
 		return sharedDevices.some((device) => device.duid === duid);
+	}
+
+	/**
+	 * Fetches room list for a shared device (owner's rooms).
+	 * GET user/deviceshare/query/{duid}/rooms
+	 * @returns Array of { id, name } or [] on error / non-shared
+	 */
+	async getSharedDeviceRooms(duid: string): Promise<{ id: number; name: string }[]> {
+		if (!duid || !this.isSharedDevice(duid)) return [];
+		try {
+			if (!this.realApi) {
+				this.adapter.rLog("HTTP", duid, "Warn", "Cloud", undefined, "getSharedDeviceRooms: realApi not initialized.", "warn");
+				return [];
+			}
+			const res = await this.realApi.get<{ success?: boolean; result?: { id: number; name: string }[] }>(`user/deviceshare/query/${duid}/rooms`);
+			const result = res.data?.result;
+			if (Array.isArray(result)) return result;
+			return [];
+		} catch (e: any) {
+			this.adapter.rLog("HTTP", duid, "Warn", "Cloud", undefined, `getSharedDeviceRooms failed: ${e?.message || e}`, "warn");
+			return [];
+		}
 	}
 
 	/**

@@ -42,6 +42,8 @@ export class Roborock extends utils.Adapter {
 	public deviceFeatureHandlers: Map<string, BaseDeviceFeatures>;
 	public nonce: Buffer;
 	public pendingRequests: Map<number, RoborockRequest | PendingMapEntry>;
+	/** B01: FIFO queue of expected 301 map response types (classify + taskBeginDate match using this order). */
+	public b01MapResponseQueue: Map<string, Array<"get_map_v1" | "get_clean_record_map">> = new Map();
 	public appPluginManager: AppPluginManager;
 
 	public isInitializing: boolean;
@@ -878,7 +880,6 @@ export class Roborock extends utils.Adapter {
 					this.log[isShutdown ? "info" : "error"](`go2rtc ${isShutdown ? "output" : "error output"}: ${msg}`);
 				});
 
-				// Remove the process reference on exit to prevent double-kill attempts
 				// Remove the process reference on exit to prevent double-kill attempts
 				this.go2rtcProcess!.on("exit", () => {
 					this.go2rtcProcess = null;

@@ -55,7 +55,7 @@ export const VACUUM_CONSTANTS = {
 		17: "Empty Wash Fill Dry Dock (Qrevo Curv)",
 		18: "Empty Wash Fill Dry Dock (S8 Pro)",
 	},
-	// B01 Devices: Property lists from user sniff logs (Protocol 101/102 via prop.get)
+	// B01 Devices: Property lists (Protocol 101/102 via prop.get)
 	b01StatusProps: [
 		"status", "fault", "wind", "water", "mode", "quantity", "repeat_state", "tank_state",
 		"sweep_type", "clean_path_preference", "cloth_state", "time_zone", "time_zone_info",

@@ -28,33 +28,31 @@ export class MapManager {
      * @param model The robot model (used for key derivation/assets).
      * @param serial The robot serial (used for key derivation).
      * @param mappedRooms Optional room mapping for V1.
+     * @param currentMapIndex Optional floor index for V1; when set and mappedRooms empty, segment names are enriched from room states.
      */
-	public async processMap(rawData: Buffer, version: string, model: string, serial: string, mappedRooms: any[] | null, duid?: string, connectionType: string = "Unknown", deviceStatus?: B01DeviceStatus): Promise<{ mapBase64: string, mapBase64Clean?: string, mapData?: any } | null> {
+	public async processMap(rawData: Buffer, version: string, model: string, serial: string, mappedRooms: any[] | null, duid?: string, connectionType: string = "Unknown", deviceStatus?: B01DeviceStatus, currentMapIndex?: number): Promise<{ mapBase64: string, mapBase64Clean?: string, mapData?: any } | null> {
 		try {
 			// Robust device status retrieval if not provided
 			if (version === "B01" && !deviceStatus && duid) {
 				deviceStatus = await this.getDeviceStatusForB01(duid);
 			}
 
-			const startTime = Date.now();
-
 			if (version === "B01") {
 				const mapData = this.parserB01.parse(rawData, serial, model, duid || "", connectionType);
-				if (mapData) {
-					this.adapter.rLog(connectionType as any, duid || "unknown", "Info", version, 301, `B01 Parse Result -> Header: ${JSON.stringify(mapData.header)}, GridLen: ${mapData.mapGrid?.length}, Rooms: ${mapData.rooms?.length}`, "debug");
-
-					const mapBuf = await this.builderB01.buildMap(mapData, model, duid, deviceStatus);
-					const duration = Date.now() - startTime;
-					this.adapter.rLog("MapManager", duid || null, "Info", version, 301, `B01 Map Built. Buffer Size: ${mapBuf.length}. Duration: ${duration}ms`, "debug");
-
-					const mapBase64 = "data:image/png;base64," + mapBuf.toString("base64");
-					return {
-						mapBase64: mapBase64,
-						mapBase64Clean: mapBase64, // Reuse same map for clean view for now
-						mapData: mapData
-					};
-				} else {
-					this.adapter.rLog("MapManager", duid || null, "Info", version, 301, `B01 Parser returned NULL.`, "debug");
+				if (mapData && mapData.mapGrid && mapData.mapGrid.length > 0) {
+					const expectedGridSize = mapData.header.sizeX * mapData.header.sizeY;
+					// Only accept when grid length exactly matches header (real maps); reject wrong decryption, fragments, or non-map packets.
+					if (expectedGridSize > 0 && mapData.mapGrid.length !== expectedGridSize) {
+						this.adapter.rLog(connectionType as any, duid || "unknown", "Warn", version, 301, `B01 map rejected: grid size inconsistent with header (got ${mapData.mapGrid.length}, expected sizeX*sizeY=${expectedGridSize})`, "warn");
+					} else {
+						const mapBuf = await this.builderB01.buildMap(mapData, model, duid, deviceStatus);
+						const mapBase64 = "data:image/png;base64," + mapBuf.toString("base64");
+						return {
+							mapBase64: mapBase64,
+							mapBase64Clean: mapBase64, // Reuse same map for clean view for now
+							mapData: mapData
+						};
+					}
 				}
 			} else {
 				// V1 Handling with MapDecryptor (GZIP)
@@ -65,12 +63,27 @@ export class MapManager {
 				}
 
 				// V1 parser returns ParsedMapData OR empty object
-				const mapData = await this.mapParser.parsedata(mapBuf, mappedRooms);
+				const mapData = await this.mapParser.parsedata(mapBuf, mappedRooms, { isHistoryMap: false, duid: duid ?? undefined });
+
+				// For cloud robots mappedRooms may be empty; enrich segment names from room states when possible
+				if (mapData && Object.keys(mapData).length > 0 && duid != null && "IMAGE" in mapData) {
+					const floor = (currentMapIndex != null && currentMapIndex >= 0) ? currentMapIndex : 0;
+					const list = mapData.IMAGE?.segments?.list;
+					if (Array.isArray(list) && (!mappedRooms || mappedRooms.length === 0)) {
+						for (const seg of list) {
+							if (seg.id != null && !seg.name) {
+								const obj = await this.adapter.getObjectAsync(`Devices.${duid}.floors.${floor}.${seg.id}`);
+								const name = (obj as any)?.common?.name;
+								if (name && String(name).trim()) seg.name = String(name).trim();
+							}
+						}
+					}
+				}
 
 				if (mapData && Object.keys(mapData).length > 0) {
 					// Legacy MapCreator returns [clean, full]
 					// We cast builderV1 to any to avoid type issues if CanvasMap isn't explicitly typed in class definition yet
-					const [mapBase64Clean, mapBase64] = await this.mapCreator.canvasMap(mapData, { mappedRooms, model });
+					const [mapBase64Clean, mapBase64] = await this.mapCreator.canvasMap(mapData, { mappedRooms, model, duid: duid ?? undefined });
 					return {
 						mapBase64: mapBase64,
 						mapBase64Clean: mapBase64Clean,
@@ -98,10 +111,6 @@ export class MapManager {
 		const cleanModeObj = await getVal(["mode", "cleanMode", "17"]);
 		const dustCollectObj = await getVal(["dust_action", "dust_collection_status", "105"]);
 		const faultObj = await getVal(["fault", "deviceFault", "18"]);
-
-		// Log found properties for debugging
-		if (stateObj) this.adapter.rLog("MapManager", duid, "Debug", "B01", undefined, `Status found in '${stateObj.source}': ${stateObj.val}`);
-		if (faultObj && Number(faultObj.val) !== 0) this.adapter.rLog("MapManager", duid, "Debug", "B01", undefined, `Fault found in '${faultObj.source}': ${faultObj.val}`);
 
 		return {
 			deviceState: stateObj ? Number(stateObj.val) : 0,

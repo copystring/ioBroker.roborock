@@ -1,11 +1,14 @@
 import * as crypto from "crypto";
 import * as mqtt from "mqtt";
+import * as protobuf from "protobufjs";
 import * as zlib from "zlib";
 import type { Roborock } from "../main";
 import { MapDecryptor as B01MapDecryptor } from "./map/b01/MapDecryptor";
+import { ROBOROCK_PROTO_STR } from "./map/b01/roborock_proto";
+import { B01ChunkAssembler } from "./B01ChunkAssembler";
 import { PhotoManager } from "./PhotoManager";
 
-// PhotoManager logic handles protocol 300/301 for camera images
+let cachedB01RobotMapType: protobuf.Type | null = null;
 
 export class mqtt_api {
 	adapter: Roborock;
@@ -14,6 +17,7 @@ export class mqtt_api {
 	client: any;
 	connected: boolean;
 	public photoManager: PhotoManager;
+	private chunkAssembler: B01ChunkAssembler;
 	mqttOptions: any;
 	reconnectTimer: any;
 
@@ -28,6 +32,7 @@ export class mqtt_api {
 		this.reconnectTimer = null;
 
 		this.photoManager = new PhotoManager(this.adapter);
+		this.chunkAssembler = new B01ChunkAssembler(adapter);
 	}
 
 	/**
@@ -227,7 +232,7 @@ export class mqtt_api {
 				if (knownDevices.some(d => d.duid === duid)) {
 					// Direct match
 				} else {
-					// Fallback: If last segment is NOT a known DUID, it might be an endpoint-only response message.
+					// Last segment not a known DUID: treat as endpoint-only response topic.
 					// Search backwards through path for any known DUID.
 					const safeParts = [...parts];
 					for (let i = safeParts.length - 2; i >= 0; i--) {
@@ -251,16 +256,12 @@ export class mqtt_api {
 		this.adapter.rLog("MQTT", null, "Info", undefined, undefined, `MQTT message listener initialized.`, "info");
 	}
 
-	/**
-	 * Helper to decrypt B01 payload if needed using device keys
-	 */
 	private decryptB01Payload(payload: Buffer, duid: string): Buffer {
 		const devices = this.adapter.http_api.getDevices();
 		const device = devices.find((d: any) => d.duid === duid);
 		const serial = device?.sn || "";
 		const model = this.adapter.http_api.getRobotModel(duid) || "roborock.vacuum.a27";
 		const localKey = this.adapter.http_api.getMatchedLocalKeys().get(duid);
-
 		const result = B01MapDecryptor.decrypt(payload, serial, model, duid, this.adapter, localKey);
 		return result || payload;
 	}
@@ -272,7 +273,7 @@ export class mqtt_api {
 		const reqId = Number(response.msgId || response.id);
 
 		if (isNaN(reqId) || reqId <= 0) {
-			this.adapter.rLog("MQTT", duid, "<-", "B01", undefined, `Message has no valid ID`, "warn");
+			this.adapter.rLog("MQTT", duid, "<-", "B01", undefined, "Message has no valid ID", "warn");
 			return;
 		}
 
@@ -287,15 +288,14 @@ export class mqtt_api {
 			return;
 		}
 
-		// Map the response 'data' (on success) or fallback to 'result'/'error'
-		const result = response.code === 0 ? response.data : (response.error || response.result);
+		const result: unknown = response.data ?? response.result ?? response.error;
 
 		// Special handling for Map/Photo ACKs in B01
 		const isMapOrPhoto = ["get_map_v1", "get_clean_record_map", "get_photo"].includes(pending.method);
 		const isSuccessOk = result === "ok" || (Array.isArray(result) && result[0] === "ok");
 
 		if (isMapOrPhoto && isSuccessOk) {
-			this.adapter.rLog("MQTT", duid, "<-", "B01", reqId, `Map/Photo ACK for ${pending.method}. Waiting for data.`, "debug", reqId);
+			// ACK received, waiting for binary data
 		} else {
 			this.adapter.requestsHandler.resolvePendingRequest(reqId, result, `MQTT-B01`, duid, "MQTT");
 		}
@@ -322,9 +322,8 @@ export class mqtt_api {
 	/**
 	 * Handles a B01 response that doesn't match any pending request.
 	 */
-	private handleUnknownB01Response(duid: string, reqId: number): void {
+	private handleUnknownB01Response(_duid: string, reqId: number): void {
 		if (this.adapter.requestsHandler.isRequestRecentlyFinished(reqId)) {
-			this.adapter.rLog("MQTT", duid, "<-", "B01", reqId, `Response finished recently.`, "debug");
 			return;
 		}
 	}
@@ -354,6 +353,21 @@ export class mqtt_api {
 		if (data.protocol === 300 || data.protocol === 301 || data.protocol === 302) {
 			await this.handlePhotoOrMapData(duid, data);
 			return;
+		}
+
+		// 3b. Protocol 101 (V1 get_photo: binary photo or JSON ACK/error)
+		if (data.protocol === 101 && data.version === "1.0") {
+			if (data.payload.length >= 8 && data.payload.subarray(0, 8).toString("ascii") === "ROBOROCK") {
+				const pending = this.adapter.requestsHandler.getPendingBinaryRequest(data.payload, duid);
+				const msgId =
+					pending && "binaryType" in pending && pending.binaryType === "photo" ? (pending as { messageID?: number }).messageID : undefined;
+				await this.photoManager.handlePhotoProtocol301(duid, data.payload, msgId);
+				return;
+			}
+			if (data.payload.length > 0 && data.payload[0] === 0x7B) {
+				await this.handleProtocol101Response(duid, data);
+				return;
+			}
 		}
 
 		// 4. Protocol 500 (Device Status / OTA)
@@ -401,15 +415,6 @@ export class mqtt_api {
 				}
 			}
 			await this.handleB01Response(inner, duid);
-			return;
-		}
-
-		// Fallback: Check if the payload ITSELF is the response (Unwrapped B01)
-		const hasId = !!(parsedPayload.id || parsedPayload.msgId);
-		const hasResult = parsedPayload.result !== undefined || parsedPayload.data !== undefined || parsedPayload.code !== undefined || parsedPayload.payload !== undefined;
-
-		if (hasId && hasResult) {
-			await this.handleB01Response(parsedPayload, duid);
 		}
 	}
 
@@ -461,6 +466,31 @@ export class mqtt_api {
 	}
 
 	/**
+	 * Handles Protocol 101 JSON response (V1 get_photo ACK or error). Same semantics as 102: do not resolve on "ok" for get_photo (wait for binary).
+	 */
+	private async handleProtocol101Response(duid: string, data: any): Promise<void> {
+		try {
+			const parsed = JSON.parse(data.payload.toString());
+			const dps101 = parsed.dps?.["101"] ?? (typeof parsed.id !== "undefined" ? parsed : null);
+			const inner = typeof dps101 === "string" ? (() => {
+				try {
+					return JSON.parse(dps101);
+				} catch {
+					return null;
+				}
+			})() : dps101;
+			if (!inner || typeof inner !== "object") return;
+
+			const pendingRequest = this.adapter.pendingRequests.get(inner.id);
+			if (pendingRequest) {
+				await this.resolveProtocol102Request(duid, 101, inner, pendingRequest);
+			}
+		} catch (e) {
+			this.adapter.rLog("MQTT", duid, "Error", "101", undefined, `Failed to parse Protocol 101 response: ${e}`, "error");
+		}
+	}
+
+	/**
 	 * Handles Protocol 500 (Device Status / OTA).
 	 */
 	private async handleProtocol500(duid: string, data: any): Promise<void> {
@@ -485,46 +515,144 @@ export class mqtt_api {
 
 	/**
 	 * Handles binary data messages (Protocol 300/301) for Photos or Maps.
+	 * B01ChunkAssembler distinguishes Photo (ROBOROCK) vs Map and assembles chunked maps.
 	 */
 	async handlePhotoOrMapData(duid: string, data: any): Promise<void> {
 		const payloadBuf = data.payload as Buffer;
-
 		const pending: any = this.adapter.requestsHandler.getPendingBinaryRequest(payloadBuf, duid);
 
 		if (pending) {
 			const binaryType = pending.binaryType;
-			const msgId = pending.messageID;
+			const msgId = (pending as any).messageID;
+			const isMap = binaryType === "map" || (pending as any).method === "get_map_v1" || (pending as any).method === "get_clean_record_map";
 
 			if (binaryType === "photo") {
 				if (data.protocol === 300) {
 					await this.photoManager.handlePhotoProtocol300(duid, payloadBuf);
 				} else {
-					// Force processing as photo (even if mapped as generic P301)
 					await this.photoManager.handlePhotoProtocol301(duid, payloadBuf, msgId);
 				}
 				return;
-			} else if (binaryType === "map") {
-				if (data.protocol === 301) {
-					await this.handleV1MapPacket(duid, data, payloadBuf);
-				} else if (data.protocol === 302) {
+			}
+			if (isMap) {
+				if (data.protocol === 302) {
 					await this.handleB01Map(duid, data, payloadBuf);
+					return;
 				}
-				return;
+				if (data.protocol === 301 && !(payloadBuf.length >= 3 && payloadBuf.subarray(0, 3).toString("ascii") === "B01")) {
+					await this.handleV1MapPacket(duid, data, payloadBuf);
+					return;
+				}
+				// 300 or 301 with B01 payload: B01 chunked map, fall through to chunkAssembler
 			}
 		}
 
-		// Absolute fallback for unexpected or unflagged data (e.g. unsolicited packets or headerless Type 0 chunks)
+		// Continuation chunks (no ROBOROCK header) may not match getPendingBinaryRequest; try PhotoManager if we have a pending photo.
+		if (!pending && data.protocol === 301 && payloadBuf.length >= 3 &&
+			payloadBuf.subarray(0, 3).toString("ascii") !== "B01" &&
+			this.adapter.requestsHandler.hasPendingPhotoRequest(duid)) {
+			const handled = await this.photoManager.handlePhotoProtocol301(duid, payloadBuf);
+			if (handled) return;
+		}
+
+		// Gate: pending request is photo (binaryType === "photo") => only PhotoManager, never feed to Map assembler.
+		// Exception: payload starting with "B01" is a map frame, still send to chunkAssembler.
+		if ((data.protocol === 300 || data.protocol === 301) && this.adapter.requestsHandler.hasPendingPhotoRequest(duid) &&
+			!(payloadBuf.length >= 3 && payloadBuf.subarray(0, 3).toString("ascii") === "B01")) {
+			const handled = data.protocol === 300
+				? await this.photoManager.handlePhotoProtocol300(duid, payloadBuf)
+				: await this.photoManager.handlePhotoProtocol301(duid, payloadBuf);
+			if (handled) return;
+			// Not handled (e.g. out-of-order): skip chunkAssembler so we don't buffer as map and trigger timeout.
+			return;
+		}
+
+		if (data.protocol === 300 || data.protocol === 301) {
+			const result = await this.chunkAssembler.process(duid, {
+				protocol: data.protocol,
+				seq: data.seq,
+				payload: payloadBuf,
+				payloadLen: data.payloadLen,
+			});
+
+			if (result.type === "photo") {
+				if (data.protocol === 300) {
+					await this.photoManager.handlePhotoProtocol300(duid, result.payload);
+				} else {
+					await this.photoManager.handlePhotoProtocol301(duid, result.payload, pending?.messageID);
+				}
+				return;
+			}
+			if (result.type === "map") {
+				this.resolveAndSendB01Map(duid, result.payload, data.protocol);
+				return;
+			}
+			if (result.type === "map_chunk_buffered") return;
+		}
+
 		if (data.protocol === 300) {
 			await this.photoManager.handlePhotoProtocol300(duid, payloadBuf);
 		} else if (data.protocol === 301) {
-			// Try PhotoManager first as it tracks active raw photo streams (Type 0)
-			const handledAsPhoto = await this.photoManager.handlePhotoProtocol301(duid, payloadBuf);
-			if (!handledAsPhoto) {
-				await this.handleV1MapPacket(duid, data, payloadBuf);
-			}
+			await this.tryHandleB01Map301Single(duid, data);
 		} else if (data.protocol === 302) {
 			await this.handleB01Map(duid, data, payloadBuf);
 		}
+	}
+
+	/** Resolves decrypted B01 map to pending request (301 logic: taskBeginDate/classify) and sends payload; no-op if no match. */
+	private resolveAndSendB01Map(duid: string, mapBuf: Buffer, protocol: number): void {
+		const foundId = this.resolveB01Map301ToPendingId(duid, mapBuf);
+		this.resolvePendingMapIfFound(foundId, mapBuf, protocol, duid);
+	}
+
+	/** Sends map payload to pending request when foundId is valid; no-op otherwise. */
+	private resolvePendingMapIfFound(foundId: number, mapBuf: Buffer, protocol: number, duid: string): void {
+		if (foundId !== -1) {
+			this.adapter.requestsHandler.resolvePendingRequest(foundId, mapBuf, protocol, duid, "MQTT", "B01");
+		}
+	}
+
+	/** Single 301 frame (no chunk assembler): envelope, JSON error log, then decrypt and resolve if B01 map. */
+	private async tryHandleB01Map301Single(duid: string, data: any): Promise<void> {
+		const payloadBuf = data.payload as Buffer;
+		if (this.handleB01Map301Envelope(duid, data)) return;
+		if (payloadBuf[0] === 0x7B) {
+			this.logIf301IsCloudError(duid, payloadBuf);
+			return;
+		}
+		const hasB01Signature =
+			(payloadBuf.length >= 3 && payloadBuf.toString("ascii", 0, 3) === "B01") ||
+			(payloadBuf.length >= 8 && payloadBuf.subarray(0, 8).toString("ascii") === "ROBOROCK");
+		if (!hasB01Signature) return;
+		const workingBuf = this.getB01MapBuffer(duid, payloadBuf);
+		if (workingBuf?.length > 0) this.resolveAndSendB01Map(duid, workingBuf, data.protocol);
+	}
+
+	/**
+	 * Recognizes B01 map 301 envelope: {"roborock":{"ver":"B01","proto":301,"map_id":...},...}.
+	 * When recognized: if cloud error → resolve pending with null; else return true.
+	 */
+	private handleB01Map301Envelope(duid: string, data: any): boolean {
+		const payloadBuf = data.payload as Buffer;
+		if (payloadBuf.length < 50 || payloadBuf[0] !== 0x7B) return false;
+		let json: { roborock?: { ver?: string; proto?: number; map_id?: number; error?: string }; ver?: string; proto?: number; map_id?: number; error?: string };
+		try {
+			json = JSON.parse(payloadBuf.toString("utf8"));
+		} catch {
+			return false;
+		}
+		const roborock = json?.roborock ?? json;
+		if (roborock?.ver !== "B01" || roborock?.proto !== 301 || !("map_id" in roborock)) return false;
+
+		const pendingId = this.findPendingB01MapRequestByMethod(duid, "get_map_v1");
+		const id = pendingId !== -1 ? pendingId : this.findPendingB01MapRequestByMethod(duid, "get_clean_record_map");
+		if (id === -1) return true;
+
+		if (roborock.error) {
+			this.adapter.rLog("MQTT", duid, "Warn", "B01", undefined, `301 map envelope: cloud error (${roborock.error})`, "warn");
+		}
+		this.adapter.requestsHandler.resolvePendingRequest(id, null, data.protocol, duid, "MQTT", "B01");
+		return true;
 	}
 
 	private async handleV1MapPacket(duid: string, data: any, payloadBuf: Buffer): Promise<void> {
@@ -540,75 +668,134 @@ export class mqtt_api {
 			if (pending.method !== "get_map_v1" && pending.method !== "get_clean_record_map") {
 				return;
 			}
-
 			const unzipped = this.decryptAndUnzipV1MapCore(payloadBuf.subarray(24));
 			this.adapter.requestsHandler.resolvePendingRequest(msgId, unzipped, data.protocol, duid, "MQTT", "1.0");
 		} catch (e: unknown) {
-			this.adapter.rLog("MQTT", duid, "Error", "1.0", String(data.protocol), `V1 Map processing failed: ${this.adapter.errorMessage(e)}`, "error");
+			this.adapter.rLog("MQTT", duid, "Error", "1.0", String(data.protocol), `V1 map processing failed: ${this.adapter.errorMessage(e)}`, "error");
 		}
 	}
 
+	/** V1 map: outer payload decrypted by messageParser; inner is AES-128-CBC (adapter nonce) then gzip. */
 	private decryptAndUnzipV1MapCore(decryptedPayload: Buffer): Buffer {
-		// Note: The outer payload (decryptedPayload) is already decrypted by the messageParser (Protocol 101/301 wrapper).
-		// However, for V1 Maps, the inner content is encrypted AGAIN using AES-128-CBC with the adapter nonce.
-		try {
-			const iv = Buffer.alloc(16, 0);
-			const decipher = crypto.createDecipheriv("aes-128-cbc", this.adapter.nonce, iv);
-			let decrypted = decipher.update(decryptedPayload as Uint8Array);
-			decrypted = Buffer.concat([decrypted as Uint8Array, decipher.final()]);
-			try {
-				return zlib.gunzipSync(decrypted as Uint8Array);
-			} catch {
-				return decrypted;
-			}
-		} catch (err: unknown) {
-			throw new Error(`Inner decryption failed: ${this.adapter.errorMessage(err)}`);
-		}
+		const iv = Buffer.alloc(16, 0);
+		const decipher = crypto.createDecipheriv("aes-128-cbc", this.adapter.nonce, iv);
+		let decrypted = decipher.update(decryptedPayload as Uint8Array);
+		decrypted = Buffer.concat([decrypted as Uint8Array, decipher.final()]);
+		return zlib.gunzipSync(decrypted as Uint8Array);
 	}
 
-	/**
-	 * Handles B01 Map Data (JSON Wrapped or Raw Encrypted with MapKey)
-	 */
+	/** Handles B01 map (protocol 302): decrypt then resolve to first pending map request (FIFO). */
 	private async handleB01Map(duid: string, data: any, payloadBuf: Buffer): Promise<void> {
 		try {
-			const workingBuf = await this.getB01MapBuffer(duid, payloadBuf);
-			const foundId = this.findPendingB01MapRequest(duid);
-
-			if (foundId !== -1) {
-				this.adapter.requestsHandler.resolvePendingRequest(foundId, workingBuf, data.protocol, duid, "MQTT", "B01");
-			}
+			const workingBuf = this.getB01MapBuffer(duid, payloadBuf);
+			this.resolvePendingMapIfFound(this.findPendingB01MapRequest(duid), workingBuf, data.protocol, duid);
 		} catch (e: unknown) {
 			this.adapter.rLog("MQTT", duid, "Error", "B01", undefined, `B01 Map processing failed: ${this.adapter.errorMessage(e)}`, "error");
 		}
 	}
 
-	private async getB01MapBuffer(duid: string, payloadBuf: Buffer): Promise<Buffer> {
-		if (payloadBuf.length <= 0 || payloadBuf[0] !== 0x7B) { // NOT '{'
-			const processed = this.decryptB01Payload(payloadBuf, duid);
-			return (processed && processed.length > 0) ? processed : payloadBuf;
-		}
-
-		try {
-			const json = JSON.parse(payloadBuf.toString("utf8"));
-			if (!json.payload) return payloadBuf;
-
-			const innerBuf = Buffer.from(json.payload, "hex");
-			const finalPayload = this.decryptB01Payload(innerBuf, duid);
-			return (finalPayload && finalPayload.length > 0) ? finalPayload : payloadBuf;
-		} catch {
-			const processed = this.decryptB01Payload(payloadBuf, duid);
-			return (processed && processed.length > 0) ? processed : payloadBuf;
-		}
+	/** Decrypts B01 map payload. Callers (301 after envelope/0x7B skip, 302 chunk result) pass raw Layer1 payload only. */
+	private getB01MapBuffer(duid: string, payloadBuf: Buffer): Buffer {
+		const processed = this.decryptB01Payload(payloadBuf, duid);
+		return (processed && processed.length > 0) ? processed : payloadBuf;
 	}
 
+	/**
+	 * Classifies decrypted B01 map payload as live (upload_by_maptype) or history (upload_record_by_url) by protobuf prefix.
+	 * Observed: live 301 first bytes 08 00 12 3c...; history 08 15 12 40... (field 1 value 0 vs 21).
+	 */
+	private classifyB01Map301Payload(decryptedBuf: Buffer): "get_map_v1" | "get_clean_record_map" | null {
+		if (decryptedBuf.length < 3) return null;
+		if (decryptedBuf[0] !== 0x08 || decryptedBuf[2] !== 0x12) return null;
+		if (decryptedBuf[1] === 0x00) return "get_map_v1";   // live
+		if (decryptedBuf[1] === 0x15) return "get_clean_record_map"; // history
+		return null;
+	}
+
+	/** Removes the first queue entry that matches the given method; returns true if removed. */
+	private shiftFirstMatchingB01MapMethod(duid: string, method: "get_map_v1" | "get_clean_record_map"): boolean {
+		const queue = this.adapter.b01MapResponseQueue?.get(duid);
+		if (!queue || queue.length === 0) return false;
+		const idx = queue.indexOf(method);
+		if (idx === -1) return false;
+		queue.splice(idx, 1);
+		if (queue.length === 0) this.adapter.b01MapResponseQueue!.delete(duid);
+		else this.adapter.b01MapResponseQueue!.set(duid, queue);
+		return true;
+	}
+
+	/**
+	 * Resolves the 301 payload to the correct pending map request ID.
+	 * History: taskBeginDate (from protobuf) only.
+	 * Live: classify by payload prefix (08 00 12) + queue, then match by method.
+	 */
+	private resolveB01Map301ToPendingId(duid: string, payloadBuf: Buffer): number {
+		const isHistoryProtobuf = payloadBuf.length >= 3 && payloadBuf[0] === 0x08 && payloadBuf[1] === 0x15 && payloadBuf[2] === 0x12;
+		if (isHistoryProtobuf) {
+			const taskBeginDate = this.extractTaskBeginDate(payloadBuf);
+			if (taskBeginDate != null) {
+				for (const [id, req] of this.adapter.pendingRequests) {
+					if ((req as any).duid === duid && (req as any).method === "get_clean_record_map" && (req as any).startTime === taskBeginDate) {
+						return typeof id === "number" ? id : -1;
+					}
+				}
+			}
+			return -1;
+		}
+
+		const classifiedMethod = this.classifyB01Map301Payload(payloadBuf);
+		if (classifiedMethod) {
+			this.shiftFirstMatchingB01MapMethod(duid, classifiedMethod);
+			return this.findPendingB01MapRequestByMethod(duid, classifiedMethod);
+		}
+		return -1;
+	}
+
+	/** Returns the first pending map request for this duid (used for protocol 302 chunked map). */
 	private findPendingB01MapRequest(duid: string): number {
 		for (const [id, req] of this.adapter.pendingRequests) {
-			const methods = ["get_map_v1", "get_clean_record_map", "service.upload_by_maptype", "service.upload_record_by_url"];
-			if (methods.includes(req.method) && req.duid === duid) {
+			if ((req.method === "get_map_v1" || req.method === "get_clean_record_map") && req.duid === duid) {
 				return id;
 			}
 		}
 		return -1;
+	}
+
+	private extractTaskBeginDate(buffer: Buffer): number | null {
+		if (!buffer || buffer.length < 3) return null;
+		try {
+			if (!cachedB01RobotMapType) {
+				const root = protobuf.parse(ROBOROCK_PROTO_STR).root;
+				cachedB01RobotMapType = root.lookupType("SCMap.RobotMap");
+			}
+			const decoded = cachedB01RobotMapType.decode(buffer) as { mapExtInfo?: { taskBeginDate?: number } };
+			const taskBeginDate = decoded?.mapExtInfo?.taskBeginDate;
+			return taskBeginDate != null && typeof taskBeginDate === "number" ? (taskBeginDate >>> 0) : null;
+		} catch {
+			return null;
+		}
+	}
+
+	/** Returns the id of a pending request for this duid with the given method (get_map_v1 = live, get_clean_record_map = history). */
+	private findPendingB01MapRequestByMethod(duid: string, method: "get_map_v1" | "get_clean_record_map"): number {
+		for (const [id, req] of this.adapter.pendingRequests) {
+			if ((req as any).method === method && (req as any).duid === duid) return id;
+		}
+		return -1;
+	}
+
+	/** Called when 301 payload is JSON (starts with 0x7B). Logs cloud error message if present. */
+	private logIf301IsCloudError(duid: string, payloadBuf: Buffer): void {
+		if (payloadBuf.length < 20 || payloadBuf[0] !== 0x7B) return;
+		try {
+			const json = JSON.parse(payloadBuf.toString("utf8"));
+			const err = json?.roborock?.error ?? json?.error ?? json?.message;
+			if (err && typeof err === "string") {
+				this.adapter.rLog("MQTT", duid, "Warn", "B01", undefined, `301 cloud error: ${err}`, "warn");
+			}
+		} catch {
+			// not JSON
+		}
 	}
 
 	/**
