@@ -2,6 +2,10 @@ import type { RoborockLocales } from "../../../roborock_locales";
 import { FeatureDependencies } from "../../baseDeviceFeatures";
 
 export class B01MapService {
+	private static isLiveMapPayload(data: Buffer): boolean {
+		return data.length >= 3 && data[0] === 0x08 && data[1] === 0x00 && data[2] === 0x12;
+	}
+
 	constructor(
 		private deps: FeatureDependencies,
 		private duid: string,
@@ -10,23 +14,17 @@ export class B01MapService {
 	) {}
 
 	public async updateMap(): Promise<void> {
+		const dummyId = -Math.floor(Math.random() * 1000000);
 		try {
-			// Trigger map push (Protocol 301)
-			await this.deps.adapter.requestsHandler.sendRequest(this.duid, "service.upload_by_maptype", {
-				force: 1,
-				map_type: 0
-			});
-			this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, "Triggered B01 Map update via service.upload_by_maptype", "debug");
-
-			// Pending Request to handle the async 301 push
-			const dummyId = -Math.floor(Math.random() * 1000000);
-
+			// Pending request MUST exist before sending trigger, so 301 (which can arrive before 102) can find it via FIFO
 			this.deps.adapter.pendingRequests.set(dummyId, {
 				method: "get_map_v1",
 				duid: this.duid,
 				resolve: (data: unknown) => {
 					this.deps.adapter.pendingRequests.delete(dummyId);
 					if (Buffer.isBuffer(data)) {
+						// Guard: room/floor updates must only originate from live maps.
+						if (!B01MapService.isLiveMapPayload(data)) return;
 						void this.processUpdateMapResponse(data);
 					}
 				},
@@ -34,19 +32,25 @@ export class B01MapService {
 					this.deps.adapter.pendingRequests.delete(dummyId);
 				}
 			});
-
 			this.deps.adapter.setTimeout(() => {
 				if (this.deps.adapter.pendingRequests.has(dummyId)) {
 					this.deps.adapter.pendingRequests.delete(dummyId);
 				}
 			}, 15000);
+
+			// Trigger map push (Protocol 301); queue already has one entry, trigger sends and pushes "get_map_v1"
+			await this.deps.adapter.requestsHandler.sendRequest(this.duid, "service.upload_by_maptype", {
+				force: 1,
+				map_type: 0
+			});
 		} catch (e: any) {
+			this.deps.adapter.pendingRequests.delete(dummyId);
 			this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Failed to trigger B01 map update: ${e.message}`, "warn");
 		}
 	}
 
 	protected async processUpdateMapResponse(data: Buffer): Promise<void> {
-		this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `Received Map Data (${data.length} bytes)`, "debug");
+		if (!B01MapService.isLiveMapPayload(data)) return;
 
 		// Live map only: connectionType "B01" so robot/charger are drawn; history uses B01History in getCleaningRecordMap
 		const mapRes = await this.deps.adapter.mapManager.processMap(data, "B01", this.deps.adapter.http_api.getRobotModel(this.duid) || "B01", this.duid, null, this.duid, "B01");
@@ -66,7 +70,6 @@ export class B01MapService {
 	/** Writes map result to Devices.<duid>.map (current/live map only). History maps are never passed here; they go to cleaningInfo.records.<index>.mapBase64 via getCleaningRecordMap. */
 	private async processMapResults(mapResult: { mapBase64: string, mapBase64Clean?: string, mapData?: any } | null): Promise<void> {
 		if (!mapResult) return;
-
 		const { mapData } = mapResult;
 		// B01 returns same image for both; use one for both if only one present so they never get out of sync
 		const mapBase64 = mapResult.mapBase64 || mapResult.mapBase64Clean;
@@ -101,10 +104,7 @@ export class B01MapService {
 		try {
 			const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "service.get_map_list", {});
 			const mapList = (result && typeof result === "object" && (result as any).map_list) || (result && typeof result === "object" && (result as any).data?.map_list);
-			if (!Array.isArray(mapList) || mapList.length === 0) {
-				this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, "B01 get_map_list: no map_list or empty", "debug");
-				return;
-			}
+			if (!Array.isArray(mapList) || mapList.length === 0) return;
 			await this.deps.ensureFolder(`Devices.${this.duid}.floors`);
 			for (const map of mapList) {
 				const mapId = map.id;
@@ -161,6 +161,8 @@ export class B01MapService {
 				return timeB - timeA;
 			});
 
+			// Process records one-by-one: B01 map queue has concurrency 1 (requestsHandler), and we await each
+			// getCleaningRecordMap so only one get_clean_record_map pending exists — avoids wrong 301 assignment.
 			for (let i = 0; i < Math.min(recordList.length, limit); i++) {
 				const recordItem = recordList[i];
 				let detail: any = null;
@@ -251,7 +253,7 @@ export class B01MapService {
 
 	private async processRecordMap(index: number, detail: any, recordItem: any): Promise<void> {
 		const startTime = detail.record_start_time || detail.begin;
-		const mapRes = await this.getCleaningRecordMap(startTime, recordItem);
+		const mapRes = await this.getCleaningRecordMap(startTime, recordItem, index);
 		if (!mapRes) return;
 
 		await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${index}.mapBase64`, {
@@ -264,7 +266,11 @@ export class B01MapService {
 		await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.records.${index}.mapBase64`, { val: mapRes.mapBase64, ack: true });
 	}
 
-	public async getCleaningRecordMap(startTime: number, recordDetails?: unknown): Promise<{ mapBase64CleanUncropped: string; mapBase64: string; mapBase64Truncated: string; mapData: string } | null> {
+	/**
+	 * Fetches one history map (B01). Caller must await this before starting the next record so that
+	 * only one get_clean_record_map pending exists at a time; B01 map queue concurrency is 1 (requestsHandler).
+	 */
+	public async getCleaningRecordMap(startTime: number, recordDetails?: unknown, recordIndex?: number): Promise<{ mapBase64CleanUncropped: string; mapBase64: string; mapBase64Truncated: string; mapData: string } | null> {
 		try {
 			const details = recordDetails as { record_map_url?: string; url?: string; detail?: string | { record_map_url?: string; url?: string } };
 			let url = details?.record_map_url || details?.url;
@@ -279,11 +285,16 @@ export class B01MapService {
 			}
 
 			const dummyId = -Math.floor(Math.random() * 1000000);
+			// Store URL so raw 301 payload can be saved as record_map/<basename>.bin for offline use
+			const recordMapUrl = url;
 
 			const historyMapPromise = new Promise<{ mapBase64CleanUncropped: string; mapBase64: string; mapBase64Truncated: string; mapData: string } | null>((resolve) => {
 				this.deps.adapter.pendingRequests.set(dummyId, {
 					method: "get_clean_record_map",
 					duid: this.duid,
+					startTime,
+					recordIndex: recordIndex ?? null,
+					recordMapUrl,
 					resolve: (data: Buffer) => {
 						this.deps.adapter.pendingRequests.delete(dummyId);
 						void this.processHistoryMapResponse(data, resolve);
@@ -304,7 +315,6 @@ export class B01MapService {
 
 			try {
 				await this.deps.adapter.requestsHandler.sendRequest(this.duid, "service.upload_record_by_url", { url }, { priority: -10 });
-				this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `Triggered B01 History Map update for URL: ${url}`, "debug");
 			} catch (e: any) {
 				this.deps.adapter.pendingRequests.delete(dummyId);
 				this.deps.adapter.rLog("System", this.duid, "Warn", "B01", undefined, `Failed to trigger B01 history map upload: ${e.message}`, "warn");
@@ -325,8 +335,6 @@ export class B01MapService {
 				resolve(null);
 				return;
 			}
-
-			this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `Received History Map Data (${data.length} bytes)`, "debug");
 
 			const mapRes = await this.deps.adapter.mapManager.processMap(
 				data,

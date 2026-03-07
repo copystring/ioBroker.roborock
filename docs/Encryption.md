@@ -5,10 +5,19 @@
 <!-- Source: src/lib/map/b01/MapDecryptor.ts -->
 ### B01 Map Decryption
 
-Decrypts a Roborock B01 map using a multi-layer "Russian Doll" unwrapping process.
+B01 map decryption. Follows the spec derived from the test fixture and docs; the original app
+(see .cursorrules) handles 301 in o00O00OO.OooO0O0 → o00OO000.OooO00o.OooOooo / OooOooO, but the
+exact layer implementation is not visible in the decompiled APK.
 
-@see docs/map/B01_Map_Protocol.md for the full technical specification.
-@see test/unit/b01_map_specification.test.ts for the executable specification.
+Data flow: MQTT frame → messageParser.decodeMsg() reads
+payloadLen (uint16 at offset 16), takes payload = frame.subarray(19, 19+payloadLen), then
+decryptB01(payload, localKey, random) → data.payload. For 301 that buffer is passed to
+getB01MapBuffer → decryptB01Payload → this decrypt(). So buf here is the inner payload after
+outer B01 CBC only; no 301-specific header is stripped (unlike PhotoManager P301 dataSkip).
+If buf starts with "B01", unwrapLayerCBC slices inner payload using payloadLen at buf[17..18].
+
+@see docs/map/B01_Map_Protocol.md
+@see test/unit/b01_map_specification.test.ts
 
 ---
 

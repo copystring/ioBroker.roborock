@@ -80,57 +80,18 @@ export function hexToRgba(hex: string, alpha = 255): [number, number, number, nu
 }
 
 /**
- * Robust decompression that handles multi-layered GZIP/ZLIB and scans for magic headers.
+ * B01 and V1: compression is always ZLIB (0x78) or GZIP (0x1f 0x8b) at offset 0. No scan, no raw deflate.
  */
 export function decompress(compressed: Buffer): Buffer {
-	let current = compressed;
-
-	if (isSignatureMatch(current)) return current;
-
-	let iterations = 0;
-	while (iterations < 5) {
-		let decompressed: Buffer | null = null;
-
-		// 1. Try GZIP Magic Scan (1F 8B)
-		if (current.length > 2) {
-			const limit = Math.min(current.length - 1, 64);
-			for (let i = 0; i < limit; i++) {
-				if (current[i] === 0x1F && current[i + 1] === 0x8B) {
-					try {
-						decompressed = zlib.gunzipSync(current.subarray(i));
-						if (decompressed && decompressed.length > 0) break;
-					} catch {}
-				}
-			}
-		}
-
-		// 2. Try ZLIB Magic Scan (78 xx)
-		if (!decompressed && current.length > 2) {
-			const limit = Math.min(current.length - 1, 64);
-			for (let i = 0; i < limit; i++) {
-				if (current[i] === 0x78 && (current[i + 1] === 0x9C || current[i + 1] === 0x01 || current[i + 1] === 0xDA)) {
-					try {
-						decompressed = zlib.inflateSync(current.subarray(i));
-						if (decompressed && decompressed.length > 0) break;
-					} catch {
-						try {
-							decompressed = zlib.inflateRawSync(current.subarray(i));
-							if (decompressed && decompressed.length > 0) break;
-						} catch {}
-					}
-				}
-			}
-		}
-
-		if (decompressed) {
-			current = decompressed;
-			iterations++;
-			if (isSignatureMatch(current)) break;
-		} else {
-			break;
-		}
+	if (isSignatureMatch(compressed)) return compressed;
+	if (compressed.length < 2) return compressed;
+	if (compressed[0] === 0x78) {
+		return zlib.inflateSync(compressed);
 	}
-	return current;
+	if (compressed[0] === 0x1f && compressed[1] === 0x8b) {
+		return zlib.gunzipSync(compressed);
+	}
+	return compressed;
 }
 
 export function isSignatureMatch(buf: Buffer): boolean {

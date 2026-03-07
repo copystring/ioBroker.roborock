@@ -73,7 +73,7 @@ message RoomDataInfo {
     uint32 roomCleanIndex = 7;
     DevicePointInfo roomNamePost = 8;
     CleanPerferenceDataInfo cleanPerfer = 9;
-    uint32 colorId = 10; // WICHTIG für die Färbung!
+    uint32 colorId = 10; // Used for room coloring
     uint32 floor_direction = 11;
     uint32 global_seq = 12;
 }

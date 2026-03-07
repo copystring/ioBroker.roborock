@@ -46,6 +46,9 @@ export class socketHandler {
 		if (obj.command === "get_obstacle_image") {
 			return this.handleGetObstacleImage(obj);
 		}
+		if (obj.command === "get_room_names") {
+			return this.handleGetRoomNames(obj);
+		}
 
 		// --- Standard Handlers ---
 		const handler = this.commandHandlers.get(obj.command);
@@ -159,6 +162,49 @@ export class socketHandler {
 			if (msg.callback) {
 				this.adapter.sendTo(msg.from, msg.command, { error: error.message || "Failed" }, msg.callback);
 			}
+		}
+	}
+
+	/**
+	 * Returns segment id → room name for a device (e.g. for cloud maps where mapData has no segment names).
+	 * Message: { duid: string, floor?: number, segmentIds?: number[] }. Returns { [segmentId: string]: string }.
+	 */
+	private async handleGetRoomNames(msg: ioBroker.Message): Promise<void> {
+		const { duid, floor = 0, segmentIds } = msg.message || {};
+		if (!duid) {
+			if (msg.callback) this.adapter.sendTo(msg.from, msg.command, { error: "Missing duid" }, msg.callback);
+			return;
+		}
+		const result: Record<string, string> = {};
+		try {
+			const prefix = `Devices.${duid}.floors.${floor}.`;
+			if (Array.isArray(segmentIds) && segmentIds.length > 0) {
+				for (const id of segmentIds) {
+					const obj = await this.adapter.getObjectAsync(prefix + id);
+					const name = (obj as any)?.common?.name;
+					if (name && String(name).trim()) result[String(id)] = String(name).trim();
+				}
+			} else {
+				const ns = this.adapter.namespace;
+				const list = await (this.adapter.getObjectListAsync as (n: string, o: { type: string; startkey: string; endkey: string }) => Promise<unknown>)(ns, {
+					type: "state",
+					startkey: `${ns}.${prefix}`,
+					endkey: `${ns}.${prefix}\u9999`
+				});
+				const rows = (list as any)?.rows ?? (Array.isArray(list) ? list : []);
+				for (const row of rows) {
+					const o = row.value ?? row;
+					if (!o || !o._id) continue;
+					const segId = o._id.slice((ns + "." + prefix).length);
+					if (!segId) continue;
+					const name = o.common?.name;
+					if (name && String(name).trim()) result[segId] = String(name).trim();
+				}
+			}
+			if (msg.callback) this.adapter.sendTo(msg.from, msg.command, result, msg.callback);
+		} catch (error: any) {
+			this.adapter.rLog("System", duid, "Error", undefined, undefined, `get_room_names failed: ${error.message}`, "error");
+			if (msg.callback) this.adapter.sendTo(msg.from, msg.command, { error: error.message || "Failed" }, msg.callback);
 		}
 	}
 

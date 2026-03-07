@@ -35,7 +35,7 @@ const REGION_CONFIG: Record<string, RegionConfig> = {
 		loginCountryCode: "86",
 	},
 	asia: {
-		apiBaseUrl: "https://api.roborock.com", // Fallback/General based on bundle analysis
+		apiBaseUrl: "https://api.roborock.com",
 		loginCountry: "SG", // Default to Singapore for general Asia
 		loginCountryCode: "65",
 	},
@@ -141,8 +141,8 @@ export class http_api {
 			headers: {
 				header_clientid: crypto.createHash("md5").update(this.adapter.config.username).update(clientID).digest().toString("base64"),
 				header_appversion: "4.57.02",
-				header_clientlang: "de",  // Assuming DE based on dump, or use adapter.config.language/system lang
-				header_phonemodel: "Pixel 9 Pro XL", // Using dump value to mimic real device
+				header_clientlang: "de",
+				header_phonemodel: "Pixel 9 Pro XL",
 				header_phonesystem: "Android",
 			},
 		});
@@ -402,11 +402,10 @@ export class http_api {
 		if (!this.loginApi) throw new Error("loginApi is not initialized.");
 
 		try {
-			// Match user dump: type=login&email=...&platform=
 			const params = new URLSearchParams();
 			params.append("type", "login");
 			params.append("email", username);
-			params.append("platform", ""); // empty in dump
+			params.append("platform", "");
 
 			const res = await this.loginApi.post(API_V4_EMAIL_CODE, params.toString());
 
@@ -425,8 +424,6 @@ export class http_api {
 		if (!this.loginApi) return null;
 
 		try {
-			// Dump shows POST to sign endpoint without body, params in URL.
-			// axios.post(url) works.
 			const res = await this.loginApi.post(`${API_V3_SIGN}?s=${s}`);
 			return res.data.data;
 		} catch (e: any) {
@@ -437,10 +434,6 @@ export class http_api {
 
 	async loginWithCode(code: string, k: string, s: string): Promise<LoginV4Response> {
 		if (!this.loginApi) throw new Error("loginApi not initialized");
-
-		// Dump shows x-mercy headers and specific body
-		// NO HMAC 'h' in body shown in dump for this request!
-		// Headers: x-mercy-k, x-mercy-ks
 
 		const headers = {
 			"x-mercy-k": k,
@@ -456,8 +449,8 @@ export class http_api {
 			countryCode: regionConfig.loginCountryCode,
 			email: this.adapter.config.username,
 			code: code,
-			majorVersion: "14", // from dump
-			minorVersion: "0"   // from dump
+			majorVersion: "14",
+			minorVersion: "0"
 		});
 
 		try {
@@ -733,6 +726,28 @@ export class http_api {
 	isSharedDevice(duid: string): boolean {
 		const sharedDevices = this.getReceivedDevices();
 		return sharedDevices.some((device) => device.duid === duid);
+	}
+
+	/**
+	 * Fetches room list for a shared device (owner's rooms).
+	 * GET user/deviceshare/query/{duid}/rooms
+	 * @returns Array of { id, name } or [] on error / non-shared
+	 */
+	async getSharedDeviceRooms(duid: string): Promise<{ id: number; name: string }[]> {
+		if (!duid || !this.isSharedDevice(duid)) return [];
+		try {
+			if (!this.realApi) {
+				this.adapter.rLog("HTTP", duid, "Warn", "Cloud", undefined, "getSharedDeviceRooms: realApi not initialized.", "warn");
+				return [];
+			}
+			const res = await this.realApi.get<{ success?: boolean; result?: { id: number; name: string }[] }>(`user/deviceshare/query/${duid}/rooms`);
+			const result = res.data?.result;
+			if (Array.isArray(result)) return result;
+			return [];
+		} catch (e: any) {
+			this.adapter.rLog("HTTP", duid, "Warn", "Cloud", undefined, `getSharedDeviceRooms failed: ${e?.message || e}`, "warn");
+			return [];
+		}
 	}
 
 	/**

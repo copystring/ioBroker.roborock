@@ -334,21 +334,10 @@ export const cryptoEngine = {
 				const block = encryptedData.subarray(offset, offset + 128);
 				let decryptedKeyBlock: Buffer | null = null;
 
-				// 1. Try Standard Decryption
 				try {
 					decryptedKeyBlock = this.decryptRSA(block);
 				} catch {
 					// Silent fail during brute force
-				}
-
-				// 2. Try Reversed Decryption (Fallback for some models)
-				if (!decryptedKeyBlock) {
-					const reversedBlock = Buffer.from(block).reverse();
-					try {
-						decryptedKeyBlock = this.decryptRSA(reversedBlock);
-					} catch {
-						// Silent fail
-					}
 				}
 
 				if (decryptedKeyBlock && decryptedKeyBlock.length >= 32) {

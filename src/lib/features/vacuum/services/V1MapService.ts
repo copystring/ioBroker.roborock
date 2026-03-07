@@ -46,7 +46,7 @@ export class V1MapService {
 			}
 
 			if (mapBuf) {
-				const mapResult = await this.mapManager.processMap(mapBuf, mapVer, robotModel, this.duid, this.mappedRooms, this.duid, "Unknown");
+				const mapResult = await this.mapManager.processMap(mapBuf, mapVer, robotModel, this.duid, this.mappedRooms, this.duid, "Unknown", undefined, this.currentMapIndex);
 				if (mapResult) {
 					await this.processMapResults(mapResult);
 				}
@@ -218,7 +218,10 @@ export class V1MapService {
 				await this.deps.ensureFolder(`Devices.${this.duid}.floors.${currentMapFlag}`);
 
 				// Get Cloud Room Names to resolve IDs (e.g. "33230238" -> "Kitchen")
-				const cloudRooms = this.adapter.http_api.getMatchedRoomIDs(false);
+				// For shared devices, rooms belong to the owner: use deviceshare API
+				const cloudRooms = this.adapter.http_api.isSharedDevice(this.duid)
+					? await this.adapter.http_api.getSharedDeviceRooms(this.duid)
+					: this.adapter.http_api.getMatchedRoomIDs(false);
 
 				await Promise.all(result.map(async ([shortID, longID]) => {
 					// Resolve Name using Long ID (index 1)

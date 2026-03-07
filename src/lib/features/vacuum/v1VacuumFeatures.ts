@@ -353,7 +353,7 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			if (roomIds.length > 0) {
 				this.deps.adapter.rLog("System", this.duid, "Info", "1.0", undefined, `Starting segment cleaning for rooms: ${roomIds.join(", ")}`, "info");
 
-				// Payload based on user sniff:
+				// Params:
 				// params: [{"clean_mop":0,"clean_order_mode":0,"repeat":1,"segments":[2,1]}]
 				const payload = [{
 					segments: roomIds,
