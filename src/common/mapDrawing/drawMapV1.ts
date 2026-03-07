@@ -36,6 +36,8 @@ export interface V1MapDataForDrawing {
 	CURRENTLY_CLEANED_ZONES?: number[][];
 	FORBIDDEN_ZONES?: number[][];
 	NO_MOP_ZONE?: number[][];
+	CURTAIN?: number[][];
+	MISS_ZONE?: number[][];
 	VIRTUAL_WALLS?: number[][];
 	GOTO_PREDICTED_PATH?: { points: [number, number][] };
 	OBSTACLES2?: Array<[number, number, number, ...unknown[]]>;
@@ -257,6 +259,18 @@ export async function drawMapV1(
 		for (const z of mapData.NO_MOP_ZONE) {
 			const r = toRect(z);
 			restrictedZones.push({ ...r, fill: "rgba(0, 0, 255, 0.5)", stroke: "rgba(0, 0, 255, 1)" });
+		}
+	}
+	if (mapData.CURTAIN?.length) {
+		for (const z of mapData.CURTAIN) {
+			const r = toRect(z);
+			restrictedZones.push({ ...r, fill: "rgba(250, 198, 182, 0.5)", stroke: "#fac6b6" });
+		}
+	}
+	if (mapData.MISS_ZONE?.length) {
+		for (const z of mapData.MISS_ZONE) {
+			const r = toRect(z);
+			restrictedZones.push({ ...r, fill: "rgba(250, 229, 158, 0.5)", stroke: "#fae59e" });
 		}
 	}
 	const virtualWalls: DrawVirtualWallInput[] = [];
