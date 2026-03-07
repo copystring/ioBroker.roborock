@@ -98,6 +98,7 @@ export class Roborock extends utils.Adapter {
 		// Config properties are now type-safe thanks to types.d.ts
 		if (!this.config.username) {
 			this.rLog("System", null, "Error", undefined, undefined, "Username missing!", "error");
+			this.isInitializing = false;
 			return;
 		}
 
@@ -191,13 +192,17 @@ export class Roborock extends utils.Adapter {
 			this.isInitializing = false;
 
 			// Schedule MQTT API reset every hour (legacy behavior to prevent stale connections)
-			this.mqttReconnectInterval = this.setInterval(async () => {
+			this.mqttReconnectInterval = this.setInterval(() => {
 				this.rLog("System", null, "Debug", undefined, undefined, "Running scheduled MQTT reconnect...", "debug");
-				await this.resetMqttApi();
+				this.resetMqttApi().catch((e: unknown) => {
+					this.rLog("System", null, "Error", undefined, undefined, `Scheduled MQTT reconnect failed: ${e instanceof Error ? e.message : String(e)}`, "error");
+					this.catchError(e, "resetMqttApi (scheduled)");
+				});
 			}, 3600 * 1000);
 		} catch (e: unknown) {
 			this.rLog("System", null, "Error", undefined, undefined, `Failed to initialize adapter: ${this.errorMessage(e)}`, "error");
 			this.catchError(e, "onReady");
+			this.isInitializing = false;
 		}
 	}
 
