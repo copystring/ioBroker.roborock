@@ -619,33 +619,33 @@ export class Roborock extends utils.Adapter {
 		this.requestsHandler.clearQueue();
 	}
 
+	/** Timestamp keys we format as readable date string; all other keys passed through as-is. */
+	private static readonly DEVICE_INFO_DATE_KEYS = ["activeTime", "active_time", "createTime", "create_time"];
+
 	/**
-	 * Updates general device info (online status, etc.).
+	 * Updates deviceInfo from cloud HomeData: all top-level device fields are written to
+	 * Devices.${duid}.deviceInfo.* (names unchanged). Scalars as-is; objects/arrays as JSON string.
 	 */
 	async updateDeviceInfo(duid: string, devices: Device[]) {
 		const device = devices.find((d) => d.duid === duid);
 		if (!device) return;
 
-		for (const attr of Object.keys(device)) {
-			const value = (device as unknown as Record<string, ioBroker.StateValue>)[attr];
-			if (typeof value !== "object") {
-				const common: Partial<ioBroker.StateCommon> = {};
-				let finalValue: ioBroker.StateValue = value;
-
-				if (attr === "activeTime") {
-					finalValue = this.formatRoborockDate(value as number);
-					common.unit = "";
-					common.type = "string";
-				} else if (attr === "createTime") {
-					finalValue = this.formatRoborockDate(value as number);
-					common.type = "string";
-				} else {
-					common.type = typeof finalValue as ioBroker.CommonType;
-				}
-
-				await this.ensureState(`Devices.${duid}.deviceInfo.${attr}`, common);
-				await this.setStateChanged(`Devices.${duid}.deviceInfo.${attr}`, { val: finalValue, ack: true });
+		const raw = device as unknown as Record<string, unknown>;
+		for (const attr of Object.keys(raw)) {
+			let value: ioBroker.StateValue = raw[attr] as ioBroker.StateValue;
+			if (typeof value === "object" && value !== null) {
+				value = JSON.stringify(value);
 			}
+			const common: Partial<ioBroker.StateCommon> = {};
+			let finalValue: ioBroker.StateValue = value;
+			if (Roborock.DEVICE_INFO_DATE_KEYS.includes(attr) && typeof value === "number") {
+				finalValue = this.formatRoborockDate(value);
+				common.type = "string";
+			} else {
+				common.type = typeof finalValue as ioBroker.CommonType;
+			}
+			await this.ensureState(`Devices.${duid}.deviceInfo.${attr}`, common);
+			await this.setStateChanged(`Devices.${duid}.deviceInfo.${attr}`, { val: finalValue, ack: true });
 		}
 	}
 
