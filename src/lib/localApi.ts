@@ -90,7 +90,7 @@ export class local_api {
 	private discoveryServer: dgram.Socket | null = null;
 	private discoveryTimer: NodeJS.Timeout | null = null;
 	private gracePeriodTimer: NodeJS.Timeout | null = null;
-	private tcpKeepaliveInterval: NodeJS.Timeout | null = null;
+	private tcpKeepaliveInterval: ioBroker.Interval | undefined = undefined;
 	private static readonly TCP_KEEPALIVE_MS = 30_000; // 30s
 
 	constructor(adapter: Roborock) {
@@ -314,7 +314,7 @@ export class local_api {
 	stopTcpKeepaliveInterval(): void {
 		if (this.tcpKeepaliveInterval) {
 			this.adapter.clearInterval(this.tcpKeepaliveInterval);
-			this.tcpKeepaliveInterval = null;
+			this.tcpKeepaliveInterval = undefined;
 		}
 	}
 
