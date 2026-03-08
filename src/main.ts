@@ -111,9 +111,23 @@ export class Roborock extends utils.Adapter {
 
 		this.rLog("System", null, "Info", undefined, undefined, `Build Info: Date=${commitInfo.commitDate}, Commit=${commitInfo.commitHash}`, "debug");
 
-		// Log redacted config
+		// Log adapter settings at start (no credentials) for easier support/debugging
+		const safeSettings: Record<string, unknown> = {
+			enable_map_creation: this.config.enable_map_creation,
+			updateInterval: this.config.updateInterval,
+			region: this.config.region,
+			loginMethod: this.config.loginMethod,
+			map_theme: this.config.map_theme,
+		};
+		if ("map_creation_interval" in this.config) safeSettings.map_creation_interval = (this.config as Record<string, unknown>).map_creation_interval;
+		if ("map_scale" in this.config) safeSettings.map_scale = (this.config as Record<string, unknown>).map_scale;
+		if ("webserverPort" in this.config) safeSettings.webserverPort = (this.config as Record<string, unknown>).webserverPort;
+		this.rLog("System", null, "Info", undefined, undefined, `Settings: ${JSON.stringify(safeSettings)}`, "info");
+
+		// Full config for debug (credentials redacted)
 		const configSummary = {
 			...this.config,
+			username: this.config.username ? "******" : "NOT_SET",
 			password: this.config.password ? "******" : "NOT_SET",
 			cameraPin: this.config.cameraPin ? "******" : undefined,
 		};
@@ -185,6 +199,7 @@ export class Roborock extends utils.Adapter {
 				this.subscribeStatesAsync("Devices.*.commands.*"),
 				this.subscribeStatesAsync("Devices.*.resetConsumables.*"),
 				this.subscribeStatesAsync("Devices.*.programs.*"),
+				this.subscribeStatesAsync("Devices.*.deviceStatus.state"),
 				this.subscribeStatesAsync("loginCode")
 			]);
 
@@ -337,8 +352,17 @@ export class Roborock extends utils.Adapter {
 	async onStateChange(id: string, state: ioBroker.State | null | undefined) {
 		if (!state) return;
 
-		// Split ID once
 		const idParts = id.split(".");
+
+		// deviceStatus.state: react only to our own updates (ack) — active -> idle triggers cleaning records update
+		if (state.ack && idParts[2] === "Devices" && idParts.length >= 6 && idParts[4] === "deviceStatus" && idParts[5] === "state") {
+			const duid = idParts[3];
+			const newVal = state.val != null ? Number(state.val) : 0;
+			if (!isNaN(newVal)) {
+				this.deviceManager.onDeviceStateChange(duid, newVal).catch((e: unknown) => this.catchError(e, "onStateChange(deviceStatus.state)", duid));
+			}
+			return;
+		}
 
 		if (state.ack) {
 			if (id.endsWith(".online") && idParts.length >= 4) {

@@ -320,34 +320,49 @@ export class DeviceManager {
 	}
 
 	/**
+	 * Called when deviceStatus.state changes (e.g. from stateChange listener).
+	 * Triggers full data + cleaning records update on active -> idle transition.
+	 */
+	public async onDeviceStateChange(duid: string, newStateVal: number): Promise<void> {
+		const handler = this.deviceFeatureHandlers.get(duid);
+		if (!handler) return;
+
+		const oldVal = this.lastStateCode.get(duid) ?? 0;
+		const wasActive = this.isActiveState(oldVal);
+		const isActive = this.isActiveState(newStateVal);
+		this.lastStateCode.set(duid, newStateVal);
+
+		if (wasActive && !isActive) {
+			const version = (handler as any).protocolVersion || "?";
+			this.adapter.rLog("System", duid, "Info", version, undefined, `Activity finished (State ${oldVal} -> ${newStateVal}). Fetching history + map...`, "info");
+			await handler.updateCleanSummary();
+			await handler.updateMap();
+		}
+	}
+
+	/**
 	 * Polling logic for B01 devices.
 	 */
 	private async pollB01Device(handler: BaseDeviceFeatures, duid: string): Promise<void> {
 		// 1. Update Status (fast)
 		await handler.updateStatus();
 
-		// 2. Check State Transitions
+		// 2. Check State Transitions (poll path; stateChange listener handles transitions too)
 		const currentState = await this.getDeviceState(duid);
 		const lastState = this.lastStateCode.get(duid) || 0;
 		const isActive = this.isActiveState(currentState);
 		const wasActive = this.isActiveState(lastState);
 
-		// Determine if we need to update the map (Active = polling map)
 		if (isActive) {
 			await handler.updateMap();
 		}
 
-		// Transition: Active -> Inactive
 		if (wasActive && !isActive) {
-			this.adapter.rLog("System", duid, "Info", "B01", undefined, `Activity finished (State ${lastState} -> ${currentState}). Fetching B01 data...`, "info");
-
-			// Trigger B01-specific data update
-			await handler.initializeDeviceData();
+			this.adapter.rLog("System", duid, "Info", "B01", undefined, `Activity finished (State ${lastState} -> ${currentState}). Fetching history + map...`, "info");
 			await handler.updateCleanSummary();
 			await handler.updateMap();
 		}
 
-		// Update state tracker
 		this.lastStateCode.set(duid, currentState);
 	}
 
@@ -355,31 +370,23 @@ export class DeviceManager {
 	 * Polling logic for A01 devices.
 	 */
 	private async pollA01Device(handler: BaseDeviceFeatures, duid: string): Promise<void> {
-		// 1. Update Status (fast)
 		await handler.updateStatus();
 
-		// 2. Check State Transitions
 		const currentState = await this.getDeviceState(duid);
 		const lastState = this.lastStateCode.get(duid) || 0;
 		const isActive = this.isActiveState(currentState);
 		const wasActive = this.isActiveState(lastState);
 
-		// Determine if we need to update the map (Active = polling map)
 		if (isActive) {
 			await handler.updateMap();
 		}
 
-		// Transition: Active -> Inactive
 		if (wasActive && !isActive) {
-			this.adapter.rLog("System", duid, "Info", "A01", undefined, `Activity finished (State ${lastState} -> ${currentState}). Fetching full data...`, "info");
-
-			// Trigger full update
-			await handler.initializeDeviceData();
+			this.adapter.rLog("System", duid, "Info", "A01", undefined, `Activity finished (State ${lastState} -> ${currentState}). Fetching history + map...`, "info");
 			await handler.updateCleanSummary();
 			await handler.updateMap();
 		}
 
-		// Update state tracker
 		this.lastStateCode.set(duid, currentState);
 	}
 
@@ -387,31 +394,23 @@ export class DeviceManager {
 	 * Polling logic for V1 (Legacy) devices.
 	 */
 	private async pollV1Device(handler: BaseDeviceFeatures, duid: string): Promise<void> {
-		// 1. Update Status (fast)
 		await handler.updateStatus();
 
-		// 2. Check State Transitions
 		const currentState = await this.getDeviceState(duid);
 		const lastState = this.lastStateCode.get(duid) || 0;
 		const isActive = this.isActiveState(currentState);
 		const wasActive = this.isActiveState(lastState);
 
-		// Determine if we need to update the map (Active = polling map)
 		if (isActive) {
 			await handler.updateMap();
 		}
 
-		// Transition: Active -> Inactive
 		if (wasActive && !isActive) {
-			this.adapter.rLog("System", duid, "Info", "1.0", undefined, `Activity finished (State ${lastState} -> ${currentState}). Fetching full data...`, "info");
-
-			// Trigger full update
-			await handler.initializeDeviceData();
+			this.adapter.rLog("System", duid, "Info", "1.0", undefined, `Activity finished (State ${lastState} -> ${currentState}). Fetching history + map...`, "info");
 			await handler.updateCleanSummary();
 			await handler.updateMap();
 		}
 
-		// Update state tracker
 		this.lastStateCode.set(duid, currentState);
 	}
 
