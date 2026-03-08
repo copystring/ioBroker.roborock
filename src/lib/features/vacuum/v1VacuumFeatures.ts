@@ -482,7 +482,8 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			}
 
 			// Return summary fields only; records are written above as cleaningInfo.records.<index>.*
-			const { records: _r, ...rest } = data;
+			const rest = { ...data };
+			delete rest.records;
 			return rest;
 		});
 	}

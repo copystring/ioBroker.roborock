@@ -211,16 +211,18 @@ export class DeviceManager {
 
 	// Track previous state
 	private lastStateCode = new Map<string, number>();
+	private skipPollUntilNextHomeData = new Set<string>(); // cleared each slow tick
 
 	/**
-	 * Get current state code.
+	 * Get current state code. V1 uses deviceStatus.state, B01 uses deviceStatus.status.
 	 */
 	private async getDeviceState(duid: string): Promise<number> {
-		const state = await this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.state`);
-		if (state && state.val !== null) {
-			return Number(state.val);
-		}
-		return 0; // Unknown
+		const [state, status] = await Promise.all([
+			this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.state`),
+			this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.status`),
+		]);
+		const val = (state?.val != null ? state.val : status?.val) ?? 0;
+		return Number(val);
 	}
 
 	/**
@@ -244,9 +246,7 @@ export class DeviceManager {
 		return activeStates.includes(stateCode);
 	}
 
-	/**
-	 * Starts polling.
-	 */
+	/** Starts polling. updateInterval (UI) drives everything except TCP; TCP keepalive is fixed 30s. */
 	public startPolling(): void {
 		const mainPollInterval = this.adapter.config.updateInterval; // e.g. 60s
 
@@ -257,47 +257,36 @@ export class DeviceManager {
 		this.mainUpdateInterval = this.adapter.setInterval(async () => {
 			mainUpdateCount++;
 
-			// --- Independent Polling Logic ---
-			// 1. Check for Slow Tick (HomeData update)
 			const isSlowTick = mainUpdateCount >= mainPollInterval;
 
 			if (isSlowTick) {
 				mainUpdateCount = 0;
+				this.skipPollUntilNextHomeData.clear();
 				this.adapter.rLog("System", null, "Debug", undefined, undefined, "Running scheduled main device update...", "debug");
 				await this.adapter.http_api.updateHomeData();
 			}
 
-			// 2. Poll Devices (Fast or Slow)
 			const cloudDevices = this.adapter.http_api.getDevices();
-
 			for (const device of cloudDevices) {
 				const duid = device.duid;
 				if (!device.online) continue;
+				if (this.skipPollUntilNextHomeData.has(duid)) continue;
 
 				const handler = this.deviceFeatureHandlers.get(duid);
 				if (!handler) continue;
 
-				// Determine activity
 				const lastState = this.lastStateCode.get(duid) || 0;
 				const isActive = this.isActiveState(lastState);
-
-				// Poll if:
-				// a) Slow Tick (Base Interval)
-				// b) Device is Active AND Fast Tick (every 2s)
 				const isFastTick = (mainUpdateCount % 2 === 0);
 				const shouldPoll = isSlowTick || (isActive && isFastTick);
 
 				if (!shouldPoll) continue;
 
 				try {
-					// Update basic info only on slow tick (optional optimization)
 					if (isSlowTick) {
 						await this.adapter.updateDeviceInfo(duid, cloudDevices);
 					}
-
 					const version = await this.adapter.getDeviceProtocolVersion(duid);
-
-					// Switch on version
 					switch (version) {
 						case "B01":
 							await this.pollB01Device(handler, duid);
@@ -314,15 +303,13 @@ export class DeviceManager {
 					}
 				} catch (error: unknown) {
 					this.adapter.catchError(error, "mainUpdateInterval", duid);
+					this.skipPollUntilNextHomeData.add(duid);
 				}
 			}
 		}, 1000); // 1s ticker
 	}
 
-	/**
-	 * Called when deviceStatus.state changes (e.g. from stateChange listener).
-	 * Triggers full data + cleaning records update on active -> idle transition.
-	 */
+	/** On deviceStatus.state/status change: on active→idle run updateCleanSummary + updateMap. */
 	public async onDeviceStateChange(duid: string, newStateVal: number): Promise<void> {
 		const handler = this.deviceFeatureHandlers.get(duid);
 		if (!handler) return;
@@ -344,10 +331,7 @@ export class DeviceManager {
 	 * Polling logic for B01 devices.
 	 */
 	private async pollB01Device(handler: BaseDeviceFeatures, duid: string): Promise<void> {
-		// 1. Update Status (fast)
 		await handler.updateStatus();
-
-		// 2. Check State Transitions (poll path; stateChange listener handles transitions too)
 		const currentState = await this.getDeviceState(duid);
 		const lastState = this.lastStateCode.get(duid) || 0;
 		const isActive = this.isActiveState(currentState);
@@ -371,7 +355,6 @@ export class DeviceManager {
 	 */
 	private async pollA01Device(handler: BaseDeviceFeatures, duid: string): Promise<void> {
 		await handler.updateStatus();
-
 		const currentState = await this.getDeviceState(duid);
 		const lastState = this.lastStateCode.get(duid) || 0;
 		const isActive = this.isActiveState(currentState);
@@ -395,7 +378,6 @@ export class DeviceManager {
 	 */
 	private async pollV1Device(handler: BaseDeviceFeatures, duid: string): Promise<void> {
 		await handler.updateStatus();
-
 		const currentState = await this.getDeviceState(duid);
 		const lastState = this.lastStateCode.get(duid) || 0;
 		const isActive = this.isActiveState(currentState);

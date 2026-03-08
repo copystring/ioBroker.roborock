@@ -4,6 +4,19 @@ import type { BaseDeviceFeatures } from "./features/baseDeviceFeatures";
 import { messageParser } from "./messageParser";
 
 const REQUEST_TIMEOUT = 10000;
+/** Max retries on failure (timeout/network); total attempts = 1 + this value. */
+const MAX_REQUEST_RETRIES = 2;
+
+function isRetryableError(error: unknown): boolean {
+	if (!(error instanceof Error)) return true;
+	const msg = error.message.toLowerCase();
+	if (msg.includes("adapter_stopped") || msg.includes("cancelled") || msg.includes("cancelled_by_user")) return false;
+	if (msg.includes("timeout") || msg.includes("timed out") || msg.includes("econnreset") || msg.includes("etimedout") ||
+		msg.includes("enotfound") || msg.includes("econnrefused") || msg.includes("network") || msg.includes("socket hang up")) return true;
+	const code = (error as NodeJS.ErrnoException).code;
+	if (code === "ECONNRESET" || code === "ETIMEDOUT" || code === "ENOTFOUND" || code === "ECONNREFUSED") return true;
+	return false;
+}
 
 export enum RequestPriority {
 	LOW = -10,
@@ -320,7 +333,7 @@ export class requestsHandler {
 
 	private static readonly POLL_METHODS = [
 		"get_prop",
-		"get_status",
+		"prop.get",
 		"get_consumable",
 		"get_timer",
 		"get_network_info",
@@ -426,13 +439,18 @@ export class requestsHandler {
 			try {
 				const result = await manager.add(taskId, (signal) => req.send(signal), priority);
 
-				if (Array.isArray(result) && result[0] === "retry" && retryCount < 3) {
-					this.adapter.rLog("System", duid, "Debug", "Retry", undefined, `[sendRequest] Received 'retry' for ${method} on ${duid}. Retrying (${retryCount + 1}/3)...`, "debug");
+				if (Array.isArray(result) && result[0] === "retry" && retryCount < MAX_REQUEST_RETRIES) {
+					this.adapter.rLog("System", duid, "Debug", "Retry", undefined, `[sendRequest] Received 'retry' for ${method} on ${duid}. Retrying (${retryCount + 1}/${MAX_REQUEST_RETRIES + 1})...`, "debug");
 					await new Promise((resolve) => setTimeout(resolve, 1000));
 					return attempt(retryCount + 1);
 				}
 				return result;
 			} catch (error) {
+				if (retryCount < MAX_REQUEST_RETRIES && isRetryableError(error)) {
+					this.adapter.rLog("System", duid, "Warn", "Retry", undefined, `[sendRequest] ${method} failed (${(error as Error).message}). Retrying (${retryCount + 1}/${MAX_REQUEST_RETRIES + 1})...`, "warn");
+					await new Promise((resolve) => setTimeout(resolve, 1000));
+					return attempt(retryCount + 1);
+				}
 				throw error;
 			}
 		};
@@ -472,13 +490,7 @@ export class requestsHandler {
 					}
 				}
 
-				// Trigger follow-up status update after 1s to refresh states in ioBroker
-				this.adapter.setTimeout(() => {
-					this.adapter.rLog("System", duid, "Debug", "Command", undefined, `Triggering follow-up status update after command: ${method}`, "debug");
-					_handler.updateStatus().catch((e) => {
-						this.adapter.rLog("System", duid, "Error", "Command", undefined, `Error during follow-up status update for ${method}: ${e.message}`, "error");
-					});
-				}, 1000);
+				// Status refresh after command is done in resolvePendingRequest.
 			},
 			`command-${method}-${duid}`,
 			duid
@@ -561,6 +573,17 @@ export class requestsHandler {
 					req.resolve(result, version);
 				}
 			}
+
+			const isPollMethod = requestsHandler.POLL_METHODS.some((m) => method.includes(m)) || method.startsWith("service.get");
+			if (!isPollMethod) {
+				const handler = this.adapter.deviceManager?.deviceFeatureHandlers?.get(reqDuid);
+				if (handler) {
+					handler.updateStatus().catch((e: unknown) => {
+						this.adapter.rLog("System", reqDuid, "Error", "Command", undefined, `Status update after ${method}: ${(e as Error).message}`, "error");
+					});
+				}
+			}
+
 			this.adapter.pendingRequests.delete(messageID);
 		}
 	}

@@ -90,6 +90,8 @@ export class local_api {
 	private discoveryServer: dgram.Socket | null = null;
 	private discoveryTimer: NodeJS.Timeout | null = null;
 	private gracePeriodTimer: NodeJS.Timeout | null = null;
+	private tcpKeepaliveInterval: NodeJS.Timeout | null = null;
+	private static readonly TCP_KEEPALIVE_MS = 30_000; // 30s
 
 	constructor(adapter: Roborock) {
 		this.adapter = adapter;
@@ -163,6 +165,7 @@ export class local_api {
 			client.connect(TCP_CONNECTION_PORT, ip, async () => {
 				client.removeListener("error", onErrorOnce);
 				client.setTimeout(0); // Disable timeout after connection
+				client.setKeepAlive(true, 30000); // Keep connection alive through NAT; 30s initial delay
 				this.deviceSockets[duid] = client;
 				this.reconnectPlanned.delete(duid);
 
@@ -170,7 +173,6 @@ export class local_api {
 				if (version === "L01") {
 					await this.initHandshake(duid, version);
 				}
-				// B01 is stateless TCP, no handshake needed
 				resolve();
 			});
 		});
@@ -296,11 +298,29 @@ export class local_api {
 		this.cloudDevices.delete(duid);
 	}
 
-	/**
-	 * Schedules a reconnection attempt after a delay.
-	 */
+	/** Sends get_prop every 30s for L01 TCP so connection stays below device ~60s idle timeout. */
+	startTcpKeepaliveInterval(): void {
+		if (this.tcpKeepaliveInterval) return;
+		this.tcpKeepaliveInterval = this.adapter.setInterval(() => {
+			for (const duid of Object.keys(this.deviceSockets)) {
+				const client = this.deviceSockets[duid];
+				if (!client?.connected) continue;
+				if (this.getLocalProtocolVersion(duid) !== "L01") continue;
+				this.adapter.sendTcpKeepalive(duid);
+			}
+		}, local_api.TCP_KEEPALIVE_MS);
+	}
+
+	stopTcpKeepaliveInterval(): void {
+		if (this.tcpKeepaliveInterval) {
+			this.adapter.clearInterval(this.tcpKeepaliveInterval);
+			this.tcpKeepaliveInterval = null;
+		}
+	}
+
+	/** Schedules reconnect in 5s. */
 	scheduleReconnect(duid: string, reason: string, silent = false): void {
-		this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `TCP ${reason} for ${duid}, retry in 5s`, silent ? "debug" : "debug");
+		this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `TCP ${reason} for ${duid}, retry in 5s`, "debug");
 
 		const old = this.deviceSockets[duid];
 		if (old) {
@@ -317,9 +337,9 @@ export class local_api {
 
 			// Retry only if device is still considered local
 			if (this.getIpForDuid(duid)) {
-				this.initiateClient(duid, silent).catch((e) => this.adapter.rLog("TCP", duid, "Error", undefined, undefined, `Reconnect attempt failed for ${duid}: ${e?.message || e}`, silent ? "debug" : "warn"));
+				this.initiateClient(duid, silent).catch((e) => this.adapter.rLog("TCP", duid, "Error", undefined, undefined, `Reconnect failed: ${e?.message || e}`, silent ? "debug" : "warn"));
 			} else if (!silent) {
-				this.adapter.rLog("TCP", duid, "Debug", "TCP", undefined, `Skip reconnect for ${duid}, no longer in localDevices.`, "debug");
+				this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `Skip reconnect: no longer in localDevices`, "debug");
 			}
 		}, 5000);
 	}
@@ -360,9 +380,7 @@ export class local_api {
 
 	sendMessage(duid: string, message: Buffer): void {
 		const client = this.deviceSockets[duid];
-		if (client?.connected) {
-			client.write(message);
-		}
+		if (client?.connected) client.write(message);
 	}
 
 	isConnected(duid: string): boolean {
@@ -633,9 +651,7 @@ export class local_api {
 		}
 	}
 
-	/**
-	 * Sends the Hello packet (Step 1 of Handshake).
-	 */
+	/** Hello packet (Step 1 of Handshake), once per L01 TCP connection. */
 	async sendHello(duid: string, connectNonce: number, version: string): Promise<void> {
 		const seq = 1;
 		const timestamp = Math.floor(Date.now() / 1000);
