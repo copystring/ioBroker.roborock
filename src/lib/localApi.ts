@@ -170,8 +170,11 @@ export class local_api {
 				this.deviceSockets[duid] = client;
 				this.reconnectPlanned.delete(duid);
 
-				// Attach data handler before probe so we can receive hello_response / request responses
+				// Attach data and lifecycle handlers before probe so we receive responses and react if connection drops during probe
 				this.attachTcpDataHandlers(duid, client);
+				client.on("close", () => this.scheduleReconnect(duid, `connection closed`));
+				client.on("error", (error) => this.scheduleReconnect(duid, `connection error: ${error.message}`));
+				client.on("end", () => this.scheduleReconnect(duid, "connection ended"));
 
 				const version = this.getLocalProtocolVersion(duid);
 				if (version == null) {
@@ -183,10 +186,6 @@ export class local_api {
 				resolve();
 			});
 		});
-
-		client.on("close", () => this.scheduleReconnect(duid, `connection closed`));
-		client.on("error", (error) => this.scheduleReconnect(duid, `connection error: ${error.message}`));
-		client.on("end", () => this.scheduleReconnect(duid, "connection ended"));
 
 		this.adapter.rLog("TCP", duid, "Info", undefined, undefined, `Connected`, "debug");
 		this.cloudDevices.delete(duid);
