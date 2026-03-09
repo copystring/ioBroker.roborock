@@ -417,11 +417,16 @@ export class local_api {
 			let parsedMessage: any; // Structure depends on version
 
 			const version = versionParser.parse(msg).version;
+			this.adapter.rLog("UDP", null, "Debug", version, undefined, `UDP packet received, length=${msg.length}, version prefix="${version}"`, "debug");
+
 			try {
 				switch (version) {
 					case "L01":
 						parsedMessage = vL01_Parser.parse(msg.subarray(3));
 						decodedMessage = this.decryptGCM(msg.toString("hex"));
+						if (!decodedMessage) {
+							this.adapter.rLog("UDP", null, "Debug", "L01", undefined, "L01 discovery decryption (GCM) failed", "debug");
+						}
 						break;
 					case "B01":
 						// Try L01 (GCM) first
@@ -443,6 +448,9 @@ export class local_api {
 					case "1.0":
 						parsedMessage = v1_0_Parser.parse(msg.subarray(3));
 						decodedMessage = this.decryptECB(parsedMessage.payload);
+						if (!decodedMessage) {
+							this.adapter.rLog("UDP", null, "Debug", "1.0", undefined, "1.0 discovery decryption (ECB) failed", "debug");
+						}
 						break;
 					default:
 						this.adapter.rLog("UDP", null, "Warn", version, undefined, `Unknown protocol version "${version}" found in local discovery packet.`, "warn");
@@ -455,14 +463,23 @@ export class local_api {
 
 				const duid = parsedDecodedMessage.duid;
 				const ip = parsedDecodedMessage.ip;
+				this.adapter.rLog("UDP", duid, "Debug", version, undefined, `Decoded discovery payload: ip=${ip || "?"}, detected pv="${version}" (will use for TCP if registered)`, "debug");
+
 				const localKeys = this.adapter.http_api.getMatchedLocalKeys();
 				const localKey = localKeys.get(duid);
 
 				// Only track devices we have a key for
-				if (!localKey) return;
+				if (!localKey) {
+					this.adapter.rLog("UDP", duid, "Debug", version, undefined, "Skipping device: no localKey in cloud (device not in home or not owned)", "debug");
+					return;
+				}
 
 				if (!devices[duid]) {
 					devices[duid] = { ip, version };
+					this.adapter.rLog("UDP", duid, "Debug", version, undefined, `Device discovered via UDP: ip=${ip}, pv=${version} (stored for TCP)`, "debug");
+				} else if (devices[duid].version !== version || devices[duid].ip !== ip) {
+					devices[duid] = { ip, version };
+					this.adapter.rLog("UDP", duid, "Debug", version, undefined, `Device rediscovered: ip=${ip}, pv=${version} (updated)`, "debug");
 				}
 			} catch (error: unknown) {
 				this.adapter.rLog("UDP", null, "Error", "N/A", undefined, `Failed to process UDP message: ${this.adapter.errorStack(error)}`, "warn");
@@ -491,6 +508,7 @@ export class local_api {
 			// Shared devices might be remote, so we shouldn't block/wait for them.
 			const ownedDevices = allDevices.filter(d => !this.adapter.http_api.isSharedDevice(d.duid));
 			const expectedCount = ownedDevices.length;
+			this.adapter.rLog("UDP", null, "Debug", undefined, undefined, `UDP discovery running, timeout=${timeoutMs}ms, expecting ${expectedCount} owned device(s)`, "debug");
 
 			const checkFinished = () => {
 				// We check if we found ALL owned devices.
@@ -514,8 +532,8 @@ export class local_api {
 
 						this.gracePeriodTimer = setTimeout(() => {
 							this.stopUdpDiscovery();
-							const duids = Object.keys(devices).join(", ");
-							this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP discovery finished. Found ${Object.keys(devices).length} total devices: [${duids}]`, "info");
+							const summary = Object.entries(devices).map(([d, v]) => `${d} (pv=${v.version}) @ ${v.ip}`).join(", ");
+							this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP discovery finished. Found ${Object.keys(devices).length} total devices: [${summary}]`, "info");
 							this.localDevices = { ...devices };
 
 							// Trigger connection for all found devices
@@ -547,8 +565,8 @@ export class local_api {
 
 			this.discoveryTimer = setTimeout(() => {
 				this.stopUdpDiscovery();
-				const duids = Object.keys(devices).join(", ");
-				this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP discovery finished. Found ${Object.keys(devices).length}/${expectedCount} devices: [${duids}]`, "info");
+				const summary = Object.entries(devices).map(([d, v]) => `${d} (pv=${v.version}) @ ${v.ip}`).join(", ");
+				this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP discovery finished. Found ${Object.keys(devices).length}/${expectedCount} devices: [${summary || "none"}]`, "info");
 				// Update main list of local devices
 				this.localDevices = { ...devices };
 
