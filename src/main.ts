@@ -17,7 +17,7 @@ import { Device, http_api } from "./lib/httpApi";
 import { local_api } from "./lib/localApi";
 import { MapManager } from "./lib/map/MapManager";
 import { mqtt_api } from "./lib/mqttApi";
-import { PendingMapEntry, RoborockRequest, requestsHandler } from "./lib/requestsHandler";
+import { PendingMapEntry, RequestPriority, RoborockRequest, requestsHandler } from "./lib/requestsHandler";
 import { socketHandler } from "./lib/socketHandler";
 import { TranslationManager } from "./lib/translationManager";
 
@@ -111,9 +111,23 @@ export class Roborock extends utils.Adapter {
 
 		this.rLog("System", null, "Info", undefined, undefined, `Build Info: Date=${commitInfo.commitDate}, Commit=${commitInfo.commitHash}`, "debug");
 
-		// Log redacted config
+		// Log adapter settings at start (no credentials) for easier support/debugging
+		const safeSettings: Record<string, unknown> = {
+			enable_map_creation: this.config.enable_map_creation,
+			updateInterval: this.config.updateInterval,
+			region: this.config.region,
+			loginMethod: this.config.loginMethod,
+			map_theme: this.config.map_theme,
+		};
+		if ("map_creation_interval" in this.config) safeSettings.map_creation_interval = (this.config as Record<string, unknown>).map_creation_interval;
+		if ("map_scale" in this.config) safeSettings.map_scale = (this.config as Record<string, unknown>).map_scale;
+		if ("webserverPort" in this.config) safeSettings.webserverPort = (this.config as Record<string, unknown>).webserverPort;
+		this.rLog("System", null, "Info", undefined, undefined, `Settings: ${JSON.stringify(safeSettings)}`, "info");
+
+		// Full config for debug (credentials redacted)
 		const configSummary = {
 			...this.config,
+			username: this.config.username ? "******" : "NOT_SET",
 			password: this.config.password ? "******" : "NOT_SET",
 			cameraPin: this.config.cameraPin ? "******" : undefined,
 		};
@@ -142,6 +156,7 @@ export class Roborock extends utils.Adapter {
 			const allDevices = this.http_api.getDevices() || [];
 			const probePromises = allDevices.map(async (device) => {
 				const duid = device.duid;
+				if (!device.online) return; // Skip devices cloud reports as offline
 				// If already local (UDP found it), skip
 				if (this.local_api.isConnected(duid)) return;
 
@@ -185,10 +200,13 @@ export class Roborock extends utils.Adapter {
 				this.subscribeStatesAsync("Devices.*.commands.*"),
 				this.subscribeStatesAsync("Devices.*.resetConsumables.*"),
 				this.subscribeStatesAsync("Devices.*.programs.*"),
+				this.subscribeStatesAsync("Devices.*.deviceStatus.state"),
+				this.subscribeStatesAsync("Devices.*.deviceStatus.status"),
 				this.subscribeStatesAsync("loginCode")
 			]);
 
 			this.deviceManager.startPolling();
+			this.local_api.startTcpKeepaliveInterval();
 
 			this.rLog("System", null, "Info", undefined, undefined, "Adapter startup finished. Let's go!", "info");
 			this.isInitializing = false;
@@ -287,7 +305,7 @@ export class Roborock extends utils.Adapter {
 							await this.requestsHandler.command(handler, targetDuid, method, args);
 						} else {
 							this.log.warn(`[executeSceneLocal] No handler found for device ${targetDuid}. Attempting raw send.`);
-							// Fallback if no handler (though rare for known devices)
+							// Fallback: sendRequest only. Status refresh after activity-start is still triggered in resolvePendingRequest when response arrives.
 							await this.requestsHandler.sendRequest(targetDuid, method, args);
 						}
 					}
@@ -298,6 +316,11 @@ export class Roborock extends utils.Adapter {
 		} catch (e: unknown) {
 			this.log.error(`[executeSceneLocal] Error executing scene: ${e} ${e instanceof Error ? e.stack : ""}`);
 		}
+	}
+
+	/** TCP keepalive (fixed 30s in localApi). Fire-and-forget. */
+	sendTcpKeepalive(duid: string): void {
+		this.requestsHandler.sendRequest(duid, "get_prop", ["get_status"], { priority: RequestPriority.LOW }).catch(() => {});
 	}
 
 	/**
@@ -311,6 +334,7 @@ export class Roborock extends utils.Adapter {
 			this.clearTimersAndIntervals();
 			this.mqtt_api.cleanup();
 			this.local_api.stopUdpDiscovery();
+			this.local_api.stopTcpKeepaliveInterval();
 
 			// Remove the global process exit listener to prevent memory leaks
 			if (this.onExitBound) {
@@ -337,8 +361,17 @@ export class Roborock extends utils.Adapter {
 	async onStateChange(id: string, state: ioBroker.State | null | undefined) {
 		if (!state) return;
 
-		// Split ID once
 		const idParts = id.split(".");
+
+		// deviceStatus.state (V1) or deviceStatus.status (B01): react only to our own updates (ack) — active -> idle triggers cleaning records update
+		if (state.ack && idParts[2] === "Devices" && idParts.length >= 6 && idParts[4] === "deviceStatus" && (idParts[5] === "state" || idParts[5] === "status")) {
+			const duid = idParts[3];
+			const newVal = state.val != null ? Number(state.val) : 0;
+			if (!isNaN(newVal)) {
+				this.deviceManager.onDeviceStateChange(duid, newVal).catch((e: unknown) => this.catchError(e, "onStateChange(deviceStatus)", duid));
+			}
+			return;
+		}
 
 		if (state.ack) {
 			if (id.endsWith(".online") && idParts.length >= 4) {
@@ -586,33 +619,33 @@ export class Roborock extends utils.Adapter {
 		this.requestsHandler.clearQueue();
 	}
 
+	/** Timestamp keys we format as readable date string; all other keys passed through as-is. */
+	private static readonly DEVICE_INFO_DATE_KEYS = ["activeTime", "active_time", "createTime", "create_time"];
+
 	/**
-	 * Updates general device info (online status, etc.).
+	 * Updates deviceInfo from cloud HomeData: all top-level device fields are written to
+	 * Devices.${duid}.deviceInfo.* (names unchanged). Scalars as-is; objects/arrays as JSON string.
 	 */
 	async updateDeviceInfo(duid: string, devices: Device[]) {
 		const device = devices.find((d) => d.duid === duid);
 		if (!device) return;
 
-		for (const attr of Object.keys(device)) {
-			const value = (device as unknown as Record<string, ioBroker.StateValue>)[attr];
-			if (typeof value !== "object") {
-				const common: Partial<ioBroker.StateCommon> = {};
-				let finalValue: ioBroker.StateValue = value;
-
-				if (attr === "activeTime") {
-					finalValue = this.formatRoborockDate(value as number);
-					common.unit = "";
-					common.type = "string";
-				} else if (attr === "createTime") {
-					finalValue = this.formatRoborockDate(value as number);
-					common.type = "string";
-				} else {
-					common.type = typeof finalValue as ioBroker.CommonType;
-				}
-
-				await this.ensureState(`Devices.${duid}.deviceInfo.${attr}`, common);
-				await this.setStateChanged(`Devices.${duid}.deviceInfo.${attr}`, { val: finalValue, ack: true });
+		const raw = device as unknown as Record<string, unknown>;
+		for (const attr of Object.keys(raw)) {
+			let value: ioBroker.StateValue = raw[attr] as ioBroker.StateValue;
+			if (typeof value === "object" && value !== null) {
+				value = JSON.stringify(value);
 			}
+			const common: Partial<ioBroker.StateCommon> = {};
+			let finalValue: ioBroker.StateValue = value;
+			if (Roborock.DEVICE_INFO_DATE_KEYS.includes(attr) && typeof value === "number") {
+				finalValue = this.formatRoborockDate(value);
+				common.type = "string";
+			} else {
+				common.type = typeof finalValue as ioBroker.CommonType;
+			}
+			await this.ensureState(`Devices.${duid}.deviceInfo.${attr}`, common);
+			await this.setStateChanged(`Devices.${duid}.deviceInfo.${attr}`, { val: finalValue, ack: true });
 		}
 	}
 

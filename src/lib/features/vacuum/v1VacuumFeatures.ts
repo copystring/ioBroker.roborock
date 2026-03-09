@@ -407,10 +407,9 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 	public async updateCleanSummary(): Promise<void> {
 		await this.requestAndProcess("get_clean_summary", [], "cleaningInfo", async (data) => {
 			// Mapper now only handles list processing, value conversion moved to processResultKey
-
-			// Fetch maps for records in parallel to avoid blocking
-			if (this.deps.config.enable_map_creation && Array.isArray(data.records)) {
-			// Use a local queue to limit concurrency strictly for map downloads
+			// Always process records when present (so cleaningInfo.records.* is populated).
+			// Map images are only fetched when enable_map_creation is true.
+			if (Array.isArray(data.records)) {
 				const mapQueue = new PQueue({ concurrency: 1 });
 
 				// Get all existing start times in one go to detect shifts
@@ -482,7 +481,10 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 				await mapQueue.onIdle();
 			}
 
-			return data;
+			// Return summary fields only; records are written above as cleaningInfo.records.<index>.*
+			const rest = { ...data };
+			delete rest.records;
+			return rest;
 		});
 	}
 
@@ -524,22 +526,24 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 					}
 				}
 
-				// 3. Fetch Map (No limits)
-				const mapResult = await this.mapService.getCleaningRecordMap(startTime);
-				if (mapResult) {
-					const mapFolder = `records.${index}.map`;
-					await this.deps.ensureFolder(`Devices.${this.duid}.cleaningInfo.${mapFolder}`);
+				// 3. Fetch Map only when map creation is enabled (records metadata is always saved above)
+				if (this.deps.config.enable_map_creation) {
+					const mapResult = await this.mapService.getCleaningRecordMap(startTime);
+					if (mapResult) {
+						const mapFolder = `records.${index}.map`;
+						await this.deps.ensureFolder(`Devices.${this.duid}.cleaningInfo.${mapFolder}`);
 
-					const saveMap = async (suffix: string, name: string, val: string, role = "text.png") => {
-						await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.${mapFolder}.${suffix}`, { name, type: "string", role });
-						await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.${mapFolder}.${suffix}`, { val, ack: true });
-					};
+						const saveMap = async (suffix: string, name: string, val: string, role = "text.png") => {
+							await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.${mapFolder}.${suffix}`, { name, type: "string", role });
+							await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.${mapFolder}.${suffix}`, { val, ack: true });
+						};
 
-					await saveMap("mapBase64", "Map Image", mapResult.mapBase64);
+						await saveMap("mapBase64", "Map Image", mapResult.mapBase64);
 
-					await saveMap("mapData", "Map Data", mapResult.mapData, "json");
-				} else {
-					this.deps.adapter.rLog("MapManager", this.duid, "Warn", "1.0", undefined, `No map found for record ${startTime}`, "warn");
+						await saveMap("mapData", "Map Data", mapResult.mapData, "json");
+					} else {
+						this.deps.adapter.rLog("MapManager", this.duid, "Warn", "1.0", undefined, `No map found for record ${startTime}`, "warn");
+					}
 				}
 			} catch (e: any) {
 				this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, `Background fetch for record ${startTime} failed: ${e.message}`, "warn");
@@ -557,6 +561,8 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 					await this.detectAndApplyRuntimeFeatures(statusData);
 				}
 				await this.processStatus(statusData);
+				const c = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.cleaningInfo.clean_count`);
+				this.deps.adapter.rLog("System", this.duid, "Debug", "1.0", undefined, `status=${statusData.state ?? "?"}, clean_count=${c?.val ?? "?"}`, "debug");
 			}
 		} catch (e: any) {
 			this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Failed to update status: ${e.message}`, "warn");
