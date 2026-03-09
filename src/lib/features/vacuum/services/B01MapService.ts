@@ -198,6 +198,13 @@ export class B01MapService {
 				}).filter((r: any) => r !== null)
 			};
 
+			await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.JSON`, {
+				name: "JSON",
+				type: "string",
+				role: "json",
+				read: true,
+				write: false
+			});
 			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.JSON`, { val: JSON.stringify(jsonSummary), ack: true });
 		} catch (e: any) {
 			this.deps.adapter.rLog("System", this.duid, "Error", "B01", undefined, `Error processing B01 clean summary: ${e.message}`, "error");
