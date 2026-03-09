@@ -246,6 +246,11 @@ export class DeviceManager {
 		return activeStates.includes(stateCode);
 	}
 
+	/** Parked/docked: fetch history only then (cloud has new record). 4 = docked, 8 = Charging, 100 = Fully Charged. */
+	private isParkedState(stateCode: number): boolean {
+		return stateCode === 4 || stateCode === 8 || stateCode === 100;
+	}
+
 	/** Starts polling. updateInterval (UI) drives everything except TCP; TCP keepalive is fixed 30s. */
 	public startPolling(): void {
 		const mainPollInterval = this.adapter.config.updateInterval; // e.g. 60s
@@ -309,7 +314,7 @@ export class DeviceManager {
 		}, 1000); // 1s ticker
 	}
 
-	/** On deviceStatus.state/status change: on active→idle run updateCleanSummary + updateMap. */
+	/** On state change: history only when parked (4/8/100) or idle→parked (3→4); else only map. */
 	public async onDeviceStateChange(duid: string, newStateVal: number): Promise<void> {
 		const handler = this.deviceFeatureHandlers.get(duid);
 		if (!handler) return;
@@ -317,13 +322,25 @@ export class DeviceManager {
 		const oldVal = this.lastStateCode.get(duid) ?? 0;
 		const wasActive = this.isActiveState(oldVal);
 		const isActive = this.isActiveState(newStateVal);
+		const isParked = this.isParkedState(newStateVal);
+		const wasIdle = oldVal === 3;
 		this.lastStateCode.set(duid, newStateVal);
 
 		if (wasActive && !isActive) {
 			const version = (handler as any).protocolVersion || "?";
-			this.adapter.rLog("System", duid, "Info", version, undefined, `Activity finished (State ${oldVal} -> ${newStateVal}). Fetching history + map...`, "info");
-			await handler.updateCleanSummary();
+			if (isParked) {
+				this.adapter.rLog("System", duid, "Info", version, undefined, `Activity finished (State ${oldVal} -> ${newStateVal}). Fetching history + map...`, "info");
+				await handler.updateMap();
+				await handler.updateCleanSummary().catch((e: unknown) => this.adapter.catchError(e, "updateCleanSummary", duid));
+			} else {
+				this.adapter.rLog("System", duid, "Info", version, undefined, `Activity finished (State ${oldVal} -> ${newStateVal}). Fetching map...`, "info");
+				await handler.updateMap();
+			}
+		} else if (wasIdle && isParked) {
+			const version = (handler as any).protocolVersion || "?";
+			this.adapter.rLog("System", duid, "Info", version, undefined, `Idle -> Parked (State ${oldVal} -> ${newStateVal}). Fetching history + map...`, "info");
 			await handler.updateMap();
+			await handler.updateCleanSummary().catch((e: unknown) => this.adapter.catchError(e, "updateCleanSummary", duid));
 		}
 	}
 
@@ -342,9 +359,19 @@ export class DeviceManager {
 		}
 
 		if (wasActive && !isActive) {
-			this.adapter.rLog("System", duid, "Info", "B01", undefined, `Activity finished (State ${lastState} -> ${currentState}). Fetching history + map...`, "info");
-			await handler.updateCleanSummary();
+			const isParked = this.isParkedState(currentState);
+			if (isParked) {
+				this.adapter.rLog("System", duid, "Info", "B01", undefined, `Activity finished (State ${lastState} -> ${currentState}). Fetching history + map...`, "info");
+				await handler.updateMap();
+				await handler.updateCleanSummary().catch((e: unknown) => this.adapter.catchError(e, "updateCleanSummary", duid));
+			} else {
+				this.adapter.rLog("System", duid, "Info", "B01", undefined, `Activity finished (State ${lastState} -> ${currentState}). Fetching map...`, "info");
+				await handler.updateMap();
+			}
+		} else if (lastState === 3 && this.isParkedState(currentState)) {
+			this.adapter.rLog("System", duid, "Info", "B01", undefined, `Idle -> Parked (State ${lastState} -> ${currentState}). Fetching history + map...`, "info");
 			await handler.updateMap();
+			await handler.updateCleanSummary().catch((e: unknown) => this.adapter.catchError(e, "updateCleanSummary", duid));
 		}
 
 		this.lastStateCode.set(duid, currentState);
@@ -365,9 +392,19 @@ export class DeviceManager {
 		}
 
 		if (wasActive && !isActive) {
-			this.adapter.rLog("System", duid, "Info", "A01", undefined, `Activity finished (State ${lastState} -> ${currentState}). Fetching history + map...`, "info");
-			await handler.updateCleanSummary();
+			const isParked = this.isParkedState(currentState);
+			if (isParked) {
+				this.adapter.rLog("System", duid, "Info", "A01", undefined, `Activity finished (State ${lastState} -> ${currentState}). Fetching history + map...`, "info");
+				await handler.updateMap();
+				await handler.updateCleanSummary().catch((e: unknown) => this.adapter.catchError(e, "updateCleanSummary", duid));
+			} else {
+				this.adapter.rLog("System", duid, "Info", "A01", undefined, `Activity finished (State ${lastState} -> ${currentState}). Fetching map...`, "info");
+				await handler.updateMap();
+			}
+		} else if (lastState === 3 && this.isParkedState(currentState)) {
+			this.adapter.rLog("System", duid, "Info", "A01", undefined, `Idle -> Parked (State ${lastState} -> ${currentState}). Fetching history + map...`, "info");
 			await handler.updateMap();
+			await handler.updateCleanSummary().catch((e: unknown) => this.adapter.catchError(e, "updateCleanSummary", duid));
 		}
 
 		this.lastStateCode.set(duid, currentState);
@@ -388,9 +425,19 @@ export class DeviceManager {
 		}
 
 		if (wasActive && !isActive) {
-			this.adapter.rLog("System", duid, "Info", "1.0", undefined, `Activity finished (State ${lastState} -> ${currentState}). Fetching history + map...`, "info");
-			await handler.updateCleanSummary();
+			const isParked = this.isParkedState(currentState);
+			if (isParked) {
+				this.adapter.rLog("System", duid, "Info", "1.0", undefined, `Activity finished (State ${lastState} -> ${currentState}). Fetching history + map...`, "info");
+				await handler.updateMap();
+				await handler.updateCleanSummary().catch((e: unknown) => this.adapter.catchError(e, "updateCleanSummary", duid));
+			} else {
+				this.adapter.rLog("System", duid, "Info", "1.0", undefined, `Activity finished (State ${lastState} -> ${currentState}). Fetching map...`, "info");
+				await handler.updateMap();
+			}
+		} else if (lastState === 3 && this.isParkedState(currentState)) {
+			this.adapter.rLog("System", duid, "Info", "1.0", undefined, `Idle -> Parked (State ${lastState} -> ${currentState}). Fetching history + map...`, "info");
 			await handler.updateMap();
+			await handler.updateCleanSummary().catch((e: unknown) => this.adapter.catchError(e, "updateCleanSummary", duid));
 		}
 
 		this.lastStateCode.set(duid, currentState);
