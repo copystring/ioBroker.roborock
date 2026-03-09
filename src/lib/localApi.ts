@@ -18,7 +18,8 @@ const BROADCAST_TOKEN = Buffer.from("qWKYcdQWrbm9hPqe", "utf8");
 
 interface LocalDevice {
 	ip: string;
-	version: string;
+	/** Protocol version (L01, B01, 1.0). Undefined when promoted without UDP = need TCP protocol probe. */
+	version?: string;
 	connectNonce?: number;
 	ackNonce?: number;
 }
@@ -169,15 +170,30 @@ export class local_api {
 				this.deviceSockets[duid] = client;
 				this.reconnectPlanned.delete(duid);
 
+				// Attach data handler before probe so we can receive hello_response / request responses
+				this.attachTcpDataHandlers(duid, client);
+
 				const version = this.getLocalProtocolVersion(duid);
-				if (version === "L01") {
+				if (version == null) {
+					// No UDP: run TCP protocol probe (L01 Hello → B01 prop.get → 1.0 get_prop)
+					await this.runProtocolProbe(duid);
+				} else if (version === "L01") {
 					await this.initHandshake(duid, version);
 				}
 				resolve();
 			});
 		});
 
-		// Handle incoming data
+		client.on("close", () => this.scheduleReconnect(duid, `connection closed`));
+		client.on("error", (error) => this.scheduleReconnect(duid, `connection error: ${error.message}`));
+		client.on("end", () => this.scheduleReconnect(duid, "connection ended"));
+
+		this.adapter.rLog("TCP", duid, "Info", undefined, undefined, `Connected`, "debug");
+		this.cloudDevices.delete(duid);
+	}
+
+	/** Attaches the TCP data (and control frame) handler. Used so probe can receive hello_response before resolve(). */
+	private attachTcpDataHandlers(duid: string, client: EnhancedSocket): void {
 		client.on("data", async (message: Buffer) => {
 			try {
 				// Buffering logic
@@ -289,13 +305,6 @@ export class local_api {
 				this.adapter.catchError(error, "initiateClient", duid);
 			}
 		});
-
-		client.on("close", () => this.scheduleReconnect(duid, `connection closed`));
-		client.on("error", (error) => this.scheduleReconnect(duid, `connection error: ${error.message}`));
-		client.on("end", () => this.scheduleReconnect(duid, "connection ended"));
-
-		this.adapter.rLog("TCP", duid, "Info", undefined, undefined, `Connected`, "debug");
-		this.cloudDevices.delete(duid);
 	}
 
 	/** Sends get_prop every 30s for L01 TCP so connection stays below device ~60s idle timeout. */
@@ -622,6 +631,58 @@ export class local_api {
 	}
 
 	/**
+	 * Detects protocol version over TCP when UDP discovery did not run (e.g. Docker).
+	 * Tries L01 Hello, then B01 prop.get, then 1.0 get_prop get_status. Sets localDevices[duid].version.
+	 */
+	private async runProtocolProbe(duid: string): Promise<void> {
+		const dev = this.localDevices[duid];
+		if (!dev) return;
+
+		const cloudPv = (this.adapter.http_api.getDevices().find((d) => d.duid === duid)?.pv) || "1.0";
+		this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `TCP protocol probe (no UDP): will try L01 → B01 → 1.0, cloud fallback pv=${cloudPv}`, "debug");
+
+		// 1) Try L01: send Hello, wait for hello_response (ackNonce)
+		dev.version = "L01";
+		const connectNonce = Math.floor(Math.random() * 1e9);
+		dev.connectNonce = connectNonce;
+		dev.ackNonce = undefined;
+		await this.sendHello(duid, connectNonce, "L01");
+
+		const ackDeadline = Date.now() + 2500;
+		while (Date.now() < ackDeadline) {
+			if (dev.ackNonce != null) {
+				this.adapter.rLog("TCP", duid, "Info", "L01", undefined, `Protocol probe: device responded to L01 Hello (ackNonce=${dev.ackNonce}). Using L01.`, "info");
+				return;
+			}
+			await new Promise((r) => setTimeout(r, 80));
+		}
+
+		// 2) Try B01: prop.get { property: ["status"] }
+		dev.version = "B01";
+		dev.ackNonce = undefined;
+		try {
+			await this.adapter.requestsHandler.sendRequest(duid, "prop.get", { property: ["status"] }, { timeout: 3500 });
+			this.adapter.rLog("TCP", duid, "Info", "B01", undefined, "Protocol probe: device responded to B01 prop.get. Using B01.", "info");
+			return;
+		} catch {
+			// continue to 1.0
+		}
+
+		// 3) Try 1.0: get_prop ["get_status"]
+		dev.version = "1.0";
+		try {
+			await this.adapter.requestsHandler.sendRequest(duid, "get_prop", ["get_status"], { timeout: 3500 });
+			this.adapter.rLog("TCP", duid, "Info", "1.0", undefined, "Protocol probe: device responded to 1.0 get_prop get_status. Using 1.0.", "info");
+			return;
+		} catch {
+			// fallback to cloud pv
+		}
+
+		dev.version = cloudPv;
+		this.adapter.rLog("TCP", duid, "Warn", cloudPv, undefined, `Protocol probe: no response for L01/B01/1.0. Using cloud pv=${cloudPv} as fallback.`, "warn");
+	}
+
+	/**
 	 * Probes a device at a specific IP via TCP.
 	 * If successful, promotes it to a Local Device.
 	 */
@@ -629,12 +690,10 @@ export class local_api {
 	async checkAndPromoteLocalConnection(duid: string, ip: string, timeoutMs = 5000, suppressLog = false): Promise<boolean> {
 		if (this.isConnected(duid)) return true;		// Register temporarily to allow initiateClient to work
 		if (!this.localDevices[duid]) {
-			// Fetch protocol version (mapped from cloud pv)
-			const version = await this.adapter.getDeviceProtocolVersion(duid);
-
+			// No UDP discovery: leave version undefined so TCP protocol probe runs after connect
 			this.localDevices[duid] = {
 				ip: ip,
-				version: version,
+				version: undefined,
 			} as LocalDevice;
 		} else {
 			if (this.localDevices[duid].ip !== ip) {
