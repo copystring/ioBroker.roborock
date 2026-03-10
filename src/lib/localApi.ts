@@ -195,6 +195,11 @@ export class local_api {
 	private attachTcpDataHandlers(duid: string, client: EnhancedSocket): void {
 		client.on("data", async (message: Buffer) => {
 			try {
+				// L01 TCP hex debug: log incoming bytes (debug level only)
+				if (this.getLocalProtocolVersion(duid) === "L01") {
+					const slice = message.subarray(0, Math.min(128, message.length));
+					this.adapter.rLog("TCP", duid, "L01 RX", "L01", undefined, `hex (${slice.length}b): ${slice.toString("hex")}`, "debug");
+				}
 				// Buffering logic
 				if (client.chunkBuffer.length === 0) {
 					if (!this.checkComplete(message)) {
@@ -389,6 +394,11 @@ export class local_api {
 	sendMessage(duid: string, message: Buffer): void {
 		const client = this.deviceSockets[duid];
 		if (client?.connected) client.write(message);
+		// L01 TCP hex debug: log outgoing bytes (debug level only)
+		if (this.getLocalProtocolVersion(duid) === "L01") {
+			const slice = message.subarray(0, Math.min(128, message.length));
+			this.adapter.rLog("TCP", duid, "L01 TX", "L01", undefined, `hex (${slice.length}b): ${slice.toString("hex")}`, "debug");
+		}
 	}
 
 	isConnected(duid: string): boolean {
