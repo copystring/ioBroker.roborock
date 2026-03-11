@@ -4,6 +4,7 @@
 !.github/
 !.husky/
 !.npmrc
+!.commitmessage
 
 *.code-workspace
 node_modules
