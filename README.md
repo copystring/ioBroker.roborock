@@ -40,11 +40,10 @@ This adapter allows you the control, get states, cleaning history and view the m
 - **Saros:** Saros 10, Saros 10R, Saros 20 / Saros 20X, Saros Z70
 
 ## Zone cleaning
-This feature only works when map creation is enabled in the adapter options!
+This feature only works when map creation is enabled in the adapter options. Open the map from the adapter’s web UI tab in the ioBroker admin interface; no manual URL needed.
+
 ### Map creation does not work on raspberry pi
- - There is a webserver running. Default port is 6824
- - Open `http://iobroker:6824/map.html` in your browser (replace `iobroker` with your ioBroker hostname or IP).
- - Draw your square meant for cleaning. Roborock supports up to 4 cleaning zones at once.
+- Draw your square meant for cleaning. Roborock supports up to 4 cleaning zones at once.
 
  ![](https://github.com/copystring/ioBroker.roborock/blob/main/images/Rockrock_zone_cleaning.gif)
 
