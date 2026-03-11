@@ -15,7 +15,7 @@ on:
 
 # Cancel previous PR/branch runs when a new commit is pushed
 concurrency:
-  group: ${{ github.ref }}-${{ github.event_name }}
+  group: ${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -48,6 +48,7 @@ jobs:
 
   # Runs adapter tests on all supported node versions and OSes
   adapter-tests:
+    needs: check-and-lint
     if: contains(github.event.head_commit.message, '[skip ci]') == false
 
     runs-on: ${{ matrix.os }}
