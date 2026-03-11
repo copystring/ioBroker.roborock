@@ -16,9 +16,14 @@
 
 This adapter allows you the control, get states, cleaning history and view the map of a Roborock vacuum cleaner which is set up in the Roborock app.
 
+- [Requirements](#requirements)
+- [Supported robots](#supported-robots)
+- [Zone cleaning](#zone-cleaning)
+- [Changelog](#changelog)
+
 **This adapter uses Sentry libraries to automatically report exceptions and code errors to the developers.** For more details and for information how to disable the error reporting see [Sentry-Plugin Documentation](https://github.com/ioBroker/plugin-sentry#plugin-sentry)! Sentry reporting is used starting with js-controller 3.0.
 
-### This adapter cannot work on on MacOS
+### This adapter cannot work on MacOS
 
 ## Requirements
 
@@ -26,37 +31,19 @@ This adapter allows you the control, get states, cleaning history and view the m
 - ioBroker.admin >= 7.6.17
 - ioBroker.js-controller >= 6.0.11
 
-## The supported robots are:
+## Supported robots
 
-- Roborock S4
-- Roborock S4 Max
-- Roborock S5 Max
-- Roborock S6
-- Roborock S6 Pure
-- Roborock S6 MaxV
-- Roborock S7
-- Roborock S7 MaxV (Ultra)
-- Roborock Q7
-- Roborock Q7 Max
-- Roborock S7 Pro Ultra
-- Roborock S7 Max Ultra
-- Roborock S8
-- Roborock S8 Pro Ultra
-- Roborock Q Revo
-- Roborock Q8 Max
-- Roborock Q5 Pro
-- Roborock Q Revo Pro
-- Roborock Qrevo S
-- Roborock Qrevo Curve
-- Roborock Saros 10R
-- Roborock Saros 20 / Saros 20X
+- **S-Series:** S4, S4 Max, S5 Max, S6, S6 Pure, S6 MaxV, S7, S7 MaxV (Pro/Ultra), S7 Pro Ultra, S7 Max Ultra, S8, S8 Pro Ultra, S8 MaxV Ultra
+- **Q-Series:** Q5 Pro, Q7, Q7 Max, Q7 L5, Q8 Max
+- **Q Revo:** Q Revo, Q Revo Pro
+- **Qrevo:** Qrevo Slim, Qrevo S, Qrevo Curve, Qrevo Curv Series, Qrevo Edge, Qrevo Edge Series, Qrevo L, Qrevo Master, Qrevo MaxV
+- **Saros:** Saros 10, Saros 10R, Saros 20 / Saros 20X, Saros Z70
 
 ## Zone cleaning
-This feature only works when map creation is enabled in the adapter options!
+This feature only works when map creation is enabled in the adapter options. Open the map from the adapter’s web UI tab in the ioBroker admin interface; no manual URL needed.
+
 ### Map creation does not work on raspberry pi
- - There is a webserver running. Default port is 6824
- - Open http://iobroker:6824/map.html in your browser (change http://iobroker your ioBroker hostname or ip!!!)
- - Draw your square meant for cleaning. Roborock supports up to 4 cleaning zones at once.
+- Draw your square meant for cleaning. Roborock supports up to 4 cleaning zones at once.
 
  ![](https://github.com/copystring/ioBroker.roborock/blob/main/images/Rockrock_zone_cleaning.gif)
 
@@ -91,6 +78,9 @@ This feature only works when map creation is enabled in the adapter options!
 * (copystring) **UDP Discovery:** Implemented a 1.5s grace period for UDP discovery to better detect shared devices on the local network.
 * (copystring) **Bugfix:** Fixed infinite retry loop for failed Network Probes (Remote Devices).
 * (copystring) **Code Cleanup:** Removed extensive debug logging, buffering logic, and unused code for a cleaner codebase.
+* (copystring) **New devices:** Saros 20X, Q7 L5.
+* (copystring) **Fix:** Cleaning history (records) now updates correctly after a cleaning run.
+* (copystring) **Stability:** Adapter no longer gets stuck in a boot loop when login fails or returns an error.
 
 ### 0.6.19 (2025-02-08)
 * (copystring) Rewrite of mqtt connection logic
