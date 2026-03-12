@@ -116,15 +116,3 @@ jobs:
           #  sentry-version-prefix: "iobroker.roborock"
           #  # If your sentry project is linked to a GitHub repository, you can enable the following option
           #  # sentry-github-integration: true
-
-      # Pre-releases: action publishes with "next"; we use "latest" instead (ioBroker list) and remove "next" (requires NPM_TOKEN secret)
-      - name: Set npm dist-tag latest for pre-releases (remove next)
-        if: contains(github.ref, '-')
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          echo "Pre-release $VERSION: latest for ioBroker, removing next"
-          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
-          npm dist-tag add iobroker.roborock@$VERSION latest
-          npm dist-tag rm iobroker.roborock next 2>/dev/null || true
