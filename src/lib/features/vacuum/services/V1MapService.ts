@@ -70,9 +70,8 @@ export class V1MapService {
 			}
 		}
 
-		// Sync extra rooms found in map data (visual segments) that might be missing from get_room_mapping
+		// Only create room states for segments that are on this map – ensures rooms are 100% assigned to this floor
 		if (mapResult.mapData && mapResult.mapData.IMAGE && mapResult.mapData.IMAGE.segments && Array.isArray(mapResult.mapData.IMAGE.segments.list)) {
-			// Ensure floors.<mapIndex> exists (using current map index)
 			const currentMapFlag = this.currentMapIndex;
 			await this.deps.ensureFolder(`Devices.${this.duid}.floors.${currentMapFlag}`);
 
@@ -180,110 +179,63 @@ export class V1MapService {
 		}
 	}
 
+	/**
+	 * Fetches room mapping from API and stores it for name resolution when the map is loaded.
+	 * Room states are NOT created here – they are only created in processMapResults when segments
+	 * are present on the loaded map, so rooms exist only where they are 100% assigned to that floor.
+	 */
 	public async updateRoomMapping(): Promise<boolean> {
 		try {
-			let result: any[] = [];
+			let rawResult: any = null;
 			for (let i = 0; i < 3; i++) {
-				result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_room_mapping", []) as any[];
+				rawResult = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_room_mapping", []);
 
-				if (Array.isArray(result) && result.length > 0) {
+				const hasMapInfo = rawResult && typeof rawResult === "object" &&
+					((Array.isArray(rawResult) && rawResult[0] && (rawResult[0] as any).map_info) || (rawResult as any).map_info);
+				if (hasMapInfo || (Array.isArray(rawResult) && rawResult.length > 0)) {
 					break;
 				}
-				// Wait 2 seconds before retry if empty
 				if (i < 2) await new Promise(resolve => setTimeout(resolve, 2000));
 			}
 
-			let fallbackUsed = false;
-			if (!(Array.isArray(result) && result.length > 0)) {
-				// FALLBACK: Use rooms from get_multi_maps_list matching current floor
-				const currentFloor = this.multiMaps.find(m => m.mapFlag === this.currentMapIndex);
-				if (currentFloor && Array.isArray(currentFloor.rooms)) {
-					fallbackUsed = true;
-					// Convert multi_maps format [{id, tag, iot_name_id, iot_name}] to room_mapping format [[id, iot_name_id, tag]]
-					result = currentFloor.rooms.map((r: any) => [r.id, r.iot_name_id, r.tag]);
+			const mapInfoFromApi: any[] | undefined = Array.isArray(rawResult) && rawResult[0] && (rawResult[0] as any).map_info
+				? (rawResult[0] as any).map_info
+				: (rawResult && (rawResult as any).map_info);
+			const hasRoomsPerMap = Array.isArray(mapInfoFromApi) && mapInfoFromApi.some((m: any) => Array.isArray(m.rooms) && m.rooms.length > 0);
+
+			if (hasRoomsPerMap) {
+				// Store per-map room list for parser name resolution; do not create any room states here
+				for (const map of mapInfoFromApi) {
+					const mapFlag = map.mapFlag ?? map.id;
+					const rooms = map.rooms;
+					if (!Array.isArray(rooms) || rooms.length === 0) continue;
+					const roomEntries: [number, number][] = rooms.map((r: any) => [r.id, r.iot_name_id != null ? r.iot_name_id : 0]);
+					if (this.currentMapIndex === mapFlag) this.mappedRooms = roomEntries;
+					const existing = this.multiMaps.find((m: any) => (m.mapFlag ?? m.id) === mapFlag);
+					if (existing) existing.rooms = rooms;
 				}
-			}
-
-			if (Array.isArray(result) && result.length > 0) {
-				if (fallbackUsed) {
-					this.adapter.rLog("MapManager", this.duid, "Info", "1.0", undefined, `[updateRoomMapping] Fallsback to multi-map list for Floor ${this.currentMapIndex} (Count: ${result.length})`, "info");
-				} else {
-					this.adapter.rLog("MapManager", this.duid, "Info", "1.0", undefined, `[updateRoomMapping] Using ${result.length} rooms from get_room_mapping (Floor: ${this.currentMapIndex})`, "info");
-				}
-
-				this.mappedRooms = result;
-				const currentMapFlag = this.currentMapIndex;
-
-				await this.deps.ensureFolder(`Devices.${this.duid}.floors`);
-				await this.deps.ensureFolder(`Devices.${this.duid}.floors.${currentMapFlag}`);
-
-				// Get Cloud Room Names to resolve IDs (e.g. "33230238" -> "Kitchen")
-				// For shared devices, rooms belong to the owner: use deviceshare API
-				const cloudRooms = this.adapter.http_api.isSharedDevice(this.duid)
-					? await this.adapter.http_api.getSharedDeviceRooms(this.duid)
-					: this.adapter.http_api.getMatchedRoomIDs(false);
-
-				await Promise.all(result.map(async ([shortID, longID]) => {
-					// Resolve Name using Long ID (index 1)
-					let realName = "";
-
-					const roomObj = cloudRooms.find((r) => String(r.id) === String(longID));
-					if (roomObj && roomObj.name) {
-						realName = roomObj.name;
-					}
-
-					// Structure: Devices.<duid>.floors.<floorID>.<shortID>
-					const roomStateId = `Devices.${this.duid}.floors.${currentMapFlag}.${shortID}`;
-
-					// If name failed to resolve (still looks like ID or empty), set to empty to indicate "Unnamed"
-					if (!realName || String(realName).match(/^\d+$/) || String(realName) === "-1") {
-						realName = "";
-					}
-
-					const obj = await this.adapter.getObjectAsync(roomStateId);
-					const currentName = obj?.common?.name;
-
-					const isInvalidName = !currentName || String(currentName).match(/^\d+$/);
-
-					if (!obj || (realName && currentName !== realName) || (isInvalidName && realName !== currentName)) {
-						// Prepare common attributes
-						const common: Partial<ioBroker.StateCommon> = {
-							type: "boolean",
-							role: "switch",
-							write: true,
-							name: realName || (obj?.common?.name as string) || "",
-							def: false
-						};
-
-						// Ensure the State is a switch (boolean)
-						await this.deps.ensureState(roomStateId, common);
-
-						// extendObject to set native.id properly AND ensure name is updated (if we have one)
-						const extendCommon: Partial<ioBroker.StateCommon> = { name: realName || (obj?.common?.name as string) || "" };
-
-						if (realName) {
-							this.adapter.rLog("MapManager", this.duid, "Debug", "1.0", undefined, `[updateRoomMapping] Syncing Room ${shortID} -> ${roomStateId} (Name: "${realName}")`, "debug");
-						}
-
-						await this.adapter.extendObject(roomStateId, {
-							common: extendCommon,
-							native: { id: shortID }
-						});
-					}
-				}));
-				// Update cleanCount (legacy feature from 0.6.19)
-				const cleanCountId = `Devices.${this.duid}.floors.cleanCount`;
-				await this.deps.ensureState(cleanCountId, {
-					name: "Clean count",
-					type: "number",
-					write: true,
-					def: 1
-				});
-
-				return true;
+				this.adapter.rLog("MapManager", this.duid, "Info", "1.0", undefined, `[updateRoomMapping] Stored room mapping for ${mapInfoFromApi.length} maps (room states only when map is loaded)`, "info");
 			} else {
-				this.adapter.rLog("MapManager", this.duid, "Warn", "1.0", undefined, `[updateRoomMapping] No rooms found for Floor ${this.currentMapIndex} (Result empty, No MultiMap fallback)`, "warn");
+				// Legacy: flat room list for current map only
+				let result: any[] = Array.isArray(rawResult) && rawResult.length > 0 && Array.isArray(rawResult[0])
+					? rawResult as any[]
+					: [];
+				if (result.length === 0) {
+					const currentFloor = this.multiMaps.find(m => m.mapFlag === this.currentMapIndex);
+					if (currentFloor && Array.isArray(currentFloor.rooms)) {
+						result = currentFloor.rooms.map((r: any) => [r.id, r.iot_name_id, r.tag]);
+					}
+				}
+				if (result.length > 0) {
+					this.mappedRooms = result;
+					this.adapter.rLog("MapManager", this.duid, "Info", "1.0", undefined, `[updateRoomMapping] Stored room mapping for current floor (${result.length} rooms; states only when map loaded)`, "info");
+				} else {
+					this.adapter.rLog("MapManager", this.duid, "Warn", "1.0", undefined, `[updateRoomMapping] No room mapping for Floor ${this.currentMapIndex}`, "warn");
+				}
 			}
+
+			await this.deps.ensureState(`Devices.${this.duid}.floors.cleanCount`, { name: "Clean count", type: "number", write: true, def: 1 });
+			return true;
 		} catch (e: any) {
 			this.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Failed to update room mapping: ${e.message}`, "warn");
 		}
@@ -369,14 +321,16 @@ export class V1MapService {
 		this.lastMapStatus = mapStatus;
 		if (mapStatus === undefined || mapStatus === null) return false;
 
-		// Ignore large status values (usually > 250) which indicate "No Map", "Loading", or "Updating".
-		// For example, 252 (0xFC) or 255 (0xFF).
 		if (mapStatus >= 250) return false;
 
 		const slotIndex = mapStatus >> 2;
 		if (slotIndex >= 0 && slotIndex !== this.currentMapIndex) {
 			this.currentMapIndex = slotIndex;
-			this.mappedRooms = null; // Clear room mapping cache on floor switch
+			// Use room mapping for new floor from multiMaps (if we have it) so parser can resolve names when map is loaded
+			const floor = this.multiMaps.find((m: any) => (m.mapFlag ?? m.id) === slotIndex);
+			this.mappedRooms = Array.isArray(floor?.rooms)
+				? floor.rooms.map((r: any) => [r.id, r.iot_name_id != null ? r.iot_name_id : 0])
+				: null;
 			return true;
 		}
 		return false;
