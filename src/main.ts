@@ -843,7 +843,8 @@ export class Roborock extends utils.Adapter {
 				},
 				native: {}
 			});
-		} else {
+		} else if (customName !== undefined) {
+			// Only update name when explicitly passed; avoid overwriting with path segment when ensuring existence (issue #1140)
 			const currentName = oldObj.common.name;
 			const isDifferent = JSON.stringify(currentName) !== JSON.stringify(name);
 
