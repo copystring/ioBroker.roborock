@@ -1,4 +1,3 @@
-import type { RoborockLocales } from "../../../roborock_locales";
 import { FeatureDependencies } from "../../baseDeviceFeatures";
 
 export class B01MapService {
@@ -9,7 +8,6 @@ export class B01MapService {
 	constructor(
 		private deps: FeatureDependencies,
 		private duid: string,
-		private locales: RoborockLocales,
 		private onRoomsDetected?: (rooms: any[]) => void
 	) {}
 
@@ -356,6 +354,9 @@ export class B01MapService {
 	public async updateRoomMapping(mappedRooms?: any[]): Promise<void> {
 		if (!mappedRooms) return;
 
+		// Floors and names come only from the API; refresh so current floor folder exists with correct name (issue #1140)
+		await this.updateMultiMapsList();
+
 		// B01: use current_map_id (map id like 1770281900); map_status is a small status code
 		const currentMapIdState = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.deviceStatus.current_map_id`);
 		let floorID = 0;
@@ -368,8 +369,8 @@ export class B01MapService {
 			}
 		}
 		const floorFolder = `Devices.${this.duid}.floors.${floorID}`;
-		const floorName = `${this.locales.getText("guide_multifloors", this.deps.adapter.language || "en")} ${floorID}`;
-		await this.deps.ensureFolder(floorFolder, floorName);
+		// Guarantee folder exists before writing room states (updateMultiMapsList may have failed, returned empty, or floorID may not be in API list)
+		await this.deps.ensureFolder(floorFolder);
 
 		// We assume mappedRooms is [{ id: 10, name: "Living Room" }, ...] or [{ roomId: 10, roomName: "Living Room" }, ...]
 

@@ -40,7 +40,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		this.stationService = new StationService(this.deps, this.duid);
 
 		// Initialize Services
-		this.mapService = new B01MapService(dependencies, duid, this.locales, (rooms) => this.setMappedRooms(rooms));
+		this.mapService = new B01MapService(dependencies, duid, (rooms) => this.setMappedRooms(rooms));
 		this.controlService = new B01ControlService();
 
 		this.deps.adapter.rLog("System", this.duid, "Info", "B01", undefined, `Constructing B01VacuumFeatures for ${robotModel}`, "info");

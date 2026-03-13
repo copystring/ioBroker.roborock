@@ -6,7 +6,6 @@ describe("B01MapService", () => {
     let service: B01MapService;
     let mockAdapter: any;
     let mockDeps: any;
-    let mockLocales: any;
     const duid = "test_duid";
 
     beforeEach(() => {
@@ -33,11 +32,7 @@ describe("B01MapService", () => {
             ensureState: vi.fn(),
         };
 
-        mockLocales = {
-            getText: vi.fn(() => "Floor"),
-        };
-
-        service = new B01MapService(mockDeps as any, duid, mockLocales as any);
+        service = new B01MapService(mockDeps as any, duid);
     });
 
     describe("updateMap", () => {
@@ -77,21 +72,25 @@ describe("B01MapService", () => {
     });
 
     describe("updateRoomMapping", () => {
-        it("should create room states based on map status", async () => {
-			// Mock map_status
-            mockAdapter.getStateAsync.mockResolvedValueOnce({ val: 2 }); // Floor 2
+        it("should refresh floors from API then create room states (issue #1140: names only from API)", async () => {
+            mockAdapter.requestsHandler.sendRequest.mockResolvedValue({
+                map_list: [{ id: 2, name: "Floor 2" }]
+            });
+            mockAdapter.getStateAsync.mockResolvedValue({ val: 2 }); // current_map_id = 2
 
             const rooms = [{ id: 10, name: "Kitchen" }, { id: 11, name: "Living Room" }];
             await service.updateRoomMapping(rooms);
 
-            expect(mockDeps.ensureFolder).toHaveBeenCalledWith(`Devices.${duid}.floors.2`, expect.stringContaining("Floor 2"));
+            expect(mockAdapter.requestsHandler.sendRequest).toHaveBeenCalledWith(duid, "service.get_map_list", {});
+            expect(mockDeps.ensureFolder).toHaveBeenCalledWith(`Devices.${duid}.floors.2`, "Floor 2");
+            expect(mockDeps.ensureFolder).toHaveBeenCalledWith(`Devices.${duid}.floors.2`); // fallback so folder exists before room states
             expect(mockDeps.ensureState).toHaveBeenCalledWith(`Devices.${duid}.floors.2.10`, expect.objectContaining({ name: "Kitchen" }));
             expect(mockDeps.ensureState).toHaveBeenCalledWith(`Devices.${duid}.floors.2.11`, expect.objectContaining({ name: "Living Room" }));
         });
 
 		it("should handle missing mappedRooms gracefully", async () => {
 			await service.updateRoomMapping(undefined);
-			expect(mockDeps.ensureFolder).not.toHaveBeenCalled();
+			expect(mockAdapter.requestsHandler.sendRequest).not.toHaveBeenCalled();
 		});
     });
 });
