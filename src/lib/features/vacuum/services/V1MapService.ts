@@ -73,6 +73,7 @@ export class V1MapService {
 		// Only create room states for segments that are on this map – ensures rooms are 100% assigned to this floor
 		if (mapResult.mapData && mapResult.mapData.IMAGE && mapResult.mapData.IMAGE.segments && Array.isArray(mapResult.mapData.IMAGE.segments.list)) {
 			const currentMapFlag = this.currentMapIndex;
+			await this.deps.ensureFolder(`Devices.${this.duid}.floors`);
 			await this.deps.ensureFolder(`Devices.${this.duid}.floors.${currentMapFlag}`);
 
 			for (const segment of mapResult.mapData.IMAGE.segments.list) {
@@ -203,6 +204,7 @@ export class V1MapService {
 				: (rawResult && (rawResult as any).map_info);
 			const hasRoomsPerMap = Array.isArray(mapInfoFromApi) && mapInfoFromApi.some((m: any) => Array.isArray(m.rooms) && m.rooms.length > 0);
 
+			let stored = false;
 			if (hasRoomsPerMap) {
 				// Store per-map room list for parser name resolution; do not create any room states here
 				for (const map of mapInfoFromApi) {
@@ -214,6 +216,7 @@ export class V1MapService {
 					const existing = this.multiMaps.find((m: any) => (m.mapFlag ?? m.id) === mapFlag);
 					if (existing) existing.rooms = rooms;
 				}
+				stored = true;
 				this.adapter.rLog("MapManager", this.duid, "Info", "1.0", undefined, `[updateRoomMapping] Stored room mapping for ${mapInfoFromApi.length} maps (room states only when map is loaded)`, "info");
 			} else {
 				// Legacy: flat room list for current map only
@@ -228,14 +231,17 @@ export class V1MapService {
 				}
 				if (result.length > 0) {
 					this.mappedRooms = result;
+					stored = true;
 					this.adapter.rLog("MapManager", this.duid, "Info", "1.0", undefined, `[updateRoomMapping] Stored room mapping for current floor (${result.length} rooms; states only when map loaded)`, "info");
 				} else {
 					this.adapter.rLog("MapManager", this.duid, "Warn", "1.0", undefined, `[updateRoomMapping] No room mapping for Floor ${this.currentMapIndex}`, "warn");
 				}
 			}
 
+			// Ensure floors parent exists (single-map / empty multi-map devices may not get it from updateMultiMapsList)
+			await this.deps.ensureFolder(`Devices.${this.duid}.floors`);
 			await this.deps.ensureState(`Devices.${this.duid}.floors.cleanCount`, { name: "Clean count", type: "number", write: true, def: 1 });
-			return true;
+			return stored;
 		} catch (e: any) {
 			this.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Failed to update room mapping: ${e.message}`, "warn");
 		}
