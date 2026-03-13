@@ -6,7 +6,6 @@ describe("B01MapService", () => {
     let service: B01MapService;
     let mockAdapter: any;
     let mockDeps: any;
-    let mockLocales: any;
     const duid = "test_duid";
 
     beforeEach(() => {
@@ -33,11 +32,7 @@ describe("B01MapService", () => {
             ensureState: vi.fn(),
         };
 
-        mockLocales = {
-            getText: vi.fn(() => "Floor"),
-        };
-
-        service = new B01MapService(mockDeps as any, duid, mockLocales as any);
+        service = new B01MapService(mockDeps as any, duid);
     });
 
     describe("updateMap", () => {

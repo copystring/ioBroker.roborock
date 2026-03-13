@@ -1,4 +1,3 @@
-import type { RoborockLocales } from "../../../roborock_locales";
 import { FeatureDependencies } from "../../baseDeviceFeatures";
 
 export class B01MapService {
@@ -9,7 +8,6 @@ export class B01MapService {
 	constructor(
 		private deps: FeatureDependencies,
 		private duid: string,
-		private locales: RoborockLocales,
 		private onRoomsDetected?: (rooms: any[]) => void
 	) {}
 
