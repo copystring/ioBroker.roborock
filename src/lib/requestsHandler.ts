@@ -109,27 +109,25 @@ export class RoborockRequest {
 	public creationTime: number;
 	public startTime: number = 0;
 	public binaryType: "photo" | "map" | undefined;
-	private externalId?: number;
 	timeoutTimer: ioBroker.Timeout | undefined;
 
 	timeout: number;
 	manager: RequestManager;
 	queueName: string;
 
-	constructor(handler: requestsHandler, duid: string, method: string, params: unknown, manager: RequestManager, queueName: string, version = "1.0", timeout = REQUEST_TIMEOUT, externalId?: number) {
+	constructor(handler: requestsHandler, duid: string, method: string, params: unknown, manager: RequestManager, queueName: string, version = "1.0", timeout = REQUEST_TIMEOUT) {
 		this.handler = handler;
 		this.adapter = handler.adapter;
 		this.duid = duid;
 		this.method = method;
 		this.params = params;
-		this.messageID = externalId || 0;
+		this.messageID = 0;
 		this.version = version;
 		this.creationTime = Date.now();
 		this.startTime = Date.now();
 		this.timeout = timeout;
 		this.manager = manager;
 		this.queueName = queueName;
-		this.externalId = externalId;
 
 		// Set strict binary type based on method
 		if (this.method === "get_photo") {
@@ -152,9 +150,7 @@ export class RoborockRequest {
 		if (signal?.aborted) throw new Error("Aborted");
 
 		// Assign fresh Message ID right before sending
-		if (this.externalId !== undefined) {
-			this.messageID = this.externalId;
-		} else if (this.method === "get_photo") {
+		if (this.method === "get_photo") {
 			this.handler.photoIdCounter = this.handler.photoIdCounter >= 255 ? 1 : this.handler.photoIdCounter + 1;
 			this.messageID = this.handler.photoIdCounter;
 		} else {
@@ -399,7 +395,7 @@ export class requestsHandler {
 		promise.catch(() => {});
 	}
 
-	async sendRequest(duid: string, method: string, params: unknown, options: { priority?: number; timeout?: number; externalId?: number } = {}) {
+	async sendRequest(duid: string, method: string, params: unknown, options: { priority?: number; timeout?: number } = {}) {
 		const version = await this.adapter.getDeviceProtocolVersion(duid);
 
 		let manager = this.globalManager;
@@ -428,7 +424,7 @@ export class requestsHandler {
 		}
 
 		const attempt = async (retryCount: number): Promise<unknown> => {
-			const req = new RoborockRequest(this, duid, method, params, manager, queueName, version, timeout, options.externalId);
+			const req = new RoborockRequest(this, duid, method, params, manager, queueName, version, timeout);
 			if (method === "get_photo") {
 				req.binaryType = "photo";
 			} else if (method === "get_map_v1" || method === "get_clean_record_map") {
@@ -473,8 +469,7 @@ export class requestsHandler {
 		}
 		const requestPromise = this.sendRequest(duid, finalMethod, finalParams, {
 			priority: 1,
-			timeout: method === "load_multi_map" ? 20000 : undefined,
-			externalId: id ? Number(id) : undefined
+			timeout: method === "load_multi_map" ? 20000 : undefined
 		});
 
 		this._processResult(
