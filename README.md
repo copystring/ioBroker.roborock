@@ -52,6 +52,11 @@ This feature only works when map creation is enabled in the adapter options. Ope
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (copystring) **Fix:** Request handling – message IDs are now assigned internally (externalId removed), avoiding ID conflicts.
+* (copystring) **Maps/Rooms:** Room states are only created for segments that exist on the loaded map for that floor; room names are taken only from the API so custom names are not overwritten.
+
 ### 0.7.0-beta.0 (2026-03-11)
 * (copystring) **Maps:** Obstacle icons and map graphics are loaded automatically at startup so maps display correctly.
 * (copystring) **Breaking Change:** Major refactoring of the entire adapter structure.
