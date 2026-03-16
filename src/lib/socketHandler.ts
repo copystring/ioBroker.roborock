@@ -108,7 +108,7 @@ export class socketHandler {
 				throw new Error(`No device handler found for DUID ${duid}`);
 			}
 
-			const photoResponse = await handler.getPhoto(obstacleId, imageType, msg.callback ? msg.callback.id : undefined);
+			const photoResponse = await handler.getPhoto(obstacleId, imageType);
 
 			let potentialBuffer: Buffer | null = null;
 			let bbox: any = null;

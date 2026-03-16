@@ -702,7 +702,7 @@ export abstract class BaseDeviceFeatures {
 		return 0;
 	}
 
-	public async getPhoto(imgId: string, type: number, id?: string | number): Promise<any> {
+	public async getPhoto(imgId: string, type: number): Promise<any> {
 		if (!this.hasFeature(Feature.GetPhoto)) {
 			throw new Error("getPhoto feature not enabled for this device");
 		}
@@ -716,12 +716,7 @@ export abstract class BaseDeviceFeatures {
 						img_id: imgId,
 						type: type,
 					},
-				},
-				{
-					externalId: id ? Number(id) : undefined
 				}
-				// Removed 4th and 5th args as sendRequest likely only takes (duid, method, params) or (duid, method, params, timeout?)
-				// Based on previous files, sendRequest(duid, method, params) is standard.
 			)) as any;
 			// PhotoManager handles the async 300/301 packets and resolves the promise with the final image.
 			// The data returned here is the result of that resolution.
