@@ -8,12 +8,13 @@ import { DEFAULT_PROFILE, VacuumProfile } from "./features/vacuum/v1VacuumFeatur
 
 import { ProductHelper } from "./productHelper";
 import { Feature } from "./features/features.enum";
+import { getB01VariantFromModel } from "./b01Variant";
 
 // Import indices to trigger decorators
 import "./features/vacuum/index";
 
-// Import B01VacuumFeatures
-import { B01VacuumFeatures } from "./features/vacuum/b01VacuumFeatures";
+import { Q7VacuumFeatures } from "./features/vacuum/b01/Q7VacuumFeatures";
+import { Q10VacuumFeatures } from "./features/vacuum/b01/Q10VacuumFeatures";
 function createFeaturesForModel(adapter: Roborock, duid: string, robotModel: string, productCategory: string | null, protocolVersion: string | null): BaseDeviceFeatures {
 	const dependencies: FeatureDependencies = {
 		adapter: adapter,
@@ -51,8 +52,9 @@ function createFeaturesForModel(adapter: Roborock, duid: string, robotModel: str
 	// B01 Detection: Prioritize Protocol Version over Registered Model Class
 	// This ensures that B01 devices always get the B01 feature handler, even if they share a model ID with a V1 device.
 	if (protocolVersion === "B01") {
-		// Dynamic B01 Detection
-		const handler = new B01VacuumFeatures(dependencies, duid, robotModel, { staticFeatures: [] }, dynamicProfile);
+		const b01Variant = getB01VariantFromModel(robotModel);
+		const HandlerClass = b01Variant === "Q10" ? Q10VacuumFeatures : Q7VacuumFeatures;
+		const handler = new HandlerClass(dependencies, duid, robotModel, { staticFeatures: [] }, dynamicProfile);
 		handler.protocolVersion = protocolVersion;
 		return handler;
 	}

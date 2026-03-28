@@ -1,5 +1,5 @@
 import { DeviceModelConfig, FeatureDependencies, RegisterModel } from "../baseDeviceFeatures";
-import { B01VacuumFeatures } from "./b01VacuumFeatures";
+import { Q7VacuumFeatures } from "./b01/Q7VacuumFeatures";
 import { BASE_FAN, BASE_MOP, BASE_WATER, VacuumProfile } from "./v1VacuumFeatures";
 
 const PROFILE_SC01: VacuumProfile = {
@@ -21,7 +21,7 @@ const sc01Config: DeviceModelConfig = {
 };
 
 @RegisterModel("roborock.vacuum.sc01")
-export class SC01Features extends B01VacuumFeatures {
+export class SC01Features extends Q7VacuumFeatures {
 	constructor(dependencies: FeatureDependencies, duid: string, ..._args: unknown[]) {
 		super(dependencies, duid, "roborock.vacuum.sc01", sc01Config, PROFILE_SC01);
 		// Prevent linter error for unused args

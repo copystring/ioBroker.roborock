@@ -34,6 +34,9 @@ export class MockAdapter {
 	public setInterval(callback: (...args: any[]) => void, ms: number, ...args: any[]): any {
 		return setInterval(callback, ms, ...args);
 	}
+	public setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): any {
+		return setTimeout(callback, ms, ...args);
+	}
 	public clearInterval(intervalId: any): void {
 		clearInterval(intervalId);
 	}
@@ -42,6 +45,9 @@ export class MockAdapter {
 	}
 	public getDeviceProtocolVersion = async (): Promise<string> => {
 		return "1.0";
+	};
+	public getB01Variant = async (): Promise<"Q7" | "Q10" | null> => {
+		return null;
 	};
 
 	public rLog(connection: "MQTT" | "TCP" | "UDP" | "HTTP" | "Cloud" | "Local" | "System" | "MapManager" | "Requests" | "Unknown", duid: string | null | undefined, direction: "<-" | "->" | "Info" | "Error" | "Warn" | "Debug", version: string | undefined, protocol: string | number | undefined, message: string, level: "debug" | "info" | "warn" | "error" = "debug"): void {
@@ -101,6 +107,27 @@ export class MockAdapter {
 
 	public async getObjectAsync(id: string): Promise<any> {
 		return this.objects[id];
+	}
+
+	public async delObjectAsync(id: string, options?: { recursive?: boolean }): Promise<void> {
+		const recursive = options?.recursive === true;
+		if (recursive) {
+			const prefix = `${id}.`;
+			for (const objectId of Object.keys(this.objects)) {
+				if (objectId === id || objectId.startsWith(prefix)) {
+					delete this.objects[objectId];
+				}
+			}
+			for (const stateId of Object.keys(this.states)) {
+				if (stateId === id || stateId.startsWith(prefix)) {
+					delete this.states[stateId];
+				}
+			}
+			return;
+		}
+
+		delete this.objects[id];
+		delete this.states[id];
 	}
 
 	public setState = (id: string, state: any, ack?: boolean | ((err?: any) => void), callback?: (err?: any) => void): Promise<void> => {

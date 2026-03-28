@@ -1,6 +1,7 @@
 import * as crypto from "crypto";
 import { cryptoEngine } from "../../cryptoEngine";
 import * as MapHelper from "../MapHelper";
+import { Q10MapParser } from "./Q10MapParser";
 
 export class MapDecryptor {
 	/**
@@ -22,26 +23,35 @@ export class MapDecryptor {
 	 * @see test/unit/b01_map_specification.test.ts
 	 */
 	static decrypt(buf: Buffer, serial: string, model: string, _duid: string, _adapter?: any, localKey?: string): Buffer | null {
-		if (MapDecryptor.isLikelyProtobuf(buf)) return buf;
+		if (MapDecryptor.isSupportedB01MapPayload(buf)) return MapDecryptor.normalizeSupportedPayload(buf);
 
 		let current = buf;
 
 		// 1. Layer 1: Protocol Wrapper (B01 AES-CBC); payload size from header (offset 17)
 		current = MapDecryptor.unwrapLayerCBC(current, localKey);
+		current = MapDecryptor.normalizeSupportedPayload(current);
+		if (MapDecryptor.isSupportedB01MapPayload(current)) return current;
 
 		// 2. Layer 2: Transport Decoding (Base64)
 		current = MapDecryptor.unwrapBase64(current);
+		current = MapDecryptor.normalizeSupportedPayload(current);
+		if (MapDecryptor.isSupportedB01MapPayload(current)) return current;
 
 		// 3. Layer 3: Map Data Encryption (AES-ECB)
 		current = MapDecryptor.unwrapLayerECB(current, serial, model);
+		current = MapDecryptor.normalizeSupportedPayload(current);
+		if (MapDecryptor.isSupportedB01MapPayload(current)) return current;
 
 		// 4. Layer 4: Post-Cipher Transport Decoding (Hex-ASCII)
 		current = MapDecryptor.unwrapHex(current);
+		current = MapDecryptor.normalizeSupportedPayload(current);
+		if (MapDecryptor.isSupportedB01MapPayload(current)) return current;
 
 		// 5. Layer 5: Decompression (ZLIB/GZIP)
 		current = MapDecryptor.unwrapDecompression(current);
+		current = MapDecryptor.normalizeSupportedPayload(current);
 
-		const validB01Map = current && MapDecryptor.isB01MapProtobuf(current);
+		const validB01Map = current && MapDecryptor.isSupportedB01MapPayload(current);
 		return validB01Map ? current : null;
 	}
 
@@ -165,6 +175,36 @@ export class MapDecryptor {
 		return buf != null && buf.length >= 3 && buf[0] === 0x08 && buf[2] === 0x12 && (buf[1] === 0x00 || buf[1] === 0x15);
 	}
 
+	public static isLikelyQ10MapPayload(buf: Buffer): boolean {
+		return Q10MapParser.isLikelyPayload(buf) || (buf.length > 1 && buf[0] === 1 && Q10MapParser.isLikelyPayload(buf.subarray(1)));
+	}
+
+	public static getQ10BlobType(buf: Buffer): 1 | 2 | 3 | 4 | null {
+		if (!buf || buf.length < 2) return null;
+		const blobType = buf[0];
+		return blobType === 1 || blobType === 2 || blobType === 3 || blobType === 4 ? blobType : null;
+	}
+
+	public static isLikelyQ10BlobPayload(buf: Buffer): boolean {
+		const blobType = MapDecryptor.getQ10BlobType(buf);
+		if (blobType === null) return false;
+		if (blobType === 1) {
+			return MapDecryptor.isLikelyQ10MapPayload(buf);
+		}
+		if (blobType === 2) {
+			return buf.length >= 14;
+		}
+		if (blobType === 3 || blobType === 4) {
+			return buf.length >= 28;
+		}
+		return false;
+	}
+
+	public static isSupportedB01MapPayload(buf: Buffer): boolean {
+		const normalized = MapDecryptor.normalizeSupportedPayload(buf);
+		return MapDecryptor.isB01MapProtobuf(normalized) || MapDecryptor.isLikelyQ10MapPayload(normalized) || MapDecryptor.isLikelyQ10BlobPayload(normalized);
+	}
+
 	/**
 	 * Runs Layers 2–5 (Base64 → ECB → Hex → Decompress) on a buffer that is already
 	 * the concatenated output of Layer 1 (e.g. from multiple B01 chunks decrypted separately).
@@ -181,13 +221,20 @@ export class MapDecryptor {
 		void _duid;
 		void _adapter;
 		void _localKey;
-		if (MapDecryptor.isLikelyProtobuf(layer1Concatenated)) return layer1Concatenated;
+		if (MapDecryptor.isSupportedB01MapPayload(layer1Concatenated)) return MapDecryptor.normalizeSupportedPayload(layer1Concatenated);
 		let current = layer1Concatenated;
 		current = MapDecryptor.unwrapBase64(current);
+		current = MapDecryptor.normalizeSupportedPayload(current);
+		if (MapDecryptor.isSupportedB01MapPayload(current)) return current;
 		current = MapDecryptor.unwrapLayerECB(current, serial, model);
+		current = MapDecryptor.normalizeSupportedPayload(current);
+		if (MapDecryptor.isSupportedB01MapPayload(current)) return current;
 		current = MapDecryptor.unwrapHex(current);
+		current = MapDecryptor.normalizeSupportedPayload(current);
+		if (MapDecryptor.isSupportedB01MapPayload(current)) return current;
 		current = MapDecryptor.unwrapDecompression(current);
-		return current && MapDecryptor.isB01MapProtobuf(current) ? current : null;
+		current = MapDecryptor.normalizeSupportedPayload(current);
+		return current && MapDecryptor.isSupportedB01MapPayload(current) ? current : null;
 	}
 
 	/** Decrypts only Layer 1 (B01 AES-CBC wrapper). Returns inner payload (e.g. base64 or binary). */
@@ -205,6 +252,10 @@ export class MapDecryptor {
 		} catch {
 			return null;
 		}
+	}
+
+	private static normalizeSupportedPayload(buf: Buffer): Buffer {
+		return buf;
 	}
 
 	private static logDebug(adapter: any, msg: string, level: "debug" | "warn" | "error" = "debug"): void {

@@ -9,6 +9,7 @@ import { commitInfo } from "./lib/commitInfo";
 
 // --- API & Helper Imports ---
 import { AppPluginManager } from "./lib/AppPluginManager";
+import { B01Variant, getB01VariantFromModel } from "./lib/b01Variant";
 import { DeviceManager } from "./lib/deviceManager";
 import { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
 import { Feature } from "./lib/features/features.enum";
@@ -159,6 +160,13 @@ export class Roborock extends utils.Adapter {
 				if (!device.online) return; // Skip devices cloud reports as offline
 				// If already local (UDP found it), skip
 				if (this.local_api.isConnected(duid)) return;
+				const protocolVersion = device.pv || await this.getDeviceProtocolVersion(duid);
+				if (protocolVersion === "B01") {
+					const model = this.http_api.getRobotModel(duid) || "";
+					if (model && getB01VariantFromModel(model) === "Q10") {
+						return;
+					}
+				}
 
 				try {
 					// 1. Get Network Info (via MQTT as we have no TCP yet)
@@ -872,6 +880,23 @@ export class Roborock extends utils.Adapter {
 		const devices = this.http_api.getDevices();
 		const device = devices ? devices.find((d) => d.duid == duid) : undefined;
 		return device?.pv || "1.0";
+	}
+
+	/**
+	 * Returns the B01 sub-variant for a device when applicable.
+	 * Q10 behaves event-driven and is routed separately from classic B01/Q7.
+	 */
+	async getB01Variant(duid: string): Promise<B01Variant | null> {
+		const handler = this.deviceFeatureHandlers.get(duid);
+		if (handler && "b01Variant" in handler && typeof (handler as { b01Variant?: unknown }).b01Variant === "string") {
+			return (handler as { b01Variant: B01Variant }).b01Variant;
+		}
+
+		const pv = await this.getDeviceProtocolVersion(duid);
+		if (pv !== "B01") return null;
+
+		const model = this.http_api.getRobotModel(duid);
+		return model ? getB01VariantFromModel(model) : "Q7";
 	}
 
 	/**

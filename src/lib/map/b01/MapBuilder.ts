@@ -411,7 +411,7 @@ export class MapBuilder {
 		const roomColorMap: Record<number, number> = {};
 		if (data.rooms) {
 			data.rooms.forEach(r => {
-				if (r.colorId !== undefined) roomColorMap[r.roomId] = r.colorId;
+				if (r.colorId !== undefined) roomColorMap[r.gridValue ?? r.roomId] = r.colorId;
 			});
 		}
 

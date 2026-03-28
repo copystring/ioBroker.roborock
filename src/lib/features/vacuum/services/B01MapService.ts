@@ -1,8 +1,9 @@
 import { FeatureDependencies } from "../../baseDeviceFeatures";
+import { MapDecryptor } from "../../../map/b01/MapDecryptor";
 
 export class B01MapService {
 	private static isLiveMapPayload(data: Buffer): boolean {
-		return data.length >= 3 && data[0] === 0x08 && data[1] === 0x00 && data[2] === 0x12;
+		return (data.length >= 3 && data[0] === 0x08 && data[1] === 0x00 && data[2] === 0x12) || MapDecryptor.isLikelyQ10MapPayload(data) || MapDecryptor.isLikelyQ10BlobPayload(data);
 	}
 
 	constructor(
@@ -11,7 +12,7 @@ export class B01MapService {
 		private onRoomsDetected?: (rooms: any[]) => void
 	) {}
 
-	public async updateMap(): Promise<void> {
+	public async updateMap(trigger?: () => Promise<void>): Promise<void> {
 		const dummyId = -Math.floor(Math.random() * 1000000);
 		try {
 			// Pending request MUST exist before sending trigger, so 301 (which can arrive before 102) can find it via FIFO
@@ -36,11 +37,15 @@ export class B01MapService {
 				}
 			}, 15000);
 
-			// Trigger map push (Protocol 301); queue already has one entry, trigger sends and pushes "get_map_v1"
-			await this.deps.adapter.requestsHandler.sendRequest(this.duid, "service.upload_by_maptype", {
-				force: 1,
-				map_type: 0
-			});
+			if (trigger) {
+				await trigger();
+			} else {
+				// Trigger map push (Protocol 301); queue already has one entry, trigger sends and pushes "get_map_v1"
+				await this.deps.adapter.requestsHandler.sendRequest(this.duid, "service.upload_by_maptype", {
+					force: 1,
+					map_type: 0
+				});
+			}
 		} catch (e: any) {
 			this.deps.adapter.pendingRequests.delete(dummyId);
 			this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Failed to trigger B01 map update: ${e.message}`, "warn");
@@ -76,10 +81,45 @@ export class B01MapService {
 		await this.deps.ensureFolder(`Devices.${this.duid}.map`);
 
 		if (mapData) {
+			const q10MapId = Number(mapData?.q10SourceData?.mapId);
+			if (Number.isFinite(q10MapId) && q10MapId > 0) {
+				await this.deps.ensureState(`Devices.${this.duid}.deviceStatus.current_map_id`, {
+					name: "current_map_id",
+					type: "number",
+					role: "value",
+					read: true,
+					write: false
+				});
+				await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.current_map_id`, {
+					val: q10MapId,
+					ack: true
+				});
+			}
+
 			const model = this.deps.adapter.http_api.getRobotModel(this.duid);
 			const mapDataWithModel = { ...mapData, model: model || undefined };
 			await this.deps.ensureState(`Devices.${this.duid}.map.mapData`, { name: "Map Data", type: "string", role: "json" });
 			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.map.mapData`, { val: JSON.stringify(mapDataWithModel), ack: true });
+			if (mapData.q10RuntimeDebug) {
+				await this.deps.ensureState(`Devices.${this.duid}.map.q10DebugSummary`, {
+					name: "Q10 Debug Summary",
+					type: "string",
+					role: "json"
+				});
+				await this.deps.adapter.setStateChanged(`Devices.${this.duid}.map.q10DebugSummary`, {
+					val: JSON.stringify(mapData.q10RuntimeDebug),
+					ack: true
+				});
+				this.deps.adapter.rLog(
+					"MapManager",
+					this.duid,
+					"Debug",
+					"B01",
+					301,
+					`[Q10Map] packet=${mapData.q10RuntimeDebug.packetKind}/${mapData.q10RuntimeDebug.payloadShape} rooms=${mapData.q10RuntimeDebug.rooms} history=${mapData.q10RuntimeDebug.historyPoints} paths=${mapData.q10RuntimeDebug.pathPoints} walls=${mapData.q10RuntimeDebug.virtualWalls} obstacles=${mapData.q10RuntimeDebug.obstacles} skip=${mapData.q10RuntimeDebug.skipPoints} suspected=${mapData.q10RuntimeDebug.suspectedPoints} robot=${mapData.q10RuntimeDebug.robotPresent ? 1 : 0} charger=${mapData.q10RuntimeDebug.chargerPresent ? 1 : 0}`,
+					"debug"
+				);
+			}
 		}
 		if (mapBase64 || mapBase64Clean) {
 			await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64`, { name: "Map Image", type: "string", role: "text.png" });
@@ -351,11 +391,13 @@ export class B01MapService {
 		}
 	}
 
-	public async updateRoomMapping(mappedRooms?: any[]): Promise<void> {
+	public async updateRoomMapping(mappedRooms?: any[], options: { refreshFloors?: boolean } = {}): Promise<void> {
 		if (!mappedRooms) return;
 
 		// Floors and names come only from the API; refresh so current floor folder exists with correct name (issue #1140)
-		await this.updateMultiMapsList();
+		if (options.refreshFloors ?? true) {
+			await this.updateMultiMapsList();
+		}
 
 		// B01: use current_map_id (map id like 1770281900); map_status is a small status code
 		const currentMapIdState = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.deviceStatus.current_map_id`);

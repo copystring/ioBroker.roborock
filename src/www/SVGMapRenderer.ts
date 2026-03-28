@@ -208,7 +208,6 @@ export class SVGMapRenderer implements IMapRenderer {
 		g.selectAll(".obstacle-group").remove();
 		if (!items.length) return;
 		const bgRadius = this.opts.obstacleRadius * 1.1;
-		const imageSize = this.opts.obstacleImageSize;
 		const baseUrl = this.opts.obstacleAssetBaseUrl;
 		const obstacleFileName = this.opts.obstacleFileName;
 		const obstacleFileNameAlt = this.opts.obstacleFileNameAlt;
@@ -224,7 +223,7 @@ export class SVGMapRenderer implements IMapRenderer {
 			.enter()
 			.append("g")
 			.attr("class", "obstacle-group")
-			.style("cursor", "default")
+			.style("cursor", onObstacleClick ? "pointer" : "default")
 			.attr("transform", (d) => `translate(${d.x}, ${d.y})`);
 
 		if (onObstacleClick) {
@@ -237,6 +236,7 @@ export class SVGMapRenderer implements IMapRenderer {
 		enter
 			.append("circle")
 			.attr("class", "obstacle-bg")
+			.style("display", (d) => d.hideBackground ? "none" : null)
 			.attr("r", bgRadius)
 			.attr("fill", "rgba(100, 100, 100, 0.2)")
 			.attr("stroke", "white")
@@ -245,12 +245,13 @@ export class SVGMapRenderer implements IMapRenderer {
 		enter
 			.append("image")
 			.attr("class", "obstacle-icon")
-			.attr("width", imageSize)
-			.attr("height", imageSize)
-			.attr("x", -imageSize / 2)
-			.attr("y", -imageSize / 2)
-			.attr("href", fallbackUrl)
+			.attr("width", (d) => d.imageSize ?? this.opts.obstacleImageSize)
+			.attr("height", (d) => d.imageSize ?? this.opts.obstacleImageSize)
+			.attr("x", (d) => -(d.imageSize ?? this.opts.obstacleImageSize) / 2)
+			.attr("y", (d) => -(d.imageSize ?? this.opts.obstacleImageSize) / 2)
+			.attr("href", (d) => d.imageHref || fallbackUrl)
 			.each(function (this: SVGImageElement, d: DrawObstacleInput) {
+				if (d.imageHref) return;
 				const suffix = typeof d.typeOrSuffix === "number" ? (mapping[d.typeOrSuffix] ?? "18") : d.typeOrSuffix;
 				if (suffix === "18") return;
 				const primaryUrl = baseUrl + obstacleFileName(suffix);
@@ -276,27 +277,86 @@ export class SVGMapRenderer implements IMapRenderer {
 
 	drawRoomLabels(labels: DrawRoomLabelInput[]): void {
 		const g = this.opts.groups.roomNameGroup;
-		g.selectAll("text.room-name").remove();
+		g.selectAll("g.room-label").remove();
 		if (!labels.length) return;
-		const sel = g.selectAll("text.room-name").data(labels);
+		const sel = g.selectAll("g.room-label").data(labels);
 		sel.exit().remove();
-		sel.enter()
-			.append("text")
+		const enter = sel.enter()
+			.append("g")
+			.attr("class", "room-label")
+			.style("pointer-events", "none");
+
+		enter.append("circle").attr("class", "room-label-bubble");
+		enter.append("image").attr("class", "room-label-icon");
+		enter.append("text")
 			.attr("class", "room-name")
-			.attr("text-anchor", "middle")
-			.attr("dominant-baseline", "middle")
-			.style("fill", "#000")
-			.style("stroke", "white")
-			.style("pointer-events", "none")
 			.style("font-weight", "900")
 			.style("font-size", "12px")
 			.style("stroke-width", "2.5px")
 			.style("paint-order", "stroke")
-			.attr("shape-rendering", "geometricPrecision")
-			.merge(sel as d3.Selection<SVGTextElement, DrawRoomLabelInput, SVGGElement, unknown>)
-			.text((d) => d.text)
-			.attr("x", (d) => d.x)
-			.attr("y", (d) => d.y);
+			.attr("shape-rendering", "geometricPrecision");
+		enter.append("circle").attr("class", "room-label-badge");
+		enter.append("text")
+			.attr("class", "room-label-badge-text")
+			.style("font-weight", "900")
+			.style("font-size", "9px");
+
+		const merged = enter.merge(sel as d3.Selection<SVGGElement, DrawRoomLabelInput, SVGGElement, unknown>)
+			.attr("data-x", (d) => String(d.x))
+			.attr("data-y", (d) => String(d.y))
+			.attr("transform", (d) => `translate(${d.x}, ${d.y})`);
+
+		merged.each(function (d: DrawRoomLabelInput) {
+			const label = d3.select(this);
+			const hasBubble = !!d.iconHref || !!d.bubbleFill || !!d.badgeText;
+			const bubbleRadius = 6;
+			const iconSize = 7;
+			const gap = 5;
+			const textX = hasBubble ? bubbleRadius * 2 + gap - bubbleRadius : 0;
+			const badgeText = d.badgeText?.trim() || "";
+
+			label.select<SVGCircleElement>("circle.room-label-bubble")
+				.style("display", hasBubble ? null : "none")
+				.attr("cx", 0)
+				.attr("cy", 0)
+				.attr("r", bubbleRadius)
+				.style("fill", d.bubbleFill || "#000")
+				.style("stroke", d.bubbleStroke || "#fff")
+				.style("stroke-width", "1px");
+
+			label.select<SVGImageElement>("image.room-label-icon")
+				.style("display", d.iconHref ? null : "none")
+				.attr("href", d.iconHref || null)
+				.attr("x", -iconSize / 2)
+				.attr("y", -iconSize / 2)
+				.attr("width", iconSize)
+				.attr("height", iconSize);
+
+			label.select<SVGTextElement>("text.room-name")
+				.text(d.text)
+				.attr("x", textX)
+				.attr("y", 0)
+				.attr("text-anchor", hasBubble ? "start" : "middle")
+				.attr("dominant-baseline", "middle")
+				.style("fill", d.textFill || "#000")
+				.style("stroke", "white");
+
+			label.select<SVGCircleElement>("circle.room-label-badge")
+				.style("display", badgeText ? null : "none")
+				.attr("cx", hasBubble ? -3 : 0)
+				.attr("cy", 12)
+				.attr("r", 5)
+				.style("fill", "rgba(111,111,116,0.95)");
+
+			label.select<SVGTextElement>("text.room-label-badge-text")
+				.style("display", badgeText ? null : "none")
+				.text(badgeText)
+				.attr("x", hasBubble ? -3 : 0)
+				.attr("y", 12)
+				.attr("text-anchor", "middle")
+				.attr("dominant-baseline", "middle")
+				.style("fill", "white");
+		});
 	}
 
 	drawActiveZones(zones: DrawZoneRectInput[]): void {

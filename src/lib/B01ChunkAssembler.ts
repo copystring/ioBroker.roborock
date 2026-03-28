@@ -165,13 +165,13 @@ export class B01ChunkAssembler {
 	private async decryptChunkedMap(duid: string, layer1Concat: Buffer): Promise<Buffer | null> {
 		const { serial, model, localKey } = this.getB01DecryptParams(duid);
 		const result = MapDecryptor.decryptFromLayer2(layer1Concat, serial, model, duid, this.adapter, localKey);
-		return result && MapDecryptor.isB01MapProtobuf(result) ? result : null;
+		return result && MapDecryptor.isSupportedB01MapPayload(result) ? result : null;
 	}
 
 	private async decryptSingleMap(duid: string, payload: Buffer): Promise<Buffer | null> {
 		const { serial, model, localKey } = this.getB01DecryptParams(duid);
 		const result = MapDecryptor.decrypt(payload, serial, model, duid, this.adapter, localKey);
-		return result && MapDecryptor.isB01MapProtobuf(result) ? result : null;
+		return result && MapDecryptor.isSupportedB01MapPayload(result) ? result : null;
 	}
 
 	private static checkMapCompleteness(buf: Buffer): MapCompletenessResult {

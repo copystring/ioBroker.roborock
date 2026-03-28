@@ -58,6 +58,18 @@ export const JOB_STATUS = {
 
 // Map room types (Definitive map from SCRoomType in output.js)
 export const ROOM_TYPE_MAP: Record<number, string> = {
+	1: "masterbedrrom",
+	2: "guestbedrrom",
+	3: "bedroom",
+	4: "livingroom",
+	5: "dinnerroom",
+	6: "kitchen",
+	7: "restroom",
+	8: "balcony",
+	9: "study",
+	10: "entryway",
+	11: "corridor",
+	12: "other",
 	2001: "bedroom",
 	2002: "dinnerroom",
 	2003: "restroom",

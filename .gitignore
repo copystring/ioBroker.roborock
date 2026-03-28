@@ -38,3 +38,4 @@ expert-review.md
 # Logs and Test Artifacts
 *.log
 /*.txt
+AGENTS.md

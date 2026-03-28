@@ -2,6 +2,9 @@ import * as d3 from "d3";
 import { localCoordsToRobotCoords, robotCoordsToLocalCoords } from "../common/coordTransformation";
 import { drawMapV1 } from "../common/mapDrawing/drawMapV1";
 import { IMG_CHARGER, IMG_GO_TO_PIN, IMG_ROBOT_ORIGINAL } from "../common/images";
+import type { DrawObstacleInput, DrawRoomLabelInput } from "../common/mapDrawing/types";
+import type { B01MapData } from "../lib/map/b01/types";
+import { Q10RenderGeometry } from "../lib/map/q10/Q10RenderGeometry";
 import { Connection } from "./conn.js";
 import { SVGMapRenderer } from "./SVGMapRenderer";
 
@@ -24,6 +27,9 @@ interface MapData {
 	CARPET_MAP?: number[];
 	model?: string; // e.g. roborock.vacuum.a147, for asset paths
 }
+
+type Q10FrontendMapData = B01MapData & { model?: string };
+type FrontendMapData = MapData | Q10FrontendMapData;
 
 interface PositionBlock {
 	position: [number, number];
@@ -57,6 +63,14 @@ interface Rect {
 	y: number;
 	width: number;
 	height: number;
+}
+
+interface Q10OverlayObstacleData {
+	kind: "q10Obstacle";
+	type: "obstacle" | "skip" | "threshold" | "easycard" | "cliff";
+	x: number;
+	y: number;
+	obstacleId?: string | number;
 }
 
 interface ConnCallbacks {
@@ -97,6 +111,19 @@ const UI_CONSTANTS = {
 	PATH_BACKWASH_WIDTH_BASE: 0.5,
 };
 
+const Q10_ROOM_TAG_BASE = [
+	"rgba(32, 84, 109, 1)",
+	"rgba(101, 153, 0, 1)",
+	"rgba(144, 196, 41, 1)",
+	"rgba(29, 61, 70, 1)"
+] as const;
+const Q10_ROOM_TAG_STROKE = [
+	"rgba(5, 87, 208, 1)",
+	"rgba(44, 113, 0, 1)",
+	"rgba(90, 159, 85, 1)",
+	"rgba(0, 56, 45, 1)"
+] as const;
+
 /** Type → suffix (429.js); asset obstacle_new_p{suffix}.png */
 const OBSTACLE_MAPPING: Record<number, string> = {
 	[-99]: "99",
@@ -133,6 +160,15 @@ function obstacleAssetFileNameAlt(suffix: string): string {
 	return `projects_comroborocktanos_resources_map_object_top_${suffix}.png`;
 }
 
+function isQ10MapData(map: FrontendMapData | undefined): map is Q10FrontendMapData {
+	return !!map && typeof map === "object" && "header" in map && !!(map as Q10FrontendMapData).q10CreatorData?.q10Detected;
+}
+
+function q10RoomTagAssetFileName(roomType: number): string {
+	const normalized = Number.isInteger(roomType) && roomType >= 0 && roomType <= 11 ? roomType : 0;
+	return `src_resources_map_images_light_maproomtag${normalized}.png`;
+}
+
 // -----------------------------------------------------------------------------
 // Map Application Class
 // -----------------------------------------------------------------------------
@@ -146,7 +182,7 @@ class MapApplication {
 	private currentMapSubscriptions: string[] = [];
 
 	// Map Data
-	private map: MapData | undefined;
+	private map: FrontendMapData | undefined;
 	private mapImage: MapData["IMAGE"] | undefined;
 	private mapMinX: number = 0;
 	private mapMinY: number = 0;
@@ -494,10 +530,14 @@ class MapApplication {
 				case mapDataStateId:
 					try {
 						this.map = typeof state.val === "string" ? JSON.parse(state.val) : state.val;
-						if (this.map && this.map.IMAGE) {
+						if (this.map && "IMAGE" in this.map && this.map.IMAGE) {
 							this.model = this.map.model ?? this.robotModels[this.currentRobotDuid] ?? null;
 							this.mapImage = this.map.IMAGE;
 							this.updateMapImageSize();
+							this.drawOverlaysFromMap();
+						} else if (isQ10MapData(this.map)) {
+							this.model = this.map.model ?? this.robotModels[this.currentRobotDuid] ?? null;
+							this.mapImage = undefined;
 							this.drawOverlaysFromMap();
 						}
 					} catch (e) {
@@ -528,11 +568,19 @@ class MapApplication {
 
 	/** Draws all map overlays via shared drawMapV1. Call when map or mapData changes. */
 	private drawOverlaysFromMap(): void {
-		if (!this.map || !this.mapImage?.dimensions) return;
-		const params = this.getMapParams();
-		if (!params) return;
+		if (!this.map) return;
 
 		this.pinGroup.select("image.goto-pin").style("display", "none").style("opacity", "0");
+
+		if (isQ10MapData(this.map)) {
+			this.drawQ10Overlays(this.map);
+			this.applyRoomLabelZoomBehavior();
+			return;
+		}
+
+		if (!this.mapImage?.dimensions) return;
+		const params = this.getMapParams();
+		if (!params) return;
 
 		const list = this.map.IMAGE?.segments?.list;
 		const duid = this.currentRobotDuid;
@@ -574,8 +622,26 @@ class MapApplication {
 			(Object.keys(this.robotModels).length ? this.robotModels[Object.keys(this.robotModels)[0]] : null) ||
 			"roborock.vacuum.a147";
 		const baseUrl = `assets/${modelFolder}/drawable-mdpi/`;
+		const renderer = this.createSvgRenderer(baseUrl, params);
 
-		const renderer = new SVGMapRenderer({
+		drawMapV1(this.map as any, renderer, {
+			scaleFactor: VISUAL_BLOCK_SIZE,
+			dimensionsAreScaled: false,
+			roomLabels: roomLabels?.length ? roomLabels : undefined,
+		});
+		this.applyRoomLabelZoomBehavior();
+	}
+
+	private createSvgRenderer(baseUrl: string, params: MapParams | null): SVGMapRenderer {
+		return this.createSvgRendererWithOptions(baseUrl, params, {});
+	}
+
+	private createSvgRendererWithOptions(
+		baseUrl: string,
+		params: MapParams | null,
+		options: Partial<{ obstacleRadius: number; obstacleImageSize: number }>
+	): SVGMapRenderer {
+		return new SVGMapRenderer({
 			groups: {
 				carpetGroup: this.carpetGroup,
 				pathGroup: this.pathGroup,
@@ -597,56 +663,177 @@ class MapApplication {
 			pinWidth: this.rescaler.pinWidth(),
 			pinHeight: this.rescaler.pinHeight(),
 			pinYOffset: this.rescaler.pinYOffset(),
-			obstacleRadius: this.rescaler.scale() * UI_CONSTANTS.OBSTACLE_RADIUS_BASE,
-			obstacleImageSize: this.rescaler.scale() * UI_CONSTANTS.OBSTACLE_RADIUS_BASE * 1.8,
+			obstacleRadius: options.obstacleRadius ?? this.rescaler.scale() * UI_CONSTANTS.OBSTACLE_RADIUS_BASE,
+			obstacleImageSize: options.obstacleImageSize ?? this.rescaler.scale() * UI_CONSTANTS.OBSTACLE_RADIUS_BASE * 1.8,
 			obstacleAssetBaseUrl: baseUrl,
 			obstacleMapping: OBSTACLE_MAPPING,
 			obstacleFileName: obstacleAssetFileName,
 			obstacleFileNameAlt: obstacleAssetFileNameAlt,
 			onObstacleClick: (event: MouseEvent, obstacleData: unknown) => {
-				if (!this.currentRobotDuid) return;
-				event.stopPropagation();
-				const d = obstacleData as [number, number, number, unknown, unknown, unknown, unknown];
-				this.selectedObstacleID = d?.[6];
-				const robotPoint = { x: d[0], y: d[1] };
-				const worldPoint = robotCoordsToLocalCoords(robotPoint, params);
-				this.popupX = worldPoint.x;
-				this.popupY = worldPoint.y;
-				if (this.popupTimeout) clearTimeout(this.popupTimeout);
-				this.connection
-					.sendTo(this.instanceId, "get_obstacle_image", {
-						obstacleId: this.selectedObstacleID,
-						duid: this.currentRobotDuid,
-						type: 1,
-					})
-					.then((response: any) => {
-						if (response?.image) {
-							let imageData = response.image as string;
-							if (typeof imageData === "string" && !imageData.startsWith("data:image/"))
-								imageData = "data:image/png;base64," + imageData;
-							this.popupImage.src = imageData;
-							this.popup.style.display = "block";
-							this.triangle.style.display = "block";
-							this.updatePopupPosition();
-							this.popupTimeout = window.setTimeout(() => {
-								this.popup.style.display = "none";
-								this.triangle.style.display = "none";
-								this.popupTimeout = null;
-							}, 3000);
-						}
-					})
-					.catch((err) => console.error("Error getting obstacle image:", err));
-				this.updatePopupPosition();
+				this.handleObstacleClick(event, obstacleData, params);
 			},
 			robotImageHref: IMG_ROBOT_ORIGINAL,
 			chargerImageHref: IMG_CHARGER,
 			goToPinImageHref: IMG_GO_TO_PIN,
 		});
+	}
 
-		drawMapV1(this.map as any, renderer, {
-			scaleFactor: VISUAL_BLOCK_SIZE,
-			dimensionsAreScaled: false,
-			roomLabels: roomLabels?.length ? roomLabels : undefined,
+	private handleObstacleClick(event: MouseEvent, obstacleData: unknown, params: MapParams | null): void {
+		if (!this.currentRobotDuid) return;
+		event.stopPropagation();
+
+		if (Array.isArray(obstacleData)) {
+			const d = obstacleData as [number, number, number, unknown, unknown, unknown, unknown];
+			if (!params) return;
+			this.selectedObstacleID = d?.[6];
+			const robotPoint = { x: d[0], y: d[1] };
+			const worldPoint = robotCoordsToLocalCoords(robotPoint, params);
+			this.popupX = worldPoint.x;
+			this.popupY = worldPoint.y;
+			this.showObstaclePopup(this.selectedObstacleID, 1);
+			return;
+		}
+
+		if (!obstacleData || typeof obstacleData !== "object") return;
+		const q10Obstacle = obstacleData as Q10OverlayObstacleData;
+		if (q10Obstacle.kind !== "q10Obstacle") return;
+
+		this.popupX = q10Obstacle.x;
+		this.popupY = q10Obstacle.y;
+		if (q10Obstacle.obstacleId == null) return;
+		this.selectedObstacleID = q10Obstacle.obstacleId;
+		this.showObstaclePopup(this.selectedObstacleID, 1);
+	}
+
+	private showObstaclePopup(obstacleId: unknown, type: number): void {
+		if (obstacleId == null || !this.currentRobotDuid) return;
+		if (this.popupTimeout) clearTimeout(this.popupTimeout);
+		this.connection
+			.sendTo(this.instanceId, "get_obstacle_image", {
+				obstacleId,
+				duid: this.currentRobotDuid,
+				type,
+			})
+			.then((response: any) => {
+				if (response?.image) {
+					let imageData = response.image as string;
+					if (typeof imageData === "string" && !imageData.startsWith("data:image/")) {
+						imageData = "data:image/png;base64," + imageData;
+					}
+					this.popupImage.src = imageData;
+					this.popup.style.display = "block";
+					this.triangle.style.display = "block";
+					this.updatePopupPosition();
+					this.popupTimeout = window.setTimeout(() => {
+						this.popup.style.display = "none";
+						this.triangle.style.display = "none";
+						this.popupTimeout = null;
+					}, 3000);
+				}
+			})
+			.catch((err) => console.error("Error getting obstacle image:", err));
+		this.updatePopupPosition();
+	}
+
+	private drawQ10Overlays(map: Q10FrontendMapData): void {
+		const creator = map.q10CreatorData;
+		if (!creator?.q10Detected) return;
+
+		this.carpetGroup.selectAll("*").remove();
+		this.pathGroup.selectAll("*").remove();
+		this.mopPathGroup.selectAll("*").remove();
+		this.backwashPathGroup.selectAll("*").remove();
+		this.pureCleanPathGroup.selectAll("*").remove();
+		this.chargerGroup.selectAll("*").remove();
+		this.robotGroup.selectAll("*").remove();
+		this.zonesOverlayGroup.selectAll("*").remove();
+		this.obstacleGroup.selectAll("*").remove();
+		this.roomNameGroup.selectAll("*").remove();
+
+		const modelFolder =
+			this.model ||
+			(this.currentRobotDuid && this.robotModels[this.currentRobotDuid]) ||
+			"roborock.vacuum.ss09";
+		const baseUrl = `assets/${modelFolder}/drawable-mdpi/`;
+		const geometry = new Q10RenderGeometry(map, 1);
+		const renderer = this.createSvgRendererWithOptions(baseUrl, null, {
+			obstacleRadius: 0,
+			obstacleImageSize: geometry.imgRateLength(6)
+		});
+
+		const obstacleItems: DrawObstacleInput[] = [];
+		for (const entry of creator.obstaclePixels) {
+			const point = geometry.mapPoint(entry.point);
+			obstacleItems.push({
+				x: point.x,
+				y: point.y,
+				typeOrSuffix: "q10",
+				imageHref: `${baseUrl}src_resources_map_images_light_mapobstacle.png`,
+				imageSize: geometry.imgRateLength(6),
+				hideBackground: true,
+				obstacleData: { kind: "q10Obstacle", type: "obstacle", x: point.x, y: point.y } satisfies Q10OverlayObstacleData
+			});
+		}
+		for (const entry of creator.skipPixels) {
+			const point = geometry.mapPoint(entry.point);
+			obstacleItems.push({
+				x: point.x,
+				y: point.y,
+				typeOrSuffix: "q10-skip",
+				imageHref: `${baseUrl}src_resources_map_images_light_map_tiaoguo_icon.png`,
+				imageSize: geometry.imgRateLength(6),
+				hideBackground: true,
+				obstacleData: { kind: "q10Obstacle", type: "skip", x: point.x, y: point.y } satisfies Q10OverlayObstacleData
+			});
+		}
+		for (const entry of creator.suspectedPoints) {
+			const point = geometry.mapPoint(entry.point);
+			const imageHref =
+				entry.type === "threshold"
+					? `${baseUrl}src_resources_map_images_light_map_yisi_menkan.png`
+					: entry.type === "easycard"
+						? `${baseUrl}src_resources_map_images_light_map_yisi_yika.png`
+						: `${baseUrl}src_resources_map_images_light_map_yisi_xuanya.png`;
+			obstacleItems.push({
+				x: point.x,
+				y: point.y,
+				typeOrSuffix: `q10-${entry.type}`,
+				imageHref,
+				imageSize: geometry.layoutLength(16),
+				hideBackground: true,
+				obstacleData: { kind: "q10Obstacle", type: entry.type, x: point.x, y: point.y } satisfies Q10OverlayObstacleData
+			});
+		}
+
+		const roomLabels: DrawRoomLabelInput[] = creator.roomModels
+			.filter((room) => room.roomName && room.roomName.trim())
+			.map((room) => {
+				const point = geometry.mapPoint(room.transCenterPoint);
+				const colorIndex = room.colorID >= 0 ? room.colorID % Q10_ROOM_TAG_BASE.length : 0;
+				return {
+					segmentId: room.roomID,
+					x: point.x,
+					y: point.y,
+					text: room.roomName,
+					iconHref: `${baseUrl}${q10RoomTagAssetFileName(room.roomType)}`,
+					bubbleFill: Q10_ROOM_TAG_BASE[colorIndex] || Q10_ROOM_TAG_BASE[0],
+					bubbleStroke: Q10_ROOM_TAG_STROKE[colorIndex] || Q10_ROOM_TAG_STROKE[0],
+					textFill: Q10_ROOM_TAG_BASE[colorIndex] || Q10_ROOM_TAG_BASE[0],
+					badgeText: room.cleanOrder > 0 ? String(room.cleanOrder) : null
+				};
+			});
+
+		renderer.drawObstacles(obstacleItems);
+		renderer.drawRoomLabels(roomLabels);
+	}
+
+	private applyRoomLabelZoomBehavior(): void {
+		const zoomScale = 1 / Math.max(this.wheelZoom, 0.001);
+		this.roomNameGroup.selectAll<SVGGElement, unknown>("g.room-label").each(function () {
+			const element = d3.select(this);
+			const x = Number(element.attr("data-x") || 0);
+			const y = Number(element.attr("data-y") || 0);
+			element.attr("transform", `translate(${x}, ${y}) scale(${zoomScale})`);
 		});
 	}
 
@@ -913,6 +1100,7 @@ class MapApplication {
 				return (parseFloat(centerY) || 0) - (scaledPinHeight - scaledPinYOffset);
 			});
 
+		this.applyRoomLabelZoomBehavior();
 		this.updatePopupPosition();
 	}
 

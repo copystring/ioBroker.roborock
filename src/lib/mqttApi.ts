@@ -3,6 +3,7 @@ import * as mqtt from "mqtt";
 import * as protobuf from "protobufjs";
 import * as zlib from "zlib";
 import type { Roborock } from "../main";
+import { Q10DpDispatcher } from "./b01/q10/Q10DpDispatcher";
 import { MapDecryptor as B01MapDecryptor } from "./map/b01/MapDecryptor";
 import { ROBOROCK_PROTO_STR } from "./map/b01/roborock_proto";
 import { B01ChunkAssembler } from "./B01ChunkAssembler";
@@ -18,6 +19,7 @@ export class mqtt_api {
 	connected: boolean;
 	public photoManager: PhotoManager;
 	private chunkAssembler: B01ChunkAssembler;
+	private readonly q10DpDispatcher: Q10DpDispatcher;
 	mqttOptions: any;
 	reconnectTimer: any;
 
@@ -33,6 +35,7 @@ export class mqtt_api {
 
 		this.photoManager = new PhotoManager(this.adapter);
 		this.chunkAssembler = new B01ChunkAssembler(adapter);
+		this.q10DpDispatcher = new Q10DpDispatcher(adapter);
 	}
 
 	/**
@@ -425,6 +428,8 @@ export class mqtt_api {
 		try {
 			const parsed = JSON.parse(data.payload.toString());
 			let dps102 = parsed.dps?.["102"] || (parsed.dps ? parsed.dps : null);
+			const b01Variant = await this.adapter.getB01Variant(duid);
+			const handler = this.adapter.deviceFeatureHandlers.get(duid);
 
 			if (typeof dps102 === "string") {
 				dps102 = JSON.parse(dps102);
@@ -436,15 +441,13 @@ export class mqtt_api {
 			if (pendingRequest) {
 				await this.resolveProtocol102Request(duid, data.protocol, dps102, pendingRequest);
 			} else {
-				// UNSOLICITED STATUS / RESPONSE FROM OTHER CLIENT (App)
-				const isRecentlyFinished = this.adapter.requestsHandler.isRequestRecentlyFinished(dps102.id);
-				const isPropPost = dps102.method === "prop.post";
-				const hasStatusResult = Array.isArray(dps102.result) && dps102.result[0] && typeof dps102.result[0] === "object" && "state" in dps102.result[0];
-
-				if (hasStatusResult || isPropPost) {
-					// Discard unsolicited updates from official App silently
-				} else if (!isRecentlyFinished) {
+				if (!this.adapter.requestsHandler.isRequestRecentlyFinished(dps102.id)) {
+					// Other unsolicited payloads are intentionally ignored.
 				}
+			}
+
+			if (b01Variant === "Q10" && handler) {
+				await this.q10DpDispatcher.dispatchProtocol102(duid, parsed, dps102);
 			}
 		} catch (e) {
 			this.adapter.rLog("MQTT", duid, "Error", "102", undefined, `Failed to parse Protocol 102: ${e}`, "error");
@@ -540,11 +543,19 @@ export class mqtt_api {
 					return;
 				}
 				if (data.protocol === 301 && !(payloadBuf.length >= 3 && payloadBuf.subarray(0, 3).toString("ascii") === "B01")) {
+					if (B01MapDecryptor.isLikelyQ10MapPayload(payloadBuf) || B01MapDecryptor.isLikelyQ10BlobPayload(payloadBuf)) {
+						this.resolveAndSendB01Map(duid, payloadBuf, data.protocol);
+						return;
+					}
 					await this.handleV1MapPacket(duid, data, payloadBuf);
 					return;
 				}
 				// 300 or 301 with B01 payload: B01 chunked map, fall through to chunkAssembler
 			}
+		}
+
+		if (await this.q10DpDispatcher.tryHandleCleanRecordBlob(duid, payloadBuf, data.protocol)) {
+			return;
 		}
 
 		// Continuation chunks (no ROBOROCK header) may not match getPendingBinaryRequest; try PhotoManager if we have a pending photo.
@@ -584,6 +595,9 @@ export class mqtt_api {
 				return;
 			}
 			if (result.type === "map") {
+				if (await this.q10DpDispatcher.tryHandleCleanRecordBlob(duid, result.payload, data.protocol)) {
+					return;
+				}
 				this.resolveAndSendB01Map(duid, result.payload, data.protocol);
 				return;
 			}
@@ -747,6 +761,22 @@ export class mqtt_api {
 		if (classifiedMethod) {
 			this.shiftFirstMatchingB01MapMethod(duid, classifiedMethod);
 			return this.findPendingB01MapRequestByMethod(duid, classifiedMethod);
+		}
+
+		if (B01MapDecryptor.isLikelyQ10MapPayload(payloadBuf)) {
+			const livePendingId = this.findPendingB01MapRequestByMethod(duid, "get_map_v1");
+			if (livePendingId !== -1) {
+				this.shiftFirstMatchingB01MapMethod(duid, "get_map_v1");
+				return livePendingId;
+			}
+		}
+		const q10BlobType = B01MapDecryptor.getQ10BlobType(payloadBuf);
+		if (q10BlobType === 1 || q10BlobType === 2) {
+			const livePendingId = this.findPendingB01MapRequestByMethod(duid, "get_map_v1");
+			if (livePendingId !== -1) {
+				this.shiftFirstMatchingB01MapMethod(duid, "get_map_v1");
+				return livePendingId;
+			}
 		}
 		return -1;
 	}

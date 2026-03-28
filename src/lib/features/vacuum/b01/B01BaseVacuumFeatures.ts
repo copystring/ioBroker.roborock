@@ -1,16 +1,17 @@
-import { MapManager } from "../../map/MapManager";
-import { RoborockLocales } from "../../roborock_locales";
-import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
-import { Feature } from "../features.enum";
-import { ADAPTER_ERROR_MAPPING } from "./adapterErrorMapping";
-import { B01ConsumableService } from "./services/B01ConsumableService";
-import { B01ControlService } from "./services/B01ControlService";
-import { B01MapService } from "./services/B01MapService";
-import { StationService } from "./services/StationService";
-import { VACUUM_CONSTANTS } from "./vacuumConstants";
-import deviceDataSet = require("../../../../lib/protocols/q7_dataset.json");
+import { MapManager } from "../../../map/MapManager";
+import { RoborockLocales } from "../../../roborock_locales";
+import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies } from "../../baseDeviceFeatures";
+import { Feature } from "../../features.enum";
+import { ADAPTER_ERROR_MAPPING } from "../adapterErrorMapping";
+import { B01ConsumableService } from "../services/B01ConsumableService";
+import { B01ControlService } from "../services/B01ControlService";
+import { B01MapService } from "../services/B01MapService";
+import { StationService } from "../services/StationService";
+import { VACUUM_CONSTANTS } from "../vacuumConstants";
+import type { B01Variant } from "../../../b01Variant";
+import deviceDataSet = require("../../../../../lib/protocols/q7_dataset.json");
 
-export class B01VacuumFeatures extends BaseDeviceFeatures {
+export class B01BaseVacuumFeatures extends BaseDeviceFeatures {
 	// B01-specific properties
 	protected mapManager: MapManager;
 	protected locales: RoborockLocales;
@@ -21,18 +22,27 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 	protected lastMapUpdate = 0;
 	protected mapService: B01MapService;
 	protected controlService: B01ControlService;
+	public readonly b01Variant: B01Variant;
 
-	private mappedRooms: Array<{ id: number; name: string }> | null = null;
+	protected mappedRooms: Array<{ id: number; name: string }> | null = null;
+
+	protected async deleteObjectIfExists(id: string, recursive = false): Promise<void> {
+		const existing = await this.deps.adapter.getObjectAsync(id);
+		if (!existing) return;
+		await this.deps.adapter.delObjectAsync(id, recursive ? { recursive: true } : undefined);
+	}
 
 	constructor(
 		dependencies: FeatureDependencies,
 		duid: string,
 		robotModel: string,
 		config: DeviceModelConfig,
-		profile?: unknown // Accept profile to match legacy subclasses, but ignore it
+		profile?: unknown, // Accept profile to match legacy subclasses, but ignore it
+		b01Variant: B01Variant = "Q7"
 	) {
 		super(dependencies, duid, robotModel, config);
 		void profile;
+		this.b01Variant = b01Variant;
 		this.mapManager = new MapManager(this.deps.adapter);
 		this.locales = new RoborockLocales(deviceDataSet);
 
@@ -43,7 +53,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		this.mapService = new B01MapService(dependencies, duid, (rooms) => this.setMappedRooms(rooms));
 		this.controlService = new B01ControlService();
 
-		this.deps.adapter.rLog("System", this.duid, "Info", "B01", undefined, `Constructing B01VacuumFeatures for ${robotModel}`, "info");
+		this.deps.adapter.rLog("System", this.duid, "Info", "B01", undefined, `Constructing ${this.constructor.name} for ${robotModel} (${b01Variant})`, "info");
 	}
 
 	/**
@@ -145,6 +155,18 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			}
 		});
 
+		this.addCommand("clean_path_preference", {
+			type: "number",
+			role: "value",
+			name: this.locales.getNameAll("clean_path_preference"),
+			def: 0,
+			states: {
+				0: "Standard",
+				1: "Fast",
+				2: "Deep"
+			}
+		});
+
 		// 12. Update Map
 		this.addCommand("update_map", {
 			type: "boolean",
@@ -232,7 +254,6 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			});
 		}
 	}
-
 	/**
 	 * Allows feature handlers to provide/modify parameters for a command before sending.
 	 * B01 uses this to map individual command states to prop.set or service calls.
@@ -281,20 +302,19 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		// Delegate all other command parameter mapping to the Control Service
 		return this.controlService.getCommandParams(method, params);
 	}
-
 	public override async initializeDeviceData(): Promise<void> {
 		await this.updateStatus();
-		await this.updateMap(); // Fetch map first (async 301 push); rooms set when map arrives
-		await this.updateMultiMapsList(); // B01: service.get_map_list → floors.<mapId>
-		await this.updateRoomMapping(); // Create room selection states if mappedRooms already set
+		await this.updateMap();
+		await this.updateMultiMapsList();
+		await this.updateRoomMapping();
 
 		await this.deps.adapter.checkForNewFirmware(this.duid);
 
-		// Model-specific requests
 		await Promise.all([
 			this.updateFirmwareFeatures(),
 			this.updateExtraStatus(),
-			this.updateNetworkInfo()
+			this.updateNetworkInfo(),
+			this.updateTimers()
 		]);
 	}
 
@@ -306,7 +326,9 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 	public async updateRoomMapping(): Promise<void> {
 		if (this.mappedRooms && this.mapService) {
-			await this.mapService.updateRoomMapping(this.mappedRooms);
+			await this.mapService.updateRoomMapping(this.mappedRooms, {
+				refreshFloors: true
+			});
 		}
 	}
 
@@ -316,7 +338,6 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		void this.updateRoomMapping();
 	}
 
-	// Override updateStatus to use strict B01 prop.get
 	public override async updateStatus(): Promise<void> {
 		const props = VACUUM_CONSTANTS.b01StatusProps;
 		let resultObj: Record<string, any> | undefined;
@@ -346,10 +367,12 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		}
 	}
 
-	// Override updateConsumables to use strict B01 prop.get
-	// Override updateConsumables to use strict B01 prop.get
 	public override async updateConsumables(data?: unknown): Promise<void> {
 		await this.consumableService.updateConsumables(data);
+	}
+
+	public override async updateTimers(): Promise<void> {
+		await super.updateTimers();
 	}
 
 	// Override processStatus to apply B01 specific conversions (dm² to m²)
@@ -375,7 +398,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		}
 	}
 
-	private async processStatusProperty(key: string, inputVal: unknown): Promise<void> {
+	protected async processStatusProperty(key: string, inputVal: unknown): Promise<void> {
 		let val = inputVal;
 		if (typeof val === "string") {
 			const trimmed = val.trim();
@@ -419,12 +442,12 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		}
 
 		// B01 Area/Time Conversion
-		if (["clean_time", "cleaning_time"].includes(key)) {
+		if (["clean_time", "cleaning_time", "total_clean_time"].includes(key)) {
 			// cleaning_time is in minutes; no conversion.
 			// last_clean_t might be timestamp or duration? usually timestamp if clean_finish.
 			const numericVal = Number(val as number | string);
 			val = isNaN(numericVal) ? 0 : numericVal;
-		} else if (["cleaning_area", "last_clean_area"].includes(key)) {
+		} else if (["clean_area", "cleaning_area", "last_clean_area", "total_clean_area"].includes(key)) {
 			// B01 sends dm² (e.g. 2129 -> 21.29 m²)
 			const numericVal = Number(((val as number) / 100).toFixed(2));
 			val = isNaN(numericVal) ? 0 : numericVal;
@@ -432,6 +455,10 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 
 		if (common.type === "string" && typeof val !== "string") {
 			val = String(val);
+		} else if (common.type === "number" && typeof val !== "number") {
+			val = Number(val);
+		} else if (common.type === "boolean" && typeof val !== "boolean") {
+			val = !!val;
 		}
 
 		// Use ensureState for optimized change detection to prevent write storms
@@ -441,8 +468,6 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.${key}`, { val: val as ioBroker.StateValue, ack: true });
 	}
 
-	// Override updateMap to use B01 service call
-	// Override updateMap to use B01 service call
 	public override async updateMap(): Promise<void> {
 		await this.mapService.updateMap();
 	}
@@ -880,6 +905,88 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 			};
 		}
 
+		if ([
+			"dust_switch",
+			"mop_state",
+			"auto_boost",
+			"child_lock",
+			"map_save_switch",
+			"line_laser_obstacle_avoidance",
+			"ground_clean",
+			"valley_point_charging",
+			"breakpoint_clean",
+			"disturb_light",
+			"disturb_voice",
+			"disturb_resume_clean",
+			"disturb_dust_enable",
+			"recent_clean_record",
+			"fleeing_goods"
+		].includes(String(attribute))) {
+			return {
+				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
+				states: {
+					0: "Off",
+					1: "On"
+				}
+			};
+		}
+
+		if (attribute === "add_clean_state") {
+			return {
+				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
+				states: {
+					0: "Idle",
+					1: "Add Clean"
+				}
+			};
+		}
+
+		if (attribute === "timer_type") {
+			return {
+				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
+				states: {
+					0: "Local",
+					1: "Cloud"
+				}
+			};
+		}
+
+		if (attribute === "multi_map_switch") {
+			return {
+				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
+				states: {
+					1: "Off",
+					4: "On"
+				}
+			};
+		}
+
+		if (attribute === "voice_language" || attribute === "voice_version" || attribute === "robot_type") {
+			return {
+				type: "number",
+				name: this.locales.getNameAll(String(attribute))
+			};
+		}
+
+		if (attribute === "robot_country_code") {
+			return {
+				type: "string",
+				name: this.locales.getNameAll(String(attribute))
+			};
+		}
+
+		if (attribute === "cleaning_progress") {
+			return {
+				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
+				unit: "%"
+			};
+		}
+
 		// 15. Dust Collection Frequency
 		if (attribute === "dust_frequency") {
 			return {
@@ -980,7 +1087,7 @@ export class B01VacuumFeatures extends BaseDeviceFeatures {
 		// 24. Language
 		if (attribute === "language") {
 			return {
-				type: "number",
+				type: "string",
 				name: this.locales.getNameAll(String(attribute)),
 			};
 		}

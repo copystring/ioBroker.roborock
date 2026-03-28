@@ -1,7 +1,12 @@
 import type { Roborock } from "../../main";
+import { MapDecryptor as MapDecryptorB01 } from "./b01/MapDecryptor";
 import { MapBuilder as MapBuilderB01 } from "./b01/MapBuilder";
 import { MapParser as MapParserB01 } from "./b01/MapParser";
-import { B01DeviceStatus } from "./b01/types";
+import { B01DeviceStatus, B01MapData, Q10RuntimeDebugSummary } from "./b01/types";
+import { Q10MapBuilder } from "./q10/Q10MapBuilder";
+import { Q10MapCreator } from "./q10/Q10MapCreator";
+import { Q10MapParser } from "./q10/Q10MapParser";
+import { applyQ10RuntimePose } from "./q10/Q10RuntimePose";
 import { MapBuilder as MapBuilderV1 } from "./v1/MapBuilder";
 import { MapDecryptor as MapDecryptorV1 } from "./v1/MapDecryptor";
 import { MapParser as MapParserV1 } from "./v1/MapParser";
@@ -12,6 +17,10 @@ export class MapManager {
 	public mapCreator: MapBuilderV1;
 	private parserB01: MapParserB01;
 	private builderB01: MapBuilderB01;
+	private parserQ10: Q10MapParser;
+	private creatorQ10: Q10MapCreator;
+	private builderQ10: Q10MapBuilder;
+	private q10StateByDevice = new Map<string, B01MapData>();
 
 	constructor(adapter: Roborock) {
 		this.adapter = adapter;
@@ -19,6 +28,9 @@ export class MapManager {
 		this.mapCreator = new MapBuilderV1(adapter);
 		this.parserB01 = new MapParserB01(adapter);
 		this.builderB01 = new MapBuilderB01(adapter);
+		this.parserQ10 = new Q10MapParser();
+		this.creatorQ10 = new Q10MapCreator();
+		this.builderQ10 = new Q10MapBuilder(adapter);
 	}
 
 	/**
@@ -33,11 +45,19 @@ export class MapManager {
 	public async processMap(rawData: Buffer, version: string, model: string, serial: string, mappedRooms: any[] | null, duid?: string, connectionType: string = "Unknown", deviceStatus?: B01DeviceStatus, currentMapIndex?: number): Promise<{ mapBase64: string, mapBase64Clean?: string, mapData?: any } | null> {
 		try {
 			// Robust device status retrieval if not provided
-			if (version === "B01" && !deviceStatus && duid) {
+			if ((version === "B01" || version === "Q10") && !deviceStatus && duid) {
 				deviceStatus = await this.getDeviceStatusForB01(duid);
 			}
 
-			if (version === "B01") {
+			if (version === "B01" || version === "Q10") {
+				const q10Payload = this.extractQ10Payload(rawData, version, model, serial, duid);
+				if (q10Payload) {
+					const q10Result = await this.processQ10Payload(q10Payload, duid, connectionType, deviceStatus, model || undefined);
+					if (q10Result) {
+						return q10Result;
+					}
+				}
+
 				const mapData = this.parserB01.parse(rawData, serial, model, duid || "", connectionType);
 				if (mapData && mapData.mapGrid && mapData.mapGrid.length > 0) {
 					const expectedGridSize = mapData.header.sizeX * mapData.header.sizeY;
@@ -95,6 +115,102 @@ export class MapManager {
 			this.adapter.rLog("MapManager", duid || null, "Error", version, 301, `Failed to process map (Version: ${version}): ${this.adapter.errorMessage(e)}`, "error");
 		}
 		return null;
+	}
+
+	private extractQ10Payload(rawData: Buffer, version: string, model: string, serial: string, duid?: string): Buffer | null {
+		if (MapDecryptorB01.isLikelyQ10BlobPayload(rawData) || MapDecryptorB01.isLikelyQ10MapPayload(rawData)) {
+			return rawData;
+		}
+
+		if (version !== "B01") return null;
+
+		const localKey = duid && this.adapter.http_api?.getMatchedLocalKeys
+			? this.adapter.http_api.getMatchedLocalKeys().get(duid)
+			: undefined;
+		const decrypted = MapDecryptorB01.decrypt(rawData, serial, model, duid || "", this.adapter, localKey);
+		if (decrypted && (MapDecryptorB01.isLikelyQ10BlobPayload(decrypted) || MapDecryptorB01.isLikelyQ10MapPayload(decrypted))) {
+			return decrypted;
+		}
+
+		const layer1 = MapDecryptorB01.decryptLayer1Only(rawData, localKey);
+		if (layer1 && (MapDecryptorB01.isLikelyQ10BlobPayload(layer1) || MapDecryptorB01.isLikelyQ10MapPayload(layer1))) {
+			return layer1;
+		}
+
+		return null;
+	}
+
+	private async processQ10Payload(
+		payload: Buffer,
+		duid?: string,
+		connectionType: string = "Unknown",
+		deviceStatus?: B01DeviceStatus,
+		robotModel?: string
+	): Promise<{ mapBase64: string, mapBase64Clean?: string, mapData?: any } | null> {
+		const cacheKey = this.getQ10CacheKey(duid, connectionType);
+		const previous = this.q10StateByDevice.get(cacheKey);
+
+		let mapData = this.parserQ10.parse(payload);
+		if (mapData) {
+			mapData = this.parserQ10.mergePersistentState(mapData, previous);
+		} else {
+			const pathPoints = this.parserQ10.parsePathOnly(payload);
+			if (!pathPoints?.length || !previous) {
+				return null;
+			}
+			mapData = this.parserQ10.applyPathOnly(previous, pathPoints);
+		}
+
+		const created = applyQ10RuntimePose(this.creatorQ10.create(mapData), deviceStatus);
+		created.q10RuntimeDebug = this.buildQ10RuntimeDebugSummary(
+			created,
+			mapData ? "full" : "path-only",
+			payload
+		);
+		const resolvedRobotModel = robotModel || (duid ? this.adapter.http_api?.getRobotModel(duid) || undefined : undefined);
+		const rendered = await this.builderQ10.buildMaps(created, deviceStatus, resolvedRobotModel);
+		const mapBase64 = "data:image/png;base64," + rendered.full.toString("base64");
+		const mapBase64Clean = "data:image/png;base64," + rendered.clean.toString("base64");
+		this.q10StateByDevice.set(cacheKey, created);
+
+		return {
+			mapBase64,
+			mapBase64Clean,
+			mapData: created
+		};
+	}
+
+	private buildQ10RuntimeDebugSummary(
+		mapData: B01MapData,
+		packetKind: "full" | "path-only",
+		payload: Buffer
+	): Q10RuntimeDebugSummary {
+		const verification = mapData.q10Verification;
+		return {
+			packetKind,
+			payloadShape: MapDecryptorB01.isLikelyQ10BlobPayload(payload) ? "blob" : "map",
+			pathPoints: mapData.q10SourceData?.pathPoints.length ?? mapData.q10CreatorData?.pathPixels.length ?? 0,
+			historyPoints: mapData.history?.length ?? 0,
+			virtualWalls: mapData.q10SourceData?.virtualWalls.length ?? mapData.virtualWalls?.length ?? 0,
+			forbidAreas: mapData.q10SourceData?.forbidAreas.length ?? mapData.recmForbitZone?.length ?? 0,
+			mopAreas: mapData.q10SourceData?.mopAreas.length ?? 0,
+			thresholdAreas: mapData.q10SourceData?.thresholdAreas.length ?? mapData.thresholds?.length ?? 0,
+			eraseAreas: mapData.q10SourceData?.eraseAreas.length ?? mapData.eraseAreas?.length ?? 0,
+			carpetAreas: mapData.q10SourceData?.carpetAreas.length ?? mapData.carpetInfo?.length ?? 0,
+			obstacles: mapData.q10SourceData?.obstacles.length ?? mapData.obstacles?.length ?? 0,
+			skipPoints: mapData.q10SourceData?.skipPoints.length ?? mapData.skipCleanPoints?.length ?? 0,
+			suspectedPoints: mapData.q10SourceData?.suspectedPoints.length ?? mapData.q10CreatorData?.suspectedPoints.length ?? 0,
+			rooms: mapData.q10SourceData?.rooms.length ?? mapData.rooms?.length ?? 0,
+			robotPresent: !!(mapData.q10CreatorData?.robotPixel || mapData.robotPos),
+			chargerPresent: !!(mapData.q10CreatorData?.chargerPixel || mapData.chargerPos),
+			presentVerifiedFeatures: verification?.presentVerifiedFeatures ?? [],
+			presentUnverifiedFeatures: verification?.presentUnverifiedFeatures ?? []
+		};
+	}
+
+	private getQ10CacheKey(duid?: string, connectionType: string = "Unknown"): string {
+		const scope = connectionType === "B01History" ? "history" : "live";
+		return `${duid || "unknown"}:${scope}`;
 	}
 
 	private async getDeviceStatusForB01(duid: string): Promise<B01DeviceStatus> {

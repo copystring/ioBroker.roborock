@@ -19,7 +19,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  HUSKY: 0
   NPM_CONFIG_PREFER_OFFLINE: true
   NPM_CONFIG_AUDIT: false
   NPM_CONFIG_FUND: false
