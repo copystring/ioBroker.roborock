@@ -1,6 +1,6 @@
 import type { AxiosInstance, InternalAxiosRequestConfig } from "axios";
 import axios from "axios";
-import * as crypto from "crypto";
+import * as crypto from "node:crypto";
 import { Roborock } from "../main";
 import { LoginV4Response, ProductV5Response } from "./apiTypes";
 import { cryptoEngine } from "./cryptoEngine";

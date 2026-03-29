@@ -1,7 +1,7 @@
-import * as crypto from "crypto";
+import * as crypto from "node:crypto";
 import * as mqtt from "mqtt";
 import * as protobuf from "protobufjs";
-import * as zlib from "zlib";
+import * as zlib from "node:zlib";
 import type { Roborock } from "../main";
 import { MapDecryptor as B01MapDecryptor } from "./map/b01/MapDecryptor";
 import { ROBOROCK_PROTO_STR } from "./map/b01/roborock_proto";

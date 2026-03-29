@@ -1,5 +1,5 @@
 
-const fs = require("fs");
+const fs = require("node:fs");
 
 function verify() {
 	console.log("Verifying documentation completeness...");

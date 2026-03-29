@@ -1,5 +1,5 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 
 // Configuration
 const modulePath = process.env.SOURCE_MODULE || path.join(__dirname, '../.Roborock Q7 Series/output/module_518.js');
