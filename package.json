@@ -61,7 +61,7 @@
     "@vitest/coverage-v8": "^4.1.2",
     "ajv": "^8.18.0",
     "chokidar": "^5.0.0",
-    "esbuild": "^0.27.5",
+    "esbuild": "^0.28.0",
     "eslint": "^10.1.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-import": "^2.30.0",
