@@ -146,6 +146,8 @@ export class DeviceManager {
 						},
 					});
 
+					await this.adapter.updateDeviceInfo(duid, devices);
+
 					// Apply static features
 					await handler.initialize(device.online);
 
@@ -172,7 +174,7 @@ export class DeviceManager {
 		// Fire cleaning summary (background)
 		for (const handler of cleanSummaryHandlers) {
 			handler.updateCleanSummary().catch((e: unknown) => {
-				this.adapter.log.warn(`Background summary update failed for ${(handler as any).duid}: ${this.adapter.errorMessage(e)}`);
+				this.adapter.rLog("System", (handler as any).duid, "Warn", undefined, undefined, `Background summary update failed: ${this.adapter.errorMessage(e)}`, "warn");
 			});
 		}
 
@@ -277,7 +279,6 @@ export class DeviceManager {
 			const cloudDevices = this.adapter.http_api.getDevices();
 			for (const device of cloudDevices) {
 				const duid = device.duid;
-				if (!device.online) continue;
 				if (this.skipPollUntilNextHomeData.has(duid)) continue;
 
 				const handler = this.deviceFeatureHandlers.get(duid);
@@ -294,6 +295,7 @@ export class DeviceManager {
 					if (isSlowTick) {
 						await this.adapter.updateDeviceInfo(duid, cloudDevices);
 					}
+					if (!device.online) continue;
 					const version = await this.adapter.getDeviceProtocolVersion(duid);
 					switch (version) {
 						case "B01":

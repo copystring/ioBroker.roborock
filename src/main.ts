@@ -254,12 +254,12 @@ export class Roborock extends utils.Adapter {
 	 */
 	async executeSceneLocal(sceneId: string | number): Promise<void> {
 		try {
-			this.log.info(`[executeSceneLocal] specific scene execution for ID: ${sceneId}`);
+			this.rLog("Requests", null, "Info", undefined, undefined, `[Scene] Executing local scene ${sceneId}`, "info");
 
 			// 1. Fetch scenes
 			const scenes = await this.http_api.getScenes();
 			if (!scenes || !scenes.result) {
-				this.log.error(`[executeSceneLocal] Failed to fetch scenes or no result.`);
+				this.rLog("Requests", null, "Error", undefined, undefined, `[Scene] Failed to fetch scenes or no result for ${sceneId}`, "error");
 				return;
 			}
 
@@ -268,18 +268,18 @@ export class Roborock extends utils.Adapter {
 			const scene = scenes.result.find((s) => s.id == sceneId);
 
 			if (!scene) {
-				this.log.error(`[executeSceneLocal] Scene with ID ${sceneId} not found.`);
+				this.rLog("Requests", null, "Error", undefined, undefined, `[Scene] Scene ${sceneId} not found`, "error");
 				return;
 			}
 
-			this.log.debug(`[executeSceneLocal] Found scene: ${scene.name}`);
+			this.rLog("Requests", null, "Debug", undefined, undefined, `[Scene] Found scene "${scene.name}"`, "debug");
 
 			// 3. Parse 'param' field
 			let params;
 			try {
 				params = JSON.parse(scene.param);
-			} catch (e) {
-				this.log.error(`[executeSceneLocal] Failed to parse scene params: ${e}`);
+			} catch (e: unknown) {
+				this.rLog("Requests", null, "Error", undefined, undefined, `[Scene] Failed to parse params for ${sceneId}: ${this.errorMessage(e)}`, "error");
 				return;
 			}
 
@@ -292,15 +292,15 @@ export class Roborock extends utils.Adapter {
 
 						try {
 							commandPayload = JSON.parse(item.param);
-						} catch (e) {
-							this.log.error(`[executeSceneLocal] Failed to parse command params for item ${item.id}: ${e}`);
+						} catch (e: unknown) {
+							this.rLog("Requests", targetDuid, "Error", undefined, undefined, `[Scene] Failed to parse command params for item ${item.id}: ${this.errorMessage(e)}`, "error");
 							continue;
 						}
 
 						const method = commandPayload.method;
 						const args = commandPayload.params;
 
-						this.log.info(`[executeSceneLocal] Executing scene '${scene.name}': sending '${method}' to ${targetDuid}`);
+						this.rLog("Requests", targetDuid, "Info", undefined, undefined, `[Scene] Executing "${scene.name}": sending "${method}"`, "info");
 
 						// 5. Send command via requestsHandler
 						// We pass 'null' as handler because we are sending a raw command directly via specific method/args
@@ -312,17 +312,17 @@ export class Roborock extends utils.Adapter {
 						if (handler) {
 							await this.requestsHandler.command(handler, targetDuid, method, args);
 						} else {
-							this.log.warn(`[executeSceneLocal] No handler found for device ${targetDuid}. Attempting raw send.`);
+							this.rLog("Requests", targetDuid, "Warn", undefined, undefined, `[Scene] No handler found. Falling back to raw send for "${method}"`, "warn");
 							// Fallback: sendRequest only. Status refresh after activity-start is still triggered in resolvePendingRequest when response arrives.
 							await this.requestsHandler.sendRequest(targetDuid, method, args);
 						}
 					}
 				}
 			} else {
-				this.log.warn(`[executeSceneLocal] Scene ${sceneId} has no actions.`);
+				this.rLog("Requests", null, "Warn", undefined, undefined, `[Scene] Scene ${sceneId} has no actions`, "warn");
 			}
 		} catch (e: unknown) {
-			this.log.error(`[executeSceneLocal] Error executing scene: ${e} ${e instanceof Error ? e.stack : ""}`);
+			this.rLog("Requests", null, "Error", undefined, undefined, `[Scene] Error executing ${sceneId}: ${this.errorMessage(e)}`, "error");
 		}
 	}
 
@@ -351,7 +351,7 @@ export class Roborock extends utils.Adapter {
 			}
 
 			if (this.go2rtcProcess) {
-				this.log.info("Killing go2rtc process...");
+				this.rLog("Local", null, "Info", undefined, undefined, "Stopping go2rtc process...", "info");
 				this.go2rtcProcess.kill();
 				this.go2rtcProcess = null;
 			}
@@ -413,11 +413,11 @@ export class Roborock extends utils.Adapter {
 				return;
 			}
 		}
-		this.log.info(`[onStateChange] Processing command: ${command} for ${duid} in folder: ${folder}`);
+		this.rLog("Requests", duid, "Info", undefined, undefined, `[onStateChange] Processing ${folder}.${command}`, "info");
 
 		const handler = this.deviceFeatureHandlers.get(duid);
 		if (!handler) {
-			this.log.warn(`[onStateChange] Received command for unknown DUID: ${duid}`);
+			this.rLog("Requests", duid, "Warn", undefined, undefined, "[onStateChange] Received command for unknown device", "warn");
 			return;
 		}
 
@@ -443,7 +443,7 @@ export class Roborock extends utils.Adapter {
 			// Better: explicit reset.
 			await this.setState(id, { val: null, ack: true });
 		} else if (folder === "commands") {
-			this.log.info(`[handleCommand] Entering commands block for ${command}`);
+			this.rLog("Requests", duid, "Info", handler.protocolVersion || undefined, undefined, `[handleCommand] Entering commands block for ${command}`, "info");
 			try {
 				await this.executeCommand(handler, duid, command, state);
 			} finally {
@@ -452,7 +452,7 @@ export class Roborock extends utils.Adapter {
 				const isBoolean = cmdDef && cmdDef.type === "boolean";
 
 				if (isBoolean && this.isTruthy(state.val)) {
-					this.log.info(`[handleCommand] Scheduling reset for ${id} (type: boolean)`);
+					this.rLog("Requests", duid, "Info", handler.protocolVersion || undefined, undefined, `[handleCommand] Scheduling reset for ${id} (boolean)`, "info");
 					this.setResetTimeout(id);
 				}
 			}
@@ -471,16 +471,16 @@ export class Roborock extends utils.Adapter {
 
 		if (isButton) {
 			if (this.isTruthy(val)) {
-				this.log.info(`[executeCommand] Triggering button command: ${command} for ${duid}`);
+				this.rLog("Requests", duid, "Info", handler.protocolVersion || undefined, undefined, `[executeCommand] Triggering button command ${command}`, "info");
 				await this.requestsHandler.command(handler, duid, command);
 			} else {
-				this.log.debug(`[executeCommand] Ignoring button command: ${command} (val: ${val})`);
+				this.rLog("Requests", duid, "Debug", handler.protocolVersion || undefined, undefined, `[executeCommand] Ignoring button command ${command} (val=${val})`, "debug");
 			}
 			return;
 		}
 
 		// Log start of command execution for diagnostics
-		this.log.info(`[executeCommand] Starting command ${command} with params ${typeof val === "object" ? JSON.stringify(val) : val}`);
+		this.rLog("Requests", duid, "Info", handler.protocolVersion || undefined, undefined, `[executeCommand] Starting ${command} with params ${typeof val === "object" ? JSON.stringify(val) : val}`, "info");
 
 		// 2. Generic data commands (Numbers, Strings, JSON strings)
 		// We pass the raw value. getCommandParams in feature handlers will do the packaging (e.g. [val]).
@@ -506,7 +506,7 @@ export class Roborock extends utils.Adapter {
 			this.clearTimeout(this.commandTimeouts.get(timeoutKey)!);
 		}
 		const timeout = this.setTimeout(() => {
-			this.log.debug(`[setResetTimeout] Resetting ${id} to false`);
+			this.rLog("Requests", null, "Debug", undefined, undefined, `[setResetTimeout] Resetting ${id} to false`, "debug");
 			this.setState(id, false, true);
 			this.commandTimeouts.delete(timeoutKey);
 		}, 1000);
@@ -520,16 +520,16 @@ export class Roborock extends utils.Adapter {
 		try {
 			const clientIDState = await this.getStateAsync("clientID"); // Revert to Async
 			if (clientIDState?.val) {
-				this.log.info(`Loaded existing clientID: ${clientIDState.val}`);
+				this.rLog("System", null, "Info", undefined, undefined, `Loaded existing clientID: ${clientIDState.val}`, "info");
 				return clientIDState.val.toString();
 			}
 			const randomClientID = randomBytes(16).toString("hex");
 			await this.setState("clientID", { val: randomClientID, ack: true });
-			this.log.info(`Generated and saved new clientID: ${randomClientID}`);
+			this.rLog("System", null, "Info", undefined, undefined, `Generated and saved new clientID: ${randomClientID}`, "info");
 			return randomClientID;
 		} catch (error: unknown) {
 			const errorMsg = error instanceof Error ? error.message : String(error);
-			this.log.error(`Error ensuring clientID: ${errorMsg}`);
+			this.rLog("System", null, "Error", undefined, undefined, `Error ensuring clientID: ${errorMsg}`, "error");
 			throw error;
 		}
 	}
@@ -602,7 +602,7 @@ export class Roborock extends utils.Adapter {
 				this.setState(`Devices.${duid}.programs.${id}.enabled`, enabled, true);
 			} catch (e: unknown) {
 				const errorMsg = e instanceof Error ? e.message : String(e);
-				this.log.warn(`[processScenes] Failed to process scene '${program.name}' (ID: ${program.id}): ${errorMsg}`);
+				this.rLog("Requests", null, "Warn", undefined, undefined, `[processScenes] Failed to process scene "${program.name}" (${program.id}): ${errorMsg}`, "warn");
 			}
 		}
 
@@ -665,9 +665,9 @@ export class Roborock extends utils.Adapter {
 		if (!isLocal) return;
 
 		try {
-			this.log.debug(`[checkForNewFirmware] Checking for firmware update for ${duid}...`);
+			this.rLog("HTTP", duid, "Debug", undefined, undefined, "[checkForNewFirmware] Checking for firmware update...", "debug");
 			const update = await this.http_api.getFirmwareStates(duid);
-			this.log.debug(`[checkForNewFirmware] Result for ${duid}: ${JSON.stringify(update)}`);
+			this.rLog("HTTP", duid, "Debug", undefined, undefined, `[checkForNewFirmware] Result: ${JSON.stringify(update)}`, "debug");
 
 			if (update.data.result) {
 				for (const state in update.data.result) {
@@ -676,10 +676,10 @@ export class Roborock extends utils.Adapter {
 					await this.setStateChanged(`Devices.${duid}.updateStatus.${state}`, { val: value, ack: true });
 				}
 			} else {
-				this.log.warn(`[checkForNewFirmware] No result in firmware update response for ${duid}`);
+				this.rLog("HTTP", duid, "Warn", undefined, undefined, "[checkForNewFirmware] No result in firmware update response", "warn");
 			}
-		} catch (error) {
-			this.log.warn(`Failed to check for new firmware: ${error}`);
+		} catch (error: unknown) {
+			this.rLog("HTTP", duid, "Warn", undefined, undefined, `Failed to check for new firmware: ${this.errorMessage(error)}`, "warn");
 		}
 	}
 
@@ -719,8 +719,6 @@ export class Roborock extends utils.Adapter {
 		try {
 			if (oldObj) {
 				// Object exists, but metadata changed
-				this.log.debug(`[ensureState] Updating metadata for "${path}".`);
-
 				// Safely merge common properties
 				const newCommon = { ...oldObj.common, ...finalCommon };
 
@@ -746,7 +744,7 @@ export class Roborock extends utils.Adapter {
 				});
 			}
 		} catch (e: unknown) {
-			this.log.error(`[ensureState] Failed to update/create object for "${path}": ${this.errorMessage(e)}`);
+			this.rLog("System", null, "Error", undefined, undefined, `[ensureState] Failed to update/create object for "${path}": ${this.errorMessage(e)}`, "error");
 		}
 	}
 
@@ -860,7 +858,7 @@ export class Roborock extends utils.Adapter {
 				try {
 					await this.extendObject(path, { common: { name } });
 				} catch (e: unknown) {
-					this.log.error(`Failed to update folder name for ${path}: ${this.errorMessage(e)}`);
+					this.rLog("System", null, "Error", undefined, undefined, `Failed to update folder name for ${path}: ${this.errorMessage(e)}`, "error");
 				}
 			}
 		}
@@ -931,12 +929,12 @@ export class Roborock extends utils.Adapter {
 			try {
 				this.go2rtcProcess = spawn(go2rtcPath.toString(), ["-config", JSON.stringify(go2rtcConfig)], { shell: false, detached: false, windowsHide: true });
 
-				this.go2rtcProcess!.on("error", (err) => this.log.error(`Error starting go2rtc: ${err.message}`));
-				this.go2rtcProcess!.stdout!.on("data", (data) => this.log.debug(`go2rtc output: ${data.toString().trim()}`));
+				this.go2rtcProcess!.on("error", (err) => this.rLog("Local", null, "Error", undefined, undefined, `go2rtc start error: ${err.message}`, "error"));
+				this.go2rtcProcess!.stdout!.on("data", (data) => this.rLog("Local", null, "Debug", undefined, undefined, `go2rtc output: ${data.toString().trim()}`, "debug"));
 				this.go2rtcProcess!.stderr!.on("data", (data) => {
 					const msg = data.toString().trim();
 					const isShutdown = /signal:\s*terminated|exit with signal/i.test(msg);
-					this.log[isShutdown ? "info" : "error"](`go2rtc ${isShutdown ? "output" : "error output"}: ${msg}`);
+					this.rLog("Local", null, isShutdown ? "Info" : "Error", undefined, undefined, `go2rtc ${isShutdown ? "output" : "error output"}: ${msg}`, isShutdown ? "info" : "error");
 				});
 
 				// Remove the process reference on exit to prevent double-kill attempts
@@ -952,7 +950,7 @@ export class Roborock extends utils.Adapter {
 				};
 				process.on("exit", this.onExitBound);
 			} catch (error: unknown) {
-				this.log.error(`Failed to spawn go2rtc: ${this.errorMessage(error)}`);
+				this.rLog("Local", null, "Error", undefined, undefined, `Failed to spawn go2rtc: ${this.errorMessage(error)}`, "error");
 			}
 		}
 	}
@@ -962,7 +960,7 @@ export class Roborock extends utils.Adapter {
 	 */
 	async processA01(duid: string, response: { dps?: Record<string, unknown> }): Promise<void> {
 		if (!response?.dps) {
-			this.log.warn(`[A01|${duid}] Invalid response: ${JSON.stringify(response)}`);
+			this.rLog("Local", duid, "Warn", "A01", undefined, `Invalid response: ${JSON.stringify(response)}`, "warn");
 			return;
 		}
 
@@ -1022,7 +1020,7 @@ export class Roborock extends utils.Adapter {
 	 * Resets the MQTT API instance.
 	 */
 	async resetMqttApi() {
-		this.log.info("Resetting MQTT API instance...");
+		this.rLog("System", null, "Info", undefined, undefined, "Resetting MQTT API instance...", "info");
 		if (this.mqtt_api) {
 			this.mqtt_api.cleanup();
 			this.requestsHandler.clearQueue(); // Prevents pending promises
@@ -1030,7 +1028,7 @@ export class Roborock extends utils.Adapter {
 		// Create a new MQTT API instance and initialize it
 		this.mqtt_api = new mqtt_api(this);
 		await this.mqtt_api.init();
-		this.log.info("MQTT API instance has been reset.");
+		this.rLog("System", null, "Info", undefined, undefined, "MQTT API instance has been reset.", "info");
 	}
 
 	/**
@@ -1043,9 +1041,9 @@ export class Roborock extends utils.Adapter {
 		const msg = `Failed processing ${attribute || "task"} on ${duid || "adapter"} (${robotModel}): ${stack}`;
 
 		if (errorMsg.includes("retry") || errorMsg.includes("locating") || errorMsg.includes("timed out")) {
-			this.log.warn(msg);
+			this.rLog("System", duid, "Warn", undefined, undefined, msg, "warn");
 		} else {
-			this.log.error(msg);
+			this.rLog("System", duid, "Error", undefined, undefined, msg, "error");
 			if (this.sentryInstance) {
 				this.sentryInstance.getSentryObject().captureException(error);
 			}
@@ -1091,11 +1089,11 @@ export class Roborock extends utils.Adapter {
 		if (!handler) return;
 
 		try {
-			this.log.info(`[onStateChange] Loading map ${mapFlag} for ${duid}`);
+			this.rLog("Requests", duid, "Info", handler.protocolVersion || undefined, undefined, `[floorSwitch] Loading map ${mapFlag}`, "info");
 			// 1. Send load command and wait for robot ACK
 			await this.requestsHandler.sendRequest(duid, "load_multi_map", [mapFlag], { timeout: 60000 });
 
-			this.log.info(`[onStateChange] Verified map load result. Verifying robot state sync for ${duid}`);
+			this.rLog("Requests", duid, "Info", handler.protocolVersion || undefined, undefined, "[floorSwitch] Load acknowledged, verifying map index sync", "info");
 
 			// Failsafe: Robot says "ok" but might need a few seconds to switch currentMapIndex
 			const startTime = Date.now();
@@ -1111,23 +1109,23 @@ export class Roborock extends utils.Adapter {
 
 				// Verify using both index match and verifying raw status supports it
 				if (currentIndex === mapFlag) {
-					this.log.info(`[onStateChange] Robot synced map index to ${currentIndex} (Status: ${rawStatus} | Attempt ${i + 1}/10 | Elapsed: ${elapsed}ms)`);
+					this.rLog("Requests", duid, "Info", handler.protocolVersion || undefined, undefined, `[floorSwitch] Synced map index to ${currentIndex} (status=${rawStatus}, attempt=${i + 1}/10, elapsed=${elapsed}ms)`, "info");
 					verified = true;
 					break;
 				}
-				this.log.info(`[onStateChange] Waiting for robot to sync map index (Current: ${currentIndex}, Target: ${mapFlag}, Status: ${rawStatus} | Attempt ${i + 1}/10 | Elapsed: ${elapsed}ms)`);
+				this.rLog("Requests", duid, "Info", handler.protocolVersion || undefined, undefined, `[floorSwitch] Waiting for sync (current=${currentIndex}, target=${mapFlag}, status=${rawStatus}, attempt=${i + 1}/10, elapsed=${elapsed}ms)`, "info");
 				await new Promise(resolve => setTimeout(resolve, 2000));
 			}
 
 			if (!verified) {
-				this.log.warn(`[onStateChange] Robot failed to sync map index to ${mapFlag} after several attempts. Proceeding anyway.`);
+				this.rLog("Requests", duid, "Warn", handler.protocolVersion || undefined, undefined, `[floorSwitch] Map index did not sync to ${mapFlag} after retries; proceeding`, "warn");
 			}
 
 			await handler.updateMultiMapsList();
 			await handler.updateRoomMapping();
 			await handler.updateMap();
 
-			this.log.info(`[onStateChange] Floor switch to ${mapFlag} complete for ${duid}`);
+			this.rLog("Requests", duid, "Info", handler.protocolVersion || undefined, undefined, `[floorSwitch] Completed switch to map ${mapFlag}`, "info");
 		} catch (e: unknown) {
 			this.catchError(e, "floorSwitch", duid);
 		} finally {

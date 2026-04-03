@@ -728,7 +728,7 @@ export abstract class BaseDeviceFeatures {
 
 			return responseData;
 		} catch (e: unknown) {
-			this.deps.adapter.log.error(`[BaseDeviceFeatures] getPhoto failed: ${this.deps.adapter.errorMessage(e)}`);
+			this.deps.adapter.rLog("Requests", this.duid, "Error", this.protocolVersion || undefined, undefined, `[getPhoto] Failed: ${this.deps.adapter.errorMessage(e)}`, "error");
 			throw e;
 		}
 	}

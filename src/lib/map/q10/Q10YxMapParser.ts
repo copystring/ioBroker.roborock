@@ -37,36 +37,6 @@ interface Q10RoomModel {
 	cleanLine: number;
 }
 
-const Q10_ROOM_NAME_BY_TYPE: Record<number, string> = {
-	0: "Zimmer",
-	1: "Hauptschlafzimmer",
-	2: "Gästezimmer",
-	3: "Schlafzimmer",
-	4: "Wohnzimmer",
-	5: "Esszimmer",
-	6: "Küche",
-	7: "Balkon",
-	8: "Toilette",
-	9: "Eingang",
-	10: "Arbeitszimmer",
-	11: "Flur"
-};
-
-const Q10_ROOM_NAME_BY_TOKEN: Record<string, string> = {
-	rr_other: "Zimmer",
-	rr_master_room: "Hauptschlafzimmer",
-	rr_guest_bedroom: "Gästezimmer",
-	rr_bedroom: "Schlafzimmer",
-	rr_living_room: "Wohnzimmer",
-	rr_restaurant: "Esszimmer",
-	rr_kitchen: "Küche",
-	rr_balcony: "Balkon",
-	rr_toilet: "Toilette",
-	rr_entrance_hall: "Eingang",
-	rr_study: "Arbeitszimmer",
-	rr_corridor: "Flur"
-};
-
 function u8ToHex(arr: Uint8Array): string {
 	return Buffer.from(arr).toString("hex");
 }
@@ -81,31 +51,20 @@ function fixLikelyUtf8Mojibake(value: string): string {
 	}
 }
 
-function normalizeQ10RoomName(name: string, roomType?: number, roomID?: number): string {
-	const trimmed = fixLikelyUtf8Mojibake((name || "").replace(/\0+$/g, "").trim());
-	if (trimmed) {
-		const tokenName = Q10_ROOM_NAME_BY_TOKEN[trimmed];
-		if (tokenName) return tokenName;
-
-		const roomMatch = trimmed.match(/^room(\d{1,2})$/iu);
-		if (roomMatch) return `Raum ${roomMatch[1]}`;
-
-		return trimmed;
-	}
-
-	return Q10_ROOM_NAME_BY_TYPE[roomType ?? -1] || (roomID != null ? `Raum ${roomID}` : "Zimmer");
-}
-
-function decodeRoomNameFromRaw(raw: Uint8Array, roomType?: number, roomID?: number): string {
-	// JX stores 20 bytes raw; first byte is length in many samples.
+function decodeRoomNameFromRaw(raw: Uint8Array): string {
+	// Original Q10 app/plugin decodes roomNameDataStr directly from the raw byte field.
+	// The first byte usually contains the string length; the app retries with shorter
+	// lengths until a non-empty string can be decoded.
 	try {
-		const len = raw.length > 0 ? raw[0] : 0;
-		if (len > 0 && len <= 19 && raw.length >= 1 + len) {
-			return normalizeQ10RoomName(Buffer.from(raw.slice(1, 1 + len)).toString("utf8"), roomType, roomID);
+		let len = raw.length > 0 ? raw[0] : 0;
+		while (len > 0 && len <= 19 && raw.length >= 1 + len) {
+			const decoded = fixLikelyUtf8Mojibake(Buffer.from(raw.slice(1, 1 + len)).toString("utf8").replace(/\0+$/g, "").trim());
+			if (decoded) return decoded;
+			len -= 1;
 		}
-		return normalizeQ10RoomName(Buffer.from(raw).toString("utf8"), roomType, roomID);
+		return "";
 	} catch {
-		return normalizeQ10RoomName("", roomType, roomID);
+		return "";
 	}
 }
 
@@ -566,7 +525,7 @@ function tryDecodeCandidate(buf: Buffer, hdr: Q10Header): B01MapData | null {
 			if (roomModels.length) {
 				q10SourceData.rooms = roomModels.map((rm): Q10SourceRoom => ({
 					roomID: rm.roomID,
-					roomName: decodeRoomNameFromRaw(Buffer.from(rm.roomNameDataStr, "hex"), rm.roomType, rm.roomID),
+					roomName: decodeRoomNameFromRaw(Buffer.from(rm.roomNameDataStr, "hex")),
 					roomNameDataStr: rm.roomNameDataStr,
 					roomType: rm.roomType,
 					roomMaterial: rm.roomMaterial,
@@ -579,7 +538,7 @@ function tryDecodeCandidate(buf: Buffer, hdr: Q10Header): B01MapData | null {
 				}));
 				result.rooms = roomModels.map((rm) => ({
 					roomId: rm.roomID,
-					roomName: decodeRoomNameFromRaw(Buffer.from(rm.roomNameDataStr, "hex"), rm.roomType, rm.roomID),
+					roomName: decodeRoomNameFromRaw(Buffer.from(rm.roomNameDataStr, "hex")),
 					roomTypeId: rm.roomType,
 					gridValue: rm.roomID + 1,
 					cleanOrder: rm.cleanOrder,

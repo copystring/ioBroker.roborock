@@ -180,15 +180,6 @@ export class Q10CleanRecordService {
 						}
 					}
 				});
-				this.deps.adapter.rLog(
-					"System",
-					this.duid,
-					"Debug",
-					"B01",
-					52,
-					`Q10 requested clean record detail ${recordId} for records.${index}.`,
-					"debug"
-				);
 				return;
 			} catch (e: unknown) {
 				this.clearQ10RecordMapTimeout();
@@ -210,6 +201,7 @@ export class Q10CleanRecordService {
 	private async requestMissingQ10CleanRecordMaps(
 		records: ReadonlyArray<{ raw: string; record_id: string; map_len: number; path_len: number; virtual_len: number }>
 	): Promise<void> {
+		let queuedCount = 0;
 		for (const record of records) {
 			const shouldHaveMap = record.map_len > 0 || record.path_len > 0 || record.virtual_len > 0;
 			if (!shouldHaveMap || !record.record_id) continue;
@@ -226,7 +218,20 @@ export class Q10CleanRecordService {
 			this.q10PendingRecordMapRequests.add(record.record_id);
 			if (!this.q10QueuedRecordMapRequests.includes(record.record_id)) {
 				this.q10QueuedRecordMapRequests.push(record.record_id);
+				queuedCount++;
 			}
+		}
+
+		if (queuedCount > 0) {
+			this.deps.adapter.rLog(
+				"System",
+				this.duid,
+				"Debug",
+				"B01",
+				52,
+				`Q10 queued ${queuedCount} clean record map request(s).`,
+				"debug"
+			);
 		}
 
 		await this.requestNextQ10CleanRecordMap();
@@ -268,33 +273,13 @@ export class Q10CleanRecordService {
 				this.duid,
 				"B01History"
 			);
-			if (!mapRes?.mapBase64) {
-				this.deps.adapter.rLog(
-					"System",
-					this.duid,
-					"Debug",
-					"B01",
-					52,
-					`Q10 clean record blob ${recordId} did not produce a history map yet; waiting for another blob or timeout.`,
-					"debug"
-				);
-				return true;
-			}
+			if (!mapRes?.mapBase64) return true;
 
 			await this.ensureQ10RecordMapStates(index, mapRes);
 			this.deps.adapter.rLog("MapManager", this.duid, "Debug", "B01", 52, `Q10 clean record map stored for record ${recordId} at index ${index}`, "debug");
 			await this.finishQ10CleanRecordMapRequest(recordId, true);
 			return true;
-		} catch (e: unknown) {
-			this.deps.adapter.rLog(
-				"System",
-				this.duid,
-				"Debug",
-				"B01",
-				52,
-				`Q10 applyQ10CleanRecordBlob(${recordId}) ignored one non-renderable blob: ${this.deps.adapter.errorMessage(e)}`,
-				"debug"
-			);
+		} catch {
 			return true;
 		}
 	}
@@ -327,16 +312,6 @@ export class Q10CleanRecordService {
 		if (activeRequest && activeRequest.recordId === recordId) {
 			activeRequest.acknowledged = true;
 		}
-
-		this.deps.adapter.rLog(
-			"System",
-			this.duid,
-			"Debug",
-			"B01",
-			52,
-			`Q10 clean record detail ${recordId} acknowledged; waiting for blob type 3.`,
-			"debug"
-		);
 	}
 
 	public async applyQ10CleanRecordList(dp52: Record<string, unknown>): Promise<void> {

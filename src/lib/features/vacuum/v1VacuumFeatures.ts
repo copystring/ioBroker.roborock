@@ -285,7 +285,7 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 				try {
 					finalParams = JSON.parse(finalParams);
 				} catch (e: any) {
-					this.deps.adapter.log.warn(`[getCommandParams] Failed to parse set_clean_motor_mode params: ${finalParams} - Error: ${e.message}`);
+					this.deps.adapter.rLog("Requests", this.duid, "Warn", this.protocolVersion || undefined, undefined, `[getCommandParams] Failed to parse set_clean_motor_mode params: ${finalParams} - Error: ${e.message}`, "warn");
 				}
 			}
 

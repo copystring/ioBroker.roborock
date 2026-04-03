@@ -1,6 +1,7 @@
 import PQueue from "p-queue";
 import type { Roborock } from "../main";
 import { Q10CommandHandler } from "./b01/q10/Q10CommandHandler";
+import { isConnectivityLikeError } from "./errorUtils";
 import type { BaseDeviceFeatures } from "./features/baseDeviceFeatures";
 import { messageParser } from "./messageParser";
 
@@ -9,14 +10,7 @@ const REQUEST_TIMEOUT = 10000;
 const MAX_REQUEST_RETRIES = 2;
 
 function isRetryableError(error: unknown): boolean {
-	if (!(error instanceof Error)) return true;
-	const msg = error.message.toLowerCase();
-	if (msg.includes("adapter_stopped") || msg.includes("cancelled") || msg.includes("cancelled_by_user")) return false;
-	if (msg.includes("timeout") || msg.includes("timed out") || msg.includes("econnreset") || msg.includes("etimedout") ||
-		msg.includes("enotfound") || msg.includes("econnrefused") || msg.includes("network") || msg.includes("socket hang up")) return true;
-	const code = (error as NodeJS.ErrnoException).code;
-	if (code === "ECONNRESET" || code === "ETIMEDOUT" || code === "ENOTFOUND" || code === "ECONNREFUSED") return true;
-	return false;
+	return isConnectivityLikeError(error);
 }
 
 export enum RequestPriority {
@@ -477,7 +471,7 @@ export class requestsHandler {
 		}
 
 		await this.adapter.mqtt_api.sendMessage(duid, roborockMessage);
-		this.adapter.rLog("MQTT", duid, "->", "B01", 101, `Q10 DP publish: ${JSON.stringify(dps)}`, "info");
+		this.adapter.rLog("MQTT", duid, "->", "B01", 101, `Q10 DP publish: ${JSON.stringify(dps)}`, "debug");
 	}
 
 	async command(_handler: BaseDeviceFeatures, duid: string, method: string, params?: unknown, id?: string) {

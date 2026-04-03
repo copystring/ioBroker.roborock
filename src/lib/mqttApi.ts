@@ -336,15 +336,13 @@ export class mqtt_api {
 	 * Processes a single decoded Roborock message frame.
 	 */
 	async handleDecodedMessage(duid: string, data: any): Promise<void> {
-		// 1. Protocol A01 / B01 (Tuya-like / JSON payload)
-		const isJsonProtocol = (data.version === "A01" || data.version === "B01") && data.protocol !== 300 && data.protocol !== 301;
-		if (isJsonProtocol) {
+		// 1. Generic A01 / B01 JSON payloads. Specialized protocols (e.g. 102/500) are handled below exactly once.
+		const isGenericJsonProtocol =
+			(data.version === "A01" || data.version === "B01") &&
+			![102, 300, 301, 500].includes(data.protocol);
+		if (isGenericJsonProtocol) {
 			await this.handleProtocolA01B01(duid, data);
-
-			// Only early return if it's NOT a specialized protocol that needs fallout to Section 2/3/4
-			if (![102, 300, 301, 500].includes(data.protocol)) {
-				return;
-			}
+			return;
 		}
 
 		// 2. Protocol 102 (General Command Response)
@@ -390,7 +388,7 @@ export class mqtt_api {
 	 */
 	private async handleProtocolA01B01(duid: string, data: any): Promise<void> {
 		try {
-			const payloadStr = data.payload.toString();
+			const payloadStr = Buffer.isBuffer(data.payload) ? data.payload.toString("utf8") : String(data.payload ?? "");
 			const parsedPayload = JSON.parse(payloadStr);
 			if (data.version === "B01") {
 				await this.dispatchB01Message(duid, parsedPayload);
@@ -427,7 +425,8 @@ export class mqtt_api {
 	 */
 	private async handleProtocol102(duid: string, data: any): Promise<void> {
 		try {
-			const parsed = JSON.parse(data.payload.toString());
+			const payloadStr = Buffer.isBuffer(data.payload) ? data.payload.toString("utf8") : String(data.payload ?? "");
+			const parsed = JSON.parse(payloadStr);
 			let dps102 = parsed.dps?.["102"] || (parsed.dps ? parsed.dps : null);
 			const b01Variant = await this.adapter.getB01Variant(duid);
 			const handler = this.adapter.deviceFeatureHandlers.get(duid);
@@ -441,14 +440,16 @@ export class mqtt_api {
 			const pendingRequest = this.adapter.pendingRequests.get(dps102.id);
 			if (pendingRequest) {
 				await this.resolveProtocol102Request(duid, data.protocol, dps102, pendingRequest);
-			} else {
-				if (!this.adapter.requestsHandler.isRequestRecentlyFinished(dps102.id)) {
-					// Other unsolicited payloads are intentionally ignored.
-				}
 			}
 
+			let handledByQ10 = false;
 			if (b01Variant === "Q10" && handler) {
-				await this.q10DpDispatcher.dispatchProtocol102(duid, parsed, dps102);
+				handledByQ10 = await this.q10DpDispatcher.dispatchProtocol102(duid, parsed, dps102);
+			}
+
+			if (!pendingRequest && !this.adapter.requestsHandler.isRequestRecentlyFinished(dps102.id) && !handledByQ10) {
+				const version = data.version || await this.adapter.getDeviceProtocolVersion(duid).catch(() => "1.0");
+				this.adapter.rLog("MQTT", duid, "<-", version, String(data.protocol), payloadStr, "debug");
 			}
 		} catch (e) {
 			this.adapter.rLog("MQTT", duid, "Error", "102", undefined, `Failed to parse Protocol 102: ${e}`, "error");
@@ -474,7 +475,8 @@ export class mqtt_api {
 	 */
 	private async handleProtocol101Response(duid: string, data: any): Promise<void> {
 		try {
-			const parsed = JSON.parse(data.payload.toString());
+			const payloadStr = Buffer.isBuffer(data.payload) ? data.payload.toString("utf8") : String(data.payload ?? "");
+			const parsed = JSON.parse(payloadStr);
 			const dps101 = parsed.dps?.["101"] ?? (typeof parsed.id !== "undefined" ? parsed : null);
 			const inner = typeof dps101 === "string" ? (() => {
 				try {
@@ -499,7 +501,8 @@ export class mqtt_api {
 	 */
 	private async handleProtocol500(duid: string, data: any): Promise<void> {
 		try {
-			const parsedData = JSON.parse(data.payload.toString("utf8"));
+			const payloadStr = Buffer.isBuffer(data.payload) ? data.payload.toString("utf8") : String(data.payload ?? "");
+			const parsedData = JSON.parse(payloadStr);
 			const version = await this.adapter.getDeviceProtocolVersion(duid).catch(() => "1.0");
 
 			if (parsedData.mqttOtaData) {
@@ -555,7 +558,7 @@ export class mqtt_api {
 			}
 		}
 
-		if (await this.q10DpDispatcher.tryHandleCleanRecordBlob(duid, payloadBuf, data.protocol)) {
+		if (await this.q10DpDispatcher.tryHandleCleanRecordBlob(duid, payloadBuf)) {
 			return;
 		}
 
@@ -596,7 +599,7 @@ export class mqtt_api {
 				return;
 			}
 			if (result.type === "map") {
-				if (await this.q10DpDispatcher.tryHandleCleanRecordBlob(duid, result.payload, data.protocol)) {
+				if (await this.q10DpDispatcher.tryHandleCleanRecordBlob(duid, result.payload)) {
 					return;
 				}
 				this.resolveAndSendB01Map(duid, result.payload, data.protocol);

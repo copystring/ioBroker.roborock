@@ -1,6 +1,7 @@
 import { FeatureDependencies } from "../../baseDeviceFeatures";
 import { DeviceStateWriter } from "../../deviceStateWriter";
 import { classifyB01MapPayload } from "../../../map/b01/B01MapPayloadClassifier";
+import { normalizeRoborockRoomDisplayName } from "../../../roomNameNormalizer";
 
 export class B01MapService {
 	private readonly stateWriter: DeviceStateWriter;
@@ -20,6 +21,10 @@ export class B01MapService {
 	private getDeviceSerial(): string | null {
 		const device = this.deps.adapter.http_api.getDevices().find((entry: { duid: string; sn?: string }) => entry.duid === this.duid);
 		return typeof device?.sn === "string" && device.sn.trim() ? device.sn.trim() : null;
+	}
+
+	private getDefaultRoomName(): string | undefined {
+		return this.deps.adapter.translationManager?.get("default_room_name");
 	}
 
 	public async updateMap(trigger?: () => Promise<void>): Promise<void> {
@@ -431,7 +436,13 @@ export class B01MapService {
 				this.deps.adapter.rLog("System", this.duid, "Warn", "B01", undefined, `Invalid room data in mappedRooms: ${JSON.stringify(room)}`, "warn");
 				continue;
 			}
-			const roomName = room.name || room.roomName || `Room ${roomID}`;
+			const rawRoomName =
+				typeof room.name === "string" && room.name.trim()
+					? room.name
+					: typeof room.roomName === "string"
+						? room.roomName
+						: "";
+			const roomName = normalizeRoborockRoomDisplayName(rawRoomName, () => this.getDefaultRoomName());
 			const roomStateId = `${floorFolder}.${roomID}`;
 			await this.stateWriter.ensureState(roomStateId, {
 				name: roomName,

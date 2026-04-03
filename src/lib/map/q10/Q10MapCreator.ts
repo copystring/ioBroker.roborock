@@ -1,5 +1,6 @@
 import type { B01DeviceStatus, B01MapData } from "../b01/types";
 import { isB01DockAnchoredState } from "../b01/B01StateSemantics";
+import { normalizeRoborockRoomDisplayName } from "../../roomNameNormalizer";
 import { buildQ10Verification } from "./Q10Verification";
 import type {
 	Q10CreatorArea,
@@ -107,10 +108,6 @@ function mapSourceLines(source: Q10SourceData, areas: Q10SourceArea[]): Q10Creat
 	return areas
 		.map((area) => sourceLineToCreator(source, area))
 		.filter((area): area is Q10CreatorLine => area !== null);
-}
-
-function fallbackRoomName(roomID: number): string {
-	return `Room ${roomID}`;
 }
 
 function isRoomValue(value: number): boolean {
@@ -638,7 +635,12 @@ function serializeRoomColorPlan(roomModels: ReadonlyArray<Q10CreatorRoomModel>):
 	);
 }
 
-function buildRoomModels(mapData: B01MapData, source: Q10SourceData, mapGrid = mapData.mapGrid): Q10CreatorRoomModel[] {
+function buildRoomModels(
+	mapData: B01MapData,
+	source: Q10SourceData,
+	getDefaultRoomName?: () => string | undefined,
+	mapGrid = mapData.mapGrid
+): Q10CreatorRoomModel[] {
 	const roomMeta = new Map<number, Q10SourceRoom>();
 	for (const room of source.rooms) roomMeta.set(room.roomID, room);
 	const logicalRoomIdByGridValue = new Map<number, number>();
@@ -678,7 +680,7 @@ function buildRoomModels(mapData: B01MapData, source: Q10SourceData, mapGrid = m
 		return {
 			roomID: logicalRoomID,
 			gridValue,
-			roomName: meta?.roomName || fallbackRoomName(logicalRoomID),
+			roomName: normalizeRoborockRoomDisplayName(meta?.roomName, getDefaultRoomName),
 			roomType: meta?.roomType ?? 0,
 			roomMaterial: meta?.roomMaterial ?? ROOM_OTHER_MATERIAL,
 			cleanOrder: meta?.cleanOrder ?? 0,
@@ -841,6 +843,18 @@ function withVerification(mapData: B01MapData, q10CreatorData: Q10CreatorData): 
 }
 
 export class Q10MapCreator {
+	constructor(
+		private readonly deps?: {
+			translationManager?: {
+				get: (key: string, defaultVal?: string) => string;
+			};
+		}
+	) {}
+
+	private getDefaultRoomName(): string | undefined {
+		return this.deps?.translationManager?.get("default_room_name");
+	}
+
 	private applyRuntimePose(
 		mapData: B01MapData,
 		source: Q10SourceData,
@@ -900,9 +914,9 @@ export class Q10MapCreator {
 			throw new Error("Q10 source data missing. Refusing synthetic creator fallback.");
 		}
 
-		const roomModels = buildRoomModels(mapData, source);
+		const roomModels = buildRoomModels(mapData, source, () => this.getDefaultRoomName());
 		const clipEraseMapGrid = buildClipEraseMapGrid(mapData, source);
-		const clipEraseRoomModels = clipEraseMapGrid ? buildRoomModels(mapData, source, clipEraseMapGrid) : [];
+		const clipEraseRoomModels = clipEraseMapGrid ? buildRoomModels(mapData, source, () => this.getDefaultRoomName(), clipEraseMapGrid) : [];
 		const roomTangentInfo = buildRoomTangentInfo(mapData.mapGrid, mapData.header.sizeX, mapData.header.sizeY);
 		const clipEraseRoomTangentInfo = clipEraseMapGrid
 			? buildRoomTangentInfo(clipEraseMapGrid, mapData.header.sizeX, mapData.header.sizeY)

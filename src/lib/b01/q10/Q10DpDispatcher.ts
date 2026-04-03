@@ -13,6 +13,8 @@ type Q10FeatureHandler = {
 };
 
 export class Q10DpDispatcher {
+	private readonly lastProtocol102SummaryByDuid = new Map<string, string>();
+
 	constructor(private readonly adapter: Roborock) {}
 
 	private async getQ10Handler(duid: string): Promise<Q10FeatureHandler | undefined> {
@@ -21,9 +23,95 @@ export class Q10DpDispatcher {
 		return this.adapter.deviceFeatureHandlers.get(duid) as unknown as Q10FeatureHandler | undefined;
 	}
 
-	public async dispatchProtocol102(duid: string, parsed: Record<string, unknown>, dps102: Record<string, unknown>): Promise<void> {
+	private logSummaryIfChanged(duid: string, summary: string | null): void {
+		if (!summary) {
+			this.lastProtocol102SummaryByDuid.delete(duid);
+			return;
+		}
+
+		const previousSummary = this.lastProtocol102SummaryByDuid.get(duid);
+		if (previousSummary === summary) return;
+
+		this.lastProtocol102SummaryByDuid.set(duid, summary);
+		this.adapter.rLog("MQTT", duid, "Debug", "102", undefined, `[Q10DP] ${summary}`, "debug");
+	}
+
+	private summarizeFlatShadow(dpsRoot: Record<string, unknown>): { summary: string | null; hasUnknownKeys: boolean } {
+		const commonDps =
+			dpsRoot["101"] && typeof dpsRoot["101"] === "object" && !Array.isArray(dpsRoot["101"])
+				? dpsRoot["101"] as Record<string, unknown>
+				: undefined;
+		const summaryParts: string[] = [];
+
+		const recordPayload = commonDps?.["52"];
+		if (recordPayload && typeof recordPayload === "object" && !Array.isArray(recordPayload)) {
+			const dp52 = recordPayload as Record<string, unknown>;
+			const op = String(dp52.op ?? "");
+			if (op === "select" && Number(dp52.result ?? 0) === 1) {
+				return { summary: null, hasUnknownKeys: false };
+			}
+			if (op === "list" && Array.isArray(dp52.data)) {
+				return { summary: null, hasUnknownKeys: false };
+			}
+		}
+
+		const mapListPayload = commonDps?.["61"];
+		if (mapListPayload && typeof mapListPayload === "object" && !Array.isArray(mapListPayload)) {
+			const dp61 = mapListPayload as Record<string, unknown>;
+			if (Array.isArray(dp61.data)) {
+				summaryParts.push(`maps:${dp61.data.length}`);
+			}
+		}
+
+		const carpetPayload = commonDps?.["65"];
+		if (carpetPayload && typeof carpetPayload === "object" && !Array.isArray(carpetPayload)) {
+			const dp65 = carpetPayload as Record<string, unknown>;
+			if (Array.isArray(dp65.data)) {
+				summaryParts.push(`carpets:${dp65.data.length}`);
+			}
+		}
+
+		const hasPrimaryShadowState =
+			dpsRoot["121"] !== undefined ||
+			dpsRoot["122"] !== undefined ||
+			dpsRoot["123"] !== undefined ||
+			dpsRoot["124"] !== undefined;
+
+		if (dpsRoot["121"] !== undefined) summaryParts.push(`status=${dpsRoot["121"]}`);
+		if (dpsRoot["122"] !== undefined) summaryParts.push(`battery=${dpsRoot["122"]}`);
+		if (dpsRoot["123"] !== undefined) summaryParts.push(`fan=${dpsRoot["123"]}`);
+		if (dpsRoot["124"] !== undefined) summaryParts.push(`water=${dpsRoot["124"]}`);
+
+		if (hasPrimaryShadowState) {
+			if (commonDps?.["36"] !== undefined) summaryParts.push(`voice_lang=${commonDps["36"]}`);
+			if (commonDps?.["108"] !== undefined) summaryParts.push(`voice_ver=${commonDps["108"]}`);
+			if (commonDps?.["109"] !== undefined) summaryParts.push(`country=${commonDps["109"]}`);
+			if (commonDps?.["81"] && typeof commonDps["81"] === "object" && !Array.isArray(commonDps["81"])) {
+				const signal = (commonDps["81"] as Record<string, unknown>).signal;
+				if (signal !== undefined) summaryParts.push(`rssi=${signal}`);
+			}
+		}
+
+		const knownTopLevelKeys = new Set(["101", "121", "122", "123", "124", "125", "126", "127", "136", "137", "138", "139", "141", "142"]);
+		const knownCommonKeys = new Set([
+			"6", "7", "25", "26", "29", "30", "31", "32", "33", "36", "37", "40", "45", "47", "50", "51", "52", "53",
+			"60", "61", "65", "67", "76", "78", "79", "81", "83", "86", "87", "88", "90", "92", "93", "96", "104",
+			"105", "106", "108", "109", "207"
+		]);
+		const unknownTopLevelKeys = Object.keys(dpsRoot).filter((key) => !knownTopLevelKeys.has(key));
+		const unknownCommonKeys = commonDps
+			? Object.keys(commonDps).filter((key) => !knownCommonKeys.has(key))
+			: [];
+		const unknownKeys = [...unknownTopLevelKeys, ...unknownCommonKeys.map((key) => `101.${key}`)];
+		return {
+			summary: unknownKeys.length === 0 && summaryParts.length > 0 ? summaryParts.join(" | ") : null,
+			hasUnknownKeys: unknownKeys.length > 0
+		};
+	}
+
+	public async dispatchProtocol102(duid: string, parsed: Record<string, unknown>, dps102: Record<string, unknown>): Promise<boolean> {
 		const handler = await this.getQ10Handler(duid);
-		if (!handler) return;
+		if (!handler) return false;
 
 		const dpsRoot = parsed.dps && typeof parsed.dps === "object" && !Array.isArray(parsed.dps)
 			? parsed.dps as Record<string, unknown>
@@ -46,21 +134,19 @@ export class Q10DpDispatcher {
 		const hasTimerResult = resultList.length > 0 && resultList.every((entry: unknown) => Array.isArray(entry) && entry.length >= 3);
 		const isFlatQ10Shadow = !!(dpsRoot && (dpsRoot["101"] || dpsRoot["121"] || dpsRoot["122"] || dpsRoot["123"] || dpsRoot["124"]));
 
-		const dps101Keys = dps101 && typeof dps101 === "object" && !Array.isArray(dps101)
-			? Object.keys(dps101 as Record<string, unknown>).join(",")
-			: "";
 		const result0Keys = result0 && typeof result0 === "object" && !Array.isArray(result0)
 			? Object.keys(result0 as Record<string, unknown>).slice(0, 12).join(",")
 			: "";
-		this.adapter.rLog(
-			"MQTT",
-			duid,
-			"Debug",
-			"102",
-			undefined,
-			`[Q10DP] status=${hasStatusResult ? 1 : 0} map_info=${hasMapInfoResult ? 1 : 0} consumables=${hasConsumableResult ? 1 : 0} timers=${hasTimerResult ? resultList.length : 0} shadow=${isFlatQ10Shadow ? 1 : 0} dps101=${dps101Keys || "-"} result0=${result0Keys || "-"}`,
-			"debug"
-		);
+		const summaryParts: string[] = [];
+		if (hasStatusResult) summaryParts.push("status");
+		if (hasMapInfoResult) summaryParts.push("map_info");
+		if (hasConsumableResult) summaryParts.push("consumables");
+		if (hasTimerResult) summaryParts.push(`timers:${resultList.length}`);
+		if (result0Keys) summaryParts.push(`result0:${result0Keys}`);
+
+		const flatShadowInfo = this.summarizeFlatShadow(dpsRoot ?? {});
+		const summary = summaryParts.join(" | ") || flatShadowInfo.summary;
+		this.logSummaryIfChanged(duid, summary || null);
 
 		if (hasStatusResult && !isPropPost && typeof handler.applyQ10StatusFromDpResult === "function") {
 			await handler.applyQ10StatusFromDpResult(result0 as Record<string, unknown>);
@@ -84,9 +170,11 @@ export class Q10DpDispatcher {
 		if (net81 && typeof net81 === "object" && !Array.isArray(net81) && typeof handler.applyQ10NetworkFromDp81 === "function") {
 			await handler.applyQ10NetworkFromDp81(net81 as Record<string, unknown>);
 		}
+
+		return (hasStatusResult || hasMapInfoResult || hasConsumableResult || hasTimerResult || isFlatQ10Shadow || !!net81) && !flatShadowInfo.hasUnknownKeys;
 	}
 
-	public async tryHandleCleanRecordBlob(duid: string, payloadBuf: Buffer, protocol: number): Promise<boolean> {
+	public async tryHandleCleanRecordBlob(duid: string, payloadBuf: Buffer): Promise<boolean> {
 		const q10BlobType = B01MapDecryptor.getQ10BlobType(payloadBuf);
 		if (q10BlobType !== 3) return false;
 
@@ -96,10 +184,6 @@ export class Q10DpDispatcher {
 			return false;
 		}
 
-		const handled = await handler.applyQ10CleanRecordBlob(payloadBuf);
-		if (handled) {
-			this.adapter.rLog("MQTT", duid, "Debug", "B01", protocol, `Q10 clean record blob type ${q10BlobType} handled via record-detail pipeline.`, "debug");
-		}
-		return handled;
+		return handler.applyQ10CleanRecordBlob(payloadBuf);
 	}
 }

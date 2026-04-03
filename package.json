@@ -106,7 +106,7 @@
     "test:integration": "mocha test/integration.js --exit",
     "test:package": "mocha test/package.js --exit",
     "lint": "node scripts/check-eslint-peer-deps.js && eslint . --fix && eslint . --max-warnings 0 && npm run lint:yaml",
-    "lint:yaml": "npx yaml-lint \"**/*.yml\" \"**/*.yaml\" --ignore \"node_modules\"",
+    "lint:yaml": "npx yaml-lint \"**/*.yml\" \"**/*.yaml\" --ignore \"node_modules\" --ignore \".git\"",
     "typecheck": "tsc --noEmit",
     "verify": "npm run lint && npm run typecheck && npm run test",
     "ci:check": "npm run lint && npm run typecheck && npm run test:unit",

@@ -450,7 +450,7 @@ export class B01BaseVacuumFeatures extends BaseDeviceFeatures {
 				try {
 					val = JSON.parse(trimmed);
 				} catch (e: any) {
-					this.deps.adapter.log.debug(`Failed to parse JSON property ${key}: ${e.message}`);
+					this.deps.adapter.rLog("System", this.duid, "Debug", this.protocolVersion || undefined, undefined, `Failed to parse JSON property ${key}: ${e.message}`, "debug");
 				}
 			}
 		}

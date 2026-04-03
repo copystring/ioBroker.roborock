@@ -1,5 +1,6 @@
 import { createCanvas } from "@napi-rs/canvas";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Q10DpDispatcher } from "../../src/lib/b01/q10/Q10DpDispatcher";
 import { getB01VariantFromModel } from "../../src/lib/b01Variant";
 import { Q10VacuumFeatures } from "../../src/lib/features/vacuum/b01/Q10VacuumFeatures";
 import { mqtt_api } from "../../src/lib/mqttApi";
@@ -424,6 +425,26 @@ describe("Q10 B01 Map Support", () => {
 		expect(harness.adapter.objects[`Devices.${Q10_DUID}.floors.7.2`]).toBeDefined();
 	});
 
+	it("should normalize Q10 roomNN names like the original app and keep empty names empty", async () => {
+		harness.adapter.translationManager = {
+			get: (key: string, fallback?: string) => (key === "default_room_name" ? "Raum" : (fallback || ""))
+		};
+
+		await harness.feature.applyQ10MapInfoFromDpResult({
+			map_info: [{
+				mapflag: 7,
+				name: "Main Floor",
+				rooms: [
+					{ id: 1, iot_name: "room12" },
+					{ id: 2, name: "" }
+				]
+			}]
+		});
+
+		expect(harness.adapter.objects[`Devices.${Q10_DUID}.floors.7.1`]?.common?.name).toBe("Raum12");
+		expect(harness.adapter.objects[`Devices.${Q10_DUID}.floors.7.2`]?.common?.name).toBe("");
+	});
+
 	it("should remove redundant Q10 floor metadata when refreshed floor data arrives", async () => {
 		harness.adapter.objects[`Devices.${Q10_DUID}.floors.7.mapFlag`] = { type: "state" };
 		harness.adapter.states[`Devices.${Q10_DUID}.floors.7.mapFlag`] = 7;
@@ -679,6 +700,29 @@ describe("Q10 B01 Map Support", () => {
 		expect(harness.feature.hasPendingQ10CleanRecordBlobRequest()).toBe(false);
 	});
 
+	it("should log a compact queue summary instead of per-record Q10 clean record handshake spam", async () => {
+		const rLog = vi.fn();
+		harness.adapter.rLog = rLog;
+
+		await harness.feature.applyQ10ShadowDpPayload({
+			"101": {
+				"52": {
+					op: "list",
+					result: 1,
+					data: [
+						"1773742379073_1773565494_1395_2343_1_669_0_0_0_0_0_1",
+						"1773742058676_1773561894_600_1200_1_0_0_1_2_0_1_0"
+					]
+				}
+			}
+		});
+
+		const messages = rLog.mock.calls.map((call) => String(call[5] ?? ""));
+		expect(messages).toContain("Q10 queued 2 clean record map request(s).");
+		expect(messages.some((message) => message.includes("requested clean record detail"))).toBe(false);
+		expect(messages.some((message) => message.includes("acknowledged; waiting for blob type 3"))).toBe(false);
+	});
+
 	it("should keep waiting for the active Q10 history map when an earlier blob is non-renderable", async () => {
 		const processMap = vi.fn()
 			.mockResolvedValueOnce(null)
@@ -750,6 +794,127 @@ describe("Q10 B01 Map Support", () => {
 		recordBlob[0] = 3;
 
 		expect((mqttApi as any).resolveB01Map301ToPendingId(Q10_DUID, recordBlob)).toBe(-1);
+	});
+
+	it("should suppress shadow-only Q10 DP 102 summaries", async () => {
+		const adapter = new MockAdapter() as MockAdapter & {
+			deviceFeatureHandlers: Map<string, unknown>;
+			getB01Variant: ReturnType<typeof vi.fn>;
+			rLog: ReturnType<typeof vi.fn>;
+		};
+		adapter.deviceFeatureHandlers = new Map([[Q10_DUID, {}]]);
+		adapter.getB01Variant = vi.fn().mockResolvedValue("Q10");
+		adapter.rLog = vi.fn();
+
+		const dispatcher = new Q10DpDispatcher(adapter as any);
+		const dps102 = { method: "prop.post", result: [] };
+
+		await dispatcher.dispatchProtocol102(Q10_DUID, { dps: { "101": { "90": 1 } } } as any, dps102 as any);
+		await dispatcher.dispatchProtocol102(Q10_DUID, { dps: { "101": { "90": 1 } } } as any, dps102 as any);
+		await dispatcher.dispatchProtocol102(Q10_DUID, { dps: { "101": { "108": 4 } } } as any, dps102 as any);
+
+		expect(adapter.rLog).not.toHaveBeenCalled();
+	});
+
+	it("should log unknown unsolicited inbound protocol 102 payloads on debug", async () => {
+		const adapter = new MockAdapter() as MockAdapter & {
+			deviceFeatureHandlers: Map<string, unknown>;
+			getB01Variant: ReturnType<typeof vi.fn>;
+			getDeviceProtocolVersion: ReturnType<typeof vi.fn>;
+			rLog: ReturnType<typeof vi.fn>;
+			requestsHandler: { isRequestRecentlyFinished: ReturnType<typeof vi.fn> };
+		};
+		adapter.deviceFeatureHandlers = new Map([[Q10_DUID, {}]]);
+		adapter.getB01Variant = vi.fn().mockResolvedValue("Q10");
+		adapter.getDeviceProtocolVersion = vi.fn().mockResolvedValue("B01");
+		adapter.rLog = vi.fn();
+		adapter.requestsHandler = {
+			isRequestRecentlyFinished: vi.fn().mockReturnValue(false)
+		} as any;
+
+		const mqttApi = new mqtt_api(adapter as any);
+		const rawPayload = JSON.stringify({ dps: { "101": { "255": 4 } } });
+
+		await (mqttApi as any).handleProtocol102(Q10_DUID, {
+			protocol: 102,
+			payload: Buffer.from(rawPayload, "utf8")
+		});
+
+		expect(adapter.rLog).toHaveBeenCalledWith("MQTT", Q10_DUID, "<-", "B01", "102", rawPayload, "debug");
+	});
+
+	it("should route B01 protocol 102 through the specialized handler only once", async () => {
+		const adapter = new MockAdapter() as MockAdapter & {
+			deviceFeatureHandlers: Map<string, unknown>;
+			getB01Variant: ReturnType<typeof vi.fn>;
+			getDeviceProtocolVersion: ReturnType<typeof vi.fn>;
+			rLog: ReturnType<typeof vi.fn>;
+			requestsHandler: { isRequestRecentlyFinished: ReturnType<typeof vi.fn> };
+		};
+		adapter.deviceFeatureHandlers = new Map([[Q10_DUID, {}]]);
+		adapter.getB01Variant = vi.fn().mockResolvedValue("Q10");
+		adapter.getDeviceProtocolVersion = vi.fn().mockResolvedValue("B01");
+		adapter.rLog = vi.fn();
+		adapter.requestsHandler = {
+			isRequestRecentlyFinished: vi.fn().mockReturnValue(false)
+		} as any;
+
+		const mqttApi = new mqtt_api(adapter as any);
+		const rawPayload = JSON.stringify({ dps: { "101": { "255": 4 } } });
+
+		await mqttApi.handleDecodedMessage(Q10_DUID, {
+			version: "B01",
+			protocol: 102,
+			payload: Buffer.from(rawPayload, "utf8")
+		});
+
+		const raw102Logs = adapter.rLog.mock.calls.filter((call) => call[0] === "MQTT" && call[1] === Q10_DUID && call[2] === "<-" && call[4] === "102" && call[5] === rawPayload);
+		expect(raw102Logs).toHaveLength(1);
+	});
+
+	it("should suppress raw logs for recognized unsolicited Q10 protocol 102 payloads", async () => {
+		const adapter = new MockAdapter() as MockAdapter & {
+			deviceFeatureHandlers: Map<string, unknown>;
+			getB01Variant: ReturnType<typeof vi.fn>;
+			getDeviceProtocolVersion: ReturnType<typeof vi.fn>;
+			rLog: ReturnType<typeof vi.fn>;
+			requestsHandler: { isRequestRecentlyFinished: ReturnType<typeof vi.fn> };
+		};
+		adapter.deviceFeatureHandlers = new Map([[Q10_DUID, {}]]);
+		adapter.getB01Variant = vi.fn().mockResolvedValue("Q10");
+		adapter.getDeviceProtocolVersion = vi.fn().mockResolvedValue("B01");
+		adapter.rLog = vi.fn();
+		adapter.requestsHandler = {
+			isRequestRecentlyFinished: vi.fn().mockReturnValue(false)
+		} as any;
+
+		const mqttApi = new mqtt_api(adapter as any);
+		const rawPayload = JSON.stringify({ dps: { "101": { "52": { op: "select", result: 1 } } } });
+
+		await (mqttApi as any).handleProtocol102(Q10_DUID, {
+			protocol: 102,
+			payload: Buffer.from(rawPayload, "utf8")
+		});
+
+		expect(adapter.rLog).not.toHaveBeenCalledWith("MQTT", Q10_DUID, "<-", "B01", "102", rawPayload, "debug");
+	});
+
+	it("should log Q10 DP publishes on debug", async () => {
+		const adapter = new MockAdapter() as MockAdapter & {
+			rLog: ReturnType<typeof vi.fn>;
+			mqtt_api: { sendMessage: ReturnType<typeof vi.fn> };
+		};
+		adapter.rLog = vi.fn();
+		adapter.mqtt_api = {
+			sendMessage: vi.fn().mockResolvedValue(undefined)
+		} as any;
+
+		const handler = new requestsHandler(adapter as any);
+		(handler as any).messageParser.buildRoborockMessage = vi.fn().mockResolvedValue(Buffer.from("aa", "hex"));
+
+		await handler.publishB01Dp(Q10_DUID, { "102": 1 });
+
+		expect(adapter.rLog).toHaveBeenCalledWith("MQTT", Q10_DUID, "->", "B01", 101, `Q10 DP publish: ${JSON.stringify({ "102": 1 })}`, "debug");
 	});
 
 	it("should map source-first Q10 voice and country fields instead of the old language alias", async () => {
@@ -902,7 +1067,7 @@ describe("Q10 B01 Map Support", () => {
 		expect(mapData?.rooms && mapData.rooms.length).toBeGreaterThan(0);
 		expect(mapData?.chargerPos).toBeDefined();
 		expect(mapData?.q10SourceData).toBeDefined();
-		expect(mapData?.rooms?.some((room) => room.roomName.startsWith("rr_"))).toBe(false);
+		expect(mapData?.rooms?.some((room) => room.roomName.startsWith("rr_"))).toBe(true);
 		expect(mapData?.rooms?.some((room) => room.roomName.includes("Ã"))).toBe(false);
 
 		const created = new Q10MapCreator().create(mapData!);
@@ -915,6 +1080,39 @@ describe("Q10 B01 Map Support", () => {
 
 		expect(pngBuffer.length).toBeGreaterThan(1000);
 		expect(pngBuffer.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+	});
+
+	it("should localize roomNN labels in the Q10 creator like replaceRoomName in the original app", () => {
+		const map = createSyntheticQ10Map([], 20, 10, {
+			chargerPixel: { x: 1, y: 1, phi: 0 }
+		});
+		map.mapGrid.fill(1);
+		for (let y = 2; y < 8; y++) {
+			for (let x = 2; x < 10; x++) {
+				map.mapGrid[y * 20 + x] = 2;
+			}
+		}
+		map.rooms = [{ roomId: 11, roomName: "room12", gridValue: 2 }];
+		map.q10SourceData!.rooms = [{
+			roomID: 11,
+			roomName: "room12",
+			roomType: 0,
+			roomMaterial: 0,
+			cleanOrder: 0,
+			cleanCount: 0,
+			funLevel: -1,
+			waterLevel: -1,
+			cleanType: -1,
+			cleanLine: 0
+		}];
+
+		const created = new Q10MapCreator({
+			translationManager: {
+				get: (key: string, fallback?: string) => (key === "default_room_name" ? "Raum" : (fallback || ""))
+			}
+		}).create(map);
+
+		expect(created.q10CreatorData?.roomModels[0]?.roomName).toBe("Raum12");
 	});
 
 	it("should refuse synthetic Q10 creator data when source data is missing", () => {

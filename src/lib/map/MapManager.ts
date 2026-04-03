@@ -36,7 +36,7 @@ export class MapManager {
 		this.mapCreator = new MapBuilderV1(adapter);
 		this.pipelineB01 = new B01MapPipeline(adapter);
 		this.builderB01 = new MapBuilderB01(adapter);
-		this.creatorQ10 = new Q10MapCreator();
+		this.creatorQ10 = new Q10MapCreator(adapter);
 		this.builderQ10 = new Q10MapBuilder(adapter);
 	}
 

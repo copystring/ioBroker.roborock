@@ -1,5 +1,6 @@
 import type { FeatureDependencies } from "../../../baseDeviceFeatures";
 import { DeviceStateWriter } from "../../../deviceStateWriter";
+import { normalizeRoborockRoomDisplayName } from "../../../../roomNameNormalizer";
 
 type Q10ShadowDataServiceHost = {
 	applyCleanRecordList: (data: Record<string, unknown>) => Promise<void>;
@@ -69,6 +70,10 @@ export class Q10ShadowDataService {
 	private async resolveQ10FloorName(mapId: number): Promise<string> {
 		const floorState = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.floors.${mapId}.name`);
 		return typeof floorState?.val === "string" && floorState.val.trim() ? floorState.val : `Map ${mapId}`;
+	}
+
+	private getDefaultRoomName(): string | undefined {
+		return this.deps.adapter.translationManager?.get("default_room_name");
 	}
 
 	private async applyQ10ShadowConsumables(
@@ -170,7 +175,13 @@ export class Q10ShadowDataService {
 					if (roomId === undefined) continue;
 
 					const rid = typeof roomId === "number" ? roomId : Number(roomId);
-					const roomName = (r.iot_name as string) || (r.name as string) || `Room ${rid}`;
+					const rawRoomName =
+						typeof r.iot_name === "string" && r.iot_name.trim()
+							? r.iot_name
+							: typeof r.name === "string"
+								? r.name
+								: "";
+					const roomName = normalizeRoborockRoomDisplayName(rawRoomName, () => this.getDefaultRoomName());
 					await this.stateWriter.ensureState(`${folder}.${rid}`, {
 						name: roomName,
 						type: "boolean",

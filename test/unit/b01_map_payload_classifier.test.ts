@@ -38,6 +38,48 @@ function createSyntheticQ10RawPayload(options: { tail?: Buffer; width?: number; 
 	return payload;
 }
 
+function createSyntheticQ10RoomPayload(roomName: string): Buffer {
+	const width = 16;
+	const height = 16;
+	const pixDataLen = width * height;
+	const roomNameBytes = Buffer.from(roomName, "utf8");
+	const roomNameData = Buffer.alloc(20, 0);
+	roomNameData[0] = Math.min(roomNameBytes.length, 19);
+	roomNameBytes.copy(roomNameData, 1, 0, Math.min(roomNameBytes.length, 19));
+
+	const roomData = Buffer.alloc(2 + 26 + 20 + 1, 0);
+	roomData[0] = 0; // region_id
+	roomData[1] = 1; // region count
+	roomData.writeUInt16BE(1, 2); // roomID
+	roomData[4] = 1; // roomType
+	roomData.writeUInt16BE(1, 5); // cleanOrder
+	roomData.writeUInt16BE(1, 7); // cleanCount
+	roomData[28] = roomNameData[0];
+	roomNameData.subarray(1).copy(roomData, 29);
+
+	const pixLen = pixDataLen + roomData.length;
+	const payload = Buffer.alloc(1 + 28 + pixLen, 0);
+
+	// Real Q10 payloads often start at offset 1, which is also the parser's preferred path.
+	payload[1] = 1;
+	payload.writeUInt32BE(1, 2);
+	payload[6] = 0;
+	payload.writeUInt16BE(width, 7);
+	payload.writeUInt16BE(height, 9);
+	payload.writeUInt16BE(0, 11);
+	payload.writeUInt16BE(height * 5, 13);
+	payload.writeUInt16BE(5, 15);
+	payload.writeUInt16BE(0xffff, 17);
+	payload.writeUInt16BE(0xffff, 19);
+	payload.writeUInt16BE(0xffff, 21);
+	payload.writeUInt32BE(pixLen, 23);
+	payload.writeUInt16BE(0, 27);
+	payload.fill(1, 29, 29 + pixDataLen);
+	roomData.copy(payload, 29 + pixDataLen);
+
+	return payload;
+}
+
 describe("B01 Map Payload Classifier", () => {
 	it("should keep a valid Q10 live map even when an optional edit-tail block is malformed", () => {
 		const malformedTail = Buffer.from([
@@ -90,6 +132,15 @@ describe("B01 Map Payload Classifier", () => {
 		expect(classification.isLiveMapCandidate).toBe(false);
 		expect(classification.q10?.payloadShape).toBe("blob");
 		expect(classification.q10?.blobType).toBe(3);
+	});
+
+	it("should keep the raw Q10 room name from roomNameDataStr instead of remapping it to a local label", () => {
+		const payload = createSyntheticQ10RoomPayload("rr_master_room");
+
+		const parsed = parseQ10YxMapToB01(payload);
+
+		expect(parsed?.q10SourceData?.rooms[0]?.roomName).toBe("rr_master_room");
+		expect(parsed?.rooms?.[0]?.roomName).toBe("rr_master_room");
 	});
 
 	it("should resolve parser-recognized live payloads through the B01 map pipeline without depending on legacy Q10 heuristics", () => {
