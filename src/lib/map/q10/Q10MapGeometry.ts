@@ -14,7 +14,7 @@ export interface Q10AreaPlacement {
 	angleDeg: number;
 }
 
-export class Q10RenderGeometry {
+export class Q10MapGeometry {
 	public constructor(
 		private readonly data: B01MapData,
 		private readonly viewScale = 1,

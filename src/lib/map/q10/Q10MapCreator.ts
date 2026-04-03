@@ -1,4 +1,4 @@
-import type { B01MapData } from "../b01/types";
+import type { B01DeviceStatus, B01MapData } from "../b01/types";
 import { buildQ10Verification } from "./Q10Verification";
 import type {
 	Q10CreatorArea,
@@ -11,6 +11,7 @@ import type {
 	Q10CreatorSelfIdentifiedCarpet,
 	Q10CreatorSuspectedPoint,
 	Q10DevicePoint,
+	Q10DevicePose,
 	Q10MapArrPoint,
 	Q10MapPixelPoint,
 	Q10SourceArea,
@@ -21,6 +22,13 @@ import type {
 
 const ROOM_COLOR_COUNT = 4;
 const ROOM_OTHER_MATERIAL = 3;
+const Q10_DOCK_ANCHORED_STATES = new Set<number>([
+	8,
+	15,
+	22,
+	100
+]);
+const Q10_DOCK_ANCHORED_OFFSET = 3.5;
 
 interface RoomStat {
 	roomID: number;
@@ -51,6 +59,20 @@ function devicePointToPixel(source: Q10SourceData, point: Q10DevicePoint): Q10Ma
 		x: source.xMin + point.x,
 		y: source.yMin - point.y
 	};
+}
+
+function rotateVector(x: number, y: number, degrees: number): { x: number; y: number } {
+	const radians = (degrees * Math.PI) / 180;
+	const cos = Math.cos(radians);
+	const sin = Math.sin(radians);
+	return {
+		x: x * cos - y * sin,
+		y: x * sin + y * cos
+	};
+}
+
+function shouldAnchorRobotToDock(deviceStatus?: B01DeviceStatus): boolean {
+	return !!deviceStatus && Q10_DOCK_ANCHORED_STATES.has(deviceStatus.deviceState);
 }
 
 function mapArrPointToPixel(point: Q10MapArrPoint): Q10MapPixelPoint {
@@ -824,7 +846,58 @@ function withVerification(mapData: B01MapData, q10CreatorData: Q10CreatorData): 
 }
 
 export class Q10MapCreator {
-	public create(mapData: B01MapData): B01MapData {
+	private applyRuntimePose(
+		mapData: B01MapData,
+		source: Q10SourceData,
+		creatorData: Q10CreatorData,
+		deviceStatus?: B01DeviceStatus
+	): { nextMapData: B01MapData; nextSource: Q10SourceData; nextCreatorData: Q10CreatorData } {
+		if (
+			!creatorData.chargerPixel ||
+			!source.chargePosition ||
+			!shouldAnchorRobotToDock(deviceStatus)
+		) {
+			return {
+				nextMapData: mapData,
+				nextSource: source,
+				nextCreatorData: creatorData
+			};
+		}
+
+		const chargerPhi = source.chargePosition.phi ?? creatorData.chargerPixel.phi ?? 0;
+		const offset = rotateVector(Q10_DOCK_ANCHORED_OFFSET, 0, chargerPhi);
+		const robotDevicePose: Q10DevicePose = {
+			x: source.chargePosition.x + offset.x,
+			y: source.chargePosition.y + offset.y,
+			phi: chargerPhi
+		};
+		const robotPixel = devicePointToPixel(source, robotDevicePose);
+		const robotWorld = {
+			x: mapData.header.minX + robotDevicePose.x,
+			y: mapData.header.maxY - robotDevicePose.y,
+			phi: chargerPhi
+		};
+
+		return {
+			nextMapData: {
+				...mapData,
+				robotPos: robotWorld
+			},
+			nextSource: {
+				...source,
+				robotPosition: robotDevicePose
+			},
+			nextCreatorData: {
+				...creatorData,
+				robotPixel: {
+					...robotPixel,
+					phi: chargerPhi
+				}
+			}
+		};
+	}
+
+	public create(mapData: B01MapData, deviceStatus?: B01DeviceStatus): B01MapData {
 		if (!mapData?.header || !mapData.mapGrid?.length) return mapData;
 
 		const source = mapData.q10SourceData;
@@ -902,9 +975,12 @@ export class Q10MapCreator {
 			};
 		}
 
+		const { nextMapData, nextSource: runtimeSource, nextCreatorData } =
+			this.applyRuntimePose(mapData, nextSource, q10CreatorData, deviceStatus);
+
 		return withVerification({
-			...mapData,
-			q10SourceData: nextSource
-		}, q10CreatorData);
+			...nextMapData,
+			q10SourceData: runtimeSource
+		}, nextCreatorData);
 	}
 }

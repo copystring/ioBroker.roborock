@@ -1,6 +1,6 @@
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import type { B01DeviceStatus } from "../../src/lib/map/b01/types";
-import { Q10_FIXTURE_DEFAULTS, type Q10FixtureCredentials } from "../../src/lib/map/q10/Q10FixtureDefaults";
+import { Q10_FIXTURE_DEFAULTS, type Q10FixtureCredentials } from "./q10FixtureDefaults";
 
 export const Q10_TEST_DEVICE_STATUS: B01DeviceStatus = {
 	deviceState: 2,

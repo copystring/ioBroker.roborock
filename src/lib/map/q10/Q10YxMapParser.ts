@@ -200,25 +200,97 @@ function nearSquareDimensions(pixLen: number): { width: number; height: number }
 	return { width: Math.min(w, 2000), height: Math.min(h, 2000) };
 }
 
-/** Decompress LZ4 block; returns null on failure. reasonOut set when decompression fails. */
-function decompressLz4Block(compressed: Buffer, expectedSize: number, reasonOut?: { reason: string }): Buffer | null {
+/** Decompress LZ4 block without optional native dependencies. */
+function tryDecompressQ10Lz4Block(compressed: Uint8Array, expectedSize: number, reasonOut?: { reason: string }): Buffer | null {
+	const input = Buffer.isBuffer(compressed) ? compressed : Buffer.from(compressed);
+	const output = Buffer.alloc(expectedSize);
+	const minMatch = 4;
+	const canFast = typeof output.copyWithin === "function" && typeof output.fill === "function";
+	let inPos = 0;
+	let outPos = 0;
+
 	try {
-		const LZ4 = require("lz4");
-		const output = Buffer.alloc(expectedSize);
-		const written = LZ4.decodeBlock(compressed, output);
-		if (written < 0) {
-			if (reasonOut) reasonOut.reason = `decodeBlock returned ${written}`;
-			return null;
+		while (inPos < input.length) {
+			const token = input[inPos++];
+			let literalLength = token >> 4;
+
+			if (literalLength === 0x0f) {
+				while (inPos < input.length) {
+					const extension = input[inPos++];
+					literalLength += extension;
+					if (extension !== 0xff) break;
+				}
+			}
+
+			if (inPos + literalLength > input.length || outPos + literalLength > output.length) {
+				if (reasonOut) reasonOut.reason = "invalid literal block";
+				return null;
+			}
+
+			input.copy(output, outPos, inPos, inPos + literalLength);
+			inPos += literalLength;
+			outPos += literalLength;
+
+			if (inPos >= input.length) break;
+			if (inPos + 2 > input.length) {
+				if (reasonOut) reasonOut.reason = "invalid match offset";
+				return null;
+			}
+
+			let matchLength = token & 0x0f;
+			const matchOffset = input[inPos++] | (input[inPos++] << 8);
+			if (matchOffset <= 0 || matchOffset > outPos) {
+				if (reasonOut) reasonOut.reason = "invalid match distance";
+				return null;
+			}
+
+			if (matchLength === 0x0f) {
+				while (inPos < input.length) {
+					const extension = input[inPos++];
+					matchLength += extension;
+					if (extension !== 0xff) break;
+				}
+			}
+			matchLength += minMatch;
+
+			if (outPos + matchLength > output.length) {
+				if (reasonOut) reasonOut.reason = "invalid match length";
+				return null;
+			}
+
+			if (canFast && matchOffset === 1) {
+				output.fill(output[outPos - 1] | 0, outPos, outPos + matchLength);
+				outPos += matchLength;
+				continue;
+			}
+
+			if (canFast && matchOffset > matchLength && matchLength > 31) {
+				output.copyWithin(outPos, outPos - matchOffset, outPos - matchOffset + matchLength);
+				outPos += matchLength;
+				continue;
+			}
+
+			let copyPos = outPos - matchOffset;
+			const copyEnd = copyPos + matchLength;
+			while (copyPos < copyEnd) {
+				output[outPos++] = output[copyPos++] | 0;
+			}
 		}
-		if (written > expectedSize) {
-			if (reasonOut) reasonOut.reason = `written ${written} > expected ${expectedSize}`;
-			return null;
-		}
-		return output.subarray(0, written);
+
+		return output;
 	} catch (e: any) {
 		if (reasonOut) reasonOut.reason = e?.message || "decodeBlock threw";
 		return null;
 	}
+}
+
+export function decompressQ10Lz4Block(compressed: Uint8Array, expectedSize: number): Buffer {
+	const reasonOut = { reason: "unknown error" };
+	const decompressed = tryDecompressQ10Lz4Block(compressed, expectedSize, reasonOut);
+	if (!decompressed) {
+		throw new Error(`Invalid Q10 LZ4 block: ${reasonOut.reason}`);
+	}
+	return decompressed;
 }
 
 /** Header parsed at a given offset; height can be LE or BE (device sends LE at 8-9). App layout: 0 version, 6-7 width, 8-9 height, 10-13 ox/oy, 14-15 resolution, 16-21 charge*, 22-25 pixLen, 26-27 pixLzLen. */
@@ -385,7 +457,7 @@ function tryDecodeCandidate(buf: Buffer, hdr: Q10Header): B01MapData | null {
 	if (pixLzLen !== 0 && actualCompressedLen > 0) {
 		const compressed = buf.subarray(pixelStart, pixelStart + actualCompressedLen);
 		const lz4Reason = { reason: "" };
-		const decompressed = decompressLz4Block(compressed, pixLen, lz4Reason);
+		const decompressed = tryDecompressQ10Lz4Block(compressed, pixLen, lz4Reason);
 		// Kurz-Payload LZ4 (offset 0): decompressed kürzer als Header-pixLen → echte Länge + 124×/256×/Faktoren (wie Hex-Tool)
 		if (decompressed && decompressed.length > 0 && decompressed.length !== pixLen && hdr.offset === 0) {
 			const expectedPixels = mapWidth * mapHeight;
@@ -546,63 +618,71 @@ function tryDecodeCandidate(buf: Buffer, hdr: Q10Header): B01MapData | null {
 	// Trailing blocks after pixel data (erases, carpet, obstacle, skipClean)
 	const payloadEnd = pixelStart + (pixLzLen !== 0 && actualCompressedLen > 0 ? actualCompressedLen : pixLen);
 	if (payloadEnd < buf.length) {
-		const trailing = parseQ10TrailingBlocks(buf, payloadEnd, hdr.mapOx, hdr.mapOy);
-		// 抹除区域 → wie App „Forbidden“ (rot); robotToPixel erwartet Weltkoordinaten (wie chargerPos)
-		if (trailing.eraseAreas?.length) {
-			q10SourceData.eraseAreas = trailing.eraseAreas;
-			result.recmForbitZone = trailing.eraseAreas.map((area) => q10DeviceAreaToWorld(minX, maxY, area));
-		}
-		if (trailing.obstaclePoints?.length) {
-			q10SourceData.obstacles = trailing.obstaclePoints.map((point) => ({ point, type: "obstacle" as const }));
-			result.obstaclePoints = trailing.obstaclePoints.map((point) => q10DevicePointToWorld(minX, maxY, point));
-		}
-		if (trailing.skipCleanPoints?.length) {
-			q10SourceData.skipPoints = trailing.skipCleanPoints.map((point) => ({ point, type: "skip" as const }));
-			result.skipCleanPoints = trailing.skipCleanPoints.map((point) => q10DevicePointToWorld(minX, maxY, point));
-		}
-		if (trailing.carpetGrid) {
-			q10SourceData.carpetGrid = trailing.carpetGrid;
-			q10SourceData.hasSelfIdentificationCarpet = true;
-			result.carpetGrid = trailing.carpetGrid;
-		}
-		const editTail = parseQ10EditTailSections(buf, trailing.nextOffset, hdr.mapOx, hdr.mapOy);
-		q10SourceData.dataReadIdx = trailing.nextOffset;
-		if (editTail.pathPoints.length) {
-			q10SourceData.pathPoints = editTail.pathPoints;
-			result.history = editTail.pathPoints.map((point) => ({
-				x: q10DevicePointToWorld(minX, maxY, point).x,
-				y: q10DevicePointToWorld(minX, maxY, point).y,
-				update: point.update
-			}));
-			if (editTail.pathPoints.length >= 2) {
-				const previous = editTail.pathPoints[editTail.pathPoints.length - 2];
-				const current = editTail.pathPoints[editTail.pathPoints.length - 1];
-				const heading = (Math.atan2(20, 0) - Math.atan2(current.x - previous.x, current.y - previous.y)) * 180 / Math.PI;
-				q10SourceData.robotPosition = { x: current.x, y: current.y, phi: heading };
-				result.robotPos = { ...q10DevicePointToWorld(minX, maxY, current), phi: heading };
+		try {
+			const trailing = parseQ10TrailingBlocks(buf, payloadEnd, hdr.mapOx, hdr.mapOy);
+			// 抹除区域 → wie App „Forbidden“ (rot); robotToPixel erwartet Weltkoordinaten (wie chargerPos)
+			if (trailing.eraseAreas?.length) {
+				q10SourceData.eraseAreas = trailing.eraseAreas;
+				result.recmForbitZone = trailing.eraseAreas.map((area) => q10DeviceAreaToWorld(minX, maxY, area));
 			}
-		}
-		if (editTail.virtualWalls.length) {
-			q10SourceData.virtualWalls = editTail.virtualWalls;
-			result.virtualWalls = editTail.virtualWalls.map((area) => q10DeviceAreaToWorld(minX, maxY, area));
-		}
-		if (editTail.forbidAreas.length) {
-			q10SourceData.forbidAreas = editTail.forbidAreas;
-			const forbidWorld = editTail.forbidAreas.map((area) => q10DeviceAreaToWorld(minX, maxY, area));
-			result.virtualWalls = [...(result.virtualWalls ?? []), ...forbidWorld];
-		}
-		if (editTail.mopZones.length) {
-			q10SourceData.mopAreas = editTail.mopZones;
-			result.areasInfo = editTail.mopZones.map((area) => q10DeviceAreaToWorld(minX, maxY, area));
-		}
-		if (editTail.thresholdZones.length) {
-			q10SourceData.thresholdAreas = editTail.thresholdZones;
-			const thresholdWorld = editTail.thresholdZones.map((area) => q10DeviceAreaToWorld(minX, maxY, area));
-			result.recmForbitZone = [...(result.recmForbitZone ?? []), ...thresholdWorld];
-		}
-		if (editTail.carpetAreas.length) {
-			q10SourceData.carpetAreas = editTail.carpetAreas;
-			result.carpetInfo = editTail.carpetAreas.map((area) => q10DeviceCarpetToWorld(minX, maxY, area));
+			if (trailing.obstaclePoints?.length) {
+				q10SourceData.obstacles = trailing.obstaclePoints.map((point) => ({ point, type: "obstacle" as const }));
+				result.obstaclePoints = trailing.obstaclePoints.map((point) => q10DevicePointToWorld(minX, maxY, point));
+			}
+			if (trailing.skipCleanPoints?.length) {
+				q10SourceData.skipPoints = trailing.skipCleanPoints.map((point) => ({ point, type: "skip" as const }));
+				result.skipCleanPoints = trailing.skipCleanPoints.map((point) => q10DevicePointToWorld(minX, maxY, point));
+			}
+			if (trailing.carpetGrid) {
+				q10SourceData.carpetGrid = trailing.carpetGrid;
+				q10SourceData.hasSelfIdentificationCarpet = true;
+				result.carpetGrid = trailing.carpetGrid;
+			}
+
+			q10SourceData.dataReadIdx = trailing.nextOffset;
+
+			const editTail = parseQ10EditTailSections(buf, trailing.nextOffset, hdr.mapOx, hdr.mapOy);
+			if (editTail.pathPoints.length) {
+				q10SourceData.pathPoints = editTail.pathPoints;
+				result.history = editTail.pathPoints.map((point) => ({
+					x: q10DevicePointToWorld(minX, maxY, point).x,
+					y: q10DevicePointToWorld(minX, maxY, point).y,
+					update: point.update
+				}));
+				if (editTail.pathPoints.length >= 2) {
+					const previous = editTail.pathPoints[editTail.pathPoints.length - 2];
+					const current = editTail.pathPoints[editTail.pathPoints.length - 1];
+					const heading = (Math.atan2(20, 0) - Math.atan2(current.x - previous.x, current.y - previous.y)) * 180 / Math.PI;
+					q10SourceData.robotPosition = { x: current.x, y: current.y, phi: heading };
+					result.robotPos = { ...q10DevicePointToWorld(minX, maxY, current), phi: heading };
+				}
+			}
+			if (editTail.virtualWalls.length) {
+				q10SourceData.virtualWalls = editTail.virtualWalls;
+				result.virtualWalls = editTail.virtualWalls.map((area) => q10DeviceAreaToWorld(minX, maxY, area));
+			}
+			if (editTail.forbidAreas.length) {
+				q10SourceData.forbidAreas = editTail.forbidAreas;
+				const forbidWorld = editTail.forbidAreas.map((area) => q10DeviceAreaToWorld(minX, maxY, area));
+				result.virtualWalls = [...(result.virtualWalls ?? []), ...forbidWorld];
+			}
+			if (editTail.mopZones.length) {
+				q10SourceData.mopAreas = editTail.mopZones;
+				result.areasInfo = editTail.mopZones.map((area) => q10DeviceAreaToWorld(minX, maxY, area));
+			}
+			if (editTail.thresholdZones.length) {
+				q10SourceData.thresholdAreas = editTail.thresholdZones;
+				const thresholdWorld = editTail.thresholdZones.map((area) => q10DeviceAreaToWorld(minX, maxY, area));
+				result.recmForbitZone = [...(result.recmForbitZone ?? []), ...thresholdWorld];
+			}
+			if (editTail.carpetAreas.length) {
+				q10SourceData.carpetAreas = editTail.carpetAreas;
+				result.carpetInfo = editTail.carpetAreas.map((area) => q10DeviceCarpetToWorld(minX, maxY, area));
+			}
+		} catch {
+			// Optional tail sections vary across firmware revisions.
+			// Keep the decoded raster/map usable even if a trailing edit block is malformed.
+			q10SourceData.dataReadIdx = payloadEnd;
 		}
 	}
 
@@ -715,65 +795,69 @@ function parseQ10PathBlock(
 	buf: Buffer,
 	offset: number
 ): { points: Q10SourcePathPoint[]; nextOffset: number } | null {
-	const payloadLen = getQ10PathPayloadLengthAt(buf, offset);
-	if (payloadLen === 0 || offset + 13 > buf.length) return null;
+	try {
+		const payloadLen = getQ10PathPayloadLengthAt(buf, offset);
+		if (payloadLen === 0 || offset + 13 > buf.length) return null;
 
-	let pos = offset;
-	const pathVersion = buf[pos];
-	pos += 1;
-	pos += 2;
-	pos += 1;
-	const pathMode = buf[pos];
-	pos += 1;
-	const pointCount = readU32BE(buf, pos);
-	pos += 4;
-	pos += 2;
-	const compressedLen = readU16BE(buf, pos);
-	pos += 2;
+		let pos = offset;
+		const pathVersion = buf[pos];
+		pos += 1;
+		pos += 2;
+		pos += 1;
+		const pathMode = buf[pos];
+		pos += 1;
+		const pointCount = readU32BE(buf, pos);
+		pos += 4;
+		pos += 2;
+		const compressedLen = readU16BE(buf, pos);
+		pos += 2;
 
-	if (pointCount > MAX_Q10_PATH_POINTS) return null;
+		if (pointCount > MAX_Q10_PATH_POINTS) return null;
 
-	const rawPointBytes = pointCount * 4;
-	let payload: Buffer;
-	if (compressedLen === 0) {
-		if (pos + rawPointBytes > buf.length) return null;
-		payload = buf.subarray(pos, pos + rawPointBytes);
-	} else {
-		if (pos + compressedLen > buf.length) return null;
-		payload = yxPathRleDecompress(buf.subarray(pos, pos + compressedLen), compressedLen, rawPointBytes);
-		if (!payload || payload.length < rawPointBytes) return null;
-	}
-
-	const points: Q10SourcePathPoint[] = [];
-	for (let index = 0; index < pointCount; index++) {
-		const pointOffset = index * 4;
-		let x = byte2ToShortBE(payload[pointOffset], payload[pointOffset + 1]);
-		let y = byte2ToShortBE(payload[pointOffset + 2], payload[pointOffset + 3]);
-
-		if (pathVersion === 0) {
-			x /= 10;
-			y /= 10;
-		} else if (pathVersion === 1) {
-			x = x / 10 / 2;
-			y = y / 10 / 2;
+		const rawPointBytes = pointCount * 4;
+		let payload: Buffer;
+		if (compressedLen === 0) {
+			if (pos + rawPointBytes > buf.length) return null;
+			payload = buf.subarray(pos, pos + rawPointBytes);
 		} else {
-			x /= 10;
-			y /= 10;
+			if (pos + compressedLen > buf.length) return null;
+			payload = yxPathRleDecompress(buf.subarray(pos, pos + compressedLen), compressedLen, rawPointBytes);
+			if (!payload || payload.length < rawPointBytes) return null;
 		}
 
-		const type = pathMode === 2 ? ((payload[pointOffset + 1] & 0x03) << 2) + (payload[pointOffset + 3] & 0x03) : 0;
-		points.push({
-			x,
-			y,
-			type,
-			update: q10PathTypeToHistoryUpdate(type)
-		});
-	}
+		const points: Q10SourcePathPoint[] = [];
+		for (let index = 0; index < pointCount; index++) {
+			const pointOffset = index * 4;
+			let x = byte2ToShortBE(payload[pointOffset], payload[pointOffset + 1]);
+			let y = byte2ToShortBE(payload[pointOffset + 2], payload[pointOffset + 3]);
 
-	return {
-		points,
-		nextOffset: offset + payloadLen
-	};
+			if (pathVersion === 0) {
+				x /= 10;
+				y /= 10;
+			} else if (pathVersion === 1) {
+				x = x / 10 / 2;
+				y = y / 10 / 2;
+			} else {
+				x /= 10;
+				y /= 10;
+			}
+
+			const type = pathMode === 2 ? ((payload[pointOffset + 1] & 0x03) << 2) + (payload[pointOffset + 3] & 0x03) : 0;
+			points.push({
+				x,
+				y,
+				type,
+				update: q10PathTypeToHistoryUpdate(type)
+			});
+		}
+
+		return {
+			points,
+			nextOffset: offset + payloadLen
+		};
+	} catch {
+		return null;
+	}
 }
 
 function q10DevicePointToWorld(mapXMin: number, mapYMin: number, point: Q10DevicePoint): B01Point {
@@ -1026,7 +1110,7 @@ function parseQ10TrailingBlocks(
 		} else {
 			if (pos + carpetPixLzLen <= buf.length) {
 				const compressed = buf.subarray(pos, pos + carpetPixLzLen);
-				const decompressed = decompressLz4Block(compressed, carpetPixLen);
+				const decompressed = tryDecompressQ10Lz4Block(compressed, carpetPixLen);
 				if (decompressed && decompressed.length === carpetPixLen) {
 					out.carpetGrid = decompressed;
 				}

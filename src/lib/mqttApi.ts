@@ -4,6 +4,7 @@ import * as protobuf from "protobufjs";
 import * as zlib from "zlib";
 import type { Roborock } from "../main";
 import { Q10DpDispatcher } from "./b01/q10/Q10DpDispatcher";
+import { classifyB01MapPayload } from "./map/b01/B01MapPayloadClassifier";
 import { MapDecryptor as B01MapDecryptor } from "./map/b01/MapDecryptor";
 import { ROBOROCK_PROTO_STR } from "./map/b01/roborock_proto";
 import { B01ChunkAssembler } from "./B01ChunkAssembler";
@@ -543,7 +544,7 @@ export class mqtt_api {
 					return;
 				}
 				if (data.protocol === 301 && !(payloadBuf.length >= 3 && payloadBuf.subarray(0, 3).toString("ascii") === "B01")) {
-					if (B01MapDecryptor.isLikelyQ10MapPayload(payloadBuf) || B01MapDecryptor.isLikelyQ10BlobPayload(payloadBuf)) {
+					if (classifyB01MapPayload(payloadBuf).kind === "live") {
 						this.resolveAndSendB01Map(duid, payloadBuf, data.protocol);
 						return;
 					}
@@ -763,15 +764,8 @@ export class mqtt_api {
 			return this.findPendingB01MapRequestByMethod(duid, classifiedMethod);
 		}
 
-		if (B01MapDecryptor.isLikelyQ10MapPayload(payloadBuf)) {
-			const livePendingId = this.findPendingB01MapRequestByMethod(duid, "get_map_v1");
-			if (livePendingId !== -1) {
-				this.shiftFirstMatchingB01MapMethod(duid, "get_map_v1");
-				return livePendingId;
-			}
-		}
-		const q10BlobType = B01MapDecryptor.getQ10BlobType(payloadBuf);
-		if (q10BlobType === 1 || q10BlobType === 2) {
+		const payloadClassification = classifyB01MapPayload(payloadBuf);
+		if (payloadClassification.kind === "live") {
 			const livePendingId = this.findPendingB01MapRequestByMethod(duid, "get_map_v1");
 			if (livePendingId !== -1) {
 				this.shiftFirstMatchingB01MapMethod(duid, "get_map_v1");

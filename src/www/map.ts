@@ -4,7 +4,7 @@ import { drawMapV1 } from "../common/mapDrawing/drawMapV1";
 import { IMG_CHARGER, IMG_GO_TO_PIN, IMG_ROBOT_ORIGINAL } from "../common/images";
 import type { DrawObstacleInput, DrawRoomLabelInput } from "../common/mapDrawing/types";
 import type { B01MapData } from "../lib/map/b01/types";
-import { Q10RenderGeometry } from "../lib/map/q10/Q10RenderGeometry";
+import { Q10MapGeometry } from "../lib/map/q10/Q10MapGeometry";
 import { Connection } from "./conn.js";
 import { SVGMapRenderer } from "./SVGMapRenderer";
 
@@ -755,11 +755,30 @@ class MapApplication {
 			(this.currentRobotDuid && this.robotModels[this.currentRobotDuid]) ||
 			"roborock.vacuum.ss09";
 		const baseUrl = `assets/${modelFolder}/drawable-mdpi/`;
-		const geometry = new Q10RenderGeometry(map, 1);
+		const geometry = new Q10MapGeometry(map, 1);
 		const renderer = this.createSvgRendererWithOptions(baseUrl, null, {
 			obstacleRadius: 0,
 			obstacleImageSize: geometry.imgRateLength(6)
 		});
+
+		if (creator.chargerPixel) {
+			const chargerPoint = geometry.mapPoint(creator.chargerPixel);
+			renderer.drawCharger({
+				x: chargerPoint.x,
+				y: chargerPoint.y
+			});
+		}
+
+		if (creator.robotPixel) {
+			const robotPose = geometry.mapPose(creator.robotPixel);
+			if (robotPose) {
+				renderer.drawRobot({
+					x: robotPose.x,
+					y: robotPose.y,
+					angle: robotPose.phi ?? 0
+				});
+			}
+		}
 
 		const obstacleItems: DrawObstacleInput[] = [];
 		for (const entry of creator.obstaclePixels) {

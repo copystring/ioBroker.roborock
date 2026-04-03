@@ -26,6 +26,40 @@ export class B01BaseVacuumFeatures extends BaseDeviceFeatures {
 
 	protected mappedRooms: Array<{ id: number; name: string }> | null = null;
 
+	protected async cleanupVariantCommandObjects(): Promise<void> {
+		return;
+	}
+
+	protected shouldPrecreateConsumableResetStates(): boolean {
+		return true;
+	}
+
+	protected getVariantCommonDeviceStates(_attribute: string | number): Partial<ioBroker.StateCommon> | undefined {
+		void _attribute;
+		return undefined;
+	}
+
+	private async createConsumableResetStateObjects(): Promise<void> {
+		await this.deps.ensureFolder(`Devices.${this.duid}.resetConsumables`);
+
+		const resets: Record<string, string> = {
+			"reset_main_brush": "Reset Main Brush",
+			"reset_side_brush": "Reset Side Brush",
+			"reset_filter": "Reset Filter"
+		};
+
+		for (const [id, name] of Object.entries(resets)) {
+			await this.deps.ensureState(`Devices.${this.duid}.resetConsumables.${id}`, {
+				name: name,
+				type: "boolean",
+				role: "button",
+				def: false,
+				read: false,
+				write: true
+			});
+		}
+	}
+
 	protected async deleteObjectIfExists(id: string, recursive = false): Promise<void> {
 		const existing = await this.deps.adapter.getObjectAsync(id);
 		if (!existing) return;
@@ -232,26 +266,10 @@ export class B01BaseVacuumFeatures extends BaseDeviceFeatures {
 	}
 
 	public override async createCommandObjects(): Promise<void> {
+		await this.cleanupVariantCommandObjects();
 		await super.createCommandObjects();
-
-		// Create Reset Consumables Folder
-		await this.deps.ensureFolder(`Devices.${this.duid}.resetConsumables`);
-
-		const resets: Record<string, string> = {
-			"reset_main_brush": "Reset Main Brush",
-			"reset_side_brush": "Reset Side Brush",
-			"reset_filter": "Reset Filter"
-		};
-
-		for (const [id, name] of Object.entries(resets)) {
-			await this.deps.ensureState(`Devices.${this.duid}.resetConsumables.${id}`, {
-				name: name,
-				type: "boolean",
-				role: "button",
-				def: false,
-				read: false,
-				write: true
-			});
+		if (this.shouldPrecreateConsumableResetStates()) {
+			await this.createConsumableResetStateObjects();
 		}
 	}
 	/**
@@ -575,6 +593,8 @@ export class B01BaseVacuumFeatures extends BaseDeviceFeatures {
 	public override getCommonDeviceStates(attribute: string | number): Partial<ioBroker.StateCommon> | undefined {
 		// Map B01 properties to readable states
 		const lang = this.deps.adapter.language || "en";
+		const variantState = this.getVariantCommonDeviceStates(attribute);
+		if (variantState) return variantState;
 
 		// Fan Power (wind)
 		if (attribute === "wind" || attribute === "fan_power") {
@@ -902,88 +922,6 @@ export class B01BaseVacuumFeatures extends BaseDeviceFeatures {
 					0: "Off",
 					1: "On"
 				}
-			};
-		}
-
-		if ([
-			"dust_switch",
-			"mop_state",
-			"auto_boost",
-			"child_lock",
-			"map_save_switch",
-			"line_laser_obstacle_avoidance",
-			"ground_clean",
-			"valley_point_charging",
-			"breakpoint_clean",
-			"disturb_light",
-			"disturb_voice",
-			"disturb_resume_clean",
-			"disturb_dust_enable",
-			"recent_clean_record",
-			"fleeing_goods"
-		].includes(String(attribute))) {
-			return {
-				type: "number",
-				name: this.locales.getNameAll(String(attribute)),
-				states: {
-					0: "Off",
-					1: "On"
-				}
-			};
-		}
-
-		if (attribute === "add_clean_state") {
-			return {
-				type: "number",
-				name: this.locales.getNameAll(String(attribute)),
-				states: {
-					0: "Idle",
-					1: "Add Clean"
-				}
-			};
-		}
-
-		if (attribute === "timer_type") {
-			return {
-				type: "number",
-				name: this.locales.getNameAll(String(attribute)),
-				states: {
-					0: "Local",
-					1: "Cloud"
-				}
-			};
-		}
-
-		if (attribute === "multi_map_switch") {
-			return {
-				type: "number",
-				name: this.locales.getNameAll(String(attribute)),
-				states: {
-					1: "Off",
-					4: "On"
-				}
-			};
-		}
-
-		if (attribute === "voice_language" || attribute === "voice_version" || attribute === "robot_type") {
-			return {
-				type: "number",
-				name: this.locales.getNameAll(String(attribute))
-			};
-		}
-
-		if (attribute === "robot_country_code") {
-			return {
-				type: "string",
-				name: this.locales.getNameAll(String(attribute))
-			};
-		}
-
-		if (attribute === "cleaning_progress") {
-			return {
-				type: "number",
-				name: this.locales.getNameAll(String(attribute)),
-				unit: "%"
 			};
 		}
 

@@ -1,14 +1,19 @@
 import type { FeatureDependencies } from "../../baseDeviceFeatures";
+import { DeviceStateWriter } from "../../deviceStateWriter";
 import { VACUUM_CONSTANTS } from "../vacuumConstants";
 
 export class StationService {
+	private readonly stateWriter: DeviceStateWriter;
+
 	constructor(
 		private deps: FeatureDependencies,
-		private duid: string
-	) {}
+		duid: string
+	) {
+		this.stateWriter = new DeviceStateWriter(deps, duid);
+	}
 
 	public async initDockingStationStatus(): Promise<void> {
-		await this.deps.ensureFolder(`Devices.${this.duid}.dockingStationStatus`);
+		await this.stateWriter.ensureFolder("dockingStationStatus");
 
 		// Define status definitions with their respective translation keys for "Error/Maintenance" state (value 1)
 		const statusDefinitions: Record<string, string> = {
@@ -41,7 +46,7 @@ export class StationService {
 			const nameKey = VACUUM_CONSTANTS.dockingStationTranslationKeys[name as keyof typeof VACUUM_CONSTANTS.dockingStationTranslationKeys];
 			const localizedName = nameKey ? this.deps.adapter.translationManager.get(nameKey, name) : name;
 
-			await this.deps.ensureState(`Devices.${this.duid}.dockingStationStatus.${name}`, {
+			await this.stateWriter.ensureState(`dockingStationStatus.${name}`, {
 				name: localizedName,
 				type: "number",
 				role: "value",
@@ -63,7 +68,7 @@ export class StationService {
 		};
 
 		for (const [name, val] of Object.entries(status)) {
-			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.dockingStationStatus.${name}`, { val, ack: true });
+			await this.stateWriter.setState(`dockingStationStatus.${name}`, val);
 		}
 	}
 }

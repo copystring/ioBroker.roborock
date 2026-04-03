@@ -2,6 +2,7 @@
 import { z } from "zod";
 
 import type { Roborock } from "../../main";
+import { DeviceStateWriter } from "./deviceStateWriter";
 import { Feature } from "./features.enum";
 
 // --- Types & Interfaces ---
@@ -86,6 +87,7 @@ export const BaseStatusSchema = z.looseObject({
 export abstract class BaseDeviceFeatures {
 	protected createdStates: Set<string> = new Set(); // Track created states to avoid redundant ensureState calls
 	protected runtimeDetectionComplete = false; // Initial runtime detection flag
+	protected readonly stateWriter: DeviceStateWriter;
 
 	protected deps: FeatureDependencies;
 	public commands: Record<string, CommandSpec | any>; // Command definitions for this device
@@ -145,6 +147,7 @@ export abstract class BaseDeviceFeatures {
 		this.duid = duid;
 		this.robotModel = robotModel;
 		this.config = config;
+		this.stateWriter = new DeviceStateWriter(dependencies, duid);
 		// Initialize empty commands map. Actual commands will be populated during setupProtocolFeatures.
 		this.commands = {};
 	}

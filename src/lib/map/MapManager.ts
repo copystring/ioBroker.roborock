@@ -1,12 +1,11 @@
 import type { Roborock } from "../../main";
-import { MapDecryptor as MapDecryptorB01 } from "./b01/MapDecryptor";
+import { B01MapPipeline } from "./b01/B01MapPipeline";
+import type { Q10PayloadClassification } from "./b01/B01MapPayloadClassifier";
 import { MapBuilder as MapBuilderB01 } from "./b01/MapBuilder";
-import { MapParser as MapParserB01 } from "./b01/MapParser";
 import { B01DeviceStatus, B01MapData, Q10RuntimeDebugSummary } from "./b01/types";
 import { Q10MapBuilder } from "./q10/Q10MapBuilder";
 import { Q10MapCreator } from "./q10/Q10MapCreator";
-import { Q10MapParser } from "./q10/Q10MapParser";
-import { applyQ10RuntimePose } from "./q10/Q10RuntimePose";
+import { applyQ10PathOnlyToB01, mergeQ10PersistentState } from "./q10/Q10YxMapParser";
 import { MapBuilder as MapBuilderV1 } from "./v1/MapBuilder";
 import { MapDecryptor as MapDecryptorV1 } from "./v1/MapDecryptor";
 import { MapParser as MapParserV1 } from "./v1/MapParser";
@@ -15,20 +14,27 @@ export class MapManager {
 	private adapter: Roborock;
 	public mapParser: MapParserV1;
 	public mapCreator: MapBuilderV1;
-	private parserB01: MapParserB01;
+	private pipelineB01: B01MapPipeline;
 	private builderB01: MapBuilderB01;
-	private parserQ10: Q10MapParser;
 	private creatorQ10: Q10MapCreator;
 	private builderQ10: Q10MapBuilder;
 	private q10StateByDevice = new Map<string, B01MapData>();
+
+	private static readonly NON_Q10_CLASSIFICATION: Q10PayloadClassification = {
+		isQ10Payload: false,
+		isLiveMapCandidate: false,
+		payloadShape: "map",
+		blobType: null,
+		mapData: null,
+		pathPoints: null
+	};
 
 	constructor(adapter: Roborock) {
 		this.adapter = adapter;
 		this.mapParser = new MapParserV1(adapter);
 		this.mapCreator = new MapBuilderV1(adapter);
-		this.parserB01 = new MapParserB01(adapter);
+		this.pipelineB01 = new B01MapPipeline(adapter);
 		this.builderB01 = new MapBuilderB01(adapter);
-		this.parserQ10 = new Q10MapParser();
 		this.creatorQ10 = new Q10MapCreator();
 		this.builderQ10 = new Q10MapBuilder(adapter);
 	}
@@ -50,16 +56,22 @@ export class MapManager {
 			}
 
 			if (version === "B01" || version === "Q10") {
-				const q10Payload = this.extractQ10Payload(rawData, version, model, serial, duid);
-				if (q10Payload) {
-					const q10Result = await this.processQ10Payload(q10Payload, duid, connectionType, deviceStatus, model || undefined);
+				const resolved = this.pipelineB01.resolve(rawData, version, model, serial, duid || "", connectionType);
+				if (resolved?.variant === "q10") {
+					const q10Result = await this.processQ10Payload(
+						{ classification: resolved.q10, mapData: resolved.mapData },
+						duid,
+						connectionType,
+						deviceStatus,
+						model || undefined
+					);
 					if (q10Result) {
 						return q10Result;
 					}
 				}
 
-				const mapData = this.parserB01.parse(rawData, serial, model, duid || "", connectionType);
-				if (mapData && mapData.mapGrid && mapData.mapGrid.length > 0) {
+				if (resolved?.variant === "protobuf") {
+					const mapData = resolved.mapData;
 					const expectedGridSize = mapData.header.sizeX * mapData.header.sizeY;
 					// Only accept when grid length exactly matches header (real maps); reject wrong decryption, fragments, or non-map packets.
 					if (expectedGridSize > 0 && mapData.mapGrid.length !== expectedGridSize) {
@@ -117,31 +129,8 @@ export class MapManager {
 		return null;
 	}
 
-	private extractQ10Payload(rawData: Buffer, version: string, model: string, serial: string, duid?: string): Buffer | null {
-		if (MapDecryptorB01.isLikelyQ10BlobPayload(rawData) || MapDecryptorB01.isLikelyQ10MapPayload(rawData)) {
-			return rawData;
-		}
-
-		if (version !== "B01") return null;
-
-		const localKey = duid && this.adapter.http_api?.getMatchedLocalKeys
-			? this.adapter.http_api.getMatchedLocalKeys().get(duid)
-			: undefined;
-		const decrypted = MapDecryptorB01.decrypt(rawData, serial, model, duid || "", this.adapter, localKey);
-		if (decrypted && (MapDecryptorB01.isLikelyQ10BlobPayload(decrypted) || MapDecryptorB01.isLikelyQ10MapPayload(decrypted))) {
-			return decrypted;
-		}
-
-		const layer1 = MapDecryptorB01.decryptLayer1Only(rawData, localKey);
-		if (layer1 && (MapDecryptorB01.isLikelyQ10BlobPayload(layer1) || MapDecryptorB01.isLikelyQ10MapPayload(layer1))) {
-			return layer1;
-		}
-
-		return null;
-	}
-
 	private async processQ10Payload(
-		payload: Buffer,
+		q10Payload: { classification: Q10PayloadClassification; mapData: B01MapData | null },
 		duid?: string,
 		connectionType: string = "Unknown",
 		deviceStatus?: B01DeviceStatus,
@@ -149,23 +138,25 @@ export class MapManager {
 	): Promise<{ mapBase64: string, mapBase64Clean?: string, mapData?: any } | null> {
 		const cacheKey = this.getQ10CacheKey(duid, connectionType);
 		const previous = this.q10StateByDevice.get(cacheKey);
+		const { classification } = q10Payload;
+		const packetKind: "full" | "path-only" = classification.mapData ? "full" : "path-only";
 
-		let mapData = this.parserQ10.parse(payload);
+		let mapData = q10Payload.mapData ?? classification.mapData;
 		if (mapData) {
-			mapData = this.parserQ10.mergePersistentState(mapData, previous);
+			mapData = mergeQ10PersistentState(mapData, previous);
 		} else {
-			const pathPoints = this.parserQ10.parsePathOnly(payload);
+			const pathPoints = classification.pathPoints;
 			if (!pathPoints?.length || !previous) {
 				return null;
 			}
-			mapData = this.parserQ10.applyPathOnly(previous, pathPoints);
+			mapData = applyQ10PathOnlyToB01(previous, pathPoints);
 		}
 
-		const created = applyQ10RuntimePose(this.creatorQ10.create(mapData), deviceStatus);
+		const created = this.creatorQ10.create(mapData, deviceStatus);
 		created.q10RuntimeDebug = this.buildQ10RuntimeDebugSummary(
 			created,
-			mapData ? "full" : "path-only",
-			payload
+			packetKind,
+			classification
 		);
 		const resolvedRobotModel = robotModel || (duid ? this.adapter.http_api?.getRobotModel(duid) || undefined : undefined);
 		const rendered = await this.builderQ10.buildMaps(created, deviceStatus, resolvedRobotModel);
@@ -183,12 +174,12 @@ export class MapManager {
 	private buildQ10RuntimeDebugSummary(
 		mapData: B01MapData,
 		packetKind: "full" | "path-only",
-		payload: Buffer
+		classification: Q10PayloadClassification = MapManager.NON_Q10_CLASSIFICATION
 	): Q10RuntimeDebugSummary {
 		const verification = mapData.q10Verification;
 		return {
 			packetKind,
-			payloadShape: MapDecryptorB01.isLikelyQ10BlobPayload(payload) ? "blob" : "map",
+			payloadShape: classification.payloadShape,
 			pathPoints: mapData.q10SourceData?.pathPoints.length ?? mapData.q10CreatorData?.pathPixels.length ?? 0,
 			historyPoints: mapData.history?.length ?? 0,
 			virtualWalls: mapData.q10SourceData?.virtualWalls.length ?? mapData.virtualWalls?.length ?? 0,

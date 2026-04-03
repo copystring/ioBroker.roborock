@@ -1,7 +1,7 @@
 import * as crypto from "crypto";
 import { cryptoEngine } from "../../cryptoEngine";
 import * as MapHelper from "../MapHelper";
-import { Q10MapParser } from "./Q10MapParser";
+import { isQ10YxMapPayload } from "../q10/Q10YxMapParser";
 
 export class MapDecryptor {
 	/**
@@ -176,7 +176,7 @@ export class MapDecryptor {
 	}
 
 	public static isLikelyQ10MapPayload(buf: Buffer): boolean {
-		return Q10MapParser.isLikelyPayload(buf) || (buf.length > 1 && buf[0] === 1 && Q10MapParser.isLikelyPayload(buf.subarray(1)));
+		return isQ10YxMapPayload(buf) || (buf.length > 1 && buf[0] === 1 && isQ10YxMapPayload(buf.subarray(1)));
 	}
 
 	public static getQ10BlobType(buf: Buffer): 1 | 2 | 3 | 4 | null {

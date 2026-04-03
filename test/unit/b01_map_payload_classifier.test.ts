@@ -1,0 +1,123 @@
+import { describe, expect, it, vi } from "vitest";
+import { B01MapPipeline } from "../../src/lib/map/b01/B01MapPipeline";
+import { MapDecryptor } from "../../src/lib/map/b01/MapDecryptor";
+import { classifyB01MapPayload } from "../../src/lib/map/b01/B01MapPayloadClassifier";
+import { parseQ10YxMapToB01 } from "../../src/lib/map/q10/Q10YxMapParser";
+import { createQ10MockAdapter } from "./q10TestSupport";
+import { Q10_FIXTURE_DEFAULTS } from "./q10FixtureDefaults";
+
+const Q10_DUID = "q10-test-duid";
+const { model: Q10_MODEL, sn: Q10_SN } = Q10_FIXTURE_DEFAULTS;
+
+function createSyntheticQ10RawPayload(options: { tail?: Buffer; width?: number; height?: number; version?: number } = {}): Buffer {
+	const width = options.width ?? 16;
+	const height = options.height ?? 16;
+	const version = options.version ?? 1;
+	const tail = options.tail ?? Buffer.alloc(0);
+	const pixLen = width * height;
+	const payload = Buffer.alloc(28 + pixLen + tail.length, 0);
+
+	payload[0] = version;
+	payload.writeUInt32BE(1, 1);
+	payload[5] = 0;
+	payload.writeUInt16BE(width, 6);
+	payload.writeUInt16BE(height, 8);
+	payload.writeUInt16BE(0, 10);
+	payload.writeUInt16BE(height * 5, 12);
+	payload.writeUInt16BE(5, 14);
+	payload.writeUInt16BE(0xffff, 16);
+	payload.writeUInt16BE(0xffff, 18);
+	payload.writeUInt16BE(0xffff, 20);
+	payload.writeUInt32BE(pixLen, 22);
+	payload.writeUInt16BE(0, 26);
+
+	if (tail.length > 0) {
+		tail.copy(payload, 28 + pixLen);
+	}
+
+	return payload;
+}
+
+describe("B01 Map Payload Classifier", () => {
+	it("should keep a valid Q10 live map even when an optional edit-tail block is malformed", () => {
+		const malformedTail = Buffer.from([
+			0x00,
+			0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00,
+			0x00,
+			0x00,
+			0x01,
+			0x00, 0x00,
+			0x00,
+			0x02,
+			0x00, 0x00, 0x00, 0x02,
+			0x00, 0x00,
+			0x00, 0x03,
+			0x01, 0x01, 0x00
+		]);
+		const payload = createSyntheticQ10RawPayload({ tail: malformedTail });
+
+		const parsed = parseQ10YxMapToB01(payload);
+
+		expect(parsed).not.toBeNull();
+		expect(parsed?.header.sizeX).toBe(16);
+		expect(parsed?.header.sizeY).toBe(16);
+		expect(parsed?.mapGrid.length).toBe(256);
+	});
+
+	it("should classify parser-recognized Q10 live payloads as B01 live maps", () => {
+		const payload = createSyntheticQ10RawPayload();
+
+		const classification = classifyB01MapPayload(payload);
+
+		expect(classification.isMapPayload).toBe(true);
+		expect(classification.variant).toBe("q10");
+		expect(classification.kind).toBe("live");
+		expect(classification.isLiveMapCandidate).toBe(true);
+		expect(classification.q10?.payloadShape).toBe("map");
+		expect(classification.q10?.mapData?.sourceFormat).toBe("q10-raw");
+	});
+
+	it("should classify Q10 history blob type 3 as a B01 history map payload", () => {
+		const payload = Buffer.alloc(32, 0);
+		payload[0] = 3;
+
+		const classification = classifyB01MapPayload(payload);
+
+		expect(classification.isMapPayload).toBe(true);
+		expect(classification.variant).toBe("q10");
+		expect(classification.kind).toBe("history");
+		expect(classification.isLiveMapCandidate).toBe(false);
+		expect(classification.q10?.payloadShape).toBe("blob");
+		expect(classification.q10?.blobType).toBe(3);
+	});
+
+	it("should resolve parser-recognized live payloads through the B01 map pipeline without depending on legacy Q10 heuristics", () => {
+		const payload = createSyntheticQ10RawPayload();
+		const adapter = createQ10MockAdapter({ duid: Q10_DUID });
+		const pipeline = new B01MapPipeline(adapter as any);
+		const mapHeuristicSpy = vi.spyOn(MapDecryptor, "isLikelyQ10MapPayload").mockReturnValue(false);
+		const blobHeuristicSpy = vi.spyOn(MapDecryptor, "isLikelyQ10BlobPayload").mockReturnValue(false);
+		const decryptSpy = vi.spyOn(MapDecryptor, "decrypt").mockReturnValue(null);
+
+		try {
+			const result = pipeline.resolve(
+				payload,
+				"B01",
+				Q10_MODEL,
+				Q10_SN,
+				Q10_DUID,
+				"B01"
+			);
+
+			expect(result).not.toBeNull();
+			expect(result?.variant).toBe("q10");
+			expect(result?.mapData?.sourceFormat).toBe("q10-raw");
+			expect(decryptSpy).not.toHaveBeenCalled();
+		} finally {
+			mapHeuristicSpy.mockRestore();
+			blobHeuristicSpy.mockRestore();
+			decryptSpy.mockRestore();
+		}
+	});
+});

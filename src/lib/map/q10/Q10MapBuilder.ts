@@ -3,7 +3,7 @@ import { createCanvas, Image, loadImage } from "@napi-rs/canvas";
 import { robotToPixel } from "../../../common/coordTransformation";
 import type { B01DeviceStatus, B01MapData } from "../b01/types";
 import { Q10AssetCatalog, resolveQ10PluginAssetPath } from "./Q10AssetCatalog";
-import { Q10_CANVAS_SCALE, Q10RenderGeometry } from "./Q10RenderGeometry";
+import { Q10_CANVAS_SCALE, Q10MapGeometry } from "./Q10MapGeometry";
 import type {
 	Q10CreatorArea,
 	Q10CreatorData,
@@ -645,7 +645,7 @@ export class Q10MapBuilder {
 
 	private drawThresholdArea(
 		ctx: any,
-		geometry: Q10RenderGeometry,
+		geometry: Q10MapGeometry,
 		area: Q10CreatorArea
 	): void {
 		if (area.points.length < 4) return;
@@ -700,7 +700,7 @@ export class Q10MapBuilder {
 
 	private drawAreas(
 		ctx: any,
-		geometry: Q10RenderGeometry,
+		geometry: Q10MapGeometry,
 		areas: Q10CreatorArea[],
 		mode: "erase" | "forbid" | "mop" | "threshold"
 	): void {
@@ -743,7 +743,7 @@ export class Q10MapBuilder {
 
 	private drawAreaMaterialAtlas(
 		ctx: any,
-		geometry: Q10RenderGeometry,
+		geometry: Q10MapGeometry,
 		area: Q10CreatorArea,
 		image: Image | undefined,
 		rowShiftRatio = 0
@@ -799,7 +799,7 @@ export class Q10MapBuilder {
 		ctx.restore();
 	}
 
-	private drawManualCarpetAreas(ctx: any, geometry: Q10RenderGeometry, areas: Q10CreatorArea[]): void {
+	private drawManualCarpetAreas(ctx: any, geometry: Q10MapGeometry, areas: Q10CreatorArea[]): void {
 		if (!areas.length) return;
 		this.withOutputSpace(ctx, (outputCtx) => {
 			for (const area of areas) {
@@ -810,7 +810,7 @@ export class Q10MapBuilder {
 
 	private drawForbidEndpoint(
 		ctx: any,
-		geometry: Q10RenderGeometry,
+		geometry: Q10MapGeometry,
 		point: Q10MapPixelPoint,
 		rotationDeg: number
 	): void {
@@ -845,7 +845,7 @@ export class Q10MapBuilder {
 		ctx.restore();
 	}
 
-	private drawVirtualWalls(ctx: any, geometry: Q10RenderGeometry, walls: Q10CreatorLine[]): void {
+	private drawVirtualWalls(ctx: any, geometry: Q10MapGeometry, walls: Q10CreatorLine[]): void {
 		if (!walls.length) return;
 		const lineWidth = geometry.layoutLength(Q10_LAYOUT.areaStrokeWidth);
 		ctx.save();
@@ -911,7 +911,7 @@ export class Q10MapBuilder {
 	}
 
 	private createPathCanvas(
-		geometry: Q10RenderGeometry,
+		geometry: Q10MapGeometry,
 		data: B01MapData,
 		points: Array<Q10MapPixelPoint & { type: number }>
 	): any | null {
@@ -1015,7 +1015,7 @@ export class Q10MapBuilder {
 		return canvas;
 	}
 
-	private drawPath(ctx: any, geometry: Q10RenderGeometry, data: B01MapData, creator: Q10CreatorData): void {
+	private drawPath(ctx: any, geometry: Q10MapGeometry, data: B01MapData, creator: Q10CreatorData): void {
 		const nativePath = creator.pathPixels ?? [];
 		if (!nativePath.length && !data.history?.length) return;
 
@@ -1061,7 +1061,7 @@ export class Q10MapBuilder {
 
 	private drawPose(
 		ctx: any,
-		geometry: Q10RenderGeometry,
+		geometry: Q10MapGeometry,
 		pose: Q10PixelPose | undefined,
 		image: Image | undefined,
 		drawWidth: number,
@@ -1075,7 +1075,7 @@ export class Q10MapBuilder {
 
 	private drawObstacleIcons(
 		ctx: any,
-		geometry: Q10RenderGeometry,
+		geometry: Q10MapGeometry,
 		entries: Q10CreatorObstacle[],
 		image: Image | undefined,
 		fallbackColor: string
@@ -1094,7 +1094,7 @@ export class Q10MapBuilder {
 		}
 	}
 
-	private drawSuspectedPoints(ctx: any, geometry: Q10RenderGeometry, entries: Q10CreatorSuspectedPoint[]): void {
+	private drawSuspectedPoints(ctx: any, geometry: Q10MapGeometry, entries: Q10CreatorSuspectedPoint[]): void {
 		const targetSize = geometry.layoutLength(16);
 		for (const entry of entries) {
 			const point = geometry.mapPoint(entry.point);
@@ -1113,7 +1113,7 @@ export class Q10MapBuilder {
 		}
 	}
 
-	private drawRoomTags(ctx: any, geometry: Q10RenderGeometry, creator: Q10CreatorData): void {
+	private drawRoomTags(ctx: any, geometry: Q10MapGeometry, creator: Q10CreatorData): void {
 		if (!creator.roomModels.length) return;
 
 		const metrics = getRenderMetrics();
@@ -1192,7 +1192,7 @@ export class Q10MapBuilder {
 		});
 	}
 
-	private drawCleanOverlayLayers(ctx: any, geometry: Q10RenderGeometry, data: B01MapData, creator: Q10CreatorData): void {
+	private drawCleanOverlayLayers(ctx: any, geometry: Q10MapGeometry, data: B01MapData, creator: Q10CreatorData): void {
 		this.withMapSpace(ctx, (mapCtx) => {
 			if (creator.selfIdentifiedCarpets.length) this.drawSelfIdentifiedCarpets(mapCtx, data, creator);
 			else this.drawCarpetGrid(mapCtx, data);
@@ -1207,14 +1207,14 @@ export class Q10MapBuilder {
 			this.drawAreas(mapCtx, geometry, creator.thresholdAreas, "threshold");
 		});
 		this.drawPath(ctx, geometry, data, creator);
-		this.drawPose(ctx, geometry, creator.chargerPixel, this.assets.power, 8, -90);
-		this.drawPose(ctx, geometry, creator.robotPixel, this.assets.device, 8, 90);
 		this.withMapSpace(ctx, (mapCtx) => {
 			this.drawAreas(mapCtx, geometry, creator.eraseAreas, "erase");
 		});
 	}
 
-	private drawInteractiveOverlayLayers(ctx: any, geometry: Q10RenderGeometry, creator: Q10CreatorData): void {
+	private drawInteractiveOverlayLayers(ctx: any, geometry: Q10MapGeometry, creator: Q10CreatorData): void {
+		this.drawPose(ctx, geometry, creator.chargerPixel, this.assets.power, 8, -90);
+		this.drawPose(ctx, geometry, creator.robotPixel, this.assets.device, 8, 90);
 		this.drawObstacleIcons(ctx, geometry, creator.obstaclePixels, this.assets.obstacle, "rgba(255,100,80,0.9)");
 		this.drawObstacleIcons(ctx, geometry, creator.skipPixels, this.assets.tiaoGuoIcon, "rgba(255,220,60,0.92)");
 		this.drawSuspectedPoints(ctx, geometry, creator.suspectedPoints);
@@ -1230,7 +1230,7 @@ export class Q10MapBuilder {
 			throw new Error("Q10 creator data missing for Q10 builder");
 		}
 
-		const geometry = new Q10RenderGeometry(data, 1);
+		const geometry = new Q10MapGeometry(data, 1);
 		const { width, height } = geometry.mapCanvasSize();
 		const canvas = createCanvas(width, height);
 		const ctx = canvas.getContext("2d");

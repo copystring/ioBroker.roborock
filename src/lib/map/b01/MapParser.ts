@@ -1,8 +1,8 @@
 import * as protobuf from "protobufjs";
+import { classifyB01MapPayload } from "./B01MapPayloadClassifier";
 import { B01MapData } from "./types";
 import { beautify } from "./GridBeautifier";
 import { MapDecryptor } from "./MapDecryptor";
-import { Q10MapParser } from "../q10/Q10MapParser";
 import * as MapHelper from "../MapHelper";
 import { ROBOROCK_PROTO_STR } from "./roborock_proto";
 import { interpolate } from "./utils";
@@ -11,7 +11,6 @@ export class MapParser {
 	adapter: any;
 	private protoRoot: protobuf.Root | null = null;
 	private RobotMapType: protobuf.Type | null = null;
-	private q10Parser = new Q10MapParser();
 
 	constructor(adapter: any) {
 		this.adapter = adapter;
@@ -31,12 +30,14 @@ export class MapParser {
 				return null;
 			}
 
-			if (MapDecryptor.isB01MapProtobuf(decrypted)) {
+			const payload = classifyB01MapPayload(decrypted);
+
+			if (payload.variant === "protobuf") {
 				return this.parseProtobuf(decrypted, duid, connectionType);
 			}
 
-			if (MapDecryptor.isLikelyQ10MapPayload(decrypted) || MapDecryptor.isLikelyQ10BlobPayload(decrypted)) {
-				return this.q10Parser.parse(decrypted);
+			if (payload.variant === "q10") {
+				return payload.q10?.mapData ?? null;
 			}
 
 			this.adapter.rLog(connectionType as any, duid, "Warn", "B01", 301, "[MapParser] Unsupported B01 payload format after decryption.", "warn");

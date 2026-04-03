@@ -4,18 +4,18 @@ import { getB01VariantFromModel } from "../../src/lib/b01Variant";
 import { Q10VacuumFeatures } from "../../src/lib/features/vacuum/b01/Q10VacuumFeatures";
 import { mqtt_api } from "../../src/lib/mqttApi";
 import { MapManager } from "../../src/lib/map/MapManager";
+import { classifyB01MapPayload } from "../../src/lib/map/b01/B01MapPayloadClassifier";
 import { MapDecryptor } from "../../src/lib/map/b01/MapDecryptor";
 import { MapParser } from "../../src/lib/map/b01/MapParser";
-import { Q10MapParser } from "../../src/lib/map/b01/Q10MapParser";
 import type { B01MapData } from "../../src/lib/map/b01/types";
 import { Q10MapBuilder } from "../../src/lib/map/q10/Q10MapBuilder";
 import { Q10MapCreator } from "../../src/lib/map/q10/Q10MapCreator";
-import { Q10_FIXTURE_DEFAULTS } from "../../src/lib/map/q10/Q10FixtureDefaults";
-import { applyQ10RuntimePose } from "../../src/lib/map/q10/Q10RuntimePose";
+import { decompressQ10Lz4Block } from "../../src/lib/map/q10/Q10YxMapParser";
 import type { Q10SourceData } from "../../src/lib/map/q10/types";
 import { MockAdapter } from "../../src/lib/mock/MockAdapter";
 import { requestsHandler } from "../../src/lib/requestsHandler";
 import { Q10_PRIMARY_SAMPLE } from "./q10RepresentativeFixture";
+import { Q10_FIXTURE_DEFAULTS } from "./q10FixtureDefaults";
 import { createQ10MockAdapter, decodePngRgba, Q10_TEST_DEVICE_STATUS } from "./q10TestSupport";
 
 const Q10_DUID = "q10-test-duid";
@@ -339,10 +339,33 @@ describe("Q10 B01 Map Support", () => {
 		expect(harness.adapter.objects[`Devices.${Q10_DUID}.commands.prop`]).toBeUndefined();
 		expect(harness.adapter.objects[`Devices.${Q10_DUID}.commands.prop.get`]).toBeUndefined();
 		expect(harness.adapter.objects[`Devices.${Q10_DUID}.commands.find_me`]).toBeUndefined();
-		expect(harness.adapter.objects[`Devices.${Q10_DUID}.resetConsumables`]).toBeDefined();
-		expect(harness.adapter.objects[`Devices.${Q10_DUID}.resetConsumables.reset_filter`]).toBeDefined();
+		expect(harness.adapter.objects[`Devices.${Q10_DUID}.resetConsumables`]).toBeUndefined();
+		expect(harness.adapter.objects[`Devices.${Q10_DUID}.resetConsumables.reset_filter`]).toBeUndefined();
 		expect(harness.adapter.objects[`Devices.${Q10_DUID}.commands.app_start`]).toBeDefined();
 		expect(harness.adapter.objects[`Devices.${Q10_DUID}.commands.update_map`]).toBeDefined();
+	});
+
+	it("should pass the real device serial instead of the duid when processing live Q10 maps", async () => {
+		const livePayload = Buffer.alloc(28);
+		livePayload[0] = 2;
+		harness.adapter.mapManager.processMap.mockResolvedValue({ mapBase64: "data:image/png;base64,live" });
+
+		await (harness.feature as any).mapService.processUpdateMapResponse(livePayload);
+
+		expect(harness.adapter.mapManager.processMap).toHaveBeenCalled();
+		expect(harness.adapter.mapManager.processMap.mock.calls[0][3]).toBe(Q10_SN);
+		expect(harness.adapter.mapManager.processMap.mock.calls[0][5]).toBe(Q10_DUID);
+		expect(harness.adapter.mapManager.processMap.mock.calls[0][6]).toBe("B01");
+	});
+
+	it("should refuse Q10 live map processing when the device serial is missing", async () => {
+		const livePayload = Buffer.alloc(28);
+		livePayload[0] = 2;
+		harness.adapter.http_api.getDevices = () => [{ duid: Q10_DUID, model: Q10_MODEL }];
+
+		await (harness.feature as any).mapService.processUpdateMapResponse(livePayload);
+
+		expect(harness.adapter.mapManager.processMap).not.toHaveBeenCalled();
 	});
 
 	it("should publish source-verified Q10 commands via DP and avoid the generic RPC fallback", async () => {
@@ -655,6 +678,58 @@ describe("Q10 B01 Map Support", () => {
 		expect(harness.feature.hasPendingQ10CleanRecordBlobRequest()).toBe(false);
 	});
 
+	it("should keep waiting for the active Q10 history map when an earlier blob is non-renderable", async () => {
+		const processMap = vi.fn()
+			.mockResolvedValueOnce(null)
+			.mockResolvedValueOnce({
+				mapBase64: "data:image/png;base64,bGF0ZQ==",
+				mapData: { id: "late-success" }
+			})
+			.mockResolvedValueOnce({
+				mapBase64: "data:image/png;base64,bmV4dA==",
+				mapData: { id: "next-record" }
+			});
+		(harness.adapter as any).mapManager = { processMap };
+
+		await harness.feature.applyQ10ShadowDpPayload({
+			"101": {
+				"52": {
+					op: "list",
+					result: 1,
+					data: [
+						"1773742379073_1773565494_1395_2343_1_669_0_0_0_0_0_1",
+						"1773742058676_1773561894_600_1200_1_0_0_1_2_0_1_0"
+					]
+				}
+			}
+		});
+
+		const firstBlob = Buffer.alloc(32);
+		firstBlob[0] = 3;
+		await harness.feature.applyQ10CleanRecordBlob(firstBlob);
+
+		expect(harness.feature.hasPendingQ10CleanRecordBlobRequest()).toBe(true);
+		expect(harness.adapter.states[`Devices.${Q10_DUID}.cleaningInfo.records.0.map.mapBase64`]).toBeUndefined();
+		expect(harness.adapter.requestsHandler.publishB01Dp).toHaveBeenCalledTimes(1);
+
+		const lateValidBlob = Buffer.alloc(32);
+		lateValidBlob[0] = 3;
+		await harness.feature.applyQ10CleanRecordBlob(lateValidBlob);
+
+		expect(harness.adapter.states[`Devices.${Q10_DUID}.cleaningInfo.records.0.map.mapBase64`]).toBe("data:image/png;base64,bGF0ZQ==");
+		expect(harness.adapter.requestsHandler.publishB01Dp).toHaveBeenCalledTimes(2);
+		expect(harness.adapter.requestsHandler.publishB01Dp).toHaveBeenNthCalledWith(2, Q10_DUID, {
+			"101": { "52": { op: "select", id: "1773742058676_1773561894_600_1200_1_0_0_1_2_0_1_0" } }
+		});
+
+		const secondBlob = Buffer.alloc(32);
+		secondBlob[0] = 3;
+		await harness.feature.applyQ10CleanRecordBlob(secondBlob);
+
+		expect(harness.adapter.states[`Devices.${Q10_DUID}.cleaningInfo.records.1.map.mapBase64`]).toBe("data:image/png;base64,bmV4dA==");
+		expect(harness.feature.hasPendingQ10CleanRecordBlobRequest()).toBe(false);
+	});
+
 	it("should not misclassify a Q10 clean-record blob as a live map response", () => {
 		const adapter = new MockAdapter() as MockAdapter & {
 			b01MapResponseQueue: Map<string, Array<"get_map_v1" | "get_clean_record_map">>;
@@ -723,26 +798,24 @@ describe("Q10 B01 Map Support", () => {
 			chargerPixel: { x: 20, y: 20, phi: 0 }
 		});
 
-		const updated = applyQ10RuntimePose(baseMap, chargingStatus);
+		const updated = new Q10MapCreator().create(baseMap, chargingStatus);
 
-		expect(updated.q10CreatorData?.robotPixel).toEqual({
-			x: 90,
-			y: 20,
-			phi: 0
-		});
+		expect(updated.q10CreatorData?.robotPixel?.x).toBeCloseTo(23.5);
+		expect(updated.q10CreatorData?.robotPixel?.y).toBeCloseTo(20);
+		expect(updated.q10CreatorData?.robotPixel?.phi).toBe(0);
 		expect(baseMap.q10CreatorData?.robotPixel).toBeUndefined();
 	});
 
 	it("should decompress a simple LZ4 literal block", () => {
 		const compressed = Uint8Array.from([0x40, 0x61, 0x62, 0x63, 0x64]);
-		const decompressed = Q10MapParser.decompressLz4Block(compressed, 4);
+		const decompressed = decompressQ10Lz4Block(compressed, 4);
 
 		expect(Buffer.from(decompressed).toString("utf8")).toBe("abcd");
 	});
 
 	it("should decompress a simple repeating LZ4 block", () => {
 		const compressed = Uint8Array.from([0x11, 0x61, 0x01, 0x00]);
-		const decompressed = Q10MapParser.decompressLz4Block(compressed, 6);
+		const decompressed = decompressQ10Lz4Block(compressed, 6);
 
 		expect(Buffer.from(decompressed).toString("utf8")).toBe("aaaaaa");
 	});
@@ -756,9 +829,7 @@ describe("Q10 B01 Map Support", () => {
 
 		const decrypted = MapDecryptor.decrypt(rawInput, Q10_SN, Q10_MODEL, Q10_DUID, mockAdapter, Q10_LOCAL_KEY);
 		expect(decrypted).not.toBeNull();
-		expect(
-			MapDecryptor.isLikelyQ10MapPayload(decrypted!) || MapDecryptor.isLikelyQ10BlobPayload(decrypted!)
-		).toBe(true);
+		expect(classifyB01MapPayload(decrypted!).variant).toBe("q10");
 
 		const parser = new MapParser(mockAdapter);
 		const mapData = parser.parse(rawInput, Q10_SN, Q10_MODEL, Q10_DUID, "B01");
@@ -818,6 +889,22 @@ describe("Q10 B01 Map Support", () => {
 		const full = await decodePngRgba(Buffer.from(result!.mapBase64.slice(result!.mapBase64.indexOf(",") + 1), "base64"));
 		const clean = await decodePngRgba(Buffer.from(result!.mapBase64Clean!.slice(result!.mapBase64Clean!.indexOf(",") + 1), "base64"));
 		expect(countDifferentPixels(full, clean)).toBeGreaterThan(1000);
+	});
+
+	it("should keep Q10 charger and robot out of the clean background image", async () => {
+		const builder = new Q10MapBuilder();
+		const map = createSyntheticQ10Map([], 100, 40, {
+			chargerPixel: { x: 20, y: 20, phi: 0 },
+			robotPixel: { x: 24, y: 20, phi: 0 }
+		});
+
+		const rendered = await builder.buildMaps(map, undefined);
+		const full = await decodePngRgba(rendered.full);
+		const clean = await decodePngRgba(rendered.clean);
+
+		expect(countDifferentPixels(full, clean)).toBeGreaterThan(0);
+		expect(pixelAt(full, 20 * 8, 20 * 8)).not.toEqual(pixelAt(clean, 20 * 8, 20 * 8));
+		expect(pixelAt(full, 24 * 8, 20 * 8)).not.toEqual(pixelAt(clean, 24 * 8, 20 * 8));
 	});
 
 	it("should prefer extracted adapter assets over local Q10 plugin paths", async () => {
