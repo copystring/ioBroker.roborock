@@ -178,7 +178,8 @@ function createQ10FeatureHarness() {
 		publishB01Dp: vi.fn().mockResolvedValue(undefined)
 	};
 	(adapter as any).mapManager = {
-		processMap: vi.fn().mockResolvedValue(null)
+		processMap: vi.fn().mockResolvedValue(null),
+		updateB01DeviceStatus: vi.fn()
 	};
 
 	const deps = {
@@ -804,6 +805,67 @@ describe("Q10 B01 Map Support", () => {
 		expect(updated.q10CreatorData?.robotPixel?.y).toBeCloseTo(20);
 		expect(updated.q10CreatorData?.robotPixel?.phi).toBe(0);
 		expect(baseMap.q10CreatorData?.robotPixel).toBeUndefined();
+	});
+
+	it("should synthesize the Q10 robot pose from the dock for parked docked live states", () => {
+		const dockedStatus = {
+			deviceState: 4,
+			deviceWorkMode: 0,
+			deviceCleanMode: 0,
+			isDustCollect: false,
+			deviceFault: 0
+		};
+		const baseMap = createSyntheticQ10Map([], 100, 40, {
+			chargerPixel: { x: 20, y: 20, phi: 0 }
+		});
+
+		const updated = new Q10MapCreator().create(baseMap, dockedStatus);
+
+		expect(updated.q10CreatorData?.robotPixel?.x).toBeCloseTo(23.5);
+		expect(updated.q10CreatorData?.robotPixel?.y).toBeCloseTo(20);
+		expect(updated.q10CreatorData?.robotPixel?.phi).toBe(0);
+	});
+
+	it("should prefer cached B01 device status over stale persisted status values", async () => {
+		const adapter = createQ10MockAdapter({ duid: Q10_DUID, assetErrorMessage: "asset not found" }) as ReturnType<typeof createQ10MockAdapter> & {
+			getStateAsync: (id: string) => Promise<{ val: number } | null>;
+		};
+		adapter.getStateAsync = async (id: string) =>
+			id.includes(`Devices.${Q10_DUID}.deviceStatus.`) ? { val: 0 } : null;
+
+		const manager = new MapManager(adapter as any);
+		manager.updateB01DeviceStatus(Q10_DUID, {
+			deviceState: 4,
+			deviceWorkMode: 0,
+			deviceCleanMode: 0,
+			isDustCollect: false,
+			deviceFault: 0
+		});
+
+		const status = await (manager as any).getDeviceStatusForB01(Q10_DUID);
+		expect(status.deviceState).toBe(4);
+	});
+
+	it("should publish runtime status updates into the shared adapter map manager", async () => {
+		const { adapter, feature } = createQ10FeatureHarness();
+
+		await (feature as any).processStatus({
+			status: 4,
+			clean_mode: 1,
+			work_mode: 2,
+			battery: 87,
+			fault: 0,
+			dust_action: 1
+		});
+
+		expect((adapter as any).mapManager.updateB01DeviceStatus).toHaveBeenCalledWith(Q10_DUID, {
+			deviceState: 4,
+			deviceWorkMode: 2,
+			deviceCleanMode: 1,
+			deviceFault: 0,
+			deviceBattery: 87,
+			isDustCollect: true
+		});
 	});
 
 	it("should decompress a simple LZ4 literal block", () => {

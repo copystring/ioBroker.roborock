@@ -9,6 +9,7 @@ import { B01MapService } from "../services/B01MapService";
 import { StationService } from "../services/StationService";
 import { VACUUM_CONSTANTS } from "../vacuumConstants";
 import type { B01Variant } from "../../../b01Variant";
+import type { B01DeviceStatus } from "../../../map/b01/types";
 import deviceDataSet = require("../../../../../lib/protocols/q7_dataset.json");
 
 export class B01BaseVacuumFeatures extends BaseDeviceFeatures {
@@ -77,7 +78,7 @@ export class B01BaseVacuumFeatures extends BaseDeviceFeatures {
 		super(dependencies, duid, robotModel, config);
 		void profile;
 		this.b01Variant = b01Variant;
-		this.mapManager = new MapManager(this.deps.adapter);
+		this.mapManager = this.deps.adapter.mapManager;
 		this.locales = new RoborockLocales(deviceDataSet);
 
 		this.consumableService = new B01ConsumableService(this.deps, this.duid);
@@ -395,6 +396,8 @@ export class B01BaseVacuumFeatures extends BaseDeviceFeatures {
 
 	// Override processStatus to apply B01 specific conversions (dm² to m²)
 	protected async processStatus(resultObj: Record<string, unknown>): Promise<void> {
+		this.updateMapManagerRuntimeStatus(resultObj);
+
 		// Handle docking station status separately
 		const dssValue = resultObj["dss"];
 		const washStatus = resultObj["wash_status"];
@@ -413,6 +416,29 @@ export class B01BaseVacuumFeatures extends BaseDeviceFeatures {
 		await this.deps.ensureFolder(`Devices.${this.duid}.deviceStatus`);
 		for (const key in resultObj) {
 			await this.processStatusProperty(key, resultObj[key]);
+		}
+	}
+
+	private updateMapManagerRuntimeStatus(resultObj: Readonly<Record<string, unknown>>): void {
+		const nextStatus: Partial<B01DeviceStatus> = {};
+		const stateValue = resultObj.status ?? resultObj.state;
+		const workModeValue = resultObj.work_mode ?? resultObj.workMode ?? resultObj.clean_task_type;
+		const cleanModeValue = resultObj.clean_mode ?? resultObj.cleanMode ?? resultObj.mode;
+		const faultValue = resultObj.fault ?? resultObj.error_code;
+		const dustCollectValue = resultObj.dust_action ?? resultObj.dust_collection_status;
+		const batteryValue = resultObj.battery;
+
+		if (stateValue !== undefined && stateValue !== null) nextStatus.deviceState = Number(stateValue);
+		if (workModeValue !== undefined && workModeValue !== null) nextStatus.deviceWorkMode = Number(workModeValue);
+		if (cleanModeValue !== undefined && cleanModeValue !== null) nextStatus.deviceCleanMode = Number(cleanModeValue);
+		if (faultValue !== undefined && faultValue !== null) nextStatus.deviceFault = Number(faultValue);
+		if (batteryValue !== undefined && batteryValue !== null) nextStatus.deviceBattery = Number(batteryValue);
+		if (dustCollectValue !== undefined && dustCollectValue !== null) {
+			nextStatus.isDustCollect = dustCollectValue === 1 || dustCollectValue === true || dustCollectValue === "1";
+		}
+
+		if (Object.keys(nextStatus).length > 0) {
+			this.mapManager.updateB01DeviceStatus(this.duid, nextStatus);
 		}
 	}
 

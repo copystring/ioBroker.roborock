@@ -1,4 +1,5 @@
 import type { B01DeviceStatus, B01MapData } from "../b01/types";
+import { isB01DockAnchoredState } from "../b01/B01StateSemantics";
 import { buildQ10Verification } from "./Q10Verification";
 import type {
 	Q10CreatorArea,
@@ -22,12 +23,6 @@ import type {
 
 const ROOM_COLOR_COUNT = 4;
 const ROOM_OTHER_MATERIAL = 3;
-const Q10_DOCK_ANCHORED_STATES = new Set<number>([
-	8,
-	15,
-	22,
-	100
-]);
 const Q10_DOCK_ANCHORED_OFFSET = 3.5;
 
 interface RoomStat {
@@ -72,7 +67,7 @@ function rotateVector(x: number, y: number, degrees: number): { x: number; y: nu
 }
 
 function shouldAnchorRobotToDock(deviceStatus?: B01DeviceStatus): boolean {
-	return !!deviceStatus && Q10_DOCK_ANCHORED_STATES.has(deviceStatus.deviceState);
+	return isB01DockAnchoredState(deviceStatus?.deviceState);
 }
 
 function mapArrPointToPixel(point: Q10MapArrPoint): Q10MapPixelPoint {

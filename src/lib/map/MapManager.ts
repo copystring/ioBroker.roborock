@@ -19,6 +19,7 @@ export class MapManager {
 	private creatorQ10: Q10MapCreator;
 	private builderQ10: Q10MapBuilder;
 	private q10StateByDevice = new Map<string, B01MapData>();
+	private latestB01DeviceStatusByDevice = new Map<string, Partial<B01DeviceStatus>>();
 
 	private static readonly NON_Q10_CLASSIFICATION: Q10PayloadClassification = {
 		isQ10Payload: false,
@@ -50,19 +51,17 @@ export class MapManager {
      */
 	public async processMap(rawData: Buffer, version: string, model: string, serial: string, mappedRooms: any[] | null, duid?: string, connectionType: string = "Unknown", deviceStatus?: B01DeviceStatus, currentMapIndex?: number): Promise<{ mapBase64: string, mapBase64Clean?: string, mapData?: any } | null> {
 		try {
-			// Robust device status retrieval if not provided
-			if ((version === "B01" || version === "Q10") && !deviceStatus && duid) {
-				deviceStatus = await this.getDeviceStatusForB01(duid);
-			}
-
 			if (version === "B01" || version === "Q10") {
 				const resolved = this.pipelineB01.resolve(rawData, version, model, serial, duid || "", connectionType);
 				if (resolved?.variant === "q10") {
+					const effectiveDeviceStatus = duid
+						? await this.getDeviceStatusForB01(duid, deviceStatus)
+						: deviceStatus;
 					const q10Result = await this.processQ10Payload(
 						{ classification: resolved.q10, mapData: resolved.mapData },
 						duid,
 						connectionType,
-						deviceStatus,
+						effectiveDeviceStatus,
 						model || undefined
 					);
 					if (q10Result) {
@@ -72,12 +71,15 @@ export class MapManager {
 
 				if (resolved?.variant === "protobuf") {
 					const mapData = resolved.mapData;
+					const effectiveDeviceStatus = duid
+						? await this.getDeviceStatusForB01(duid, deviceStatus)
+						: deviceStatus;
 					const expectedGridSize = mapData.header.sizeX * mapData.header.sizeY;
 					// Only accept when grid length exactly matches header (real maps); reject wrong decryption, fragments, or non-map packets.
 					if (expectedGridSize > 0 && mapData.mapGrid.length !== expectedGridSize) {
 						this.adapter.rLog(connectionType as any, duid || "unknown", "Warn", version, 301, `B01 map rejected: grid size inconsistent with header (got ${mapData.mapGrid.length}, expected sizeX*sizeY=${expectedGridSize})`, "warn");
 					} else {
-						const mapBuf = await this.builderB01.buildMap(mapData, model, duid, deviceStatus);
+						const mapBuf = await this.builderB01.buildMap(mapData, model, duid, effectiveDeviceStatus);
 						const mapBase64 = "data:image/png;base64," + mapBuf.toString("base64");
 						return {
 							mapBase64: mapBase64,
@@ -204,27 +206,63 @@ export class MapManager {
 		return `${duid || "unknown"}:${scope}`;
 	}
 
-	private async getDeviceStatusForB01(duid: string): Promise<B01DeviceStatus> {
-		const getVal = async (keys: string[]): Promise<{ val: any, source: string } | undefined> => {
+	public updateB01DeviceStatus(duid: string, status: Partial<B01DeviceStatus>): void {
+		if (!duid) return;
+		const current = this.latestB01DeviceStatusByDevice.get(duid) ?? {};
+		this.latestB01DeviceStatusByDevice.set(duid, {
+			...current,
+			...status
+		});
+	}
+
+	private async readPersistedB01DeviceStatus(duid: string): Promise<Partial<B01DeviceStatus>> {
+		const getVal = async (keys: string[]): Promise<any | undefined> => {
 			for (const k of keys) {
 				const s = await this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.${k}`);
-				if (s && s.val !== undefined && s.val !== null) return { val: s.val, source: k };
+				if (s && s.val !== undefined && s.val !== null) return s.val;
 			}
 			return undefined;
 		};
 
-		const stateObj = await getVal(["status", "state", "4"]);
-		const workModeObj = await getVal(["work_mode", "workMode", "15"]);
-		const cleanModeObj = await getVal(["mode", "cleanMode", "17"]);
-		const dustCollectObj = await getVal(["dust_action", "dust_collection_status", "105"]);
-		const faultObj = await getVal(["fault", "deviceFault", "18"]);
+		const stateVal = await getVal(["status", "state", "4"]);
+		const workModeVal = await getVal(["work_mode", "workMode", "15"]);
+		const cleanModeVal = await getVal(["mode", "cleanMode", "17"]);
+		const dustCollectVal = await getVal(["dust_action", "dust_collection_status", "105"]);
+		const faultVal = await getVal(["fault", "deviceFault", "18"]);
+
+		const persisted: Partial<B01DeviceStatus> = {};
+		if (stateVal !== undefined) persisted.deviceState = Number(stateVal);
+		if (workModeVal !== undefined) persisted.deviceWorkMode = Number(workModeVal);
+		if (cleanModeVal !== undefined) persisted.deviceCleanMode = Number(cleanModeVal);
+		if (dustCollectVal !== undefined) {
+			persisted.isDustCollect = dustCollectVal === 1 || dustCollectVal === true || dustCollectVal === "1";
+		}
+		if (faultVal !== undefined) persisted.deviceFault = Number(faultVal);
+		return persisted;
+	}
+
+	private pickB01StatusValue<T>(...values: Array<T | null | undefined>): T | undefined {
+		for (const value of values) {
+			if (value !== undefined && value !== null) return value;
+		}
+		return undefined;
+	}
+
+	private async getDeviceStatusForB01(duid: string, preferred?: Partial<B01DeviceStatus>): Promise<B01DeviceStatus> {
+		const persisted = await this.readPersistedB01DeviceStatus(duid);
+		const cached = this.latestB01DeviceStatusByDevice.get(duid);
 
 		return {
-			deviceState: stateObj ? Number(stateObj.val) : 0,
-			deviceWorkMode: workModeObj ? Number(workModeObj.val) : 0,
-			deviceCleanMode: cleanModeObj ? Number(cleanModeObj.val) : 0,
-			isDustCollect: dustCollectObj ? (dustCollectObj.val === 1 || dustCollectObj.val === true || dustCollectObj.val === "1") : false,
-			deviceFault: faultObj ? Number(faultObj.val) : 0
+			deviceState: this.pickB01StatusValue(preferred?.deviceState, cached?.deviceState, persisted.deviceState, 0) ?? 0,
+			deviceWorkMode: this.pickB01StatusValue(preferred?.deviceWorkMode, cached?.deviceWorkMode, persisted.deviceWorkMode, 0) ?? 0,
+			deviceCleanMode: this.pickB01StatusValue(preferred?.deviceCleanMode, cached?.deviceCleanMode, persisted.deviceCleanMode, 0),
+			deviceChargeState: this.pickB01StatusValue(preferred?.deviceChargeState, cached?.deviceChargeState, persisted.deviceChargeState),
+			isDustCollect: this.pickB01StatusValue(preferred?.isDustCollect, cached?.isDustCollect, persisted.isDustCollect, false) ?? false,
+			deviceFault: this.pickB01StatusValue(preferred?.deviceFault, cached?.deviceFault, persisted.deviceFault, 0),
+			deviceQuiet: this.pickB01StatusValue(preferred?.deviceQuiet, cached?.deviceQuiet, persisted.deviceQuiet),
+			devicePvCutCharge: this.pickB01StatusValue(preferred?.devicePvCutCharge, cached?.devicePvCutCharge, persisted.devicePvCutCharge),
+			deviceBattery: this.pickB01StatusValue(preferred?.deviceBattery, cached?.deviceBattery, persisted.deviceBattery),
+			deviceCustomType: this.pickB01StatusValue(preferred?.deviceCustomType, cached?.deviceCustomType, persisted.deviceCustomType)
 		};
 	}
 

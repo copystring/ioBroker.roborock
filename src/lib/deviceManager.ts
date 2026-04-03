@@ -9,6 +9,7 @@ import { DEFAULT_PROFILE, VacuumProfile } from "./features/vacuum/v1VacuumFeatur
 import { ProductHelper } from "./productHelper";
 import { Feature } from "./features/features.enum";
 import { getB01VariantFromModel } from "./b01Variant";
+import { isB01ParkedState } from "./map/b01/B01StateSemantics";
 
 // Import indices to trigger decorators
 import "./features/vacuum/index";
@@ -250,7 +251,7 @@ export class DeviceManager {
 
 	/** Parked/docked: fetch history only then (cloud has new record). 4 = docked, 8 = Charging, 100 = Fully Charged. */
 	private isParkedState(stateCode: number): boolean {
-		return stateCode === 4 || stateCode === 8 || stateCode === 100;
+		return isB01ParkedState(stateCode);
 	}
 
 	/** Starts polling. updateInterval (UI) drives everything except TCP; TCP keepalive is fixed 30s. */
