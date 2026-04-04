@@ -935,21 +935,33 @@ describe("Q10 B01 Map Support", () => {
 
 	it("should map shadow consumables and request timers when timer type changes", async () => {
 		await harness.feature.applyQ10ShadowDpPayload({
-			"125": 73044,
-			"126": 641427,
-			"127": 37793,
+			"125": 30,
+			"126": 33,
+			"127": 33,
 			"101": {
-				"67": 34127,
+				"67": 33,
 				"93": 1
 			}
 		});
 
-		expect(harness.adapter.states[`Devices.${Q10_DUID}.consumables.main_brush_work_time`]).toBe(280);
-		expect(harness.adapter.states[`Devices.${Q10_DUID}.consumables.side_brush_work_time`]).toBe(22);
-		expect(harness.adapter.states[`Devices.${Q10_DUID}.consumables.filter_work_time`]).toBe(140);
-		expect(harness.adapter.states[`Devices.${Q10_DUID}.consumables.sensor_dirty_time`]).toBe(21);
+		expect(harness.adapter.states[`Devices.${Q10_DUID}.consumables.main_brush_work_time`]).toBe(30);
+		expect(harness.adapter.states[`Devices.${Q10_DUID}.consumables.side_brush_work_time`]).toBe(33);
+		expect(harness.adapter.states[`Devices.${Q10_DUID}.consumables.filter_work_time`]).toBe(33);
+		expect(harness.adapter.states[`Devices.${Q10_DUID}.consumables.sensor_dirty_time`]).toBe(33);
 		expect(harness.adapter.states[`Devices.${Q10_DUID}.deviceStatus.timer_type`]).toBe(1);
 		expect(harness.adapter.requestsHandler.publishB01Dp).toHaveBeenCalledWith(Q10_DUID, { "101": { "69": 0 } });
+	});
+
+	it("should still convert oversized shadow consumable counters as used seconds", async () => {
+		await harness.feature.applyQ10ShadowDpPayload({
+			"125": 73044,
+			"101": {
+				"67": 34127
+			}
+		});
+
+		expect(harness.adapter.states[`Devices.${Q10_DUID}.consumables.main_brush_work_time`]).toBe(280);
+		expect(harness.adapter.states[`Devices.${Q10_DUID}.consumables.sensor_dirty_time`]).toBe(21);
 	});
 
 	it("should synthesize the Q10 robot pose from the dock for charging-like live states", () => {
@@ -989,6 +1001,28 @@ describe("Q10 B01 Map Support", () => {
 		expect(updated.q10CreatorData?.robotPixel?.x).toBeCloseTo(23.5);
 		expect(updated.q10CreatorData?.robotPixel?.y).toBeCloseTo(20);
 		expect(updated.q10CreatorData?.robotPixel?.phi).toBe(0);
+	});
+
+	it("should preserve an explicit Q10 robot pose instead of re-anchoring it to the dock", () => {
+		const chargingStatus = {
+			deviceState: 8,
+			deviceWorkMode: 0,
+			deviceCleanMode: 0,
+			isDustCollect: false,
+			deviceFault: 0
+		};
+		const baseMap = createSyntheticQ10Map([], 100, 40, {
+			chargerPixel: { x: 20, y: 20, phi: 0 }
+		});
+		baseMap.q10SourceData!.robotPosition = { x: 40, y: 30, phi: 90 };
+		baseMap.q10CreatorData!.robotPixel = { x: 40, y: 10, phi: 90 };
+
+		const updated = new Q10MapCreator().create(baseMap, chargingStatus);
+
+		expect(updated.q10CreatorData?.robotPixel?.x).toBeCloseTo(40);
+		expect(updated.q10CreatorData?.robotPixel?.y).toBeCloseTo(10);
+		expect(updated.q10CreatorData?.robotPixel?.phi).toBe(90);
+		expect(updated.q10SourceData?.robotPosition).toEqual({ x: 40, y: 30, phi: 90 });
 	});
 
 	it("should prefer cached B01 device status over stale persisted status values", async () => {

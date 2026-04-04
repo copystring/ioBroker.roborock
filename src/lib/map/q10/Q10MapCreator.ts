@@ -862,6 +862,8 @@ export class Q10MapCreator {
 		deviceStatus?: B01DeviceStatus
 	): { nextMapData: B01MapData; nextSource: Q10SourceData; nextCreatorData: Q10CreatorData } {
 		if (
+			source.robotPosition ||
+			creatorData.robotPixel ||
 			!creatorData.chargerPixel ||
 			!source.chargePosition ||
 			!shouldAnchorRobotToDock(deviceStatus)

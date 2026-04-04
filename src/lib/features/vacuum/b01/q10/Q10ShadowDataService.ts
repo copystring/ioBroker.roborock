@@ -1,6 +1,7 @@
 import type { FeatureDependencies } from "../../../baseDeviceFeatures";
 import { DeviceStateWriter } from "../../../deviceStateWriter";
 import { normalizeRoborockRoomDisplayName } from "../../../../roomNameNormalizer";
+import { VACUUM_CONSTANTS } from "../../vacuumConstants";
 
 type Q10ShadowDataServiceHost = {
 	applyCleanRecordList: (data: Record<string, unknown>) => Promise<void>;
@@ -80,16 +81,74 @@ export class Q10ShadowDataService {
 		topLevelDps: Record<string, unknown>,
 		commonDps: Record<string, unknown>
 	): Promise<void> {
-		const consumables: Record<string, unknown> = {};
+		const shadowConsumables = [
+			{ value: topLevelDps["125"], stateKey: "main_brush_work_time", deviceName: "main_brush" },
+			{ value: topLevelDps["126"], stateKey: "side_brush_work_time", deviceName: "side_brush" },
+			{ value: topLevelDps["127"], stateKey: "filter_work_time", deviceName: "filter" },
+			{ value: commonDps["67"], stateKey: "sensor_dirty_time", deviceName: "sensor" }
+		] as const;
 
-		if (topLevelDps["125"] !== undefined) consumables.main_brush_work_time = topLevelDps["125"];
-		if (topLevelDps["126"] !== undefined) consumables.side_brush_work_time = topLevelDps["126"];
-		if (topLevelDps["127"] !== undefined) consumables.filter_work_time = topLevelDps["127"];
-		if (commonDps["67"] !== undefined) consumables.sensor_dirty_time = commonDps["67"];
+		const availableShadowConsumables = shadowConsumables.filter((entry) => entry.value !== undefined);
+		if (!availableShadowConsumables.length) return;
 
-		if (Object.keys(consumables).length > 0) {
-			await this.host.applyConsumables(consumables);
+		await this.stateWriter.ensureFolder("consumables");
+		await this.stateWriter.ensureFolder("resetConsumables");
+
+		for (const entry of availableShadowConsumables) {
+			const remainingHours = this.normalizeQ10ShadowConsumableHours(entry.deviceName, entry.value);
+			if (remainingHours === undefined) continue;
+
+			const localizedName = this.getLocalizedConsumableName(entry.deviceName);
+			await this.stateWriter.ensureAndSetValueState(`consumables.${entry.stateKey}`, {
+				name: `${localizedName} remaining time`,
+				type: "number",
+				unit: "h"
+			}, remainingHours);
+
+			await this.stateWriter.ensureState(`resetConsumables.reset_${entry.deviceName}`, {
+				name: `Reset ${localizedName}`,
+				type: "boolean",
+				role: "button",
+				write: true,
+				def: false
+			}, { resetParam: entry.stateKey });
 		}
+	}
+
+	private getLocalizedConsumableName(deviceName: string): string {
+		const translationKey =
+			VACUUM_CONSTANTS.consumableTranslationKeys[deviceName as keyof typeof VACUUM_CONSTANTS.consumableTranslationKeys];
+		return translationKey
+			? this.deps.adapter.translationManager.get(translationKey, deviceName)
+			: deviceName;
+	}
+
+	private getConsumableLifeSpanHours(deviceName: string): number {
+		switch (deviceName) {
+			case "main_brush": return 300;
+			case "side_brush": return 200;
+			case "filter": return 150;
+			case "sensor": return 30;
+			default: return 0;
+		}
+	}
+
+	private normalizeQ10ShadowConsumableHours(deviceName: string, value: unknown): number | undefined {
+		const numericValue = Number(value);
+		if (!Number.isFinite(numericValue)) return undefined;
+
+		const maxHours = this.getConsumableLifeSpanHours(deviceName);
+		if (numericValue <= 100) {
+			// Q10 shadow snapshots seem to ship already-condensed remaining-life values.
+			return Math.max(0, Math.round(numericValue));
+		}
+
+		if (maxHours > 0) {
+			const remainingHours = Math.round((maxHours * 3600 - numericValue) / 3600);
+			return Math.max(0, remainingHours);
+		}
+
+		return Math.max(0, Math.round(numericValue));
 	}
 
 	public async applyQ10StatusFromDpResult(dpResult: Record<string, unknown>): Promise<void> {

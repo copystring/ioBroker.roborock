@@ -629,6 +629,12 @@ export class Roborock extends utils.Adapter {
 
 	/** Timestamp keys we format as readable date string; all other keys passed through as-is. */
 	private static readonly DEVICE_INFO_DATE_KEYS = ["activeTime", "active_time", "createTime", "create_time"];
+	private static readonly DEVICE_INFO_NAME_OVERRIDES: Record<string, string> = {
+		activeTime: "Last Activity",
+		active_time: "Last Activity",
+		createTime: "Created At",
+		create_time: "Created At"
+	};
 
 	/**
 	 * Updates deviceInfo from cloud HomeData: all top-level device fields are written to
@@ -646,6 +652,9 @@ export class Roborock extends utils.Adapter {
 			}
 			const common: Partial<ioBroker.StateCommon> = {};
 			let finalValue: ioBroker.StateValue = value;
+			if (Roborock.DEVICE_INFO_NAME_OVERRIDES[attr]) {
+				common.name = Roborock.DEVICE_INFO_NAME_OVERRIDES[attr];
+			}
 			if (Roborock.DEVICE_INFO_DATE_KEYS.includes(attr) && typeof value === "number") {
 				finalValue = this.formatRoborockDate(value);
 				common.type = "string";
