@@ -63,6 +63,14 @@ export class Q10DpDispatcher {
 			}
 		}
 
+		const mapMetaPayload = commonDps?.["64"];
+		if (mapMetaPayload && typeof mapMetaPayload === "object" && !Array.isArray(mapMetaPayload)) {
+			const dp64 = mapMetaPayload as Record<string, unknown>;
+			if (Array.isArray(dp64.data)) {
+				summaryParts.push(`map_meta:${dp64.data.length}`);
+			}
+		}
+
 		const carpetPayload = commonDps?.["65"];
 		if (carpetPayload && typeof carpetPayload === "object" && !Array.isArray(carpetPayload)) {
 			const dp65 = carpetPayload as Record<string, unknown>;
@@ -95,7 +103,7 @@ export class Q10DpDispatcher {
 		const knownTopLevelKeys = new Set(["101", "121", "122", "123", "124", "125", "126", "127", "136", "137", "138", "139", "141", "142"]);
 		const knownCommonKeys = new Set([
 			"6", "7", "25", "26", "29", "30", "31", "32", "33", "36", "37", "40", "45", "47", "50", "51", "52", "53",
-			"60", "61", "65", "67", "76", "78", "79", "81", "83", "86", "87", "88", "90", "92", "93", "96", "104",
+			"60", "61", "64", "65", "67", "76", "78", "79", "81", "83", "86", "87", "88", "90", "92", "93", "96", "104",
 			"105", "106", "108", "109", "207"
 		]);
 		const unknownTopLevelKeys = Object.keys(dpsRoot).filter((key) => !knownTopLevelKeys.has(key));

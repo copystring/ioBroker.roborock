@@ -299,7 +299,7 @@ export class Q10VacuumFeatures extends B01BaseVacuumFeatures {
 		this.commands = {};
 		this.addQ10SourceVerifiedCommands();
 		const cmds = Object.keys(this.commands);
-		this.deps.adapter.rLog("System", this.duid, "Info", "B01", undefined, `Q10 source-verified commands in memory: ${cmds.join(", ")}`, "info");
+		this.deps.adapter.rLog("System", this.duid, "Info", "B01", undefined, `Q10 commands in memory: ${cmds.join(", ")}`, "info");
 	}
 
 	public override async initializeDeviceData(): Promise<void> {
@@ -388,6 +388,10 @@ export class Q10VacuumFeatures extends B01BaseVacuumFeatures {
 
 	public async applyQ10CleanRecordList(dp52: Record<string, unknown>): Promise<void> {
 		await this.q10CleanRecordService.applyQ10CleanRecordList(dp52);
+	}
+
+	public async applyQ10LiveMapPayload(payload: Buffer): Promise<void> {
+		await this.mapService.applyLiveMapPayload(payload);
 	}
 
 	public async applyQ10MultiMapListFromDp61(dp61: Record<string, unknown>): Promise<void> {

@@ -5,6 +5,7 @@
  */
 import type { B01MapData, B01Area, B01Carpet, B01EntityPosition, B01PathPoint, B01Point } from "../b01/types";
 import type { Q10DevicePoint, Q10SourceArea, Q10SourceData, Q10SourcePathPoint, Q10SourceRoom } from "./types";
+import { sanitizeQ10SourceOverlayAreas } from "./Q10OverlaySanitizer";
 
 const Q10_HEADER_LEN = 28;
 
@@ -645,6 +646,24 @@ function tryDecodeCandidate(buf: Buffer, hdr: Q10Header): B01MapData | null {
 		}
 	}
 
+	result.q10RawOverlayCounts = {
+		virtualWalls: q10SourceData.virtualWalls.length,
+		forbidAreas: q10SourceData.forbidAreas.length,
+		mopAreas: q10SourceData.mopAreas.length,
+		thresholdAreas: q10SourceData.thresholdAreas.length,
+		eraseAreas: q10SourceData.eraseAreas.length,
+		carpetAreas: q10SourceData.carpetAreas.length
+	};
+
+	const sanitizedSource = sanitizeQ10SourceOverlayAreas(result.header, q10SourceData);
+	result.q10SourceData = sanitizedSource;
+
+	const overlayFields = rebuildQ10OverlayFields(result, sanitizedSource);
+	result.virtualWalls = overlayFields.virtualWalls;
+	result.areasInfo = overlayFields.areasInfo;
+	result.recmForbitZone = overlayFields.recmForbitZone;
+	result.carpetInfo = overlayFields.carpetInfo;
+
 	return result;
 }
 
@@ -960,10 +979,6 @@ export function mergeQ10PersistentState(current: B01MapData, previous?: B01MapDa
 		...currentSource
 	};
 
-	if (!nextSource.pathPoints.length && previousSource.pathPoints.length) {
-		nextSource.pathPoints = previousSource.pathPoints.map((point) => clonePathPoint(point));
-		changed = true;
-	}
 	if (!nextSource.virtualWalls.length && previousSource.virtualWalls.length) {
 		nextSource.virtualWalls = previousSource.virtualWalls.map((area) => cloneSourceArea(area));
 		changed = true;
@@ -993,10 +1008,12 @@ export function mergeQ10PersistentState(current: B01MapData, previous?: B01MapDa
 		changed = true;
 	}
 
+	const sanitizedSource = sanitizeQ10SourceOverlayAreas(current.header, nextSource);
+	if (sanitizedSource !== nextSource) changed = true;
 	if (!changed) return current;
 
-	const overlayFields = rebuildQ10OverlayFields(current, nextSource);
-	const pathState = nextSource.pathPoints.length ? buildQ10PathState(current, nextSource.pathPoints) : null;
+	const overlayFields = rebuildQ10OverlayFields(current, sanitizedSource);
+	const pathState = sanitizedSource.pathPoints.length ? buildQ10PathState(current, sanitizedSource.pathPoints) : null;
 
 	return {
 		...current,
@@ -1007,8 +1024,8 @@ export function mergeQ10PersistentState(current: B01MapData, previous?: B01MapDa
 		recmForbitZone: overlayFields.recmForbitZone,
 		carpetInfo: overlayFields.carpetInfo,
 		q10SourceData: {
-			...nextSource,
-			robotPosition: pathState?.robotPosition ?? nextSource.robotPosition
+			...sanitizedSource,
+			robotPosition: pathState?.robotPosition ?? sanitizedSource.robotPosition
 		}
 	};
 }

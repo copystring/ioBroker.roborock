@@ -2,7 +2,7 @@ import * as d3 from "d3";
 import { localCoordsToRobotCoords, robotCoordsToLocalCoords } from "../common/coordTransformation";
 import { drawMapV1 } from "../common/mapDrawing/drawMapV1";
 import { IMG_CHARGER, IMG_GO_TO_PIN, IMG_ROBOT_ORIGINAL } from "../common/images";
-import type { DrawObstacleInput, DrawRoomLabelInput } from "../common/mapDrawing/types";
+import type { DrawObstacleInput, DrawRoomLabelInput, DrawVirtualWallInput } from "../common/mapDrawing/types";
 import type { B01MapData } from "../lib/map/b01/types";
 import { Q10MapGeometry } from "../lib/map/q10/Q10MapGeometry";
 import { Connection } from "./conn.js";
@@ -749,6 +749,7 @@ class MapApplication {
 		this.zonesOverlayGroup.selectAll("*").remove();
 		this.obstacleGroup.selectAll("*").remove();
 		this.roomNameGroup.selectAll("*").remove();
+		this.drawZones();
 
 		const modelFolder =
 			this.model ||
@@ -760,6 +761,25 @@ class MapApplication {
 			obstacleRadius: 0,
 			obstacleImageSize: geometry.imgRateLength(6)
 		});
+
+		const virtualWalls: DrawVirtualWallInput[] = creator.virtualWalls
+			.filter((wall) => wall.points.length >= 2)
+			.map((wall) => {
+				const start = geometry.mapPoint(wall.points[0]!);
+				const end = geometry.mapPoint(wall.points[1]!);
+				return {
+					x1: start.x,
+					y1: start.y,
+					x2: end.x,
+					y2: end.y,
+					stroke: "rgba(255, 69, 58, 1)",
+					lineWidth: Math.max(2, geometry.layoutLength(2))
+				};
+			});
+
+		if (virtualWalls.length) {
+			renderer.drawRestrictedZones([], virtualWalls);
+		}
 
 		if (creator.chargerPixel) {
 			const chargerPoint = geometry.mapPoint(creator.chargerPixel);
@@ -967,7 +987,7 @@ class MapApplication {
 				this.deleteButton.disabled = false;
 			})
 			.on("drag", (event: any, d: Rect) => {
-				if (!this.mapImage) return;
+				if (!this.hasDrawableMapBounds()) return;
 				const minBoundX = this.mapMinX,
 					minBoundY = this.mapMinY,
 					maxBoundX = this.mapMinX + this.mapSizeX,
@@ -995,7 +1015,7 @@ class MapApplication {
 				if (element) d3.select(element).raise();
 			})
 			.on("drag", (event: any, d: Rect) => {
-				if (!this.mapImage) return;
+				if (!this.hasDrawableMapBounds()) return;
 				const maxBoundX = this.mapMinX + this.mapSizeX,
 					maxBoundY = this.mapMinY + this.mapSizeY;
 				let newWidth = Math.max(d.width + event.dx, 20);
@@ -1124,21 +1144,54 @@ class MapApplication {
 	}
 
 	private getMapParams(): MapParams | null {
-		if (!this.mapImage || !this.mapImage.dimensions || this.mapMaxY === undefined) {
-			return null;
+		if (this.mapImage?.dimensions) {
+			// coordTransformation expects imageWidth/imageHeight in display pixels (grid × VISUAL_BLOCK_SIZE)
+			// mapData stores grid dimensions (unscaled); carpet uses them as grid, paths/robot/obstacles need display size here
+			const imageWidth = this.mapImage.dimensions.width * VISUAL_BLOCK_SIZE;
+			const imageHeight = this.mapImage.dimensions.height * VISUAL_BLOCK_SIZE;
+			return {
+				scaleFactor: VISUAL_BLOCK_SIZE,
+				left: this.mapImage.position.left,
+				topMap: this.mapImage.position.top,
+				mapMaxY: this.mapMaxY,
+				imageHeight,
+				imageWidth,
+			};
 		}
-		// coordTransformation expects imageWidth/imageHeight in display pixels (grid × VISUAL_BLOCK_SIZE)
-		// mapData stores grid dimensions (unscaled); carpet uses them as grid, paths/robot/obstacles need display size here
-		const imageWidth = this.mapImage.dimensions.width * VISUAL_BLOCK_SIZE;
-		const imageHeight = this.mapImage.dimensions.height * VISUAL_BLOCK_SIZE;
-		return {
-			scaleFactor: VISUAL_BLOCK_SIZE,
-			left: this.mapImage.position.left,
-			topMap: this.mapImage.position.top,
-			mapMaxY: this.mapMaxY,
-			imageHeight,
-			imageWidth,
-		};
+
+		if (this.map && isQ10MapData(this.map)) {
+			const { header } = this.map;
+			if (
+				!Number.isFinite(header.minX) ||
+				!Number.isFinite(header.minY) ||
+				!Number.isFinite(header.sizeX) ||
+				!Number.isFinite(header.sizeY) ||
+				!Number.isFinite(header.resolution) ||
+				header.resolution <= 0
+			) {
+				return null;
+			}
+
+			return {
+				scaleFactor: VISUAL_BLOCK_SIZE,
+				left: header.minX / header.resolution,
+				topMap: header.minY / header.resolution,
+				mapMaxY: this.mapMaxY,
+				imageHeight: header.sizeY * VISUAL_BLOCK_SIZE,
+				imageWidth: header.sizeX * VISUAL_BLOCK_SIZE,
+			};
+		}
+
+		return null;
+	}
+
+	private hasDrawableMapBounds(): boolean {
+		return Number.isFinite(this.mapMinX)
+			&& Number.isFinite(this.mapMinY)
+			&& Number.isFinite(this.mapSizeX)
+			&& Number.isFinite(this.mapSizeY)
+			&& this.mapSizeX > 0
+			&& this.mapSizeY > 0;
 	}
 
 	private screenToWorldCoords(x: number, y: number): Point {

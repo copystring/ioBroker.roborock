@@ -67,6 +67,10 @@ export class B01MapService {
 		}
 	}
 
+	public async applyLiveMapPayload(data: Buffer): Promise<void> {
+		await this.processUpdateMapResponse(data);
+	}
+
 	protected async processUpdateMapResponse(data: Buffer): Promise<void> {
 		if (!B01MapService.isLiveMapPayload(data)) return;
 		const serial = this.getDeviceSerial();
@@ -132,7 +136,7 @@ export class B01MapService {
 					"Debug",
 					"B01",
 					301,
-					`[Q10Map] packet=${mapData.q10RuntimeDebug.packetKind}/${mapData.q10RuntimeDebug.payloadShape} rooms=${mapData.q10RuntimeDebug.rooms} history=${mapData.q10RuntimeDebug.historyPoints} paths=${mapData.q10RuntimeDebug.pathPoints} walls=${mapData.q10RuntimeDebug.virtualWalls} obstacles=${mapData.q10RuntimeDebug.obstacles} skip=${mapData.q10RuntimeDebug.skipPoints} suspected=${mapData.q10RuntimeDebug.suspectedPoints} robot=${mapData.q10RuntimeDebug.robotPresent ? 1 : 0} charger=${mapData.q10RuntimeDebug.chargerPresent ? 1 : 0}`,
+					`[Q10Map] packet=${mapData.q10RuntimeDebug.packetKind}/${mapData.q10RuntimeDebug.payloadShape} seed=${mapData.q10RuntimeDebug.overlaySeedSource} rawWalls=${mapData.q10RuntimeDebug.rawVirtualWalls} rawForbid=${mapData.q10RuntimeDebug.rawForbidAreas} srcWalls=${mapData.q10RuntimeDebug.sourceVirtualWalls} srcForbid=${mapData.q10RuntimeDebug.sourceForbidAreas} walls=${mapData.q10RuntimeDebug.virtualWalls} forbid=${mapData.q10RuntimeDebug.forbidAreas} rooms=${mapData.q10RuntimeDebug.rooms} history=${mapData.q10RuntimeDebug.historyPoints} paths=${mapData.q10RuntimeDebug.pathPoints} obstacles=${mapData.q10RuntimeDebug.obstacles} skip=${mapData.q10RuntimeDebug.skipPoints} suspected=${mapData.q10RuntimeDebug.suspectedPoints} robot=${mapData.q10RuntimeDebug.robotPresent ? 1 : 0} charger=${mapData.q10RuntimeDebug.chargerPresent ? 1 : 0}`,
 					"debug"
 				);
 			}

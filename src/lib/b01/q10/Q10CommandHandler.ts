@@ -1,10 +1,46 @@
 import type { BaseDeviceFeatures } from "../../features/baseDeviceFeatures";
 import type { requestsHandler } from "../../requestsHandler";
 
-type Q10CommandFeatureHandler = Pick<BaseDeviceFeatures, "updateMap">;
+type Q10CommandFeatureHandler = Pick<BaseDeviceFeatures, "updateMap" | "getCommandParams">;
+
+const Q10_GENERIC_CONTROL_COMMANDS = new Set([
+	"app_start",
+	"app_stop",
+	"app_pause",
+	"app_charge"
+]);
 
 export class Q10CommandHandler {
 	constructor(private readonly requestHandler: requestsHandler) {}
+
+	private async forwardToGenericB01Control(
+		handler: Q10CommandFeatureHandler,
+		duid: string,
+		method: string,
+		params?: unknown
+	): Promise<void> {
+		const intercepted = await handler.getCommandParams(method, params);
+		let finalMethod = method;
+		let finalParams = intercepted;
+
+		if (typeof intercepted === "object" && intercepted !== null && "method" in intercepted && "params" in intercepted) {
+			finalMethod = String((intercepted as { method: unknown }).method);
+			finalParams = (intercepted as { params: unknown }).params;
+		}
+
+		this.requestHandler.adapter.rLog(
+			"System",
+			duid,
+			"Debug",
+			"B01",
+			undefined,
+			`Q10 command ${method}: using generic B01 control path (${finalMethod})`,
+			"debug"
+		);
+
+		const requestPromise = this.requestHandler.sendRequest(duid, finalMethod, finalParams, { priority: 1 });
+		this.requestHandler._processResult(requestPromise, async () => {}, `command-${method}-${duid}`, duid);
+	}
 
 	public async handleCommand(
 		handler: Q10CommandFeatureHandler,
@@ -17,22 +53,17 @@ export class Q10CommandHandler {
 			return;
 		}
 
+		// The Q10 accepts DP writes for settings, but the basic control buttons still
+		// behave correctly only through the established generic B01 control RPC path.
+		if (Q10_GENERIC_CONTROL_COMMANDS.has(method)) {
+			await this.forwardToGenericB01Control(handler, duid, method, params);
+			return;
+		}
+
 		const scalarParam = Array.isArray(params) ? params[0] : params;
 		let dps: Record<string, unknown> | null = null;
 
 		switch (method) {
-			case "app_start":
-				dps = { "201": { cmd: 1 } };
-				break;
-			case "app_charge":
-				dps = { "202": 5 };
-				break;
-			case "app_pause":
-				dps = { "204": 0 };
-				break;
-			case "app_stop":
-				dps = { "206": 0 };
-				break;
 			case "wind":
 			case "fan_power":
 				if (typeof scalarParam !== "number" || !Number.isFinite(scalarParam)) {

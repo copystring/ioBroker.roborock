@@ -108,6 +108,21 @@ export class Q10CleanRecordService {
 		}
 	}
 
+	private formatQ10StoredMapOverlaySummary(mapData: unknown): string {
+		if (!mapData || typeof mapData !== "object" || Array.isArray(mapData)) return "";
+
+		const mapDataRecord = mapData as Record<string, unknown>;
+		const runtimeDebug =
+			mapDataRecord.q10RuntimeDebug &&
+			typeof mapDataRecord.q10RuntimeDebug === "object" &&
+			!Array.isArray(mapDataRecord.q10RuntimeDebug)
+				? mapDataRecord.q10RuntimeDebug as Record<string, unknown>
+				: null;
+		if (!runtimeDebug) return "";
+
+		return ` | seed=${String(runtimeDebug.overlaySeedSource ?? "none")} rawWalls=${Number(runtimeDebug.rawVirtualWalls ?? 0)} rawForbid=${Number(runtimeDebug.rawForbidAreas ?? 0)} srcWalls=${Number(runtimeDebug.sourceVirtualWalls ?? 0)} srcForbid=${Number(runtimeDebug.sourceForbidAreas ?? 0)} walls=${Number(runtimeDebug.virtualWalls ?? 0)} forbid=${Number(runtimeDebug.forbidAreas ?? 0)}`;
+	}
+
 	private async finishQ10CleanRecordMapRequest(recordId: string, success: boolean): Promise<void> {
 		if (this.q10ActiveRecordMapRequest?.recordId !== recordId) {
 			return;
@@ -276,7 +291,15 @@ export class Q10CleanRecordService {
 			if (!mapRes?.mapBase64) return true;
 
 			await this.ensureQ10RecordMapStates(index, mapRes);
-			this.deps.adapter.rLog("MapManager", this.duid, "Debug", "B01", 52, `Q10 clean record map stored for record ${recordId} at index ${index}`, "debug");
+			this.deps.adapter.rLog(
+				"MapManager",
+				this.duid,
+				"Debug",
+				"B01",
+				52,
+				`Q10 clean record map stored for record ${recordId} at index ${index}${this.formatQ10StoredMapOverlaySummary(mapRes.mapData)}`,
+				"debug"
+			);
 			await this.finishQ10CleanRecordMapRequest(recordId, true);
 			return true;
 		} catch {

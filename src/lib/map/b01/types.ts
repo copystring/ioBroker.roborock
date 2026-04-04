@@ -34,9 +34,32 @@ export interface Q10VerificationSummary {
 	presentUnverifiedFeatures: Q10VerificationFeature[];
 }
 
+export interface Q10OverlayCounts {
+	virtualWalls: number;
+	forbidAreas: number;
+	mopAreas: number;
+	thresholdAreas: number;
+	eraseAreas: number;
+	carpetAreas: number;
+}
+
 export interface Q10RuntimeDebugSummary {
 	packetKind: "full" | "path-only";
 	payloadShape: "map" | "blob";
+	overlaySeedSource: "inline" | "runtime-cache" | "persisted-state" | "none";
+	overlaySeedHydrated: boolean;
+	rawVirtualWalls: number;
+	rawForbidAreas: number;
+	rawMopAreas: number;
+	rawThresholdAreas: number;
+	rawEraseAreas: number;
+	rawCarpetAreas: number;
+	sourceVirtualWalls: number;
+	sourceForbidAreas: number;
+	sourceMopAreas: number;
+	sourceThresholdAreas: number;
+	sourceEraseAreas: number;
+	sourceCarpetAreas: number;
 	pathPoints: number;
 	historyPoints: number;
 	virtualWalls: number;
@@ -151,6 +174,7 @@ export interface B01MapData {
     q10CreatorData?: Q10CreatorData;
     q10Verification?: Q10VerificationSummary;
     q10RuntimeDebug?: Q10RuntimeDebugSummary;
+    q10RawOverlayCounts?: Q10OverlayCounts;
 }
 
 export interface B01DeviceStatus {

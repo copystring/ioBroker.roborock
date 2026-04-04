@@ -602,7 +602,12 @@ export class mqtt_api {
 				if (await this.q10DpDispatcher.tryHandleCleanRecordBlob(duid, result.payload)) {
 					return;
 				}
-				this.resolveAndSendB01Map(duid, result.payload, data.protocol);
+				if (this.resolveAndSendB01Map(duid, result.payload, data.protocol)) {
+					return;
+				}
+				if (await this.tryHandleUnsolicitedQ10LiveMap(duid, result.payload)) {
+					return;
+				}
 				return;
 			}
 			if (result.type === "map_chunk_buffered") return;
@@ -618,9 +623,11 @@ export class mqtt_api {
 	}
 
 	/** Resolves decrypted B01 map to pending request (301 logic: taskBeginDate/classify) and sends payload; no-op if no match. */
-	private resolveAndSendB01Map(duid: string, mapBuf: Buffer, protocol: number): void {
+	private resolveAndSendB01Map(duid: string, mapBuf: Buffer, protocol: number): boolean {
 		const foundId = this.resolveB01Map301ToPendingId(duid, mapBuf);
+		if (foundId === -1) return false;
 		this.resolvePendingMapIfFound(foundId, mapBuf, protocol, duid);
+		return true;
 	}
 
 	/** Sends map payload to pending request when foundId is valid; no-op otherwise. */
@@ -628,6 +635,24 @@ export class mqtt_api {
 		if (foundId !== -1) {
 			this.adapter.requestsHandler.resolvePendingRequest(foundId, mapBuf, protocol, duid, "MQTT", "B01");
 		}
+	}
+
+	private async tryHandleUnsolicitedQ10LiveMap(duid: string, payloadBuf: Buffer): Promise<boolean> {
+		const payloadClassification = classifyB01MapPayload(payloadBuf);
+		if (payloadClassification.variant !== "q10" || payloadClassification.kind !== "live") {
+			return false;
+		}
+
+		const b01Variant = await this.adapter.getB01Variant(duid).catch(() => null);
+		if (b01Variant !== "Q10") return false;
+
+		const handler = this.adapter.deviceFeatureHandlers.get(duid) as {
+			applyQ10LiveMapPayload?: (payload: Buffer) => Promise<void>;
+		} | undefined;
+		if (typeof handler?.applyQ10LiveMapPayload !== "function") return false;
+
+		await handler.applyQ10LiveMapPayload(payloadBuf);
+		return true;
 	}
 
 	/** Single 301 frame (no chunk assembler): envelope, JSON error log, then decrypt and resolve if B01 map. */
@@ -638,12 +663,26 @@ export class mqtt_api {
 			this.logIf301IsCloudError(duid, payloadBuf);
 			return;
 		}
+		const liveClassification = classifyB01MapPayload(payloadBuf);
+		if (liveClassification.kind === "live") {
+			const foundId = this.resolveB01Map301ToPendingId(duid, payloadBuf);
+			if (foundId !== -1) {
+				this.resolvePendingMapIfFound(foundId, payloadBuf, data.protocol, duid);
+				return;
+			}
+			if (await this.tryHandleUnsolicitedQ10LiveMap(duid, payloadBuf)) {
+				return;
+			}
+		}
 		const hasB01Signature =
 			(payloadBuf.length >= 3 && payloadBuf.toString("ascii", 0, 3) === "B01") ||
 			(payloadBuf.length >= 8 && payloadBuf.subarray(0, 8).toString("ascii") === "ROBOROCK");
 		if (!hasB01Signature) return;
 		const workingBuf = this.getB01MapBuffer(duid, payloadBuf);
-		if (workingBuf?.length > 0) this.resolveAndSendB01Map(duid, workingBuf, data.protocol);
+		if (workingBuf?.length > 0) {
+			if (this.resolveAndSendB01Map(duid, workingBuf, data.protocol)) return;
+			await this.tryHandleUnsolicitedQ10LiveMap(duid, workingBuf);
+		}
 	}
 
 	/**

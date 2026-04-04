@@ -1,6 +1,7 @@
 import type { B01DeviceStatus, B01MapData } from "../b01/types";
 import { isB01DockAnchoredState } from "../b01/B01StateSemantics";
 import { normalizeRoborockRoomDisplayName } from "../../roomNameNormalizer";
+import { sanitizeQ10SourceOverlayAreas } from "./Q10OverlaySanitizer";
 import { buildQ10Verification } from "./Q10Verification";
 import type {
 	Q10CreatorArea,
@@ -68,7 +69,14 @@ function rotateVector(x: number, y: number, degrees: number): { x: number; y: nu
 }
 
 function shouldAnchorRobotToDock(deviceStatus?: B01DeviceStatus): boolean {
-	return isB01DockAnchoredState(deviceStatus?.deviceState);
+	const stateCode = deviceStatus?.deviceState;
+	if (isB01DockAnchoredState(stateCode)) return true;
+
+	// Q10 shadow snapshots have been observed to report state 10 while the
+	// live map still omits the robot pose and only exposes the dock pose.
+	// Keep the dock-adjacent fallback for that state so the robot remains
+	// visible in the rendered map instead of disappearing entirely.
+	return stateCode === 10;
 }
 
 function mapArrPointToPixel(point: Q10MapArrPoint): Q10MapPixelPoint {
@@ -916,9 +924,10 @@ export class Q10MapCreator {
 			throw new Error("Q10 source data missing. Refusing synthetic creator fallback.");
 		}
 
-		const roomModels = buildRoomModels(mapData, source, () => this.getDefaultRoomName());
-		const clipEraseMapGrid = buildClipEraseMapGrid(mapData, source);
-		const clipEraseRoomModels = clipEraseMapGrid ? buildRoomModels(mapData, source, () => this.getDefaultRoomName(), clipEraseMapGrid) : [];
+		const sanitizedSource = sanitizeQ10SourceOverlayAreas(mapData.header, source);
+		const roomModels = buildRoomModels(mapData, sanitizedSource, () => this.getDefaultRoomName());
+		const clipEraseMapGrid = buildClipEraseMapGrid(mapData, sanitizedSource);
+		const clipEraseRoomModels = clipEraseMapGrid ? buildRoomModels(mapData, sanitizedSource, () => this.getDefaultRoomName(), clipEraseMapGrid) : [];
 		const roomTangentInfo = buildRoomTangentInfo(mapData.mapGrid, mapData.header.sizeX, mapData.header.sizeY);
 		const clipEraseRoomTangentInfo = clipEraseMapGrid
 			? buildRoomTangentInfo(clipEraseMapGrid, mapData.header.sizeX, mapData.header.sizeY)
@@ -933,7 +942,7 @@ export class Q10MapCreator {
 		};
 
 		const nextSource: Q10SourceData = {
-			...source
+			...sanitizedSource
 		};
 
 		const q10CreatorData: Q10CreatorData = {
