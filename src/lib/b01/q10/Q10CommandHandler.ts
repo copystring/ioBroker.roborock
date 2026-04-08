@@ -13,20 +13,13 @@ const Q10_GENERIC_CONTROL_COMMANDS = new Set([
 export class Q10CommandHandler {
 	constructor(private readonly requestHandler: requestsHandler) {}
 
-	private async forwardToGenericB01Control(
-		handler: Q10CommandFeatureHandler,
+	private async forwardToNativeB01Control(
+		_handler: Q10CommandFeatureHandler,
 		duid: string,
 		method: string,
 		params?: unknown
 	): Promise<void> {
-		const intercepted = await handler.getCommandParams(method, params);
-		let finalMethod = method;
-		let finalParams = intercepted;
-
-		if (typeof intercepted === "object" && intercepted !== null && "method" in intercepted && "params" in intercepted) {
-			finalMethod = String((intercepted as { method: unknown }).method);
-			finalParams = (intercepted as { params: unknown }).params;
-		}
+		const finalParams = Array.isArray(params) ? params : [];
 
 		this.requestHandler.adapter.rLog(
 			"System",
@@ -34,11 +27,11 @@ export class Q10CommandHandler {
 			"Debug",
 			"B01",
 			undefined,
-			`Q10 command ${method}: using generic B01 control path (${finalMethod})`,
+			`Q10 command ${method}: using native B01 app command path`,
 			"debug"
 		);
 
-		const requestPromise = this.requestHandler.sendRequest(duid, finalMethod, finalParams, { priority: 1 });
+		const requestPromise = this.requestHandler.sendRequest(duid, method, finalParams, { priority: 1 });
 		this.requestHandler._processResult(requestPromise, async () => {}, `command-${method}-${duid}`, duid);
 	}
 
@@ -53,10 +46,10 @@ export class Q10CommandHandler {
 			return;
 		}
 
-		// The Q10 accepts DP writes for settings, but the basic control buttons still
-		// behave correctly only through the established generic B01 control RPC path.
+		// Q10 basic control buttons use the native app_* transport path. The generic
+		// B01 service.set_room_clean/start_recharge RPC path times out on real devices.
 		if (Q10_GENERIC_CONTROL_COMMANDS.has(method)) {
-			await this.forwardToGenericB01Control(handler, duid, method, params);
+			await this.forwardToNativeB01Control(handler, duid, method, params);
 			return;
 		}
 

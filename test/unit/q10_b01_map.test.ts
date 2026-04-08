@@ -371,7 +371,7 @@ describe("Q10 B01 Map Support", () => {
 		expect(harness.adapter.mapManager.processMap).not.toHaveBeenCalled();
 	});
 
-	it("should route Q10 control commands through the generic B01 control path and keep DP writes for verified settings", async () => {
+	it("should route Q10 control commands through the native B01 app command path and keep DP writes for verified settings", async () => {
 		const reqHandler = createQ10RequestsHandlerHarness();
 		await harness.feature.setupProtocolFeatures();
 
@@ -380,20 +380,8 @@ describe("Q10 B01 Map Support", () => {
 		await reqHandler.command(harness.feature as any, Q10_DUID, "wind", 3);
 		await reqHandler.command(harness.feature as any, Q10_DUID, "clean_path_preference", 2);
 
-		expect(reqHandler.sendRequest).toHaveBeenNthCalledWith(
-			1,
-			Q10_DUID,
-			"service.set_room_clean",
-			{ clean_type: 0, ctrl_value: 1, room_ids: [] },
-			{ priority: 1 }
-		);
-		expect(reqHandler.sendRequest).toHaveBeenNthCalledWith(
-			2,
-			Q10_DUID,
-			"service.start_recharge",
-			{},
-			{ priority: 1 }
-		);
+		expect(reqHandler.sendRequest).toHaveBeenNthCalledWith(1, Q10_DUID, "app_start", [], { priority: 1 });
+		expect(reqHandler.sendRequest).toHaveBeenNthCalledWith(2, Q10_DUID, "app_charge", [], { priority: 1 });
 		expect(reqHandler.publishB01Dp).toHaveBeenNthCalledWith(1, Q10_DUID, { "123": 3 });
 		expect(reqHandler.publishB01Dp).toHaveBeenNthCalledWith(2, Q10_DUID, { "101": { "78": 2 } });
 	});
