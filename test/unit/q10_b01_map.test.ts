@@ -371,19 +371,24 @@ describe("Q10 B01 Map Support", () => {
 		expect(harness.adapter.mapManager.processMap).not.toHaveBeenCalled();
 	});
 
-	it("should route Q10 control commands through the native B01 app command path and keep DP writes for verified settings", async () => {
+	it("should route Q10 control commands through the source-verified Q10 DP path and keep DP writes for verified settings", async () => {
 		const reqHandler = createQ10RequestsHandlerHarness();
 		await harness.feature.setupProtocolFeatures();
 
 		await reqHandler.command(harness.feature as any, Q10_DUID, "app_start");
 		await reqHandler.command(harness.feature as any, Q10_DUID, "app_charge");
+		await reqHandler.command(harness.feature as any, Q10_DUID, "app_pause");
+		await reqHandler.command(harness.feature as any, Q10_DUID, "app_stop");
 		await reqHandler.command(harness.feature as any, Q10_DUID, "wind", 3);
 		await reqHandler.command(harness.feature as any, Q10_DUID, "clean_path_preference", 2);
 
-		expect(reqHandler.sendRequest).toHaveBeenNthCalledWith(1, Q10_DUID, "app_start", [], { priority: 1 });
-		expect(reqHandler.sendRequest).toHaveBeenNthCalledWith(2, Q10_DUID, "app_charge", [], { priority: 1 });
-		expect(reqHandler.publishB01Dp).toHaveBeenNthCalledWith(1, Q10_DUID, { "123": 3 });
-		expect(reqHandler.publishB01Dp).toHaveBeenNthCalledWith(2, Q10_DUID, { "101": { "78": 2 } });
+		expect(reqHandler.publishB01Dp).toHaveBeenNthCalledWith(1, Q10_DUID, { "201": { cmd: 1 } });
+		expect(reqHandler.publishB01Dp).toHaveBeenNthCalledWith(2, Q10_DUID, { "202": 5 });
+		expect(reqHandler.publishB01Dp).toHaveBeenNthCalledWith(3, Q10_DUID, { "204": 0 });
+		expect(reqHandler.publishB01Dp).toHaveBeenNthCalledWith(4, Q10_DUID, { "206": 0 });
+		expect(reqHandler.publishB01Dp).toHaveBeenNthCalledWith(5, Q10_DUID, { "123": 3 });
+		expect(reqHandler.publishB01Dp).toHaveBeenNthCalledWith(6, Q10_DUID, { "101": { "78": 2 } });
+		expect(reqHandler.sendRequest).not.toHaveBeenCalled();
 	});
 
 	it("should fail closed for unsupported Q10 commands instead of silently falling back to generic B01 logic", async () => {

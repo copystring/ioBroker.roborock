@@ -3,36 +3,33 @@ import type { requestsHandler } from "../../requestsHandler";
 
 type Q10CommandFeatureHandler = Pick<BaseDeviceFeatures, "updateMap" | "getCommandParams">;
 
-const Q10_GENERIC_CONTROL_COMMANDS = new Set([
-	"app_start",
-	"app_stop",
-	"app_pause",
-	"app_charge"
-]);
+const Q10_NATIVE_DP_COMMANDS: Record<string, Record<string, unknown>> = {
+	app_start: { "201": { cmd: 1 } },
+	app_pause: { "204": 0 },
+	app_stop: { "206": 0 },
+	app_charge: { "202": 5 }
+};
 
 export class Q10CommandHandler {
 	constructor(private readonly requestHandler: requestsHandler) {}
 
-	private async forwardToNativeB01Control(
-		_handler: Q10CommandFeatureHandler,
+	private async publishNativeQ10DpCommand(
 		duid: string,
 		method: string,
-		params?: unknown
+		dps: Record<string, unknown>
 	): Promise<void> {
-		const finalParams = Array.isArray(params) ? params : [];
-
 		this.requestHandler.adapter.rLog(
 			"System",
 			duid,
 			"Debug",
 			"B01",
 			undefined,
-			`Q10 command ${method}: using native B01 app command path`,
+			`Q10 command ${method}: using source-verified Q10 DP path`,
 			"debug"
 		);
 
-		const requestPromise = this.requestHandler.sendRequest(duid, method, finalParams, { priority: 1 });
-		this.requestHandler._processResult(requestPromise, async () => {}, `command-${method}-${duid}`, duid);
+		await this.requestHandler.publishB01Dp(duid, dps);
+		this.requestHandler._processResult(Promise.resolve(undefined), async () => {}, `command-${method}-${duid}`, duid);
 	}
 
 	public async handleCommand(
@@ -46,10 +43,11 @@ export class Q10CommandHandler {
 			return;
 		}
 
-		// Q10 basic control buttons use the native app_* transport path. The generic
-		// B01 service.set_room_clean/start_recharge RPC path times out on real devices.
-		if (Q10_GENERIC_CONTROL_COMMANDS.has(method)) {
-			await this.forwardToNativeB01Control(handler, duid, method, params);
+		// Android sniffs show the Q10 uses write-only DPs 201/202/204/206 for the
+		// basic control buttons. The older app_* RPC path times out on real devices.
+		const commandDps = Q10_NATIVE_DP_COMMANDS[method];
+		if (commandDps) {
+			await this.publishNativeQ10DpCommand(duid, method, commandDps);
 			return;
 		}
 
