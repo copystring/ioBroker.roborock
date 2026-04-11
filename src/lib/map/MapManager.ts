@@ -5,7 +5,8 @@ import { MapBuilder as MapBuilderB01 } from "./b01/MapBuilder";
 import { B01DeviceStatus, B01MapData, Q10RuntimeDebugSummary } from "./b01/types";
 import { Q10MapBuilder } from "./q10/Q10MapBuilder";
 import { Q10MapCreator } from "./q10/Q10MapCreator";
-import { applyQ10PathOnlyToB01, mergeQ10PersistentState } from "./q10/Q10YxMapParser";
+import { applyQ10PathOnlyToB01, applyQ10RuntimeStatePatch, mergeQ10RuntimeState } from "./q10/Q10YxMapParser";
+import type { Q10RuntimeStatePatch } from "./q10/types";
 import { MapBuilder as MapBuilderV1 } from "./v1/MapBuilder";
 import { MapDecryptor as MapDecryptorV1 } from "./v1/MapDecryptor";
 import { MapParser as MapParserV1 } from "./v1/MapParser";
@@ -19,7 +20,6 @@ export class MapManager {
 	private creatorQ10: Q10MapCreator;
 	private builderQ10: Q10MapBuilder;
 	private q10StateByDevice = new Map<string, B01MapData>();
-	private q10OverlaySeedByDevice = new Map<string, B01MapData>();
 	private latestB01DeviceStatusByDevice = new Map<string, Partial<B01DeviceStatus>>();
 
 	private static readonly NON_Q10_CLASSIFICATION: Q10PayloadClassification = {
@@ -155,23 +155,20 @@ export class MapManager {
 		const rawMapData = q10Payload.mapData ?? classification.mapData;
 		const rawOverlayCounts = rawMapData?.q10RawOverlayCounts ?? this.getQ10OverlayCounts(rawMapData);
 		const sourceOverlayCounts = this.getQ10OverlayCounts(rawMapData);
-		let overlaySeedSource: "inline" | "runtime-cache" | "persisted-state" | "none" =
+		let overlaySeedSource: "inline" | "runtime-cache" | "none" =
 			this.hasQ10OverlaySeed(rawMapData) ? "inline" : "none";
 
 		let mapData = rawMapData;
 		if (mapData) {
-			mapData = mergeQ10PersistentState(mapData, previous);
-			if (
-				overlaySeedSource === "none" &&
-				this.hasQ10OverlaySeed(mapData) &&
-				this.isCompatibleQ10OverlaySeed(rawMapData!, previous)
-			) {
-				overlaySeedSource = "runtime-cache";
-			}
-			const hydrated = await this.hydrateQ10OverlaySeed(mapData, duid, connectionType);
-			mapData = hydrated.mapData;
-			if (overlaySeedSource === "none") {
-				overlaySeedSource = hydrated.seedSource;
+			if (connectionType !== "B01History") {
+				mapData = mergeQ10RuntimeState(mapData, previous);
+				if (
+					overlaySeedSource === "none" &&
+					this.hasQ10OverlaySeed(mapData) &&
+					this.isCompatibleQ10OverlaySeed(rawMapData!, previous)
+				) {
+					overlaySeedSource = "runtime-cache";
+				}
 			}
 		} else {
 			const pathPoints = classification.pathPoints;
@@ -198,13 +195,46 @@ export class MapManager {
 		const mapBase64 = "data:image/png;base64," + rendered.full.toString("base64");
 		const mapBase64Clean = "data:image/png;base64," + rendered.clean.toString("base64");
 		this.q10StateByDevice.set(cacheKey, created);
-		if (duid) this.rememberQ10OverlaySeed(duid, created, connectionType);
 
 		return {
 			mapBase64,
 			mapBase64Clean,
 			mapData: created
 		};
+	}
+
+	public async applyQ10LiveStatePatch(duid: string, patch: Q10RuntimeStatePatch): Promise<boolean> {
+		if (!duid) return false;
+
+		const cacheKey = this.getQ10CacheKey(duid, "B01");
+		const current = this.q10StateByDevice.get(cacheKey);
+		if (!current?.q10SourceData) return false;
+
+		const patched = applyQ10RuntimeStatePatch(current, patch);
+		if (patched === current) return false;
+
+		const deviceStatus = await this.getDeviceStatusForB01(duid);
+		const robotModel = this.adapter.http_api?.getRobotModel(duid) || undefined;
+		const created = this.creatorQ10.create(patched, deviceStatus);
+		created.q10RuntimeDebug = this.buildQ10RuntimeDebugSummary(
+			created,
+			"full",
+			MapManager.NON_Q10_CLASSIFICATION,
+			current.q10RawOverlayCounts ?? this.getQ10OverlayCounts(current),
+			this.getQ10OverlayCounts(created),
+			current.q10RuntimeDebug?.overlaySeedSource ?? "none"
+		);
+
+		const rendered = await this.builderQ10.buildMaps(created, deviceStatus, robotModel);
+		const result = {
+			mapBase64: "data:image/png;base64," + rendered.full.toString("base64"),
+			mapBase64Clean: "data:image/png;base64," + rendered.clean.toString("base64"),
+			mapData: created
+		};
+
+		this.q10StateByDevice.set(cacheKey, created);
+		await this.saveGeneratedMap(duid, result);
+		return true;
 	}
 
 	private buildQ10RuntimeDebugSummary(
@@ -227,14 +257,14 @@ export class MapManager {
 			eraseAreas: number;
 			carpetAreas: number;
 		} = MapManager.EMPTY_Q10_OVERLAY_COUNTS,
-		overlaySeedSource: "inline" | "runtime-cache" | "persisted-state" | "none" = "none"
+		overlaySeedSource: "inline" | "runtime-cache" | "none" = "none"
 	): Q10RuntimeDebugSummary {
 		const verification = mapData.q10Verification;
 		return {
 			packetKind,
 			payloadShape: classification.payloadShape,
 			overlaySeedSource,
-			overlaySeedHydrated: overlaySeedSource === "runtime-cache" || overlaySeedSource === "persisted-state",
+			overlaySeedHydrated: overlaySeedSource === "runtime-cache",
 			rawVirtualWalls: rawOverlayCounts.virtualWalls,
 			rawForbidAreas: rawOverlayCounts.forbidAreas,
 			rawMopAreas: rawOverlayCounts.mopAreas,
@@ -336,89 +366,6 @@ export class MapManager {
 			Math.abs(currentHeader.maxY - candidateHeader.maxY) <= tolerance &&
 			Math.abs(currentHeader.resolution - candidateHeader.resolution) <= tolerance
 		);
-	}
-
-	private rememberQ10OverlaySeed(duid: string, mapData?: B01MapData | null, connectionType: string = "Unknown"): void {
-		if (!duid || !this.hasQ10OverlaySeed(mapData)) return;
-		this.q10OverlaySeedByDevice.set(this.getQ10CacheKey(duid, connectionType), mapData!);
-	}
-
-	private async readPersistedQ10MapState(stateId: string): Promise<B01MapData | null> {
-		const state = await this.adapter.getStateAsync(stateId);
-		if (typeof state?.val !== "string" || !state.val.trim()) return null;
-
-		try {
-			const parsed = JSON.parse(state.val);
-			if (!parsed || typeof parsed !== "object" || !("header" in parsed) || !("q10SourceData" in parsed)) {
-				return null;
-			}
-			return parsed as B01MapData;
-		} catch {
-			return null;
-		}
-	}
-
-	private async findPersistedQ10OverlaySeed(duid: string, current: B01MapData, connectionType: string): Promise<B01MapData | null> {
-		const stateIds =
-			connectionType === "B01History"
-				? [
-					`Devices.${duid}.map.mapData`,
-					...Array.from({ length: 25 }, (_, index) => `Devices.${duid}.cleaningInfo.records.${index}.map.mapData`)
-				]
-				: [
-					...Array.from({ length: 25 }, (_, index) => `Devices.${duid}.cleaningInfo.records.${index}.map.mapData`),
-					`Devices.${duid}.map.mapData`
-				];
-
-		let misses = 0;
-		for (const stateId of stateIds) {
-			const candidate = await this.readPersistedQ10MapState(stateId);
-			if (!candidate) {
-				misses++;
-				if (misses >= 5 && stateId.includes(".cleaningInfo.records.")) break;
-				continue;
-			}
-
-			misses = 0;
-			if (this.isCompatibleQ10OverlaySeed(current, candidate)) {
-				return candidate;
-			}
-		}
-
-		return null;
-	}
-
-	private async hydrateQ10OverlaySeed(
-		current: B01MapData,
-		duid?: string,
-		connectionType: string = "Unknown"
-	): Promise<{ mapData: B01MapData; seedSource: "runtime-cache" | "persisted-state" | "none" }> {
-		if (!duid) return { mapData: current, seedSource: "none" };
-		if (this.hasQ10OverlaySeed(current)) {
-			this.rememberQ10OverlaySeed(duid, current, connectionType);
-			return { mapData: current, seedSource: "none" };
-		}
-
-		const runtimeSeed = this.q10OverlaySeedByDevice.get(this.getQ10CacheKey(duid, connectionType));
-		if (this.isCompatibleQ10OverlaySeed(current, runtimeSeed)) {
-			const merged = mergeQ10PersistentState(current, runtimeSeed);
-			this.rememberQ10OverlaySeed(duid, merged, connectionType);
-			return { mapData: merged, seedSource: "runtime-cache" };
-		}
-
-		if (connectionType !== "B01History") {
-			return { mapData: current, seedSource: "none" };
-		}
-
-		const persistedSeed = await this.findPersistedQ10OverlaySeed(duid, current, connectionType);
-		if (persistedSeed) {
-			this.rememberQ10OverlaySeed(duid, persistedSeed, connectionType);
-			const merged = mergeQ10PersistentState(current, persistedSeed);
-			this.rememberQ10OverlaySeed(duid, merged, connectionType);
-			return { mapData: merged, seedSource: "persisted-state" };
-		}
-
-		return { mapData: current, seedSource: "none" };
 	}
 
 	public updateB01DeviceStatus(duid: string, status: Partial<B01DeviceStatus>): void {

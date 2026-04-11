@@ -11,8 +11,11 @@ import { MapParser } from "../../src/lib/map/b01/MapParser";
 import type { B01MapData } from "../../src/lib/map/b01/types";
 import { Q10MapBuilder } from "../../src/lib/map/q10/Q10MapBuilder";
 import { Q10MapCreator } from "../../src/lib/map/q10/Q10MapCreator";
-import { sanitizeQ10SourceOverlayAreas } from "../../src/lib/map/q10/Q10OverlaySanitizer";
-import { decompressQ10Lz4Block } from "../../src/lib/map/q10/Q10YxMapParser";
+import {
+	decompressQ10Lz4Block,
+	parseQ10VirtualWallDpPayload,
+	parseQ10YxMapToB01
+} from "../../src/lib/map/q10/Q10YxMapParser";
 import type { Q10SourceData } from "../../src/lib/map/q10/types";
 import { MockAdapter } from "../../src/lib/mock/MockAdapter";
 import { requestsHandler } from "../../src/lib/requestsHandler";
@@ -179,10 +182,11 @@ function createQ10FeatureHarness() {
 		sendRequest: vi.fn().mockResolvedValue(undefined),
 		publishB01Dp: vi.fn().mockResolvedValue(undefined)
 	};
-	(adapter as any).mapManager = {
-		processMap: vi.fn().mockResolvedValue(null),
-		updateB01DeviceStatus: vi.fn()
-	};
+		(adapter as any).mapManager = {
+			processMap: vi.fn().mockResolvedValue(null),
+			updateB01DeviceStatus: vi.fn(),
+			applyQ10LiveStatePatch: vi.fn().mockResolvedValue(false)
+		};
 
 	const deps = {
 		adapter,
@@ -256,7 +260,7 @@ describe("Q10 B01 Map Support", () => {
 		expect(harness.adapter.requestsHandler.publishB01Dp).toHaveBeenCalledWith(Q10_DUID, { "101": { "61": { op: "list" } } });
 	});
 
-	it("should initialize Q10 with one clean startup DP sequence instead of overlapping duplicate requests", async () => {
+	it("should initialize Q10 with the sniff-verified Q10 live-map priming burst", async () => {
 		vi.spyOn(harness.feature as any, "updateFirmwareFeatures").mockResolvedValue(undefined);
 		vi.spyOn(harness.feature as any, "updateExtraStatus").mockResolvedValue(undefined);
 
@@ -267,15 +271,22 @@ describe("Q10 B01 Map Support", () => {
 			[Q10_DUID, { "101": { "61": { op: "list" } } }],
 			[Q10_DUID, { "101": { "52": { op: "list" } } }],
 			[Q10_DUID, { "101": { "64": { op: "list" } } }],
-			[Q10_DUID, { "101": { "110": 1 } }],
-			[Q10_DUID, { "101": { "69": 0 } }]
+			[Q10_DUID, { "101": { "69": 0 } }],
+			[Q10_DUID, { "101": { "75": 0 } }],
+			[Q10_DUID, { "101": { "16": 1 } }],
+			[Q10_DUID, { "101": { "107": 0 } }],
+			[Q10_DUID, { "101": { "110": 1 } }]
 		]);
 	});
 
 	it("should keep live map refresh and clean record refresh separate for Q10", async () => {
 		await harness.feature.updateMap();
-		expect(harness.adapter.requestsHandler.publishB01Dp).toHaveBeenCalledTimes(1);
-		expect(harness.adapter.requestsHandler.publishB01Dp).toHaveBeenCalledWith(Q10_DUID, { "101": { "110": 1 } });
+		expect(harness.adapter.requestsHandler.publishB01Dp.mock.calls).toEqual([
+			[Q10_DUID, { "101": { "75": 0 } }],
+			[Q10_DUID, { "101": { "16": 1 } }],
+			[Q10_DUID, { "101": { "107": 0 } }],
+			[Q10_DUID, { "101": { "110": 1 } }]
+		]);
 
 		harness.adapter.requestsHandler.publishB01Dp.mockClear();
 
@@ -1188,240 +1199,54 @@ describe("Q10 B01 Map Support", () => {
 		expect(updated.q10SourceData?.robotPosition).toEqual({ x: 40, y: 30, phi: 90 });
 	});
 
-	it("should keep plausible Q10 virtual walls but drop absurd history forbid polygons", () => {
-		const header = {
-			sizeX: 123,
-			sizeY: 238,
-			minX: 0,
-			minY: 0,
-			maxX: 24.6,
-			maxY: 47.6,
-			resolution: 0.2
-		};
-		const source: Q10SourceData = {
-			version: 1,
-			mapId: 1,
-			mapWidth: 123,
-			mapHeight: 238,
-			mapRate: 5,
-			resolution: 0.2,
-			xMin: 0,
-			yMin: 47.6,
-			rooms: [],
-			eraseAreas: [],
-			virtualWalls: [
-				{
-					type: "virtualWall",
-					areaType: 1,
-					points: [{ x: 0, y: 0.2 }, { x: 0, y: 0 }]
-				}
-			],
-			forbidAreas: [
-				{
-					type: "forbid",
-					areaType: 0,
-					points: [
-						{ x: 51.2, y: -563.6 },
-						{ x: -230.5, y: 3250.8 },
-						{ x: -307.2, y: -614.8 },
-						{ x: -665.6, y: -589.4 }
-					]
-				}
-			],
-			mopAreas: [],
-			thresholdAreas: [],
-			carpetAreas: [],
-			pathPoints: [],
-			obstacles: [],
-			skipPoints: [],
-			suspectedPoints: [],
-			hasSelfIdentificationCarpet: false
-		};
+	it("should decode sniff-derived Q10 virtual wall dp payloads exactly", () => {
+		const walls = parseQ10VirtualWallDpPayload(Buffer.from("AgD7/PQA+Pr9APj89/93/Pg=", "base64"));
 
-	const sanitized = sanitizeQ10SourceOverlayAreas(header, source);
-
-	expect(sanitized.virtualWalls).toHaveLength(1);
-	expect(sanitized.forbidAreas).toHaveLength(0);
-	});
-
-	it("should keep Q10 virtual walls whose endpoints are outside the cropped map but whose span intersects it", () => {
-		const header = {
-			sizeX: 123,
-			sizeY: 238,
-			minX: 0,
-			minY: 0,
-			maxX: 24.6,
-			maxY: 47.6,
-			resolution: 0.2
-		};
-		const source: Q10SourceData = {
-			version: 1,
-			mapId: 1,
-			mapWidth: 123,
-			mapHeight: 238,
-			mapRate: 5,
-			resolution: 0.2,
-			xMin: 0,
-			yMin: 47.6,
-			rooms: [],
-			eraseAreas: [],
-			virtualWalls: [
-				{
-					type: "virtualWall",
-					areaType: 1,
-					points: [
-						{ x: -10, y: 27.6 },
-						{ x: 40, y: 27.6 }
-					]
-				}
-			],
-			forbidAreas: [],
-			mopAreas: [],
-			thresholdAreas: [],
-			carpetAreas: [],
-			pathPoints: [],
-			obstacles: [],
-			skipPoints: [],
-			suspectedPoints: [],
-			hasSelfIdentificationCarpet: false
-		};
-
-		const sanitized = sanitizeQ10SourceOverlayAreas(header, source);
-
-		expect(sanitized.virtualWalls).toHaveLength(1);
-	});
-
-	it("should keep blob-type-3 Q10 virtual walls that land inside map pixel space even when world bounds look out of range", () => {
-		const header = {
-			sizeX: 124,
-			sizeY: 238,
-			minX: 15.9,
-			minY: 28.2,
-			maxX: 22.1,
-			maxY: 40.1,
-			resolution: 0.05
-		};
-		const source: Q10SourceData = {
-			version: 1,
-			mapId: 1772902161,
-			mapWidth: 124,
-			mapHeight: 238,
-			mapRate: 20,
-			resolution: 0.05,
-			xMin: 15.9,
-			yMin: 40.1,
-			rooms: [],
-			eraseAreas: [],
-			virtualWalls: [
-				{
-					type: "virtualWall",
-					areaType: 1,
-					points: [
-						{ x: 23.3, y: -77.8 },
-						{ x: -13, y: -78 }
-					]
-				},
-				{
-					type: "virtualWall",
-					areaType: 1,
-					points: [
-						{ x: 23.1, y: -79.4 },
-						{ x: 23.2, y: -128.8 }
-					]
-				}
-			],
-			forbidAreas: [],
-			mopAreas: [],
-			thresholdAreas: [],
-			carpetAreas: [],
-			pathPoints: [],
-			obstacles: [],
-			skipPoints: [],
-			suspectedPoints: [],
-			hasSelfIdentificationCarpet: false
-		};
-
-		const sanitized = sanitizeQ10SourceOverlayAreas(header, source);
-
-		expect(sanitized.virtualWalls).toHaveLength(2);
-	});
-
-	it("should not hydrate missing Q10 live virtual walls from persisted history maps", async () => {
-		const adapter = createQ10MockAdapter({ duid: Q10_DUID, assetErrorMessage: "asset not found" }) as ReturnType<typeof createQ10MockAdapter> & {
-			getStateAsync: (id: string) => Promise<{ val: string } | null>;
-		};
-		const manager = new MapManager(adapter as any);
-
-		const live = createSyntheticQ10Map([], 100, 40, {
-			chargerPixel: { x: 20, y: 20, phi: 0 }
-		});
-		live.q10SourceData!.mapId = 11;
-
-		const history = createSyntheticQ10Map([], 100, 40, {
-			chargerPixel: { x: 20, y: 20, phi: 0 }
-		});
-		history.q10SourceData!.mapId = 11;
-		history.q10SourceData!.virtualWalls = [
+		expect(walls).toEqual([
 			{
 				type: "virtualWall",
 				areaType: 1,
 				points: [
-					{ x: 1, y: 1 },
-					{ x: 4, y: 1 }
+					{ x: 25.1, y: -78 },
+					{ x: 24.8, y: -128.3 }
 				]
-			}
-		];
-
-		const persistedHistory = JSON.stringify(history);
-		adapter.getStateAsync = async (id: string) =>
-			id === `Devices.${Q10_DUID}.cleaningInfo.records.0.map.mapData`
-				? { val: persistedHistory }
-				: null;
-
-		const hydrated = await (manager as any).hydrateQ10OverlaySeed(live, Q10_DUID, "B01");
-
-		expect(hydrated.seedSource).toBe("none");
-		expect(hydrated.mapData.q10SourceData?.virtualWalls).toHaveLength(0);
-		expect(hydrated.mapData.virtualWalls).toBeUndefined();
-	});
-
-	it("should not hydrate Q10 virtual walls from an incompatible persisted map", async () => {
-		const adapter = createQ10MockAdapter({ duid: Q10_DUID, assetErrorMessage: "asset not found" }) as ReturnType<typeof createQ10MockAdapter> & {
-			getStateAsync: (id: string) => Promise<{ val: string } | null>;
-		};
-		const manager = new MapManager(adapter as any);
-
-		const live = createSyntheticQ10Map([], 100, 40, {
-			chargerPixel: { x: 20, y: 20, phi: 0 }
-		});
-		live.q10SourceData!.mapId = 11;
-
-		const differentFloor = createSyntheticQ10Map([], 100, 40, {
-			chargerPixel: { x: 20, y: 20, phi: 0 }
-		});
-		differentFloor.q10SourceData!.mapId = 99;
-		differentFloor.q10SourceData!.virtualWalls = [
+			},
 			{
 				type: "virtualWall",
 				areaType: 1,
 				points: [
-					{ x: 1, y: 1 },
-					{ x: 4, y: 1 }
+					{ x: 24.8, y: -77.7 },
+					{ x: -13.7, y: -77.6 }
+				]
+			}
+		]);
+	});
+
+	it("should render Q10 virtual walls into the generated map image", async () => {
+		const builder = new Q10MapBuilder();
+		const baseMap = createSyntheticQ10Map([], 100, 40, {
+			chargerPixel: { x: 20, y: 20, phi: 0 }
+		});
+		const wallMap = createSyntheticQ10Map([], 100, 40, {
+			chargerPixel: { x: 20, y: 20, phi: 0 }
+		});
+		wallMap.q10SourceData!.virtualWalls = [
+			{
+				type: "virtualWall",
+				areaType: 1,
+				points: [
+					{ x: 10, y: 10 },
+					{ x: 30, y: 10 }
 				]
 			}
 		];
 
-		const persistedHistory = JSON.stringify(differentFloor);
-		adapter.getStateAsync = async (id: string) =>
-			id === `Devices.${Q10_DUID}.cleaningInfo.records.0.map.mapData`
-				? { val: persistedHistory }
-				: null;
+		const baseCreated = new Q10MapCreator().create(baseMap);
+		const wallCreated = new Q10MapCreator().create(wallMap);
+		const base = await decodePngRgba(await builder.buildMap(baseCreated, undefined));
+		const rendered = await decodePngRgba(await builder.buildMap(wallCreated, undefined));
 
-		const hydrated = await (manager as any).hydrateQ10OverlaySeed(live, Q10_DUID, "B01");
-
-		expect(hydrated.seedSource).toBe("none");
-		expect(hydrated.mapData.q10SourceData?.virtualWalls).toHaveLength(0);
-		expect(hydrated.mapData.virtualWalls).toBeUndefined();
+		expect(pixelAt(rendered, 20 * 8, 30 * 8)).not.toEqual(pixelAt(base, 20 * 8, 30 * 8));
 	});
 
 	it("should expose whether a Q10 path-only packet reused overlay metadata from runtime cache", async () => {
@@ -1478,7 +1303,7 @@ describe("Q10 B01 Map Support", () => {
 		expect(result?.mapData?.q10RuntimeDebug?.virtualWalls).toBe(1);
 	});
 
-	it("should not inherit stale Q10 path points into a new full live map", async () => {
+	it("should reuse same-map Q10 live runtime path points and overlays in a new full live map", async () => {
 		const adapter = createQ10MockAdapter({ duid: Q10_DUID, assetErrorMessage: "asset not found" });
 		const manager = new MapManager(adapter as any);
 
@@ -1495,6 +1320,16 @@ describe("Q10 B01 Map Support", () => {
 		previous.q10SourceData!.pathPoints = [
 			{ x: 10, y: 10, type: 2, update: 5 },
 			{ x: 12, y: 12, type: 2, update: 5 }
+		];
+		previous.q10SourceData!.virtualWalls = [
+			{
+				type: "virtualWall",
+				areaType: 1,
+				points: [
+					{ x: 1, y: 1 },
+					{ x: 4, y: 1 }
+				]
+			}
 		];
 
 		const current = createSyntheticQ10Map([], 100, 40, {
@@ -1522,8 +1357,160 @@ describe("Q10 B01 Map Support", () => {
 			Q10_MODEL
 		);
 
+		expect(result?.mapData?.q10SourceData?.pathPoints).toHaveLength(2);
+		expect(result?.mapData?.q10SourceData?.virtualWalls).toHaveLength(1);
+		expect(result?.mapData?.q10RuntimeDebug?.pathPoints).toBe(2);
+		expect(result?.mapData?.q10RuntimeDebug?.overlaySeedSource).toBe("runtime-cache");
+	});
+
+	it("should not inherit Q10 live runtime state into a different map id", async () => {
+		const adapter = createQ10MockAdapter({ duid: Q10_DUID, assetErrorMessage: "asset not found" });
+		const manager = new MapManager(adapter as any);
+
+		const previous = createSyntheticQ10Map(
+			[
+				{ x: 10, y: 10, type: 2 },
+				{ x: 12, y: 12, type: 2 }
+			],
+			100,
+			40,
+			{ chargerPixel: { x: 20, y: 20, phi: 0 } }
+		);
+		previous.q10SourceData!.mapId = 44;
+		previous.q10SourceData!.virtualWalls = [
+			{
+				type: "virtualWall",
+				areaType: 1,
+				points: [
+					{ x: 1, y: 1 },
+					{ x: 4, y: 1 }
+				]
+			}
+		];
+
+		const current = createSyntheticQ10Map([], 100, 40, {
+			chargerPixel: { x: 20, y: 20, phi: 0 }
+		});
+		current.q10SourceData!.mapId = 55;
+
+		(manager as any).q10StateByDevice.set(`${Q10_DUID}:live`, previous);
+
+		const result = await (manager as any).processQ10Payload(
+			{
+				classification: {
+					isQ10Payload: true,
+					isLiveMapCandidate: true,
+					payloadShape: "map",
+					blobType: 2,
+					mapData: current,
+					pathPoints: null
+				},
+				mapData: current
+			},
+			Q10_DUID,
+			"B01",
+			Q10_TEST_DEVICE_STATUS,
+			Q10_MODEL
+		);
+
 		expect(result?.mapData?.q10SourceData?.pathPoints).toHaveLength(0);
-		expect(result?.mapData?.q10RuntimeDebug?.pathPoints).toBe(0);
+		expect(result?.mapData?.q10SourceData?.virtualWalls).toHaveLength(0);
+		expect(result?.mapData?.q10RuntimeDebug?.overlaySeedSource).toBe("none");
+	});
+
+	it("should translate Q10 live overlay shadow dps into a live map patch", async () => {
+		const { adapter, feature } = createQ10FeatureHarness();
+		const applyPatch = (adapter as any).mapManager.applyQ10LiveStatePatch as ReturnType<typeof vi.fn>;
+
+		const restricted = Buffer.alloc(40);
+		restricted[1] = 1;
+		restricted[2] = 3;
+		restricted.writeInt16BE(10, 4);
+		restricted.writeInt16BE(20, 6);
+		restricted.writeInt16BE(30, 8);
+		restricted.writeInt16BE(40, 10);
+		restricted.writeInt16BE(50, 12);
+		restricted.writeInt16BE(60, 14);
+		restricted.writeInt16BE(70, 16);
+		restricted.writeInt16BE(80, 18);
+
+		const wall = Buffer.alloc(9);
+		wall[0] = 1;
+		wall.writeInt16BE(100, 1);
+		wall.writeInt16BE(200, 3);
+		wall.writeInt16BE(300, 5);
+		wall.writeInt16BE(400, 7);
+
+		await feature.applyQ10ShadowDpPayload({
+			"101": {
+				"55": restricted.toString("base64"),
+				"57": wall.toString("base64"),
+				"65": {
+					op: "list",
+					result: 1,
+					data: [
+						{
+							id: 101,
+							vertexs: [
+								[10, 20],
+								[30, 20],
+								[30, 40],
+								[10, 40]
+							]
+						}
+					]
+				},
+				"98": [[100, 200]],
+				"100": [[300, 400]],
+				"103": [[500, 600]]
+			}
+		});
+
+		expect(applyPatch).toHaveBeenCalledTimes(1);
+		expect(applyPatch).toHaveBeenCalledWith(Q10_DUID, {
+			virtualWalls: [
+				{
+					type: "virtualWall",
+					areaType: 1,
+					points: [
+						{ x: 10, y: 20 },
+						{ x: 30, y: 40 }
+					]
+				}
+			],
+			forbidAreas: [],
+			mopAreas: [],
+			thresholdAreas: [
+				{
+					type: "threshold",
+					areaType: 3,
+					name: undefined,
+					points: [
+						{ x: 1, y: 2 },
+						{ x: 3, y: 4 },
+						{ x: 5, y: 6 },
+						{ x: 7, y: 8 }
+					]
+				}
+			],
+			carpetAreas: [
+				{
+					id: 101,
+					type: "carpet",
+					points: [
+						{ x: 1, y: 2 },
+						{ x: 3, y: 2 },
+						{ x: 3, y: 4 },
+						{ x: 1, y: 4 }
+					]
+				}
+			],
+			suspectedPoints: [
+				{ type: "easycard", point: { x: 10, y: 20 } },
+				{ type: "threshold", point: { x: 30, y: 40 } },
+				{ type: "cliff", point: { x: 50, y: 60 } }
+			]
+		});
 	});
 
 	it("should prefer cached B01 device status over stale persisted status values", async () => {
@@ -1617,6 +1604,40 @@ describe("Q10 B01 Map Support", () => {
 		expect(pngBuffer.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
 	});
 
+	it("should parse the canonical Q10 map header via strict original blob-prefix stripping and big-endian semantics", () => {
+		const rawInput = getFirstSample();
+		if (!rawInput) {
+			console.warn("Skipping Q10 header test: embedded representative sample missing");
+			return;
+		}
+
+		const decrypted = MapDecryptor.decrypt(rawInput, Q10_SN, Q10_MODEL, Q10_DUID, mockAdapter, Q10_LOCAL_KEY);
+		expect(decrypted).not.toBeNull();
+
+		const mapData = parseQ10YxMapToB01(decrypted!);
+
+		expect(mapData).not.toBeNull();
+		expect(mapData?.header.sizeX).toBe(124);
+		expect(mapData?.header.sizeY).toBe(238);
+		expect(mapData?.header.minX).toBeCloseTo(15.9, 6);
+		expect(mapData?.header.maxY).toBeCloseTo(40.1, 6);
+		expect(mapData?.header.minY).toBeCloseTo(28.2, 6);
+		expect(mapData?.header.maxX).toBeCloseTo(22.1, 6);
+		expect(mapData?.header.resolution).toBeCloseTo(0.05, 6);
+		expect(mapData?.chargerPos?.x).toBeCloseTo(5.3, 6);
+		expect(mapData?.chargerPos?.y).toBeCloseTo(41.5, 6);
+		expect(mapData?.chargerPos?.phi).toBe(-359);
+		expect(mapData?.q10SourceData?.mapId).toBe(1772902161);
+		expect(mapData?.q10SourceData?.mapWidth).toBe(124);
+		expect(mapData?.q10SourceData?.mapHeight).toBe(238);
+		expect(mapData?.q10SourceData?.resolution).toBeCloseTo(0.05, 6);
+		expect(mapData?.q10SourceData?.xMin).toBeCloseTo(15.9, 6);
+		expect(mapData?.q10SourceData?.yMin).toBeCloseTo(40.1, 6);
+		expect(mapData?.q10SourceData?.chargePosition?.x).toBeCloseTo(-10.6, 6);
+		expect(mapData?.q10SourceData?.chargePosition?.y).toBeCloseTo(-1.4, 6);
+		expect(mapData?.q10SourceData?.chargePosition?.phi).toBe(-359);
+	});
+
 	it("should localize roomNN labels in the Q10 creator like replaceRoomName in the original app", () => {
 		const map = createSyntheticQ10Map([], 20, 10, {
 			chargerPixel: { x: 1, y: 1, phi: 0 }
@@ -1700,6 +1721,43 @@ describe("Q10 B01 Map Support", () => {
 		expect(countDifferentPixels(full, clean)).toBeGreaterThan(0);
 		expect(pixelAt(full, 20 * 8, 20 * 8)).not.toEqual(pixelAt(clean, 20 * 8, 20 * 8));
 		expect(pixelAt(full, 24 * 8, 20 * 8)).not.toEqual(pixelAt(clean, 24 * 8, 20 * 8));
+	});
+
+	it("should render ceramic room material as orthogonal grout instead of diagonal hatch", async () => {
+		const builder = new Q10MapBuilder();
+		const createMaterialMap = (ceramic = false) => {
+			const map = createSyntheticQ10Map([], 40, 40);
+			for (let y = 4; y < 36; y++) {
+				for (let x = 4; x < 36; x++) {
+					map.mapGrid[y * 40 + x] = 2;
+				}
+			}
+			if (ceramic) {
+				map.q10CreatorData!.roomMaterialRoomIds.ceramicTile = [2];
+			}
+			return map;
+		};
+
+		const base = await decodePngRgba(await builder.buildMap(createMaterialMap(false), undefined));
+		const rendered = await decodePngRgba(await builder.buildMap(createMaterialMap(true), undefined));
+
+		let verticalHits = 0;
+		for (let x = 16 * 8 - 4; x <= 16 * 8 + 4; x++) {
+			const renderedPixel = pixelAt(rendered, x, 18 * 8);
+			const basePixel = pixelAt(base, x, 18 * 8);
+			if (renderedPixel.some((channel, index) => channel !== basePixel[index])) verticalHits++;
+		}
+		expect(verticalHits).toBeGreaterThan(0);
+
+		let horizontalHits = 0;
+		for (let y = 16 * 8 - 4; y <= 16 * 8 + 4; y++) {
+			const renderedPixel = pixelAt(rendered, 18 * 8, y);
+			const basePixel = pixelAt(base, 18 * 8, y);
+			if (renderedPixel.some((channel, index) => channel !== basePixel[index])) horizontalHits++;
+		}
+		expect(horizontalHits).toBeGreaterThan(0);
+
+		expect(pixelAt(rendered, 18 * 8, 18 * 8)).toEqual(pixelAt(base, 18 * 8, 18 * 8));
 	});
 
 	it("should prefer extracted adapter assets over local Q10 plugin paths", async () => {

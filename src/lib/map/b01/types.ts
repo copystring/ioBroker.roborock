@@ -46,7 +46,7 @@ export interface Q10OverlayCounts {
 export interface Q10RuntimeDebugSummary {
 	packetKind: "full" | "path-only";
 	payloadShape: "map" | "blob";
-	overlaySeedSource: "inline" | "runtime-cache" | "persisted-state" | "none";
+	overlaySeedSource: "inline" | "runtime-cache" | "none";
 	overlaySeedHydrated: boolean;
 	rawVirtualWalls: number;
 	rawForbidAreas: number;

@@ -90,6 +90,16 @@ export interface Q10SourceData {
 	hasSelfIdentificationCarpet: boolean;
 }
 
+export interface Q10RuntimeStatePatch {
+	virtualWalls?: Q10SourceArea[];
+	forbidAreas?: Q10SourceArea[];
+	mopAreas?: Q10SourceArea[];
+	thresholdAreas?: Q10SourceArea[];
+	carpetAreas?: Q10SourceArea[];
+	suspectedPoints?: Q10SourceSuspectedPoint[];
+	pathPoints?: Q10SourcePathPoint[];
+}
+
 export interface Q10CreatorArea {
 	id?: number;
 	type: Q10SourceArea["type"];

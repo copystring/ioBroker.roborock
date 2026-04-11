@@ -162,8 +162,17 @@ export class Q10VacuumFeatures extends B01BaseVacuumFeatures {
 		await this.deps.adapter.requestsHandler.publishB01Dp(this.duid, { "101": { "69": 0 } });
 	}
 
+	private async primeQ10LiveMapStream(): Promise<void> {
+		// Android app sessions consistently prime the Q10 live map stream with these
+		// DP writes before requesting the current map payload.
+		await this.deps.adapter.requestsHandler.publishB01Dp(this.duid, { "101": { "75": 0 } });
+		await this.deps.adapter.requestsHandler.publishB01Dp(this.duid, { "101": { "16": 1 } });
+		await this.deps.adapter.requestsHandler.publishB01Dp(this.duid, { "101": { "107": 0 } });
+	}
+
 	private async requestQ10LiveMap(): Promise<void> {
 		await this.mapService.updateMap(async () => {
+			await this.primeQ10LiveMapStream();
 			await this.deps.adapter.requestsHandler.publishB01Dp(this.duid, { "101": { "110": 1 } });
 		});
 	}
@@ -181,8 +190,8 @@ export class Q10VacuumFeatures extends B01BaseVacuumFeatures {
 		await this.requestQ10MultiMapList();
 		await this.requestQ10CleanRecordList();
 		await this.requestQ10MapMetadataList();
-		await this.requestQ10LiveMap();
 		await this.requestQ10TimerList();
+		await this.requestQ10LiveMap();
 
 		await this.deps.adapter.checkForNewFirmware(this.duid);
 

@@ -65,6 +65,8 @@ interface Q10PathLayerStyle {
 	dashOffset?: number;
 }
 
+type Q10OriginalMaterialKind = "ceramicTile" | "horizontalFloorBoard" | "verticalFloorBoard";
+
 interface Q10RenderedMaps {
 	full: Buffer;
 	clean: Buffer;
@@ -86,6 +88,11 @@ function packedArgbToCss(color: number, alphaOverride?: number): string {
 	const b = color & 0xff;
 	const alpha = alphaOverride ?? a;
 	return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function getOriginalQ10MaterialMapRate(width: number, height: number): number {
+	const maxSide = Math.max(width, height, 1);
+	return Math.max(1, Math.floor(2000 / maxSide));
 }
 
 function getRenderMetrics(): Q10RenderMetrics {
@@ -198,6 +205,240 @@ function fillPolygon(ctx: any, points: Q10MapPixelPoint[]): void {
 		ctx.lineTo(points[index].x, points[index].y);
 	}
 	ctx.closePath();
+}
+
+function isMaterialMaskCellWalkable(mask: Uint8Array, width: number, height: number, x: number, y: number): boolean {
+	return x >= 0 && x < width && y >= 0 && y < height && mask[y * width + x] === 1;
+}
+
+function buildRoomMaterialMaskGrid(
+	baseGrid: Buffer,
+	width: number,
+	height: number,
+	roomIds: number[]
+): Uint8Array {
+	const roomIdSet = new Set<number>(roomIds);
+	const mask = new Uint8Array(width * height);
+	for (let index = 0; index < width * height; index++) {
+		if (roomIdSet.has(baseGrid[index] ?? 0)) {
+			mask[index] = 1;
+		}
+	}
+	return mask;
+}
+
+function pairMaterialSegments(points: Q10MapPixelPoint[]): Q10MapPixelPoint[][] {
+	const pairs: Q10MapPixelPoint[][] = [];
+	const pairCount = Math.floor(points.length / 2);
+	for (let index = 0; index < pairCount; index++) {
+		pairs.push([
+			points[index * 2]!,
+			points[index * 2 + 1]!
+		]);
+	}
+	return pairs;
+}
+
+function clipHorizontalMaterialPath(
+	startX: number,
+	endX: number,
+	y: number,
+	mask: Uint8Array,
+	width: number,
+	height: number
+): Q10MapPixelPoint[][] {
+	const subPoints: Q10MapPixelPoint[] = [];
+	let last = 0;
+
+	for (let x = startX; x <= endX; x++) {
+		const point = { x, y };
+		const isValid = isMaterialMaskCellWalkable(mask, width, height, x, y);
+		if (!isValid) {
+			if (last === 1 || last === 2) {
+				subPoints.push(point);
+				last = 0;
+			}
+			continue;
+		}
+
+		if (last === 0) {
+			subPoints.push(point);
+			last = 1;
+		} else {
+			last = 2;
+		}
+		if (x === endX) {
+			subPoints.push(point);
+		}
+	}
+
+	return pairMaterialSegments(subPoints);
+}
+
+function clipVerticalMaterialPath(
+	x: number,
+	startY: number,
+	endY: number,
+	mask: Uint8Array,
+	width: number,
+	height: number
+): Q10MapPixelPoint[][] {
+	const subPoints: Q10MapPixelPoint[] = [];
+	let last = 0;
+
+	for (let y = startY; y <= endY; y++) {
+		const point = { x, y };
+		const isValid = isMaterialMaskCellWalkable(mask, width, height, x, y);
+		if (!isValid) {
+			if (last === 1 || last === 2) {
+				subPoints.push(point);
+				last = 0;
+			}
+			continue;
+		}
+
+		if (last === 0) {
+			subPoints.push(point);
+			last = 1;
+		} else {
+			last = 2;
+		}
+		if (y === endY) {
+			subPoints.push(point);
+		}
+	}
+
+	return pairMaterialSegments(subPoints);
+}
+
+function buildCeramicTileMaterialPaths(
+	mask: Uint8Array,
+	width: number,
+	height: number,
+	resolution: number
+): Q10MapPixelPoint[][] {
+	const wStep = Math.max(1, Math.floor(0.8 / resolution));
+	const hStep = Math.max(1, Math.floor(0.8 / resolution));
+	const paths: Q10MapPixelPoint[][] = [];
+
+	for (let x = 0; x <= width; x++) {
+		if (x % wStep === 0) {
+			paths.push(...clipVerticalMaterialPath(x, 0, height, mask, width, height));
+		}
+	}
+	for (let y = 0; y <= height; y++) {
+		if (y % hStep === 0) {
+			paths.push(...clipHorizontalMaterialPath(0, width, y, mask, width, height));
+		}
+	}
+
+	return paths;
+}
+
+function buildHorizontalFloorBoardMaterialPaths(
+	mask: Uint8Array,
+	width: number,
+	height: number,
+	resolution: number
+): Q10MapPixelPoint[][] {
+	const materialW = 1.2;
+	const materialH = 0.3;
+	let wStep = Math.max(1, Math.floor(materialW / resolution));
+	const hStep = Math.max(1, Math.floor(materialH / resolution));
+	const paths: Q10MapPixelPoint[][] = [];
+
+	for (let y = 0; y <= height; y++) {
+		if (y % hStep === 0) {
+			paths.push(...clipHorizontalMaterialPath(0, width, y, mask, width, height));
+		}
+	}
+
+	wStep = wStep / 2;
+	let columnIndex = 0;
+	for (let x = 0; x <= width; x++) {
+		if (x % wStep !== 0) continue;
+		columnIndex += 1;
+
+		let points: Q10MapPixelPoint[] = [];
+		for (let y = 0; y <= height; y++) {
+			if (y % hStep !== 0) continue;
+			points.push({ x, y });
+		}
+
+		if (columnIndex % 2 === 1) {
+			if (Math.floor(points.length % 2) === 1) {
+				points = points.slice(0, points.length - 1);
+			}
+		} else {
+			if (points.length > 0) {
+				points = points.slice(1);
+			}
+			if (Math.floor(points.length % 2) === 1) {
+				points = points.slice(0, points.length - 1);
+			}
+		}
+
+		for (let index = 0; index < points.length / 2; index++) {
+			const start = points[index * 2]!;
+			const end = points[index * 2 + 1]!;
+			paths.push(...clipVerticalMaterialPath(start.x, start.y, end.y, mask, width, height));
+		}
+	}
+
+	return paths;
+}
+
+function buildVerticalFloorBoardMaterialPaths(
+	mask: Uint8Array,
+	width: number,
+	height: number,
+	resolution: number
+): Q10MapPixelPoint[][] {
+	const materialW = 0.3;
+	const materialH = 1.2;
+	const wStep = Math.max(1, Math.floor(materialW / resolution));
+	let hStep = Math.max(1, Math.floor(materialH / resolution));
+	const paths: Q10MapPixelPoint[][] = [];
+
+	for (let x = 0; x <= width; x++) {
+		if (x % wStep === 0) {
+			paths.push(...clipVerticalMaterialPath(x, 0, height, mask, width, height));
+		}
+	}
+
+	hStep = hStep / 2;
+	let rowIndex = 0;
+	for (let y = 0; y <= height; y++) {
+		if (y % hStep !== 0) continue;
+		rowIndex += 1;
+
+		let points: Q10MapPixelPoint[] = [];
+		for (let x = 0; x <= width; x++) {
+			if (x % wStep !== 0) continue;
+			points.push({ x, y });
+		}
+
+		if (rowIndex % 2 === 1) {
+			if (Math.floor(points.length % 2) === 1) {
+				points = points.slice(0, points.length - 1);
+			}
+		} else {
+			if (points.length > 0) {
+				points = points.slice(1);
+			}
+			if (Math.floor(points.length % 2) === 1) {
+				points = points.slice(0, points.length - 1);
+			}
+		}
+
+		for (let index = 0; index < points.length / 2; index++) {
+			const start = points[index * 2]!;
+			const end = points[index * 2 + 1]!;
+			paths.push(...clipHorizontalMaterialPath(start.x, end.x, start.y, mask, width, height));
+		}
+	}
+
+	return paths;
 }
 
 function measureRoomText(
@@ -438,25 +679,6 @@ export class Q10MapBuilder {
 		ctx.drawImage(tempCanvas as any, 0, 0);
 	}
 
-	private createMaskCanvas(width: number, height: number, predicate: (index: number) => boolean): any {
-		const canvas = createCanvas(width, height);
-		const maskCtx = canvas.getContext("2d");
-		const imageData = maskCtx.createImageData(width, height);
-		const buffer = imageData.data;
-
-		for (let index = 0; index < width * height; index++) {
-			if (!predicate(index)) continue;
-			const offset = index * 4;
-			buffer[offset] = 255;
-			buffer[offset + 1] = 255;
-			buffer[offset + 2] = 255;
-			buffer[offset + 3] = 255;
-		}
-
-		maskCtx.putImageData(imageData, 0, 0);
-		return canvas;
-	}
-
 	private withOutputSpace(ctx: any, draw: (outputCtx: any) => void): void {
 		ctx.save();
 		ctx.scale(1 / Q10_CANVAS_SCALE, 1 / Q10_CANVAS_SCALE);
@@ -558,74 +780,60 @@ export class Q10MapBuilder {
 		});
 	}
 
-	private drawRoomMaterials(ctx: any, data: B01MapData, creator: Q10CreatorData): void {
-		if (
-			creator.materialPaths.ceramicTile.length ||
-			creator.materialPaths.horizontalFloorBoard.length ||
-			creator.materialPaths.verticalFloorBoard.length
-		) {
-			this.drawMaterialPathGroup(ctx, creator.materialPaths.ceramicTile);
-			this.drawMaterialPathGroup(ctx, creator.materialPaths.horizontalFloorBoard);
-			this.drawMaterialPathGroup(ctx, creator.materialPaths.verticalFloorBoard);
-			return;
-		}
+	private buildOriginalMaterialPaths(
+		data: B01MapData,
+		creator: Q10CreatorData,
+		roomIds: number[],
+		kind: Q10OriginalMaterialKind
+	): Q10MapPixelPoint[][] {
+		if (!roomIds.length) return [];
 
 		const width = data.header.sizeX;
 		const height = data.header.sizeY;
-		const materialGroups = [
-			{ roomIds: creator.roomMaterialRoomIds.ceramicTile, dash: [1, 6], stroke: "rgba(255,255,255,0.22)" },
-			{ roomIds: creator.roomMaterialRoomIds.horizontalFloorBoard, dash: [8, 8], stroke: "rgba(255,255,255,0.18)" },
-			{ roomIds: creator.roomMaterialRoomIds.verticalFloorBoard, dash: [8, 8], stroke: "rgba(255,255,255,0.18)" }
-		];
+		const baseGrid =
+			creator.clipEraseMapGrid && creator.clipEraseMapGrid.length === width * height
+				? creator.clipEraseMapGrid
+				: data.mapGrid;
+		const mask = buildRoomMaterialMaskGrid(baseGrid, width, height, roomIds);
 
-		for (const [index, material] of materialGroups.entries()) {
-			if (!material.roomIds.length) continue;
-			const roomIdSet = new Set<number>(material.roomIds);
-			const maskCanvas = this.createMaskCanvas(width, height, (pixelIndex) => roomIdSet.has(data.mapGrid[pixelIndex]));
-			const overlayCanvas = createCanvas(width, height);
-			const overlayCtx = overlayCanvas.getContext("2d");
-
-			overlayCtx.strokeStyle = material.stroke;
-			overlayCtx.lineWidth = 1;
-			overlayCtx.setLineDash(material.dash);
-
-			if (index === 0) {
-				for (let x = -height; x < width + height; x += 8) {
-					overlayCtx.beginPath();
-					overlayCtx.moveTo(x, 0);
-					overlayCtx.lineTo(x + height, height);
-					overlayCtx.stroke();
-				}
-			} else if (index === 1) {
-				for (let y = 0; y <= height; y += 8) {
-					overlayCtx.beginPath();
-					overlayCtx.moveTo(0, y);
-					overlayCtx.lineTo(width, y);
-					overlayCtx.stroke();
-				}
-			} else {
-				for (let x = 0; x <= width; x += 8) {
-					overlayCtx.beginPath();
-					overlayCtx.moveTo(x, 0);
-					overlayCtx.lineTo(x, height);
-					overlayCtx.stroke();
-				}
-			}
-
-			overlayCtx.globalCompositeOperation = "destination-in";
-			overlayCtx.drawImage(maskCanvas as any, 0, 0);
-			overlayCtx.globalCompositeOperation = "source-over";
-
-			ctx.drawImage(overlayCanvas as any, 0, 0);
+		if (kind === "ceramicTile") {
+			return buildCeramicTileMaterialPaths(mask, width, height, data.header.resolution);
 		}
+		if (kind === "horizontalFloorBoard") {
+			return buildHorizontalFloorBoardMaterialPaths(mask, width, height, data.header.resolution);
+		}
+		return buildVerticalFloorBoardMaterialPaths(mask, width, height, data.header.resolution);
 	}
 
-	private drawMaterialPathGroup(ctx: any, polygons: Q10MapPixelPoint[][]): void {
+	private drawRoomMaterials(
+		ctx: any,
+		_geometry: Q10MapGeometry,
+		data: B01MapData,
+		creator: Q10CreatorData
+	): void {
+		const ceramicTilePaths = creator.materialPaths.ceramicTile.length
+			? creator.materialPaths.ceramicTile
+			: this.buildOriginalMaterialPaths(data, creator, creator.roomMaterialRoomIds.ceramicTile, "ceramicTile");
+		const horizontalFloorBoardPaths = creator.materialPaths.horizontalFloorBoard.length
+			? creator.materialPaths.horizontalFloorBoard
+			: this.buildOriginalMaterialPaths(data, creator, creator.roomMaterialRoomIds.horizontalFloorBoard, "horizontalFloorBoard");
+		const verticalFloorBoardPaths = creator.materialPaths.verticalFloorBoard.length
+			? creator.materialPaths.verticalFloorBoard
+			: this.buildOriginalMaterialPaths(data, creator, creator.roomMaterialRoomIds.verticalFloorBoard, "verticalFloorBoard");
+
+		const materialMapRate = getOriginalQ10MaterialMapRate(data.header.sizeX, data.header.sizeY);
+
+		this.drawMaterialPathGroup(ctx, ceramicTilePaths, materialMapRate);
+		this.drawMaterialPathGroup(ctx, horizontalFloorBoardPaths, materialMapRate);
+		this.drawMaterialPathGroup(ctx, verticalFloorBoardPaths, materialMapRate);
+	}
+
+	private drawMaterialPathGroup(ctx: any, polygons: Q10MapPixelPoint[][], mapRate: number): void {
 		if (!polygons.length) return;
 
 		ctx.save();
-		ctx.strokeStyle = "rgba(25, 0, 0, 0.25)";
-		ctx.lineWidth = 1;
+		ctx.strokeStyle = packedArgbToCss(419430400);
+		ctx.lineWidth = 2 / Math.max(mapRate, 1);
 		ctx.lineJoin = "round";
 		ctx.lineCap = "round";
 
@@ -636,7 +844,6 @@ export class Q10MapBuilder {
 			for (let index = 1; index < polygon.length; index++) {
 				ctx.lineTo(polygon[index].x, polygon[index].y);
 			}
-			ctx.closePath();
 			ctx.stroke();
 		}
 
@@ -1185,10 +1392,10 @@ export class Q10MapBuilder {
 		ctx.fillRect(0, 0, width, height);
 	}
 
-	private drawBaseLayers(ctx: any, data: B01MapData, creator: Q10CreatorData): void {
+	private drawBaseLayers(ctx: any, geometry: Q10MapGeometry, data: B01MapData, creator: Q10CreatorData): void {
 		this.withMapSpace(ctx, (mapCtx) => {
 			this.drawBaseMap(mapCtx, data, creator);
-			this.drawRoomMaterials(mapCtx, data, creator);
+			this.drawRoomMaterials(mapCtx, geometry, data, creator);
 		});
 	}
 
@@ -1236,7 +1443,7 @@ export class Q10MapBuilder {
 		const ctx = canvas.getContext("2d");
 
 		this.initializeCanvas(ctx, width, height);
-		this.drawBaseLayers(ctx, data, creator);
+		this.drawBaseLayers(ctx, geometry, data, creator);
 		this.drawCleanOverlayLayers(ctx, geometry, data, creator);
 		const clean = canvas.toBuffer("image/png");
 		this.drawInteractiveOverlayLayers(ctx, geometry, creator);

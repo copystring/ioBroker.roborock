@@ -1,5 +1,12 @@
 import type { FeatureDependencies } from "../../../baseDeviceFeatures";
 import { DeviceStateWriter } from "../../../deviceStateWriter";
+import {
+	parseQ10CarpetDpPayload,
+	parseQ10RestrictedZoneDpPayload,
+	parseQ10SuspectedPointsDpPayload,
+	parseQ10VirtualWallDpPayload
+} from "../../../../map/q10/Q10YxMapParser";
+import type { Q10RuntimeStatePatch } from "../../../../map/q10/types";
 import { normalizeRoborockRoomDisplayName } from "../../../../roomNameNormalizer";
 import { VACUUM_CONSTANTS } from "../../vacuumConstants";
 
@@ -448,6 +455,7 @@ export class Q10ShadowDataService {
 		if (!dps || typeof dps !== "object") return;
 
 		const statusData: Record<string, unknown> = {};
+		const liveMapPatch: Q10RuntimeStatePatch = {};
 		const topLevelMap: Record<string, string> = {
 			"121": "status",
 			"122": "battery",
@@ -549,6 +557,49 @@ export class Q10ShadowDataService {
 				await this.applyQ10ValleyPointChargingData(commonDps["106"]);
 			}
 
+			if (commonDps["55"] !== undefined) {
+				const bytes = this.decodeQ10ShadowBytes(commonDps["55"]);
+				if (bytes) {
+					const restricted = parseQ10RestrictedZoneDpPayload(Buffer.from(bytes));
+					liveMapPatch.forbidAreas = restricted.forbidAreas;
+					liveMapPatch.mopAreas = restricted.mopAreas;
+					liveMapPatch.thresholdAreas = restricted.thresholdAreas;
+				}
+			}
+
+			if (commonDps["57"] !== undefined) {
+				const bytes = this.decodeQ10ShadowBytes(commonDps["57"]);
+				if (bytes) {
+					liveMapPatch.virtualWalls = parseQ10VirtualWallDpPayload(Buffer.from(bytes));
+				}
+			}
+
+			if (commonDps["65"] && typeof commonDps["65"] === "object" && !Array.isArray(commonDps["65"])) {
+				const dp65 = commonDps["65"] as Record<string, unknown>;
+				if (Array.isArray(dp65.data)) {
+					liveMapPatch.carpetAreas = parseQ10CarpetDpPayload(dp65.data);
+				}
+			}
+
+			if (commonDps["98"] !== undefined) {
+				liveMapPatch.suspectedPoints = [
+					...(liveMapPatch.suspectedPoints ?? []),
+					...parseQ10SuspectedPointsDpPayload(commonDps["98"], "easycard")
+				];
+			}
+			if (commonDps["100"] !== undefined) {
+				liveMapPatch.suspectedPoints = [
+					...(liveMapPatch.suspectedPoints ?? []),
+					...parseQ10SuspectedPointsDpPayload(commonDps["100"], "threshold")
+				];
+			}
+			if (commonDps["103"] !== undefined) {
+				liveMapPatch.suspectedPoints = [
+					...(liveMapPatch.suspectedPoints ?? []),
+					...parseQ10SuspectedPointsDpPayload(commonDps["103"], "cliff")
+				];
+			}
+
 			if (commonDps["93"] !== undefined) {
 				const currentTimerTypeState = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.deviceStatus.timer_type`);
 				const nextTimerType = Number(commonDps["93"]);
@@ -582,6 +633,18 @@ export class Q10ShadowDataService {
 
 		if (net81) {
 			await this.applyQ10NetworkFromDp81(net81);
+		}
+
+		if (
+			(liveMapPatch.virtualWalls !== undefined ||
+				liveMapPatch.forbidAreas !== undefined ||
+				liveMapPatch.mopAreas !== undefined ||
+				liveMapPatch.thresholdAreas !== undefined ||
+				liveMapPatch.carpetAreas !== undefined ||
+				liveMapPatch.suspectedPoints !== undefined) &&
+			typeof (this.deps.adapter as any).mapManager?.applyQ10LiveStatePatch === "function"
+		) {
+			await (this.deps.adapter as any).mapManager.applyQ10LiveStatePatch(this.duid, liveMapPatch);
 		}
 	}
 }

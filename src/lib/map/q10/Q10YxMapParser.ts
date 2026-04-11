@@ -4,8 +4,15 @@
  * Version 1: 1 byte per pixel, high 6 bits = room ID (0–31), low 2 bits = type (0=floor, 1=wall, 3=outWall).
  */
 import type { B01MapData, B01Area, B01Carpet, B01EntityPosition, B01PathPoint, B01Point } from "../b01/types";
-import type { Q10DevicePoint, Q10SourceArea, Q10SourceData, Q10SourcePathPoint, Q10SourceRoom } from "./types";
-import { sanitizeQ10SourceOverlayAreas } from "./Q10OverlaySanitizer";
+import type {
+	Q10DevicePoint,
+	Q10RuntimeStatePatch,
+	Q10SourceArea,
+	Q10SourceData,
+	Q10SourcePathPoint,
+	Q10SourceRoom,
+	Q10SourceSuspectedPoint
+} from "./types";
 
 const Q10_HEADER_LEN = 28;
 
@@ -24,6 +31,7 @@ function readI16BE(buf: Buffer, offset: number): number {
 }
 
 const MAX_MAP_PIXELS = 2000 * 2000; // sanity cap
+const Q10_COMPAT_FALLBACKS_ENABLED = process.env.ROBOROCK_Q10_COMPAT_FALLBACKS === "1";
 
 interface Q10RoomModel {
 	roomID: number;
@@ -253,7 +261,14 @@ export function decompressQ10Lz4Block(compressed: Uint8Array, expectedSize: numb
 	return decompressed;
 }
 
-/** Header parsed at a given offset; height can be LE or BE (device sends LE at 8-9). App layout: 0 version, 6-7 width, 8-9 height, 10-13 ox/oy, 14-15 resolution, 16-21 charge*, 22-25 pixLen, 26-27 pixLzLen. */
+/**
+ * Canonical Q10 map header layout from the original app:
+ * 0 version, 1-4 mapId, 5 type, 6-7 width, 8-9 height, 10-13 ox/oy,
+ * 14-15 resolution, 16-21 charge*, 22-25 pixLen, 26-27 pixLzLen.
+ *
+ * The original parser reads multi-byte fields big-endian. Additional header
+ * candidates are retained only for explicit compatibility mode.
+ */
 interface Q10Header {
 	version: number;
 	mapId: number;
@@ -294,6 +309,44 @@ function parseQ10HeaderAt(buf: Buffer, offset: number, heightEndian: "le" | "be"
 		chargerDirection,
 		offset
 	};
+}
+
+function unwrapQ10OriginalMapPayload(buf: Buffer): Buffer | null {
+	if (!buf || buf.length < Q10_HEADER_LEN) return null;
+
+	if (
+		buf.length >= 1 + Q10_HEADER_LEN &&
+		(buf[0] === 1 || buf[0] === 3 || buf[0] === 4) &&
+		buf[1] >= 0 &&
+		buf[1] <= 3
+	) {
+		return buf.subarray(1);
+	}
+
+	if (buf[0] >= 0 && buf[0] <= 3) {
+		return buf;
+	}
+
+	return null;
+}
+
+function isStrictOriginalHeader(hdr: Q10Header, totalLen: number): boolean {
+	if (!hdr || hdr.version < 0 || hdr.version > 3) return false;
+	if (hdr.mapWidth <= 0 || hdr.mapWidth > 4096) return false;
+	if (hdr.mapHeight <= 0 || hdr.mapHeight > 4096) return false;
+	if (hdr.mapWidth * hdr.mapHeight > MAX_MAP_PIXELS) return false;
+	if (hdr.pixLen <= 0 || hdr.pixLen > MAX_MAP_PIXELS) return false;
+	if (hdr.pixLzLen < 0) return false;
+	if (hdr.mapResolution <= 0 || hdr.mapResolution > 1) return false;
+
+	const pixelStart = hdr.offset + Q10_HEADER_LEN;
+	if (pixelStart >= totalLen) return false;
+
+	if (hdr.pixLzLen > 0) {
+		return pixelStart + hdr.pixLzLen <= totalLen;
+	}
+
+	return pixelStart + hdr.pixLen <= totalLen;
 }
 
 function isPlausibleHeader(hdr: Q10Header, totalLen: number): boolean {
@@ -369,8 +422,8 @@ function pixelDataLengthForVersion(version: number, mapWidth: number, mapHeight:
 	return mapWidth * mapHeight;
 }
 
-/** Try to decode one candidate: decompress from hdr.offset and build grid. Applies payload-size fallback when offset=0 and lengths wrong. */
-function tryDecodeCandidate(buf: Buffer, hdr: Q10Header): B01MapData | null {
+/** Try to decode one candidate: decompress from hdr.offset and build grid. */
+function tryDecodeCandidate(buf: Buffer, hdr: Q10Header, compatFallbacks = false): B01MapData | null {
 	const pixelStart = hdr.offset + Q10_HEADER_LEN;
 	const actualPayloadLen = buf.length - pixelStart;
 	let pixLen = hdr.pixLen;
@@ -378,8 +431,8 @@ function tryDecodeCandidate(buf: Buffer, hdr: Q10Header): B01MapData | null {
 	let mapWidth = hdr.mapWidth;
 	let mapHeight = hdr.mapHeight;
 
-	// At offset 0: apply same fallbacks as script (wrong pixLen/pixLzLen → use rest as LZ4 to mapWidth*mapHeight)
-	if (hdr.offset === 0 && actualPayloadLen >= 100 && actualPayloadLen <= 500000) {
+	// Compatibility mode only: recover malformed field captures we saw in older reverse-engineering samples.
+	if (compatFallbacks && hdr.offset === 0 && actualPayloadLen >= 100 && actualPayloadLen <= 500000) {
 		const expectedPixels = mapWidth * mapHeight;
 		if (pixLen === 0 || pixLen > 500000 || (pixLzLen !== 0 && pixLen > 500000)) {
 			pixLen = actualPayloadLen;
@@ -394,7 +447,7 @@ function tryDecodeCandidate(buf: Buffer, hdr: Q10Header): B01MapData | null {
 			pixLen = expectedPixels;
 			pixLzLen = actualPayloadLen;
 		}
-		// If dimensions still wrong (e.g. 1×124), try factor pair / near-square
+		// If dimensions still wrong (e.g. 1×124), try factor pair / near-square.
 		if (mapWidth * mapHeight !== pixLen || mapHeight === 1 || mapWidth === 1) {
 			const pair = factorPairForPixelCount(pixLen);
 			const ratio = pair ? Math.max(pair.width / pair.height, pair.height / pair.width) : Infinity;
@@ -418,8 +471,8 @@ function tryDecodeCandidate(buf: Buffer, hdr: Q10Header): B01MapData | null {
 		const compressed = buf.subarray(pixelStart, pixelStart + actualCompressedLen);
 		const lz4Reason = { reason: "" };
 		const decompressed = tryDecompressQ10Lz4Block(compressed, pixLen, lz4Reason);
-		// Kurz-Payload LZ4 (offset 0): decompressed kürzer als Header-pixLen → echte Länge + 124×/256×/Faktoren (wie Hex-Tool)
-		if (decompressed && decompressed.length > 0 && decompressed.length !== pixLen && hdr.offset === 0) {
+		// Compatibility mode only: accept shortened decompressed payloads from malformed captures.
+		if (compatFallbacks && decompressed && decompressed.length > 0 && decompressed.length !== pixLen && hdr.offset === 0) {
 			const expectedPixels = mapWidth * mapHeight;
 			if (decompressed.length < pixLen && expectedPixels >= 100 && decompressed.length <= MAX_MAP_PIXELS) {
 				pixLen = decompressed.length;
@@ -451,8 +504,8 @@ function tryDecodeCandidate(buf: Buffer, hdr: Q10Header): B01MapData | null {
 		src
 	);
 	if (!mapGrid || mapGrid.length !== size) return null;
-	// Falsche Header-Dimensionen: Grid viel größer als Pixeldaten → neu dimensionieren (wie Hex-Tool)
-	if (src.length > 0 && src.length < 0.1 * size) {
+	// Compatibility mode only: recover obviously broken dimensions.
+	if (compatFallbacks && src.length > 0 && src.length < 0.1 * size) {
 		const n = src.length;
 		let pair: { width: number; height: number } | null = null;
 		if (n % 124 === 0 && n / 124 <= 2000) pair = { width: 124, height: n / 124 };
@@ -655,10 +708,9 @@ function tryDecodeCandidate(buf: Buffer, hdr: Q10Header): B01MapData | null {
 		carpetAreas: q10SourceData.carpetAreas.length
 	};
 
-	const sanitizedSource = sanitizeQ10SourceOverlayAreas(result.header, q10SourceData);
-	result.q10SourceData = sanitizedSource;
+	result.q10SourceData = q10SourceData;
 
-	const overlayFields = rebuildQ10OverlayFields(result, sanitizedSource);
+	const overlayFields = rebuildQ10OverlayFields(result, q10SourceData);
 	result.virtualWalls = overlayFields.virtualWalls;
 	result.areasInfo = overlayFields.areasInfo;
 	result.recmForbitZone = overlayFields.recmForbitZone;
@@ -877,6 +929,13 @@ function clonePathPoint(point: Q10SourcePathPoint): Q10SourcePathPoint {
 	};
 }
 
+function cloneSuspectedPoint(point: Q10SourceSuspectedPoint): Q10SourceSuspectedPoint {
+	return {
+		type: point.type,
+		point: cloneDevicePoint(point.point)
+	};
+}
+
 function cloneSourceArea(area: Q10SourceArea): Q10SourceArea {
 	return {
 		id: area.id,
@@ -1008,12 +1067,10 @@ export function mergeQ10PersistentState(current: B01MapData, previous?: B01MapDa
 		changed = true;
 	}
 
-	const sanitizedSource = sanitizeQ10SourceOverlayAreas(current.header, nextSource);
-	if (sanitizedSource !== nextSource) changed = true;
 	if (!changed) return current;
 
-	const overlayFields = rebuildQ10OverlayFields(current, sanitizedSource);
-	const pathState = sanitizedSource.pathPoints.length ? buildQ10PathState(current, sanitizedSource.pathPoints) : null;
+	const overlayFields = rebuildQ10OverlayFields(current, nextSource);
+	const pathState = nextSource.pathPoints.length ? buildQ10PathState(current, nextSource.pathPoints) : null;
 
 	return {
 		...current,
@@ -1024,10 +1081,248 @@ export function mergeQ10PersistentState(current: B01MapData, previous?: B01MapDa
 		recmForbitZone: overlayFields.recmForbitZone,
 		carpetInfo: overlayFields.carpetInfo,
 		q10SourceData: {
-			...sanitizedSource,
-			robotPosition: pathState?.robotPosition ?? sanitizedSource.robotPosition
+			...nextSource,
+			robotPosition: pathState?.robotPosition ?? nextSource.robotPosition
 		}
 	};
+}
+
+export function mergeQ10RuntimeState(current: B01MapData, previous?: B01MapData | null): B01MapData {
+	if (!current?.q10SourceData || !previous?.q10SourceData) return current;
+
+	const currentSource = current.q10SourceData;
+	const previousSource = previous.q10SourceData;
+	if (!currentSource.mapId || currentSource.mapId !== previousSource.mapId) return current;
+
+	let changed = false;
+	const nextSource: Q10SourceData = {
+		...currentSource
+	};
+
+	if (!nextSource.pathPoints.length && previousSource.pathPoints.length) {
+		nextSource.pathPoints = previousSource.pathPoints.map((point) => clonePathPoint(point));
+		changed = true;
+	}
+	if (!nextSource.virtualWalls.length && previousSource.virtualWalls.length) {
+		nextSource.virtualWalls = previousSource.virtualWalls.map((area) => cloneSourceArea(area));
+		changed = true;
+	}
+	if (!nextSource.forbidAreas.length && previousSource.forbidAreas.length) {
+		nextSource.forbidAreas = previousSource.forbidAreas.map((area) => cloneSourceArea(area));
+		changed = true;
+	}
+	if (!nextSource.mopAreas.length && previousSource.mopAreas.length) {
+		nextSource.mopAreas = previousSource.mopAreas.map((area) => cloneSourceArea(area));
+		changed = true;
+	}
+	if (!nextSource.thresholdAreas.length && previousSource.thresholdAreas.length) {
+		nextSource.thresholdAreas = previousSource.thresholdAreas.map((area) => cloneSourceArea(area));
+		changed = true;
+	}
+	if (!nextSource.carpetAreas.length && previousSource.carpetAreas.length) {
+		nextSource.carpetAreas = previousSource.carpetAreas.map((area) => cloneSourceArea(area));
+		changed = true;
+	}
+	if (!nextSource.suspectedPoints.length && previousSource.suspectedPoints.length) {
+		nextSource.suspectedPoints = previousSource.suspectedPoints.map((point) => cloneSuspectedPoint(point));
+		changed = true;
+	}
+	if (!nextSource.tempRoomColorPlanStr && previousSource.tempRoomColorPlanStr) {
+		nextSource.tempRoomColorPlanStr = previousSource.tempRoomColorPlanStr;
+		changed = true;
+	}
+	if (!nextSource.tempClipEraseRoomColorPlanStr && previousSource.tempClipEraseRoomColorPlanStr) {
+		nextSource.tempClipEraseRoomColorPlanStr = previousSource.tempClipEraseRoomColorPlanStr;
+		changed = true;
+	}
+
+	if (!changed) return current;
+
+	const overlayFields = rebuildQ10OverlayFields(current, nextSource);
+	const pathState = nextSource.pathPoints.length ? buildQ10PathState(current, nextSource.pathPoints) : null;
+
+	return {
+		...current,
+		history: pathState?.history ?? current.history,
+		robotPos: pathState?.robotPos ?? current.robotPos,
+		virtualWalls: overlayFields.virtualWalls,
+		areasInfo: overlayFields.areasInfo,
+		recmForbitZone: overlayFields.recmForbitZone,
+		carpetInfo: overlayFields.carpetInfo,
+		q10SourceData: {
+			...nextSource,
+			robotPosition: pathState?.robotPosition ?? nextSource.robotPosition
+		}
+	};
+}
+
+export function applyQ10RuntimeStatePatch(current: B01MapData, patch: Q10RuntimeStatePatch): B01MapData {
+	if (!current?.q10SourceData) return current;
+
+	let changed = false;
+	const nextSource: Q10SourceData = {
+		...current.q10SourceData
+	};
+
+	if (patch.pathPoints) {
+		nextSource.pathPoints = patch.pathPoints.map((point) => clonePathPoint(point));
+		changed = true;
+	}
+	if (patch.virtualWalls) {
+		nextSource.virtualWalls = patch.virtualWalls.map((area) => cloneSourceArea(area));
+		changed = true;
+	}
+	if (patch.forbidAreas) {
+		nextSource.forbidAreas = patch.forbidAreas.map((area) => cloneSourceArea(area));
+		changed = true;
+	}
+	if (patch.mopAreas) {
+		nextSource.mopAreas = patch.mopAreas.map((area) => cloneSourceArea(area));
+		changed = true;
+	}
+	if (patch.thresholdAreas) {
+		nextSource.thresholdAreas = patch.thresholdAreas.map((area) => cloneSourceArea(area));
+		changed = true;
+	}
+	if (patch.carpetAreas) {
+		nextSource.carpetAreas = patch.carpetAreas.map((area) => cloneSourceArea(area));
+		changed = true;
+	}
+	if (patch.suspectedPoints) {
+		nextSource.suspectedPoints = patch.suspectedPoints.map((point) => cloneSuspectedPoint(point));
+		changed = true;
+	}
+
+	if (!changed) return current;
+
+	const overlayFields = rebuildQ10OverlayFields(current, nextSource);
+	const pathState = nextSource.pathPoints.length ? buildQ10PathState(current, nextSource.pathPoints) : null;
+
+	return {
+		...current,
+		history: pathState?.history ?? current.history,
+		robotPos: pathState?.robotPos ?? current.robotPos,
+		virtualWalls: overlayFields.virtualWalls,
+		areasInfo: overlayFields.areasInfo,
+		recmForbitZone: overlayFields.recmForbitZone,
+		carpetInfo: overlayFields.carpetInfo,
+		q10SourceData: {
+			...nextSource,
+			robotPosition: pathState?.robotPosition ?? nextSource.robotPosition
+		}
+	};
+}
+
+export function parseQ10VirtualWallDpPayload(buf: Buffer): Q10SourceArea[] {
+	if (!buf || buf.length < 1) return [];
+	const count = buf[0] ?? 0;
+	if (buf.length < 1 + count * 8) return [];
+
+	const walls: Q10SourceArea[] = [];
+	for (let index = 0; index < count; index++) {
+		const off = 1 + index * 8;
+		walls.push({
+			type: "virtualWall",
+			areaType: 1,
+			points: [
+				q10DevicePoint(readI16BE(buf, off) / 10, readI16BE(buf, off + 2) / 10),
+				q10DevicePoint(readI16BE(buf, off + 4) / 10, readI16BE(buf, off + 6) / 10)
+			]
+		});
+	}
+	return walls;
+}
+
+export function parseQ10RestrictedZoneDpPayload(
+	buf: Buffer
+): Required<Pick<Q10RuntimeStatePatch, "forbidAreas" | "mopAreas" | "thresholdAreas">> {
+	const result: Required<Pick<Q10RuntimeStatePatch, "forbidAreas" | "mopAreas" | "thresholdAreas">> = {
+		forbidAreas: [],
+		mopAreas: [],
+		thresholdAreas: []
+	};
+	if (!buf || buf.length < 2) return result;
+
+	const count = buf[1] ?? 0;
+	if (buf.length < 2 + count * 38) return result;
+
+	for (let index = 0; index < count; index++) {
+		const off = 2 + index * 38;
+		const areaType = buf[off] ?? 0;
+		const points: Q10DevicePoint[] = [];
+		for (let pointIndex = 0; pointIndex < 4; pointIndex++) {
+			const pointOff = off + 2 + pointIndex * 4;
+			points.push(q10DevicePoint(readI16BE(buf, pointOff) / 10, readI16BE(buf, pointOff + 2) / 10));
+		}
+
+		const nameLen = buf[off + 18] ?? 0;
+		let name: string | undefined;
+		if (nameLen > 0 && nameLen <= 19) {
+			const nameBytes = buf.subarray(off + 19, Math.min(off + 19 + nameLen, off + 38));
+			name = fixLikelyUtf8Mojibake(nameBytes.toString("utf8").replace(/\0+$/g, "").trim()) || undefined;
+		}
+
+		const area: Q10SourceArea = {
+			type: areaType === 2 ? "mop" : areaType === 3 ? "threshold" : "forbid",
+			areaType,
+			name,
+			points
+		};
+		if (areaType === 2) result.mopAreas.push(area);
+		else if (areaType === 3) result.thresholdAreas.push(area);
+		else result.forbidAreas.push(area);
+	}
+
+	return result;
+}
+
+export function parseQ10CarpetDpPayload(data: unknown): Q10SourceArea[] {
+	if (!Array.isArray(data)) return [];
+
+	const carpets: Q10SourceArea[] = [];
+	for (const entry of data) {
+		if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+		const item = entry as Record<string, unknown>;
+		if (!Array.isArray(item.vertexs) || item.vertexs.length < 4) continue;
+
+		const points: Q10DevicePoint[] = [];
+		for (const vertex of item.vertexs) {
+			if (!Array.isArray(vertex) || vertex.length < 2) continue;
+			const x = Number(vertex[0]);
+			const y = Number(vertex[1]);
+			if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+			points.push(q10DevicePoint(x / 10, y / 10));
+		}
+		if (points.length < 4) continue;
+
+		const id = Number(item.id);
+		carpets.push({
+			id: Number.isFinite(id) ? id : undefined,
+			type: "carpet",
+			points
+		});
+	}
+	return carpets;
+}
+
+export function parseQ10SuspectedPointsDpPayload(
+	data: unknown,
+	type: Q10SourceSuspectedPoint["type"]
+): Q10SourceSuspectedPoint[] {
+	if (!Array.isArray(data)) return [];
+
+	const points: Q10SourceSuspectedPoint[] = [];
+	for (const entry of data) {
+		if (!Array.isArray(entry) || entry.length < 2) continue;
+		const x = Number(entry[0]);
+		const y = Number(entry[1]);
+		if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+		points.push({
+			type,
+			point: q10DevicePoint(x / 10, y / 10)
+		});
+	}
+	return points;
 }
 
 function parseQ10TrailingBlocks(
@@ -1311,7 +1606,7 @@ function tryDecodeHeaderCandidate(
 		const hdr = parseQ10HeaderAt(buf, offset, heightEndian);
 		if (!isPlausibleHeader(hdr, buf.length)) return null;
 		if (hdr.version !== 0 && hdr.version !== 1 && hdr.version !== 2 && hdr.version !== 3) return null;
-		const mapData = tryDecodeCandidate(buf, hdr);
+		const mapData = tryDecodeCandidate(buf, hdr, true);
 		if (!mapData) return null;
 		return { mapData, score: scoreDecodedCandidate(mapData) };
 	} catch {
@@ -1319,15 +1614,36 @@ function tryDecodeHeaderCandidate(
 	}
 }
 
+function parseStrictOriginalQ10Map(buf: Buffer): B01MapData | null {
+	const payload = unwrapQ10OriginalMapPayload(buf);
+	if (!payload || payload.length < Q10_HEADER_LEN) return null;
+
+	try {
+		const hdr = parseQ10HeaderAt(payload, 0, "be");
+		if (!isStrictOriginalHeader(hdr, payload.length)) return null;
+		return tryDecodeCandidate(payload, hdr, false);
+	} catch {
+		return null;
+	}
+}
+
 /**
- * Parses Q10 YxMap buffer to B01MapData for use with B01 MapBuilder.
- * Some devices prepend one container byte before the actual YxMap header, so we
- * rank multiple candidate offsets/endiannesses instead of stopping at the first
- * syntactically-decodable header. This mirrors the app's tendency to reject bad
- * package candidates later in the pipeline instead of trusting the first hit.
+ * Parses Q10 YxMap buffer to B01MapData for use with the B01/Q10 renderer.
+ *
+ * Default behavior mirrors the original app:
+ * - strip the leading blob-type byte for map blobs (`1`, `3`, `4`)
+ * - parse the header at offset `0`
+ * - use big-endian multi-byte fields
+ *
+ * A separate compatibility mode can be enabled explicitly for malformed legacy
+ * captures that do not follow the original transport shape.
  */
 export function parseQ10YxMapToB01(buf: Buffer): B01MapData | null {
 	if (!buf || buf.length < Q10_HEADER_LEN) return null;
+
+	const strict = parseStrictOriginalQ10Map(buf);
+	if (strict) return strict;
+	if (!Q10_COMPAT_FALLBACKS_ENABLED) return null;
 
 	const preferredCandidates: Array<{ offset: number; endian: "le" | "be" }> = [
 		{ offset: 1, endian: "be" },

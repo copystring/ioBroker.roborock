@@ -27,6 +27,10 @@ export class B01MapService {
 		return this.deps.adapter.translationManager?.get("default_room_name");
 	}
 
+	private translateRoomName(key: string, fallback?: string): string {
+		return this.deps.adapter.translationManager?.get(key, fallback) ?? fallback ?? key;
+	}
+
 	public async updateMap(trigger?: () => Promise<void>): Promise<void> {
 		const dummyId = -Math.floor(Math.random() * 1000000);
 		try {
@@ -446,7 +450,12 @@ export class B01MapService {
 					: typeof room.roomName === "string"
 						? room.roomName
 						: "";
-			const roomName = normalizeRoborockRoomDisplayName(rawRoomName, () => this.getDefaultRoomName());
+			const roomName = normalizeRoborockRoomDisplayName(
+				rawRoomName,
+				() => this.getDefaultRoomName(),
+				(key, fallback) => this.translateRoomName(key, fallback),
+				typeof room?.roomTypeId === "number" ? room.roomTypeId : undefined
+			);
 			const roomStateId = `${floorFolder}.${roomID}`;
 			await this.stateWriter.ensureState(roomStateId, {
 				name: roomName,
