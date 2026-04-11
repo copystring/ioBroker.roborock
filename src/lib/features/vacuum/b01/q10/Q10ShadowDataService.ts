@@ -624,7 +624,6 @@ export class Q10ShadowDataService {
 		}
 
 		if (Object.keys(statusData).length > 0) {
-			if (statusData.status !== undefined) statusData.state = statusData.status;
 			if (statusData.fan_power !== undefined) statusData.wind = statusData.fan_power;
 			if (statusData.water_box_mode !== undefined) statusData.water = statusData.water_box_mode;
 			this.normalizeQ10BooleanNumberFlags(statusData);

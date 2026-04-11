@@ -28,6 +28,7 @@ export class Q10VacuumFeatures extends B01BaseVacuumFeatures {
 
 	private async cleanupQ10LegacyStates(): Promise<void> {
 		await this.deleteObjectIfExists(`Devices.${this.duid}.deviceStatus.language`);
+		await this.deleteObjectIfExists(`Devices.${this.duid}.deviceStatus.state`);
 	}
 
 	protected override shouldPrecreateConsumableResetStates(): boolean {

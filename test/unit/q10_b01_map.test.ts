@@ -548,6 +548,7 @@ describe("Q10 B01 Map Support", () => {
 		});
 
 		expect(harness.adapter.states[`Devices.${Q10_DUID}.deviceStatus.status`]).toBe(8);
+		expect(harness.adapter.states[`Devices.${Q10_DUID}.deviceStatus.state`]).toBeUndefined();
 		expect(harness.adapter.states[`Devices.${Q10_DUID}.deviceStatus.battery`]).toBe(100);
 		expect(harness.adapter.states[`Devices.${Q10_DUID}.deviceStatus.wind`]).toBe(2);
 		expect(harness.adapter.states[`Devices.${Q10_DUID}.deviceStatus.water`]).toBe(2);
