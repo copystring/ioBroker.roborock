@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { B01MapPipeline } from "../../src/lib/map/b01/B01MapPipeline";
 import { MapDecryptor } from "../../src/lib/map/b01/MapDecryptor";
 import { classifyB01MapPayload } from "../../src/lib/map/b01/B01MapPayloadClassifier";
-import { parseQ10YxMapToB01 } from "../../src/lib/map/q10/Q10YxMapParser";
+import { parseQ10PathOnlyToSourcePoints, parseQ10YxMapToB01 } from "../../src/lib/map/q10/Q10YxMapParser";
 import { createQ10MockAdapter } from "./q10TestSupport";
 import { Q10_FIXTURE_DEFAULTS } from "./q10FixtureDefaults";
 
@@ -84,6 +84,25 @@ function createSyntheticQ10RoomPayload(roomName: string): Buffer {
 	return payload;
 }
 
+function createSyntheticQ10PathPayload(options: { wrapped?: boolean } = {}): Buffer {
+	const body = Buffer.alloc(13 + 8, 0);
+	body[0] = 1;
+	body.writeUInt16BE(0, 1);
+	body[3] = 0;
+	body[4] = 0;
+	body.writeUInt32BE(2, 5);
+	body.writeUInt16BE(0, 9);
+	body.writeUInt16BE(0, 11);
+	body.writeInt16BE(200, 13);
+	body.writeInt16BE(400, 15);
+	body.writeInt16BE(300, 17);
+	body.writeInt16BE(500, 19);
+
+	if (!options.wrapped) return body;
+
+	return Buffer.concat([Buffer.from([2]), body]);
+}
+
 describe("B01 Map Payload Classifier", () => {
 	it("should keep a valid Q10 live map even when an optional edit-tail block is malformed", () => {
 		const malformedTail = Buffer.from([
@@ -122,6 +141,32 @@ describe("B01 Map Payload Classifier", () => {
 		expect(classification.isLiveMapCandidate).toBe(true);
 		expect(classification.q10?.payloadShape).toBe("map");
 		expect(classification.q10?.mapData?.sourceFormat).toBe("q10-raw");
+	});
+
+	it("should parse the canonical original Q10 path-only payload shape without the blob prefix", () => {
+		const payload = createSyntheticQ10PathPayload();
+
+		const pathPoints = parseQ10PathOnlyToSourcePoints(payload);
+		const classification = classifyB01MapPayload(payload);
+
+		expect(pathPoints).toHaveLength(2);
+		expect(pathPoints?.[0]?.x).toBe(10);
+		expect(pathPoints?.[0]?.y).toBe(20);
+		expect(classification.variant).toBe("q10");
+		expect(classification.kind).toBe("live");
+		expect(classification.q10?.pathPoints).toHaveLength(2);
+	});
+
+	it("should unwrap raw Q10 path-only transport payloads before parsing them like the original app", () => {
+		const payload = createSyntheticQ10PathPayload({ wrapped: true });
+
+		const pathPoints = parseQ10PathOnlyToSourcePoints(payload);
+		const classification = classifyB01MapPayload(payload);
+
+		expect(pathPoints).toHaveLength(2);
+		expect(classification.variant).toBe("q10");
+		expect(classification.kind).toBe("live");
+		expect(classification.q10?.pathPoints).toHaveLength(2);
 	});
 
 	it("should classify Q10 history blob type 3 as a B01 history map payload", () => {

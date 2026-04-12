@@ -84,6 +84,27 @@ export class Q10ShadowDataService {
 		return this.deps.adapter.translationManager?.get("default_room_name");
 	}
 
+	private normalizeQ10RoomIds(value: unknown): number[] {
+		if (!Array.isArray(value)) return [];
+		return value
+			.map((entry) => Number(entry))
+			.filter((entry) => Number.isInteger(entry) && entry > 0);
+	}
+
+	private async applyQ10CurrentCleanRoomIds(dp91: unknown): Promise<void> {
+		let roomIds: number[] = [];
+		if (dp91 && typeof dp91 === "object" && !Array.isArray(dp91)) {
+			const payload = dp91 as Record<string, unknown>;
+			roomIds = this.normalizeQ10RoomIds(payload.room_id_list);
+		}
+
+		await this.stateWriter.ensureAndSetValueState("deviceStatus.current_clean_room_ids", {
+			name: "current_clean_room_ids",
+			type: "string",
+			role: "json"
+		}, JSON.stringify(roomIds));
+	}
+
 	private async applyQ10ShadowConsumables(
 		topLevelDps: Record<string, unknown>,
 		commonDps: Record<string, unknown>
@@ -598,6 +619,10 @@ export class Q10ShadowDataService {
 					...(liveMapPatch.suspectedPoints ?? []),
 					...parseQ10SuspectedPointsDpPayload(commonDps["103"], "cliff")
 				];
+			}
+
+			if (commonDps["91"] !== undefined) {
+				await this.applyQ10CurrentCleanRoomIds(commonDps["91"]);
 			}
 
 			if (commonDps["93"] !== undefined) {

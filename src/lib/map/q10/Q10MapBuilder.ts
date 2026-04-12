@@ -1174,6 +1174,12 @@ export class Q10MapBuilder {
 
 		const pathStyles: Array<{ segments: Q10MapPixelPoint[][]; layers: Q10PathLayerStyle[] }> = [
 			{
+				segments: paths[4]!,
+				layers: [
+					{ strokeStyle: "rgba(255, 255, 255, 0.18)", lineWidth: glowWidth }
+				]
+			},
+			{
 				segments: paths[0]!,
 				layers: [
 					{ strokeStyle: wideGlowColor, lineWidth: glowWidth },

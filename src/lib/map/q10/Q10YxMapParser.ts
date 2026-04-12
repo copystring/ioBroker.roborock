@@ -1000,9 +1000,20 @@ function rebuildQ10OverlayFields(mapData: B01MapData, source: Q10SourceData): Pi
 }
 
 export function parseQ10PathOnlyToSourcePoints(buf: Buffer): Q10SourcePathPoint[] | null {
-	if (!buf || buf.length < 14) return null;
-	if (buf[0] !== 2) return null;
-	const pathBlock = parseQ10PathBlock(buf, 1);
+	if (!buf || buf.length < 13) return null;
+
+	// Original app path parser receives `parserPathData(l)` with the leading blob byte
+	// already stripped (`l = a.slice(1)`). We unwrap the transport payload here so the
+	// parser itself stays aligned with the original data shape.
+	const stripped =
+		getQ10PathPayloadLengthAt(buf, 0) > 0
+			? buf
+			: buf[0] === 2 && getQ10PathPayloadLengthAt(buf, 1) > 0
+				? buf.subarray(1)
+				: null;
+	if (!stripped) return null;
+
+	const pathBlock = parseQ10PathBlock(stripped, 0);
 	return pathBlock?.points?.length ? pathBlock.points : null;
 }
 
