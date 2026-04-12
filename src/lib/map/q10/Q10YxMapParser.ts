@@ -1031,7 +1031,8 @@ export function mergeQ10PersistentState(current: B01MapData, previous?: B01MapDa
 
 	const currentSource = current.q10SourceData;
 	const previousSource = previous.q10SourceData;
-	if (!currentSource.mapId || currentSource.mapId !== previousSource.mapId) return current;
+	if (!currentSource.mapId) return current;
+	if (previousSource.mapId !== 0 && currentSource.mapId !== previousSource.mapId) return current;
 
 	let changed = false;
 	const nextSource: Q10SourceData = {
@@ -1092,7 +1093,8 @@ export function mergeQ10RuntimeState(current: B01MapData, previous?: B01MapData 
 
 	const currentSource = current.q10SourceData;
 	const previousSource = previous.q10SourceData;
-	if (!currentSource.mapId || currentSource.mapId !== previousSource.mapId) return current;
+	if (!currentSource.mapId) return current;
+	if (previousSource.mapId !== 0 && currentSource.mapId !== previousSource.mapId) return current;
 
 	let changed = false;
 	const nextSource: Q10SourceData = {

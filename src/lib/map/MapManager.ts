@@ -6,7 +6,7 @@ import { B01DeviceStatus, B01MapData, Q10RuntimeDebugSummary } from "./b01/types
 import { Q10MapBuilder } from "./q10/Q10MapBuilder";
 import { Q10MapCreator } from "./q10/Q10MapCreator";
 import { applyQ10PathOnlyToB01, applyQ10RuntimeStatePatch, mergeQ10RuntimeState } from "./q10/Q10YxMapParser";
-import type { Q10RuntimeStatePatch } from "./q10/types";
+import type { Q10RuntimeStatePatch, Q10SourcePathPoint } from "./q10/types";
 import { MapBuilder as MapBuilderV1 } from "./v1/MapBuilder";
 import { MapDecryptor as MapDecryptorV1 } from "./v1/MapDecryptor";
 import { MapParser as MapParserV1 } from "./v1/MapParser";
@@ -20,6 +20,7 @@ export class MapManager {
 	private creatorQ10: Q10MapCreator;
 	private builderQ10: Q10MapBuilder;
 	private q10StateByDevice = new Map<string, B01MapData>();
+	private q10PendingPathPreludeByDevice = new Map<string, { pathPoints: Q10SourcePathPoint[]; receivedAt: number }>();
 	private latestB01DeviceStatusByDevice = new Map<string, Partial<B01DeviceStatus>>();
 
 	private static readonly NON_Q10_CLASSIFICATION: Q10PayloadClassification = {
@@ -39,6 +40,8 @@ export class MapManager {
 		eraseAreas: 0,
 		carpetAreas: 0
 	};
+
+	private static readonly Q10_PATH_PRELUDE_TTL_MS = 30_000;
 
 	constructor(adapter: Roborock) {
 		this.adapter = adapter;
@@ -161,6 +164,10 @@ export class MapManager {
 		let mapData = rawMapData;
 		if (mapData) {
 			if (connectionType !== "B01History") {
+				const pendingPrelude = this.consumeQ10PendingPathPrelude(cacheKey);
+				if (pendingPrelude && !(mapData.q10SourceData?.pathPoints?.length ?? 0)) {
+					mapData = applyQ10PathOnlyToB01(mapData, pendingPrelude);
+				}
 				mapData = mergeQ10RuntimeState(mapData, previous);
 				if (
 					overlaySeedSource === "none" &&
@@ -172,7 +179,13 @@ export class MapManager {
 			}
 		} else {
 			const pathPoints = classification.pathPoints;
-			if (!pathPoints?.length || !previous) {
+			if (!pathPoints?.length) {
+				return null;
+			}
+			if (!previous) {
+				if (connectionType !== "B01History") {
+					this.storeQ10PendingPathPrelude(cacheKey, pathPoints);
+				}
 				return null;
 			}
 			mapData = applyQ10PathOnlyToB01(previous, pathPoints);
@@ -299,6 +312,26 @@ export class MapManager {
 	private getQ10CacheKey(duid?: string, connectionType: string = "Unknown"): string {
 		const scope = connectionType === "B01History" ? "history" : "live";
 		return `${duid || "unknown"}:${scope}`;
+	}
+
+	private storeQ10PendingPathPrelude(cacheKey: string, pathPoints: Q10SourcePathPoint[]): void {
+		this.q10PendingPathPreludeByDevice.set(cacheKey, {
+			pathPoints: pathPoints.map((point) => ({ ...point })),
+			receivedAt: Date.now()
+		});
+	}
+
+	private consumeQ10PendingPathPrelude(cacheKey: string): Q10SourcePathPoint[] | null {
+		const pending = this.q10PendingPathPreludeByDevice.get(cacheKey);
+		if (!pending) return null;
+
+		this.q10PendingPathPreludeByDevice.delete(cacheKey);
+
+		if (Date.now() - pending.receivedAt > MapManager.Q10_PATH_PRELUDE_TTL_MS) {
+			return null;
+		}
+
+		return pending.pathPoints.map((point) => ({ ...point }));
 	}
 
 	private hasQ10OverlaySeed(mapData?: B01MapData | null): boolean {

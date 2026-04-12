@@ -13,6 +13,7 @@ import { Q10MapBuilder } from "../../src/lib/map/q10/Q10MapBuilder";
 import { Q10MapCreator } from "../../src/lib/map/q10/Q10MapCreator";
 import {
 	decompressQ10Lz4Block,
+	mergeQ10RuntimeState,
 	parseQ10VirtualWallDpPayload,
 	parseQ10YxMapToB01
 } from "../../src/lib/map/q10/Q10YxMapParser";
@@ -129,6 +130,37 @@ function createSyntheticQ10Map(
 		},
 		q10SourceData
 	};
+}
+
+function createSyntheticQ10LivePayload(options: { tail?: Buffer; width?: number; height?: number; version?: number } = {}): Buffer {
+	const width = options.width ?? 16;
+	const height = options.height ?? 16;
+	const version = options.version ?? 1;
+	const tail = options.tail ?? Buffer.alloc(0);
+	const pixLen = width * height;
+	const payload = Buffer.alloc(1 + 28 + pixLen + tail.length, 0);
+
+	payload[0] = 1;
+	payload[1] = version;
+	payload.writeUInt32BE(1, 2);
+	payload[6] = 0;
+	payload.writeUInt16BE(width, 7);
+	payload.writeUInt16BE(height, 9);
+	payload.writeUInt16BE(0, 11);
+	payload.writeUInt16BE(height * 5, 13);
+	payload.writeUInt16BE(5, 15);
+	payload.writeUInt16BE(0xffff, 17);
+	payload.writeUInt16BE(0xffff, 19);
+	payload.writeUInt16BE(0xffff, 21);
+	payload.writeUInt32BE(pixLen, 23);
+	payload.writeUInt16BE(0, 27);
+	payload.fill(1, 29, 29 + pixLen);
+
+	if (tail.length > 0) {
+		tail.copy(payload, 29 + pixLen);
+	}
+
+	return payload;
 }
 
 function pixelAt(image: { width: number; rgba: Buffer }, x: number, y: number): [number, number, number, number] {
@@ -260,32 +292,28 @@ describe("Q10 B01 Map Support", () => {
 		expect(harness.adapter.requestsHandler.publishB01Dp).toHaveBeenCalledWith(Q10_DUID, { "101": { "61": { op: "list" } } });
 	});
 
-	it("should initialize Q10 with the sniff-verified Q10 live-map priming burst", async () => {
+	it("should initialize Q10 with the original app startup request order", async () => {
 		vi.spyOn(harness.feature as any, "updateFirmwareFeatures").mockResolvedValue(undefined);
 		vi.spyOn(harness.feature as any, "updateExtraStatus").mockResolvedValue(undefined);
 
 		await harness.feature.initializeDeviceData();
 
 		expect(harness.adapter.requestsHandler.publishB01Dp.mock.calls).toEqual([
+			[Q10_DUID, { "101": { "16": 1 } }],
 			[Q10_DUID, { "102": 1 }],
 			[Q10_DUID, { "101": { "61": { op: "list" } } }],
 			[Q10_DUID, { "101": { "52": { op: "list" } } }],
-			[Q10_DUID, { "101": { "64": { op: "list" } } }],
 			[Q10_DUID, { "101": { "69": 0 } }],
 			[Q10_DUID, { "101": { "75": 0 } }],
-			[Q10_DUID, { "101": { "16": 1 } }],
-			[Q10_DUID, { "101": { "107": 0 } }],
-			[Q10_DUID, { "101": { "110": 1 } }]
+			[Q10_DUID, { "101": { "64": { op: "list" } } }],
+			[Q10_DUID, { "101": { "107": 0 } }]
 		]);
 	});
 
 	it("should keep live map refresh and clean record refresh separate for Q10", async () => {
 		await harness.feature.updateMap();
 		expect(harness.adapter.requestsHandler.publishB01Dp.mock.calls).toEqual([
-			[Q10_DUID, { "101": { "75": 0 } }],
-			[Q10_DUID, { "101": { "16": 1 } }],
-			[Q10_DUID, { "101": { "107": 0 } }],
-			[Q10_DUID, { "101": { "110": 1 } }]
+			[Q10_DUID, { "101": { "16": 1 } }]
 		]);
 
 		harness.adapter.requestsHandler.publishB01Dp.mockClear();
@@ -360,8 +388,7 @@ describe("Q10 B01 Map Support", () => {
 	});
 
 	it("should pass the real device serial instead of the duid when processing live Q10 maps", async () => {
-		const livePayload = Buffer.alloc(28);
-		livePayload[0] = 2;
+		const livePayload = createSyntheticQ10LivePayload();
 		harness.adapter.mapManager.processMap.mockResolvedValue({ mapBase64: "data:image/png;base64,live" });
 
 		await (harness.feature as any).mapService.processUpdateMapResponse(livePayload);
@@ -370,6 +397,35 @@ describe("Q10 B01 Map Support", () => {
 		expect(harness.adapter.mapManager.processMap.mock.calls[0][3]).toBe(Q10_SN);
 		expect(harness.adapter.mapManager.processMap.mock.calls[0][5]).toBe(Q10_DUID);
 		expect(harness.adapter.mapManager.processMap.mock.calls[0][6]).toBe("B01");
+	});
+
+	it("should ignore duplicate Q10 live map blobs like the original app parser", async () => {
+		const livePayload = createSyntheticQ10LivePayload();
+		harness.adapter.mapManager.processMap.mockResolvedValue({ mapBase64: "data:image/png;base64,live" });
+
+		await (harness.feature as any).mapService.processUpdateMapResponse(livePayload);
+		await (harness.feature as any).mapService.processUpdateMapResponse(livePayload);
+
+		expect(harness.adapter.mapManager.processMap).toHaveBeenCalledTimes(1);
+	});
+
+	it("should preserve Q10 runtime path data when the previous live model still has mapId 0", () => {
+		const previous = createSyntheticQ10Map([
+			{ x: 10, y: 10 },
+			{ x: 12, y: 12 }
+		], 100, 40, { chargerPixel: { x: 5, y: 5 } });
+		previous.q10SourceData!.mapId = 0;
+		previous.q10SourceData!.pathPoints = [
+			{ x: 0.5, y: 1.5, type: 0 },
+			{ x: 0.6, y: 1.4, type: 0 }
+		];
+
+		const current = createSyntheticQ10Map([], 100, 40, { chargerPixel: { x: 5, y: 5 } });
+		current.q10SourceData!.mapId = 1772902161;
+
+		const merged = mergeQ10RuntimeState(current, previous);
+		expect(merged.q10SourceData?.pathPoints).toHaveLength(2);
+		expect(merged.history).toHaveLength(2);
 	});
 
 	it("should refuse Q10 live map processing when the device serial is missing", async () => {
@@ -1010,6 +1066,50 @@ describe("Q10 B01 Map Support", () => {
 		expect(adapter.requestsHandler.resolvePendingRequest).not.toHaveBeenCalled();
 	});
 
+	it("should not consume the pending live-map request with a Q10 path-only 301 payload", async () => {
+		const adapter = new MockAdapter() as MockAdapter & {
+			deviceFeatureHandlers: Map<string, unknown>;
+			getB01Variant: ReturnType<typeof vi.fn>;
+			pendingRequests: Map<number, unknown>;
+			b01MapResponseQueue: Map<string, string[]>;
+			requestsHandler: {
+				getPendingBinaryRequest: ReturnType<typeof vi.fn>;
+				hasPendingPhotoRequest: ReturnType<typeof vi.fn>;
+				resolvePendingRequest: ReturnType<typeof vi.fn>;
+			};
+			rLog: ReturnType<typeof vi.fn>;
+		};
+		const applyQ10LiveMapPayload = vi.fn().mockResolvedValue(undefined);
+		const pathOnlyPayload = Buffer.from(
+			"02010084000200000039ffbe0000fffdfffcfff5ffe00000ffd30008ffbf0010ffab0018ff970020ff830028ff6f0030ff570038ff430040ff2b0048ff170050ff03005cfeeb0064fedb006cfec70074feb3007cfe9b0084fe87008cfe770098fe5f00a0fe4b00a8fe3700b0fe2300b8fe0f00c0fdff00c8fdeb00d0fdd700d8fdc300e0fdaf00e8fd9f00f0fd8b00f8fd770100fd630108fd4f0110fd3b0118fd270120fd0f012cfcff0134fceb013cfcd70144fcc3014cfcaf0154fc9b015cfc870164fc77016cfc630174fc4f017cfc3b0184fc27018cfc130198fbf701a0fbe701a8fbcf01b0fbbf01b8fbab01c0fb97",
+			"hex"
+		);
+
+		adapter.deviceFeatureHandlers = new Map([[Q10_DUID, { applyQ10LiveMapPayload }]]);
+		adapter.getB01Variant = vi.fn().mockResolvedValue("Q10");
+		adapter.pendingRequests = new Map([[1, { method: "get_map_v1", duid: Q10_DUID }]]);
+		adapter.b01MapResponseQueue = new Map([[Q10_DUID, ["get_map_v1"]]]);
+		adapter.requestsHandler = {
+			getPendingBinaryRequest: vi.fn().mockReturnValue({ method: "get_map_v1", duid: Q10_DUID, binaryType: "map" }),
+			hasPendingPhotoRequest: vi.fn().mockReturnValue(false),
+			resolvePendingRequest: vi.fn()
+		} as any;
+		adapter.rLog = vi.fn();
+
+		const mqttApi = new mqtt_api(adapter as any);
+
+		await mqttApi.handleDecodedMessage(Q10_DUID, {
+			version: "B01",
+			protocol: 301,
+			payload: pathOnlyPayload
+		});
+
+		expect(applyQ10LiveMapPayload).toHaveBeenCalledWith(pathOnlyPayload);
+		expect(adapter.requestsHandler.resolvePendingRequest).not.toHaveBeenCalled();
+		expect(adapter.pendingRequests.has(1)).toBe(true);
+		expect(adapter.b01MapResponseQueue.get(Q10_DUID)).toEqual(["get_map_v1"]);
+	});
+
 	it("should forward chunk-assembled unsolicited Q10 live map payloads to the feature handler", async () => {
 		const adapter = new MockAdapter() as MockAdapter & {
 			deviceFeatureHandlers: Map<string, unknown>;
@@ -1302,6 +1402,61 @@ describe("Q10 B01 Map Support", () => {
 		expect(result?.mapData?.q10RuntimeDebug?.overlaySeedSource).toBe("runtime-cache");
 		expect(result?.mapData?.q10RuntimeDebug?.sourceVirtualWalls).toBe(0);
 		expect(result?.mapData?.q10RuntimeDebug?.virtualWalls).toBe(1);
+	});
+
+	it("should apply a Q10 path-only prelude that arrives before the first full live map", async () => {
+		const adapter = createQ10MockAdapter({ duid: Q10_DUID, assetErrorMessage: "asset not found" });
+		const manager = new MapManager(adapter as any);
+
+		const prelude = await (manager as any).processQ10Payload(
+			{
+				classification: {
+					isQ10Payload: true,
+					isLiveMapCandidate: true,
+					payloadShape: "map",
+					blobType: null,
+					mapData: null,
+					pathPoints: [
+						{ x: 15, y: 15, type: 2, update: 5 },
+						{ x: 18, y: 18, type: 2, update: 5 }
+					]
+				},
+				mapData: null
+			},
+			Q10_DUID,
+			"B01",
+			Q10_TEST_DEVICE_STATUS,
+			Q10_MODEL
+		);
+
+		expect(prelude).toBeNull();
+
+		const current = createSyntheticQ10Map([], 100, 40, {
+			chargerPixel: { x: 20, y: 20, phi: 0 }
+		});
+		current.q10SourceData!.mapId = 77;
+
+		const result = await (manager as any).processQ10Payload(
+			{
+				classification: {
+					isQ10Payload: true,
+					isLiveMapCandidate: true,
+					payloadShape: "map",
+					blobType: 1,
+					mapData: current,
+					pathPoints: null
+				},
+				mapData: current
+			},
+			Q10_DUID,
+			"B01",
+			Q10_TEST_DEVICE_STATUS,
+			Q10_MODEL
+		);
+
+		expect(result?.mapData?.q10SourceData?.pathPoints).toHaveLength(2);
+		expect(result?.mapData?.q10RuntimeDebug?.pathPoints).toBe(2);
+		expect(result?.mapData?.history).toHaveLength(2);
 	});
 
 	it("should reuse same-map Q10 live runtime path points and overlays in a new full live map", async () => {

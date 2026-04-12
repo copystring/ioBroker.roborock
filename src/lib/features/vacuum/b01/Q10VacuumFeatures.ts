@@ -154,7 +154,7 @@ export class Q10VacuumFeatures extends B01BaseVacuumFeatures {
 		await this.deps.adapter.requestsHandler.publishB01Dp(this.duid, { "101": { "52": { op: "list" } } });
 	}
 
-	private async requestQ10MapMetadataList(): Promise<void> {
+	private async requestQ10CarpetList(): Promise<void> {
 		await this.deps.adapter.requestsHandler.publishB01Dp(this.duid, { "101": { "64": { op: "list" } } });
 	}
 
@@ -163,18 +163,18 @@ export class Q10VacuumFeatures extends B01BaseVacuumFeatures {
 		await this.deps.adapter.requestsHandler.publishB01Dp(this.duid, { "101": { "69": 0 } });
 	}
 
-	private async primeQ10LiveMapStream(): Promise<void> {
-		// Android app sessions consistently prime the Q10 live map stream with these
-		// DP writes before requesting the current map payload.
+	private async requestQ10NotDisturbData(): Promise<void> {
 		await this.deps.adapter.requestsHandler.publishB01Dp(this.duid, { "101": { "75": 0 } });
-		await this.deps.adapter.requestsHandler.publishB01Dp(this.duid, { "101": { "16": 1 } });
+	}
+
+	private async requestQ10ValleyPointChargingData(): Promise<void> {
 		await this.deps.adapter.requestsHandler.publishB01Dp(this.duid, { "101": { "107": 0 } });
 	}
 
 	private async requestQ10LiveMap(): Promise<void> {
 		await this.mapService.updateMap(async () => {
-			await this.primeQ10LiveMapStream();
-			await this.deps.adapter.requestsHandler.publishB01Dp(this.duid, { "101": { "110": 1 } });
+			// Original app: requestMapAndPathData() => DP 16 with value 1.
+			await this.deps.adapter.requestsHandler.publishB01Dp(this.duid, { "101": { "16": 1 } });
 		});
 	}
 
@@ -187,12 +187,18 @@ export class Q10VacuumFeatures extends B01BaseVacuumFeatures {
 		// must not immediately trigger the same 69 request a second time.
 		this.q10ShadowDataService.skipNextTimerRefreshFromDp93();
 
+		// Original app startup order (module_1131 ka()):
+		// requestMapAndPathData(), loadShadowDps(), requestAllDps(),
+		// requestMultiMapList(), requestCleanRecordList(), requestTimer(),
+		// requsetNotDisturbData(), getCarpetList(), getValleyPointChargingData()
+		await this.requestQ10LiveMap();
 		await this.requestQ10StatusSnapshot();
 		await this.requestQ10MultiMapList();
 		await this.requestQ10CleanRecordList();
-		await this.requestQ10MapMetadataList();
 		await this.requestQ10TimerList();
-		await this.requestQ10LiveMap();
+		await this.requestQ10NotDisturbData();
+		await this.requestQ10CarpetList();
+		await this.requestQ10ValleyPointChargingData();
 
 		await this.deps.adapter.checkForNewFirmware(this.duid);
 

@@ -5,6 +5,8 @@ import { normalizeRoborockRoomDisplayName } from "../../../roomNameNormalizer";
 
 export class B01MapService {
 	private readonly stateWriter: DeviceStateWriter;
+	private lastQ10LiveMapBlob: Buffer | null = null;
+	private lastQ10PathBlob: Buffer | null = null;
 
 	private static isLiveMapPayload(data: Buffer): boolean {
 		return classifyB01MapPayload(data).kind === "live";
@@ -76,7 +78,28 @@ export class B01MapService {
 	}
 
 	protected async processUpdateMapResponse(data: Buffer): Promise<void> {
-		if (!B01MapService.isLiveMapPayload(data)) return;
+		const payloadClassification = classifyB01MapPayload(data);
+		if (payloadClassification.kind !== "live") return;
+		const isQ10PathOnlyPayload =
+			payloadClassification.variant === "q10" &&
+			!payloadClassification.q10?.mapData &&
+			!!payloadClassification.q10?.pathPoints?.length;
+
+		if (payloadClassification.variant === "q10" && payloadClassification.q10?.isLiveMapCandidate) {
+			const isPathOnly = isQ10PathOnlyPayload;
+			const previousBlob = isPathOnly ? this.lastQ10PathBlob : this.lastQ10LiveMapBlob;
+			if (previousBlob && previousBlob.equals(data)) {
+				return;
+			}
+
+			const snapshot = Buffer.from(data);
+			if (isPathOnly) {
+				this.lastQ10PathBlob = snapshot;
+			} else {
+				this.lastQ10LiveMapBlob = snapshot;
+			}
+		}
+
 		const serial = this.getDeviceSerial();
 		if (!serial) {
 			this.deps.adapter.rLog("System", this.duid, "Warn", "B01", undefined, "Missing device serial; cannot process B01 live map.", "warn");
@@ -101,7 +124,7 @@ export class B01MapService {
 			if (mapRes.mapData && Array.isArray(mapRes.mapData.rooms) && this.onRoomsDetected) {
 				this.onRoomsDetected(mapRes.mapData.rooms);
 			}
-		} else {
+		} else if (!isQ10PathOnlyPayload) {
 			this.deps.adapter.rLog("System", this.duid, "Warn", "B01", undefined, "B01 Map processing returned null.", "warn");
 		}
 	}

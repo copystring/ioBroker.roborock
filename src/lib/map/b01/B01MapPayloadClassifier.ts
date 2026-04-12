@@ -79,7 +79,7 @@ function classifyQ10Payload(payload: Buffer | null | undefined): Q10PayloadClass
 	if (blobType != null) {
 		return {
 			isQ10Payload: true,
-			isLiveMapCandidate: blobType === 1 || blobType === 2,
+			isLiveMapCandidate: false,
 			payloadShape: "blob",
 			blobType,
 			mapData: null,

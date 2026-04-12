@@ -1,52 +1,64 @@
 import { describe, expect, it } from "vitest";
 import { normalizeRoborockRoomDisplayName } from "../../src/lib/roomNameNormalizer";
+import { TranslationManager } from "../../src/lib/translationManager";
 
 describe("normalizeRoborockRoomDisplayName", () => {
-	const translate = (key: string, fallback?: string): string => {
-		const translations: Record<string, string> = {
-			default_room_name: "Raum",
-			map_edit_zone_tag_masterbedroom: "Hauptschlafzimmer",
-			map_edit_zone_tag_geustbedroom: "Gastezimmer",
-			map_edit_zone_tag_bedroom: "Schlafzimmer",
-			map_edit_zone_tag_livingroom: "Wohnzimmer",
-			map_edit_zone_tag_diningroom: "Esszimmer",
-			map_edit_zone_tag_kitchen: "Kuche",
-			map_edit_zone_tag_balcony: "Balkon",
-			map_edit_zone_tag_toilet: "Badezimmer",
-			map_edit_zone_tag_entryway: "Eingangsbereich",
-			map_edit_zone_tag_vestibule: "Flur",
-			map_edit_zone_tag_study: "Arbeitszimmer"
-		};
-		return translations[key] ?? fallback ?? key;
+	const createTranslate = (language: string) => {
+		const adapter = {
+			language,
+			rLog: () => {}
+		} as any;
+		const translationManager = new TranslationManager(adapter);
+		translationManager.init();
+		return (key: string, fallback?: string): string => translationManager.get(key, fallback);
 	};
 
 	it("should localize internal rr room type tokens", () => {
+		const translate = createTranslate("de");
+
 		expect(
-			normalizeRoborockRoomDisplayName("rr_corridor", () => "Raum", translate)
-		).toBe("Flur");
+			normalizeRoborockRoomDisplayName("rr_corridor", () => translate("default_room_name", "Room"), translate)
+		).toBe(translate("map_edit_zone_tag_vestibule", "Corridor"));
 		expect(
-			normalizeRoborockRoomDisplayName("rr_restaurant", () => "Raum", translate)
-		).toBe("Esszimmer");
+			normalizeRoborockRoomDisplayName("rr_restaurant", () => translate("default_room_name", "Room"), translate)
+		).toBe(translate("map_edit_zone_tag_diningroom", "Dining room"));
 		expect(
-			normalizeRoborockRoomDisplayName("rr_living_room", () => "Raum", translate)
-		).toBe("Wohnzimmer");
+			normalizeRoborockRoomDisplayName("rr_living_room", () => translate("default_room_name", "Room"), translate)
+		).toBe(translate("map_edit_zone_tag_livingroom", "Living room"));
 	});
 
 	it("should keep custom room names untouched", () => {
+		const translate = createTranslate("de");
+
 		expect(
-			normalizeRoborockRoomDisplayName("Kuche links", () => "Raum", translate)
+			normalizeRoborockRoomDisplayName("Kuche links", () => translate("default_room_name", "Room"), translate)
 		).toBe("Kuche links");
 	});
 
 	it("should normalize default room placeholders like room2", () => {
+		const translate = createTranslate("de");
+
 		expect(
-			normalizeRoborockRoomDisplayName("room2", () => "Raum", translate)
-		).toBe("Raum2");
+			normalizeRoborockRoomDisplayName("room2", () => translate("default_room_name", "Room"), translate)
+		).toBe(`${translate("default_room_name", "Room")}2`);
 	});
 
 	it("should fall back to room type when the raw room name is empty", () => {
+		const translate = createTranslate("de");
+
 		expect(
-			normalizeRoborockRoomDisplayName("", () => "Raum", translate, 9)
-		).toBe("Eingangsbereich");
+			normalizeRoborockRoomDisplayName("", () => translate("default_room_name", "Room"), translate, 9)
+		).toBe(translate("map_edit_zone_tag_entryway", "Entrance hall"));
+	});
+
+	it("should localize room tokens through the real translation bundle for other languages too", () => {
+		const translate = createTranslate("en");
+
+		expect(
+			normalizeRoborockRoomDisplayName("rr_corridor", () => translate("default_room_name", "Room"), translate)
+		).toBe(translate("map_edit_zone_tag_vestibule", "Corridor"));
+		expect(
+			normalizeRoborockRoomDisplayName("room2", () => translate("default_room_name", "Room"), translate)
+		).toBe(`${translate("default_room_name", "Room")}2`);
 	});
 });

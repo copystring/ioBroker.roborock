@@ -548,8 +548,12 @@ export class mqtt_api {
 				}
 				if (data.protocol === 301 && !(payloadBuf.length >= 3 && payloadBuf.subarray(0, 3).toString("ascii") === "B01")) {
 					if (classifyB01MapPayload(payloadBuf).kind === "live") {
-						this.resolveAndSendB01Map(duid, payloadBuf, data.protocol);
-						return;
+						if (this.resolveAndSendB01Map(duid, payloadBuf, data.protocol)) {
+							return;
+						}
+						if (await this.tryHandleUnsolicitedQ10LiveMap(duid, payloadBuf)) {
+							return;
+						}
 					}
 					await this.handleV1MapPacket(duid, data, payloadBuf);
 					return;
@@ -807,7 +811,11 @@ export class mqtt_api {
 		}
 
 		const payloadClassification = classifyB01MapPayload(payloadBuf);
-		if (payloadClassification.kind === "live") {
+		if (
+			payloadClassification.variant === "q10" &&
+			payloadClassification.kind === "live" &&
+			payloadClassification.q10?.mapData
+		) {
 			const livePendingId = this.findPendingB01MapRequestByMethod(duid, "get_map_v1");
 			if (livePendingId !== -1) {
 				this.shiftFirstMatchingB01MapMethod(duid, "get_map_v1");

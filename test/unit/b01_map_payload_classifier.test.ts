@@ -15,24 +15,27 @@ function createSyntheticQ10RawPayload(options: { tail?: Buffer; width?: number; 
 	const version = options.version ?? 1;
 	const tail = options.tail ?? Buffer.alloc(0);
 	const pixLen = width * height;
-	const payload = Buffer.alloc(28 + pixLen + tail.length, 0);
+	const payload = Buffer.alloc(1 + 28 + pixLen + tail.length, 0);
 
-	payload[0] = version;
-	payload.writeUInt32BE(1, 1);
-	payload[5] = 0;
-	payload.writeUInt16BE(width, 6);
-	payload.writeUInt16BE(height, 8);
-	payload.writeUInt16BE(0, 10);
-	payload.writeUInt16BE(height * 5, 12);
-	payload.writeUInt16BE(5, 14);
-	payload.writeUInt16BE(0xffff, 16);
-	payload.writeUInt16BE(0xffff, 18);
-	payload.writeUInt16BE(0xffff, 20);
-	payload.writeUInt32BE(pixLen, 22);
-	payload.writeUInt16BE(0, 26);
+	// Original Q10 live payloads are typically parsed from offset 1.
+	payload[0] = 1;
+	payload[1] = version;
+	payload.writeUInt32BE(1, 2);
+	payload[6] = 0;
+	payload.writeUInt16BE(width, 7);
+	payload.writeUInt16BE(height, 9);
+	payload.writeUInt16BE(0, 11);
+	payload.writeUInt16BE(height * 5, 13);
+	payload.writeUInt16BE(5, 15);
+	payload.writeUInt16BE(0xffff, 17);
+	payload.writeUInt16BE(0xffff, 19);
+	payload.writeUInt16BE(0xffff, 21);
+	payload.writeUInt32BE(pixLen, 23);
+	payload.writeUInt16BE(0, 27);
+	payload.fill(1, 29, 29 + pixLen);
 
 	if (tail.length > 0) {
-		tail.copy(payload, 28 + pixLen);
+		tail.copy(payload, 29 + pixLen);
 	}
 
 	return payload;
@@ -61,6 +64,7 @@ function createSyntheticQ10RoomPayload(roomName: string): Buffer {
 	const payload = Buffer.alloc(1 + 28 + pixLen, 0);
 
 	// Real Q10 payloads often start at offset 1, which is also the parser's preferred path.
+	payload[0] = 1;
 	payload[1] = 1;
 	payload.writeUInt32BE(1, 2);
 	payload[6] = 0;
@@ -132,6 +136,21 @@ describe("B01 Map Payload Classifier", () => {
 		expect(classification.isLiveMapCandidate).toBe(false);
 		expect(classification.q10?.payloadShape).toBe("blob");
 		expect(classification.q10?.blobType).toBe(3);
+	});
+
+	it("should not classify an unparsed Q10 live blob marker as a live map candidate", () => {
+		const payload = Buffer.alloc(32, 0);
+		payload[0] = 2;
+
+		const classification = classifyB01MapPayload(payload);
+
+		expect(classification.isMapPayload).toBe(true);
+		expect(classification.variant).toBe("q10");
+		expect(classification.kind).toBe("other");
+		expect(classification.isLiveMapCandidate).toBe(false);
+		expect(classification.q10?.blobType).toBe(2);
+		expect(classification.q10?.pathPoints).toBeNull();
+		expect(classification.q10?.mapData).toBeNull();
 	});
 
 	it("should keep the raw Q10 room name from roomNameDataStr instead of remapping it to a local label", () => {
