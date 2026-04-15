@@ -1355,8 +1355,7 @@ export class Q10MapBuilder {
 
 	private initializeCanvas(ctx: any, width: number, height: number): void {
 		ctx.imageSmoothingEnabled = false;
-		ctx.fillStyle = "#000000";
-		ctx.fillRect(0, 0, width, height);
+		ctx.clearRect(0, 0, width, height);
 	}
 
 	private drawBaseLayers(ctx: any, geometry: Q10MapGeometry, data: B01MapData, creator: Q10CreatorData): void {
