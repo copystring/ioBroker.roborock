@@ -11,6 +11,7 @@ import { MapParser } from "../../src/lib/map/b01/MapParser";
 import type { B01MapData } from "../../src/lib/map/b01/types";
 import { Q10MapBuilder } from "../../src/lib/map/q10/Q10MapBuilder";
 import { Q10MapCreator } from "../../src/lib/map/q10/Q10MapCreator";
+import { getQ10ExportCanvasScale } from "../../src/lib/map/q10/Q10MapGeometry";
 import {
 	decompressQ10Lz4Block,
 	mergeQ10RuntimeState,
@@ -27,6 +28,10 @@ import { createQ10MockAdapter, decodePngRgba, Q10_TEST_DEVICE_STATUS } from "./q
 const Q10_DUID = "q10-test-duid";
 const { localKey: Q10_LOCAL_KEY, model: Q10_MODEL, sn: Q10_SN } = Q10_FIXTURE_DEFAULTS;
 const mockAdapter = createQ10MockAdapter({ duid: Q10_DUID, assetErrorMessage: "asset not found" });
+
+function q10RenderScale(sizeX: number, sizeY: number): number {
+	return getQ10ExportCanvasScale(sizeX, sizeY);
+}
 
 function getFirstSample(): Buffer | null {
 	return Buffer.from(Q10_PRIMARY_SAMPLE);
@@ -1344,10 +1349,11 @@ describe("Q10 B01 Map Support", () => {
 
 		const baseCreated = new Q10MapCreator().create(baseMap);
 		const wallCreated = new Q10MapCreator().create(wallMap);
+		const scale = q10RenderScale(wallCreated.header.sizeX, wallCreated.header.sizeY);
 		const base = await decodePngRgba(await builder.buildMap(baseCreated, undefined));
 		const rendered = await decodePngRgba(await builder.buildMap(wallCreated, undefined));
 
-		expect(pixelAt(rendered, 20 * 8, 30 * 8)).not.toEqual(pixelAt(base, 20 * 8, 30 * 8));
+		expect(pixelAt(rendered, 20 * scale, 30 * scale)).not.toEqual(pixelAt(base, 20 * scale, 30 * scale));
 	});
 
 	it("should expose whether a Q10 path-only packet reused overlay metadata from runtime cache", async () => {
@@ -1760,6 +1766,109 @@ describe("Q10 B01 Map Support", () => {
 		expect(pngBuffer.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
 	});
 
+	it("should reconstruct self-identified carpets by carpet id like the original app", () => {
+		const rawInput = getFirstSample();
+		if (!rawInput) {
+			console.warn("Skipping Q10 carpet reconstruction test: embedded representative sample missing");
+			return;
+		}
+
+		const decrypted = MapDecryptor.decrypt(rawInput, Q10_SN, Q10_MODEL, Q10_DUID, mockAdapter, Q10_LOCAL_KEY);
+		expect(decrypted).not.toBeNull();
+
+		const mapData = parseQ10YxMapToB01(decrypted!);
+		expect(mapData?.carpetGrid).toBeDefined();
+
+		const created = new Q10MapCreator().create(mapData!);
+		const carpets = created.q10CreatorData?.selfIdentifiedCarpets ?? [];
+
+		expect(carpets.map((carpet) => carpet.carpetID)).toEqual([1, 2]);
+		expect(carpets.map((carpet) => carpet.id)).toEqual([1, 2]);
+		expect(carpets[0]?.width).toBeGreaterThan(0);
+		expect(carpets[0]?.height).toBeGreaterThan(0);
+		expect(carpets[1]?.width).toBeGreaterThan(0);
+		expect(carpets[1]?.height).toBeGreaterThan(0);
+		expect(Array.from(carpets[0]?.mask ?? []).every((value) => value === 0 || value === 1)).toBe(true);
+		expect(Array.from(carpets[1]?.mask ?? []).every((value) => value === 0 || value === 1)).toBe(true);
+	});
+
+	it("should build the original 3x3 diagonal self-identified carpet source mask", () => {
+		const builder = new Q10MapBuilder();
+		const carpet = {
+			id: 1,
+			carpetID: 1,
+			left: 0,
+			top: 0,
+			right: 1,
+			bottom: 1,
+			width: 1,
+			height: 1,
+			lt: { x: 0, y: 0 },
+			rb: { x: 1, y: 1 },
+			mask: Buffer.from([1])
+		};
+
+		const canvas = (builder as any).buildSelfIdentifiedCarpetSourceCanvas(carpet);
+		expect(canvas).toBeTruthy();
+
+		const ctx = canvas.getContext("2d");
+		const rgba = ctx.getImageData(0, 0, 3, 3).data;
+		const alphaAt = (x: number, y: number): number => rgba[(y * 3 + x) * 4 + 3] ?? 0;
+
+		expect(alphaAt(2, 0)).toBe(120);
+		expect(alphaAt(1, 1)).toBe(120);
+		expect(alphaAt(0, 2)).toBe(120);
+		expect(alphaAt(0, 0)).toBe(0);
+		expect(alphaAt(1, 0)).toBe(0);
+		expect(alphaAt(0, 1)).toBe(0);
+		expect(alphaAt(2, 1)).toBe(0);
+		expect(alphaAt(1, 2)).toBe(0);
+		expect(alphaAt(2, 2)).toBe(0);
+	});
+
+	it("should project the original 3x3 self-identified carpet texels sharply into backend PNG space", () => {
+		const builder = new Q10MapBuilder();
+		const carpet = {
+			id: 1,
+			carpetID: 1,
+			left: 0,
+			top: 0,
+			right: 1,
+			bottom: 1,
+			width: 1,
+			height: 1,
+			lt: { x: 0, y: 0 },
+			rb: { x: 1, y: 1 },
+			mask: Buffer.from([1])
+		};
+
+		const canvas = createCanvas(8, 8);
+		const ctx = canvas.getContext("2d");
+		(builder as any).drawSelfIdentifiedCarpetToExport(ctx, carpet, 8);
+
+		const rgba = ctx.getImageData(0, 0, 8, 8).data;
+		const alphaAt = (x: number, y: number): number => rgba[(y * 8 + x) * 4 + 3] ?? 0;
+
+		for (let y = 0; y < 3; y++) {
+			for (let x = 5; x < 8; x++) {
+				expect(alphaAt(x, y)).toBe(120);
+			}
+		}
+		for (let y = 3; y < 5; y++) {
+			for (let x = 3; x < 5; x++) {
+				expect(alphaAt(x, y)).toBe(120);
+			}
+		}
+		for (let y = 5; y < 8; y++) {
+			for (let x = 0; x < 3; x++) {
+				expect(alphaAt(x, y)).toBe(120);
+			}
+		}
+		expect(alphaAt(4, 0)).toBe(0);
+		expect(alphaAt(2, 3)).toBe(0);
+		expect(alphaAt(5, 5)).toBe(0);
+	});
+
 	it("should parse the canonical Q10 map header via strict original blob-prefix stripping and big-endian semantics", () => {
 		const rawInput = getFirstSample();
 		if (!rawInput) {
@@ -1873,10 +1982,59 @@ describe("Q10 B01 Map Support", () => {
 		const rendered = await builder.buildMaps(map, undefined);
 		const full = await decodePngRgba(rendered.full);
 		const clean = await decodePngRgba(rendered.clean);
+		const scale = q10RenderScale(map.header.sizeX, map.header.sizeY);
 
 		expect(countDifferentPixels(full, clean)).toBeGreaterThan(0);
-		expect(pixelAt(full, 20 * 8, 20 * 8)).not.toEqual(pixelAt(clean, 20 * 8, 20 * 8));
-		expect(pixelAt(full, 24 * 8, 20 * 8)).not.toEqual(pixelAt(clean, 24 * 8, 20 * 8));
+		expect(pixelAt(full, 20 * scale, 20 * scale)).not.toEqual(pixelAt(clean, 20 * scale, 20 * scale));
+		expect(pixelAt(full, 24 * scale, 20 * scale)).not.toEqual(pixelAt(clean, 24 * scale, 20 * scale));
+	});
+
+	it("should render Q10 full-image paths directly from q10SourceData.pathPoints like the original app", async () => {
+		const builder = new Q10MapBuilder();
+		const map = createSyntheticQ10Map([], 100, 40, {
+			chargerPixel: { x: 20, y: 20, phi: 0 },
+			robotPixel: { x: 24, y: 20, phi: 0 }
+		});
+		map.q10CreatorData!.pathPixels = [];
+		map.q10SourceData!.pathPoints = [
+			{ x: 10, y: 20, type: 0 },
+			{ x: 20, y: 20, type: 0 },
+			{ x: 30, y: 20, type: 0 }
+		];
+
+		const rendered = await builder.buildMaps(map, undefined);
+		const full = await decodePngRgba(rendered.full);
+		const clean = await decodePngRgba(rendered.clean);
+		const scale = q10RenderScale(map.header.sizeX, map.header.sizeY);
+
+		expect(pixelAt(full, 20 * scale, 20 * scale)).not.toEqual(pixelAt(clean, 20 * scale, 20 * scale));
+	});
+
+	it("should render q10SourceData.pathPoints in the same coordinate space as creator.pathPixels", async () => {
+		const builder = new Q10MapBuilder();
+		const sourcePoints = [
+			{ x: 10, y: 20, type: 0 },
+			{ x: 20, y: 20, type: 0 },
+			{ x: 30, y: 20, type: 0 }
+		];
+
+		const creatorMap = createSyntheticQ10Map(sourcePoints, 100, 40, {
+			chargerPixel: { x: 20, y: 20, phi: 0 },
+			robotPixel: { x: 24, y: 20, phi: 0 }
+		});
+		creatorMap.q10SourceData!.pathPoints = [];
+
+		const sourceMap = createSyntheticQ10Map([], 100, 40, {
+			chargerPixel: { x: 20, y: 20, phi: 0 },
+			robotPixel: { x: 24, y: 20, phi: 0 }
+		});
+		sourceMap.q10CreatorData!.pathPixels = [];
+		sourceMap.q10SourceData!.pathPoints = sourcePoints;
+
+		const creatorRendered = await decodePngRgba((await builder.buildMaps(creatorMap, undefined)).full);
+		const sourceRendered = await decodePngRgba((await builder.buildMaps(sourceMap, undefined)).full);
+
+		expect(Array.from(sourceRendered.rgba)).toEqual(Array.from(creatorRendered.rgba));
 	});
 
 	it("should render ceramic room material as orthogonal grout instead of diagonal hatch", async () => {
@@ -1896,19 +2054,20 @@ describe("Q10 B01 Map Support", () => {
 
 		const base = await decodePngRgba(await builder.buildMap(createMaterialMap(false), undefined));
 		const rendered = await decodePngRgba(await builder.buildMap(createMaterialMap(true), undefined));
+		const scale = q10RenderScale(40, 40);
 
 		let verticalHits = 0;
-		for (let x = 16 * 8 - 4; x <= 16 * 8 + 4; x++) {
-			const renderedPixel = pixelAt(rendered, x, 18 * 8);
-			const basePixel = pixelAt(base, x, 18 * 8);
+		for (let x = 16 * scale - 4; x <= 16 * scale + 4; x++) {
+			const renderedPixel = pixelAt(rendered, x, 18 * scale);
+			const basePixel = pixelAt(base, x, 18 * scale);
 			if (renderedPixel.some((channel, index) => channel !== basePixel[index])) verticalHits++;
 		}
 		expect(verticalHits).toBeGreaterThan(0);
 
 		let horizontalHits = 0;
-		for (let y = 16 * 8 - 4; y <= 16 * 8 + 4; y++) {
-			const renderedPixel = pixelAt(rendered, 18 * 8, y);
-			const basePixel = pixelAt(base, 18 * 8, y);
+		for (let y = 16 * scale - 4; y <= 16 * scale + 4; y++) {
+			const renderedPixel = pixelAt(rendered, 18 * scale, y);
+			const basePixel = pixelAt(base, 18 * scale, y);
 			if (renderedPixel.some((channel, index) => channel !== basePixel[index])) horizontalHits++;
 		}
 		expect(horizontalHits).toBeGreaterThan(0);

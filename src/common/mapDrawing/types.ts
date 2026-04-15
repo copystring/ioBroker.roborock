@@ -67,6 +67,13 @@ export interface DrawRoomLabelInput {
 	bubbleStroke?: string;
 	textFill?: string;
 	badgeText?: string | null;
+	bubbleRadius?: number;
+	iconSize?: number;
+	gap?: number;
+	bubbleCenterOffsetX?: number;
+	textOffsetX?: number;
+	badgeCenterOffsetX?: number;
+	badgeCenterOffsetY?: number;
 }
 
 export interface DrawZoneRectInput {

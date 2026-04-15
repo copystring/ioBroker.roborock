@@ -765,86 +765,64 @@ function buildSelfIdentifiedCarpets(data: B01MapData): Q10CreatorSelfIdentifiedC
 
 	const width = data.header.sizeX;
 	const height = data.header.sizeY;
-	const visited = new Uint8Array(width * height);
-	const queueX = new Int32Array(width * height);
-	const queueY = new Int32Array(width * height);
-	const carpets: Q10CreatorSelfIdentifiedCarpet[] = [];
-	let nextId = 1;
-	const isCarpetCell = (index: number): boolean => (((data.carpetGrid?.[index] ?? 0) & 0x3f) !== 0);
+	const carpetStats = new Map<
+		number,
+		{
+			left: number;
+			top: number;
+			right: number;
+			bottom: number;
+			indices: number[];
+		}
+	>();
 
 	for (let y = 0; y < height; y++) {
 		for (let x = 0; x < width; x++) {
-			const startIndex = y * width + x;
-			if (visited[startIndex] || !isCarpetCell(startIndex)) continue;
+			const index = y * width + x;
+			const carpetID = (data.carpetGrid[index] ?? 0) & 0x3f;
+			if (carpetID === 0) continue;
 
-			let head = 0;
-			let tail = 0;
-			let left = x;
-			let top = y;
-			let right = x;
-			let bottom = y;
-			const indices: number[] = [];
-
-			visited[startIndex] = 1;
-			queueX[tail] = x;
-			queueY[tail] = y;
-			tail++;
-
-			while (head < tail) {
-				const currentX = queueX[head];
-				const currentY = queueY[head];
-				head++;
-				indices.push(currentY * width + currentX);
-
-				left = Math.min(left, currentX);
-				top = Math.min(top, currentY);
-				right = Math.max(right, currentX);
-				bottom = Math.max(bottom, currentY);
-
-				const neighbors = [
-					[currentX - 1, currentY],
-					[currentX + 1, currentY],
-					[currentX, currentY - 1],
-					[currentX, currentY + 1]
-				] as const;
-
-				for (const [nextX, nextY] of neighbors) {
-					if (nextX < 0 || nextX >= width || nextY < 0 || nextY >= height) continue;
-					const nextIndex = nextY * width + nextX;
-					if (visited[nextIndex] || !isCarpetCell(nextIndex)) continue;
-					visited[nextIndex] = 1;
-					queueX[tail] = nextX;
-					queueY[tail] = nextY;
-					tail++;
-				}
-			}
-
-			const carpetID = nextId++;
-			const localWidth = right - left + 1;
-			const localHeight = bottom - top + 1;
-			const mask = Buffer.alloc(localWidth * localHeight);
-			for (const index of indices) {
-				const localX = (index % width) - left;
-				const localY = Math.floor(index / width) - top;
-				mask[localY * localWidth + localX] = data.carpetGrid[index] & 0x3f;
-			}
-			carpets.push({
-				id: carpetID,
-				carpetID,
-				left,
-				top,
-				right: right + 1,
-				bottom: bottom + 1,
-				width: localWidth,
-				height: localHeight,
-				lt: { x: left, y: top },
-				rb: { x: right + 1, y: bottom + 1 },
-				mask
-			});
+			const stat = carpetStats.get(carpetID) ?? {
+				left: x,
+				top: y,
+				right: x,
+				bottom: y,
+				indices: []
+			};
+			stat.left = Math.min(stat.left, x);
+			stat.top = Math.min(stat.top, y);
+			stat.right = Math.max(stat.right, x);
+			stat.bottom = Math.max(stat.bottom, y);
+			stat.indices.push(index);
+			carpetStats.set(carpetID, stat);
 		}
 	}
 
-	return carpets;
+	return Array.from(carpetStats.entries())
+		.sort((left, right) => left[0] - right[0])
+		.map(([carpetID, stat]) => {
+			const localWidth = stat.right - stat.left + 1;
+			const localHeight = stat.bottom - stat.top + 1;
+			const mask = Buffer.alloc(localWidth * localHeight);
+			for (const index of stat.indices) {
+				const localX = (index % width) - stat.left;
+				const localY = Math.floor(index / width) - stat.top;
+				mask[localY * localWidth + localX] = 1;
+			}
+			return {
+				id: carpetID,
+				carpetID,
+				left: stat.left,
+				top: stat.top,
+				right: stat.right + 1,
+				bottom: stat.bottom + 1,
+				width: localWidth,
+				height: localHeight,
+				lt: { x: stat.left, y: stat.top },
+				rb: { x: stat.right + 1, y: stat.bottom + 1 },
+				mask
+			};
+		});
 }
 
 function withVerification(mapData: B01MapData, q10CreatorData: Q10CreatorData): B01MapData {

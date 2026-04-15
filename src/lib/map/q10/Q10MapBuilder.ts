@@ -1,9 +1,8 @@
 import * as fs from "fs";
 import { createCanvas, Image, loadImage } from "@napi-rs/canvas";
-import { robotToPixel } from "../../../common/coordTransformation";
 import type { B01DeviceStatus, B01MapData } from "../b01/types";
 import { Q10AssetCatalog, resolveQ10PluginAssetPath } from "./Q10AssetCatalog";
-import { Q10_CANVAS_SCALE, Q10MapGeometry } from "./Q10MapGeometry";
+import { Q10_CANVAS_SCALE, getQ10ExportCanvasScale, Q10MapGeometry } from "./Q10MapGeometry";
 import type {
 	Q10CreatorArea,
 	Q10CreatorData,
@@ -88,11 +87,6 @@ function packedArgbToCss(color: number, alphaOverride?: number): string {
 	const b = color & 0xff;
 	const alpha = alphaOverride ?? a;
 	return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-function getOriginalQ10MaterialMapRate(width: number, height: number): number {
-	const maxSide = Math.max(width, height, 1);
-	return Math.max(1, Math.floor(2000 / maxSide));
 }
 
 function getRenderMetrics(): Q10RenderMetrics {
@@ -679,105 +673,83 @@ export class Q10MapBuilder {
 		ctx.drawImage(tempCanvas as any, 0, 0);
 	}
 
-	private withOutputSpace(ctx: any, draw: (outputCtx: any) => void): void {
+	private withOutputSpace(ctx: any, geometry: Q10MapGeometry, draw: (outputCtx: any) => void): void {
 		ctx.save();
-		ctx.scale(1 / Q10_CANVAS_SCALE, 1 / Q10_CANVAS_SCALE);
+		const scale = Math.max(geometry.canvasScaleValue(), 0.001);
+		ctx.scale(1 / scale, 1 / scale);
 		ctx.imageSmoothingEnabled = true;
 		draw(ctx);
 		ctx.restore();
 	}
 
-	private withMapSpace(ctx: any, draw: (mapCtx: any) => void): void {
+	private withMapSpace(ctx: any, geometry: Q10MapGeometry, draw: (mapCtx: any) => void): void {
 		ctx.save();
-		ctx.scale(Q10_CANVAS_SCALE, Q10_CANVAS_SCALE);
+		const scale = Math.max(geometry.canvasScaleValue(), 0.001);
+		ctx.scale(scale, scale);
 		draw(ctx);
 		ctx.restore();
 	}
 
-	private isCarpetValue(value: number | undefined): boolean {
-		return (((value ?? 0) & 0x3f) !== 0);
-	}
+	public buildSelfIdentifiedCarpetSourceCanvas(carpet: Q10CreatorData["selfIdentifiedCarpets"][number]): any | null {
+		if (carpet.width <= 0 || carpet.height <= 0 || !carpet.mask.length) return null;
 
-	private createSelfIdentifiedCarpetCanvas(mask: Buffer, width: number, height: number): any {
-		const canvas = createCanvas(width * 3, height * 3);
-		const overlayCtx = canvas.getContext("2d");
-		const imageData = overlayCtx.createImageData(width * 3, height * 3);
-		const buffer = imageData.data;
+		const sourceWidth = carpet.width * 3;
+		const sourceHeight = carpet.height * 3;
+		const canvas = createCanvas(sourceWidth, sourceHeight);
+		const carpetCtx = canvas.getContext("2d");
+		const imageData = carpetCtx.createImageData(sourceWidth, sourceHeight);
+		const pixels = imageData.data;
 
-		for (let index = 0; index < mask.length; index++) {
-			if (!this.isCarpetValue(mask[index])) continue;
+		const setMaskPixel = (x: number, y: number): void => {
+			const offset = (y * sourceWidth + x) * 4;
+			pixels[offset] = 0;
+			pixels[offset + 1] = 0;
+			pixels[offset + 2] = 0;
+			pixels[offset + 3] = 120;
+		};
 
-			const x = index % width;
-			const y = Math.floor(index / width);
-			const baseX = x * 3;
-			const baseY = y * 3;
-			const pixels = [
-				[baseX + 2, baseY],
-				[baseX + 1, baseY + 1],
-				[baseX, baseY + 2]
-			] as const;
+		for (let index = 0; index < carpet.mask.length; index++) {
+			if (carpet.mask[index] !== 1) continue;
 
-			for (const [px, py] of pixels) {
-				const offset = (py * width * 3 + px) * 4;
-				buffer[offset] = 0;
-				buffer[offset + 1] = 0;
-				buffer[offset + 2] = 0;
-				buffer[offset + 3] = 120;
-			}
+			const localX = index % carpet.width;
+			const localY = Math.floor(index / carpet.width);
+			const pixelX = localX * 3;
+			const pixelY = localY * 3;
+			setMaskPixel(pixelX + 2, pixelY);
+			setMaskPixel(pixelX + 1, pixelY + 1);
+			setMaskPixel(pixelX, pixelY + 2);
 		}
 
-		overlayCtx.putImageData(imageData, 0, 0);
+		carpetCtx.putImageData(imageData, 0, 0);
 		return canvas;
 	}
 
-	private drawSelfIdentifiedCarpetMask(
-		ctx: any,
-		mask: Buffer,
-		left: number,
-		top: number,
-		width: number,
-		height: number
-	): void {
-		if (!mask.length || width <= 0 || height <= 0) return;
-		const carpetCanvas = this.createSelfIdentifiedCarpetCanvas(mask, width, height);
-		ctx.drawImage(
-			carpetCanvas as any,
-			left * Q10_CANVAS_SCALE,
-			top * Q10_CANVAS_SCALE,
-			width * Q10_CANVAS_SCALE,
-			height * Q10_CANVAS_SCALE
-		);
-	}
-
-	private drawCarpetGrid(ctx: any, data: B01MapData): void {
-		const carpetGrid = data.carpetGrid;
-		if (!carpetGrid?.length) return;
-		this.withOutputSpace(ctx, (outputCtx) => {
-			this.drawSelfIdentifiedCarpetMask(
-				outputCtx,
-				carpetGrid,
-				0,
-				0,
-				data.header.sizeX,
-				data.header.sizeY
-			);
-		});
-	}
-
 	private drawSelfIdentifiedCarpets(ctx: any, data: B01MapData, creator: Q10CreatorData): void {
-		if (!data.carpetGrid?.length || !creator.selfIdentifiedCarpets.length) return;
-		this.withOutputSpace(ctx, (outputCtx) => {
-			for (const carpet of creator.selfIdentifiedCarpets) {
-				this.drawSelfIdentifiedCarpetMask(
-					outputCtx,
-					carpet.mask,
-					carpet.left,
-					carpet.top,
-					carpet.width,
-					carpet.height
-				);
-			}
-		});
+		if (!creator.selfIdentifiedCarpets.length) return;
+		const renderScale = getQ10ExportCanvasScale(data.header.sizeX, data.header.sizeY);
+		for (const carpet of creator.selfIdentifiedCarpets) {
+			this.drawSelfIdentifiedCarpetToExport(ctx, carpet, renderScale);
+		}
+	}
+
+	private drawSelfIdentifiedCarpetToExport(
+		ctx: any,
+		carpet: Q10CreatorData["selfIdentifiedCarpets"][number],
+		renderScale: number
+	): void {
+		if (carpet.width <= 0 || carpet.height <= 0 || !carpet.mask.length) return;
+		const sourceCanvas = this.buildSelfIdentifiedCarpetSourceCanvas(carpet);
+		if (!sourceCanvas) return;
+		const destX = carpet.lt.x * renderScale;
+		const destY = carpet.lt.y * renderScale;
+		const destWidth = (carpet.rb.x - carpet.lt.x) * renderScale;
+		const destHeight = (carpet.rb.y - carpet.lt.y) * renderScale;
+		if (destWidth <= 0 || destHeight <= 0) return;
+
+		ctx.save();
+		ctx.imageSmoothingEnabled = false;
+		ctx.drawImage(sourceCanvas as any, destX, destY, destWidth, destHeight);
+		ctx.restore();
 	}
 
 	private buildOriginalMaterialPaths(
@@ -807,7 +779,7 @@ export class Q10MapBuilder {
 
 	private drawRoomMaterials(
 		ctx: any,
-		_geometry: Q10MapGeometry,
+		geometry: Q10MapGeometry,
 		data: B01MapData,
 		creator: Q10CreatorData
 	): void {
@@ -821,7 +793,7 @@ export class Q10MapBuilder {
 			? creator.materialPaths.verticalFloorBoard
 			: this.buildOriginalMaterialPaths(data, creator, creator.roomMaterialRoomIds.verticalFloorBoard, "verticalFloorBoard");
 
-		const materialMapRate = getOriginalQ10MaterialMapRate(data.header.sizeX, data.header.sizeY);
+		const materialMapRate = geometry.canvasScaleValue();
 
 		this.drawMaterialPathGroup(ctx, ceramicTilePaths, materialMapRate);
 		this.drawMaterialPathGroup(ctx, horizontalFloorBoardPaths, materialMapRate);
@@ -1008,7 +980,7 @@ export class Q10MapBuilder {
 
 	private drawManualCarpetAreas(ctx: any, geometry: Q10MapGeometry, areas: Q10CreatorArea[]): void {
 		if (!areas.length) return;
-		this.withOutputSpace(ctx, (outputCtx) => {
+		this.withOutputSpace(ctx, geometry, (outputCtx) => {
 			for (const area of areas) {
 				this.drawAreaMaterialAtlas(outputCtx, geometry, area, this.assets.mapCarpetMaterial);
 			}
@@ -1151,9 +1123,11 @@ export class Q10MapBuilder {
 			pathCtx.setLineDash(dash ?? []);
 			pathCtx.lineDashOffset = dashOffset;
 			for (const segment of drawableSegments) {
-				pathCtx.moveTo(segment[0]!.x * Q10_CANVAS_SCALE, segment[0]!.y * Q10_CANVAS_SCALE);
+				const start = geometry.mapPoint(segment[0]!);
+				pathCtx.moveTo(start.x, start.y);
 				for (let index = 1; index < segment.length; index++) {
-					pathCtx.lineTo(segment[index]!.x * Q10_CANVAS_SCALE, segment[index]!.y * Q10_CANVAS_SCALE);
+					const point = geometry.mapPoint(segment[index]!);
+					pathCtx.lineTo(point.x, point.y);
 				}
 			}
 			pathCtx.stroke();
@@ -1173,12 +1147,6 @@ export class Q10MapBuilder {
 		const dashedColor = packedArgbToCss(2583691263);
 
 		const pathStyles: Array<{ segments: Q10MapPixelPoint[][]; layers: Q10PathLayerStyle[] }> = [
-			{
-				segments: paths[4]!,
-				layers: [
-					{ strokeStyle: "rgba(255, 255, 255, 0.18)", lineWidth: glowWidth }
-				]
-			},
 			{
 				segments: paths[0]!,
 				layers: [
@@ -1229,39 +1197,32 @@ export class Q10MapBuilder {
 	}
 
 	private drawPath(ctx: any, geometry: Q10MapGeometry, data: B01MapData, creator: Q10CreatorData): void {
+		const sourcePath = data.q10SourceData?.pathPoints ?? [];
 		const nativePath = creator.pathPixels ?? [];
-		if (!nativePath.length && !data.history?.length) return;
+		if (!sourcePath.length && !nativePath.length && !data.history?.length) return;
 
-		const toPixel = (point: { x: number; y: number }) =>
-			robotToPixel({
-				x: point.x,
-				y: point.y,
-				minX: data.header.minX,
-				minY: data.header.minY,
-				sizeY: data.header.sizeY,
-				resolution: data.header.resolution,
-				scale: 1
-			});
-
-		const pixelPoints = nativePath.length
-			? nativePath.map((point: Q10CreatorPathPoint) => ({
-				x: point.x,
-				y: point.y,
-				// Native Q10 path rendering in the original app is driven by the
-				// decoded raw `type` from parserPathData/yx_getPathPointWith.
-				// Do not synthesize alternate types from `update` here, otherwise
-				// we may draw segments that the original leaves hidden or styles
-				// differently.
+		const pixelPoints = sourcePath.length
+			? sourcePath.map((point) => ({
+				x: data.q10SourceData!.xMin + point.x,
+				y: data.q10SourceData!.yMin - point.y,
 				type: this.normalizeNativePathType(point.type)
 			}))
-			: (data.history ?? []).map((point) => {
-				const pixel = toPixel(point);
-				return {
-					x: pixel.x,
-					y: pixel.y,
+			: nativePath.length
+				? nativePath.map((point: Q10CreatorPathPoint) => ({
+					x: point.x,
+					y: point.y,
+					// Native Q10 path rendering in the original app is driven by the
+					// decoded raw `type` from parserPathData/yx_getPathPointWith.
+					// Do not synthesize alternate types from `update` here, otherwise
+					// we may draw segments that the original leaves hidden or styles
+					// differently.
+					type: this.normalizeNativePathType(point.type)
+				}))
+				: (data.history ?? []).map((point) => ({
+					x: point.x,
+					y: point.y,
 					type: this.historyUpdateToPathKind(point.update)
-				};
-			});
+				}));
 
 		const pathCanvas = this.createPathCanvas(geometry, data, pixelPoints);
 		if (!pathCanvas) return;
@@ -1399,16 +1360,15 @@ export class Q10MapBuilder {
 	}
 
 	private drawBaseLayers(ctx: any, geometry: Q10MapGeometry, data: B01MapData, creator: Q10CreatorData): void {
-		this.withMapSpace(ctx, (mapCtx) => {
+		this.withMapSpace(ctx, geometry, (mapCtx) => {
 			this.drawBaseMap(mapCtx, data, creator);
 			this.drawRoomMaterials(mapCtx, geometry, data, creator);
 		});
 	}
 
 	private drawCleanOverlayLayers(ctx: any, geometry: Q10MapGeometry, data: B01MapData, creator: Q10CreatorData): void {
-		this.withMapSpace(ctx, (mapCtx) => {
-			if (creator.selfIdentifiedCarpets.length) this.drawSelfIdentifiedCarpets(mapCtx, data, creator);
-			else this.drawCarpetGrid(mapCtx, data);
+		this.drawSelfIdentifiedCarpets(ctx, data, creator);
+		this.withMapSpace(ctx, geometry, (mapCtx) => {
 			this.drawManualCarpetAreas(mapCtx, geometry, creator.carpetAreas);
 			this.drawAreas(mapCtx, geometry, creator.forbidAreas, "forbid");
 			this.drawAreas(mapCtx, geometry, creator.mopAreas, "mop");
@@ -1416,11 +1376,10 @@ export class Q10MapBuilder {
 
 		ctx.imageSmoothingEnabled = true;
 		this.drawVirtualWalls(ctx, geometry, creator.virtualWalls);
-		this.withMapSpace(ctx, (mapCtx) => {
+		this.withMapSpace(ctx, geometry, (mapCtx) => {
 			this.drawAreas(mapCtx, geometry, creator.thresholdAreas, "threshold");
 		});
-		this.drawPath(ctx, geometry, data, creator);
-		this.withMapSpace(ctx, (mapCtx) => {
+		this.withMapSpace(ctx, geometry, (mapCtx) => {
 			this.drawAreas(mapCtx, geometry, creator.eraseAreas, "erase");
 		});
 	}
@@ -1443,7 +1402,8 @@ export class Q10MapBuilder {
 			throw new Error("Q10 creator data missing for Q10 builder");
 		}
 
-		const geometry = new Q10MapGeometry(data, 1);
+		const renderScale = getQ10ExportCanvasScale(data.header.sizeX, data.header.sizeY);
+		const geometry = new Q10MapGeometry(data, 1, renderScale);
 		const { width, height } = geometry.mapCanvasSize();
 		const canvas = createCanvas(width, height);
 		const ctx = canvas.getContext("2d");
@@ -1452,6 +1412,7 @@ export class Q10MapBuilder {
 		this.drawBaseLayers(ctx, geometry, data, creator);
 		this.drawCleanOverlayLayers(ctx, geometry, data, creator);
 		const clean = canvas.toBuffer("image/png");
+		this.drawPath(ctx, geometry, data, creator);
 		this.drawInteractiveOverlayLayers(ctx, geometry, creator);
 
 		return {

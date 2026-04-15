@@ -4,7 +4,7 @@ import { drawMapV1 } from "../common/mapDrawing/drawMapV1";
 import { IMG_CHARGER, IMG_GO_TO_PIN, IMG_ROBOT_ORIGINAL } from "../common/images";
 import type { DrawObstacleInput, DrawRoomLabelInput, DrawVirtualWallInput } from "../common/mapDrawing/types";
 import type { B01MapData } from "../lib/map/b01/types";
-import { Q10MapGeometry } from "../lib/map/q10/Q10MapGeometry";
+import { Q10_CANVAS_SCALE, Q10MapGeometry } from "../lib/map/q10/Q10MapGeometry";
 import { Connection } from "./conn.js";
 import { SVGMapRenderer } from "./SVGMapRenderer";
 
@@ -113,17 +113,24 @@ const UI_CONSTANTS = {
 
 /** Type → suffix (429.js); asset obstacle_new_p{suffix}.png */
 const Q10_ROOM_TAG_BASE = [
-	"rgba(32, 84, 109, 1)",
-	"rgba(101, 153, 0, 1)",
-	"rgba(144, 196, 41, 1)",
-	"rgba(29, 61, 70, 1)"
+	q10PackedArgbToCss(4279123053),
+	q10PackedArgbToCss(4283645184),
+	q10PackedArgbToCss(4286455337),
+	q10PackedArgbToCss(4278537798)
 ] as const;
 const Q10_ROOM_TAG_STROKE = [
-	"rgba(5, 87, 208, 1)",
-	"rgba(44, 113, 0, 1)",
-	"rgba(90, 159, 85, 1)",
-	"rgba(0, 56, 45, 1)"
+	q10PackedArgbToCss(4278528336),
+	q10PackedArgbToCss(4281147648),
+	q10PackedArgbToCss(4284156949),
+	q10PackedArgbToCss(4278202925)
 ] as const;
+const Q10_ROOM_LABEL_LAYOUT = {
+	bubbleRadius: 6,
+	iconSize: 6,
+	gap: 4,
+	font: '900 12px "Segoe UI", sans-serif',
+	widthPadding: 1
+} as const;
 
 function q10RoomTagAssetFileName(roomType: number): string {
 	const normalized = Number.isInteger(roomType) && roomType >= 0 && roomType <= 11 ? roomType : 0;
@@ -136,6 +143,18 @@ function q10PackedArgbToCss(color: number): string {
 	const g = (color >>> 8) & 0xff;
 	const b = color & 0xff;
 	return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+let q10RoomLabelMeasureContext: CanvasRenderingContext2D | null = null;
+
+function measureQ10RoomLabelWidth(label: string): number {
+	if (!q10RoomLabelMeasureContext) {
+		const canvas = document.createElement("canvas");
+		q10RoomLabelMeasureContext = canvas.getContext("2d");
+	}
+	if (!q10RoomLabelMeasureContext) return label.length * 8;
+	q10RoomLabelMeasureContext.font = Q10_ROOM_LABEL_LAYOUT.font;
+	return q10RoomLabelMeasureContext.measureText(label).width;
 }
 
 const OBSTACLE_MAPPING: Record<number, string> = {
@@ -1009,7 +1028,7 @@ class MapApplication {
 			(this.currentRobotDuid && this.robotModels[this.currentRobotDuid]) ||
 			"roborock.vacuum.ss09";
 		const baseUrl = `assets/${modelFolder}/drawable-mdpi/`;
-		const geometry = new Q10MapGeometry(map, 1);
+		const geometry = new Q10MapGeometry(map, 1, this.getQ10CanvasScale(map));
 		const renderer = this.createSvgRendererWithOptions(baseUrl, null, {
 			obstacleRadius: 0,
 			obstacleImageSize: geometry.imgRateLength(6),
@@ -1105,18 +1124,31 @@ class MapApplication {
 		const roomLabels: DrawRoomLabelInput[] = creator.roomModels
 			.filter((room) => room.roomName && room.roomName.trim())
 			.map((room) => {
+				const label = room.roomName.trim();
 				const point = geometry.mapPoint(room.transCenterPoint);
 				const colorIndex = room.colorID >= 0 && room.colorID < Q10_ROOM_TAG_BASE.length ? room.colorID : 0;
+				const textWidth = measureQ10RoomLabelWidth(label);
+				const bubbleDiameter = Q10_ROOM_LABEL_LAYOUT.bubbleRadius * 2;
+				const totalWidth = bubbleDiameter + Q10_ROOM_LABEL_LAYOUT.gap + textWidth + Q10_ROOM_LABEL_LAYOUT.widthPadding;
+				const bubbleCenterOffsetX = -totalWidth / 2 + Q10_ROOM_LABEL_LAYOUT.bubbleRadius;
+				const textOffsetX = -totalWidth / 2 + bubbleDiameter + Q10_ROOM_LABEL_LAYOUT.gap;
 				return {
 					segmentId: room.roomID,
 					x: point.x,
 					y: point.y,
-					text: room.roomName,
+					text: label,
 					iconHref: `${baseUrl}${q10RoomTagAssetFileName(room.roomType)}`,
 					bubbleFill: Q10_ROOM_TAG_BASE[colorIndex],
 					bubbleStroke: Q10_ROOM_TAG_STROKE[colorIndex],
 					textFill: Q10_ROOM_TAG_BASE[colorIndex],
-					badgeText: room.cleanOrder > 0 ? String(room.cleanOrder) : null
+					badgeText: room.cleanOrder > 0 ? String(room.cleanOrder) : null,
+					bubbleRadius: Q10_ROOM_LABEL_LAYOUT.bubbleRadius,
+					iconSize: Q10_ROOM_LABEL_LAYOUT.iconSize,
+					gap: Q10_ROOM_LABEL_LAYOUT.gap,
+					bubbleCenterOffsetX,
+					textOffsetX,
+					badgeCenterOffsetX: bubbleCenterOffsetX - 3,
+					badgeCenterOffsetY: 12
 				};
 			});
 
@@ -1195,6 +1227,15 @@ class MapApplication {
 		}
 
 		return new Set<number>();
+	}
+
+	private getQ10CanvasScale(map: Q10FrontendMapData): number {
+		const naturalWidth = this.image?.naturalWidth ?? 0;
+		const sizeX = map.header?.sizeX ?? 0;
+		if (naturalWidth > 0 && sizeX > 0) {
+			return naturalWidth / sizeX;
+		}
+		return Q10_CANVAS_SCALE;
 	}
 
 	private q10PolygonToSvgPath(points: Array<{ x: number; y: number }>, geometry: Q10MapGeometry): string {
@@ -1464,7 +1505,9 @@ class MapApplication {
 		this.zoneGroup.selectAll("rect.zone-rect").style("stroke-width", this.rescaler.zoneStrokeWidth());
 		this.zoneGroup.selectAll("circle.zone-handle").attr("r", this.rescaler.zoneHandleRadius());
 
-		const q10Geometry = isQ10MapData(this.map) ? new Q10MapGeometry(this.map, 1) : null;
+		const q10Geometry = isQ10MapData(this.map)
+			? new Q10MapGeometry(this.map, 1, this.getQ10CanvasScale(this.map))
+			: null;
 		const scaledRobotSize = q10Geometry ? q10Geometry.imgRateLength(8) : this.rescaler.robotSize();
 		const params = this.getMapParams();
 		this.robotGroup.selectAll("image.robot").attr("width", scaledRobotSize).attr("height", scaledRobotSize);

@@ -309,15 +309,18 @@ export class SVGMapRenderer implements IMapRenderer {
 		merged.each(function (d: DrawRoomLabelInput) {
 			const label = d3.select(this);
 			const hasBubble = !!d.iconHref || !!d.bubbleFill || !!d.badgeText;
-			const bubbleRadius = 6;
-			const iconSize = 7;
-			const gap = 5;
-			const textX = hasBubble ? bubbleRadius * 2 + gap - bubbleRadius : 0;
+			const bubbleRadius = d.bubbleRadius ?? 6;
+			const iconSize = d.iconSize ?? 7;
+			const gap = d.gap ?? 5;
+			const bubbleCenterX = d.bubbleCenterOffsetX ?? 0;
+			const textX = d.textOffsetX ?? (hasBubble ? bubbleRadius + gap : 0);
 			const badgeText = d.badgeText?.trim() || "";
+			const badgeCenterX = d.badgeCenterOffsetX ?? (hasBubble ? bubbleCenterX - 3 : 0);
+			const badgeCenterY = d.badgeCenterOffsetY ?? 12;
 
 			label.select<SVGCircleElement>("circle.room-label-bubble")
 				.style("display", hasBubble ? null : "none")
-				.attr("cx", 0)
+				.attr("cx", bubbleCenterX)
 				.attr("cy", 0)
 				.attr("r", bubbleRadius)
 				.style("fill", d.bubbleFill || "#000")
@@ -327,7 +330,7 @@ export class SVGMapRenderer implements IMapRenderer {
 			label.select<SVGImageElement>("image.room-label-icon")
 				.style("display", d.iconHref ? null : "none")
 				.attr("href", d.iconHref || null)
-				.attr("x", -iconSize / 2)
+				.attr("x", bubbleCenterX - iconSize / 2)
 				.attr("y", -iconSize / 2)
 				.attr("width", iconSize)
 				.attr("height", iconSize);
@@ -343,16 +346,16 @@ export class SVGMapRenderer implements IMapRenderer {
 
 			label.select<SVGCircleElement>("circle.room-label-badge")
 				.style("display", badgeText ? null : "none")
-				.attr("cx", hasBubble ? -3 : 0)
-				.attr("cy", 12)
+				.attr("cx", badgeCenterX)
+				.attr("cy", badgeCenterY)
 				.attr("r", 5)
 				.style("fill", "rgba(111,111,116,0.95)");
 
 			label.select<SVGTextElement>("text.room-label-badge-text")
 				.style("display", badgeText ? null : "none")
 				.text(badgeText)
-				.attr("x", hasBubble ? -3 : 0)
-				.attr("y", 12)
+				.attr("x", badgeCenterX)
+				.attr("y", badgeCenterY)
 				.attr("text-anchor", "middle")
 				.attr("dominant-baseline", "middle")
 				.style("fill", "white");

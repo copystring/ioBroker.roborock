@@ -5,6 +5,16 @@ export const Q10_CANVAS_SCALE = 8;
 const ROOM_TAG_REFERENCE_VIEW_WIDTH = 360;
 const ROOM_TAG_REFERENCE_VIEW_HEIGHT = 780;
 
+export function getOriginalQ10MapRate(width: number, height: number): number {
+	const maxSide = Math.max(width, height, 1);
+	return Math.max(1, Math.floor(2000 / maxSide));
+}
+
+export function getQ10ExportCanvasScale(width: number, height: number): number {
+	const originalScale = getOriginalQ10MapRate(width, height);
+	return Math.max(3, Math.ceil(originalScale / 3) * 3);
+}
+
 export interface Q10AreaPlacement {
 	centerX: number;
 	centerY: number;
@@ -66,6 +76,18 @@ export class Q10MapGeometry {
 			width: Math.max(1, this.data.header.sizeX * this.canvasScale),
 			height: Math.max(1, this.data.header.sizeY * this.canvasScale)
 		};
+	}
+
+	public originalMapRate(): number {
+		return getOriginalQ10MapRate(this.data.header.sizeX, this.data.header.sizeY);
+	}
+
+	public exportCanvasScale(): number {
+		return getQ10ExportCanvasScale(this.data.header.sizeX, this.data.header.sizeY);
+	}
+
+	public canvasScaleValue(): number {
+		return this.canvasScale;
 	}
 
 	public areaPlacement(area: Q10CreatorArea, outputSpace: "map" | "canvas" = "map"): Q10AreaPlacement {

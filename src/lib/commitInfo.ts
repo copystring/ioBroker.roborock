@@ -1,4 +1,4 @@
 export const commitInfo = {
-	commitDate: "12.4.2026, 15:48:13",
+	commitDate: "15.4.2026, 22:25:48",
 	commitHash: "0.7.0-beta.1",
 };

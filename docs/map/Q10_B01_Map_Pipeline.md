@@ -1,312 +1,150 @@
 # Q10 / B01 Map Pipeline
 
-## Scope
+## Goal
 
-This document describes how the Roborock Q10 (`roborock.vacuum.ss09`) map pipeline works in the original app and how this adapter reproduces it.
+This document describes how the Roborock Q10 (`roborock.vacuum.ss09`) map works in the original app and what another implementation must reproduce to get the same visible result.
 
-It is intended as implementation documentation, not user documentation. The goal is that another implementation in a different language can rebuild the same map behavior without reverse-engineering the app again.
+This is implementation documentation. It is meant for someone rebuilding the map pipeline in another language or another project.
 
-If you are implementing this from scratch, read this document in this order:
+Scope:
 
-1. `Core model`
-2. `Request sequence used by the original app`
-3. `Blob types on protocol 301`
-4. `Live map processing`
-5. `DP overlay payload formats`
-6. `Coordinate transforms`
-7. `Rendering stages`
-8. `Room name handling`
-9. `Minimum implementation checklist`
+- live map transport and parsing
+- runtime map state
+- overlay patching
+- bitmap rendering
+- map-facing room naming
 
-## Pipeline at a glance
+Out of scope:
 
-The Q10/B01 map pipeline can be reproduced with this exact high-level algorithm:
+- command handling
+- generic adapter architecture
+- UI behavior unrelated to the map itself
 
-1. request the live-map cycle and map-related DPs in the same order as the original app
-2. decrypt incoming `301` payloads and route them by blob type (`1/2/3/4`)
-3. parse live type-`1` rasters into a mutable runtime `mapModel`
-4. if the incoming live raster has the same `mapId` as the current live map, merge retained runtime fields into it
-5. parse DP updates (`55/57/65/98/100/103`) and patch the current live `mapModel` in place
-6. keep history/record maps separate from the live `mapModel`
-7. normalize room labels
-8. render the final bitmap and frontend overlays from that normalized runtime model
+Canonical references:
 
-The key implementation rule is:
+- original app modules:
+  - `module_1131.js`
+  - `module_940.js`
+  - `module_970.js`
+  - `module_973.js`
+  - `module_981.js`
+  - `module_1427.js`
+  - `module_949.js`
+  - `module_955.js`
+- implementation in this repository:
+  - `Q10VacuumFeatures.ts`
+  - `Q10ShadowDataService.ts`
+  - `B01MapService.ts`
+  - `MapManager.ts`
+  - `Q10YxMapParser.ts`
+  - `Q10MapCreator.ts`
+  - `Q10MapBuilder.ts`
+  - `Q10OverlaySanitizer.ts`
+  - `map.ts`
 
-- the visible map is not built from one payload
-- it is built from one live runtime model keyed by the active `mapId`
+## Overview
 
-Related implementation files in this repository:
+The Q10 map is not one payload and not one image.
 
-- `Q10VacuumFeatures.ts`
-- `Q10ShadowDataService.ts`
-- `B01MapService.ts`
+The original app keeps one mutable live map model for the current `mapId`. That model is updated from multiple inputs and then rendered into layers.
+
+If an implementation gets only one thing right, it must be this:
+
+- do not treat each payload as a complete standalone map
+- do not rebuild live state from history maps
+- do keep one runtime model for the active live `mapId`
+
+The visible map is composed from:
+
+- `301` live raster blobs
+- `301` path blobs
+- `301` history / multi-map detail blobs
+- DP payloads for walls, areas, carpets, and suspected points
+
+## The model that must exist at runtime
+
+The live model for the active `mapId` must be able to hold all of the following:
+
+- map header and bounds
+- room / wall raster
+- room metadata
+- charger pose
+- robot pose
+- path points
+- virtual walls
+- forbidden areas
+- mop-forbidden areas
+- threshold areas
+- carpet polygons
+- carpet raster / self-identified carpet information
+- obstacles
+- skip-clean markers
+- suspected points
+
+The adapter mirrors this model through:
+
 - `MapManager.ts`
 - `Q10YxMapParser.ts`
 - `Q10MapCreator.ts`
-- `Q10OverlaySanitizer.ts`
-- `map.ts`
+- `Q10ShadowDataService.ts`
 
-Primary reverse-engineered app modules:
+## Where the map data comes from
 
-- `module_1131.js`
-- `module_940.js`
-- `module_970.js`
-- `module_973.js`
-- `module_981.js`
-- `module_1427.js`
+The final map is built from these sources:
 
-## Core model
+| Source | Carries | Notes |
+| --- | --- | --- |
+| `301`, blob type `1` | live raster map | base room/wall grid, header, room metadata, trailing blocks |
+| `301`, blob type `2` | path data | live cleaning path |
+| `301`, blob type `3` | clean record detail | history/detail maps |
+| `301`, blob type `4` | multi-map detail | saved map detail |
+| `DP 55` | forbidden, mop-forbidden, threshold areas | binary payload |
+| `DP 57` | virtual walls | binary payload |
+| `DP 59` | zoned areas | map-related DP, separate from walls |
+| `DP 65` | carpet polygons | JSON payload |
+| `DP 98` | suspected points | JSON payload |
+| `DP 100` | threshold suspected points | JSON payload |
+| `DP 103` | cliff suspected points | JSON payload |
 
-The original app does **not** treat the Q10 map as one self-contained image payload.
+The original app routes the `301` blobs in `module_970.js` and patches the current live model when DP updates arrive.
 
-It keeps a runtime `mapModel` for the active `mapId` and mutates that model from multiple sources:
+## Request cycle
 
-1. a fresh map raster (`301`, blob type `1`)
-2. path blobs (`301`, blob type `2`)
-3. clean-record detail blobs (`301`, blob type `3`)
-4. multi-map detail blobs (`301`, blob type `4`)
-5. DP updates carrying overlays and metadata (`55`, `57`, `59`, `65`, `98`, `100`, `103`, plus status DPs)
+When the device page opens, the app starts a short request burst and then receives asynchronous map updates.
 
-That behavior is visible in `module_970.js`.
+The relevant app flow comes from `module_1131.js` via `module_940.js`.
 
-## Request sequence used by the original app
+The practical sequence is:
 
-On page open / app foreground, the original app triggers the following sequence from `module_1131.js` via `module_940.js`:
+1. request map/path data
+2. load shadow DPs
+3. request the full DP snapshot (`101.102`)
+4. request the multi-map list (`101.61.list`)
+5. request the clean record list (`101.52.list`)
+6. request the carpet list (`101.64.list`)
 
-1. `requestMapAndPathData()`
-2. `loadShadowDps()`
-3. `requestAllDps()` (`101.102`)
-4. `requestMultiMapList()` (`101.61.list`)
-5. `requestCleanRecordList()` (`101.52.list`)
-6. `getCarpetList()` (`101.64.list`)
-
-Additionally, the app primes the live stream before the heartbeat / live request cycle with:
+Before the live cycle starts, the app primes the Q10 stream with:
 
 - `101.75 = 0`
 - `101.16 = 1`
 - `101.107 = 0`
 - `101.110 = 1`
 
-The adapter mirrors this in `Q10VacuumFeatures.ts`.
+This matters because the visible live map is the result of:
 
-## Relevant DPs
+- the request burst
+- later `301` blobs
+- later DP patches
 
-The Q10 DP table is defined in the original plugin in `module_981.js`.
+It is not the response to one single request.
 
-Important map-related DPs:
+## Rules that must hold
 
-- `16`: map/path request trigger
-- `52`: clean record list / clean record select
-- `55`: restricted zones update
-- `57`: virtual walls update
-- `59`: zoned areas update
-- `61`: multi-map list
-- `64`: carpet request
-- `65`: carpet polygons
-- `75`: DND request / map stream priming write
-- `98`: restricted-area-related points
-- `100`: suspected threshold points
-- `103`: cliff restricted points
-- `110`: heartbeat / live map cycle trigger
+### Same-`mapId` live merge
 
-## Blob types on protocol 301
+When a fresh live raster arrives for the same `mapId`, the original app does not discard the known runtime state. It merges that state into the new raster model.
 
-After transport decryption, the Q10 app distinguishes blob types:
-
-- type `1`: live map raster
-- type `2`: path data
-- type `3`: clean record detail
-- type `4`: multi-map detail
-
-This routing is handled by the original app in `deviceBlobChanged` inside `module_970.js`.
-
-The adapter mirrors this split in:
-
-- `mqttApi.ts`
-- `MapManager.ts`
-- `Q10YxMapParser.ts`
-
-## Live map processing
-
-### 1. Parse the fresh raster map
-
-The live `301` type `1` payload contains:
-
-- header
-- map dimensions
-- origin / resolution
-- charger coordinates
-- pixel raster
-- embedded room metadata block (`roomData1`) for version `!= 0`
-- obstacle / skip-clean / erase / carpet-raster related payloads depending on map version
-
-This is implemented in `Q10YxMapParser.ts`.
-
-Important parsing details:
-
-- the canonical live-map header starts at byte offset `+1`
-- the canonical app parser reads all multi-byte header fields as big-endian
-- header fields map as:
-  - `mapId`
-  - `width`
-  - `height`
-  - `ox`
-  - `oy`
-  - `resolution`
-  - `chargeX`
-  - `chargeY`
-  - `chargePhi`
-  - `pixLen`
-  - `pixLzLen`
-- world-space header bounds are reconstructed as:
-  - `minX = ox / 10`
-  - `maxY = oy / 10`
-  - `minY = maxY - height * resolution`
-  - `maxX = minX + width * resolution`
-- device-relative overlay coordinates use the app transform:
-  - `x = xMin + deviceX`
-  - `y = yMin - deviceY`
-- charger/device pose is stored twice:
-  - as world coordinates for generic B01 consumers
-  - as device-relative `chargePosition` for Q10 overlay conversion
-- `roomData1` is embedded immediately after the pixel payload
-- `roomNameDataStr` is a 20-byte raw field
-- room names are decoded as:
-  - first byte = name length
-  - following bytes = UTF-8 string
-  - retry with shorter lengths until decoding yields a non-empty string
-
-### Canonical live header layout
-
-After stripping the leading blob-type byte for map blobs `1`, `3`, `4`, the canonical Q10 header is 28 bytes:
-
-1. byte `0`: `version`
-2. bytes `1..4`: `mapId` (`u32`, big-endian)
-3. byte `5`: `type` / map stability flag
-4. bytes `6..7`: `width` (`u16`, big-endian)
-5. bytes `8..9`: `height` (`u16`, big-endian)
-6. bytes `10..11`: `ox` (`u16`, big-endian, divide by `10`)
-7. bytes `12..13`: `oy` (`u16`, big-endian, divide by `10`)
-8. bytes `14..15`: `resolution` (`u16`, big-endian, divide by `100`)
-9. bytes `16..17`: `chargeX` (`u16`, big-endian)
-10. bytes `18..19`: `chargeY` (`u16`, big-endian)
-11. bytes `20..21`: `chargePhi` (`u16`, big-endian, `0xffff -> 0`)
-12. bytes `22..25`: `pixLen` (`u32`, big-endian)
-13. bytes `26..27`: `pixLzLen` (`u16`, big-endian)
-
-Canonical original parsing rules:
-
-- unwrap blob byte only for `1`, `3`, `4`
-- parse header at offset `0`
-- reject payloads where `pixStart + pixLen/pixLzLen` would exceed the buffer
-- do not probe alternative endianness / offsets in the normal path
-
-### Pixel payload semantics
-
-The original parser supports these observed pixel encodings:
-
-- version `0`
-  - packed 2-bit pixels
-  - `00 -> floor`
-  - `01 -> wall`
-  - other values treated as background / unknown
-- version `1`
-  - 1 byte per pixel
-  - high bits encode room id
-  - low bits encode point type
-- version `2`
-  - room/material variant
-  - high 5 bits encode room id
-  - low 3 bits encode point type
-- version `3`
-  - same live-grid semantics as version `1`
-
-The grid consumer must preserve at least:
-
-- room/floor cells
-- wall cells
-- outside/background cells
-
-### `roomData1` layout
-
-Immediately after the pixel payload, the original parser reads the room metadata block:
-
-1. byte `0`: region block id / unused
-2. byte `1`: room count
-3. for each room:
-   - 26-byte property block
-   - 20-byte `roomNameDataStr`
-   - 1-byte `verticesNum`
-   - `verticesNum * 4` bytes of room polygon vertices (`int16 BE x,y`)
-
-The currently relevant property fields inside the 26-byte room property block are:
-
-- `roomID` (`u16 BE`)
-- `roomType`
-- `cleanOrder` (`u16 BE`, `0xffff -> -1`)
-- `cleanCount` (`u16 BE`)
-- `cleanType` (`0xff -> -1`)
-- `funLevel` (`0xff -> -1`)
-- `waterLevel` (`0xff -> -1`)
-- `roomMaterial`
-- `cleanLine`
-
-The original app currently uses the embedded vertices less than the raster-derived room borders. For rendering parity, raster-derived room borders are sufficient.
-
-### Trailing blocks after the room data
-
-After `roomData1`, the original parser can consume several trailing map blocks:
-
-- erase areas
-  - 1-byte area count
-  - if count > 0:
-    - 1-byte `vertsPerPoly`
-    - then `count * vertsPerPoly * 4` bytes (`int16 BE x,y`, divide by `10`)
-- carpet raster
-  - `pixLen` (`u32 BE`)
-  - `pixLzLen` (`u16 BE`)
-  - then raw or LZ4 carpet grid
-- further version-specific blocks:
-  - obstacles
-  - skip-clean markers
-  - additional suspected-point blocks depending on payload shape
-
-For parity, the implementation must preserve these blocks on the same runtime map model instead of treating them as unrelated payloads.
-
-Adapter-only compatibility logic:
-
-- the adapter probes additional header candidates beyond the canonical `offset +1 / big-endian` path
-- these extra candidates exist only to survive malformed or variant captures
-- they are not part of the original app's primary parsing logic
-
-### 2. Keep runtime state per active map
-
-This is the critical behavior that made the map finally match the original app.
-
-When a new live raster arrives for the same `mapId`, the original app does **not** discard already known runtime data. It reuses:
-
-- path points
-- virtual walls
-- forbidden areas
-- mop areas
-- threshold areas
-- carpet polygons
-- suspected points
-- temporary room color plans
-
-The adapter mirrors that in:
-
-- `MapManager.ts`
-- `Q10YxMapParser.ts`
-
-Implementation rule:
-
-- only merge runtime state when the new live map belongs to the **same `mapId`**
-- never seed live maps from history maps
-- never carry path/overlay state across different `mapId`s
-
-Exact fields that must be retained on same-`mapId` live refresh:
+Fields that must survive a same-`mapId` refresh:
 
 - `pathPoints`
 - `virtualWalls`
@@ -315,154 +153,88 @@ Exact fields that must be retained on same-`mapId` live refresh:
 - `thresholdAreas`
 - `carpetAreas`
 - `suspectedPoints`
-- temporary room color plan state used for room-color continuity
+- temporary room color plan state
 
-That merge is the difference between a merely decoded raster and a map that behaves like the app.
+Rules:
 
-That is why idle maps now still show paths and virtual walls correctly, like the app.
+- merge only when the incoming live raster belongs to the same `mapId`
+- do not seed live maps from history maps
+- do not carry runtime state across different `mapId`s
 
-### 3. Apply overlay/state patches from DP updates
+### DP patches apply to the current live map
 
-The original app mutates the current map model directly when the relevant DPs arrive.
+The original app mutates the current live map model in place when map-related DPs arrive.
 
-The adapter now does the same in `Q10ShadowDataService.ts` by parsing and applying:
+Patch mapping:
 
-- `55` -> restricted zones, mop zones, threshold areas
-- `57` -> virtual walls
-- `65` -> carpet polygons
-- `98` -> easycard suspected points
-- `100` -> threshold suspected points
-- `103` -> cliff suspected points
+| DP | Patch target |
+| --- | --- |
+| `55` | forbidden, mop-forbidden, threshold areas |
+| `57` | virtual walls |
+| `65` | carpet polygons |
+| `98` | suspected points |
+| `100` | threshold suspected points |
+| `103` | cliff suspected points |
 
-Those patches are applied to the current live map via `MapManager.ts` rather than waiting for a future full raster.
+These patches apply to the active live model immediately. They are not queued for a future raster.
 
-This is the main reason the adapter now reproduces the app in the idle case.
+### History maps stay separate
 
-### DP overlay payload formats
+History maps may be parsed and rendered for inspection, but they must not become the source for:
 
-The essential DP payloads are:
+- live path state
+- live virtual walls
+- live forbidden areas
+- any other live overlay
 
-#### `57` virtual walls
+Live state comes only from:
 
-Binary format:
-
-1. byte `0`: wall count
-2. for each wall:
-   - `x1` (`i16 BE`) / `10`
-   - `y1` (`i16 BE`) / `10`
-   - `x2` (`i16 BE`) / `10`
-   - `y2` (`i16 BE`) / `10`
-
-Each wall is a 2-point line segment in device-relative coordinates.
-
-#### `55` restricted zones / mop zones / thresholds
-
-Binary format:
-
-1. byte `0`: block type / reserved
-2. byte `1`: area count
-3. for each area, 38 bytes:
-   - byte `0`: `areaType`
-     - `1` forbid area
-     - `2` mop-forbidden area
-     - `3` threshold area
-   - byte `1`: reserved
-   - bytes `2..17`: four points as `int16 BE x,y`, divide by `10`
-   - byte `18`: name length
-   - bytes `19..37`: UTF-8 name bytes
-
-Areas are quadrilaterals in device-relative coordinates.
-
-#### `65` carpet polygons
-
-JSON payload:
-
-- array of objects
-- each object contains:
-  - `id`
-  - `vertexs`
-  - optional carpet metadata
-
-`vertexs` is an array of `[x, y]` pairs in tenths of map units. Divide by `10`.
-
-#### `98`, `100`, `103` suspected points
-
-JSON payload:
-
-- array of `[x, y]` pairs in tenths of map units
-
-Semantic mapping:
-
-- `98` -> easycard / restricted-area-adjacent suspected points
-- `100` -> threshold suspected points
-- `103` -> cliff suspected points
-
-### Coordinate transforms
-
-The original app uses two distinct coordinate spaces:
-
-1. device-relative overlay coordinates
-2. map-array coordinates
-
-Transform rules:
-
-- device-relative to original map:
-  - `x = xMin + deviceX`
-  - `y = yMin - deviceY`
-- map-array to image space:
-  - `x = mapArrX * mapRate`
-  - `y = mapArrY * mapRate`
-
-This distinction is critical. Parsing overlay geometry correctly but applying the wrong transform will still produce visibly wrong walls, areas, paths or materials.
-
-## History maps
-
-History maps are not the source of live overlays anymore.
-
-History blobs are still parsed and rendered for record inspection, but live maps must come from:
-
-- current live raster
-- current live runtime cache for the same `mapId`
+- the current live raster
+- current runtime state for the same live `mapId`
 - current DP overlay updates
 
-This separation avoids path/wall contamination from old records.
+### Coordinate spaces must not be mixed
 
-## Rendering stages
+The original app uses two different spaces.
 
-### Backend creator
+Device-relative overlay space is used for:
 
-`Q10MapCreator.ts` converts parsed source data into render-ready geometry:
-
-- room models
-- borders
-- room label center points
-- clip-erase geometry
-- obstacle overlays
+- path points
 - virtual walls
-- forbidden / mop / threshold areas
+- forbidden areas
+- mop areas
+- thresholds
 - carpet polygons
-- path geometry
-- charger / robot pose
+- suspected points
 
-### Backend bitmap output
+Transform into world space:
 
-`Q10MapBuilder.ts` renders the PNG output.
+- `x = xMin + deviceX`
+- `y = yMin - deviceY`
 
-Important render rules mirrored from the original app:
+Map-array space is used for:
 
-- base map is rendered from the room/wall grid
-- material layer is rendered separately from material paths
-- virtual walls are drawn as explicit line overlays, not inferred from forbidden polygons
-- threshold areas use a repeated material tile with row shift
-- self-identified carpet raster is rendered independently from manual carpet polygons
+- raster cells
+- room masks
+- material generation
+- carpet raster and self-identified carpets
 
-### Render layer order
+Transform into image space:
 
-The map must be rendered in this order for parity:
+- `x = mapArrX * mapRate`
+- `y = mapArrY * mapRate`
+
+Parsing can be correct and the map can still look wrong if these transforms are mixed up.
+
+## Rendering rules
+
+### Layer order
+
+The visible map must be rendered in this order:
 
 1. base map raster
 2. room material layer
-3. self-identified carpet raster or carpet grid
+3. self-identified carpet raster / carpet grid
 4. manual carpet polygons
 5. forbidden areas
 6. mop-forbidden areas
@@ -476,30 +248,30 @@ The map must be rendered in this order for parity:
 14. suspected points
 15. room labels
 
-Changing this order causes visible divergence from the original app.
+Changing this order changes the visible result.
 
-### Material rendering rules
+### Material rendering
 
-The original app does not use a generic hatch fill for room materials.
+The original app does not use a generic hatch fill for room materials. It generates explicit material geometry.
 
-Instead it generates explicit material path segments:
+Material rules:
 
-- ceramic tile
+- ceramic tile:
   - orthogonal grout grid
   - spacing `0.8m x 0.8m`
-- horizontal floor boards
+- horizontal floor boards:
   - plank size `1.2m x 0.3m`
   - alternating vertical seam offsets by half-board
-- vertical floor boards
+- vertical floor boards:
   - plank size `0.3m x 1.2m`
   - alternating horizontal seam offsets by half-board
 
-All generated segments are clipped against the current room mask / clip-erase map.
+All material segments are clipped against the room mask / clip-erase map.
 
-The original material draw pass then uses:
+The original material draw pass uses:
 
 - `mapRate = floor(2000 / max(width, height))`, minimum `1`
-- path transform:
+- transform:
   - `mapImageX = mapArrX * mapRate`
   - `mapImageY = mapArrY * mapRate`
 - stroke color `419430400`
@@ -508,115 +280,332 @@ The original material draw pass then uses:
 - round caps
 - antialiasing enabled
 
-If another renderer uses a different output scale, it must preserve the same effective visual width relative to that `mapRate`.
+### Path rendering
 
-### Frontend overlay output
+In the original app, the path is a separate render layer drawn after the map body and overlays.
 
-`map.ts` renders interactive overlays for:
+Path points are grouped by native path type and rendered with different styles:
 
-- room labels
-- zones
-- wall handles
-- path overlays
-- obstacles
+| Type | Rendering |
+| --- | --- |
+| `0` | glow + solid white |
+| `1` | glow + translucent white |
+| `2` | solid white |
+| `3` | dashed |
+| `4` | hidden |
 
-The backend and frontend now consume the same normalized room/overlay model.
+The clean background image used by the frontend must not include the path.
 
-## Overlay sanitizing
+### Self-identified carpets
 
-`Q10OverlaySanitizer.ts` removes obviously broken geometry without deleting valid overlays that cross the cropped map bounds.
+Self-identified carpets follow a specific path that is easy to get wrong.
 
-Important constraint:
+The original worker builds `carpetArrInfo` from the carpet grid:
 
-- a wall crossing the visible map must be kept even if both endpoints lie outside the cropped map rectangle
+- one object per `carpetID`
+- one bounding box per carpet object
+- one local submask containing only `0` and `1`
 
-This was a real Q10 bug previously and caused valid walls to disappear.
+For rendering:
 
-## Room name handling
+1. build a local source image with size `3 * width` by `3 * height`
+2. for each occupied local carpet cell, set exactly three texels:
+   - `(3x + 2, 3y + 0)`
+   - `(3x + 1, 3y + 1)`
+   - `(3x + 0, 3y + 2)`
+3. project that source image into the carpet destination rectangle
 
-The original app distinguishes between:
+For a backend PNG export, the important practical rule is:
 
-1. custom room names stored directly in `roomNameDataStr`
-2. generated placeholders like `room2`
-3. internal room-type tokens such as:
-   - `rr_living_room`
-   - `rr_restaurant`
-   - `rr_corridor`
+- keep the carpet source model as `3x3`
+- use an export scale that is compatible with that raster, otherwise the visible pattern alternates between larger and smaller texels
 
-The original plugin handles that in two separate places:
+### Frontend layering
+
+The frontend should work with:
+
+- a clean background image
+- structured overlay geometry for interactive elements
+
+That is preferable to one baked bitmap because:
+
+- labels remain readable while zooming
+- robot, dock, path, zones, and handles stay interactive
+- overlays can be selectively hidden or edited
+
+For Q10 specifically:
+
+- the clean map contains only the clean background
+- path, robot, dock, labels, and interactive overlays are separate frontend layers
+
+### Overlay sanitizing
+
+`Q10OverlaySanitizer.ts` removes obviously invalid geometry, but it must not remove valid overlays that cross the visible map.
+
+Important rule:
+
+- keep a wall that crosses the visible map even if both endpoints lie outside the cropped bounds
+
+That was a real Q10 bug and causes valid virtual walls to disappear if handled incorrectly.
+
+## Room names on the map
+
+Map-facing room labels follow a fixed precedence.
+
+The original plugin handles room naming in:
 
 - `module_973.js`
-  - `replaceRoomName(...)` rewrites placeholders like `room2` to the localized default-room prefix
+  - `replaceRoomName(...)`
 - `module_1427.js`
-  - `getSpecifiedName(...)` converts `rr_*` tokens to localized display names
-  - `getDefaultName(...)` maps numeric `roomType` ids to their default localized names
+  - `getSpecifiedName(...)`
+  - `getDefaultName(...)`
 
-Adapter behavior now mirrors that:
+Required precedence:
 
-- custom names stay unchanged
-- `roomN` becomes localized default-room placeholder such as `Raum2`
-- `rr_*` tokens are converted to localized display strings before rendering and before writing room states
-- if `roomName` is empty but `roomType` is known, the display name falls back to the default localized room type name
+1. custom room string from `roomNameDataStr`
+2. localized translation of `rr_*` tokens
+3. normalization of placeholders like `room2`
+4. localized fallback from numeric `roomType`
 
-Implementation note:
-
-- the original plugin resolves display names through `PluginString.map_edit_room_name_*`
-- this adapter's shared translation bundle exposes the semantically equivalent room labels as `map_edit_zone_tag_*`
-- the adapter therefore maps `rr_*` tokens to those `map_edit_zone_tag_*` keys for localized output
-- if another implementation has direct access to the original plugin strings, it should prefer the exact `map_edit_room_name_*` keys
-
-Implementation files:
+Adapter files involved:
 
 - `roomNameNormalizer.ts`
 - `Q10MapCreator.ts`
 - `B01MapService.ts`
 
-## Reference fixtures and tests
+## Checklist
 
-The documentation above is the conceptual specification. The executable reference is in the Q10 test fixtures and regression tests.
+To reproduce the Q10 map correctly, an implementation must:
 
-Use these files as the implementation companion:
+1. decrypt and parse live `301` raster payloads
+2. distinguish blob types `1`, `2`, `3`, and `4`
+3. parse `roomData1`
+4. parse the trailing erase / carpet / obstacle blocks
+5. maintain one live runtime map model per active `mapId`
+6. merge runtime state into fresh live rasters only when `mapId` matches
+7. apply DP patches from `55`, `57`, `65`, `98`, `100`, and `103` directly to the active live model
+8. keep history-map handling separate from the live model
+9. use the correct Q10 coordinate transforms
+10. render materials as explicit material geometry, not as a generic hatch
+11. render self-identified carpets from the `3x3` source model
+12. render layers in the same order as the original app
+13. keep the clean background image free of path / robot / dock overlays
+14. normalize room names with the same precedence as the original app
+15. sanitize invalid geometry without deleting valid map-crossing walls
+
+If any of those points is skipped, the visible result will diverge from the original app.
+
+## Appendix A: `301` live raster format
+
+### Blob routing
+
+After decryption, Q10 map payloads are identified by blob type:
+
+| Blob type | Meaning |
+| --- | --- |
+| `1` | live raster map |
+| `2` | path data |
+| `3` | clean record detail |
+| `4` | multi-map detail |
+
+This routing is handled in the original app by `deviceBlobChanged` in `module_970.js`.
+
+### Canonical live header
+
+For blob types `1`, `3`, and `4`, strip the leading blob byte first. The canonical Q10 header then starts at offset `0` and is 28 bytes long.
+
+| Offset | Field | Type | Notes |
+| --- | --- | --- | --- |
+| `0` | `version` | `u8` | map format version |
+| `1..4` | `mapId` | `u32 BE` | active map id |
+| `5` | `type` | `u8` | map type / stability flag |
+| `6..7` | `width` | `u16 BE` | map width |
+| `8..9` | `height` | `u16 BE` | map height |
+| `10..11` | `ox` | `u16 BE` | divide by `10` |
+| `12..13` | `oy` | `u16 BE` | divide by `10` |
+| `14..15` | `resolution` | `u16 BE` | divide by `100` |
+| `16..17` | `chargeX` | `u16 BE` | charger X |
+| `18..19` | `chargeY` | `u16 BE` | charger Y |
+| `20..21` | `chargePhi` | `u16 BE` | `0xffff -> 0` |
+| `22..25` | `pixLen` | `u32 BE` | pixel payload length |
+| `26..27` | `pixLzLen` | `u16 BE` | compressed pixel payload length |
+
+Canonical parsing rules:
+
+- strip the blob byte only for `1`, `3`, and `4`
+- parse the header at offset `0`
+- read all multi-byte fields as big-endian
+- reject payloads whose pixel block would exceed the buffer
+
+The adapter may keep compatibility logic for malformed captures, but that is not part of the original path.
+
+### Derived bounds
+
+From the header, world bounds are reconstructed as:
+
+- `minX = ox / 10`
+- `maxY = oy / 10`
+- `minY = maxY - height * resolution`
+- `maxX = minX + width * resolution`
+
+### Pixel payload variants
+
+Observed Q10 live raster encodings:
+
+| Version | Encoding |
+| --- | --- |
+| `0` | packed 2-bit pixels |
+| `1` | 1 byte per pixel, room id + point type |
+| `2` | 1 byte per pixel, room/material variant |
+| `3` | same live-grid semantics as version `1` |
+
+At minimum, the grid consumer must preserve:
+
+- floor / room cells
+- wall cells
+- outside / background cells
+
+## Appendix B: `roomData1` and trailing blocks
+
+### `roomData1`
+
+Immediately after the pixel payload, the original parser reads `roomData1`.
+
+Structure:
+
+1. byte `0`: region block id / unused
+2. byte `1`: room count
+3. for each room:
+   - 26-byte property block
+   - 20-byte `roomNameDataStr`
+   - 1-byte `verticesNum`
+   - `verticesNum * 4` bytes of polygon vertices (`int16 BE x,y`)
+
+Important fields in the 26-byte property block:
+
+- `roomID`
+- `roomType`
+- `cleanOrder`
+- `cleanCount`
+- `cleanType`
+- `funLevel`
+- `waterLevel`
+- `roomMaterial`
+- `cleanLine`
+
+Room-name decoding rules:
+
+- first byte of `roomNameDataStr` is the string length
+- following bytes are UTF-8
+- if decoding is empty, retry with shorter lengths until a non-empty result appears
+
+For rendering, the app relies more on the raster-derived room borders than on the embedded room polygons.
+
+### Trailing blocks
+
+After `roomData1`, the original parser can consume additional blocks that still belong to the same map model.
+
+#### Erase areas
+
+- 1-byte area count
+- if count > 0:
+  - 1-byte `vertsPerPoly`
+  - `count * vertsPerPoly * 4` bytes (`int16 BE x,y`, divide by `10`)
+
+#### Carpet raster
+
+- `pixLen` (`u32 BE`)
+- `pixLzLen` (`u16 BE`)
+- raw or LZ4 carpet grid
+
+#### Version-dependent blocks
+
+- obstacles
+- skip-clean markers
+- suspected-point blocks
+
+These blocks are part of the same runtime map state. They are not side channels and should not be modeled separately.
+
+## Appendix C: DP payload formats
+
+### `DP 57`: virtual walls
+
+Binary layout:
+
+1. byte `0`: wall count
+2. for each wall:
+   - `x1` (`i16 BE`) / `10`
+   - `y1` (`i16 BE`) / `10`
+   - `x2` (`i16 BE`) / `10`
+   - `y2` (`i16 BE`) / `10`
+
+Each wall is one device-relative line segment.
+
+### `DP 55`: forbidden areas, mop areas, thresholds
+
+Binary layout:
+
+1. byte `0`: reserved / block type
+2. byte `1`: area count
+3. for each area, 38 bytes:
+   - byte `0`: `areaType`
+     - `1` forbidden area
+     - `2` mop-forbidden area
+     - `3` threshold area
+   - byte `1`: reserved
+   - bytes `2..17`: four points as `int16 BE x,y`, divide by `10`
+   - byte `18`: name length
+   - bytes `19..37`: UTF-8 name bytes
+
+Each area is a device-relative quadrilateral.
+
+### `DP 65`: carpet polygons
+
+JSON payload:
+
+- array of objects
+- each object contains:
+  - `id`
+  - `vertexs`
+  - optional carpet metadata
+
+`vertexs` is an array of `[x, y]` pairs in tenths of map units. Divide by `10`.
+
+### `DP 98`, `DP 100`, `DP 103`: suspected points
+
+JSON payload:
+
+- array of `[x, y]` pairs in tenths of map units
+
+Meaning:
+
+| DP | Meaning |
+| --- | --- |
+| `98` | restricted-area-related suspected points |
+| `100` | threshold suspected points |
+| `103` | cliff suspected points |
+
+## Appendix D: Reference tests
+
+This document is the written specification. The executable reference is in the fixtures and regression tests.
+
+Useful reference files:
 
 - `q10RepresentativeFixture.ts`
-  - embedded representative Q10 sample payload used across the parser/render tests
 - `q10FixtureDefaults.ts`
-  - fixture defaults for Q10 sample decoding
 - `q10TestSupport.ts`
-  - shared helpers for Q10 map test setup
 - `q10_b01_map.test.ts`
-  - end-to-end Q10 reference test file
-  - covers sample decrypt/parse/render
-  - canonical header expectations
-  - same-`mapId` live runtime merge
-  - unsolicited live `301` handling
-  - DP patch application from `55/57/65/98/100/103`
-  - virtual wall decode/render behavior
-  - material/grout rendering expectations
 - `room_name_normalizer.test.ts`
-  - room-label precedence and normalization behavior
 - `b01_map_payload_classifier.test.ts`
-  - payload classification expectations for Q10 live-map blobs
 - `b01_research_maps_regression.test.ts`
-  - regression coverage for real research/reverse-engineering captures
 
-If another implementation diverges from the rendered result or parsed structure, these tests should be treated as the source of truth for the currently reproduced Q10/B01 behavior.
+These tests cover:
 
-## Minimum implementation checklist
-
-If another project wants to reproduce Q10 map behavior, it must do all of the following:
-
-1. decrypt and parse live `301` map rasters
-2. distinguish blob types `1/2/3/4`
-3. parse room metadata from `roomData1`
-4. parse the trailing erase/carpet/obstacle blocks after the pixel payload
-5. maintain a runtime map cache per active `mapId`
-6. merge fresh rasters with cached runtime data only when `mapId` matches
-7. parse and apply DP overlays from `55/57/65/98/100/103`
-8. keep history processing separate from live-map state
-9. render room materials from explicit material path segments rather than a generic hatch
-10. render layers in the same order as the original app
-11. normalize room labels with the same precedence as the app:
-   custom string -> `rr_*` token -> `roomN` placeholder -> `roomType` fallback
-12. sanitize impossible geometry without deleting valid map-crossing walls
-
-If any of those steps is skipped, the resulting map will diverge from the original app in visible ways.
+- sample decrypt / parse / render
+- canonical header expectations
+- same-`mapId` runtime merge
+- unsolicited live `301` handling
+- DP patch application from `55`, `57`, `65`, `98`, `100`, and `103`
+- virtual wall decode / render behavior
+- material / grout rendering behavior
+- room-name normalization
