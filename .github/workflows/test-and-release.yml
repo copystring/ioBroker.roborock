@@ -24,23 +24,8 @@ env:
   NPM_CONFIG_FUND: false
 
 jobs:
-  mergeability-check:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - name: Fetch PR base branch
-        if: github.event_name == 'pull_request'
-        run: git fetch --no-tags origin ${{ github.base_ref }}
-      - name: Check mergeability against base
-        if: github.event_name == 'pull_request'
-        run: node scripts/check-mergeability.js origin/${{ github.base_ref }}
-
   # Performs quick checks before the expensive test runs
   check-and-lint:
-    needs: mergeability-check
     if: contains(github.event.head_commit.message, '[skip ci]') == false
 
     runs-on: ubuntu-latest

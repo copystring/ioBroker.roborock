@@ -1,8 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
-import { Roborock } from "../../src/main";
+
+vi.mock("@iobroker/adapter-core", () => ({
+	Adapter: class MockAdapter {}
+}));
+
+vi.mock("go2rtc-static", () => ({
+	default: ""
+}));
 
 describe("deviceInfo.online", () => {
 	it("is written exactly from HomeData", async () => {
+		const { Roborock } = await import("../../src/main");
 		const writes: Array<{ id: string; val: unknown }> = [];
 		const ensured: Array<{ id: string; common: Record<string, unknown> }> = [];
 		const adapter = {

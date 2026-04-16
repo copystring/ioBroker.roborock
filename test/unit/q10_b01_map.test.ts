@@ -2099,7 +2099,7 @@ describe("Q10 B01 Map Support", () => {
 		const creatorRendered = await decodePngRgba((await builder.buildMaps(creatorMap, undefined)).full);
 		const sourceRendered = await decodePngRgba((await builder.buildMaps(sourceMap, undefined)).full);
 
-		expect(Array.from(sourceRendered.rgba)).toEqual(Array.from(creatorRendered.rgba));
+		expect(sourceRendered.rgba.equals(creatorRendered.rgba)).toBe(true);
 	});
 
 	it("should render ceramic room material as orthogonal grout instead of diagonal hatch", async () => {
@@ -2181,7 +2181,7 @@ describe("Q10 B01 Map Support", () => {
 
 		expect(hiddenOnly.width).toBe(base.width);
 		expect(hiddenOnly.height).toBe(base.height);
-		expect(Array.from(hiddenOnly.rgba)).toEqual(Array.from(base.rgba));
+		expect(hiddenOnly.rgba.equals(base.rgba)).toBe(true);
 	});
 
 	it("should not connect separated visible path subpaths across hidden type-4 sections", async () => {

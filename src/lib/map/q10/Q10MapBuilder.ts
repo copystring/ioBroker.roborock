@@ -1239,12 +1239,52 @@ export class Q10MapBuilder {
 		pose: Q10PixelPose | undefined,
 		image: Image | undefined,
 		drawWidth: number,
-		rotationOffset = 0
+		rotationOffset = 0,
+		fallback: "charger" | "robot" = "robot"
 	): void {
 		if (!pose) return;
 		const canvasPose = geometry.mapPose(pose);
 		if (!canvasPose) return;
-		drawCenteredAsset(ctx, image, canvasPose.x, canvasPose.y, geometry.mapLength(drawWidth), (canvasPose.phi ?? 0) + rotationOffset);
+		const targetWidth = geometry.mapLength(drawWidth);
+		if (image) {
+			drawCenteredAsset(ctx, image, canvasPose.x, canvasPose.y, targetWidth, (canvasPose.phi ?? 0) + rotationOffset);
+			return;
+		}
+
+		const radius = targetWidth * 0.28;
+		ctx.save();
+		ctx.translate(canvasPose.x, canvasPose.y);
+		ctx.rotate((((canvasPose.phi ?? 0) + rotationOffset) * Math.PI) / 180);
+		if (fallback === "charger") {
+			ctx.fillStyle = "rgba(255,255,255,0.95)";
+			ctx.beginPath();
+			ctx.arc(0, 0, radius, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.strokeStyle = "rgba(20,31,48,0.9)";
+			ctx.lineWidth = Math.max(1, radius * 0.22);
+			ctx.beginPath();
+			ctx.moveTo(-radius * 0.22, -radius * 0.55);
+			ctx.lineTo(radius * 0.05, -radius * 0.1);
+			ctx.lineTo(-radius * 0.02, -radius * 0.1);
+			ctx.lineTo(radius * 0.22, radius * 0.55);
+			ctx.lineTo(-radius * 0.05, radius * 0.08);
+			ctx.lineTo(radius * 0.02, radius * 0.08);
+			ctx.stroke();
+		} else {
+			ctx.fillStyle = "rgba(255,255,255,0.95)";
+			ctx.beginPath();
+			ctx.arc(0, 0, radius, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.fillStyle = "rgba(90,120,150,0.95)";
+			ctx.beginPath();
+			ctx.moveTo(0, -radius * 0.7);
+			ctx.lineTo(radius * 0.28, -radius * 0.1);
+			ctx.lineTo(0, radius * 0.1);
+			ctx.lineTo(-radius * 0.28, -radius * 0.1);
+			ctx.closePath();
+			ctx.fill();
+		}
+		ctx.restore();
 	}
 
 	private drawObstacleIcons(
@@ -1384,8 +1424,8 @@ export class Q10MapBuilder {
 	}
 
 	private drawInteractiveOverlayLayers(ctx: any, geometry: Q10MapGeometry, creator: Q10CreatorData): void {
-		this.drawPose(ctx, geometry, creator.chargerPixel, this.assets.power, 8, -90);
-		this.drawPose(ctx, geometry, creator.robotPixel, this.assets.device, 8, 90);
+		this.drawPose(ctx, geometry, creator.chargerPixel, this.assets.power, 8, -90, "charger");
+		this.drawPose(ctx, geometry, creator.robotPixel, this.assets.device, 8, 90, "robot");
 		this.drawObstacleIcons(ctx, geometry, creator.obstaclePixels, this.assets.obstacle, "rgba(255,100,80,0.9)");
 		this.drawObstacleIcons(ctx, geometry, creator.skipPixels, this.assets.tiaoGuoIcon, "rgba(255,220,60,0.92)");
 		this.drawSuspectedPoints(ctx, geometry, creator.suspectedPoints);

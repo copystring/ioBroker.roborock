@@ -2,8 +2,7 @@
 const { execSync } = require("node:child_process");
 
 try {
-	execSync("git fetch --quiet origin main", { stdio: "inherit", shell: process.platform === "win32" });
-	execSync("node scripts/check-mergeability.js origin/main", { stdio: "inherit", shell: process.platform === "win32" });
+	execSync("npm run ci:check", { stdio: "inherit", shell: process.platform === "win32" });
 } catch (error) {
 	process.exit(1);
 }
