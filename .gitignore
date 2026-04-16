@@ -3,6 +3,8 @@
 !.vscode/
 !.github/
 !.husky/
+!scripts/.githooks/
+!scripts/.githooks/*
 !.npmrc
 !.commitmessage
 
