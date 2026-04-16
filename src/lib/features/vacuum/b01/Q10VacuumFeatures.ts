@@ -3,19 +3,169 @@ import { B01BaseVacuumFeatures } from "./B01BaseVacuumFeatures";
 import { Q10CleanRecordService } from "./q10/Q10CleanRecordService";
 import { Q10ShadowDataService } from "./q10/Q10ShadowDataService";
 
+type Q10ZoneTuple = [number, number, number, number, number?];
+type Q10AreaPoint = { x: number; y: number };
+type Q10ZoneArea = { points: Q10AreaPoint[]; name: string };
+type Q10ZoneCleanParams = { repeatCount: number; areas: Q10ZoneArea[] };
+
 export class Q10VacuumFeatures extends B01BaseVacuumFeatures {
 	private readonly q10CleanRecordService: Q10CleanRecordService;
 	private readonly q10ShadowDataService: Q10ShadowDataService;
 	private readonly q10LegacyCommandIds = [
-		"app_segment_clean",
 		"carpet_turbo",
 		"child_lock",
 		"find_me",
 		"green_laser",
 		"light_mode",
 		"mode",
-		"repeat_state"
+		"repeat_state",
+		"resume_segment_clean",
+		"resume_zoned_clean",
+		"stop_segment_clean",
+		"stop_zoned_clean"
 	] as const;
+
+	private isFiniteNumber(value: unknown): value is number {
+		return typeof value === "number" && Number.isFinite(value);
+	}
+
+	private normalizeRoomIds(input: unknown): number[] | null {
+		const rawIds = Array.isArray(input)
+			? input
+			: (typeof input === "object" && input !== null && Array.isArray((input as { segments?: unknown }).segments))
+				? (input as { segments: unknown[] }).segments
+				: null;
+
+		if (!rawIds) return null;
+
+		const normalized = rawIds
+			.map((value) => Number(value))
+			.filter((value, index, values) => Number.isInteger(value) && value >= 0 && values.indexOf(value) === index);
+
+		return normalized.length > 0 ? normalized : null;
+	}
+
+	private async collectSelectedRoomIds(): Promise<number[]> {
+		const currentMapIdState = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.deviceStatus.current_map_id`);
+		const currentMapId = typeof currentMapIdState?.val === "number" && currentMapIdState.val > 0
+			? currentMapIdState.val
+			: null;
+		const namespace = this.deps.adapter.namespace;
+		const pattern = currentMapId != null
+			? `${namespace}.Devices.${this.duid}.floors.${currentMapId}.*`
+			: `${namespace}.Devices.${this.duid}.floors.*.*`;
+		const selectedStates = await this.deps.adapter.getStatesAsync(pattern);
+		const nonRoomKeys = new Set(["add_time", "load", "mapFlag", "map_id", "name"]);
+		const roomIds = new Set<number>();
+
+		if (selectedStates) {
+			for (const [stateId, state] of Object.entries(selectedStates)) {
+				if (!state || (state.val !== true && state.val !== "true" && state.val !== 1)) continue;
+
+				const parts = stateId.split(".");
+				const lastSegment = parts[parts.length - 1];
+				if (!lastSegment || nonRoomKeys.has(lastSegment)) continue;
+
+				const roomId = Number(lastSegment);
+				if (Number.isInteger(roomId) && roomId >= 0) {
+					roomIds.add(roomId);
+				}
+			}
+		}
+
+		return Array.from(roomIds).sort((left, right) => left - right);
+	}
+
+	private normalizeZoneAreas(input: unknown): Q10ZoneCleanParams | null {
+		const rawZones = Array.isArray(input)
+			? input
+			: (typeof input === "object" && input !== null && Array.isArray((input as { zones?: unknown }).zones))
+				? (input as { zones: unknown[] }).zones
+				: null;
+
+		if (!rawZones || rawZones.length === 0) return null;
+
+		const areas: Q10ZoneArea[] = [];
+		let repeatCount: number | null = null;
+
+		for (const rawZone of rawZones) {
+			if (Array.isArray(rawZone) && rawZone.length >= 4) {
+				const [rawX1, rawY1, rawX2, rawY2, rawRepeat] = rawZone as Q10ZoneTuple;
+				if (
+					!this.isFiniteNumber(rawX1)
+					|| !this.isFiniteNumber(rawY1)
+					|| !this.isFiniteNumber(rawX2)
+					|| !this.isFiniteNumber(rawY2)
+				) {
+					throw new Error(`Invalid Q10 zone tuple: ${JSON.stringify(rawZone)}`);
+				}
+
+				const zoneRepeat = Number.isInteger(rawRepeat) && rawRepeat! > 0 ? rawRepeat! : 1;
+				if (repeatCount === null) {
+					repeatCount = zoneRepeat;
+				} else if (repeatCount !== zoneRepeat) {
+					throw new Error("Q10 zone clean expects one shared repeat count for all areas");
+				}
+
+				const minX = Math.min(rawX1, rawX2);
+				const minY = Math.min(rawY1, rawY2);
+				const maxX = Math.max(rawX1, rawX2);
+				const maxY = Math.max(rawY1, rawY2);
+
+				areas.push({
+					name: "",
+					points: [
+						{ x: minX, y: minY },
+						{ x: maxX, y: minY },
+						{ x: maxX, y: maxY },
+						{ x: minX, y: maxY }
+					]
+				});
+				continue;
+			}
+
+			if (typeof rawZone === "object" && rawZone !== null && Array.isArray((rawZone as { points?: unknown }).points)) {
+				const zone = rawZone as { points: unknown[]; name?: unknown; cleanCount?: unknown; repeat?: unknown };
+				const points = zone.points.map((point) => {
+					if (typeof point !== "object" || point === null) {
+						throw new Error(`Invalid Q10 zone point: ${JSON.stringify(point)}`);
+					}
+
+					const x = Number((point as { x?: unknown }).x);
+					const y = Number((point as { y?: unknown }).y);
+					if (!this.isFiniteNumber(x) || !this.isFiniteNumber(y)) {
+						throw new Error(`Invalid Q10 zone point coordinates: ${JSON.stringify(point)}`);
+					}
+					return { x, y };
+				});
+
+				if (points.length < 3) {
+					throw new Error(`Invalid Q10 zone polygon: ${JSON.stringify(rawZone)}`);
+				}
+
+				const zoneRepeat = Number(zone.cleanCount ?? zone.repeat ?? 1);
+				if (!Number.isInteger(zoneRepeat) || zoneRepeat <= 0) {
+					throw new Error(`Invalid Q10 zone repeat count: ${JSON.stringify(rawZone)}`);
+				}
+				if (repeatCount === null) {
+					repeatCount = zoneRepeat;
+				} else if (repeatCount !== zoneRepeat) {
+					throw new Error("Q10 zone clean expects one shared repeat count for all areas");
+				}
+
+				areas.push({
+					name: typeof zone.name === "string" ? zone.name : "",
+					points
+				});
+				continue;
+			}
+
+			throw new Error(`Unsupported Q10 zone payload: ${JSON.stringify(rawZone)}`);
+		}
+
+		if (areas.length === 0 || repeatCount === null) return null;
+		return { repeatCount, areas };
+	}
 
 	protected override async cleanupVariantCommandObjects(): Promise<void> {
 		const base = `Devices.${this.duid}`;
@@ -237,6 +387,19 @@ export class Q10VacuumFeatures extends B01BaseVacuumFeatures {
 			def: false
 		});
 
+		this.addCommand("app_segment_clean", {
+			type: "boolean",
+			role: "button",
+			name: this.deps.adapter.translations["app_segment_clean"] || "Segment Cleaning",
+			def: false
+		});
+
+		this.addCommand("app_zoned_clean", {
+			type: "json",
+			role: "json",
+			name: this.deps.adapter.translations["app_zoned_clean"] || "Zone Clean"
+		});
+
 		this.addCommand("wind", {
 			type: "number",
 			role: "value",
@@ -444,5 +607,44 @@ export class Q10VacuumFeatures extends B01BaseVacuumFeatures {
 
 	public override async updateNetworkInfo(): Promise<void> {
 		return;
+	}
+
+	public override async getCommandParams(method: string, params?: unknown, id?: string): Promise<unknown> {
+		void id;
+
+		if (method === "app_segment_clean") {
+			const explicitRoomIds = this.normalizeRoomIds(params);
+			if (explicitRoomIds) {
+				return explicitRoomIds;
+			}
+
+			const roomIds = await this.collectSelectedRoomIds();
+			if (roomIds.length === 0) {
+				throw new Error("No rooms selected for Q10 segment cleaning");
+			}
+
+			this.deps.adapter.rLog("System", this.duid, "Info", "B01", undefined, `Starting Q10 room clean for rooms: ${roomIds.join(", ")}`, "info");
+			return roomIds;
+		}
+
+		if (method === "app_zoned_clean") {
+			const normalized = this.normalizeZoneAreas(params);
+			if (!normalized) {
+				throw new Error("No zones supplied for Q10 zone cleaning");
+			}
+
+			this.deps.adapter.rLog(
+				"System",
+				this.duid,
+				"Info",
+				"B01",
+				undefined,
+				`Starting Q10 zone clean for ${normalized.areas.length} area(s) with repeat ${normalized.repeatCount}`,
+				"info"
+			);
+			return normalized;
+		}
+
+		return super.getCommandParams(method, params, id);
 	}
 }

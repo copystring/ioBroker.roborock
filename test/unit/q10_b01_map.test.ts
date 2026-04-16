@@ -363,8 +363,10 @@ describe("Q10 B01 Map Support", () => {
 		expect(Object.keys(harness.feature.commands).sort()).toEqual([
 			"app_charge",
 			"app_pause",
+			"app_segment_clean",
 			"app_start",
 			"app_stop",
+			"app_zoned_clean",
 			"clean_path_preference",
 			"update_map",
 			"water",
@@ -389,6 +391,8 @@ describe("Q10 B01 Map Support", () => {
 		expect(harness.adapter.objects[`Devices.${Q10_DUID}.resetConsumables`]).toBeUndefined();
 		expect(harness.adapter.objects[`Devices.${Q10_DUID}.resetConsumables.reset_filter`]).toBeUndefined();
 		expect(harness.adapter.objects[`Devices.${Q10_DUID}.commands.app_start`]).toBeDefined();
+		expect(harness.adapter.objects[`Devices.${Q10_DUID}.commands.app_segment_clean`]).toBeDefined();
+		expect(harness.adapter.objects[`Devices.${Q10_DUID}.commands.app_zoned_clean`]).toBeDefined();
 		expect(harness.adapter.objects[`Devices.${Q10_DUID}.commands.update_map`]).toBeDefined();
 	});
 
@@ -461,6 +465,67 @@ describe("Q10 B01 Map Support", () => {
 		expect(reqHandler.publishB01Dp).toHaveBeenNthCalledWith(5, Q10_DUID, { "123": 3 });
 		expect(reqHandler.publishB01Dp).toHaveBeenNthCalledWith(6, Q10_DUID, { "101": { "78": 2 } });
 		expect(reqHandler.sendRequest).not.toHaveBeenCalled();
+	});
+
+	it("should gather selected Q10 room ids and send native room-clean dp201 cmd=2", async () => {
+		const reqHandler = createQ10RequestsHandlerHarness();
+		await harness.feature.setupProtocolFeatures();
+
+		harness.adapter.states[`Devices.${Q10_DUID}.deviceStatus.current_map_id`] = 7;
+		harness.adapter.states[`roborock.0.Devices.${Q10_DUID}.floors.7.1`] = true;
+		harness.adapter.states[`roborock.0.Devices.${Q10_DUID}.floors.7.6`] = true;
+		harness.adapter.states[`roborock.0.Devices.${Q10_DUID}.floors.7.name`] = "Main Floor";
+
+		await reqHandler.command(harness.feature as any, Q10_DUID, "app_segment_clean");
+
+		expect(reqHandler.publishB01Dp).toHaveBeenCalledWith(Q10_DUID, {
+			"201": {
+				cmd: 2,
+				clean_paramters: [1, 6]
+			}
+		});
+	});
+
+	it("should map adapter zone tuples to the native Q10 area-clean dp201 cmd=3 payload", async () => {
+		const reqHandler = createQ10RequestsHandlerHarness();
+		await harness.feature.setupProtocolFeatures();
+
+		await reqHandler.command(harness.feature as any, Q10_DUID, "app_zoned_clean", [[1, 2, 3, 4, 2]]);
+
+		expect(reqHandler.publishB01Dp).toHaveBeenCalledTimes(1);
+		const dpPayload = reqHandler.publishB01Dp.mock.calls[0]?.[1];
+		expect(dpPayload).toMatchObject({
+			"201": {
+				cmd: 3
+			}
+		});
+
+		const encoded = (dpPayload as { "201": { clean_paramters: string } })["201"].clean_paramters;
+		const decoded = Buffer.from(encoded, "base64");
+
+		expect(Array.from(decoded)).toEqual([
+			1, 2, 1, 4,
+			0, 10, 0, 20,
+			0, 30, 0, 20,
+			0, 30, 0, 40,
+			0, 10, 0, 40,
+			0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+		]);
+	});
+
+	it("should reject mixed repeat counts for Q10 zone cleaning because the original payload only supports one shared repeat value", async () => {
+		const reqHandler = createQ10RequestsHandlerHarness();
+		await harness.feature.setupProtocolFeatures();
+
+		await expect(
+			reqHandler.command(harness.feature as any, Q10_DUID, "app_zoned_clean", [
+				[1, 2, 3, 4, 1],
+				[5, 6, 7, 8, 2]
+			])
+		).rejects.toThrow("Q10 zone clean expects one shared repeat count");
+
+		expect(reqHandler.publishB01Dp).not.toHaveBeenCalled();
 	});
 
 	it("should fail closed for unsupported Q10 commands instead of silently falling back to generic B01 logic", async () => {
