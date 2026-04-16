@@ -15,14 +15,14 @@ export class TranslationManager {
 		const systemLang = (this.adapter.language || "en").toString().toLowerCase();
 		this.currentLanguage = this.resolveLanguage(systemLang);
 
-		this.adapter.log.info(`[TranslationManager] System language: "${this.adapter.language}" (normalized: "${systemLang}"). Selected Roborock language: "${this.currentLanguage}"`);
+		this.adapter.rLog("System", null, "Info", undefined, undefined, `[Translation] System language="${this.adapter.language}" normalized="${systemLang}" selected="${this.currentLanguage}"`, "info");
 
 		this.loadTranslations();
 	}
 
 	private loadTranslations() {
 		const jsonPath = path.join(__dirname, "..", "..", "lib", "protocols", "roborock_strings.json");
-		this.adapter.log.debug(`[TranslationManager] Attempting to load translations from: ${jsonPath}`);
+		this.adapter.rLog("System", null, "Debug", undefined, undefined, `[Translation] Loading translations from ${jsonPath}`, "debug");
 
 		try {
 			if (fs.existsSync(jsonPath)) {
@@ -41,12 +41,12 @@ export class TranslationManager {
 				const langCount = Object.keys(this.translations).length;
 				const currentKeys = this.translations[this.currentLanguage] ? Object.keys(this.translations[this.currentLanguage]).length : 0;
 
-				this.adapter.log.info(`[TranslationManager] Loaded ${langCount} languages from JSON. Current language "${this.currentLanguage}" has ${currentKeys} keys (case-insensitive indexing).`);
+				this.adapter.rLog("System", null, "Info", undefined, undefined, `[Translation] Loaded ${langCount} languages. Current language "${this.currentLanguage}" has ${currentKeys} keys.`, "info");
 			} else {
-				this.adapter.log.error(`[TranslationManager] Translation file NOT FOUND at ${jsonPath}`);
+				this.adapter.rLog("System", null, "Error", undefined, undefined, `[Translation] File not found at ${jsonPath}`, "error");
 			}
-		} catch (e) {
-			this.adapter.log.error(`[TranslationManager] Failed to load translations: ${e}`);
+		} catch (e: unknown) {
+			this.adapter.rLog("System", null, "Error", undefined, undefined, `[Translation] Failed to load translations: ${e instanceof Error ? e.message : String(e)}`, "error");
 		}
 	}
 

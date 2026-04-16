@@ -1,0 +1,8 @@
+#!/usr/bin/env node
+const { execSync } = require("node:child_process");
+
+try {
+	execSync("npm run ci:check", { stdio: "inherit", shell: process.platform === "win32" });
+} catch (error) {
+	process.exit(1);
+}

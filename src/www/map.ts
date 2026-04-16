@@ -2,6 +2,9 @@ import * as d3 from "d3";
 import { localCoordsToRobotCoords, robotCoordsToLocalCoords } from "../common/coordTransformation";
 import { drawMapV1 } from "../common/mapDrawing/drawMapV1";
 import { IMG_CHARGER, IMG_GO_TO_PIN, IMG_ROBOT_ORIGINAL } from "../common/images";
+import type { DrawObstacleInput, DrawRoomLabelInput, DrawVirtualWallInput } from "../common/mapDrawing/types";
+import type { B01MapData } from "../lib/map/b01/types";
+import { Q10_CANVAS_SCALE, Q10MapGeometry } from "../lib/map/q10/Q10MapGeometry";
 import { Connection } from "./conn.js";
 import { SVGMapRenderer } from "./SVGMapRenderer";
 
@@ -24,6 +27,9 @@ interface MapData {
 	CARPET_MAP?: number[];
 	model?: string; // e.g. roborock.vacuum.a147, for asset paths
 }
+
+type Q10FrontendMapData = B01MapData & { model?: string };
+type FrontendMapData = MapData | Q10FrontendMapData;
 
 interface PositionBlock {
 	position: [number, number];
@@ -57,6 +63,14 @@ interface Rect {
 	y: number;
 	width: number;
 	height: number;
+}
+
+interface Q10OverlayObstacleData {
+	kind: "q10Obstacle";
+	type: "obstacle" | "skip" | "threshold" | "easycard" | "cliff";
+	x: number;
+	y: number;
+	obstacleId?: string | number;
 }
 
 interface ConnCallbacks {
@@ -98,6 +112,51 @@ const UI_CONSTANTS = {
 };
 
 /** Type → suffix (429.js); asset obstacle_new_p{suffix}.png */
+const Q10_ROOM_TAG_BASE = [
+	q10PackedArgbToCss(4279123053),
+	q10PackedArgbToCss(4283645184),
+	q10PackedArgbToCss(4286455337),
+	q10PackedArgbToCss(4278537798)
+] as const;
+const Q10_ROOM_TAG_STROKE = [
+	q10PackedArgbToCss(4278528336),
+	q10PackedArgbToCss(4281147648),
+	q10PackedArgbToCss(4284156949),
+	q10PackedArgbToCss(4278202925)
+] as const;
+const Q10_ROOM_LABEL_LAYOUT = {
+	bubbleRadius: 6,
+	iconSize: 6,
+	gap: 4,
+	font: '900 12px "Segoe UI", sans-serif',
+	widthPadding: 1
+} as const;
+
+function q10RoomTagAssetFileName(roomType: number): string {
+	const normalized = Number.isInteger(roomType) && roomType >= 0 && roomType <= 11 ? roomType : 0;
+	return `src_resources_map_images_light_maproomtag${normalized}.png`;
+}
+
+function q10PackedArgbToCss(color: number): string {
+	const a = ((color >>> 24) & 0xff) / 255;
+	const r = (color >>> 16) & 0xff;
+	const g = (color >>> 8) & 0xff;
+	const b = color & 0xff;
+	return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+let q10RoomLabelMeasureContext: CanvasRenderingContext2D | null = null;
+
+function measureQ10RoomLabelWidth(label: string): number {
+	if (!q10RoomLabelMeasureContext) {
+		const canvas = document.createElement("canvas");
+		q10RoomLabelMeasureContext = canvas.getContext("2d");
+	}
+	if (!q10RoomLabelMeasureContext) return label.length * 8;
+	q10RoomLabelMeasureContext.font = Q10_ROOM_LABEL_LAYOUT.font;
+	return q10RoomLabelMeasureContext.measureText(label).width;
+}
+
 const OBSTACLE_MAPPING: Record<number, string> = {
 	[-99]: "99",
 	0: "0",
@@ -133,6 +192,10 @@ function obstacleAssetFileNameAlt(suffix: string): string {
 	return `projects_comroborocktanos_resources_map_object_top_${suffix}.png`;
 }
 
+function isQ10MapData(map: FrontendMapData | undefined): map is Q10FrontendMapData {
+	return !!map && typeof map === "object" && "header" in map && !!(map as Q10FrontendMapData).q10CreatorData?.q10Detected;
+}
+
 // -----------------------------------------------------------------------------
 // Map Application Class
 // -----------------------------------------------------------------------------
@@ -146,7 +209,7 @@ class MapApplication {
 	private currentMapSubscriptions: string[] = [];
 
 	// Map Data
-	private map: MapData | undefined;
+	private map: FrontendMapData | undefined;
 	private mapImage: MapData["IMAGE"] | undefined;
 	private mapMinX: number = 0;
 	private mapMinY: number = 0;
@@ -155,6 +218,10 @@ class MapApplication {
 	private mapMaxY: number = 0;
 	private goToTarget = false;
 	private zoomLevel = 0.55;
+	private currentMapBase64Clean: string | null = null;
+	private q10Status: number | null = null;
+	private q10CleaningInfo: Record<string, unknown> | null = null;
+	private q10CurrentCleanRoomIds: number[] = [];
 
 	// D3 & SVG State
 	private image = new Image();
@@ -467,50 +534,96 @@ class MapApplication {
 		this.drawZones();
 		this.deleteButton.disabled = true;
 		this.addButton.disabled = false;
+		this.currentMapBase64Clean = null;
+		this.q10Status = null;
+		this.q10CleaningInfo = null;
+		this.q10CurrentCleanRoomIds = [];
 
-		const mapBase64StateId = `${this.instanceId}.Devices.${duid}.map.mapBase64Clean`;
+		const mapBase64CleanStateId = `${this.instanceId}.Devices.${duid}.map.mapBase64Clean`;
 		const mapDataStateId = `${this.instanceId}.Devices.${duid}.map.mapData`;
+		const q10StatusStateId = `${this.instanceId}.Devices.${duid}.deviceStatus.status`;
+		const q10CleaningInfoStateId = `${this.instanceId}.Devices.${duid}.deviceStatus.cleaning_info`;
+		const q10CurrentCleanRoomIdsStateId = `${this.instanceId}.Devices.${duid}.deviceStatus.current_clean_room_ids`;
 
-		this.currentMapSubscriptions = [mapBase64StateId, mapDataStateId];
+		this.currentMapSubscriptions = [
+			mapBase64CleanStateId,
+			mapDataStateId,
+			q10StatusStateId,
+			q10CleaningInfoStateId,
+			q10CurrentCleanRoomIdsStateId
+		];
 
 		this.onStateChange = (id: string, state: any | null | undefined) => {
-			if (!state || !state.val) {
-				if (id === mapBase64StateId) {
-					this.mapImageElement.attr("href", null);
+			if (!state || state.val === null || state.val === undefined) {
+				if (id === mapBase64CleanStateId) {
+					this.currentMapBase64Clean = null;
+					this.updateBackgroundImageFromStateCache();
 				}
 				if (id === mapDataStateId) {
 					this.map = undefined;
+					this.zonesOverlayGroup.selectAll("*").remove();
 					this.robotGroup.selectAll("*").remove();
+				}
+				if (id === q10StatusStateId) this.q10Status = null;
+				if (id === q10CleaningInfoStateId) this.q10CleaningInfo = null;
+				if (id === q10CurrentCleanRoomIdsStateId) this.q10CurrentCleanRoomIds = [];
+				if (
+					(id === q10StatusStateId || id === q10CleaningInfoStateId || id === q10CurrentCleanRoomIdsStateId)
+					&& isQ10MapData(this.map)
+				) {
+					this.drawOverlaysFromMap();
 				}
 				return;
 			}
 
 			switch (id) {
-				case mapBase64StateId:
-					this.pinGroup.select("image.goto-pin").style("display", "none").style("opacity", 0);
-					this.drawBackgroundImage(state.val as string);
+				case mapBase64CleanStateId:
+					this.currentMapBase64Clean = String(state.val);
+					this.updateBackgroundImageFromStateCache();
 					break;
 
 				case mapDataStateId:
 					try {
 						this.map = typeof state.val === "string" ? JSON.parse(state.val) : state.val;
-						if (this.map && this.map.IMAGE) {
+						if (this.map && "IMAGE" in this.map && this.map.IMAGE) {
 							this.model = this.map.model ?? this.robotModels[this.currentRobotDuid] ?? null;
 							this.mapImage = this.map.IMAGE;
 							this.updateMapImageSize();
+							this.drawOverlaysFromMap();
+						} else if (isQ10MapData(this.map)) {
+							this.model = this.map.model ?? this.robotModels[this.currentRobotDuid] ?? null;
+							this.mapImage = undefined;
 							this.drawOverlaysFromMap();
 						}
 					} catch (e) {
 						console.error("Failed to parse map data JSON:", state.val, e);
 					}
 					break;
+
+				case q10StatusStateId:
+					this.q10Status = Number(state.val);
+					if (isQ10MapData(this.map)) this.drawOverlaysFromMap();
+					break;
+
+				case q10CleaningInfoStateId:
+					this.q10CleaningInfo = this.parseQ10CleaningInfoState(state.val);
+					if (isQ10MapData(this.map)) this.drawOverlaysFromMap();
+					break;
+
+				case q10CurrentCleanRoomIdsStateId:
+					this.q10CurrentCleanRoomIds = this.parseQ10RoomIdsState(state.val);
+					if (isQ10MapData(this.map)) this.drawOverlaysFromMap();
+					break;
 			}
 		};
 
-		this.connection.subscribeState(mapBase64StateId);
+		this.connection.subscribeState(mapBase64CleanStateId);
 		this.connection.subscribeState(mapDataStateId);
+		this.connection.subscribeState(q10StatusStateId);
+		this.connection.subscribeState(q10CleaningInfoStateId);
+		this.connection.subscribeState(q10CurrentCleanRoomIdsStateId);
 
-		this.connection.getStates([mapBase64StateId, mapDataStateId]).then((states: Record<string, any | null | undefined>) => {
+		this.connection.getStates(this.currentMapSubscriptions).then((states: Record<string, any | null | undefined>) => {
 			if (!this.onStateChange) return;
 
 			// Try to resolve model from map if already populated
@@ -518,8 +631,11 @@ class MapApplication {
 				this.model = this.robotModels[duid];
 			}
 
-			this.onStateChange(mapBase64StateId, states[mapBase64StateId]);
+			this.onStateChange(mapBase64CleanStateId, states[mapBase64CleanStateId]);
 			this.onStateChange(mapDataStateId, states[mapDataStateId]);
+			this.onStateChange(q10StatusStateId, states[q10StatusStateId]);
+			this.onStateChange(q10CleaningInfoStateId, states[q10CleaningInfoStateId]);
+			this.onStateChange(q10CurrentCleanRoomIdsStateId, states[q10CurrentCleanRoomIdsStateId]);
 		});
 	}
 	// -----------------------------------------------------------------------------
@@ -528,11 +644,22 @@ class MapApplication {
 
 	/** Draws all map overlays via shared drawMapV1. Call when map or mapData changes. */
 	private drawOverlaysFromMap(): void {
-		if (!this.map || !this.mapImage?.dimensions) return;
-		const params = this.getMapParams();
-		if (!params) return;
+		if (!this.map) return;
 
 		this.pinGroup.select("image.goto-pin").style("display", "none").style("opacity", "0");
+
+		if (isQ10MapData(this.map)) {
+			this.setPathGroupOpacityMode(true);
+			this.drawQ10Overlays(this.map);
+			this.applyRoomLabelZoomBehavior();
+			return;
+		}
+
+		this.setPathGroupOpacityMode(false);
+
+		if (!this.mapImage?.dimensions) return;
+		const params = this.getMapParams();
+		if (!params) return;
 
 		const list = this.map.IMAGE?.segments?.list;
 		const duid = this.currentRobotDuid;
@@ -574,8 +701,26 @@ class MapApplication {
 			(Object.keys(this.robotModels).length ? this.robotModels[Object.keys(this.robotModels)[0]] : null) ||
 			"roborock.vacuum.a147";
 		const baseUrl = `assets/${modelFolder}/drawable-mdpi/`;
+		const renderer = this.createSvgRenderer(baseUrl, params);
 
-		const renderer = new SVGMapRenderer({
+		drawMapV1(this.map as any, renderer, {
+			scaleFactor: VISUAL_BLOCK_SIZE,
+			dimensionsAreScaled: false,
+			roomLabels: roomLabels?.length ? roomLabels : undefined,
+		});
+		this.applyRoomLabelZoomBehavior();
+	}
+
+	private createSvgRenderer(baseUrl: string, params: MapParams | null): SVGMapRenderer {
+		return this.createSvgRendererWithOptions(baseUrl, params, {});
+	}
+
+	private createSvgRendererWithOptions(
+		baseUrl: string,
+		params: MapParams | null,
+		options: Partial<{ obstacleRadius: number; obstacleImageSize: number; robotSize: number; chargerSize: number }>
+	): SVGMapRenderer {
+		return new SVGMapRenderer({
 			groups: {
 				carpetGroup: this.carpetGroup,
 				pathGroup: this.pathGroup,
@@ -592,61 +737,552 @@ class MapApplication {
 			pathMainWidth: this.rescaler.pathMainWidth(),
 			pathMopWidth: this.rescaler.pathMopWidth(),
 			pathBackwashWidth: this.rescaler.pathBackwashWidth(),
-			robotSize: this.rescaler.robotSize(),
-			chargerSize: this.rescaler.chargerSize(),
+			robotSize: options.robotSize ?? this.rescaler.robotSize(),
+			chargerSize: options.chargerSize ?? this.rescaler.chargerSize(),
 			pinWidth: this.rescaler.pinWidth(),
 			pinHeight: this.rescaler.pinHeight(),
 			pinYOffset: this.rescaler.pinYOffset(),
-			obstacleRadius: this.rescaler.scale() * UI_CONSTANTS.OBSTACLE_RADIUS_BASE,
-			obstacleImageSize: this.rescaler.scale() * UI_CONSTANTS.OBSTACLE_RADIUS_BASE * 1.8,
+			obstacleRadius: options.obstacleRadius ?? this.rescaler.scale() * UI_CONSTANTS.OBSTACLE_RADIUS_BASE,
+			obstacleImageSize: options.obstacleImageSize ?? this.rescaler.scale() * UI_CONSTANTS.OBSTACLE_RADIUS_BASE * 1.8,
 			obstacleAssetBaseUrl: baseUrl,
 			obstacleMapping: OBSTACLE_MAPPING,
 			obstacleFileName: obstacleAssetFileName,
 			obstacleFileNameAlt: obstacleAssetFileNameAlt,
 			onObstacleClick: (event: MouseEvent, obstacleData: unknown) => {
-				if (!this.currentRobotDuid) return;
-				event.stopPropagation();
-				const d = obstacleData as [number, number, number, unknown, unknown, unknown, unknown];
-				this.selectedObstacleID = d?.[6];
-				const robotPoint = { x: d[0], y: d[1] };
-				const worldPoint = robotCoordsToLocalCoords(robotPoint, params);
-				this.popupX = worldPoint.x;
-				this.popupY = worldPoint.y;
-				if (this.popupTimeout) clearTimeout(this.popupTimeout);
-				this.connection
-					.sendTo(this.instanceId, "get_obstacle_image", {
-						obstacleId: this.selectedObstacleID,
-						duid: this.currentRobotDuid,
-						type: 1,
-					})
-					.then((response: any) => {
-						if (response?.image) {
-							let imageData = response.image as string;
-							if (typeof imageData === "string" && !imageData.startsWith("data:image/"))
-								imageData = "data:image/png;base64," + imageData;
-							this.popupImage.src = imageData;
-							this.popup.style.display = "block";
-							this.triangle.style.display = "block";
-							this.updatePopupPosition();
-							this.popupTimeout = window.setTimeout(() => {
-								this.popup.style.display = "none";
-								this.triangle.style.display = "none";
-								this.popupTimeout = null;
-							}, 3000);
-						}
-					})
-					.catch((err) => console.error("Error getting obstacle image:", err));
-				this.updatePopupPosition();
+				this.handleObstacleClick(event, obstacleData, params);
 			},
 			robotImageHref: IMG_ROBOT_ORIGINAL,
 			chargerImageHref: IMG_CHARGER,
 			goToPinImageHref: IMG_GO_TO_PIN,
 		});
+	}
 
-		drawMapV1(this.map as any, renderer, {
-			scaleFactor: VISUAL_BLOCK_SIZE,
-			dimensionsAreScaled: false,
-			roomLabels: roomLabels?.length ? roomLabels : undefined,
+	private handleObstacleClick(event: MouseEvent, obstacleData: unknown, params: MapParams | null): void {
+		if (!this.currentRobotDuid) return;
+		event.stopPropagation();
+
+		if (Array.isArray(obstacleData)) {
+			const d = obstacleData as [number, number, number, unknown, unknown, unknown, unknown];
+			if (!params) return;
+			this.selectedObstacleID = d?.[6];
+			const robotPoint = { x: d[0], y: d[1] };
+			const worldPoint = robotCoordsToLocalCoords(robotPoint, params);
+			this.popupX = worldPoint.x;
+			this.popupY = worldPoint.y;
+			this.showObstaclePopup(this.selectedObstacleID, 1);
+			return;
+		}
+
+		if (!obstacleData || typeof obstacleData !== "object") return;
+		const q10Obstacle = obstacleData as Q10OverlayObstacleData;
+		if (q10Obstacle.kind !== "q10Obstacle") return;
+
+		this.popupX = q10Obstacle.x;
+		this.popupY = q10Obstacle.y;
+		if (q10Obstacle.obstacleId == null) return;
+		this.selectedObstacleID = q10Obstacle.obstacleId;
+		this.showObstaclePopup(this.selectedObstacleID, 1);
+
+	}
+
+	private showObstaclePopup(obstacleId: unknown, type: number): void {
+		if (obstacleId == null || !this.currentRobotDuid) return;
+		if (this.popupTimeout) clearTimeout(this.popupTimeout);
+		this.connection
+			.sendTo(this.instanceId, "get_obstacle_image", {
+				obstacleId,
+				duid: this.currentRobotDuid,
+				type,
+			})
+			.then((response: any) => {
+				if (response?.image) {
+					let imageData = response.image as string;
+					if (typeof imageData === "string" && !imageData.startsWith("data:image/")) {
+						imageData = "data:image/png;base64," + imageData;
+					}
+					this.popupImage.src = imageData;
+					this.popup.style.display = "block";
+					this.triangle.style.display = "block";
+					this.updatePopupPosition();
+					this.popupTimeout = window.setTimeout(() => {
+						this.popup.style.display = "none";
+						this.triangle.style.display = "none";
+						this.popupTimeout = null;
+					}, 3000);
+				}
+		})
+			.catch((err) => console.error("Error getting obstacle image:", err));
+		this.updatePopupPosition();
+	}
+
+	private setPathGroupOpacityMode(isQ10: boolean): void {
+		if (isQ10) {
+			this.mopPathGroup.style("opacity", 1);
+			this.pathGroup.style("opacity", 1);
+			this.backwashPathGroup.style("opacity", 1);
+			this.pureCleanPathGroup.style("opacity", 1);
+			return;
+		}
+
+		this.mopPathGroup.style("opacity", 0.18);
+		this.pathGroup.style("opacity", 0.5);
+		this.backwashPathGroup.style("opacity", 0.2);
+		this.pureCleanPathGroup.style("opacity", 1);
+	}
+
+	private normalizeQ10NativePathType(type: number | undefined): number {
+		if (type === 0 || type === 1 || type === 2 || type === 3 || type === 4) return type;
+		return 0;
+	}
+
+	private historyUpdateToQ10NativePathType(update: number | undefined): number {
+		if (update === 6) return 0;
+		if (update === 4) return 1;
+		if (update === 5) return 2;
+		return 0;
+	}
+
+	private getQ10PathOverlayPoints(map: Q10FrontendMapData): Array<{ x: number; y: number; type: number }> {
+		const creator = map.q10CreatorData;
+		if (creator?.pathPixels?.length) {
+			return creator.pathPixels.map((point) => ({
+				x: point.x,
+				y: point.y,
+				type: this.normalizeQ10NativePathType(point.type)
+			}));
+		}
+
+		const resolution = Math.max(map.header.resolution, 0.001);
+		const sourcePathPoints = map.q10SourceData?.pathPoints ?? [];
+		if (sourcePathPoints.length) {
+			return sourcePathPoints.map((point) => ({
+				x: point.x / resolution,
+				y: point.y / resolution,
+				type: this.normalizeQ10NativePathType(point.type)
+			}));
+		}
+
+		const historyPoints = map.history ?? [];
+		return historyPoints.map((point) => ({
+			x: (point.x - map.header.minX) / resolution,
+			y: (map.header.maxY - point.y) / resolution,
+			type: this.historyUpdateToQ10NativePathType(point.update)
+		}));
+	}
+
+	private packageQ10PathPointsLikeNative(points: Array<{ x: number; y: number; type: number }>): Array<Array<Array<{ x: number; y: number }>>> {
+		const paths: Array<Array<Array<{ x: number; y: number }>>> = [[], [], [], [], []];
+		let previous: { x: number; y: number; type: number } | null = null;
+
+		for (const point of points) {
+			const bucket = paths[point.type] ?? paths[0]!;
+			const changedType = previous?.type !== point.type;
+			if (changedType) {
+				const subPath: Array<{ x: number; y: number }> = [];
+				if (previous && previous.type !== -1) {
+					subPath.push({ x: previous.x, y: previous.y });
+				} else {
+					subPath.push({ x: point.x, y: point.y });
+				}
+				subPath.push({ x: point.x, y: point.y });
+				bucket.push(subPath);
+			} else if (bucket.length > 0) {
+				bucket[bucket.length - 1]!.push({ x: point.x, y: point.y });
+			}
+			previous = point;
+		}
+
+		return paths;
+	}
+
+	private q10PathSegmentsToSvgPath(segments: Array<Array<{ x: number; y: number }>>, geometry: Q10MapGeometry): string {
+		const drawable = segments.filter((segment) => segment.length >= 2);
+		if (!drawable.length) return "";
+
+		return drawable
+			.map((segment) => {
+				const start = geometry.mapPoint(segment[0]!);
+				const commands = [`M${start.x} ${start.y}`];
+				for (let index = 1; index < segment.length; index++) {
+					const point = geometry.mapPoint(segment[index]!);
+					commands.push(`L${point.x} ${point.y}`);
+				}
+				return commands.join(" ");
+			})
+			.join(" ");
+	}
+
+	private appendQ10SvgPath(
+		group: d3.Selection<SVGGElement, unknown, HTMLElement, any>,
+		pathData: string,
+		className: string,
+		stroke: string,
+		lineWidth: number,
+		dash?: number[],
+		dashOffset = 0
+	): void {
+		if (!pathData) return;
+
+		group
+			.append("path")
+			.attr("class", className)
+			.attr("d", pathData)
+			.style("fill", "none")
+			.style("stroke", stroke)
+			.style("stroke-width", `${lineWidth}px`)
+			.style("stroke-linecap", "round")
+			.style("stroke-linejoin", "round")
+			.style("stroke-dasharray", dash ? dash.join(",") : null)
+			.style("stroke-dashoffset", dash ? `${dashOffset}px` : null);
+	}
+
+	private drawQ10PathOverlays(map: Q10FrontendMapData, geometry: Q10MapGeometry): void {
+		const points = this.getQ10PathOverlayPoints(map);
+		if (!points.length) return;
+
+		const paths = this.packageQ10PathPointsLikeNative(points);
+		const primaryWidth = geometry.mapCanvasSize().width / 375;
+		const glowWidth = geometry.mapLength(0.3 / Math.max(map.header.resolution, 0.001));
+		const wideGlowColor = q10PackedArgbToCss(1728053247);
+		const solidWhite = q10PackedArgbToCss(4294967295);
+		const thinGlowColor = q10PackedArgbToCss(1728053247);
+		const dashedColor = q10PackedArgbToCss(2583691263);
+
+		const pathStyles = [
+			{
+				group: this.pathGroup,
+				classPrefix: "q10-main-type0",
+				segments: paths[0]!,
+				layers: [
+					{ stroke: wideGlowColor, width: glowWidth },
+					{ stroke: solidWhite, width: primaryWidth }
+				]
+			},
+			{
+				group: this.mopPathGroup,
+				classPrefix: "q10-main-type1",
+				segments: paths[1]!,
+				layers: [
+					{ stroke: wideGlowColor, width: glowWidth },
+					{ stroke: thinGlowColor, width: primaryWidth }
+				]
+			},
+			{
+				group: this.backwashPathGroup,
+				classPrefix: "q10-main-type2",
+				segments: paths[2]!,
+				layers: [
+					{ stroke: solidWhite, width: primaryWidth }
+				]
+			},
+			{
+				group: this.pureCleanPathGroup,
+				classPrefix: "q10-main-type3",
+				segments: paths[3]!,
+				layers: [
+					{
+						stroke: dashedColor,
+						width: primaryWidth,
+						dash: [primaryWidth, primaryWidth * 3],
+						dashOffset: primaryWidth * 3
+					}
+				]
+			}
+		] as const;
+
+		for (const pathStyle of pathStyles) {
+			const pathData = this.q10PathSegmentsToSvgPath(pathStyle.segments, geometry);
+			if (!pathData) continue;
+			for (let index = 0; index < pathStyle.layers.length; index++) {
+				const layer = pathStyle.layers[index]!;
+				this.appendQ10SvgPath(
+					pathStyle.group,
+					pathData,
+					`${pathStyle.classPrefix}-${index}`,
+					layer.stroke,
+					layer.width,
+					"dash" in layer ? layer.dash : undefined,
+					"dashOffset" in layer ? layer.dashOffset : 0
+				);
+			}
+		}
+	}
+
+	private drawQ10Overlays(map: Q10FrontendMapData): void {
+		const creator = map.q10CreatorData;
+		if (!creator?.q10Detected) return;
+
+		this.carpetGroup.selectAll("*").remove();
+		this.pathGroup.selectAll("*").remove();
+		this.mopPathGroup.selectAll("*").remove();
+		this.backwashPathGroup.selectAll("*").remove();
+		this.pureCleanPathGroup.selectAll("*").remove();
+		this.chargerGroup.selectAll("*").remove();
+		this.robotGroup.selectAll("*").remove();
+		this.zonesOverlayGroup.selectAll("*").remove();
+		this.obstacleGroup.selectAll("*").remove();
+		this.roomNameGroup.selectAll("*").remove();
+		this.drawZones();
+		const modelFolder =
+			this.model ||
+			(this.currentRobotDuid && this.robotModels[this.currentRobotDuid]) ||
+			"roborock.vacuum.ss09";
+		const baseUrl = `assets/${modelFolder}/drawable-mdpi/`;
+		const geometry = new Q10MapGeometry(map, 1, this.getQ10CanvasScale(map));
+		const renderer = this.createSvgRendererWithOptions(baseUrl, null, {
+			obstacleRadius: 0,
+			obstacleImageSize: geometry.imgRateLength(6),
+			robotSize: geometry.imgRateLength(8),
+			chargerSize: geometry.imgRateLength(8)
+		});
+
+		this.drawQ10PathOverlays(map, geometry);
+		this.drawQ10RoomSelectionMask(creator, geometry);
+
+		const virtualWalls: DrawVirtualWallInput[] = creator.virtualWalls
+			.filter((wall) => wall.points.length >= 2)
+			.map((wall) => {
+				const start = geometry.mapPoint(wall.points[0]!);
+				const end = geometry.mapPoint(wall.points[1]!);
+				return {
+					x1: start.x,
+					y1: start.y,
+					x2: end.x,
+					y2: end.y,
+					stroke: "rgba(255, 69, 58, 1)",
+					lineWidth: Math.max(2, geometry.layoutLength(2))
+				};
+			});
+
+		if (virtualWalls.length) {
+			renderer.drawRestrictedZones([], virtualWalls);
+		}
+
+		if (creator.chargerPixel) {
+			const chargerPoint = geometry.mapPoint(creator.chargerPixel);
+			renderer.drawCharger({
+				x: chargerPoint.x,
+				y: chargerPoint.y
+			});
+		}
+
+		if (creator.robotPixel) {
+			const robotPose = geometry.mapPose(creator.robotPixel);
+			if (robotPose) {
+				renderer.drawRobot({
+					x: robotPose.x,
+					y: robotPose.y,
+					angle: robotPose.phi ?? 0
+				});
+			}
+		}
+
+		const obstacleItems: DrawObstacleInput[] = [];
+		for (const entry of creator.obstaclePixels) {
+			const point = geometry.mapPoint(entry.point);
+			obstacleItems.push({
+				x: point.x,
+				y: point.y,
+				typeOrSuffix: "q10",
+				imageHref: `${baseUrl}src_resources_map_images_light_mapobstacle.png`,
+				imageSize: geometry.imgRateLength(6),
+				hideBackground: true,
+				obstacleData: { kind: "q10Obstacle", type: "obstacle", x: point.x, y: point.y } satisfies Q10OverlayObstacleData
+			});
+		}
+		for (const entry of creator.skipPixels) {
+			const point = geometry.mapPoint(entry.point);
+			obstacleItems.push({
+				x: point.x,
+				y: point.y,
+				typeOrSuffix: "q10-skip",
+				imageHref: `${baseUrl}src_resources_map_images_light_map_tiaoguo_icon.png`,
+				imageSize: geometry.imgRateLength(6),
+				hideBackground: true,
+				obstacleData: { kind: "q10Obstacle", type: "skip", x: point.x, y: point.y } satisfies Q10OverlayObstacleData
+			});
+		}
+		for (const entry of creator.suspectedPoints) {
+			const point = geometry.mapPoint(entry.point);
+			const imageHref =
+				entry.type === "threshold"
+					? `${baseUrl}src_resources_map_images_light_map_yisi_menkan.png`
+					: entry.type === "easycard"
+						? `${baseUrl}src_resources_map_images_light_map_yisi_yika.png`
+						: `${baseUrl}src_resources_map_images_light_map_yisi_xuanya.png`;
+			obstacleItems.push({
+				x: point.x,
+				y: point.y,
+				typeOrSuffix: `q10-${entry.type}`,
+				imageHref,
+				imageSize: geometry.layoutLength(16),
+				hideBackground: true,
+				obstacleData: { kind: "q10Obstacle", type: entry.type, x: point.x, y: point.y } satisfies Q10OverlayObstacleData
+			});
+		}
+
+		const roomLabels: DrawRoomLabelInput[] = creator.roomModels
+			.filter((room) => room.roomName && room.roomName.trim())
+			.map((room) => {
+				const label = room.roomName.trim();
+				const point = geometry.mapPoint(room.transCenterPoint);
+				const colorIndex = room.colorID >= 0 && room.colorID < Q10_ROOM_TAG_BASE.length ? room.colorID : 0;
+				const textWidth = measureQ10RoomLabelWidth(label);
+				const bubbleDiameter = Q10_ROOM_LABEL_LAYOUT.bubbleRadius * 2;
+				const totalWidth = bubbleDiameter + Q10_ROOM_LABEL_LAYOUT.gap + textWidth + Q10_ROOM_LABEL_LAYOUT.widthPadding;
+				const bubbleCenterOffsetX = -totalWidth / 2 + Q10_ROOM_LABEL_LAYOUT.bubbleRadius;
+				const textOffsetX = -totalWidth / 2 + bubbleDiameter + Q10_ROOM_LABEL_LAYOUT.gap;
+				return {
+					segmentId: room.roomID,
+					x: point.x,
+					y: point.y,
+					text: label,
+					iconHref: `${baseUrl}${q10RoomTagAssetFileName(room.roomType)}`,
+					bubbleFill: Q10_ROOM_TAG_BASE[colorIndex],
+					bubbleStroke: Q10_ROOM_TAG_STROKE[colorIndex],
+					textFill: Q10_ROOM_TAG_BASE[colorIndex],
+					badgeText: room.cleanOrder > 0 ? String(room.cleanOrder) : null,
+					bubbleRadius: Q10_ROOM_LABEL_LAYOUT.bubbleRadius,
+					iconSize: Q10_ROOM_LABEL_LAYOUT.iconSize,
+					gap: Q10_ROOM_LABEL_LAYOUT.gap,
+					bubbleCenterOffsetX,
+					textOffsetX,
+					badgeCenterOffsetX: bubbleCenterOffsetX - 3,
+					badgeCenterOffsetY: 12
+				};
+			});
+
+		renderer.drawObstacles(obstacleItems);
+		renderer.drawRoomLabels(roomLabels);
+	}
+
+	private updateBackgroundImageFromStateCache(): void {
+		const image = this.currentMapBase64Clean;
+		if (!image) {
+			this.mapImageElement.attr("href", null);
+			return;
+		}
+
+		this.pinGroup.select("image.goto-pin").style("display", "none").style("opacity", 0);
+		this.drawBackgroundImage(image);
+	}
+
+	private parseQ10CleaningInfoState(raw: unknown): Record<string, unknown> | null {
+		if (!raw) return null;
+		if (typeof raw === "string") {
+			try {
+				const parsed = JSON.parse(raw);
+				return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+					? parsed as Record<string, unknown>
+					: null;
+			} catch {
+				return null;
+			}
+		}
+
+		return typeof raw === "object" && !Array.isArray(raw)
+			? raw as Record<string, unknown>
+			: null;
+	}
+
+	private parseQ10RoomIdsState(raw: unknown): number[] {
+		if (!raw) return [];
+
+		const normalize = (value: unknown): number[] => {
+			if (!Array.isArray(value)) return [];
+			return value
+				.map((entry) => Number(entry))
+				.filter((entry) => Number.isInteger(entry) && entry > 0);
+		};
+
+		if (typeof raw === "string") {
+			try {
+				return normalize(JSON.parse(raw));
+			} catch {
+				return [];
+			}
+		}
+
+		return normalize(raw);
+	}
+
+	private getQ10SelectedRoomIds(): Set<number> {
+		if (this.q10Status !== 18) return new Set<number>();
+
+		if (this.q10CurrentCleanRoomIds.length > 0) {
+			return new Set(this.q10CurrentCleanRoomIds);
+		}
+
+		const cleanInfo = this.q10CleaningInfo;
+		if (!cleanInfo) return new Set<number>();
+
+		const cleanInfoRoomIds = this.parseQ10RoomIdsState(cleanInfo.room_id_list);
+		if (cleanInfoRoomIds.length > 0) {
+			return new Set(cleanInfoRoomIds);
+		}
+
+		const targetSegmentId = Number(cleanInfo.target_segment_id);
+		if (Number.isInteger(targetSegmentId) && targetSegmentId > 0) {
+			return new Set([targetSegmentId]);
+		}
+
+		return new Set<number>();
+	}
+
+	private getQ10CanvasScale(map: Q10FrontendMapData): number {
+		const naturalWidth = this.image?.naturalWidth ?? 0;
+		const sizeX = map.header?.sizeX ?? 0;
+		if (naturalWidth > 0 && sizeX > 0) {
+			return naturalWidth / sizeX;
+		}
+		return Q10_CANVAS_SCALE;
+	}
+
+	private q10PolygonToSvgPath(points: Array<{ x: number; y: number }>, geometry: Q10MapGeometry): string {
+		if (points.length < 2) return "";
+		const start = geometry.mapPoint(points[0]!);
+		const segments = [`M${start.x} ${start.y}`];
+		for (let index = 1; index < points.length; index++) {
+			const point = geometry.mapPoint(points[index]!);
+			segments.push(`L${point.x} ${point.y}`);
+		}
+		segments.push("Z");
+		return segments.join(" ");
+	}
+
+	private drawQ10RoomSelectionMask(
+		creator: NonNullable<Q10FrontendMapData["q10CreatorData"]>,
+		geometry: Q10MapGeometry
+	): void {
+		this.zonesOverlayGroup.selectAll("*").remove();
+
+		const selectedRoomIds = this.getQ10SelectedRoomIds();
+		if (!selectedRoomIds.size) return;
+
+		const roomMaskPath = creator.roomModels
+			.filter((room) => !selectedRoomIds.has(room.roomID))
+			.flatMap((room) => room.borderArr)
+			.map((polygon) => this.q10PolygonToSvgPath(polygon, geometry))
+			.filter(Boolean)
+			.join(" ");
+
+		if (!roomMaskPath) return;
+
+		this.zonesOverlayGroup
+			.append("path")
+			.attr("class", "q10-room-selection-mask")
+			.attr("d", roomMaskPath)
+			.attr("fill", "rgba(0, 0, 0, 0.36)")
+			.attr("fill-rule", "evenodd");
+	}
+
+	private applyRoomLabelZoomBehavior(): void {
+		const zoomScale = 1 / Math.max(this.wheelZoom, 0.001);
+		this.roomNameGroup.selectAll<SVGGElement, unknown>("g.room-label").each(function () {
+			const element = d3.select(this);
+			const x = Number(element.attr("data-x") || 0);
+			const y = Number(element.attr("data-y") || 0);
+			element.attr("transform", `translate(${x}, ${y}) scale(${zoomScale})`);
 		});
 	}
 
@@ -761,7 +1397,7 @@ class MapApplication {
 				this.deleteButton.disabled = false;
 			})
 			.on("drag", (event: any, d: Rect) => {
-				if (!this.mapImage) return;
+				if (!this.hasDrawableMapBounds()) return;
 				const minBoundX = this.mapMinX,
 					minBoundY = this.mapMinY,
 					maxBoundX = this.mapMinX + this.mapSizeX,
@@ -789,7 +1425,7 @@ class MapApplication {
 				if (element) d3.select(element).raise();
 			})
 			.on("drag", (event: any, d: Rect) => {
-				if (!this.mapImage) return;
+				if (!this.hasDrawableMapBounds()) return;
 				const maxBoundX = this.mapMinX + this.mapSizeX,
 					maxBoundY = this.mapMinY + this.mapSizeY;
 				let newWidth = Math.max(d.width + event.dx, 20);
@@ -869,7 +1505,10 @@ class MapApplication {
 		this.zoneGroup.selectAll("rect.zone-rect").style("stroke-width", this.rescaler.zoneStrokeWidth());
 		this.zoneGroup.selectAll("circle.zone-handle").attr("r", this.rescaler.zoneHandleRadius());
 
-		const scaledRobotSize = this.rescaler.robotSize();
+		const q10Geometry = isQ10MapData(this.map)
+			? new Q10MapGeometry(this.map, 1, this.getQ10CanvasScale(this.map))
+			: null;
+		const scaledRobotSize = q10Geometry ? q10Geometry.imgRateLength(8) : this.rescaler.robotSize();
 		const params = this.getMapParams();
 		this.robotGroup.selectAll("image.robot").attr("width", scaledRobotSize).attr("height", scaledRobotSize);
 		if (params && this.map?.ROBOT_POSITION?.position) {
@@ -881,7 +1520,7 @@ class MapApplication {
 				.attr("transform", `translate(${svgCoords.x}, ${svgCoords.y}) rotate(${angle}) translate(${-scaledRobotSize / 2}, ${-scaledRobotSize / 2})`);
 		}
 
-		const scaledChargerSize = this.rescaler.chargerSize();
+		const scaledChargerSize = q10Geometry ? q10Geometry.imgRateLength(8) : this.rescaler.chargerSize();
 		this.chargerGroup.selectAll("image.charger").attr("width", scaledChargerSize).attr("height", scaledChargerSize);
 		if (params && this.map?.CHARGER_LOCATION?.position) {
 			const pos = this.map.CHARGER_LOCATION.position;
@@ -913,25 +1552,59 @@ class MapApplication {
 				return (parseFloat(centerY) || 0) - (scaledPinHeight - scaledPinYOffset);
 			});
 
+		this.applyRoomLabelZoomBehavior();
 		this.updatePopupPosition();
 	}
 
 	private getMapParams(): MapParams | null {
-		if (!this.mapImage || !this.mapImage.dimensions || this.mapMaxY === undefined) {
-			return null;
+		if (this.mapImage?.dimensions) {
+			// coordTransformation expects imageWidth/imageHeight in display pixels (grid × VISUAL_BLOCK_SIZE)
+			// mapData stores grid dimensions (unscaled); carpet uses them as grid, paths/robot/obstacles need display size here
+			const imageWidth = this.mapImage.dimensions.width * VISUAL_BLOCK_SIZE;
+			const imageHeight = this.mapImage.dimensions.height * VISUAL_BLOCK_SIZE;
+			return {
+				scaleFactor: VISUAL_BLOCK_SIZE,
+				left: this.mapImage.position.left,
+				topMap: this.mapImage.position.top,
+				mapMaxY: this.mapMaxY,
+				imageHeight,
+				imageWidth,
+			};
 		}
-		// coordTransformation expects imageWidth/imageHeight in display pixels (grid × VISUAL_BLOCK_SIZE)
-		// mapData stores grid dimensions (unscaled); carpet uses them as grid, paths/robot/obstacles need display size here
-		const imageWidth = this.mapImage.dimensions.width * VISUAL_BLOCK_SIZE;
-		const imageHeight = this.mapImage.dimensions.height * VISUAL_BLOCK_SIZE;
-		return {
-			scaleFactor: VISUAL_BLOCK_SIZE,
-			left: this.mapImage.position.left,
-			topMap: this.mapImage.position.top,
-			mapMaxY: this.mapMaxY,
-			imageHeight,
-			imageWidth,
-		};
+
+		if (this.map && isQ10MapData(this.map)) {
+			const { header } = this.map;
+			if (
+				!Number.isFinite(header.minX) ||
+				!Number.isFinite(header.minY) ||
+				!Number.isFinite(header.sizeX) ||
+				!Number.isFinite(header.sizeY) ||
+				!Number.isFinite(header.resolution) ||
+				header.resolution <= 0
+			) {
+				return null;
+			}
+
+			return {
+				scaleFactor: VISUAL_BLOCK_SIZE,
+				left: header.minX / header.resolution,
+				topMap: header.minY / header.resolution,
+				mapMaxY: this.mapMaxY,
+				imageHeight: header.sizeY * VISUAL_BLOCK_SIZE,
+				imageWidth: header.sizeX * VISUAL_BLOCK_SIZE,
+			};
+		}
+
+		return null;
+	}
+
+	private hasDrawableMapBounds(): boolean {
+		return Number.isFinite(this.mapMinX)
+			&& Number.isFinite(this.mapMinY)
+			&& Number.isFinite(this.mapSizeX)
+			&& Number.isFinite(this.mapSizeY)
+			&& this.mapSizeX > 0
+			&& this.mapSizeY > 0;
 	}
 
 	private screenToWorldCoords(x: number, y: number): Point {

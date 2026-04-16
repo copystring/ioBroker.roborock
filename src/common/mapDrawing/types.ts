@@ -51,6 +51,8 @@ export interface DrawObstacleInput {
 	typeOrSuffix: number | string;
 	/** Optional: backend loads from adapter; frontend uses asset URL. */
 	imageHref?: string | null;
+	imageSize?: number;
+	hideBackground?: boolean;
 	/** Frontend: full obstacle row for D3 data binding (e.g. [x, y, type, ...] for click handler). */
 	obstacleData?: unknown;
 }
@@ -60,6 +62,18 @@ export interface DrawRoomLabelInput {
 	x: number;
 	y: number;
 	text: string;
+	iconHref?: string | null;
+	bubbleFill?: string;
+	bubbleStroke?: string;
+	textFill?: string;
+	badgeText?: string | null;
+	bubbleRadius?: number;
+	iconSize?: number;
+	gap?: number;
+	bubbleCenterOffsetX?: number;
+	textOffsetX?: number;
+	badgeCenterOffsetX?: number;
+	badgeCenterOffsetY?: number;
 }
 
 export interface DrawZoneRectInput {

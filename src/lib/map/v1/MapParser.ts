@@ -978,7 +978,7 @@ export class MapParser {
 
 			// Ensure we don't read past the buffer
 			if (base + 4 > buf.length) {
-				this.adapter.log.warn(`[MapDataParser] getPatrol: Buffer too short for point ${i + 1}/${num}`);
+				this.adapter.rLog("MapManager", null, "Warn", "1.0", undefined, `[MapDataParser] getPatrol: buffer too short for point ${i + 1}/${num}`, "warn");
 				break;
 			}
 

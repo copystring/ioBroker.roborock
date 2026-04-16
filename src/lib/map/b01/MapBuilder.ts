@@ -411,7 +411,7 @@ export class MapBuilder {
 		const roomColorMap: Record<number, number> = {};
 		if (data.rooms) {
 			data.rooms.forEach(r => {
-				if (r.colorId !== undefined) roomColorMap[r.roomId] = r.colorId;
+				if (r.colorId !== undefined) roomColorMap[r.gridValue ?? r.roomId] = r.colorId;
 			});
 		}
 
@@ -797,8 +797,8 @@ export class MapBuilder {
 					ctx.fillStyle = textColor;
 					ctx.fillText(r.roomName, startX, centerY);
 				} else {
-					if (this.adapter && this.adapter.log) {
-						this.adapter.log.warn(`Skipping Room Label for ${r.roomName}: Missing labelPos`);
+					if (this.adapter && typeof this.adapter.rLog === "function") {
+						this.adapter.rLog("MapManager", null, "Warn", "B01", undefined, `Skipping room label for ${r.roomName}: missing labelPos`, "warn");
 					}
 				}
 			});

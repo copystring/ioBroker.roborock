@@ -1,11 +1,16 @@
 import type { FeatureDependencies } from "../../baseDeviceFeatures";
+import { DeviceStateWriter } from "../../deviceStateWriter";
 import { VACUUM_CONSTANTS } from "../vacuumConstants";
 
 export class B01ConsumableService {
+	private readonly stateWriter: DeviceStateWriter;
+
 	constructor(
 		private deps: FeatureDependencies,
 		private duid: string
-	) {}
+	) {
+		this.stateWriter = new DeviceStateWriter(deps, duid);
+	}
 
 	private readonly PROP_MAP: Record<string, string> = {
 		main_brush: "main_brush_work_time",
@@ -42,8 +47,8 @@ export class B01ConsumableService {
 	}
 
 	protected async processConsumables(resultObj: Record<string, unknown>): Promise<void> {
-		await this.deps.ensureFolder(`Devices.${this.duid}.consumables`);
-		await this.deps.ensureFolder(`Devices.${this.duid}.resetConsumables`);
+		await this.stateWriter.ensureFolder("consumables");
+		await this.stateWriter.ensureFolder("resetConsumables");
 
 		for (const key in resultObj) {
 			if (!key.endsWith("_work_time") && !key.endsWith("_work_times") && !key.endsWith("_dirty_time")) {
@@ -76,18 +81,17 @@ export class B01ConsumableService {
 			}
 
 			// Create/Update the raw state exactly as it comes from the robot (but converted to h if applicable)
-			await this.deps.ensureState(`Devices.${this.duid}.consumables.${key}`, {
+			await this.stateWriter.ensureAndSetValueState(`consumables.${key}`, {
 				name: `${localizedName}${suffix}`,
 				type: "number",
 				role: "value",
 				unit: unit,
 				write: false
-			});
-			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.consumables.${key}`, { val: val, ack: true });
+			}, val);
 
 			// Reset Button
 			const resetKey = `reset_${deviceName}`;
-			await this.deps.ensureState(`Devices.${this.duid}.resetConsumables.${resetKey}`, {
+			await this.stateWriter.ensureState(`resetConsumables.${resetKey}`, {
 				name: `Reset ${localizedName}`,
 				type: "boolean",
 				role: "button",

@@ -2,6 +2,9 @@
     // --- GENERAL & AUTOMATION ---
     // Allow tasks (like our npm run dev) to start automatically without asking
     "task.allowAutomaticTasks": "on",
+    // Keep VS Code on the workspace TypeScript version so editor diagnostics match the actual build.
+    "typescript.tsdk": "./node_modules/typescript/lib",
+    "typescript.enablePromptUseWorkspaceTsdk": true,
     // Enable ESLint integration
     "eslint.enable": true,
     "eslint.nodePath": "./node_modules",

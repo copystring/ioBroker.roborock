@@ -217,7 +217,7 @@ export class PhotoManager {
 
 	private parseProtocol301Header(duid: string, payloadBuf: Buffer): { msgIdRaw: number; sequence: number; totalSize: number; headerLength: number; dataSkip: number } | null {
 		if (payloadBuf.length < 26) {
-			this.adapter.log.warn(`[Photo] P301 Short Header Ignored: ${duid} (Bytes: ${payloadBuf.toString("hex")})`);
+			this.adapter.rLog("MQTT", duid, "Warn", undefined, "301", `[Photo] Short header ignored (bytes=${payloadBuf.toString("hex")})`, "warn");
 			return null;
 		}
 		const header = proto301HeaderParser.parse(payloadBuf);

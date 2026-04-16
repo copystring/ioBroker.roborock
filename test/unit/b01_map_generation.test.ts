@@ -43,14 +43,7 @@ describe("B01 Map Generation (Hex Input -> PNG)", () => {
 		// Generate PNG
 		if (mapData) {
 			const builder = new MapBuilder(mockAdapter);
-			const outputDir = path.join(__dirname, "../../.test-output");
-			if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
-			const outputPngPath = path.join(outputDir, "generated_map_test.png");
-
 			const pngBuffer = await builder.buildMap(mapData, "roborock.vacuum.sc01", "duid", undefined);
-
-			fs.writeFileSync(outputPngPath, pngBuffer);
-			console.log(`[Test] PNG generated at ${outputPngPath} (Size: ${pngBuffer.length} bytes)`);
 
 			expect(pngBuffer.length).toBeGreaterThan(1000);
 			const header = pngBuffer.subarray(0, 8).toString("hex");

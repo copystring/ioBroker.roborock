@@ -25,6 +25,7 @@ export default [
 			"**/.AppPlugins/**",
 			"**/.Roborock Q7 Series/**",
 			"**/.sniff/**",
+			"**/.agent/**",
 			"**/.apk/**",
 			"**/coverage/**"
 		],
@@ -37,7 +38,7 @@ export default [
 	// 2. Logic Guardrails
 	{
 		files: ["**/*.js", "**/*.ts"],
-		ignores: ["**/*.d.ts", "**/build/**", "**/admin/**", "**/test/**", "www/**", "src/www/**", "scripts/**", "**/.antigravityignore/**"],
+		ignores: ["**/*.d.ts", "**/build/**", "**/admin/**", "**/test/**", "www/**", "src/www/**", "scripts/**", "**/.antigravityignore/**", "**/.agent/**"],
 		languageOptions: {
 			parser: tsParser,
 			ecmaVersion: 2020,

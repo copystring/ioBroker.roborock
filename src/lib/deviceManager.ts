@@ -8,12 +8,14 @@ import { DEFAULT_PROFILE, VacuumProfile } from "./features/vacuum/v1VacuumFeatur
 
 import { ProductHelper } from "./productHelper";
 import { Feature } from "./features/features.enum";
+import { getB01VariantFromModel } from "./b01Variant";
+import { isB01ParkedState } from "./map/b01/B01StateSemantics";
 
 // Import indices to trigger decorators
 import "./features/vacuum/index";
 
-// Import B01VacuumFeatures
-import { B01VacuumFeatures } from "./features/vacuum/b01VacuumFeatures";
+import { Q7VacuumFeatures } from "./features/vacuum/b01/Q7VacuumFeatures";
+import { Q10VacuumFeatures } from "./features/vacuum/b01/Q10VacuumFeatures";
 function createFeaturesForModel(adapter: Roborock, duid: string, robotModel: string, productCategory: string | null, protocolVersion: string | null): BaseDeviceFeatures {
 	const dependencies: FeatureDependencies = {
 		adapter: adapter,
@@ -51,8 +53,9 @@ function createFeaturesForModel(adapter: Roborock, duid: string, robotModel: str
 	// B01 Detection: Prioritize Protocol Version over Registered Model Class
 	// This ensures that B01 devices always get the B01 feature handler, even if they share a model ID with a V1 device.
 	if (protocolVersion === "B01") {
-		// Dynamic B01 Detection
-		const handler = new B01VacuumFeatures(dependencies, duid, robotModel, { staticFeatures: [] }, dynamicProfile);
+		const b01Variant = getB01VariantFromModel(robotModel);
+		const HandlerClass = b01Variant === "Q10" ? Q10VacuumFeatures : Q7VacuumFeatures;
+		const handler = new HandlerClass(dependencies, duid, robotModel, { staticFeatures: [] }, dynamicProfile);
 		handler.protocolVersion = protocolVersion;
 		return handler;
 	}
@@ -143,6 +146,8 @@ export class DeviceManager {
 						},
 					});
 
+					await this.adapter.updateDeviceInfo(duid, devices);
+
 					// Apply static features
 					await handler.initialize(device.online);
 
@@ -169,7 +174,7 @@ export class DeviceManager {
 		// Fire cleaning summary (background)
 		for (const handler of cleanSummaryHandlers) {
 			handler.updateCleanSummary().catch((e: unknown) => {
-				this.adapter.log.warn(`Background summary update failed for ${(handler as any).duid}: ${this.adapter.errorMessage(e)}`);
+				this.adapter.rLog("System", (handler as any).duid, "Warn", undefined, undefined, `Background summary update failed: ${this.adapter.errorMessage(e)}`, "warn");
 			});
 		}
 
@@ -248,7 +253,7 @@ export class DeviceManager {
 
 	/** Parked/docked: fetch history only then (cloud has new record). 4 = docked, 8 = Charging, 100 = Fully Charged. */
 	private isParkedState(stateCode: number): boolean {
-		return stateCode === 4 || stateCode === 8 || stateCode === 100;
+		return isB01ParkedState(stateCode);
 	}
 
 	/** Starts polling. updateInterval (UI) drives everything except TCP; TCP keepalive is fixed 30s. */
@@ -274,7 +279,6 @@ export class DeviceManager {
 			const cloudDevices = this.adapter.http_api.getDevices();
 			for (const device of cloudDevices) {
 				const duid = device.duid;
-				if (!device.online) continue;
 				if (this.skipPollUntilNextHomeData.has(duid)) continue;
 
 				const handler = this.deviceFeatureHandlers.get(duid);
@@ -291,6 +295,7 @@ export class DeviceManager {
 					if (isSlowTick) {
 						await this.adapter.updateDeviceInfo(duid, cloudDevices);
 					}
+					if (!device.online) continue;
 					const version = await this.adapter.getDeviceProtocolVersion(duid);
 					switch (version) {
 						case "B01":

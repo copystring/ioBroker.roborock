@@ -1,17 +1,39 @@
 import { FeatureDependencies } from "../../baseDeviceFeatures";
+import { DeviceStateWriter } from "../../deviceStateWriter";
+import { classifyB01MapPayload } from "../../../map/b01/B01MapPayloadClassifier";
+import { normalizeRoborockRoomDisplayName } from "../../../roomNameNormalizer";
 
 export class B01MapService {
+	private readonly stateWriter: DeviceStateWriter;
+	private lastQ10LiveMapBlob: Buffer | null = null;
+	private lastQ10PathBlob: Buffer | null = null;
+
 	private static isLiveMapPayload(data: Buffer): boolean {
-		return data.length >= 3 && data[0] === 0x08 && data[1] === 0x00 && data[2] === 0x12;
+		return classifyB01MapPayload(data).kind === "live";
 	}
 
 	constructor(
 		private deps: FeatureDependencies,
 		private duid: string,
 		private onRoomsDetected?: (rooms: any[]) => void
-	) {}
+	) {
+		this.stateWriter = new DeviceStateWriter(deps, duid);
+	}
 
-	public async updateMap(): Promise<void> {
+	private getDeviceSerial(): string | null {
+		const device = this.deps.adapter.http_api.getDevices().find((entry: { duid: string; sn?: string }) => entry.duid === this.duid);
+		return typeof device?.sn === "string" && device.sn.trim() ? device.sn.trim() : null;
+	}
+
+	private getDefaultRoomName(): string | undefined {
+		return this.deps.adapter.translationManager?.get("default_room_name");
+	}
+
+	private translateRoomName(key: string, fallback?: string): string {
+		return this.deps.adapter.translationManager?.get(key, fallback) ?? fallback ?? key;
+	}
+
+	public async updateMap(trigger?: () => Promise<void>): Promise<void> {
 		const dummyId = -Math.floor(Math.random() * 1000000);
 		try {
 			// Pending request MUST exist before sending trigger, so 301 (which can arrive before 102) can find it via FIFO
@@ -36,22 +58,64 @@ export class B01MapService {
 				}
 			}, 15000);
 
-			// Trigger map push (Protocol 301); queue already has one entry, trigger sends and pushes "get_map_v1"
-			await this.deps.adapter.requestsHandler.sendRequest(this.duid, "service.upload_by_maptype", {
-				force: 1,
-				map_type: 0
-			});
+			if (trigger) {
+				await trigger();
+			} else {
+				// Trigger map push (Protocol 301); queue already has one entry, trigger sends and pushes "get_map_v1"
+				await this.deps.adapter.requestsHandler.sendRequest(this.duid, "service.upload_by_maptype", {
+					force: 1,
+					map_type: 0
+				});
+			}
 		} catch (e: any) {
 			this.deps.adapter.pendingRequests.delete(dummyId);
 			this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Failed to trigger B01 map update: ${e.message}`, "warn");
 		}
 	}
 
+	public async applyLiveMapPayload(data: Buffer): Promise<void> {
+		await this.processUpdateMapResponse(data);
+	}
+
 	protected async processUpdateMapResponse(data: Buffer): Promise<void> {
-		if (!B01MapService.isLiveMapPayload(data)) return;
+		const payloadClassification = classifyB01MapPayload(data);
+		if (payloadClassification.kind !== "live") return;
+		const isQ10PathOnlyPayload =
+			payloadClassification.variant === "q10" &&
+			!payloadClassification.q10?.mapData &&
+			!!payloadClassification.q10?.pathPoints?.length;
+
+		if (payloadClassification.variant === "q10" && payloadClassification.q10?.isLiveMapCandidate) {
+			const isPathOnly = isQ10PathOnlyPayload;
+			const previousBlob = isPathOnly ? this.lastQ10PathBlob : this.lastQ10LiveMapBlob;
+			if (previousBlob && previousBlob.equals(data)) {
+				return;
+			}
+
+			const snapshot = Buffer.from(data);
+			if (isPathOnly) {
+				this.lastQ10PathBlob = snapshot;
+			} else {
+				this.lastQ10LiveMapBlob = snapshot;
+			}
+		}
+
+		const serial = this.getDeviceSerial();
+		if (!serial) {
+			this.deps.adapter.rLog("System", this.duid, "Warn", "B01", undefined, "Missing device serial; cannot process B01 live map.", "warn");
+			return;
+		}
 
 		// Live map only: connectionType "B01" so robot/charger are drawn; history uses B01History in getCleaningRecordMap
-		const mapRes = await this.deps.adapter.mapManager.processMap(data, "B01", this.deps.adapter.http_api.getRobotModel(this.duid) || "B01", this.duid, null, this.duid, "B01");
+		const mapRes = await this.deps.adapter.mapManager.processMap(
+			data,
+			"B01",
+			this.deps.adapter.http_api.getRobotModel(this.duid) || "B01",
+			serial,
+			null,
+			this.duid,
+			"B01"
+		);
 
 		if (mapRes) {
 			await this.processMapResults(mapRes);
@@ -60,7 +124,7 @@ export class B01MapService {
 			if (mapRes.mapData && Array.isArray(mapRes.mapData.rooms) && this.onRoomsDetected) {
 				this.onRoomsDetected(mapRes.mapData.rooms);
 			}
-		} else {
+		} else if (!isQ10PathOnlyPayload) {
 			this.deps.adapter.rLog("System", this.duid, "Warn", "B01", undefined, "B01 Map processing returned null.", "warn");
 		}
 	}
@@ -73,21 +137,44 @@ export class B01MapService {
 		const mapBase64 = mapResult.mapBase64 || mapResult.mapBase64Clean;
 		const mapBase64Clean = mapResult.mapBase64Clean ?? mapResult.mapBase64;
 
-		await this.deps.ensureFolder(`Devices.${this.duid}.map`);
+		await this.stateWriter.ensureFolder("map");
 
 		if (mapData) {
+			const q10MapId = Number(mapData?.q10SourceData?.mapId);
+			if (Number.isFinite(q10MapId) && q10MapId > 0) {
+				await this.stateWriter.ensureAndSetValueState(`deviceStatus.current_map_id`, {
+					name: "current_map_id",
+					type: "number",
+				}, q10MapId);
+			}
+
 			const model = this.deps.adapter.http_api.getRobotModel(this.duid);
 			const mapDataWithModel = { ...mapData, model: model || undefined };
-			await this.deps.ensureState(`Devices.${this.duid}.map.mapData`, { name: "Map Data", type: "string", role: "json" });
-			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.map.mapData`, { val: JSON.stringify(mapDataWithModel), ack: true });
+			await this.stateWriter.ensureAndSetValueState(`map.mapData`, { name: "Map Data", type: "string", role: "json" }, JSON.stringify(mapDataWithModel));
+			if (mapData.q10RuntimeDebug) {
+				await this.stateWriter.ensureAndSetValueState(`map.q10DebugSummary`, {
+					name: "Q10 Debug Summary",
+					type: "string",
+					role: "json"
+				}, JSON.stringify(mapData.q10RuntimeDebug));
+				this.deps.adapter.rLog(
+					"MapManager",
+					this.duid,
+					"Debug",
+					"B01",
+					301,
+					`[Q10Map] packet=${mapData.q10RuntimeDebug.packetKind}/${mapData.q10RuntimeDebug.payloadShape} seed=${mapData.q10RuntimeDebug.overlaySeedSource} rawWalls=${mapData.q10RuntimeDebug.rawVirtualWalls} rawForbid=${mapData.q10RuntimeDebug.rawForbidAreas} srcWalls=${mapData.q10RuntimeDebug.sourceVirtualWalls} srcForbid=${mapData.q10RuntimeDebug.sourceForbidAreas} walls=${mapData.q10RuntimeDebug.virtualWalls} forbid=${mapData.q10RuntimeDebug.forbidAreas} rooms=${mapData.q10RuntimeDebug.rooms} history=${mapData.q10RuntimeDebug.historyPoints} paths=${mapData.q10RuntimeDebug.pathPoints} obstacles=${mapData.q10RuntimeDebug.obstacles} skip=${mapData.q10RuntimeDebug.skipPoints} suspected=${mapData.q10RuntimeDebug.suspectedPoints} robot=${mapData.q10RuntimeDebug.robotPresent ? 1 : 0} charger=${mapData.q10RuntimeDebug.chargerPresent ? 1 : 0}`,
+					"debug"
+				);
+			}
 		}
 		if (mapBase64 || mapBase64Clean) {
-			await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64`, { name: "Map Image", type: "string", role: "text.png" });
-			await this.deps.ensureState(`Devices.${this.duid}.map.mapBase64Clean`, { name: "Map Image (Clean)", type: "string", role: "text.png" });
+			await this.stateWriter.ensureState(`map.mapBase64`, { name: "Map Image", type: "string", role: "text.png" });
+			await this.stateWriter.ensureState(`map.mapBase64Clean`, { name: "Map Image (Clean)", type: "string", role: "text.png" });
 			// Write both together so a concurrent history/live update cannot leave one stale
 			await Promise.all([
-				mapBase64 ? this.deps.adapter.setStateChanged(`Devices.${this.duid}.map.mapBase64`, { val: mapBase64, ack: true }) : Promise.resolve(),
-				mapBase64Clean ? this.deps.adapter.setStateChanged(`Devices.${this.duid}.map.mapBase64Clean`, { val: mapBase64Clean, ack: true }) : Promise.resolve()
+				mapBase64 ? this.stateWriter.setState(`map.mapBase64`, mapBase64) : Promise.resolve(),
+				mapBase64Clean ? this.stateWriter.setState(`map.mapBase64Clean`, mapBase64Clean) : Promise.resolve()
 			]);
 		}
 	}
@@ -103,16 +190,14 @@ export class B01MapService {
 			const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "service.get_map_list", {});
 			const mapList = (result && typeof result === "object" && (result as any).map_list) || (result && typeof result === "object" && (result as any).data?.map_list);
 			if (!Array.isArray(mapList) || mapList.length === 0) return;
-			await this.deps.ensureFolder(`Devices.${this.duid}.floors`);
+			await this.stateWriter.ensureFolder("floors");
 			for (const map of mapList) {
 				const mapId = map.id;
 				const name = map.name || `Map ${mapId}`;
-				const folder = `Devices.${this.duid}.floors.${mapId}`;
-				await this.deps.ensureFolder(folder, name);
-				await this.deps.ensureState(`${folder}.name`, { name: "Floor Name", type: "string", role: "value", read: true, write: false });
-				await this.deps.adapter.setStateChanged(`${folder}.name`, { val: name, ack: true });
-				await this.deps.ensureState(`${folder}.mapFlag`, { name: "Map ID", type: "number", role: "value", read: true, write: false });
-				await this.deps.adapter.setStateChanged(`${folder}.mapFlag`, { val: mapId, ack: true });
+				const folder = `floors.${mapId}`;
+				await this.stateWriter.ensureFolder(folder, name);
+				await this.stateWriter.ensureAndSetValueState(`${folder}.name`, { name: "Floor Name", type: "string" }, name);
+				await this.stateWriter.ensureAndSetValueState(`${folder}.mapFlag`, { name: "Map ID", type: "number" }, mapId);
 			}
 			this.deps.adapter.rLog("System", this.duid, "Info", "B01", undefined, `B01 floors updated: ${mapList.length} maps (${mapList.map((m: any) => m.name || m.id).join(", ")})`, "info");
 		} catch (e: any) {
@@ -196,7 +281,7 @@ export class B01MapService {
 				}).filter((r: any) => r !== null)
 			};
 
-			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.JSON`, { val: JSON.stringify(jsonSummary), ack: true });
+			await this.stateWriter.ensureAndSetValueState(`cleaningInfo.JSON`, { name: "JSON", type: "string", role: "json" }, JSON.stringify(jsonSummary));
 		} catch (e: any) {
 			this.deps.adapter.rLog("System", this.duid, "Error", "B01", undefined, `Error processing B01 clean summary: ${e.message}`, "error");
 		}
@@ -210,14 +295,10 @@ export class B01MapService {
 			val = Number((val / 1000000).toFixed(2));
 		}
 
-		await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.${attr}`, {
+		await this.stateWriter.ensureAndSetValueState(`cleaningInfo.${attr}`, {
 			name: attr,
 			type: "number",
-			role: "value",
-			read: true,
-			write: false
-		});
-		await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.${attr}`, { val, ack: true });
+		}, val);
 	}
 
 	private extractStartTime(record: unknown): number {
@@ -238,14 +319,11 @@ export class B01MapService {
 			const type = typeof val;
 			if (type !== "string" && type !== "number" && type !== "boolean") continue;
 
-			await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${index}.${mappedKey}`, {
+			await this.stateWriter.ensureAndSetValueState(`cleaningInfo.records.${index}.${mappedKey}`, {
 				name: mappedKey,
 				type: type as ioBroker.CommonType,
 				role: "value",
-				read: true,
-				write: false
-			});
-			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.records.${index}.${mappedKey}`, { val: val as ioBroker.StateValue, ack: true });
+			}, val as ioBroker.StateValue);
 		}
 	}
 
@@ -254,14 +332,13 @@ export class B01MapService {
 		const mapRes = await this.getCleaningRecordMap(startTime, recordItem, index);
 		if (!mapRes) return;
 
-		await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.records.${index}.mapBase64`, {
+		await this.stateWriter.ensureAndSetState(`cleaningInfo.records.${index}.mapBase64`, {
 			name: "Map Base64",
 			type: "string",
 			role: "text.png",
 			read: true,
 			write: false
-		});
-		await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.records.${index}.mapBase64`, { val: mapRes.mapBase64, ack: true });
+		}, mapRes.mapBase64);
 	}
 
 	/**
@@ -333,12 +410,18 @@ export class B01MapService {
 				resolve(null);
 				return;
 			}
+			const serial = this.getDeviceSerial();
+			if (!serial) {
+				this.deps.adapter.rLog("System", this.duid, "Warn", "B01", undefined, "Missing device serial; cannot process B01 history map.", "warn");
+				resolve(null);
+				return;
+			}
 
 			const mapRes = await this.deps.adapter.mapManager.processMap(
 				data,
 				"B01",
 				this.deps.adapter.http_api.getRobotModel(this.duid) || "B01",
-				this.duid,
+				serial,
 				null,
 				this.duid,
 				"B01History"
@@ -351,11 +434,13 @@ export class B01MapService {
 		}
 	}
 
-	public async updateRoomMapping(mappedRooms?: any[]): Promise<void> {
+	public async updateRoomMapping(mappedRooms?: any[], options: { refreshFloors?: boolean } = {}): Promise<void> {
 		if (!mappedRooms) return;
 
 		// Floors and names come only from the API; refresh so current floor folder exists with correct name (issue #1140)
-		await this.updateMultiMapsList();
+		if (options.refreshFloors ?? true) {
+			await this.updateMultiMapsList();
+		}
 
 		// B01: use current_map_id (map id like 1770281900); map_status is a small status code
 		const currentMapIdState = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.deviceStatus.current_map_id`);
@@ -368,9 +453,9 @@ export class B01MapService {
 				floorID = mapStatusState.val;
 			}
 		}
-		const floorFolder = `Devices.${this.duid}.floors.${floorID}`;
+		const floorFolder = `floors.${floorID}`;
 		// Guarantee folder exists before writing room states (updateMultiMapsList may have failed, returned empty, or floorID may not be in API list)
-		await this.deps.ensureFolder(floorFolder);
+		await this.stateWriter.ensureFolder(floorFolder);
 
 		// We assume mappedRooms is [{ id: 10, name: "Living Room" }, ...] or [{ roomId: 10, roomName: "Living Room" }, ...]
 
@@ -382,10 +467,20 @@ export class B01MapService {
 				this.deps.adapter.rLog("System", this.duid, "Warn", "B01", undefined, `Invalid room data in mappedRooms: ${JSON.stringify(room)}`, "warn");
 				continue;
 			}
-			const roomName = room.name || room.roomName || `Room ${roomID}`;
+			const rawRoomName =
+				typeof room.name === "string" && room.name.trim()
+					? room.name
+					: typeof room.roomName === "string"
+						? room.roomName
+						: "";
+			const roomName = normalizeRoborockRoomDisplayName(
+				rawRoomName,
+				() => this.getDefaultRoomName(),
+				(key, fallback) => this.translateRoomName(key, fallback),
+				typeof room?.roomTypeId === "number" ? room.roomTypeId : undefined
+			);
 			const roomStateId = `${floorFolder}.${roomID}`;
-
-			await this.deps.ensureState(roomStateId, {
+			await this.stateWriter.ensureState(roomStateId, {
 				name: roomName,
 				type: "boolean",
 				role: "value",

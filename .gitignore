@@ -3,6 +3,9 @@
 !.vscode/
 !.github/
 !.husky/
+!scripts/.githooks/
+scripts/.githooks/*
+!scripts/.githooks/pre-push
 !.npmrc
 !.commitmessage
 
@@ -38,3 +41,4 @@ expert-review.md
 # Logs and Test Artifacts
 *.log
 /*.txt
+AGENTS.md

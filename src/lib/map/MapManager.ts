@@ -1,7 +1,12 @@
 import type { Roborock } from "../../main";
+import { B01MapPipeline } from "./b01/B01MapPipeline";
+import type { Q10PayloadClassification } from "./b01/B01MapPayloadClassifier";
 import { MapBuilder as MapBuilderB01 } from "./b01/MapBuilder";
-import { MapParser as MapParserB01 } from "./b01/MapParser";
-import { B01DeviceStatus } from "./b01/types";
+import { B01DeviceStatus, B01MapData, Q10RuntimeDebugSummary } from "./b01/types";
+import { Q10MapBuilder } from "./q10/Q10MapBuilder";
+import { Q10MapCreator } from "./q10/Q10MapCreator";
+import { applyQ10PathOnlyToB01, applyQ10RuntimeStatePatch, mergeQ10RuntimeState } from "./q10/Q10YxMapParser";
+import type { Q10RuntimeStatePatch, Q10SourcePathPoint } from "./q10/types";
 import { MapBuilder as MapBuilderV1 } from "./v1/MapBuilder";
 import { MapDecryptor as MapDecryptorV1 } from "./v1/MapDecryptor";
 import { MapParser as MapParserV1 } from "./v1/MapParser";
@@ -10,15 +15,42 @@ export class MapManager {
 	private adapter: Roborock;
 	public mapParser: MapParserV1;
 	public mapCreator: MapBuilderV1;
-	private parserB01: MapParserB01;
+	private pipelineB01: B01MapPipeline;
 	private builderB01: MapBuilderB01;
+	private creatorQ10: Q10MapCreator;
+	private builderQ10: Q10MapBuilder;
+	private q10StateByDevice = new Map<string, B01MapData>();
+	private q10PendingPathPreludeByDevice = new Map<string, { pathPoints: Q10SourcePathPoint[]; receivedAt: number }>();
+	private latestB01DeviceStatusByDevice = new Map<string, Partial<B01DeviceStatus>>();
+
+	private static readonly NON_Q10_CLASSIFICATION: Q10PayloadClassification = {
+		isQ10Payload: false,
+		isLiveMapCandidate: false,
+		payloadShape: "map",
+		blobType: null,
+		mapData: null,
+		pathPoints: null
+	};
+
+	private static readonly EMPTY_Q10_OVERLAY_COUNTS = {
+		virtualWalls: 0,
+		forbidAreas: 0,
+		mopAreas: 0,
+		thresholdAreas: 0,
+		eraseAreas: 0,
+		carpetAreas: 0
+	};
+
+	private static readonly Q10_PATH_PRELUDE_TTL_MS = 30_000;
 
 	constructor(adapter: Roborock) {
 		this.adapter = adapter;
 		this.mapParser = new MapParserV1(adapter);
 		this.mapCreator = new MapBuilderV1(adapter);
-		this.parserB01 = new MapParserB01(adapter);
+		this.pipelineB01 = new B01MapPipeline(adapter);
 		this.builderB01 = new MapBuilderB01(adapter);
+		this.creatorQ10 = new Q10MapCreator(adapter);
+		this.builderQ10 = new Q10MapBuilder(adapter);
 	}
 
 	/**
@@ -32,20 +64,35 @@ export class MapManager {
      */
 	public async processMap(rawData: Buffer, version: string, model: string, serial: string, mappedRooms: any[] | null, duid?: string, connectionType: string = "Unknown", deviceStatus?: B01DeviceStatus, currentMapIndex?: number): Promise<{ mapBase64: string, mapBase64Clean?: string, mapData?: any } | null> {
 		try {
-			// Robust device status retrieval if not provided
-			if (version === "B01" && !deviceStatus && duid) {
-				deviceStatus = await this.getDeviceStatusForB01(duid);
-			}
+			if (version === "B01" || version === "Q10") {
+				const resolved = this.pipelineB01.resolve(rawData, version, model, serial, duid || "", connectionType);
+				if (resolved?.variant === "q10") {
+					const effectiveDeviceStatus = duid
+						? await this.getDeviceStatusForB01(duid, deviceStatus)
+						: deviceStatus;
+					const q10Result = await this.processQ10Payload(
+						{ classification: resolved.q10, mapData: resolved.mapData },
+						duid,
+						connectionType,
+						effectiveDeviceStatus,
+						model || undefined
+					);
+					if (q10Result) {
+						return q10Result;
+					}
+				}
 
-			if (version === "B01") {
-				const mapData = this.parserB01.parse(rawData, serial, model, duid || "", connectionType);
-				if (mapData && mapData.mapGrid && mapData.mapGrid.length > 0) {
+				if (resolved?.variant === "protobuf") {
+					const mapData = resolved.mapData;
+					const effectiveDeviceStatus = duid
+						? await this.getDeviceStatusForB01(duid, deviceStatus)
+						: deviceStatus;
 					const expectedGridSize = mapData.header.sizeX * mapData.header.sizeY;
 					// Only accept when grid length exactly matches header (real maps); reject wrong decryption, fragments, or non-map packets.
 					if (expectedGridSize > 0 && mapData.mapGrid.length !== expectedGridSize) {
 						this.adapter.rLog(connectionType as any, duid || "unknown", "Warn", version, 301, `B01 map rejected: grid size inconsistent with header (got ${mapData.mapGrid.length}, expected sizeX*sizeY=${expectedGridSize})`, "warn");
 					} else {
-						const mapBuf = await this.builderB01.buildMap(mapData, model, duid, deviceStatus);
+						const mapBuf = await this.builderB01.buildMap(mapData, model, duid, effectiveDeviceStatus);
 						const mapBase64 = "data:image/png;base64," + mapBuf.toString("base64");
 						return {
 							mapBase64: mapBase64,
@@ -97,27 +144,320 @@ export class MapManager {
 		return null;
 	}
 
-	private async getDeviceStatusForB01(duid: string): Promise<B01DeviceStatus> {
-		const getVal = async (keys: string[]): Promise<{ val: any, source: string } | undefined> => {
+	private async processQ10Payload(
+		q10Payload: { classification: Q10PayloadClassification; mapData: B01MapData | null },
+		duid?: string,
+		connectionType: string = "Unknown",
+		deviceStatus?: B01DeviceStatus,
+		robotModel?: string
+	): Promise<{ mapBase64: string, mapBase64Clean?: string, mapData?: any } | null> {
+		const cacheKey = this.getQ10CacheKey(duid, connectionType);
+		const previous = this.q10StateByDevice.get(cacheKey);
+		const { classification } = q10Payload;
+		const packetKind: "full" | "path-only" = classification.mapData ? "full" : "path-only";
+		const rawMapData = q10Payload.mapData ?? classification.mapData;
+		const rawOverlayCounts = rawMapData?.q10RawOverlayCounts ?? this.getQ10OverlayCounts(rawMapData);
+		const sourceOverlayCounts = this.getQ10OverlayCounts(rawMapData);
+		let overlaySeedSource: "inline" | "runtime-cache" | "none" =
+			this.hasQ10OverlaySeed(rawMapData) ? "inline" : "none";
+
+		let mapData = rawMapData;
+		if (mapData) {
+			if (connectionType !== "B01History") {
+				const pendingPrelude = this.consumeQ10PendingPathPrelude(cacheKey);
+				if (pendingPrelude && !(mapData.q10SourceData?.pathPoints?.length ?? 0)) {
+					mapData = applyQ10PathOnlyToB01(mapData, pendingPrelude);
+				}
+				mapData = mergeQ10RuntimeState(mapData, previous);
+				if (
+					overlaySeedSource === "none" &&
+					this.hasQ10OverlaySeed(mapData) &&
+					this.isCompatibleQ10OverlaySeed(rawMapData!, previous)
+				) {
+					overlaySeedSource = "runtime-cache";
+				}
+			}
+		} else {
+			const pathPoints = classification.pathPoints;
+			if (!pathPoints?.length) {
+				return null;
+			}
+			if (!previous) {
+				if (connectionType !== "B01History") {
+					this.storeQ10PendingPathPrelude(cacheKey, pathPoints);
+				}
+				return null;
+			}
+			mapData = applyQ10PathOnlyToB01(previous, pathPoints);
+			if (overlaySeedSource === "none" && this.hasQ10OverlaySeed(mapData)) {
+				overlaySeedSource = "runtime-cache";
+			}
+		}
+
+		const created = this.creatorQ10.create(mapData, deviceStatus);
+		created.q10RuntimeDebug = this.buildQ10RuntimeDebugSummary(
+			created,
+			packetKind,
+			classification,
+			rawOverlayCounts,
+			sourceOverlayCounts,
+			overlaySeedSource
+		);
+		const resolvedRobotModel = robotModel || (duid ? this.adapter.http_api?.getRobotModel(duid) || undefined : undefined);
+		const rendered = await this.builderQ10.buildMaps(created, deviceStatus, resolvedRobotModel);
+		const mapBase64 = "data:image/png;base64," + rendered.full.toString("base64");
+		const mapBase64Clean = "data:image/png;base64," + rendered.clean.toString("base64");
+		this.q10StateByDevice.set(cacheKey, created);
+
+		return {
+			mapBase64,
+			mapBase64Clean,
+			mapData: created
+		};
+	}
+
+	public async applyQ10LiveStatePatch(duid: string, patch: Q10RuntimeStatePatch): Promise<boolean> {
+		if (!duid) return false;
+
+		const cacheKey = this.getQ10CacheKey(duid, "B01");
+		const current = this.q10StateByDevice.get(cacheKey);
+		if (!current?.q10SourceData) return false;
+
+		const patched = applyQ10RuntimeStatePatch(current, patch);
+		if (patched === current) return false;
+
+		const deviceStatus = await this.getDeviceStatusForB01(duid);
+		const robotModel = this.adapter.http_api?.getRobotModel(duid) || undefined;
+		const created = this.creatorQ10.create(patched, deviceStatus);
+		created.q10RuntimeDebug = this.buildQ10RuntimeDebugSummary(
+			created,
+			"full",
+			MapManager.NON_Q10_CLASSIFICATION,
+			current.q10RawOverlayCounts ?? this.getQ10OverlayCounts(current),
+			this.getQ10OverlayCounts(created),
+			current.q10RuntimeDebug?.overlaySeedSource ?? "none"
+		);
+
+		const rendered = await this.builderQ10.buildMaps(created, deviceStatus, robotModel);
+		const result = {
+			mapBase64: "data:image/png;base64," + rendered.full.toString("base64"),
+			mapBase64Clean: "data:image/png;base64," + rendered.clean.toString("base64"),
+			mapData: created
+		};
+
+		this.q10StateByDevice.set(cacheKey, created);
+		await this.saveGeneratedMap(duid, result);
+		return true;
+	}
+
+	private buildQ10RuntimeDebugSummary(
+		mapData: B01MapData,
+		packetKind: "full" | "path-only",
+		classification: Q10PayloadClassification = MapManager.NON_Q10_CLASSIFICATION,
+		rawOverlayCounts: {
+			virtualWalls: number;
+			forbidAreas: number;
+			mopAreas: number;
+			thresholdAreas: number;
+			eraseAreas: number;
+			carpetAreas: number;
+		} = MapManager.EMPTY_Q10_OVERLAY_COUNTS,
+		sourceOverlayCounts: {
+			virtualWalls: number;
+			forbidAreas: number;
+			mopAreas: number;
+			thresholdAreas: number;
+			eraseAreas: number;
+			carpetAreas: number;
+		} = MapManager.EMPTY_Q10_OVERLAY_COUNTS,
+		overlaySeedSource: "inline" | "runtime-cache" | "none" = "none"
+	): Q10RuntimeDebugSummary {
+		const verification = mapData.q10Verification;
+		return {
+			packetKind,
+			payloadShape: classification.payloadShape,
+			overlaySeedSource,
+			overlaySeedHydrated: overlaySeedSource === "runtime-cache",
+			rawVirtualWalls: rawOverlayCounts.virtualWalls,
+			rawForbidAreas: rawOverlayCounts.forbidAreas,
+			rawMopAreas: rawOverlayCounts.mopAreas,
+			rawThresholdAreas: rawOverlayCounts.thresholdAreas,
+			rawEraseAreas: rawOverlayCounts.eraseAreas,
+			rawCarpetAreas: rawOverlayCounts.carpetAreas,
+			sourceVirtualWalls: sourceOverlayCounts.virtualWalls,
+			sourceForbidAreas: sourceOverlayCounts.forbidAreas,
+			sourceMopAreas: sourceOverlayCounts.mopAreas,
+			sourceThresholdAreas: sourceOverlayCounts.thresholdAreas,
+			sourceEraseAreas: sourceOverlayCounts.eraseAreas,
+			sourceCarpetAreas: sourceOverlayCounts.carpetAreas,
+			pathPoints: mapData.q10SourceData?.pathPoints.length ?? mapData.q10CreatorData?.pathPixels.length ?? 0,
+			historyPoints: mapData.history?.length ?? 0,
+			virtualWalls: mapData.q10SourceData?.virtualWalls.length ?? mapData.virtualWalls?.length ?? 0,
+			forbidAreas: mapData.q10SourceData?.forbidAreas.length ?? mapData.recmForbitZone?.length ?? 0,
+			mopAreas: mapData.q10SourceData?.mopAreas.length ?? 0,
+			thresholdAreas: mapData.q10SourceData?.thresholdAreas.length ?? mapData.thresholds?.length ?? 0,
+			eraseAreas: mapData.q10SourceData?.eraseAreas.length ?? mapData.eraseAreas?.length ?? 0,
+			carpetAreas: mapData.q10SourceData?.carpetAreas.length ?? mapData.carpetInfo?.length ?? 0,
+			obstacles: mapData.q10SourceData?.obstacles.length ?? mapData.obstacles?.length ?? 0,
+			skipPoints: mapData.q10SourceData?.skipPoints.length ?? mapData.skipCleanPoints?.length ?? 0,
+			suspectedPoints: mapData.q10SourceData?.suspectedPoints.length ?? mapData.q10CreatorData?.suspectedPoints.length ?? 0,
+			rooms: mapData.q10SourceData?.rooms.length ?? mapData.rooms?.length ?? 0,
+			robotPresent: !!(mapData.q10CreatorData?.robotPixel || mapData.robotPos),
+			chargerPresent: !!(mapData.q10CreatorData?.chargerPixel || mapData.chargerPos),
+			presentVerifiedFeatures: verification?.presentVerifiedFeatures ?? [],
+			presentUnverifiedFeatures: verification?.presentUnverifiedFeatures ?? []
+		};
+	}
+
+	private getQ10CacheKey(duid?: string, connectionType: string = "Unknown"): string {
+		const scope = connectionType === "B01History" ? "history" : "live";
+		return `${duid || "unknown"}:${scope}`;
+	}
+
+	private storeQ10PendingPathPrelude(cacheKey: string, pathPoints: Q10SourcePathPoint[]): void {
+		this.q10PendingPathPreludeByDevice.set(cacheKey, {
+			pathPoints: pathPoints.map((point) => ({ ...point })),
+			receivedAt: Date.now()
+		});
+	}
+
+	private consumeQ10PendingPathPrelude(cacheKey: string): Q10SourcePathPoint[] | null {
+		const pending = this.q10PendingPathPreludeByDevice.get(cacheKey);
+		if (!pending) return null;
+
+		this.q10PendingPathPreludeByDevice.delete(cacheKey);
+
+		if (Date.now() - pending.receivedAt > MapManager.Q10_PATH_PRELUDE_TTL_MS) {
+			return null;
+		}
+
+		return pending.pathPoints.map((point) => ({ ...point }));
+	}
+
+	private hasQ10OverlaySeed(mapData?: B01MapData | null): boolean {
+		const source = mapData?.q10SourceData;
+		if (!source) return false;
+
+		return [
+			source.virtualWalls,
+			source.forbidAreas,
+			source.mopAreas,
+			source.thresholdAreas,
+			source.eraseAreas,
+			source.carpetAreas
+		].some((areas) => (areas?.length ?? 0) > 0);
+	}
+
+	private getQ10OverlayCounts(mapData?: B01MapData | null): {
+		virtualWalls: number;
+		forbidAreas: number;
+		mopAreas: number;
+		thresholdAreas: number;
+		eraseAreas: number;
+		carpetAreas: number;
+	} {
+		const source = mapData?.q10SourceData;
+		if (!source) return { ...MapManager.EMPTY_Q10_OVERLAY_COUNTS };
+
+		return {
+			virtualWalls: source.virtualWalls.length,
+			forbidAreas: source.forbidAreas.length,
+			mopAreas: source.mopAreas.length,
+			thresholdAreas: source.thresholdAreas.length,
+			eraseAreas: source.eraseAreas.length,
+			carpetAreas: source.carpetAreas.length
+		};
+	}
+
+	private isCompatibleQ10OverlaySeed(current: B01MapData, candidate?: B01MapData | null): candidate is B01MapData {
+		if (!candidate?.q10SourceData) return false;
+		if (!this.hasQ10OverlaySeed(candidate)) return false;
+
+		const currentMapId = current.q10SourceData?.mapId;
+		const candidateMapId = candidate.q10SourceData?.mapId;
+		if (
+			Number.isFinite(currentMapId) &&
+			Number.isFinite(candidateMapId) &&
+			currentMapId &&
+			candidateMapId &&
+			currentMapId !== candidateMapId
+		) {
+			return false;
+		}
+
+		const currentHeader = current.header;
+		const candidateHeader = candidate.header;
+		if (currentHeader.sizeX !== candidateHeader.sizeX || currentHeader.sizeY !== candidateHeader.sizeY) {
+			return false;
+		}
+
+		const tolerance = Math.max(currentHeader.resolution, candidateHeader.resolution, 0.05) * 2;
+		return (
+			Math.abs(currentHeader.minX - candidateHeader.minX) <= tolerance &&
+			Math.abs(currentHeader.minY - candidateHeader.minY) <= tolerance &&
+			Math.abs(currentHeader.maxX - candidateHeader.maxX) <= tolerance &&
+			Math.abs(currentHeader.maxY - candidateHeader.maxY) <= tolerance &&
+			Math.abs(currentHeader.resolution - candidateHeader.resolution) <= tolerance
+		);
+	}
+
+	public updateB01DeviceStatus(duid: string, status: Partial<B01DeviceStatus>): void {
+		if (!duid) return;
+		const current = this.latestB01DeviceStatusByDevice.get(duid) ?? {};
+		this.latestB01DeviceStatusByDevice.set(duid, {
+			...current,
+			...status
+		});
+	}
+
+	private async readPersistedB01DeviceStatus(duid: string): Promise<Partial<B01DeviceStatus>> {
+		const getVal = async (keys: string[]): Promise<any | undefined> => {
 			for (const k of keys) {
 				const s = await this.adapter.getStateAsync(`Devices.${duid}.deviceStatus.${k}`);
-				if (s && s.val !== undefined && s.val !== null) return { val: s.val, source: k };
+				if (s && s.val !== undefined && s.val !== null) return s.val;
 			}
 			return undefined;
 		};
 
-		const stateObj = await getVal(["status", "state", "4"]);
-		const workModeObj = await getVal(["work_mode", "workMode", "15"]);
-		const cleanModeObj = await getVal(["mode", "cleanMode", "17"]);
-		const dustCollectObj = await getVal(["dust_action", "dust_collection_status", "105"]);
-		const faultObj = await getVal(["fault", "deviceFault", "18"]);
+		const stateVal = await getVal(["status", "state", "4"]);
+		const workModeVal = await getVal(["work_mode", "workMode", "15"]);
+		const cleanModeVal = await getVal(["mode", "cleanMode", "17"]);
+		const dustCollectVal = await getVal(["dust_action", "dust_collection_status", "105"]);
+		const faultVal = await getVal(["fault", "deviceFault", "18"]);
+
+		const persisted: Partial<B01DeviceStatus> = {};
+		if (stateVal !== undefined) persisted.deviceState = Number(stateVal);
+		if (workModeVal !== undefined) persisted.deviceWorkMode = Number(workModeVal);
+		if (cleanModeVal !== undefined) persisted.deviceCleanMode = Number(cleanModeVal);
+		if (dustCollectVal !== undefined) {
+			persisted.isDustCollect = dustCollectVal === 1 || dustCollectVal === true || dustCollectVal === "1";
+		}
+		if (faultVal !== undefined) persisted.deviceFault = Number(faultVal);
+		return persisted;
+	}
+
+	private pickB01StatusValue<T>(...values: Array<T | null | undefined>): T | undefined {
+		for (const value of values) {
+			if (value !== undefined && value !== null) return value;
+		}
+		return undefined;
+	}
+
+	private async getDeviceStatusForB01(duid: string, preferred?: Partial<B01DeviceStatus>): Promise<B01DeviceStatus> {
+		const persisted = await this.readPersistedB01DeviceStatus(duid);
+		const cached = this.latestB01DeviceStatusByDevice.get(duid);
 
 		return {
-			deviceState: stateObj ? Number(stateObj.val) : 0,
-			deviceWorkMode: workModeObj ? Number(workModeObj.val) : 0,
-			deviceCleanMode: cleanModeObj ? Number(cleanModeObj.val) : 0,
-			isDustCollect: dustCollectObj ? (dustCollectObj.val === 1 || dustCollectObj.val === true || dustCollectObj.val === "1") : false,
-			deviceFault: faultObj ? Number(faultObj.val) : 0
+			deviceState: this.pickB01StatusValue(preferred?.deviceState, cached?.deviceState, persisted.deviceState, 0) ?? 0,
+			deviceWorkMode: this.pickB01StatusValue(preferred?.deviceWorkMode, cached?.deviceWorkMode, persisted.deviceWorkMode, 0) ?? 0,
+			deviceCleanMode: this.pickB01StatusValue(preferred?.deviceCleanMode, cached?.deviceCleanMode, persisted.deviceCleanMode, 0),
+			deviceChargeState: this.pickB01StatusValue(preferred?.deviceChargeState, cached?.deviceChargeState, persisted.deviceChargeState),
+			isDustCollect: this.pickB01StatusValue(preferred?.isDustCollect, cached?.isDustCollect, persisted.isDustCollect, false) ?? false,
+			deviceFault: this.pickB01StatusValue(preferred?.deviceFault, cached?.deviceFault, persisted.deviceFault, 0),
+			deviceQuiet: this.pickB01StatusValue(preferred?.deviceQuiet, cached?.deviceQuiet, persisted.deviceQuiet),
+			devicePvCutCharge: this.pickB01StatusValue(preferred?.devicePvCutCharge, cached?.devicePvCutCharge, persisted.devicePvCutCharge),
+			deviceBattery: this.pickB01StatusValue(preferred?.deviceBattery, cached?.deviceBattery, persisted.deviceBattery),
+			deviceCustomType: this.pickB01StatusValue(preferred?.deviceCustomType, cached?.deviceCustomType, persisted.deviceCustomType)
 		};
 	}
 

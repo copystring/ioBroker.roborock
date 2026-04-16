@@ -3,17 +3,25 @@
   "tasks": [
     {
       "label": "Watch All (TSC, WWW, VITEST)",
-      "type": "npm",
-      "script": "watch:all",
+      "type": "process",
+      "command": "npm.cmd",
+      "args": ["run", "watch:all"],
       "isBackground": true,
       "problemMatcher": [],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",
         "group": "dev"
       },
       "runOptions": {
-        "runOn": "folderOpen"
+        "runOn": "folderOpen",
+        "instanceLimit": 1
+      },
+      "windows": {
+        "command": "npm.cmd"
       }
     }
   ]

@@ -1,5 +1,7 @@
 import PQueue from "p-queue";
 import type { Roborock } from "../main";
+import { Q10CommandHandler } from "./b01/q10/Q10CommandHandler";
+import { isConnectivityLikeError } from "./errorUtils";
 import type { BaseDeviceFeatures } from "./features/baseDeviceFeatures";
 import { messageParser } from "./messageParser";
 
@@ -8,14 +10,7 @@ const REQUEST_TIMEOUT = 10000;
 const MAX_REQUEST_RETRIES = 2;
 
 function isRetryableError(error: unknown): boolean {
-	if (!(error instanceof Error)) return true;
-	const msg = error.message.toLowerCase();
-	if (msg.includes("adapter_stopped") || msg.includes("cancelled") || msg.includes("cancelled_by_user")) return false;
-	if (msg.includes("timeout") || msg.includes("timed out") || msg.includes("econnreset") || msg.includes("etimedout") ||
-		msg.includes("enotfound") || msg.includes("econnrefused") || msg.includes("network") || msg.includes("socket hang up")) return true;
-	const code = (error as NodeJS.ErrnoException).code;
-	if (code === "ECONNRESET" || code === "ETIMEDOUT" || code === "ENOTFOUND" || code === "ECONNREFUSED") return true;
-	return false;
+	return isConnectivityLikeError(error);
 }
 
 export enum RequestPriority {
@@ -308,6 +303,7 @@ export class requestsHandler {
 	private mapManager: RequestManager;
 	/** B01 only: map triggers and logical map requests. Concurrency 1 — B01 301 responses are not matched by ID, so only one in flight avoids wrong assignment (e.g. records.0 getting wrong payload). */
 	private b01MapManager: RequestManager;
+	private q10CommandHandler: Q10CommandHandler | undefined;
 	messageParser: messageParser;
 	mqttResetInterval: ioBroker.Interval | undefined = undefined;
 
@@ -325,6 +321,13 @@ export class requestsHandler {
 		this.b01MapManager = new RequestManager(1, REQUEST_TIMEOUT); // B01 maps only: concurrency 1
 		this.messageParser = new messageParser(this.adapter);
 		this.scheduleMqttReset();
+	}
+
+	private getQ10CommandHandler(): Q10CommandHandler {
+		if (!this.q10CommandHandler) {
+			this.q10CommandHandler = new Q10CommandHandler(this);
+		}
+		return this.q10CommandHandler;
 	}
 
 	private static readonly POLL_METHODS = [
@@ -454,7 +457,30 @@ export class requestsHandler {
 		return attempt(0);
 	}
 
+	/**
+	 * Q10/B01: publishes a raw DP payload via protocol 101 without waiting for a
+	 * correlated response. The device answers via async DP shadow / protocol 102 / 301.
+	 */
+	public async publishB01Dp(duid: string, dps: Record<string, unknown>): Promise<void> {
+		const timestamp = Math.floor(Date.now() / 1000);
+		const payload = JSON.stringify({ dps, t: timestamp });
+		const roborockMessage = await this.messageParser.buildRoborockMessage(duid, 101, timestamp, payload, "B01");
+
+		if (!roborockMessage) {
+			throw new Error("Failed to build B01 DP message");
+		}
+
+		await this.adapter.mqtt_api.sendMessage(duid, roborockMessage);
+		this.adapter.rLog("MQTT", duid, "->", "B01", 101, `Q10 DP publish: ${JSON.stringify(dps)}`, "debug");
+	}
+
 	async command(_handler: BaseDeviceFeatures, duid: string, method: string, params?: unknown, id?: string) {
+		const b01Variant = await this.adapter.getB01Variant?.(duid);
+		if (b01Variant === "Q10") {
+			await this.getQ10CommandHandler().handleCommand(_handler, duid, method, params);
+			return;
+		}
+
 		let finalParams = params;
 		let finalMethod = method;
 
