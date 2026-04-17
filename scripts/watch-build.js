@@ -1,5 +1,5 @@
-const { spawn } = require("child_process");
-const path = require("path");
+const { spawn } = require("node:child_process");
+const path = require("node:path");
 const chokidar = require("chokidar");
 
 const SRC_DIR = path.join(__dirname, "..", "src");

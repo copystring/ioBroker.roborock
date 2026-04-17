@@ -1,5 +1,5 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 
 // Configuration
 const BUNDLE_DECOMPILED_DIR = path.join(__dirname, '../.AppPlugins/S7 MaxV/8328da4abbd14f0f99d6c32e17af5a8b/index.android.bundle.decompiled');

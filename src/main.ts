@@ -2,8 +2,8 @@
 /// <reference types="@iobroker/adapter-core" />
 
 import * as utils from "@iobroker/adapter-core";
-import { ChildProcess, spawn } from "child_process";
-import { randomBytes } from "crypto";
+import { ChildProcess, spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import go2rtcPath from "go2rtc-static";
 import { commitInfo } from "./lib/commitInfo";
 

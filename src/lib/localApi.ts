@@ -1,8 +1,8 @@
 import { Parser } from "binary-parser";
 import * as crc32 from "crc-32";
-import * as crypto from "crypto";
-import * as dgram from "dgram";
-import { Socket, SocketConstructorOpts } from "net";
+import * as crypto from "node:crypto";
+import * as dgram from "node:dgram";
+import { Socket, SocketConstructorOpts } from "node:net";
 import * as ping from "ping";
 import type { Roborock } from "../main";
 
