@@ -91,6 +91,7 @@ export abstract class BaseDeviceFeatures {
 
 	protected deps: FeatureDependencies;
 	public commands: Record<string, CommandSpec | any>; // Command definitions for this device
+	public extraCommandGroups: Record<string, Record<string, CommandSpec | any>>;
 	protected duid: string;
 	protected robotModel: string;
 	public protocolVersion: string | null = null;
@@ -150,6 +151,7 @@ export abstract class BaseDeviceFeatures {
 		this.stateWriter = new DeviceStateWriter(dependencies, duid);
 		// Initialize empty commands map. Actual commands will be populated during setupProtocolFeatures.
 		this.commands = {};
+		this.extraCommandGroups = {};
 	}
 
 	/**
@@ -276,6 +278,7 @@ export abstract class BaseDeviceFeatures {
 	public async setupProtocolFeatures(): Promise<void> {
 		// Initialize with generic base commands
 		this.commands = JSON.parse(JSON.stringify(BaseDeviceFeatures.CONSTANTS.baseCommands));
+		this.extraCommandGroups = {};
 	}
 
 	/**
@@ -328,18 +331,24 @@ export abstract class BaseDeviceFeatures {
 	 * Creates/updates ioBroker command objects from this.commands.
 	 */
 	public async createCommandObjects(): Promise<void> {
-		const folderPath = `Devices.${this.duid}.commands`;
-		// Ensure folder exists before creating states
-		try {
-			await this.deps.ensureFolder(folderPath);
-		} catch (e: unknown) {
-			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Failed to ensure commands folder ${folderPath}: ${this.deps.adapter.errorMessage(e)}`, "error");
-			return;
-		}
+		const commandGroups: Record<string, Record<string, CommandSpec | any>> = {
+			commands: this.commands,
+			...this.extraCommandGroups
+		};
 
 		const promises: Promise<void>[] = [];
-		for (const [command, commonCommand] of Object.entries(this.commands)) {
-			promises.push(this.processCommand(folderPath, command, commonCommand));
+		for (const [folderName, groupCommands] of Object.entries(commandGroups)) {
+			const folderPath = `Devices.${this.duid}.${folderName}`;
+			try {
+				await this.deps.ensureFolder(folderPath);
+			} catch (e: unknown) {
+				this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Failed to ensure commands folder ${folderPath}: ${this.deps.adapter.errorMessage(e)}`, "error");
+				return;
+			}
+
+			for (const [command, commonCommand] of Object.entries(groupCommands)) {
+				promises.push(this.processCommand(folderPath, command, commonCommand));
+			}
 		}
 
 		try {
@@ -432,31 +441,54 @@ export abstract class BaseDeviceFeatures {
 	 * @param name Command name.
 	 * @param spec CommandSpec definition.
 	 */
-	protected addCommand(name: string, spec: CommandSpec | any): void {
+	protected addCommand(name: string, spec: CommandSpec | any, group = "commands"): void {
 		if (!name || typeof name !== "string") {
 			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `addCommand: Invalid command name provided: ${name}`, "error");
 			return;
 		}
 		try {
+			let targetGroup = this.commands;
+			if (group !== "commands") {
+				if (!this.extraCommandGroups[group]) {
+					this.extraCommandGroups[group] = {};
+				}
+				targetGroup = this.extraCommandGroups[group];
+			}
 			// Merge states if new spec has fewer states.
-			if (this.commands[name]?.states && spec.states) {
-				const existingStatesJson = JSON.stringify(this.commands[name].states);
+			if (targetGroup[name]?.states && spec.states) {
+				const existingStatesJson = JSON.stringify(targetGroup[name].states);
 				const newStatesJson = JSON.stringify(spec.states);
 				if (existingStatesJson !== newStatesJson) {
 					// Merge: New states overwrite/add
-					spec.states = { ...this.commands[name].states, ...spec.states };
+					spec.states = { ...targetGroup[name].states, ...spec.states };
 				} else {
 					// Preserve existing spec if states identical
-					spec = { ...this.commands[name], ...spec, states: this.commands[name].states };
+					spec = { ...targetGroup[name], ...spec, states: targetGroup[name].states };
 				}
-			} else if (this.commands[name]?.states && !spec.states) {
+			} else if (targetGroup[name]?.states && !spec.states) {
 				// Keep existing states if new one has none
-				spec.states = this.commands[name].states;
+				spec.states = targetGroup[name].states;
 			}
-			this.commands[name] = spec;
+			targetGroup[name] = spec;
 		} catch (e: unknown) {
 			this.deps.adapter.rLog("System", this.duid, "Error", undefined, undefined, `Error in addCommand for '${name}': ${this.deps.adapter.errorMessage(e)}`, "error");
 		}
+	}
+
+	public getCommandFolders(): string[] {
+		return ["commands", ...Object.keys(this.extraCommandGroups)];
+	}
+
+	public hasCommandFolder(folder: string): boolean {
+		return folder === "commands" || Object.prototype.hasOwnProperty.call(this.extraCommandGroups, folder);
+	}
+
+	public getCommandSpec(folder: string, command: string): CommandSpec | any | undefined {
+		if (folder === "commands") {
+			return this.commands[command];
+		}
+
+		return this.extraCommandGroups[folder]?.[command];
 	}
 
 	/**
@@ -549,6 +581,13 @@ export abstract class BaseDeviceFeatures {
 		void method;
 		void id;
 		return params;
+	}
+
+	public async onCommandResult(requestedMethod: string, finalMethod: string, response: unknown, params?: unknown): Promise<void> {
+		void requestedMethod;
+		void finalMethod;
+		void response;
+		void params;
 	}
 
 	// --- Data Update Methods (Unified Data Handling) ---

@@ -318,7 +318,11 @@ export class messageParser {
 			return JSON.stringify({ dps: { "10000": b01Inner }, t: timestamp });
 		}
 
-		return JSON.stringify({ dps: { [protocol]: JSON.stringify(inner) }, t: timestamp });
+		// L01 local TCP frames still carry the RPC body in dps.101 even though the
+		// outer Roborock frame uses protocol 4. Older devices accept dps.4 too,
+		// but newer models like the Saros Z70 reject it and simply don't answer.
+		const dpsKey = version === "L01" && protocol === 4 ? 101 : protocol;
+		return JSON.stringify({ dps: { [dpsKey]: JSON.stringify(inner) }, t: timestamp });
 	}
 
 	/**

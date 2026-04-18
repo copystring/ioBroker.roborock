@@ -511,6 +511,8 @@ export class requestsHandler {
 					}
 				}
 
+				await _handler?.onCommandResult?.(method, finalMethod, res, finalParams);
+
 				// Status refresh after command is done in resolvePendingRequest.
 			},
 			`command-${method}-${duid}`,
