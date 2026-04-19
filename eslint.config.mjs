@@ -23,6 +23,7 @@ export default [
 			"**/scripts/**",
 			"**/.antigravityignore/**",
 			"**/.AppPlugins/**",
+			"**/.tmp/**",
 			"**/.Roborock Q7 Series/**",
 			"**/.sniff/**",
 			"**/.agent/**",
@@ -38,7 +39,7 @@ export default [
 	// 2. Logic Guardrails
 	{
 		files: ["**/*.js", "**/*.ts"],
-		ignores: ["**/*.d.ts", "**/build/**", "**/admin/**", "**/test/**", "www/**", "src/www/**", "scripts/**", "**/.antigravityignore/**", "**/.agent/**"],
+		ignores: ["**/*.d.ts", "**/build/**", "**/admin/**", "**/test/**", "www/**", "src/www/**", "scripts/**", "**/.antigravityignore/**", "**/.agent/**", "**/.tmp/**"],
 		languageOptions: {
 			parser: tsParser,
 			ecmaVersion: 2020,

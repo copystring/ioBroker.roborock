@@ -201,11 +201,18 @@ export class Roborock extends utils.Adapter {
 			// 3. Initialize Devices (now that communication channels are ready)
 			await this.deviceManager.initializeDevices();
 
+			const writableFolders = new Set<string>();
+			for (const handler of this.deviceFeatureHandlers.values()) {
+				for (const folder of handler.getCommandFolders()) {
+					writableFolders.add(folder);
+				}
+			}
+
 			// Parallelize non-dependent startup tasks
 			await Promise.all([
 				this.processScenes(),
 				this.start_go2rtc(),
-				this.subscribeStatesAsync("Devices.*.commands.*"),
+				...Array.from(writableFolders).map((folder) => this.subscribeStatesAsync(`Devices.*.${folder}.*`)),
 				this.subscribeStatesAsync("Devices.*.resetConsumables.*"),
 				this.subscribeStatesAsync("Devices.*.programs.*"),
 				this.subscribeStatesAsync("Devices.*.deviceStatus.state"),
@@ -442,13 +449,13 @@ export class Roborock extends utils.Adapter {
 			// Actually executeSceneLocal takes time.
 			// Better: explicit reset.
 			await this.setState(id, { val: null, ack: true });
-		} else if (folder === "commands") {
+		} else if (handler.hasCommandFolder(folder)) {
 			this.rLog("Requests", duid, "Info", handler.protocolVersion || undefined, undefined, `[handleCommand] Entering commands block for ${command}`, "info");
 			try {
-				await this.executeCommand(handler, duid, command, state);
+				await this.executeCommand(handler, duid, folder, command, state);
 			} finally {
 				// Reset boolean command state ONLY if it is defined as boolean
-				const cmdDef = handler.commands[command];
+				const cmdDef = handler.getCommandSpec(folder, command);
 				const isBoolean = cmdDef && cmdDef.type === "boolean";
 
 				if (isBoolean && this.isTruthy(state.val)) {
@@ -462,11 +469,11 @@ export class Roborock extends utils.Adapter {
 	/**
 	 * Executes a specific command for a device.
 	 */
-	private async executeCommand(handler: BaseDeviceFeatures, duid: string, command: string, state: ioBroker.State) {
+	private async executeCommand(handler: BaseDeviceFeatures, duid: string, folder: string, command: string, state: ioBroker.State) {
 		const val = state.val;
 
 		// 1. Common command types handling
-		const cmdDef = handler.commands[command];
+		const cmdDef = handler.getCommandSpec(folder, command);
 		const isButton = cmdDef?.role === "button" || cmdDef?.type === "boolean";
 
 		if (isButton) {
