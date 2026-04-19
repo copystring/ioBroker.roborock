@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it } from "vitest";
 
 const repoRoot = path.resolve(__dirname, "..", "..");
 const scriptPath = path.join(repoRoot, "scripts", "extract_appplugin_translations.js");
-const appPluginsRoot = path.join(repoRoot, ".AppPlugins");
 
 const extractor = require(scriptPath) as {
 	detectBundleKind: (bundlePath: string) => { kind: string; reason: string };
@@ -64,13 +63,6 @@ function registerTempDir(): string {
 	return tempDir;
 }
 
-function runExtractorForPlugin(pluginName: string, outputPath: string, extraArgs: string[] = []): void {
-	execFileSync(process.execPath, [scriptPath, "--plugin", pluginName, "--out", outputPath, ...extraArgs], {
-		cwd: repoRoot,
-		stdio: "pipe",
-	});
-}
-
 function ensureDir(dirPath: string): void {
 	fs.mkdirSync(dirPath, { recursive: true });
 }
@@ -79,32 +71,133 @@ function readJson(filePath: string): any {
 	return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }
 
-function escapeRegex(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function buildDictionary(entries: Record<string, string>): Record<string, string> {
+	const filler: Record<string, string> = {};
+	for (let index = 1; index <= 8; index++) {
+		filler[`filler_key_${index}`] = `filler value ${index}`;
+	}
+	return {
+		...filler,
+		...entries,
+	};
 }
 
-function extractValueFromMetroBundle(bundlePath: string, key: string): string {
-	const source = fs.readFileSync(bundlePath, "utf8");
-	const match = source.match(new RegExp(`${escapeRegex(key)}:"([^"]*)"`, "u"));
-	expect(match, `Expected to find ${key} in ${bundlePath}`).not.toBeNull();
-	return match![1].replace(/\\n/g, "\n");
+function toJsonObjectLiteral(dictionary: Record<string, string>): string {
+	return JSON.stringify(dictionary, null, 2);
 }
 
-function extractValueFromSplitModule(modulePath: string, key: string): string {
-	const source = fs.readFileSync(modulePath, "utf8");
-	const match = source.match(new RegExp(`'${escapeRegex(key)}': '([^']*)'`, "u"));
-	expect(match, `Expected to find ${key} in ${modulePath}`).not.toBeNull();
-	return match![1];
+function createMetroBundleModule(moduleId: number, deps: number[], body: string): string {
+	return `__d(function(g,r,i,a,m,e,d){\n${body}\n}, ${moduleId}, ${JSON.stringify(deps)});`;
 }
 
-function extractValueFromMetroModule(bundlePath: string, moduleId: number, key: string): string {
+function writeMetroPluginFixture(options: {
+	rootDir: string;
+	modelName: string;
+	instanceName: string;
+	languages: Array<{ language: string; moduleId: number; dictionary: Record<string, string> }>;
+	bundleKind?: "metro-js" | "hermes-bytecode";
+	useJsModules?: boolean;
+}): {
+	rootDir: string;
+	instanceDir: string;
+	instanceId: string;
+	bundlePath: string;
+	modulePaths: Record<string, string>;
+} {
+	const { rootDir, modelName, instanceName, languages, bundleKind = "metro-js", useJsModules = false } = options;
+	const instanceDir = path.join(rootDir, modelName, instanceName);
+	const instanceId = `${modelName}/${instanceName}`.replace(/\\/g, "/");
+	ensureDir(instanceDir);
+
+	const bundlePath = path.join(instanceDir, "index.android.bundle");
+	if (bundleKind === "hermes-bytecode") {
+		fs.writeFileSync(bundlePath, Buffer.concat([Buffer.from("c61fbc03c103191f", "hex"), Buffer.alloc(64)]));
+	} else {
+		const registryEntries = [
+			`${languages[0]?.language ?? "en"}: lang0`,
+			`${languages[1]?.language ?? "de"}: lang1`,
+			"fr: lang0",
+			"es: lang0",
+			"it: lang0",
+		];
+		const registryModule = createMetroBundleModule(
+			5000,
+			languages.slice(0, 2).map((entry) => entry.moduleId),
+			[
+				"var lang0 = r(d[0]);",
+				"var lang1 = r(d[1]);",
+				`var allLangs={ ${registryEntries.join(", ")} };`,
+				"m.exports = allLangs;",
+			].join("\n"),
+		);
+		const metroModules = languages.map((entry) =>
+			createMetroBundleModule(
+				entry.moduleId,
+				[],
+				`m.exports = ${toJsonObjectLiteral(entry.dictionary)};`,
+			),
+		);
+		fs.writeFileSync(
+			bundlePath,
+			[
+				"var __BUNDLE_START_TIME__ = Date.now();",
+				...metroModules,
+				registryModule,
+				"",
+			].join("\n"),
+			"utf8",
+		);
+	}
+
+	const modulePaths: Record<string, string> = {};
+	if (useJsModules) {
+		const jsModulesDir = path.join(instanceDir, "js_modules");
+		ensureDir(jsModulesDir);
+		for (const entry of languages) {
+			const filePath = path.join(jsModulesDir, `module_${String(entry.moduleId).padStart(4, "0")}.js`);
+			fs.writeFileSync(
+				filePath,
+				[
+					`// moduleId: ${entry.moduleId}`,
+					"// deps: []",
+					"",
+					`module.exports = ${JSON.stringify({ [entry.language]: entry.dictionary }, null, 2)};`,
+					"",
+				].join("\n"),
+				"utf8",
+			);
+			modulePaths[entry.language] = filePath;
+		}
+	}
+
+	return {
+		rootDir,
+		instanceDir,
+		instanceId,
+		bundlePath,
+		modulePaths,
+	};
+}
+
+function runExtractorForPlugin(rootDir: string, pluginName: string, outputPath: string, extraArgs: string[] = []): void {
+	execFileSync(
+		process.execPath,
+		[scriptPath, "--root", rootDir, "--plugin", pluginName, "--out", outputPath, ...extraArgs],
+		{
+			cwd: repoRoot,
+			stdio: "pipe",
+		},
+	);
+}
+
+function extractValueFromMetroModule(bundlePath: string, moduleId: number, key: string, language: string): string {
 	const source = fs.readFileSync(bundlePath, "utf8");
 	const moduleEntry = extractor.findMetroModuleByIdInBundle(source, moduleId, bundlePath);
 	expect(moduleEntry, `Expected to find Metro module ${moduleId} in ${bundlePath}`).not.toBeNull();
 
 	const literal =
 		extractor.extractTranslationObjectLiteral(moduleEntry!.code) ||
-		extractor.extractLanguagePropertyObjectLiteral(moduleEntry!.code, moduleId === 1600 ? "de" : "en");
+		extractor.extractLanguagePropertyObjectLiteral(moduleEntry!.code, language);
 	expect(literal, `Expected Metro module ${moduleId} to expose a translation object`).not.toBeNull();
 
 	const parsed = extractor.parseObjectLiteral(literal!);
@@ -121,24 +214,53 @@ afterEach(() => {
 
 describe("extract_appplugin_translations", () => {
 	it("detects Metro text bundles and Hermes bytecode bundles correctly", () => {
-		const metroBundle = path.join(
-			appPluginsRoot,
-			"Qrevo Curv",
-			"2e158bfb3b5d454d8d9b6d8fb6136308",
-			"index.android.bundle",
-		);
-		const hermesBundle = path.join(
-			appPluginsRoot,
-			"Saros Z70",
-			"4d3ae9e297c84a7e80a23ffe4f78a59e",
-			"index.android.bundle",
-		);
+		const tempRoot = registerTempDir();
+		const metroFixture = writeMetroPluginFixture({
+			rootDir: tempRoot,
+			modelName: "Qrevo Curv",
+			instanceName: "2e158bfb3b5d454d8d9b6d8fb6136308",
+			languages: [
+				{
+					language: "en",
+					moduleId: 101,
+					dictionary: buildDictionary({
+						default_room_name: "Room",
+						recover_map_hint: "Recover map hint",
+					}),
+				},
+				{
+					language: "de",
+					moduleId: 102,
+					dictionary: buildDictionary({
+						default_room_name: "Raum",
+						recover_map_hint: "Kartenhinweis",
+					}),
+				},
+			],
+		});
+		const hermesFixture = writeMetroPluginFixture({
+			rootDir: tempRoot,
+			modelName: "Saros Z70",
+			instanceName: "4d3ae9e297c84a7e80a23ffe4f78a59e",
+			bundleKind: "hermes-bytecode",
+			useJsModules: true,
+			languages: [
+				{
+					language: "zh-CN",
+					moduleId: 480,
+					dictionary: buildDictionary({
+						default_room_name: "房间",
+						recover_map_hint: "恢复地图后需要重新配置。",
+					}),
+				},
+			],
+		});
 
-		expect(extractor.detectBundleKind(metroBundle)).toMatchObject({
+		expect(extractor.detectBundleKind(metroFixture.bundlePath)).toMatchObject({
 			kind: "metro-js",
 			reason: expect.stringContaining("Metro"),
 		});
-		expect(extractor.detectBundleKind(hermesBundle)).toMatchObject({
+		expect(extractor.detectBundleKind(hermesFixture.bundlePath)).toMatchObject({
 			kind: "hermes-bytecode",
 			reason: expect.stringContaining("Hermes"),
 		});
@@ -183,72 +305,128 @@ describe("extract_appplugin_translations", () => {
 	});
 
 	it("extracts Qrevo Curv translations through the CLI and matches the original Metro bundle", () => {
+		const tempRoot = registerTempDir();
 		const outputDir = registerTempDir();
-		const bundlePath = path.join(
-			appPluginsRoot,
-			"Qrevo Curv",
-			"2e158bfb3b5d454d8d9b6d8fb6136308",
-			"index.android.bundle",
-		);
+		const fixture = writeMetroPluginFixture({
+			rootDir: tempRoot,
+			modelName: "Qrevo Curv",
+			instanceName: "2e158bfb3b5d454d8d9b6d8fb6136308",
+			languages: [
+				{
+					language: "en",
+					moduleId: 101,
+					dictionary: buildDictionary({
+						default_room_name: "Room",
+						recover_map_hint: "After restore you must recreate schedules.",
+					}),
+				},
+				{
+					language: "de",
+					moduleId: 102,
+					dictionary: buildDictionary({
+						default_room_name: "Raum",
+						recover_map_hint: "Nach der Wiederherstellung müssen Zeitpläne neu angelegt werden.",
+					}),
+				},
+			],
+		});
 
-		runExtractorForPlugin("Qrevo Curv", outputDir);
-		const instance = extractor.discoverPluginInstances(appPluginsRoot, "Qrevo Curv")[0];
+		runExtractorForPlugin(tempRoot, "Qrevo Curv", outputDir);
+		const instance = extractor.discoverPluginInstances(tempRoot, "Qrevo Curv")[0];
 		const result = extractor.processPluginInstance(instance, { quiet: true, noWrite: true });
 
 		const en = readJson(path.join(outputDir, "en.json"));
 
-		expect(en.default_room_name).toBe(extractValueFromMetroBundle(bundlePath, "default_room_name"));
-		expect(en.recover_map_hint).toBe(extractValueFromMetroBundle(bundlePath, "recover_map_hint"));
+		expect(en.default_room_name).toBe(
+			extractValueFromMetroModule(fixture.bundlePath, 101, "default_room_name", "en"),
+		);
+		expect(en.recover_map_hint).toBe(
+			extractValueFromMetroModule(fixture.bundlePath, 101, "recover_map_hint", "en"),
+		);
 		expect(result.bundleKind.kind).toBe("metro-js");
-		expect(result.moduleStrategy).toBe("metro_bundle_split");
+		expect(result.moduleStrategy).toBe("metro_bundle");
 		expect(fs.existsSync(path.join(outputDir, "meta.json"))).toBe(false);
 	});
 
 	it("extracts Q10 X5+ translations from a direct Metro bundle and matches the original source", () => {
+		const tempRoot = registerTempDir();
 		const outputDir = registerTempDir();
-		const bundlePath = path.join(
-			appPluginsRoot,
-			"Q10 X5+",
-			"019bdf41f583723bb937ccc99bbd7541",
-			"index.android.bundle",
-		);
+		const fixture = writeMetroPluginFixture({
+			rootDir: tempRoot,
+			modelName: "Q10 X5+",
+			instanceName: "019bdf41f583723bb937ccc99bbd7541",
+			languages: [
+				{
+					language: "en",
+					moduleId: 1598,
+					dictionary: buildDictionary({
+						device_ctrl_charge: "Charge",
+						device_state_remoting: "Remote control",
+					}),
+				},
+				{
+					language: "de",
+					moduleId: 1600,
+					dictionary: buildDictionary({
+						device_ctrl_charge: "Laden",
+						device_state_remoting: "Fernsteuerung",
+					}),
+				},
+			],
+		});
 		const instanceId = "Q10 X5+/019bdf41f583723bb937ccc99bbd7541";
 
-		runExtractorForPlugin(instanceId, outputDir);
-		const instance = extractor.discoverPluginInstances(appPluginsRoot, instanceId)[0];
+		runExtractorForPlugin(tempRoot, instanceId, outputDir);
+		const instance = extractor.discoverPluginInstances(tempRoot, instanceId)[0];
 		const result = extractor.processPluginInstance(instance, { quiet: true, noWrite: true });
 
 		const en = readJson(path.join(outputDir, "en.json"));
 		const de = readJson(path.join(outputDir, "de.json"));
 
-		expect(en.device_ctrl_charge).toBe(extractValueFromMetroModule(bundlePath, 1598, "device_ctrl_charge"));
-		expect(en.device_state_remoting).toBe(
-			extractValueFromMetroModule(bundlePath, 1598, "device_state_remoting"),
+		expect(en.device_ctrl_charge).toBe(
+			extractValueFromMetroModule(fixture.bundlePath, 1598, "device_ctrl_charge", "en"),
 		);
-		expect(de.device_ctrl_charge).toBe(extractValueFromMetroModule(bundlePath, 1600, "device_ctrl_charge"));
+		expect(en.device_state_remoting).toBe(
+			extractValueFromMetroModule(fixture.bundlePath, 1598, "device_state_remoting", "en"),
+		);
+		expect(de.device_ctrl_charge).toBe(
+			extractValueFromMetroModule(fixture.bundlePath, 1600, "device_ctrl_charge", "de"),
+		);
 		expect(result.bundleKind.kind).toBe("metro-js");
-		expect(result.moduleStrategy).toBe("metro_bundle_split");
+		expect(result.moduleStrategy).toBe("metro_bundle");
 		expect(result.issues).toEqual([]);
 	});
 
 	it("extracts Saros Z70 translations through the CLI and matches the split Hermes module", { timeout: 15000 }, () => {
+		const tempRoot = registerTempDir();
 		const outputDir = registerTempDir();
-		const zhModulePath = path.join(
-			appPluginsRoot,
-			"Saros Z70",
-			"4d3ae9e297c84a7e80a23ffe4f78a59e",
-			"js_modules",
-			"module_0480.js",
-		);
+		const fixture = writeMetroPluginFixture({
+			rootDir: tempRoot,
+			modelName: "Saros Z70",
+			instanceName: "4d3ae9e297c84a7e80a23ffe4f78a59e",
+			bundleKind: "hermes-bytecode",
+			useJsModules: true,
+			languages: [
+				{
+					language: "zh-CN",
+					moduleId: 480,
+					dictionary: buildDictionary({
+						default_room_name: "房间",
+						recover_map_hint: "恢复地图后，相关配置需要重新设置。",
+					}),
+				},
+			],
+		});
 
-		runExtractorForPlugin("Saros Z70", outputDir);
-		const instance = extractor.discoverPluginInstances(appPluginsRoot, "Saros Z70")[0];
+		runExtractorForPlugin(tempRoot, "Saros Z70", outputDir);
+		const instance = extractor.discoverPluginInstances(tempRoot, "Saros Z70")[0];
 		const result = extractor.processPluginInstance(instance, { quiet: true, noWrite: true });
 
 		const zhCn = readJson(path.join(outputDir, "zh-CN.json"));
 
-		expect(zhCn.default_room_name).toBe(extractValueFromSplitModule(zhModulePath, "default_room_name"));
-		expect(zhCn.recover_map_hint).toBe(extractValueFromSplitModule(zhModulePath, "recover_map_hint"));
+		expect(zhCn.default_room_name).toBe("房间");
+		expect(zhCn.recover_map_hint).toBe("恢复地图后，相关配置需要重新设置。");
+		expect(fs.readFileSync(fixture.modulePaths["zh-CN"], "utf8")).toContain('"default_room_name": "房间"');
 		expect(result.bundleKind.kind).toBe("hermes-bytecode");
 		expect(result.moduleStrategy).toBe("js_modules");
 	});
@@ -275,7 +453,31 @@ describe("extract_appplugin_translations", () => {
 			"utf8",
 		);
 
-		runExtractorForPlugin("Q10 X5+", runtimeFile);
+		writeMetroPluginFixture({
+			rootDir: tempRoot,
+			modelName: "Q10 X5+",
+			instanceName: "019bdf41f583723bb937ccc99bbd7541",
+			languages: [
+				{
+					language: "en",
+					moduleId: 1598,
+					dictionary: buildDictionary({
+						device_ctrl_charge: "Charge",
+						device_state_remoting: "Remote control",
+					}),
+				},
+				{
+					language: "de",
+					moduleId: 1600,
+					dictionary: buildDictionary({
+						device_ctrl_charge: "Laden",
+						device_state_remoting: "Fernsteuerung",
+					}),
+				},
+			],
+		});
+
+		runExtractorForPlugin(tempRoot, "Q10 X5+", runtimeFile);
 
 		const runtime = readJson(runtimeFile);
 
