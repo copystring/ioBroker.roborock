@@ -107,6 +107,7 @@ describe("prepare_appplugin_bundles", () => {
 	});
 
 	it("reports invalid Hermes bundles cleanly when automatic decompilation cannot recover them", () => {
+		process.env.ROBOROCK_APPPLUGINS_NO_AUTO_INSTALL = "1";
 		const tempRoot = registerTempDir();
 		const instanceDir = path.join(tempRoot, "Model B", "raw-only");
 		ensureDir(instanceDir);
@@ -123,7 +124,7 @@ describe("prepare_appplugin_bundles", () => {
 			action: "unsupported-hermes-bytecode",
 			bundleKind: { kind: "hermes-bytecode" },
 		});
-		expect(results[0].issues.join("\n")).toMatch(/Hermes decompiler failed|no usable JS surface/i);
+		expect(results[0].issues.join("\n")).toMatch(/auto-install disabled|Hermes decompiler failed|no usable JS surface/i);
 	});
 
 	it("can disable automatic Hermes tool installation explicitly", () => {
