@@ -38,7 +38,7 @@ jobs:
           cache: 'npm'
       - uses: ioBroker/testing-action-check@v1
         with:
-          node-version: '22.x'
+          node-version: '24.x'
           # Uncomment the following line if your adapter cannot be installed using 'npm ci'
           # install-command: 'npm install'
           lint: true
@@ -100,7 +100,7 @@ jobs:
     steps:
       - uses: ioBroker/testing-action-deploy@v1
         with:
-          node-version: '22.x'
+          node-version: '24.x'
           # Uncomment the following line if your adapter cannot be installed using 'npm ci'
           # install-command: 'npm install'
           github-token: ${{ secrets.GITHUB_TOKEN }}
