@@ -79,7 +79,7 @@
     "strip-json-comments": "^5.0.3",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.59.0",
-    "vitest": "^4.1.4",
+    "vitest": "^4.1.5",
     "yaml-lint": "^1.7.0"
   },
   "main": "src/main.ts",
