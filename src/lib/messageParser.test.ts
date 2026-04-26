@@ -70,12 +70,12 @@ describe("messageParser", () => {
 		});
 	});
 
-	it("should keep dps.4 for non-L01 protocol 4 payloads", async () => {
+	it("should build protocol 1.0 TCP payloads with dps.101 inside protocol 4 frames", async () => {
 		const payload = await parser.buildPayload(4, 1806, "get_prop", ["get_status"], "1.0");
 		const decodedPayload = JSON.parse(payload);
 
-		expect(decodedPayload.dps["4"]).to.be.a("string");
-		expect(decodedPayload.dps["101"]).to.be.undefined;
+		expect(decodedPayload.dps["101"]).to.be.a("string");
+		expect(decodedPayload.dps["4"]).to.be.undefined;
 	});
 
 	it("tracks transport sequence per device and wraps without using zero", () => {
