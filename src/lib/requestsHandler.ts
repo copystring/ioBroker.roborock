@@ -156,10 +156,7 @@ export class RoborockRequest {
 				}
 				this.handler.lastB01Id = this.messageID;
 			} else {
-				const minId = (this.adapter.instance * 20000) + 300;
-				const maxId = (this.adapter.instance * 20000) + 20000;
-				this.handler.idCounter = this.handler.idCounter > maxId ? minId : this.handler.idCounter + 1;
-				this.messageID = this.handler.idCounter;
+				this.messageID = this.handler.nextMessageId();
 			}
 		}
 
@@ -217,7 +214,10 @@ export class RoborockRequest {
 		} else {
 			this.adapter.rLog("TCP", this.duid, "->", `${version}`, protocol, `${this.method}${logParams} | qSize: ${qSize} | waited: ${queueDuration}ms`, "debug", logMsgId);
 		}
-		const roborockMessage = await this.handler.messageParser.buildRoborockMessage(this.duid, protocol, timestamp, payload, version, this.messageID);
+		// Local TCP uses a socket msgId separate from the JSON request id; L01 also
+		// feeds that frame id into AES-GCM/replay state.
+		const transportSequenceId = protocol === 4 ? undefined : this.messageID;
+		const roborockMessage = await this.handler.messageParser.buildRoborockMessage(this.duid, protocol, timestamp, payload, version, transportSequenceId);
 
 		const localConnectionState = this.adapter.local_api.isConnected(this.duid);
 
@@ -348,6 +348,32 @@ export class requestsHandler {
 		"service.upload_by_maptype"
 	];
 
+	private getMinMessageId(): number {
+		return (this.adapter.instance * 20000) + 300;
+	}
+
+	private getMaxMessageId(): number {
+		return (this.adapter.instance * 20000) + 20000;
+	}
+
+	public nextMessageId(): number {
+		if (this.idCounter >= this.getMaxMessageId()) {
+			this.resetMessageIdCounter("wrapped");
+		}
+
+		this.idCounter += 1;
+		return this.idCounter;
+	}
+
+	private resetMessageIdCounter(reason: "scheduled" | "wrapped"): void {
+		const previousId = this.idCounter;
+		const resetId = this.getMinMessageId();
+		const resetReason = reason === "scheduled" ? "scheduled reset" : "counter wrap";
+
+		this.adapter.rLog("System", null, "Debug", "N/A", undefined, `Resetting request ID counter (${resetReason}) from ${previousId} to ${resetId}. TCP transport sequence remains independent.`, "debug");
+		this.idCounter = resetId;
+	}
+
 	public static getLogLevelForMethod(method: string): "info" | "debug" {
 		const m = method.toLowerCase();
 		const isPoll = requestsHandler.POLL_METHODS.some(pollMethod => m.includes(pollMethod)) || m.startsWith("service.get");
@@ -357,8 +383,7 @@ export class requestsHandler {
 	private scheduleMqttReset() {
 		if (this.mqttResetInterval) this.adapter.clearInterval(this.mqttResetInterval);
 		this.mqttResetInterval = this.adapter.setInterval(() => {
-			this.adapter.rLog("System", null, "Debug", "N/A", undefined, "Resetting MQTT message ID counter", "debug");
-			this.idCounter = 300;
+			this.resetMessageIdCounter("scheduled");
 		}, 24 * 60 * 60 * 1000); // 24h
 	}
 

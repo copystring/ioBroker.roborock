@@ -113,4 +113,28 @@ describe("Queue Deep Dive (requestsHandler)", () => {
 		// Expect: blocker (started), then high, then low
 		expect(executionOrder).to.deep.equal(["blocker", "high", "low"]);
 	});
+
+	it("does not reuse request IDs as local TCP transport message IDs", async () => {
+		let payloadRequestId: number | undefined;
+		let transportSequenceId: number | undefined;
+
+		mockAdapter.getDeviceProtocolVersion = async () => "L01";
+		handler.messageParser.buildPayload = async (_protocol, messageID) => {
+			payloadRequestId = messageID;
+			return "payload";
+		};
+		handler.messageParser.buildRoborockMessage = async (_duid, _protocol, _timestamp, _payload, _version, sequenceId) => {
+			transportSequenceId = sequenceId;
+			return Buffer.from("msg");
+		};
+
+		const requestPromise = handler.sendRequest("duid", "get_status", []);
+		await new Promise(res => setTimeout(res, 10));
+
+		expect(payloadRequestId).to.equal(301);
+		expect(transportSequenceId).to.equal(undefined);
+
+		handler.resolvePendingRequest(301, ["ok"], 4, "duid", "TCP");
+		await expect(requestPromise).resolves.to.deep.equal(["ok"]);
+	});
 });

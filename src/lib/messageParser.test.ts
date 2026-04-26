@@ -77,4 +77,17 @@ describe("messageParser", () => {
 		expect(decodedPayload.dps["4"]).to.be.a("string");
 		expect(decodedPayload.dps["101"]).to.be.undefined;
 	});
+
+	it("tracks transport sequence per device and wraps without using zero", () => {
+		const localParser = new messageParser(mockAdapter);
+		localParser.resetTransportSequence("test-duid", 0xffff);
+
+		expect(localParser.nextTransportSequenceId("test-duid")).to.equal(0xffff);
+		expect(localParser.nextTransportSequenceId("test-duid")).to.equal(1);
+
+		localParser.resetTransportSequence("other-duid");
+
+		expect(localParser.nextTransportSequenceId("other-duid")).to.equal(1);
+		expect(localParser.nextTransportSequenceId("test-duid")).to.equal(2);
+	});
 });
