@@ -596,6 +596,7 @@ export class local_api {
 			const connectNonce = Math.floor(Math.random() * 1e9);
 			dev.connectNonce = connectNonce;
 			dev.ackNonce = undefined; // Reset for new handshake
+			this.adapter.requestsHandler.messageParser.resetTransportSequence(duid);
 
 			await this.sendHello(duid, connectNonce, version);
 		} catch (err: unknown) {
@@ -653,7 +654,7 @@ export class local_api {
 
 	/** Hello packet (Step 1 of Handshake), once per L01 TCP connection. */
 	async sendHello(duid: string, connectNonce: number, version: string): Promise<void> {
-		const seq = 1;
+		const seq = this.adapter.requestsHandler.messageParser.nextTransportSequenceId(duid);
 		const timestamp = Math.floor(Date.now() / 1000);
 		const protocol = 0; // 0 = Hello Request
 
@@ -679,7 +680,7 @@ export class local_api {
 
 		this.sendMessage(duid, wrapped);
 
-		this.adapter.rLog("TCP", duid, "->", version, 0, `Hello Handshake Step 1 Sent. Nonce=${connectNonce}, Timestamp=${timestamp}`, "debug");
+		this.adapter.rLog("TCP", duid, "->", version, 0, `Hello Handshake Step 1 Sent. Seq=${seq}, Nonce=${connectNonce}, Timestamp=${timestamp}`, "debug");
 	}
 
 	isLocalDevice(duid: string): boolean {

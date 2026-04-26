@@ -29,9 +29,9 @@ export type Frame = z.infer<typeof FrameSchema> & { version: ProtocolVersion };
 
 const HEADER_LEN = 3 + 4 + 4 + 4 + 2 + 2; // version(3) + seq(4) + random(4) + timestamp(4) + protocol(2) + payloadLen(2)
 const CRC32_LEN = 4;
+const MAX_SOCKET_MESSAGE_ID = 0xffff;
 
-// Persistent global sequence and random counters
-let seq = 1;
+// Persistent random counter. Local socket message ids are tracked per device/session.
 let random = 4711;
 
 // --------------------
@@ -91,9 +91,23 @@ const encryptors: Record<ProtocolVersion, (...args: any[]) => Buffer> = {
 
 export class messageParser {
 	adapter: Roborock;
+	private transportSequences = new Map<string, number>();
 
 	constructor(adapter: Roborock) {
 		this.adapter = adapter;
+	}
+
+	resetTransportSequence(duid: string, nextSequenceId = 1): void {
+		const normalized = nextSequenceId >>> 0;
+		this.transportSequences.set(duid, normalized === 0 || normalized > MAX_SOCKET_MESSAGE_ID ? 1 : normalized);
+	}
+
+	nextTransportSequenceId(duid: string): number {
+		const stored = this.transportSequences.get(duid) ?? 1;
+		const current = stored === 0 || stored > MAX_SOCKET_MESSAGE_ID ? 1 : stored;
+		const next = current >= MAX_SOCKET_MESSAGE_ID ? 1 : current + 1;
+		this.transportSequences.set(duid, next);
+		return current;
 	}
 
 	/**
@@ -329,7 +343,7 @@ export class messageParser {
 	 * Builds complete Roborock binary frame.
 	 */
 	async buildRoborockMessage(duid: string, protocol: number, timestamp: number, payload: string | Buffer, version: string, sequenceId?: number): Promise<Buffer | false> {
-		const s = (sequenceId !== undefined ? sequenceId : seq++) >>> 0;
+		const s = (sequenceId !== undefined ? sequenceId : this.nextTransportSequenceId(duid)) >>> 0;
 		const r = random++ >>> 0;
 
 		const localKey = this.adapter.http_api.getMatchedLocalKeys().get(duid);
