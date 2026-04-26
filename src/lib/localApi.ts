@@ -26,11 +26,14 @@ interface LocalDevice {
 class EnhancedSocket extends Socket {
 	connected: boolean;
 	chunkBuffer: Buffer;
+	receivedBytes: number;
+	lastReceivedAt?: number;
 
 	constructor(options?: SocketConstructorOpts) {
 		super(options);
 		this.connected = false;
 		this.chunkBuffer = Buffer.alloc(0);
+		this.receivedBytes = 0;
 
 		(this as any).on("connect", () => {
 			this.connected = true;
@@ -168,6 +171,7 @@ export class local_api {
 				client.setKeepAlive(true, 30000); // Keep connection alive through NAT; 30s initial delay
 				this.deviceSockets[duid] = client;
 				this.reconnectPlanned.delete(duid);
+				this.adapter.requestsHandler.messageParser.resetTransportSequence(duid);
 
 				const version = this.getLocalProtocolVersion(duid);
 				if (version === "L01") {
@@ -180,6 +184,10 @@ export class local_api {
 		// Handle incoming data
 		client.on("data", async (message: Buffer) => {
 			try {
+				client.lastReceivedAt = Date.now();
+				client.receivedBytes += message.length;
+				this.adapter.rLog("TCP", duid, "<-", this.getLocalProtocolVersion(duid) ?? undefined, undefined, `raw data | bytes=${message.length} | totalRx=${client.receivedBytes} | bufferedBefore=${client.chunkBuffer.length}`, "debug");
+
 				// Buffering logic
 				if (client.chunkBuffer.length === 0) {
 					if (!this.checkComplete(message)) {
@@ -203,6 +211,9 @@ export class local_api {
 						// Check for Control Frames (Hello Response, Ping Response)
 						// Protocol 1 (Hello Response) is unencrypted and critical for L01 handshake
 						const protocol = currentBuffer.readUInt16BE(15);
+						const frameVersion = currentBuffer.subarray(0, 3).toString();
+						const frameMsgId = currentBuffer.length >= 7 ? currentBuffer.readUInt32BE(3) : undefined;
+						this.adapter.rLog("TCP", duid, "<-", frameVersion, protocol, `frame header | tcpMsgId=${frameMsgId ?? "n/a"} | frameBytes=${segmentLength}`, "debug");
 
 						if (protocol === 1) { // hello_response (CONNACK)
 							const nonce = currentBuffer.readUInt32BE(7);

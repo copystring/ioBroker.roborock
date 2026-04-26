@@ -208,16 +208,17 @@ export class RoborockRequest {
 		const qSize = this.manager.queue.size;
 		// Do not show internal request ID for B01 301 map methods.
 		const logMsgId = (version === "B01" && (this.method === "get_clean_record_map" || this.method === "get_map_v1")) ? undefined : this.messageID;
+		// Local TCP uses a socket msgId separate from the JSON request id; L01 also
+		// feeds that frame id into AES-GCM/replay state.
+		const transportMessageId = protocol === 4 ? this.handler.messageParser.nextTransportSequenceId(this.duid) : this.messageID;
+		const tcpFrameLog = protocol === 4 ? ` | tcpMsgId: ${transportMessageId}` : "";
 
 		if (connectionType === "MQTT") {
 			this.adapter.rLog("MQTT", this.duid, "->", `${version}`, protocol, `${this.method}${logParams} | qSize: ${qSize} | waited: ${queueDuration}ms`, logLevel, logMsgId);
 		} else {
-			this.adapter.rLog("TCP", this.duid, "->", `${version}`, protocol, `${this.method}${logParams} | qSize: ${qSize} | waited: ${queueDuration}ms`, "debug", logMsgId);
+			this.adapter.rLog("TCP", this.duid, "->", `${version}`, protocol, `${this.method}${logParams}${tcpFrameLog} | qSize: ${qSize} | waited: ${queueDuration}ms`, "debug", logMsgId);
 		}
-		// Local TCP uses a socket msgId separate from the JSON request id; L01 also
-		// feeds that frame id into AES-GCM/replay state.
-		const transportSequenceId = protocol === 4 ? undefined : this.messageID;
-		const roborockMessage = await this.handler.messageParser.buildRoborockMessage(this.duid, protocol, timestamp, payload, version, transportSequenceId);
+		const roborockMessage = await this.handler.messageParser.buildRoborockMessage(this.duid, protocol, timestamp, payload, version, transportMessageId);
 
 		const localConnectionState = this.adapter.local_api.isConnected(this.duid);
 

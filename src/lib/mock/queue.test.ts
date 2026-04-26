@@ -132,7 +132,7 @@ describe("Queue Deep Dive (requestsHandler)", () => {
 		await new Promise(res => setTimeout(res, 10));
 
 		expect(payloadRequestId).to.equal(301);
-		expect(transportSequenceId).to.equal(undefined);
+		expect(transportSequenceId).to.equal(1);
 
 		handler.resolvePendingRequest(301, ["ok"], 4, "duid", "TCP");
 		await expect(requestPromise).resolves.to.deep.equal(["ok"]);
