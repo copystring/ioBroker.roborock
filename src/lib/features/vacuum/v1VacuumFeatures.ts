@@ -405,87 +405,142 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 	}
 
 	public async updateCleanSummary(): Promise<void> {
-		await this.requestAndProcess("get_clean_summary", [], "cleaningInfo", async (data) => {
-			// Mapper now only handles list processing, value conversion moved to processResultKey
-			// Always process records when present (so cleaningInfo.records.* is populated).
-			// Map images are only fetched when enable_map_creation is true.
-			if (Array.isArray(data.records)) {
-				const mapQueue = new PQueue({ concurrency: 1 });
+		try {
+			const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_clean_summary", []);
+			const summary = this.normalizeV1CleanSummary(result);
 
-				// Get all existing start times in one go to detect shifts
-				// Get all existing start times in one go using explicit IDs to avoid wildcard scan warning
-				const existingStartTimes: Record<string, number> = {}; // timestamp -> index
-				// Use dynamic count from the device response.
-				// If a record was previously at a higher index (list shrank), it will be treated as new and re-fetched.
-				const scanLimit = data.records.length;
-				const checkIndices = Array.from({ length: scanLimit }, (_, i) => i);
-				const namespace = this.deps.adapter.namespace;
-				const recordIds = checkIndices.map(i => `${namespace}.Devices.${this.duid}.cleaningInfo.records.${i}.startTime`);
-
-				const states = await this.deps.adapter.getForeignStatesAsync(recordIds);
-
-				if (states) {
-					for (const id in states) {
-						if (states[id] && states[id].val) {
-							// ID structure: roborock.0.Devices.<duid>.cleaningInfo.records.<index>.startTime
-							const parts = id.split(".");
-							// We need <index> which is 2nd from last
-							const index = parseInt(parts[parts.length - 2]);
-							if (!isNaN(index)) {
-								existingStartTimes[String(states[id].val)] = index;
-							}
-						}
-					}
-				}
-
-				// Sort records descending (newest first)
-				const sortedRecords = [...data.records].sort((a, b) => b - a);
-
-				// Process shifts safely:
-				// - Shift Left (Deletion: index moves 2 -> 1): Must process ASCENDING (1, 2, 3...) to avoid overwriting source.
-				// - Shift Right (Insertion: index moves 1 -> 2): Must process DESCENDING (3, 2, 1...) to avoid overwriting source.
-
-				const moves: { old: number, new: number }[] = [];
-				const newRecs: { index: number, time: number }[] = [];
-
-				for (let i = 0; i < sortedRecords.length; i++) {
-					const time = sortedRecords[i];
-					const oldIndex = existingStartTimes[time];
-
-					if (oldIndex !== undefined && oldIndex !== i) {
-						moves.push({ old: oldIndex, new: i });
-					} else if (oldIndex === undefined) {
-						newRecs.push({ index: i, time });
-					}
-				}
-
-				// 1. Handle Deletions/Left Shifts (e.g. Clean history shortened) - Ascending Order
-				const leftShifts = moves.filter(m => m.old > m.new).sort((a, b) => a.new - b.new);
-				for (const m of leftShifts) {
-					await this.copyRecordStates(m.old, m.new);
-				}
-
-				// 2. Handle Insertions/Right Shifts (New record added at top) - Descending Order
-				const rightShifts = moves.filter(m => m.old < m.new).sort((a, b) => b.new - a.new);
-				for (const m of rightShifts) {
-					await this.copyRecordStates(m.old, m.new);
-				}
-
-				// 3. Process New Records
-				for (const { index, time } of newRecs) {
-					const i = index;
-					const newIndex = index;
-					const startTime = time;
-					await this.fetchAndSaveRecord(startTime, newIndex, i < 3 ? 10 : 0, mapQueue);
-				}
-				await mapQueue.onIdle();
+			if (!summary) {
+				this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, "Invalid V1 clean summary format", "warn");
+				return;
 			}
 
-			// Return summary fields only; records are written above as cleaningInfo.records.<index>.*
-			const rest = { ...data };
-			delete rest.records;
-			return rest;
-		});
+			await this.processV1CleanSummary(summary);
+		} catch (e: unknown) {
+			this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Failed to update cleaningInfo (method: get_clean_summary): ${this.deps.adapter.errorMessage(e)}`, "warn");
+		}
+	}
+
+	private normalizeV1CleanSummary(result: unknown): Record<string, unknown> | null {
+		const unwrapped = this.unwrapSingleElementArrays(result);
+
+		if (Array.isArray(unwrapped)) {
+			const numericEntries = this.getIndexedNumbers(unwrapped);
+			if (numericEntries.length === 0) return null;
+
+			const records = this.findRecordStartTimes(unwrapped);
+			const summary = this.inferV1CleanSummaryFields(numericEntries, records.length);
+			for (const { index, value } of numericEntries) {
+				summary[`field_${index}`] = value;
+			}
+			summary.records = records;
+			return summary;
+		}
+
+		if (this.isPlainObject(unwrapped)) {
+			const summary = { ...unwrapped };
+			if (Array.isArray(summary.records)) {
+				summary.records = this.normalizeRecordStartTimes(summary.records);
+			}
+			return summary;
+		}
+
+		return null;
+	}
+
+	private inferV1CleanSummaryFields(entries: Array<{ index: number; value: number }>, recordCount: number): Record<string, unknown> {
+		const summary: Record<string, unknown> = {};
+		const used = new Set<number>();
+
+		const area = entries
+			.filter(entry => entry.value >= 1_000_000)
+			.sort((a, b) => b.value - a.value)[0];
+		if (area) {
+			summary.clean_area = area.value;
+			used.add(area.index);
+		}
+
+		const count = entries
+			.filter(entry => !used.has(entry.index) && entry.value >= recordCount && entry.value < 1_000_000)
+			.sort((a, b) => a.value - b.value)[0];
+		if (count) {
+			summary.clean_count = count.value;
+			used.add(count.index);
+		}
+
+		const time = entries
+			.filter(entry => !used.has(entry.index))
+			.sort((a, b) => b.value - a.value)[0];
+		if (time) {
+			summary.clean_time = time.value;
+		}
+
+		return summary;
+	}
+
+	private async processV1CleanSummary(summary: Record<string, unknown>): Promise<void> {
+		const records = Array.isArray(summary.records) ? this.normalizeRecordStartTimes(summary.records) : [];
+		const rest = { ...summary };
+		delete rest.records;
+
+		await this.deps.ensureFolder(`Devices.${this.duid}.cleaningInfo`);
+		for (const key in rest) {
+			await this.processResultKey("cleaningInfo", key, rest[key]);
+		}
+
+		await this.syncV1CleanRecords(records);
+	}
+
+	private async syncV1CleanRecords(records: number[]): Promise<void> {
+		if (records.length === 0) return;
+
+		const mapQueue = new PQueue({ concurrency: 1 });
+		const existingStartTimes: Record<string, number> = {};
+		const namespace = this.deps.adapter.namespace;
+		const recordIds = records.map((_, i) => `${namespace}.Devices.${this.duid}.cleaningInfo.records.${i}.startTime`);
+		const states = await this.deps.adapter.getForeignStatesAsync(recordIds);
+
+		if (states) {
+			for (const id in states) {
+				if (states[id] && states[id].val) {
+					const parts = id.split(".");
+					const index = parseInt(parts[parts.length - 2]);
+					if (!isNaN(index)) {
+						existingStartTimes[String(states[id].val)] = index;
+					}
+				}
+			}
+		}
+
+		const sortedRecords = [...records].sort((a, b) => b - a);
+		const moves: { old: number, new: number }[] = [];
+		const newRecs: { index: number, time: number }[] = [];
+
+		for (let i = 0; i < sortedRecords.length; i++) {
+			const time = sortedRecords[i];
+			const oldIndex = existingStartTimes[time];
+
+			if (oldIndex !== undefined && oldIndex !== i) {
+				moves.push({ old: oldIndex, new: i });
+			} else if (oldIndex === undefined) {
+				newRecs.push({ index: i, time });
+			}
+		}
+
+		const leftShifts = moves.filter(m => m.old > m.new).sort((a, b) => a.new - b.new);
+		for (const m of leftShifts) {
+			await this.copyRecordStates(m.old, m.new);
+		}
+
+		const rightShifts = moves.filter(m => m.old < m.new).sort((a, b) => b.new - a.new);
+		for (const m of rightShifts) {
+			await this.copyRecordStates(m.old, m.new);
+		}
+
+		for (const { index, time } of newRecs) {
+			await this.fetchAndSaveRecord(time, index, index < 3 ? 10 : 0, mapQueue);
+		}
+
+		await mapQueue.onIdle();
 	}
 
 	private async copyRecordStates(from: number, to: number): Promise<void> {
@@ -516,12 +571,12 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 
 				// 2. Fetch Metadata
 				const recordsDetails = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_clean_record", [startTime]);
-				if (Array.isArray(recordsDetails) && recordsDetails.length > 0 && recordsDetails[0]) {
-					const record = recordsDetails[0];
+				const record = this.normalizeV1CleanRecord(recordsDetails);
+				if (record) {
 					for (const key in record) {
 						let val = record[key];
-						if (key === "area" || key === "cleaned_area") val = Math.round(val / 1000000);
-						else if (key === "duration") val = Math.round(val / 60);
+						if (key === "area" || key === "cleaned_area") val = Math.round(Number(val) / 1000000);
+						else if (key === "duration") val = Math.round(Number(val) / 60);
 						await this.processResultKey(fullRecordPath, key, val);
 					}
 				}
@@ -549,6 +604,99 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 				this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, `Background fetch for record ${startTime} failed: ${e.message}`, "warn");
 			}
 		}, { priority });
+	}
+
+	private normalizeV1CleanRecord(result: unknown): Record<string, unknown> | null {
+		const unwrapped = this.unwrapSingleElementArrays(result);
+
+		if (Array.isArray(unwrapped)) {
+			const record = this.inferV1CleanRecordFields(unwrapped);
+			unwrapped.forEach((value, index) => {
+				if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+					record[`field_${index}`] = value;
+				}
+			});
+			return Object.keys(record).length > 0 ? record : null;
+		}
+
+		if (this.isPlainObject(unwrapped)) {
+			return { ...unwrapped };
+		}
+
+		return null;
+	}
+
+	private inferV1CleanRecordFields(values: unknown[]): Record<string, unknown> {
+		const record: Record<string, unknown> = {};
+		const timestampPairIndex = this.findAdjacentTimestampPairIndex(values);
+		if (timestampPairIndex === -1) return record;
+
+		record.begin = values[timestampPairIndex];
+		record.end = values[timestampPairIndex + 1];
+
+		const duration = values[timestampPairIndex + 2];
+		if (typeof duration === "number" && Number.isFinite(duration) && duration >= 0) {
+			record.duration = duration;
+		}
+
+		const area = values[timestampPairIndex + 3];
+		if (typeof area === "number" && Number.isFinite(area) && area >= 0) {
+			record.area = area;
+		}
+
+		return record;
+	}
+
+	private findAdjacentTimestampPairIndex(values: unknown[]): number {
+		for (let i = 0; i < values.length - 1; i++) {
+			const begin = values[i];
+			const end = values[i + 1];
+			if (this.isUnixTimestamp(begin) && this.isUnixTimestamp(end) && begin <= end) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	private isUnixTimestamp(value: unknown): value is number {
+		return typeof value === "number" && Number.isFinite(value) && value > 946684800 && value < 4102444800;
+	}
+
+	private getIndexedNumbers(values: unknown[]): Array<{ index: number; value: number }> {
+		const result: Array<{ index: number; value: number }> = [];
+		values.forEach((value, index) => {
+			if (typeof value === "number" && Number.isFinite(value)) {
+				result.push({ index, value });
+			}
+		});
+		return result;
+	}
+
+	private findRecordStartTimes(values: unknown[]): number[] {
+		for (const value of values) {
+			if (Array.isArray(value)) {
+				const records = this.normalizeRecordStartTimes(value);
+				if (records.length > 0) return records;
+			}
+		}
+		return [];
+	}
+
+	private normalizeRecordStartTimes(records: unknown): number[] {
+		if (!Array.isArray(records)) return [];
+		return records.map(record => Number(record)).filter(Number.isFinite);
+	}
+
+	private unwrapSingleElementArrays(value: unknown): unknown {
+		let unwrapped = value;
+		while (Array.isArray(unwrapped) && unwrapped.length === 1) {
+			unwrapped = unwrapped[0];
+		}
+		return unwrapped;
+	}
+
+	private isPlainObject(value: unknown): value is Record<string, unknown> {
+		return typeof value === "object" && value !== null && !Array.isArray(value) && !Buffer.isBuffer(value);
 	}
 
 	public override async updateStatus(): Promise<void> {

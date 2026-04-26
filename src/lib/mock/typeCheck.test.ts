@@ -78,5 +78,34 @@ describe("Adapter Type Verification", () => {
 		await vacuumFeatures.initialize();
 		await vacuumFeatures.updateCleanSummary();
 		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.clean_time`]).to.equal(123);
+		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.clean_count`]).to.equal(190);
+		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.records.0.startTime`]).to.equal(1765198801);
+	});
+
+	it("should process positional V1 clean summary and clean record arrays", async () => {
+		const originalSendRequest = depsMock.requestsHandler.sendRequest;
+		depsMock.requestsHandler.sendRequest = async (duid: string, method: string, params: any[]) => {
+			if (duid !== mockRobot.duid) return [];
+			if (method === "get_clean_summary") {
+				return [4373837, 76997095000, 2626, [1774980747, 1774980736, 1774980728]];
+			}
+			if (method === "get_clean_record") {
+				const startTime = Number(params[0]);
+				return [[startTime, startTime + 300, 300, 6165000, 0, 1, 2, 3, 56]];
+			}
+			return originalSendRequest(duid, method, params);
+		};
+
+		await vacuumFeatures.initialize();
+		await vacuumFeatures.updateCleanSummary();
+
+		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.clean_time`]).to.equal(1215);
+		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.clean_area`]).to.equal(76997);
+		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.clean_count`]).to.equal(2626);
+		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.records.0.startTime`]).to.equal(1774980747);
+		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.records.0.duration`]).to.equal(5);
+		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.records.0.area`]).to.equal(6);
+		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.records.0.field_8`]).to.equal(56);
+		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.records.0.0`]).to.be.undefined;
 	});
 });
