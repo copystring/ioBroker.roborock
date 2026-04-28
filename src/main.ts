@@ -333,7 +333,7 @@ export class Roborock extends utils.Adapter {
 		}
 	}
 
-	/** TCP keepalive (fixed 30s in localApi). Fire-and-forget. */
+	/** Legacy request-based keepalive. TCP socket sessions now use localApi PINGREQ frames. */
 	sendTcpKeepalive(duid: string): void {
 		this.requestsHandler.sendRequest(duid, "get_prop", ["get_status"], { priority: RequestPriority.LOW }).catch(() => {});
 	}

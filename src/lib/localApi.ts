@@ -99,7 +99,7 @@ export class local_api {
 	private discoveryTimer: NodeJS.Timeout | null = null;
 	private gracePeriodTimer: NodeJS.Timeout | null = null;
 	private tcpKeepaliveInterval: ioBroker.Interval | undefined = undefined;
-	private static readonly TCP_KEEPALIVE_MS = 30_000; // 30s
+	private static readonly TCP_KEEPALIVE_MS = 10_000;
 
 	constructor(adapter: Roborock) {
 		this.adapter = adapter;
@@ -228,8 +228,11 @@ export class local_api {
 						} else if (segmentLength === 17 || segmentLength === 21) {
 							// Short frames logic (Ping Response etc)
 							switch (protocol) {
-								case 5: // ping_response
-
+								case 3: // PINGRESP
+									this.adapter.rLog("TCP", duid, "<-", frameVersion, protocol, `pingresp`, "debug");
+									break;
+								case 5: // PUBACK
+									this.adapter.rLog("TCP", duid, "<-", frameVersion, protocol, `puback | tcpMsgId=${frameMsgId ?? "n/a"}`, "debug");
 									break;
 
 								default:
@@ -241,6 +244,9 @@ export class local_api {
 							for (const data of allMessages) {
 								// Protocol 4: Device Status Update
 								if (data.protocol === 4 || data.version === "B01") {
+									if (data.protocol === 4) {
+										this.sendPubAck(duid, data.seq, data.version);
+									}
 									const payloadStr = data.payload.toString();
 									let parsedPayload;
 									try {
@@ -326,15 +332,15 @@ export class local_api {
 		this.cloudDevices.delete(duid);
 	}
 
-	/** Sends get_prop every 30s for L01 TCP so connection stays below device ~60s idle timeout. */
+	/** Sends app-style PINGREQ frames so the socket session stays alive. */
 	startTcpKeepaliveInterval(): void {
 		if (this.tcpKeepaliveInterval) return;
 		this.tcpKeepaliveInterval = this.adapter.setInterval(() => {
 			for (const duid of Object.keys(this.deviceSockets)) {
-				const client = this.deviceSockets[duid];
-				if (!client?.connected) continue;
-				if (this.getLocalProtocolVersion(duid) !== "L01") continue;
-				this.adapter.sendTcpKeepalive(duid);
+				if (!this.isConnected(duid)) continue;
+				const version = this.getLocalProtocolVersion(duid);
+				if (version !== "1.0" && version !== "L01") continue;
+				this.sendPing(duid);
 			}
 		}, local_api.TCP_KEEPALIVE_MS);
 	}
@@ -384,20 +390,24 @@ export class local_api {
 	 * Checks if the buffer contains a complete message (or multiple complete messages).
 	 */
 	checkComplete(buffer: Buffer): boolean {
-		let totalLength = 0;
 		let offset = 0;
+
+		if (buffer.length < 4) {
+			return false;
+		}
 
 		while (offset + 4 <= buffer.length) {
 			const segmentLength = buffer.readUInt32BE(offset);
-			totalLength += 4 + segmentLength;
-			offset += 4 + segmentLength;
+			const nextOffset = offset + 4 + segmentLength;
 
-			if (offset > buffer.length) {
+			if (nextOffset > buffer.length) {
 				return false; // Data implies more bytes than available
 			}
+
+			offset = nextOffset;
 		}
 
-		return totalLength <= buffer.length;
+		return offset === buffer.length;
 	}
 
 	clearChunkBuffer(duid: string): void {
@@ -733,23 +743,40 @@ export class local_api {
 
 		// Match the app socket CONNECT frame: 17-byte header + 4-byte keepalive.
 		// PUBLISH frames carry payload length and CRC, CONNECT/CONNACK do not.
-		const msg = Buffer.alloc(21);
-		msg.write(version);
-		msg.writeUInt32BE(0, 3);
-		msg.writeUInt32BE(connectNonce, 7);
-		msg.writeUInt32BE(0, 11);
-		msg.writeUInt16BE(protocol, 15);
-		msg.writeUInt32BE(keepAliveSeconds, 17);
-
-		// Prepend length of the message (4 bytes)
-		const lenBuf = Buffer.alloc(4);
-		lenBuf.writeUInt32BE(msg.length, 0);
-
-		const wrapped = Buffer.concat([lenBuf, msg] as Uint8Array[]);
+		const payload = Buffer.alloc(4);
+		payload.writeUInt32BE(keepAliveSeconds, 0);
+		const wrapped = this.buildControlFrame(version, 0, connectNonce, 0, protocol, payload);
 
 		this.sendMessage(duid, wrapped);
 
 		this.adapter.rLog("TCP", duid, "->", version, 0, `connect | connectNonce=${connectNonce} | keepAlive=${keepAliveSeconds}s`, "debug");
+	}
+
+	sendPing(duid: string): void {
+		const version = this.getLocalProtocolVersion(duid);
+		if (version !== "1.0" && version !== "L01") return;
+		this.sendMessage(duid, this.buildControlFrame(version, 0, 0, 0, 2));
+		this.adapter.rLog("TCP", duid, "->", version, 2, "pingreq", "debug");
+	}
+
+	private sendPubAck(duid: string, messageId: number, version: string): void {
+		this.sendMessage(duid, this.buildControlFrame(version, messageId, 0, 0, 5));
+		this.adapter.rLog("TCP", duid, "->", version, 5, `puback | tcpMsgId=${messageId}`, "debug");
+	}
+
+	private buildControlFrame(version: string, messageId: number, randomValue: number, timestamp: number, protocol: number, payload = Buffer.alloc(0)): Buffer {
+		const msg = Buffer.alloc(17 + payload.length);
+		msg.write(version);
+		msg.writeUInt32BE(messageId >>> 0, 3);
+		msg.writeUInt32BE(randomValue >>> 0, 7);
+		msg.writeUInt32BE(timestamp >>> 0, 11);
+		msg.writeUInt16BE(protocol, 15);
+		payload.copy(msg, 17);
+
+		const lenBuf = Buffer.alloc(4);
+		lenBuf.writeUInt32BE(msg.length, 0);
+
+		return Buffer.concat([lenBuf, msg] as Uint8Array[]);
 	}
 
 	isLocalDevice(duid: string): boolean {
