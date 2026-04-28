@@ -201,124 +201,110 @@ export class local_api {
 				client.receivedBytes += message.length;
 				this.adapter.rLog("TCP", duid, "<-", this.getLocalProtocolVersion(duid) ?? undefined, undefined, `raw data | bytes=${message.length} | totalRx=${client.receivedBytes} | bufferedBefore=${client.chunkBuffer.length}`, "debug");
 
-				// Buffering logic
-				if (client.chunkBuffer.length === 0) {
-					if (!this.checkComplete(message)) {
-					}
-					client.chunkBuffer = message;
-				} else {
-					client.chunkBuffer = Buffer.concat([client.chunkBuffer, message] as Uint8Array[]);
-				}
-
+				client.chunkBuffer = client.chunkBuffer.length === 0
+					? message
+					: Buffer.concat([client.chunkBuffer, message] as Uint8Array[]);
 				let offset = 0;
-				// Process buffer if it contains at least one complete message
-				if (this.checkComplete(client.chunkBuffer)) {
-					if (client.chunkBuffer.length !== message.length) {
 
+				while (offset + 4 <= client.chunkBuffer.length) {
+					const segmentLength = client.chunkBuffer.readUInt32BE(offset);
+					if (segmentLength < 17) {
+						this.adapter.rLog("TCP", duid, "Warn", this.getLocalProtocolVersion(duid) ?? undefined, undefined, `invalid frame length | frameBytes=${segmentLength} | buffered=${client.chunkBuffer.length}`, "warn");
+						this.clearChunkBuffer(duid);
+						this.scheduleReconnect(duid, "invalid frame length");
+						return;
 					}
 
-					while (offset + 4 <= client.chunkBuffer.length) {
-						const segmentLength = client.chunkBuffer.readUInt32BE(offset);
-						const currentBuffer = client.chunkBuffer.subarray(offset + 4, offset + segmentLength + 4);
+					const frameEnd = offset + 4 + segmentLength;
+					if (frameEnd > client.chunkBuffer.length) {
+						break;
+					}
 
-						// Control frames are unencrypted and establish/maintain the local socket session.
-						const protocol = currentBuffer.readUInt16BE(15);
-						const frameVersion = currentBuffer.subarray(0, 3).toString();
-						const frameMsgId = currentBuffer.length >= 7 ? currentBuffer.readUInt32BE(3) : undefined;
-						this.adapter.rLog("TCP", duid, "<-", frameVersion, protocol, `frame header | tcpMsgId=${frameMsgId ?? "n/a"} | frameBytes=${segmentLength}`, "debug");
+					const currentBuffer = client.chunkBuffer.subarray(offset + 4, frameEnd);
 
-						if (protocol === 1) { // CONNACK
-							const nonce = currentBuffer.readUInt32BE(7);
-							const returnCode = currentBuffer.length >= 21 ? currentBuffer.readUInt32BE(17) : 0;
-							if (returnCode === 0 && this.localDevices[duid]) {
-								this.localDevices[duid].ackNonce = nonce;
-								this.resolveSessionAck(duid);
-								this.adapter.rLog("TCP", duid, "<-", "Control", 1, `connack | ackNonce=${nonce} | returnCode=${returnCode}`, "debug");
-							} else {
-								this.rejectSessionAck(duid, new Error(`TCP CONNACK rejected with returnCode=${returnCode}`));
-								this.adapter.rLog("TCP", duid, "<-", "Control", 1, `connack rejected | ackNonce=${nonce} | returnCode=${returnCode}`, "warn");
-							}
-						} else if (segmentLength === 17 || segmentLength === 21) {
-							// Short frames logic (Ping Response etc)
-							switch (protocol) {
-								case 3: // PINGRESP
-									client.pingOutstanding = Math.max(0, client.pingOutstanding - 1);
-									this.adapter.rLog("TCP", duid, "<-", frameVersion, protocol, `pingresp`, "debug");
-									break;
-								case 5: // PUBACK
-									this.adapter.rLog("TCP", duid, "<-", frameVersion, protocol, `puback | tcpMsgId=${frameMsgId ?? "n/a"}`, "debug");
-									break;
+					// Control frames are unencrypted and establish/maintain the local socket session.
+					const protocol = currentBuffer.readUInt16BE(15);
+					const frameVersion = currentBuffer.subarray(0, 3).toString();
+					const frameMsgId = currentBuffer.length >= 7 ? currentBuffer.readUInt32BE(3) : undefined;
+					this.adapter.rLog("TCP", duid, "<-", frameVersion, protocol, `frame header | tcpMsgId=${frameMsgId ?? "n/a"} | frameBytes=${segmentLength}`, "debug");
 
-								default:
-							}
+					if (protocol === 1) { // CONNACK
+						const nonce = currentBuffer.readUInt32BE(7);
+						const returnCode = currentBuffer.length >= 21 ? currentBuffer.readUInt32BE(17) : 0;
+						if (returnCode === 0 && this.localDevices[duid]) {
+							this.localDevices[duid].ackNonce = nonce;
+							this.resolveSessionAck(duid);
+							this.adapter.rLog("TCP", duid, "<-", "Control", 1, `connack | ackNonce=${nonce} | returnCode=${returnCode}`, "debug");
 						} else {
-							// Decode standard data message
-							const allMessages = this.adapter.requestsHandler.messageParser.decodeMsg(currentBuffer, duid);
+							this.rejectSessionAck(duid, new Error(`TCP CONNACK rejected with returnCode=${returnCode}`));
+							this.adapter.rLog("TCP", duid, "<-", "Control", 1, `connack rejected | ackNonce=${nonce} | returnCode=${returnCode}`, "warn");
+						}
+					} else if (segmentLength === 17 || segmentLength === 21) {
+						// Short frames logic (Ping Response etc)
+						switch (protocol) {
+							case 3: // PINGRESP
+								client.pingOutstanding = Math.max(0, client.pingOutstanding - 1);
+								this.adapter.rLog("TCP", duid, "<-", frameVersion, protocol, `pingresp`, "debug");
+								break;
+							case 5: // PUBACK
+								this.adapter.rLog("TCP", duid, "<-", frameVersion, protocol, `puback | tcpMsgId=${frameMsgId ?? "n/a"}`, "debug");
+								break;
 
-							for (const data of allMessages) {
-								// Protocol 4: Device Status Update
-								if (data.protocol === 4 || data.version === "B01") {
-									if (data.protocol === 4) {
-										this.sendPubAck(duid, data.seq, data.version);
-									}
-									const payloadStr = data.payload.toString();
-									let parsedPayload;
-									try {
-										parsedPayload = JSON.parse(payloadStr);
-									} catch (e) {
-										this.adapter.rLog("TCP", duid, "Error", data.version, undefined, `Parse Error | ${e}`, "warn");
-										continue;
-									}
-									if (data.version === "B01") {
-										const dps = parsedPayload.dps;
-										if (dps?.["10001"]) {
-											let inner = dps["10001"];
-											if (typeof inner === "string") {
-												try {
-													inner = JSON.parse(inner);
-												} catch (e) {
-													this.adapter.rLog("TCP", duid, "Error", "B01", undefined, `Nested JSON Parse Error | ${e}`, "warn");
-													continue;
-												}
-											}
-											const id = inner.msgId || inner.id;
-											const result = inner.code === 0 ? inner.data : (inner.error || inner.result);
+							default:
+						}
+					} else {
+						// Decode standard data message
+						const allMessages = this.adapter.requestsHandler.messageParser.decodeMsg(currentBuffer, duid);
 
-											if (id) {
-												this.adapter.requestsHandler.resolvePendingRequest(id, result, `Local-${data.version}`, duid, "TCP");
-											} else {
-												this.adapter.rLog("TCP", duid, "<-", "B01", undefined, `Received B01 message without ID.`, "warn");
-											}
-										}
-									} else if (data.protocol === 4) {
-										// Standard protocol 4 nested JSON in 'dps'
-										const dps = parsedPayload.dps;
-										if (dps) {
-											// Often dps["102"] is nested stringified loop
-											// Try to unpack if standard fields like 102 are present
-											let content = dps;
-											if (dps["102"]) {
-												try {
-													content = JSON.parse(dps["102"]);
-												} catch {}
-											}
-
-											if (content.id) {
-												this.adapter.requestsHandler.resolvePendingRequest(content.id, content.result, String(data.protocol), duid, "TCP");
-											}
-										}
-									}
-								} else {
-									// Explicitly log unknown protocols as Error to identify missing handlers
-									this.adapter.rLog("TCP", duid, "Error", data.version, data.protocol, `Unhandled Protocol ${data.protocol}`, "error");
+						for (const data of allMessages) {
+							// Protocol 4: Device Status Update
+							if (data.protocol === 4 || data.protocol === 6 || data.protocol === 7) {
+								this.sendPubAck(duid, data.seq, data.version);
+							}
+							if (data.protocol === 4 || data.version === "B01") {
+								const payloadStr = data.payload.toString();
+								let parsedPayload;
+								try {
+									parsedPayload = JSON.parse(payloadStr);
+								} catch (e) {
+									this.adapter.rLog("TCP", duid, "Error", data.version, undefined, `Parse Error | ${e}`, "warn");
+									continue;
 								}
+								if (data.version === "B01") {
+									const dps = parsedPayload.dps;
+									if (dps?.["10001"]) {
+										let inner = dps["10001"];
+										if (typeof inner === "string") {
+											try {
+												inner = JSON.parse(inner);
+											} catch (e) {
+												this.adapter.rLog("TCP", duid, "Error", "B01", undefined, `Nested JSON Parse Error | ${e}`, "warn");
+												continue;
+											}
+										}
+										const id = inner.msgId || inner.id;
+										const result = inner.code === 0 ? inner.data : (inner.error || inner.result);
+
+										if (id) {
+											this.adapter.requestsHandler.resolvePendingRequest(id, result, `Local-${data.version}`, duid, "TCP");
+										} else {
+											this.adapter.rLog("TCP", duid, "<-", "B01", undefined, `Received B01 message without ID.`, "warn");
+										}
+									}
+								} else if (data.protocol === 4) {
+									this.resolveLocalProtocol4Payload(duid, data.version, data.protocol, parsedPayload);
+								}
+							} else {
+								// Explicitly log unknown protocols as Error to identify missing handlers
+								this.adapter.rLog("TCP", duid, "Error", data.version, data.protocol, `Unhandled Protocol ${data.protocol}`, "error");
 							}
 						}
-
-						offset += 4 + segmentLength;
 					}
 
-					this.clearChunkBuffer(duid);
+					offset = frameEnd;
+				}
+				if (offset > 0) {
+					client.chunkBuffer = client.chunkBuffer.subarray(offset);
 				}
 			} catch (error: unknown) {
 				this.adapter.catchError(error, "initiateClient", duid);
@@ -370,9 +356,10 @@ export class local_api {
 		const outboundIdleMs = now - lastOutbound;
 		const pingOutstanding = client.pingOutstanding ?? 0;
 		const pingDueMs = local_api.TCP_KEEPALIVE_MS - local_api.TCP_KEEPALIVE_GRACE_MS;
+		const lastPingAgeMs = client.lastPingAt ? now - client.lastPingAt : 0;
 
-		if (pingOutstanding > 0 && inboundIdleMs >= pingDueMs) {
-			this.adapter.rLog("TCP", duid, "Warn", version, undefined, `keepalive timeout | pingOutstanding=${pingOutstanding} | inboundIdle=${inboundIdleMs}ms | outboundIdle=${outboundIdleMs}ms | lastPingAgo=${client.lastPingAt ? now - client.lastPingAt : "n/a"}ms`, "warn");
+		if (pingOutstanding > 0 && client.lastPingAt && lastPingAgeMs >= local_api.TCP_KEEPALIVE_MS && inboundIdleMs >= pingDueMs) {
+			this.adapter.rLog("TCP", duid, "Warn", version, undefined, `keepalive timeout | pingOutstanding=${pingOutstanding} | inboundIdle=${inboundIdleMs}ms | outboundIdle=${outboundIdleMs}ms | lastPingAgo=${lastPingAgeMs}ms`, "warn");
 			this.scheduleReconnect(duid, "keepalive timeout", false);
 			return;
 		}
@@ -523,6 +510,33 @@ export class local_api {
 			return true;
 		}
 		return false;
+	}
+
+	private resolveLocalProtocol4Payload(duid: string, version: string, protocol: number, parsedPayload: any): void {
+		const dps = parsedPayload?.dps;
+		let content: any = null;
+
+		if (dps && typeof dps === "object" && !Array.isArray(dps)) {
+			content = dps["102"] ?? dps["101"] ?? dps;
+		}
+		if (content == null && parsedPayload && typeof parsedPayload.id !== "undefined") {
+			content = parsedPayload;
+		}
+		if (typeof content === "string") {
+			try {
+				content = JSON.parse(content);
+			} catch (e) {
+				this.adapter.rLog("TCP", duid, "Error", version, protocol, `Nested JSON Parse Error | ${e}`, "warn");
+				return;
+			}
+		}
+		if (!content || typeof content !== "object" || typeof content.id === "undefined") return;
+
+		const id = Number(content.id);
+		if (!Number.isFinite(id)) return;
+
+		const result = Object.prototype.hasOwnProperty.call(content, "result") ? content.result : content.error;
+		this.adapter.requestsHandler.resolvePendingRequest(id, result, String(protocol), duid, "TCP");
 	}
 
 	/**

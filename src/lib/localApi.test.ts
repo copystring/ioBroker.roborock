@@ -113,6 +113,62 @@ describe("local_api transport sequence", () => {
 		expect(sentMessages[0].readUInt16BE(4 + 15)).to.equal(2);
 	});
 
+	it("waits one keepalive period after ping before reconnecting", () => {
+		const duid = "duid";
+		const adapter = new MockAdapter() as any;
+		const api = new local_api(adapter);
+		let reconnects = 0;
+		const now = Date.now();
+
+		api.sendMessage = () => {};
+		api.scheduleReconnect = () => {
+			reconnects += 1;
+		};
+		api.localDevices[duid] = {
+			ip: "127.0.0.1",
+			version: "1.0",
+			ackNonce: 654321,
+		};
+		api.deviceSockets[duid] = {
+			connected: true,
+			lastReceivedAt: now - 10_000,
+			lastSentAt: now - 1_000,
+			lastPingAt: now - 1_000,
+			pingOutstanding: 1,
+		} as any;
+
+		(api as any).checkTcpActivity(duid);
+		expect(reconnects).to.equal(0);
+
+		(api.deviceSockets[duid] as any).lastSentAt = now - 10_000;
+		(api.deviceSockets[duid] as any).lastPingAt = now - 10_000;
+		(api as any).checkTcpActivity(duid);
+		expect(reconnects).to.equal(1);
+	});
+
+	it("resolves local protocol 4 responses from dps 102, dps 101, or direct payloads", () => {
+		const duid = "duid";
+		const adapter = new MockAdapter() as any;
+		const api = new local_api(adapter);
+		const resolved: Array<{ id: number; result: unknown; protocol: unknown; connectionType: string }> = [];
+
+		adapter.requestsHandler = {
+			resolvePendingRequest: (id: number, result: unknown, protocol: unknown, _duid: string, connectionType: string) => {
+				resolved.push({ id, result, protocol, connectionType });
+			},
+		};
+
+		(api as any).resolveLocalProtocol4Payload(duid, "1.0", 4, { dps: { "102": { id: 301, result: ["ok"] } } });
+		(api as any).resolveLocalProtocol4Payload(duid, "1.0", 4, { dps: { "101": JSON.stringify({ id: 302, result: ["done"] }) } });
+		(api as any).resolveLocalProtocol4Payload(duid, "1.0", 4, { id: 303, error: { code: -1 } });
+
+		expect(resolved).to.deep.equal([
+			{ id: 301, result: ["ok"], protocol: "4", connectionType: "TCP" },
+			{ id: 302, result: ["done"], protocol: "4", connectionType: "TCP" },
+			{ id: 303, result: { code: -1 }, protocol: "4", connectionType: "TCP" },
+		]);
+	});
+
 	it("does not treat trailing partial TCP frame bytes as complete", () => {
 		const adapter = new MockAdapter() as any;
 		const api = new local_api(adapter);
