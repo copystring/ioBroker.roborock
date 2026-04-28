@@ -31,16 +31,27 @@ class EnhancedSocket extends Socket {
 	connected: boolean;
 	chunkBuffer: Buffer;
 	receivedBytes: number;
+	sentBytes: number;
 	lastReceivedAt?: number;
+	lastSentAt?: number;
+	lastPingAt?: number;
+	pingOutstanding: number;
 
 	constructor(options?: SocketConstructorOpts) {
 		super(options);
 		this.connected = false;
 		this.chunkBuffer = Buffer.alloc(0);
 		this.receivedBytes = 0;
+		this.sentBytes = 0;
+		this.pingOutstanding = 0;
 
 		(this as any).on("connect", () => {
+			const now = Date.now();
 			this.connected = true;
+			this.lastReceivedAt = now;
+			this.lastSentAt = now;
+			this.lastPingAt = undefined;
+			this.pingOutstanding = 0;
 		});
 
 		(this as any).on("close", () => {
@@ -100,6 +111,8 @@ export class local_api {
 	private gracePeriodTimer: NodeJS.Timeout | null = null;
 	private tcpKeepaliveInterval: ioBroker.Interval | undefined = undefined;
 	private static readonly TCP_KEEPALIVE_MS = 10_000;
+	private static readonly TCP_KEEPALIVE_GRACE_MS = 1_000;
+	private static readonly TCP_KEEPALIVE_CHECK_MS = 1_000;
 
 	constructor(adapter: Roborock) {
 		this.adapter = adapter;
@@ -229,6 +242,7 @@ export class local_api {
 							// Short frames logic (Ping Response etc)
 							switch (protocol) {
 								case 3: // PINGRESP
+									client.pingOutstanding = Math.max(0, client.pingOutstanding - 1);
 									this.adapter.rLog("TCP", duid, "<-", frameVersion, protocol, `pingresp`, "debug");
 									break;
 								case 5: // PUBACK
@@ -337,12 +351,40 @@ export class local_api {
 		if (this.tcpKeepaliveInterval) return;
 		this.tcpKeepaliveInterval = this.adapter.setInterval(() => {
 			for (const duid of Object.keys(this.deviceSockets)) {
-				if (!this.isConnected(duid)) continue;
-				const version = this.getLocalProtocolVersion(duid);
-				if (version !== "1.0" && version !== "L01") continue;
-				this.sendPing(duid);
+				this.checkTcpActivity(duid);
 			}
-		}, local_api.TCP_KEEPALIVE_MS);
+		}, local_api.TCP_KEEPALIVE_CHECK_MS);
+	}
+
+	private checkTcpActivity(duid: string): void {
+		const client = this.deviceSockets[duid];
+		if (!client?.connected || !this.isConnected(duid)) return;
+
+		const version = this.getLocalProtocolVersion(duid);
+		if (version !== "1.0" && version !== "L01") return;
+
+		const now = Date.now();
+		const lastInbound = client.lastReceivedAt ?? client.lastSentAt ?? now;
+		const lastOutbound = client.lastSentAt ?? client.lastReceivedAt ?? now;
+		const inboundIdleMs = now - lastInbound;
+		const outboundIdleMs = now - lastOutbound;
+		const pingOutstanding = client.pingOutstanding ?? 0;
+		const pingDueMs = local_api.TCP_KEEPALIVE_MS - local_api.TCP_KEEPALIVE_GRACE_MS;
+
+		if (pingOutstanding > 0 && inboundIdleMs >= pingDueMs) {
+			this.adapter.rLog("TCP", duid, "Warn", version, undefined, `keepalive timeout | pingOutstanding=${pingOutstanding} | inboundIdle=${inboundIdleMs}ms | outboundIdle=${outboundIdleMs}ms | lastPingAgo=${client.lastPingAt ? now - client.lastPingAt : "n/a"}ms`, "warn");
+			this.scheduleReconnect(duid, "keepalive timeout", false);
+			return;
+		}
+
+		if (pingOutstanding === 0 && outboundIdleMs >= 2 * local_api.TCP_KEEPALIVE_MS) {
+			this.adapter.rLog("TCP", duid, "Warn", version, undefined, `keepalive timeout | reason=no write activity | inboundIdle=${inboundIdleMs}ms | outboundIdle=${outboundIdleMs}ms`, "warn");
+			this.scheduleReconnect(duid, "keepalive write timeout", false);
+			return;
+		}
+
+		if ((pingOutstanding !== 0 || inboundIdleMs < pingDueMs) && outboundIdleMs < pingDueMs) return;
+		this.sendPing(duid);
 	}
 
 	stopTcpKeepaliveInterval(): void {
@@ -464,7 +506,11 @@ export class local_api {
 
 	sendMessage(duid: string, message: Buffer): void {
 		const client = this.deviceSockets[duid];
-		if (client?.connected) client.write(message);
+		if (client?.connected) {
+			client.write(message);
+			client.lastSentAt = Date.now();
+			client.sentBytes += message.length;
+		}
 	}
 
 	isConnected(duid: string): boolean {
@@ -755,7 +801,11 @@ export class local_api {
 	sendPing(duid: string): void {
 		const version = this.getLocalProtocolVersion(duid);
 		if (version !== "1.0" && version !== "L01") return;
+		const client = this.deviceSockets[duid];
+		if (!client?.connected) return;
 		this.sendMessage(duid, this.buildControlFrame(version, 0, 0, 0, 2));
+		client.lastPingAt = Date.now();
+		client.pingOutstanding = (client.pingOutstanding ?? 0) + 1;
 		this.adapter.rLog("TCP", duid, "->", version, 2, "pingreq", "debug");
 	}
 

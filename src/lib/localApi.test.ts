@@ -57,6 +57,10 @@ describe("local_api transport sequence", () => {
 			version: "1.0",
 			ackNonce: 654321,
 		};
+		api.deviceSockets[duid] = {
+			connected: true,
+			pingOutstanding: 0,
+		} as any;
 
 		api.sendPing(duid);
 		(api as any).sendPubAck(duid, 42, "1.0");
@@ -74,6 +78,39 @@ describe("local_api transport sequence", () => {
 		expect(sentMessages[1].readUInt32BE(4 + 7)).to.equal(0);
 		expect(sentMessages[1].readUInt32BE(4 + 11)).to.equal(0);
 		expect(sentMessages[1].readUInt16BE(4 + 15)).to.equal(5);
+		expect((api.deviceSockets[duid] as any).pingOutstanding).to.equal(1);
+	});
+
+	it("sends app-style TCP ping only after inbound or outbound activity is idle", () => {
+		const duid = "duid";
+		const adapter = new MockAdapter() as any;
+		const api = new local_api(adapter);
+		const sentMessages: Buffer[] = [];
+		const now = Date.now();
+
+		api.sendMessage = (_duid: string, message: Buffer) => {
+			sentMessages.push(message);
+		};
+		api.localDevices[duid] = {
+			ip: "127.0.0.1",
+			version: "1.0",
+			ackNonce: 654321,
+		};
+		api.deviceSockets[duid] = {
+			connected: true,
+			lastReceivedAt: now,
+			lastSentAt: now,
+			pingOutstanding: 0,
+		} as any;
+
+		(api as any).checkTcpActivity(duid);
+		expect(sentMessages).to.have.length(0);
+
+		(api.deviceSockets[duid] as any).lastReceivedAt = now - 9_000;
+		(api.deviceSockets[duid] as any).lastSentAt = now;
+		(api as any).checkTcpActivity(duid);
+		expect(sentMessages).to.have.length(1);
+		expect(sentMessages[0].readUInt16BE(4 + 15)).to.equal(2);
 	});
 
 	it("does not treat trailing partial TCP frame bytes as complete", () => {
