@@ -12,6 +12,10 @@ const TCP_CONNECTION_PORT = 58867;
 // The static key used for broadcast discovery decryption
 const BROADCAST_TOKEN = Buffer.from("qWKYcdQWrbm9hPqe", "utf8");
 
+function nextSocketRandom(): number {
+	return Math.floor(Math.random() * 1_000_000 + 1_000) >>> 0;
+}
+
 // --------------------
 // Interfaces & Types
 // --------------------
@@ -663,7 +667,7 @@ export class local_api {
 		}
 
 		try {
-			const connectNonce = Math.floor(Math.random() * 1e9);
+			const connectNonce = nextSocketRandom();
 			dev.connectNonce = connectNonce;
 			dev.ackNonce = undefined; // Reset for new handshake
 			this.adapter.requestsHandler.messageParser.resetTransportSequence(duid);

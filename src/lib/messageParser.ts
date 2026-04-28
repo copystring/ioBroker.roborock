@@ -31,8 +31,9 @@ const HEADER_LEN = 3 + 4 + 4 + 4 + 2 + 2; // version(3) + seq(4) + random(4) + t
 const CRC32_LEN = 4;
 const MAX_SOCKET_MESSAGE_ID = 0xffff;
 
-// Persistent random counter. Local socket message ids are tracked per device/session.
-let random = 4711;
+function nextSocketRandom(): number {
+	return Math.floor(Math.random() * 1_000_000 + 1_000) >>> 0;
+}
 
 // --------------------
 // Binary Parser Configuration
@@ -343,7 +344,7 @@ export class messageParser {
 	 */
 	async buildRoborockMessage(duid: string, protocol: number, timestamp: number, payload: string | Buffer, version: string, sequenceId?: number): Promise<Buffer | false> {
 		const s = (sequenceId !== undefined ? sequenceId : this.nextTransportSequenceId(duid)) >>> 0;
-		const r = random++ >>> 0;
+		const r = nextSocketRandom();
 
 		const localKey = this.adapter.http_api.getMatchedLocalKeys().get(duid);
 		if (!localKey) return false;
