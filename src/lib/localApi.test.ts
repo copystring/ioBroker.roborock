@@ -113,14 +113,17 @@ describe("local_api transport sequence", () => {
 		expect(sentMessages[0].readUInt16BE(4 + 15)).to.equal(2);
 	});
 
-	it("waits one keepalive period after ping before reconnecting", () => {
+	it("times out an outstanding ping when inbound activity stays idle", () => {
 		const duid = "duid";
 		const adapter = new MockAdapter() as any;
 		const api = new local_api(adapter);
 		let reconnects = 0;
+		const sentMessages: Buffer[] = [];
 		const now = Date.now();
 
-		api.sendMessage = () => {};
+		api.sendMessage = (_duid: string, message: Buffer) => {
+			sentMessages.push(message);
+		};
 		api.scheduleReconnect = () => {
 			reconnects += 1;
 		};
@@ -131,7 +134,7 @@ describe("local_api transport sequence", () => {
 		};
 		api.deviceSockets[duid] = {
 			connected: true,
-			lastReceivedAt: now - 10_000,
+			lastReceivedAt: now - 8_000,
 			lastSentAt: now - 1_000,
 			lastPingAt: now - 1_000,
 			pingOutstanding: 1,
@@ -139,11 +142,12 @@ describe("local_api transport sequence", () => {
 
 		(api as any).checkTcpActivity(duid);
 		expect(reconnects).to.equal(0);
+		expect(sentMessages).to.have.length(0);
 
-		(api.deviceSockets[duid] as any).lastSentAt = now - 10_000;
-		(api.deviceSockets[duid] as any).lastPingAt = now - 10_000;
+		(api.deviceSockets[duid] as any).lastReceivedAt = now - 9_000;
 		(api as any).checkTcpActivity(duid);
 		expect(reconnects).to.equal(1);
+		expect(sentMessages).to.have.length(0);
 	});
 
 	it("resolves local protocol 4 responses from dps 102, dps 101, or direct payloads", () => {

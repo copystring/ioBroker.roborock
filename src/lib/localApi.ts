@@ -358,7 +358,7 @@ export class local_api {
 		const pingDueMs = local_api.TCP_KEEPALIVE_MS - local_api.TCP_KEEPALIVE_GRACE_MS;
 		const lastPingAgeMs = client.lastPingAt ? now - client.lastPingAt : 0;
 
-		if (pingOutstanding > 0 && client.lastPingAt && lastPingAgeMs >= local_api.TCP_KEEPALIVE_MS && inboundIdleMs >= pingDueMs) {
+		if (pingOutstanding > 0 && inboundIdleMs >= pingDueMs) {
 			this.adapter.rLog("TCP", duid, "Warn", version, undefined, `keepalive timeout | pingOutstanding=${pingOutstanding} | inboundIdle=${inboundIdleMs}ms | outboundIdle=${outboundIdleMs}ms | lastPingAgo=${lastPingAgeMs}ms`, "warn");
 			this.scheduleReconnect(duid, "keepalive timeout", false);
 			return;
