@@ -4,7 +4,7 @@ import { messageParser } from "./messageParser";
 import { MockAdapter } from "./mock/MockAdapter";
 
 describe("local_api transport sequence", () => {
-	it("uses one L01 transport sequence for hello and app frames", async () => {
+	it("sends app-style TCP connect without consuming the app-frame sequence", async () => {
 		const duid = "duid";
 		const adapter = new MockAdapter() as any;
 		const api = new local_api(adapter);
@@ -36,8 +36,10 @@ describe("local_api transport sequence", () => {
 		);
 
 		expect(sentMessages).to.have.length(1);
-		expect(sentMessages[0].readUInt32BE(4 + 3)).to.equal(1);
+		expect(sentMessages[0].readUInt32BE(0)).to.equal(21);
+		expect(sentMessages[0].readUInt32BE(4 + 3)).to.equal(0);
+		expect(sentMessages[0].readUInt32BE(4 + 17)).to.equal(10);
 		expect(appFrame).to.be.instanceOf(Buffer);
-		expect((appFrame as Buffer).readUInt32BE(3)).to.equal(2);
+		expect((appFrame as Buffer).readUInt32BE(3)).to.equal(1);
 	});
 });

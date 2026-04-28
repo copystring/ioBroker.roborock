@@ -90,6 +90,7 @@ export class local_api {
 	localDevicesInterval: NodeJS.Timeout | null = null;
 	private reconnectPlanned = new Set<string>();
 	private connectPromises = new Map<string, Promise<void>>();
+	private sessionAckWaiters = new Map<string, { resolve: () => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>();
 	private discoveryServer: dgram.Socket | null = null;
 	private discoveryTimer: NodeJS.Timeout | null = null;
 	private gracePeriodTimer: NodeJS.Timeout | null = null;
@@ -165,18 +166,13 @@ export class local_api {
 				reject(new Error("TCP connect timeout"));
 			});
 
-			client.connect(TCP_CONNECTION_PORT, ip, async () => {
+			client.connect(TCP_CONNECTION_PORT, ip, () => {
 				client.removeListener("error", onErrorOnce);
 				client.setTimeout(0); // Disable timeout after connection
 				client.setKeepAlive(true, 30000); // Keep connection alive through NAT; 30s initial delay
 				this.deviceSockets[duid] = client;
 				this.reconnectPlanned.delete(duid);
 				this.adapter.requestsHandler.messageParser.resetTransportSequence(duid);
-
-				const version = this.getLocalProtocolVersion(duid);
-				if (version === "L01") {
-					await this.initHandshake(duid, version);
-				}
 				resolve();
 			});
 		});
@@ -208,19 +204,23 @@ export class local_api {
 						const segmentLength = client.chunkBuffer.readUInt32BE(offset);
 						const currentBuffer = client.chunkBuffer.subarray(offset + 4, offset + segmentLength + 4);
 
-						// Check for Control Frames (Hello Response, Ping Response)
-						// Protocol 1 (Hello Response) is unencrypted and critical for L01 handshake
+						// Control frames are unencrypted and establish/maintain the local socket session.
 						const protocol = currentBuffer.readUInt16BE(15);
 						const frameVersion = currentBuffer.subarray(0, 3).toString();
 						const frameMsgId = currentBuffer.length >= 7 ? currentBuffer.readUInt32BE(3) : undefined;
 						this.adapter.rLog("TCP", duid, "<-", frameVersion, protocol, `frame header | tcpMsgId=${frameMsgId ?? "n/a"} | frameBytes=${segmentLength}`, "debug");
 
-						if (protocol === 1) { // hello_response (CONNACK)
+						if (protocol === 1) { // CONNACK
 							const nonce = currentBuffer.readUInt32BE(7);
-							if (this.localDevices[duid]) {
+							const returnCode = currentBuffer.length >= 21 ? currentBuffer.readUInt32BE(17) : 0;
+							if (returnCode === 0 && this.localDevices[duid]) {
 								this.localDevices[duid].ackNonce = nonce;
+								this.resolveSessionAck(duid);
+								this.adapter.rLog("TCP", duid, "<-", "Control", 1, `connack | ackNonce=${nonce} | returnCode=${returnCode}`, "debug");
+							} else {
+								this.rejectSessionAck(duid, new Error(`TCP CONNACK rejected with returnCode=${returnCode}`));
+								this.adapter.rLog("TCP", duid, "<-", "Control", 1, `connack rejected | ackNonce=${nonce} | returnCode=${returnCode}`, "warn");
 							}
-							this.adapter.rLog("TCP", duid, "<-", "Control", 1, `hello_response | ackNonce=${nonce}`, "debug");
 						} else if (segmentLength === 17 || segmentLength === 21) {
 							// Short frames logic (Ping Response etc)
 							switch (protocol) {
@@ -300,6 +300,19 @@ export class local_api {
 				this.adapter.catchError(error, "initiateClient", duid);
 			}
 		});
+
+		const version = this.getLocalProtocolVersion(duid);
+		if (version === "1.0" || version === "L01") {
+			try {
+				await this.initHandshake(duid, version);
+				await this.waitForSessionAck(duid, timeoutMs, version);
+			} catch (error: unknown) {
+				const socket = this.deviceSockets[duid];
+				if (socket && !socket.destroyed) socket.destroy();
+				delete this.deviceSockets[duid];
+				throw error;
+			}
+		}
 
 		client.on("close", () => this.scheduleReconnect(duid, `connection closed`));
 		client.on("error", (error) => this.scheduleReconnect(duid, `connection error: ${error.message}`));
@@ -389,6 +402,52 @@ export class local_api {
 		}
 	}
 
+	private waitForSessionAck(duid: string, timeoutMs: number, version: string): Promise<void> {
+		if (this.localDevices[duid]?.ackNonce !== undefined) {
+			return Promise.resolve();
+		}
+
+		const existingWaiter = this.sessionAckWaiters.get(duid);
+		if (existingWaiter) {
+			clearTimeout(existingWaiter.timer);
+			existingWaiter.reject(new Error(`TCP session handshake superseded for ${duid}`));
+			this.sessionAckWaiters.delete(duid);
+		}
+
+		return new Promise<void>((resolve, reject) => {
+			const timer = setTimeout(() => {
+				this.sessionAckWaiters.delete(duid);
+				reject(new Error(`TCP session handshake timeout for ${duid} (${version})`));
+			}, timeoutMs);
+
+			this.sessionAckWaiters.set(duid, {
+				resolve: () => {
+					clearTimeout(timer);
+					this.sessionAckWaiters.delete(duid);
+					resolve();
+				},
+				reject,
+				timer,
+			});
+		});
+	}
+
+	private resolveSessionAck(duid: string): void {
+		const waiter = this.sessionAckWaiters.get(duid);
+		if (waiter) {
+			waiter.resolve();
+		}
+	}
+
+	private rejectSessionAck(duid: string, error: Error): void {
+		const waiter = this.sessionAckWaiters.get(duid);
+		if (waiter) {
+			clearTimeout(waiter.timer);
+			this.sessionAckWaiters.delete(duid);
+			waiter.reject(error);
+		}
+	}
+
 	sendMessage(duid: string, message: Buffer): void {
 		const client = this.deviceSockets[duid];
 		if (client?.connected) client.write(message);
@@ -397,10 +456,10 @@ export class local_api {
 	isConnected(duid: string): boolean {
 		if (this.deviceSockets[duid] && this.deviceSockets[duid].connected) {
 			const dev = this.localDevices[duid];
-			if (dev && dev.version === "L01") {
+			if (dev && (dev.version === "1.0" || dev.version === "L01")) {
 				return dev.ackNonce !== undefined;
 			}
-			// For 1.0, B01, or generic TCP - connected socket is enough
+			// For B01 or generic TCP - connected socket is enough
 			return true;
 		}
 		return false;
@@ -594,7 +653,7 @@ export class local_api {
 	}
 
 	/**
-	 * Initializes connection for L01/B01 protocol devices (Handshake).
+	 * Initializes the local socket session before PUBLISH frames are sent.
 	 */
 	async initHandshake(duid: string, version: string): Promise<void> {
 		const dev = this.localDevices[duid];
@@ -663,25 +722,20 @@ export class local_api {
 		}
 	}
 
-	/** Hello packet (Step 1 of Handshake), once per L01 TCP connection. */
+	/** App-style CONNECT packet, once per TCP socket session. */
 	async sendHello(duid: string, connectNonce: number, version: string): Promise<void> {
-		const seq = this.adapter.requestsHandler.messageParser.nextTransportSequenceId(duid);
-		const timestamp = Math.floor(Date.now() / 1000);
-		const protocol = 0; // 0 = Hello Request
+		const keepAliveSeconds = 10;
+		const protocol = 0; // SocketFrameType.CONNECT
 
-		const payloadLen = 0;
-		const msg = Buffer.alloc(23); // 3(Ver) + 4(Seq) + 4(Nonce) + 4(TS) + 2(Proto) + 2(Len) + 4(CRC)
-
-		// Write dynamic version (L01 or B01)
+		// Match the app socket CONNECT frame: 17-byte header + 4-byte keepalive.
+		// PUBLISH frames carry payload length and CRC, CONNECT/CONNACK do not.
+		const msg = Buffer.alloc(21);
 		msg.write(version);
-		msg.writeUInt32BE(seq, 3);
+		msg.writeUInt32BE(0, 3);
 		msg.writeUInt32BE(connectNonce, 7);
-		msg.writeUInt32BE(timestamp, 11);
+		msg.writeUInt32BE(0, 11);
 		msg.writeUInt16BE(protocol, 15);
-		msg.writeUInt16BE(payloadLen, 17);
-
-		const crc = crc32.buf(msg.subarray(0, msg.length - 4)) >>> 0;
-		msg.writeUInt32BE(crc, msg.length - 4);
+		msg.writeUInt32BE(keepAliveSeconds, 17);
 
 		// Prepend length of the message (4 bytes)
 		const lenBuf = Buffer.alloc(4);
@@ -691,7 +745,7 @@ export class local_api {
 
 		this.sendMessage(duid, wrapped);
 
-		this.adapter.rLog("TCP", duid, "->", version, 0, `Hello Handshake Step 1 Sent. Seq=${seq}, Nonce=${connectNonce}, Timestamp=${timestamp}`, "debug");
+		this.adapter.rLog("TCP", duid, "->", version, 0, `connect | connectNonce=${connectNonce} | keepAlive=${keepAliveSeconds}s`, "debug");
 	}
 
 	isLocalDevice(duid: string): boolean {
