@@ -104,6 +104,7 @@ export class RoborockRequest {
 	public creationTime: number;
 	public startTime: number = 0;
 	public binaryType: "photo" | "map" | undefined;
+	public sentConnectionType: "MQTT" | "TCP" | undefined;
 	timeoutTimer: ioBroker.Timeout | undefined;
 
 	timeout: number;
@@ -197,6 +198,7 @@ export class RoborockRequest {
 
 		// Connection inference
 		const connectionType = (protocol == 101) ? "MQTT" : "TCP";
+		this.sentConnectionType = connectionType;
 
 		const reduceLog = this.method === "get_clean_summary" || this.method === "service.get_record_list" || this.method === "get_photo";
 		const paramsStr = this.params != null ? JSON.stringify(this.params) : "";
@@ -247,6 +249,13 @@ export class RoborockRequest {
 			return this.promise;
 		}
 
+		if (protocol !== 101 && !localConnectionState) {
+			const errorMsg = `TCP network connection unavailable before sending ${this.method}.`;
+			this.adapter.rLog("TCP", this.duid, "Debug", `${version}`, protocol, errorMsg, "debug", logMsgId);
+			this.reject(new Error(errorMsg));
+			return this.promise;
+		}
+
 		// --- Start Precision Timer NOW ---
 		// We start the timer only when the message is about to touch the wire.
 		this.startTime = Date.now();
@@ -257,13 +266,15 @@ export class RoborockRequest {
 		}, this.timeout);
 
 		// Use the forced connectionType logic for decision making
-		if (protocol == 101 || !localConnectionState) {
+		if (protocol == 101) {
 			this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage);
 		} else {
 			const lengthBuffer = Buffer.alloc(4);
 			lengthBuffer.writeUInt32BE(roborockMessage.length, 0);
 			const fullMessage = Buffer.concat([lengthBuffer, roborockMessage] as Uint8Array[]);
-			this.adapter.local_api.sendMessage(this.duid, fullMessage);
+			if (!this.adapter.local_api.sendMessage(this.duid, fullMessage)) {
+				this.reject(new Error(`TCP network connection unavailable while sending ${this.method}.`));
+			}
 		}
 
 		return this.promise;
@@ -635,6 +646,24 @@ export class requestsHandler {
 
 			this.adapter.pendingRequests.delete(messageID);
 		}
+	}
+
+	public rejectPendingTcpRequests(duid: string, reason: string): number {
+		let rejected = 0;
+
+		for (const req of Array.from(this.adapter.pendingRequests.values())) {
+			if (!(req instanceof RoborockRequest)) continue;
+			if (req.duid !== duid || req.sentConnectionType !== "TCP") continue;
+
+			req.reject(new Error(`TCP network session reset for ${duid}: ${reason}`));
+			rejected += 1;
+		}
+
+		if (rejected > 0) {
+			this.adapter.rLog("TCP", duid, "Warn", undefined, undefined, `Rejected ${rejected} pending TCP request(s): ${reason}`, "warn");
+		}
+
+		return rejected;
 	}
 
 	isRequestRecentlyFinished(messageID: number): boolean {

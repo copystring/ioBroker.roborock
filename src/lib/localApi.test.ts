@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { local_api } from "./localApi";
 import { messageParser } from "./messageParser";
 import { MockAdapter } from "./mock/MockAdapter";
+import { RoborockRequest, requestsHandler } from "./requestsHandler";
 
 describe("local_api transport sequence", () => {
 	it("sends app-style TCP connect without consuming the app-frame sequence", async () => {
@@ -16,6 +17,7 @@ describe("local_api transport sequence", () => {
 		adapter.requestsHandler = { messageParser: parser };
 		api.sendMessage = (_duid: string, message: Buffer) => {
 			sentMessages.push(message);
+			return true;
 		};
 		api.localDevices[duid] = {
 			ip: "127.0.0.1",
@@ -51,6 +53,7 @@ describe("local_api transport sequence", () => {
 
 		api.sendMessage = (_duid: string, message: Buffer) => {
 			sentMessages.push(message);
+			return true;
 		};
 		api.localDevices[duid] = {
 			ip: "127.0.0.1",
@@ -90,6 +93,7 @@ describe("local_api transport sequence", () => {
 
 		api.sendMessage = (_duid: string, message: Buffer) => {
 			sentMessages.push(message);
+			return true;
 		};
 		api.localDevices[duid] = {
 			ip: "127.0.0.1",
@@ -123,6 +127,7 @@ describe("local_api transport sequence", () => {
 
 		api.sendMessage = (_duid: string, message: Buffer) => {
 			sentMessages.push(message);
+			return true;
 		};
 		api.scheduleReconnect = () => {
 			reconnects += 1;
@@ -148,6 +153,39 @@ describe("local_api transport sequence", () => {
 		(api as any).checkTcpActivity(duid);
 		expect(reconnects).to.equal(1);
 		expect(sentMessages).to.have.length(0);
+	});
+
+	it("rejects only pending TCP requests for the reset device", async () => {
+		const adapter = new MockAdapter() as any;
+		adapter.setInterval = () => undefined;
+		const handler = new requestsHandler(adapter);
+		const api = new local_api(adapter);
+		const tcpReq = new RoborockRequest(handler, "duid-a", "get_prop", ["get_status"], {} as any, "TestQueue", "1.0");
+		const mqttReq = new RoborockRequest(handler, "duid-a", "get_prop", ["get_status"], {} as any, "TestQueue", "1.0");
+		const otherTcpReq = new RoborockRequest(handler, "duid-b", "get_prop", ["get_status"], {} as any, "TestQueue", "1.0");
+
+		adapter.requestsHandler = handler;
+		adapter.local_api = api;
+		adapter.logLevel = "error";
+		adapter.setTimeout = () => undefined;
+
+		tcpReq.messageID = 1;
+		tcpReq.sentConnectionType = "TCP";
+		mqttReq.messageID = 2;
+		mqttReq.sentConnectionType = "MQTT";
+		otherTcpReq.messageID = 3;
+		otherTcpReq.sentConnectionType = "TCP";
+
+		adapter.pendingRequests.set(1, tcpReq);
+		adapter.pendingRequests.set(2, mqttReq);
+		adapter.pendingRequests.set(3, otherTcpReq);
+
+		api.scheduleReconnect("duid-a", "connection error: read ECONNRESET", true);
+
+		await expect(tcpReq.promise).rejects.toThrow(/TCP network session reset/);
+		expect(adapter.pendingRequests.has(1)).to.equal(false);
+		expect(adapter.pendingRequests.has(2)).to.equal(true);
+		expect(adapter.pendingRequests.has(3)).to.equal(true);
 	});
 
 	it("resolves local protocol 4 responses from dps 102, dps 101, or direct payloads", () => {

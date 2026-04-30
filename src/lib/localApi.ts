@@ -384,6 +384,7 @@ export class local_api {
 	/** Schedules reconnect in 5s. */
 	scheduleReconnect(duid: string, reason: string, silent = false): void {
 		this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `TCP ${reason} for ${duid}, retry in 5s`, "debug");
+		this.adapter.requestsHandler?.rejectPendingTcpRequests?.(duid, reason);
 
 		const old = this.deviceSockets[duid];
 		if (old) {
@@ -491,13 +492,15 @@ export class local_api {
 		}
 	}
 
-	sendMessage(duid: string, message: Buffer): void {
+	sendMessage(duid: string, message: Buffer): boolean {
 		const client = this.deviceSockets[duid];
 		if (client?.connected) {
 			client.write(message);
 			client.lastSentAt = Date.now();
 			client.sentBytes += message.length;
+			return true;
 		}
+		return false;
 	}
 
 	isConnected(duid: string): boolean {
