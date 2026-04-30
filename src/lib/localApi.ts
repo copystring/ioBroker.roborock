@@ -494,8 +494,17 @@ export class local_api {
 
 	sendMessage(duid: string, message: Buffer): boolean {
 		const client = this.deviceSockets[duid];
-		if (client?.connected) {
-			client.write(message);
+		if (client?.connected && !client.destroyed && client.writable) {
+			try {
+				client.write(message, (error?: Error | null) => {
+					if (error) {
+						this.scheduleReconnect(duid, `write failed: ${error.message}`);
+					}
+				});
+			} catch (error: unknown) {
+				this.scheduleReconnect(duid, `write failed: ${this.adapter.errorMessage(error)}`);
+				return false;
+			}
 			client.lastSentAt = Date.now();
 			client.sentBytes += message.length;
 			return true;

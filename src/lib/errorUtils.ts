@@ -13,6 +13,9 @@ export function isConnectivityLikeError(error: unknown): boolean {
 		msg.includes("etimedout") ||
 		msg.includes("enotfound") ||
 		msg.includes("econnrefused") ||
+		msg.includes("ehostunreach") ||
+		msg.includes("enetunreach") ||
+		msg.includes("epipe") ||
 		msg.includes("network") ||
 		msg.includes("socket hang up")
 	) {
@@ -20,5 +23,5 @@ export function isConnectivityLikeError(error: unknown): boolean {
 	}
 
 	const code = (error as NodeJS.ErrnoException).code;
-	return code === "ECONNRESET" || code === "ETIMEDOUT" || code === "ENOTFOUND" || code === "ECONNREFUSED";
+	return code === "ECONNRESET" || code === "ETIMEDOUT" || code === "ENOTFOUND" || code === "ECONNREFUSED" || code === "EHOSTUNREACH" || code === "ENETUNREACH" || code === "EPIPE";
 }

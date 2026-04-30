@@ -383,6 +383,7 @@ export class B01BaseVacuumFeatures extends BaseDeviceFeatures {
 			}
 		} catch (e: any) {
 			this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Failed to update status (B01): ${e.message}`, "warn");
+			throw e;
 		}
 	}
 

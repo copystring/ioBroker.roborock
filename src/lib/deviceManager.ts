@@ -94,6 +94,7 @@ export class DeviceManager {
 	private adapter: Roborock;
 	// Interval handle
 	private mainUpdateInterval: ioBroker.Interval | undefined = undefined;
+	private pollingDevices = new Set<string>();
 	public deviceFeatureHandlers = new Map<string, BaseDeviceFeatures>();
 
 	constructor(adapter: Roborock) {
@@ -297,19 +298,29 @@ export class DeviceManager {
 					}
 					if (!device.online) continue;
 					const version = await this.adapter.getDeviceProtocolVersion(duid);
-					switch (version) {
-						case "B01":
-							await this.pollB01Device(handler, duid);
-							break;
-						case "A01":
-							await this.pollA01Device(handler, duid);
-							break;
-						case "L01":
-						case "1.0":
-							await this.pollV1Device(handler, duid);
-							break;
-						default:
-							this.adapter.rLog("System", duid, "Warn", version, undefined, "Unknown protocol version. Skipping poll.", "warn");
+					if (this.pollingDevices.has(duid)) {
+						this.adapter.rLog("System", duid, "Debug", version, undefined, "Skipping poll because previous poll is still running.", "debug");
+						continue;
+					}
+
+					this.pollingDevices.add(duid);
+					try {
+						switch (version) {
+							case "B01":
+								await this.pollB01Device(handler, duid);
+								break;
+							case "A01":
+								await this.pollA01Device(handler, duid);
+								break;
+							case "L01":
+							case "1.0":
+								await this.pollV1Device(handler, duid);
+								break;
+							default:
+								this.adapter.rLog("System", duid, "Warn", version, undefined, "Unknown protocol version. Skipping poll.", "warn");
+						}
+					} finally {
+						this.pollingDevices.delete(duid);
 					}
 				} catch (error: unknown) {
 					this.adapter.catchError(error, "mainUpdateInterval", duid);

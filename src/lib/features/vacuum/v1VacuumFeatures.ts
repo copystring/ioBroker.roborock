@@ -566,6 +566,7 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			}
 		} catch (e: any) {
 			this.deps.adapter.rLog("System", this.duid, "Warn", undefined, undefined, `Failed to update status: ${e.message}`, "warn");
+			throw e;
 		}
 	}
 
