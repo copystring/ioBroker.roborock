@@ -91,7 +91,7 @@ describe("Error Resilience", () => {
 			originalError(msg);
 		};
 
-		await vacuumFeatures.updateStatus();
+		await expect(vacuumFeatures.updateStatus()).rejects.toThrow("Network Error");
 
 		expect(warnCalled).to.be.true;
 	});
