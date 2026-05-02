@@ -10,7 +10,7 @@ describe("Queue Deep Dive (requestsHandler)", () => {
 		mockAdapter = new MockAdapter();
 		// Mock sub-APIs required by requestsHandler
 		mockAdapter.mqtt_api = { ensureEndpoint: async () => "endpoint", isConnected: () => true, sendMessage: () => {}, clearIntervals: () => {} } as any;
-		mockAdapter.local_api = { isConnected: () => true, sendMessage: () => {}, clearLocalDevicedTimeout: () => {} } as any;
+		mockAdapter.local_api = { isConnected: () => true, sendMessage: () => true, clearLocalDevicedTimeout: () => {} } as any;
 		mockAdapter.http_api = { getMatchedLocalKeys: () => new Map([["duid", Buffer.alloc(16)]]) } as any;
 		mockAdapter.getDeviceProtocolVersion = async () => "1.0";
 
