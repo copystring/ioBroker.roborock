@@ -478,7 +478,8 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 	}
 
 	private async processV1CleanSummary(summary: Record<string, unknown>): Promise<void> {
-		const records = Array.isArray(summary.records) ? this.normalizeRecordStartTimes(summary.records) : [];
+		const records = Array.isArray(summary.records) ? this.normalizeRecordStartTimes(summary.records).sort((a, b) => b - a) : [];
+		const recordPayloads = await this.fetchV1CleanRecordPayloads(records);
 		const rest = { ...summary };
 		delete rest.records;
 
@@ -487,10 +488,45 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			await this.processResultKey("cleaningInfo", key, rest[key]);
 		}
 
-		await this.syncV1CleanRecords(records);
+		await this.writeV1CleaningInfoJson(records, recordPayloads);
+		await this.syncV1CleanRecords(records, recordPayloads);
 	}
 
-	private async syncV1CleanRecords(records: number[]): Promise<void> {
+	private async fetchV1CleanRecordPayloads(records: number[]): Promise<Map<number, unknown>> {
+		const payloads = new Map<number, unknown>();
+
+		for (const startTime of records) {
+			try {
+				const rawRecord = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_clean_record", [startTime]);
+				const payload = this.unwrapSingleElementArrays(rawRecord);
+				if (!(Array.isArray(payload) && payload.length === 0)) {
+					payloads.set(startTime, payload);
+				}
+			} catch (e: unknown) {
+				this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, `Failed to fetch clean record ${startTime} for cleaningInfo.JSON: ${this.deps.adapter.errorMessage(e)}`, "warn");
+			}
+		}
+
+		return payloads;
+	}
+
+	private async writeV1CleaningInfoJson(records: number[], recordPayloads: Map<number, unknown>): Promise<void> {
+		const jsonRecords = records.map(startTime => recordPayloads.get(startTime) ?? null);
+
+		await this.deps.ensureState(`Devices.${this.duid}.cleaningInfo.JSON`, {
+			name: "cleaningInfoJSON",
+			type: "string",
+			role: "json",
+			read: true,
+			write: false
+		});
+		await this.deps.adapter.setStateChanged(`Devices.${this.duid}.cleaningInfo.JSON`, {
+			val: JSON.stringify(jsonRecords),
+			ack: true
+		});
+	}
+
+	private async syncV1CleanRecords(records: number[], recordPayloads: Map<number, unknown> = new Map()): Promise<void> {
 		if (records.length === 0) return;
 
 		const mapQueue = new PQueue({ concurrency: 1 });
@@ -537,7 +573,7 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 		}
 
 		for (const { index, time } of newRecs) {
-			await this.fetchAndSaveRecord(time, index, index < 3 ? 10 : 0, mapQueue);
+			await this.fetchAndSaveRecord(time, index, index < 3 ? 10 : 0, mapQueue, recordPayloads.get(time));
 		}
 
 		await mapQueue.onIdle();
@@ -560,7 +596,7 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 		}));
 	}
 
-	private async fetchAndSaveRecord(startTime: number, index: number, priority: number, queue: PQueue): Promise<void> {
+	private async fetchAndSaveRecord(startTime: number, index: number, priority: number, queue: PQueue, prefetchedRecord?: unknown): Promise<void> {
 		queue.add(async () => {
 			try {
 				const fullRecordPath = `cleaningInfo.records.${index}`;
@@ -570,7 +606,9 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 				await this.deps.adapter.setStateChanged(`Devices.${this.duid}.${fullRecordPath}.startTime`, { val: startTime, ack: true });
 
 				// 2. Fetch Metadata
-				const recordsDetails = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_clean_record", [startTime]);
+				const recordsDetails = prefetchedRecord !== undefined
+					? prefetchedRecord
+					: await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_clean_record", [startTime]);
 				const record = this.normalizeV1CleanRecord(recordsDetails);
 				if (record) {
 					for (const key in record) {
