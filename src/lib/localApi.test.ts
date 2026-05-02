@@ -117,7 +117,7 @@ describe("local_api transport sequence", () => {
 		expect(sentMessages[0].readUInt16BE(4 + 15)).to.equal(2);
 	});
 
-	it("times out an outstanding ping when inbound activity stays idle", () => {
+	it("keeps an outstanding ping open until the ping response deadline", () => {
 		const duid = "duid";
 		const adapter = new MockAdapter() as any;
 		const api = new local_api(adapter);
@@ -139,7 +139,7 @@ describe("local_api transport sequence", () => {
 		};
 		api.deviceSockets[duid] = {
 			connected: true,
-			lastReceivedAt: now - 8_000,
+			lastReceivedAt: now - 20_000,
 			lastSentAt: now - 1_000,
 			lastPingAt: now - 1_000,
 			pingOutstanding: 1,
@@ -149,9 +149,43 @@ describe("local_api transport sequence", () => {
 		expect(reconnects).to.equal(0);
 		expect(sentMessages).to.have.length(0);
 
-		(api.deviceSockets[duid] as any).lastReceivedAt = now - 9_000;
+		(api.deviceSockets[duid] as any).lastPingAt = now - 11_000;
 		(api as any).checkTcpActivity(duid);
 		expect(reconnects).to.equal(1);
+		expect(sentMessages).to.have.length(0);
+	});
+
+	it("does not send another TCP ping while a previous ping is outstanding", () => {
+		const duid = "duid";
+		const adapter = new MockAdapter() as any;
+		const api = new local_api(adapter);
+		let reconnects = 0;
+		const sentMessages: Buffer[] = [];
+		const now = Date.now();
+
+		api.sendMessage = (_duid: string, message: Buffer) => {
+			sentMessages.push(message);
+			return true;
+		};
+		api.scheduleReconnect = () => {
+			reconnects += 1;
+		};
+		api.localDevices[duid] = {
+			ip: "127.0.0.1",
+			version: "1.0",
+			ackNonce: 654321,
+		};
+		api.deviceSockets[duid] = {
+			connected: true,
+			lastReceivedAt: now - 20_000,
+			lastSentAt: now - 20_000,
+			lastPingAt: now - 5_000,
+			pingOutstanding: 1,
+		} as any;
+
+		(api as any).checkTcpActivity(duid);
+
+		expect(reconnects).to.equal(0);
 		expect(sentMessages).to.have.length(0);
 	});
 
