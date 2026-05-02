@@ -2,23 +2,27 @@
 version: 2
 updates:
 
-  - package-ecosystem: "npm"
-    directory: "/"
+  - package-ecosystem: 'npm'
+    directory: '/'
     schedule:
-      interval: "daily"
-      time: "05:00"
-      timezone: "Europe/Berlin"
+      interval: 'daily'
+      time: '05:00'
+      timezone: 'Europe/Berlin'
     open-pull-requests-limit: 15
     assignees:
-      - "copystring"
-    versioning-strategy: "increase"
+      - 'copystring'
+    versioning-strategy: 'increase'
+    ignore:
+      - dependency-name: '@types/node'
+        update-types:
+          - 'version-update:semver-major'
 
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: 'github-actions'
+    directory: '/'
     schedule:
-      interval: "daily"
-      time: "05:00"
-      timezone: "Europe/Berlin"
+      interval: 'daily'
+      time: '05:00'
+      timezone: 'Europe/Berlin'
     open-pull-requests-limit: 15
     assignees:
-      - "copystring"
+      - 'copystring'
