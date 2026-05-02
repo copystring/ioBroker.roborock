@@ -80,6 +80,11 @@ describe("Adapter Type Verification", () => {
 		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.clean_time`]).to.equal(123);
 		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.clean_count`]).to.equal(190);
 		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.records.0.startTime`]).to.equal(1765198801);
+		expect(JSON.parse(String(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.JSON`]))[0]).toMatchObject({
+			begin: 1765198801,
+			duration: 4538,
+			area: 51290000
+		});
 	});
 
 	it("should process positional V1 clean summary and clean record arrays", async () => {
@@ -107,5 +112,16 @@ describe("Adapter Type Verification", () => {
 		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.records.0.area`]).to.equal(6);
 		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.records.0.field_8`]).to.equal(56);
 		expect(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.records.0.0`]).to.be.undefined;
+		expect(JSON.parse(String(mockAdapter.states[`Devices.${mockRobot.duid}.cleaningInfo.JSON`]))[0]).toEqual([
+			1774980747,
+			1774981047,
+			300,
+			6165000,
+			0,
+			1,
+			2,
+			3,
+			56
+		]);
 	});
 });
