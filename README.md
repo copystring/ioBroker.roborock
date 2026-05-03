@@ -415,6 +415,8 @@ This feature only works when map creation is enabled in the adapter options. Ope
 ### 0.0.2-alpha.0 (2023-01-28)
 * (copystring) initial release
 
+[Older changelogs can be found there](CHANGELOG_OLD.md)
+
 ## License
 MIT License
 
