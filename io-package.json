@@ -1,9 +1,22 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.7.0-beta.1",
+    "version": "0.7.0",
     "tier": 1,
     "news": {
+      "0.7.0": {
+        "en": "Added support for Roborock Q10, including map handling for this model.\nAdded support for Roborock Saros Z70.\nImproved local connections for newer Roborock models so reconnects, keepalive checks and map transfers are more reliable.\nFixed empty images in mapBase64 and mapBase64Truncated.",
+        "de": "Unterstützung für Roborock Q10 hinzugefügt, inklusive Kartenverarbeitung für dieses Modell.\nUnterstützung für Roborock Saros Z70 hinzugefügt.\nLokale Verbindungen für neuere Roborock-Modelle verbessert, damit Wiederverbindungen, Keepalive-Prüfungen und Kartenübertragungen zuverlässiger laufen.\nLeere Bilder in mapBase64 und mapBase64Truncated behoben.",
+        "es": "Se añadió soporte para Roborock Q10, incluida la gestión de mapas para este modelo.\nSe añadió soporte para Roborock Saros Z70.\nSe mejoraron las conexiones locales para modelos Roborock recientes, haciendo más fiables las reconexiones, las comprobaciones keepalive y las transferencias de mapas.\nSe corrigieron imágenes vacías en mapBase64 y mapBase64Truncated.",
+        "fr": "Ajout de la prise en charge du Roborock Q10, y compris la gestion des cartes pour ce modèle.\nAjout de la prise en charge du Roborock Saros Z70.\nAmélioration des connexions locales pour les modèles Roborock récents, afin de rendre les reconnexions, les contrôles keepalive et les transferts de cartes plus fiables.\nCorrection des images vides dans mapBase64 et mapBase64Truncated.",
+        "it": "Aggiunto il supporto per Roborock Q10, inclusa la gestione delle mappe per questo modello.\nAggiunto il supporto per Roborock Saros Z70.\nMigliorate le connessioni locali per i modelli Roborock più recenti, rendendo più affidabili riconnessioni, controlli keepalive e trasferimenti delle mappe.\nCorrette le immagini vuote in mapBase64 e mapBase64Truncated.",
+        "ru": "Добавлена поддержка Roborock Q10, включая обработку карт для этой модели.\nДобавлена поддержка Roborock Saros Z70.\nУлучшены локальные соединения для новых моделей Roborock: переподключения, проверки keepalive и передача карт стали надежнее.\nИсправлены пустые изображения в mapBase64 и mapBase64Truncated.",
+        "pt": "Adicionado suporte para Roborock Q10, incluindo o processamento de mapas para este modelo.\nAdicionado suporte para Roborock Saros Z70.\nMelhoradas as ligações locais para modelos Roborock mais recentes, tornando reconexões, verificações keepalive e transferências de mapas mais fiáveis.\nCorrigidas imagens vazias em mapBase64 e mapBase64Truncated.",
+        "nl": "Ondersteuning toegevoegd voor Roborock Q10, inclusief kaartverwerking voor dit model.\nOndersteuning toegevoegd voor Roborock Saros Z70.\nLokale verbindingen voor nieuwere Roborock-modellen verbeterd, zodat herverbinden, keepalive-controles en kaartoverdrachten betrouwbaarder zijn.\nLege afbeeldingen in mapBase64 en mapBase64Truncated opgelost.",
+        "pl": "Dodano obsługę Roborock Q10, w tym obsługę map dla tego modelu.\nDodano obsługę Roborock Saros Z70.\nUlepszono połączenia lokalne dla nowszych modeli Roborock, dzięki czemu ponowne połączenia, kontrole keepalive i przesyłanie map są bardziej niezawodne.\nNaprawiono puste obrazy w mapBase64 i mapBase64Truncated.",
+        "zh-cn": "新增对 Roborock Q10 的支持，包括该型号的地图处理。\n新增对 Roborock Saros Z70 的支持。\n改进了较新 Roborock 型号的本地连接，使重新连接、keepalive 检查和地图传输更加可靠。\n修复了 mapBase64 和 mapBase64Truncated 中的空图像。",
+        "uk": "Додано підтримку Roborock Q10, включно з обробкою карт для цієї моделі.\nДодано підтримку Roborock Saros Z70.\nПокращено локальні з'єднання для новіших моделей Roborock, щоб повторні підключення, перевірки keepalive і передавання карт були надійнішими.\nВиправлено порожні зображення в mapBase64 і mapBase64Truncated."
+      },
       "0.7.0-beta.1": {
         "en": "**Fix:** Request handling – message IDs are now assigned internally (externalId removed), avoiding ID conflicts.\n**Maps/Rooms:** Room states are only created for segments that exist on the loaded map for that floor; room names are taken only from the API so custom names are not overwritten.",
         "de": "**Fix:** Anfragebehandlung - Nachrichten-IDs werden nun intern zugewiesen (externalId entfernt), wodurch ID-Konflikte vermieden werden.\n**Karten/Räume:** Raumzustände werden nur für Segmente erstellt, die auf der geladenen Karte für diese Etage existieren; Raumnamen werden nur von der API übernommen, sodass benutzerdefinierte Namen nicht überschrieben werden.",
@@ -81,19 +94,6 @@
         "pl": "Korekty błędów\nupdate test- and- releasase.yml\nNapraw wykrywanie funkcji S6\nMigracja z płótna na @ napu- rs / płótno\nDodaj Qrevo S & Qrevo Krzywa",
         "uk": "Помилки\njavascript licenses api веб-сайт go1.13.8\nВизначення функції S6\nМіграція з полотна до @napu-rs/canvas\nДодати Qrevo S & Qrevo Проксимус",
         "zh-cn": "错误修正\n更新测试和释放.yml\n修复 S6 特性检测\n从帆布迁移到 @napu-rs/canvas\n添加 Qrevo S & Qrevo 曲线"
-      },
-      "0.6.15": {
-        "en": "Refactor some code\nimprove handling of online/offline detection and related logging\nS6 MaxV supports avoid carpet",
-        "de": "Refactor einige Code\nverbesserung des umgangs mit online/offline-erkennung und verwandter protokollierung\nS6 MaxV-Träger vermeiden Teppich",
-        "ru": "Рефакторировать код\nулучшение работы с онлайн/оффлайн-обнаружением и смежными лесозаготовками\nS6 MaxV поддерживает избегание ковра",
-        "pt": "Refactor algum código\nmelhorar o manuseio de detecção on-line/offline e registro relacionado\nSuportes S6 MaxV evitar tapete",
-        "nl": "Code refactoreren\nverbeteren van de omgang met online/offline detectie en aanverwante logging\nS6 MaxV ondersteunt vermijden tapijt",
-        "fr": "Refactorer un code\naméliorer la gestion de la détection en ligne/hors ligne et l'enregistrement connexe\nSupports S6 MaxV pour éviter le tapis",
-        "it": "Refactor alcuni codici\nmigliorare la gestione del rilevamento online/offline e relativi logging\nI supporti S6 MaxV evitano il tappeto",
-        "es": "Refactor algún código\nmejorar el manejo de la detección en línea/offline y registro conexo\nS6 MaxV admite evitar la alfombra",
-        "pl": "Zmień kod\npoprawa obsługi wykrywania online / offline i związanego z tym wyrębu\nS6 MaxV obsługuje unikać dywanu",
-        "uk": "Рефактор коду\nпокращити роботу онлайн / в автономному режимі виявлення та пов'язаних з реєстрацією\nS6 MaxV підтримує ковролін",
-        "zh-cn": "重构一些代码\n改进在线/离线检测和相关记录的处理\nS6 最大V 支持避免地毯"
       }
     },
     "titleLang": {
