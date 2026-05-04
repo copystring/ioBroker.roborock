@@ -1,4 +1,4 @@
-import * as crypto from "crypto";
+import * as crypto from "node:crypto";
 import { cryptoEngine } from "../../cryptoEngine";
 import * as MapHelper from "../MapHelper";
 import { isQ10YxMapPayload } from "../q10/Q10YxMapParser";

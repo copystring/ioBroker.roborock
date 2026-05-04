@@ -1,6 +1,6 @@
 import type { AxiosInstance } from "axios";
 import * as JSZip from "jszip";
-import * as path from "path";
+import * as path from "node:path";
 import { Roborock } from "../main";
 
 export class AppPluginManager {

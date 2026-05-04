@@ -1,4 +1,5 @@
-# Dependabot runs daily at 05:00 (Europe/Berlin)
+# Dependabot runs daily at 05:00 (Europe/Berlin).
+# npm updates use a 7 day cooldown to reduce supply-chain risk.
 version: 2
 updates:
 
@@ -12,6 +13,12 @@ updates:
     assignees:
       - "copystring"
     versioning-strategy: "increase"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "@types/node"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: "github-actions"
     directory: "/"

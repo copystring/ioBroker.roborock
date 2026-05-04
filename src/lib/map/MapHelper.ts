@@ -1,5 +1,5 @@
 import { loadImage } from "@napi-rs/canvas";
-import * as zlib from "zlib";
+import * as zlib from "node:zlib";
 import * as Images from "../../common/images";
 
 export interface Point {

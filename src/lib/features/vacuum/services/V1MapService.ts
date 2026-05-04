@@ -1,5 +1,5 @@
-import { promisify } from "util";
-import { gunzip } from "zlib";
+import { promisify } from "node:util";
+import { gunzip } from "node:zlib";
 import { MapManager } from "../../../map/MapManager";
 import type { FeatureDependencies } from "../../baseDeviceFeatures";
 
