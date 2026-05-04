@@ -1,4 +1,4 @@
-import * as path from "path";
+import * as path from "node:path";
 
 const Q10_PLUGIN_ROOT = path.join(
 	process.cwd(),

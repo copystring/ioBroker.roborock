@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-const cp = require("child_process");
-const path = require("path");
+const cp = require("node:child_process");
+const path = require("node:path");
 
 const REPO_ROOT = path.join(__dirname, "..");
 const PREPARE_SCRIPT = path.join(__dirname, "prepare_appplugin_bundles.js");

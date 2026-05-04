@@ -1,5 +1,5 @@
 // src/lib/map/v1/MapParser.ts
-import * as crypto from "crypto";
+import * as crypto from "node:crypto";
 import type { Roborock } from "../../../main";
 
 // --------------------

@@ -1,4 +1,4 @@
-import * as fs from "fs";
+import * as fs from "node:fs";
 import { createCanvas, Image, loadImage } from "@napi-rs/canvas";
 import type { B01DeviceStatus, B01MapData } from "../b01/types";
 import { Q10AssetCatalog, resolveQ10PluginAssetPath } from "./Q10AssetCatalog";

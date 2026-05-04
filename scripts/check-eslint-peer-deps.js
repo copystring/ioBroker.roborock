@@ -5,8 +5,8 @@
  *
  * Liste entspricht @iobroker/eslint-config@2.2.0 (bei Upgrade ggf. anpassen).
  */
-const path = require("path");
-const fs = require("fs");
+const path = require("node:path");
+const fs = require("node:fs");
 
 const ROOT = path.resolve(__dirname, "..");
 const OUR_PKG = path.join(ROOT, "package.json");

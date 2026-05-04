@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-const fs = require("fs");
-const os = require("os");
-const path = require("path");
-const cp = require("child_process");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const cp = require("node:child_process");
 
 const {
     detectBundleKind,

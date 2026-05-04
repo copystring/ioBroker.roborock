@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-const fs = require("fs");
-const path = require("path");
-const vm = require("vm");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
 
 const REPO_ROOT = path.join(__dirname, "..");
 const DEFAULT_APPPLUGINS_ROOT = path.join(REPO_ROOT, ".AppPlugins");

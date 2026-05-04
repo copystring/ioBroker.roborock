@@ -4,7 +4,6 @@
     "127": "Lebensdauer des Staubfilters",
     "Enable Map Creation": "Kartenerstellung aktivieren",
     "Login": "E-Mail",
-
     "Password": "Passwort",
     "Update interval": "Aktualisierungsintervall (Sekunden)",
     "adbumper_status": "Adbumber-Status",
@@ -73,8 +72,6 @@
     "mop_mode": "Wischmodus",
     "msg_seq": "Nachrichtensequenz",
     "msg_ver": "Nachrichtenversion",
-    "option1": "Option 1",
-    "option2": "Option 2",
     "rdt": "Restlaufzeit der Trocknung",
     "resetConsumables_description": "Zurücksetzbare Verbrauchsmaterialien",
     "resume_segment_clean": "Nehmen Sie die Zimmerreinigung wieder auf",

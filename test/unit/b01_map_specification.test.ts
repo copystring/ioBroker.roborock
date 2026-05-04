@@ -1,9 +1,9 @@
 
-import * as crypto from "crypto";
-import * as fs from "fs";
-import * as path from "path";
+import * as crypto from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import * as zlib from "zlib";
+import * as zlib from "node:zlib";
 import { cryptoEngine } from "../../src/lib/cryptoEngine";
 import { MapDecryptor } from "../../src/lib/map/b01/MapDecryptor";
 

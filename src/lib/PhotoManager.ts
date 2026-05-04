@@ -1,6 +1,6 @@
 import { Parser } from "binary-parser";
-import { promisify } from "util";
-import * as zlib from "zlib";
+import { promisify } from "node:util";
+import * as zlib from "node:zlib";
 import type { Roborock } from "../main";
 import { cryptoEngine } from "./cryptoEngine";
 
