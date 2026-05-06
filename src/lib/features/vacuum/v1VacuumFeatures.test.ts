@@ -26,12 +26,14 @@ describe("V1VacuumFeatures", () => {
 		};
 
 		adapterMock = {
+			namespace: "roborock.0",
 			log: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() },
 			setStateChanged: vi.fn().mockResolvedValue(undefined),
 			setState: vi.fn(),
 			ensureState: vi.fn().mockResolvedValue(undefined),
 			ensureFolder: vi.fn().mockResolvedValue(undefined),
 			getStateAsync: vi.fn().mockResolvedValue(undefined),
+			getStatesAsync: vi.fn().mockResolvedValue({}),
 			getObjectAsync: vi.fn().mockResolvedValue({ common: {} }),
 			extendObject: vi.fn().mockResolvedValue(undefined),
 			setObject: vi.fn().mockResolvedValue(undefined),
@@ -159,5 +161,42 @@ describe("V1VacuumFeatures", () => {
 			{ start_time: 1234567890 },
 			expect.any(Object)
 		);
+	});
+
+	it("should use set_clean_repeat_times for generated segment clean payloads", async () => {
+		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a144", { staticFeatures: [] });
+		adapterMock.getStateAsync.mockImplementation(async (id: string) => {
+			if (id === "Devices.duid1.commands.set_clean_repeat_times") return { val: 2 };
+			return undefined;
+		});
+		adapterMock.getStatesAsync.mockResolvedValue({
+			"roborock.0.Devices.duid1.floors.0.7": { val: true },
+			"roborock.0.Devices.duid1.floors.0.8": { val: false },
+			"roborock.0.Devices.duid1.floors.0.9": { val: 1 }
+		});
+
+		const params = await vacuum.getCommandParams("app_segment_clean");
+
+		expect(params).toEqual([{
+			segments: [7, 9],
+			repeat: 2,
+			clean_order_mode: 0,
+			clean_mop: 0
+		}]);
+	});
+
+	it("should use set_clean_repeat_times when explicit room ids are supplied", async () => {
+		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a144", { staticFeatures: [] });
+		adapterMock.getStateAsync.mockResolvedValue({ val: "2" });
+
+		const params = await vacuum.getCommandParams("app_segment_clean", [7]);
+
+		expect(params).toEqual([{
+			segments: [7],
+			repeat: 2,
+			clean_order_mode: 0,
+			clean_mop: 0
+		}]);
+		expect(adapterMock.getStatesAsync).not.toHaveBeenCalled();
 	});
 });
