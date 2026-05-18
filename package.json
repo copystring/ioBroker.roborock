@@ -86,7 +86,14 @@
     "@alcalzone/esbuild-register": {
       "esbuild": "^0.25.12"
     },
+    "@alcalzone/esbuild-register@2.5.1-1": {
+      "esbuild": "^0.25.12"
+    },
     "mocha": {
+      "diff": "^8.0.4",
+      "serialize-javascript": "^7.0.5"
+    },
+    "mocha@11.7.5": {
       "diff": "^8.0.4",
       "serialize-javascript": "^7.0.5"
     }
