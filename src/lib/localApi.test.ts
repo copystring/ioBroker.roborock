@@ -259,4 +259,167 @@ describe("local_api transport sequence", () => {
 		expect(api.checkComplete(Buffer.concat([frame, Buffer.from([0x00, 0x00])]))).to.equal(false);
 		expect(api.checkComplete(Buffer.from([0x00, 0x00, 0x11]))).to.equal(false);
 	});
+
+	it("merges discovered endpoint changes without dropping other local devices", () => {
+		const duid = "duid-a";
+		const adapter = new MockAdapter() as any;
+		const api = new local_api(adapter);
+		const attempts: Array<{ duid: string; suppressLog: boolean; timeoutMs: number | undefined }> = [];
+		let destroyed = false;
+
+		adapter.requestsHandler = {
+			rejectPendingTcpRequests: () => 0,
+		};
+		api.initiateClient = async (attemptDuid: string, suppressLog?: boolean, timeoutMs?: number) => {
+			attempts.push({ duid: attemptDuid, suppressLog: !!suppressLog, timeoutMs });
+		};
+		api.localDevices[duid] = {
+			ip: "10.1.1.81",
+			version: "1.0",
+			connectNonce: 1,
+			ackNonce: 2,
+			staleSince: 100,
+		};
+		api.localDevices["duid-b"] = {
+			ip: "10.1.1.82",
+			version: "1.0",
+		};
+		api.deviceSockets[duid] = {
+			connected: true,
+			destroyed: false,
+			removeAllListeners: () => {},
+			destroy: () => {
+				destroyed = true;
+			},
+		} as any;
+
+		const changed = api.updateLocalEndpoint(duid, "10.1.1.89", "1.0", "udp");
+
+		expect(changed).to.equal(true);
+		expect(api.localDevices[duid].ip).to.equal("10.1.1.89");
+		expect(api.localDevices[duid].connectNonce).to.equal(undefined);
+		expect(api.localDevices[duid].ackNonce).to.equal(undefined);
+		expect(api.localDevices[duid].staleSince).to.equal(undefined);
+		expect(api.localDevices["duid-b"].ip).to.equal("10.1.1.82");
+		expect(api.deviceSockets[duid]).to.equal(undefined);
+		expect(destroyed).to.equal(true);
+		expect(attempts).to.deep.equal([{ duid, suppressLog: true, timeoutMs: 5000 }]);
+	});
+
+	it("marks unreachable TCP endpoints stale and triggers endpoint refresh instead of reconnect looping", async () => {
+		const duid = "duid";
+		const adapter = new MockAdapter() as any;
+		const api = new local_api(adapter);
+		let scheduledReconnects = 0;
+		let refreshes = 0;
+
+		adapter.requestsHandler = {
+			rejectPendingTcpRequests: () => 0,
+		};
+		api.localDevices[duid] = {
+			ip: "10.1.1.81",
+			version: "1.0",
+		};
+		(api as any)._performConnection = async () => {
+			const err: any = new Error("connect EHOSTUNREACH 10.1.1.81:58867");
+			err.code = "EHOSTUNREACH";
+			throw err;
+		};
+		api.scheduleReconnect = () => {
+			scheduledReconnects += 1;
+		};
+		api.refreshEndpoint = async () => {
+			refreshes += 1;
+			return false;
+		};
+
+		await api.initiateClient(duid);
+
+		expect(scheduledReconnects).to.equal(0);
+		expect(refreshes).to.equal(1);
+		expect(api.localDevices[duid].staleSince).to.be.a("number");
+	});
+
+	it("clears stale endpoint state after a confirmed local TCP connection", async () => {
+		const duid = "duid";
+		const adapter = new MockAdapter() as any;
+		const api = new local_api(adapter);
+
+		api.cloudDevices.add(duid);
+		api.localDevices[duid] = {
+			ip: "10.1.1.81",
+			version: "B01",
+			staleSince: 100,
+		};
+		api.deviceSockets[duid] = {
+			connected: true,
+		} as any;
+
+		await api.initiateClient(duid);
+
+		expect(api.localDevices[duid].staleSince).to.equal(undefined);
+		expect(api.localDevices[duid].lastSeenAt).to.be.a("number");
+		expect(api.cloudDevices.has(duid)).to.equal(false);
+	});
+
+	it("refreshes stale endpoints from MQTT network info and reconnects to the new IP", async () => {
+		const duid = "duid";
+		const adapter = new MockAdapter() as any;
+		const api = new local_api(adapter);
+		const requests: Array<{ method: string; params: unknown }> = [];
+		const attempts: string[] = [];
+
+		adapter.mqtt_api = { isConnected: () => true };
+		adapter.requestsHandler = {
+			sendRequest: async (_duid: string, method: string, params: unknown) => {
+				requests.push({ method, params });
+				return [{ ip: "10.1.1.89" }];
+			},
+			rejectPendingTcpRequests: () => 0,
+		};
+		adapter.getDeviceProtocolVersion = async () => "1.0";
+		api.initiateClient = async (attemptDuid: string) => {
+			attempts.push(attemptDuid);
+		};
+		api.localDevices[duid] = {
+			ip: "10.1.1.81",
+			version: "1.0",
+			staleSince: 100,
+		};
+
+		await expect(api.refreshEndpoint(duid, "test", true)).resolves.to.equal(true);
+
+		expect(requests).to.deep.equal([{ method: "get_network_info", params: [] }]);
+		expect(api.localDevices[duid].ip).to.equal("10.1.1.89");
+		expect(api.localDevices[duid].staleSince).to.equal(undefined);
+		expect(attempts).to.deep.equal([duid]);
+	});
+
+	it("uses B01 network info method and accepts ipAdress spelling during endpoint refresh", async () => {
+		const duid = "duid";
+		const adapter = new MockAdapter() as any;
+		const api = new local_api(adapter);
+		const requests: Array<{ method: string; params: unknown }> = [];
+
+		adapter.mqtt_api = { isConnected: () => true };
+		adapter.requestsHandler = {
+			sendRequest: async (_duid: string, method: string, params: unknown) => {
+				requests.push({ method, params });
+				return { ipAdress: "10.1.1.90" };
+			},
+			rejectPendingTcpRequests: () => 0,
+		};
+		adapter.getDeviceProtocolVersion = async () => "B01";
+		api.initiateClient = async () => {};
+		api.localDevices[duid] = {
+			ip: "10.1.1.81",
+			version: "B01",
+			staleSince: 100,
+		};
+
+		await expect(api.refreshEndpoint(duid, "test", true)).resolves.to.equal(true);
+
+		expect(requests).to.deep.equal([{ method: "service.get_net_info", params: {} }]);
+		expect(api.localDevices[duid].ip).to.equal("10.1.1.90");
+	});
 });
