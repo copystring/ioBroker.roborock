@@ -316,15 +316,17 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 		}
 
 		if (method === "app_segment_clean") {
+			const repeat = await this.getCleanRepeatTimes();
+
 			// If params are explicitly provided (e.g. from single room button), use them.
 			if (params && (Array.isArray(params) || typeof params === "object")) {
 				// If it's just a room ID or array of IDs, wrap it in the correct payload structure
 				if (Array.isArray(params) && typeof params[0] === "number") {
 					const roomIds = params as number[];
-					this.deps.adapter.rLog("System", this.duid, "Info", "1.0", undefined, `Starting segment cleaning for specific rooms: ${roomIds.join(", ")}`, "info");
+					this.deps.adapter.rLog("System", this.duid, "Info", "1.0", undefined, `Starting segment cleaning for specific rooms: ${roomIds.join(", ")} with repeat ${repeat}`, "info");
 					return [{
 						segments: roomIds,
-						repeat: 1,
+						repeat,
 						clean_order_mode: 0,
 						clean_mop: 0
 					}];
@@ -353,13 +355,13 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			}
 
 			if (roomIds.length > 0) {
-				this.deps.adapter.rLog("System", this.duid, "Info", "1.0", undefined, `Starting segment cleaning for rooms: ${roomIds.join(", ")}`, "info");
+				this.deps.adapter.rLog("System", this.duid, "Info", "1.0", undefined, `Starting segment cleaning for rooms: ${roomIds.join(", ")} with repeat ${repeat}`, "info");
 
 				// Params:
-				// params: [{"clean_mop":0,"clean_order_mode":0,"repeat":1,"segments":[2,1]}]
+				// params: [{"clean_mop":0,"clean_order_mode":0,"repeat":2,"segments":[2,1]}]
 				const payload = [{
 					segments: roomIds,
-					repeat: 1,
+					repeat,
 					clean_order_mode: 0,
 					clean_mop: 0
 				}];
@@ -402,6 +404,20 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 		}
 
 		return params;
+	}
+
+	private normalizeCleanRepeat(value: unknown): number | null {
+		const repeat = Number(value);
+		return Number.isInteger(repeat) && repeat > 0 ? repeat : null;
+	}
+
+	private async getCleanRepeatTimes(): Promise<number> {
+		const commandState = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.commands.set_clean_repeat_times`);
+		const commandRepeat = this.normalizeCleanRepeat(commandState?.val);
+		if (commandRepeat !== null) return commandRepeat;
+
+		const statusState = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.deviceStatus.repeat`);
+		return this.normalizeCleanRepeat(statusState?.val) ?? 1;
 	}
 
 	public async updateCleanSummary(): Promise<void> {
