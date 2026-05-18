@@ -82,6 +82,15 @@
     "vitest": "^4.1.5",
     "yaml-lint": "^1.7.0"
   },
+  "overrides": {
+    "@alcalzone/esbuild-register": {
+      "esbuild": "^0.25.12"
+    },
+    "mocha": {
+      "diff": "^8.0.4",
+      "serialize-javascript": "^7.0.5"
+    }
+  },
   "main": "src/main.ts",
   "files": [
     "src/",

@@ -56,6 +56,7 @@ This feature only works when map creation is enabled in the adapter options. Ope
 
 * (copystring) Fixed local TCP recovery when a Roborock device gets a new LAN IP address.
 * (copystring) Updated dependencies: `@napi-rs/canvas` to 1.0.0, `protobufjs` to 8.2.0 and `zod` to 4.4.3.
+* (copystring) Resolved npm audit security advisories in transitive dependencies.
 
 ### 0.7.0 (2026-05-04)
 
