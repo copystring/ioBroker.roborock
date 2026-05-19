@@ -52,7 +52,7 @@ This feature only works when map creation is enabled in the adapter options. Ope
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.7.1 (2026-05-19)
 
 * (copystring) Fixed local TCP recovery when a Roborock device gets a new LAN IP address.
 * (copystring) Updated dependencies: `@napi-rs/canvas` to 1.0.0, `protobufjs` to 8.2.0 and `zod` to 4.4.3.
@@ -107,9 +107,7 @@ This feature only works when map creation is enabled in the adapter options. Ope
 * (copystring) Update LICENSE
 * (copystring) Update README.md
 
-Older changes can be found in [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
-
-## License
+Older changes can be found in [CHANGELOG_OLD.md](CHANGELOG_OLD.md).## License
 MIT License
 
 Copyright (c) 2025-2026 copystring <copystring@gmail.com>

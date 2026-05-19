@@ -1,9 +1,22 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.7.0",
+    "version": "0.7.1",
     "tier": 1,
     "news": {
+      "0.7.1": {
+        "en": "Fixed local TCP recovery when a Roborock device gets a new LAN IP address.\nUpdated dependencies: `@napi-rs/canvas` to 1.0.0, `protobufjs` to 8.2.0 and `zod` to 4.4.3.\nResolved npm audit security advisories in transitive dependencies and documented the temporary dependency overrides.",
+        "de": "Feste lokale TCP-Recovery, wenn ein Roborock-Gerät eine neue LAN-IP-Adresse erhält.\nAktualisierte Abhängigkeiten: `@napi-rs/canvas` bis 1.0.0, `protobufjs` bis 8.2.0 und `zod` bis 4.4.3.\nAufgelöste npm Audit-Sicherheitsberater in Transitionsabhängigkeiten und dokumentiert die vorübergehende Abhängigkeitsüberschreitung.",
+        "ru": "Исправлено локальное восстановление TCP, когда устройство Roborock получает новый IP-адрес локальной сети.\nОбновленные зависимости: \"@napi-rs/canvas\" до 1.0.0, \"protobufjs\" до 8.2.0 и \"zod\" до 4.4.3.\nРешены рекомендации по безопасности аудита npm в транзитивных зависимостях и документированы временные переопределения зависимостей.",
+        "pt": "Fixo recuperação TCP local quando um dispositivo Robolock recebe um novo endereço IP LAN.\nDependências atualizadas: `@napi-rs/canvas` a 1.0.0, `protobufjs` a 8.2.0 e `zod` a 4.4.3.\nConsultorias de segurança de auditoria npm resolvidas em dependências transitivas e documentadas as sobreposições de dependência temporária.",
+        "nl": "Vaste lokale TCP herstel wanneer een Roborock apparaat krijgt een nieuw LAN IP-adres.\nBijgewerkte afhankelijkheden: .\nOpgelost npm audit beveiligingsadviseurs in transitieve afhankelijkheden en documenteerde de tijdelijke afhankelijkheid overrides.",
+        "fr": "Correction de la récupération locale TCP quand un périphérique Roborock obtient une nouvelle adresse IP LAN.\nDépendances actualisées : `@napi-rs/canvas` à 1.0.0, `protobufjs` à 8.2.0 et `zod` à 4.4.3.\nRésolution des avis de sécurité de npm dans les dépendances transitoires et documenté les dépassements de dépendance temporaire.",
+        "it": "Ricupero TCP locale fisso quando un dispositivo Roborock ottiene un nuovo indirizzo IP LAN.\nDipendenze aggiornate: `@napi-rs/canvas` a 1.0.0, `protobufjs` a 8.2.0 e `zod` a 4.4.3.\nRisolto npm audit consulenti di sicurezza nelle dipendenze transitive e documentato la dipendenza temporanea overrides.",
+        "es": "Recuperación TCP local fijada cuando un dispositivo Roborock obtiene una nueva dirección IP LAN.\nDependencias actualizadas: `@napi-rs/canvas` a 1.0.0, `protobufjs` a 8.2.0 y `zod` a 4.4.3.\nResolved npm audit security advisories in transitive dependencies and documented the temporary dependency overrides.",
+        "pl": "Naprawiono lokalny odzysk TCP, gdy urządzenie Robolock otrzymuje nowy adres IP LAN.\nAktualizacja zależności: '@ napi-rs / pinean' do 1.0.0, 'protobufjs' do 8.2.0 i 'zod' do 4.4.3.\nUzgodniono doradztwo npm w zakresie bezpieczeństwa kontroli w zależności przejściowej i udokumentowano tymczasowe przekroczenie zależności.",
+        "uk": "Виправлено локальне відновлення TCP, коли пристрій Roborock отримує нову LAN IP-адресу.\nОновлені залежності: `@napi-rs/canvas`` до 1.0.0, `protobufjs` до 8.2.0 та `zod` до 4.4.3.\nЗдійснено консультацію з питань захисту персональних даних в транзитних залежностях та задокументовано тимчасові затримки залежностей.",
+        "zh-cn": "当Roborock设备获得一个新的局域网IP地址时,固定的本地TCP恢复.\n更新的依附关系:`napi-rs/canvas'为1.0.0,`protobufjs'为8.2.0,`zod'为4.4.3.\n在过渡性依赖中解决 npm 审计安全咨询,并记录临时依赖性覆盖."
+      },
       "0.7.0": {
         "en": "Added support for Roborock Q10, including map handling for this model.\nAdded support for Roborock Saros Z70.\nImproved local connections for newer Roborock models so reconnects, keepalive checks and map transfers are more reliable.\nFixed empty images in mapBase64 and mapBase64Truncated.",
         "de": "Unterstützung für Roborock Q10 hinzugefügt, inklusive Kartenverarbeitung für dieses Modell.\nUnterstützung für Roborock Saros Z70 hinzugefügt.\nLokale Verbindungen für neuere Roborock-Modelle verbessert, damit Wiederverbindungen, Keepalive-Prüfungen und Kartenübertragungen zuverlässiger laufen.\nLeere Bilder in mapBase64 und mapBase64Truncated behoben.",
@@ -81,19 +94,6 @@
         "pl": "Dodaj brakujące atrybuty\nZmień min interwał aktualizacji do 60, aby zapobiec problemom\nDodaj interfejs WWW do paska bocznego",
         "uk": "Додати деякі відсутні атрибути\nЗміна інтервалу оновлення до 60-х\nДодати веб-інтерфейс на бічну панель",
         "zh-cn": "添加一些缺失属性\n将更新间隔分钟改为60秒,以防止出现问题\n向侧边栏添加网页接口"
-      },
-      "0.6.16": {
-        "en": "Bugfixes\nupdate test-and-release.yml\nFix S6 feature detection\nMigrate from canvas to @napu-rs/canvas\nAdd Qrevo S & Qrevo Curve",
-        "de": "Bugfixes\nupdate test-and-release.yml\nFix S6 Funktion Erkennung\nVon Leinwand zu @napu-rs/canvas migrieren\nQrevo S & Qrevo Kurve",
-        "ru": "Bugfixs\nобновление test-and-release.yml\nФикс S6\nMigrate from canvas to @napu-rs/canvas\nДобавить Qrevo S & Qrevo Куры",
-        "pt": "Bugfixs\natualizar test-and-release.yml\nCorrigir detecção de recursos S6\nMigrar de tela para @napu-rs/canvas\nAdicionar Qrevo S & Qrevo Curve",
-        "nl": "Bugfixes\nupdate test-and-release.yml\nFix S6-functiedetectie\nMigreren van doek naar @napu-rs/canvas\nQrevo S & Qrevo toevoegen Curve",
-        "fr": "Fixes de bogue\nmettre à jour test-and-release.yml\nCorrection de la détection des fonctionnalités S6\nMigrer de la toile à @napu-rs/canvas\nAjouter Qrevo S & Qrevo Courbe",
-        "it": "Bugfix\naggiornamento test-and-release.yml\nRilevamento della funzione Fix S6\nMigrare da tela a @napu-rs/canvas\nAggiungi Qrevo S & Qrevo Curva",
-        "es": "Bugfixes\nactualizar test-and-release.yml\nDetección de funciones S6\nMigrar de lienzo a @napu-rs/canvas\nAñadir Qrevo S ' Qrevo Curva",
-        "pl": "Korekty błędów\nupdate test- and- releasase.yml\nNapraw wykrywanie funkcji S6\nMigracja z płótna na @ napu- rs / płótno\nDodaj Qrevo S & Qrevo Krzywa",
-        "uk": "Помилки\njavascript licenses api веб-сайт go1.13.8\nВизначення функції S6\nМіграція з полотна до @napu-rs/canvas\nДодати Qrevo S & Qrevo Проксимус",
-        "zh-cn": "错误修正\n更新测试和释放.yml\n修复 S6 特性检测\n从帆布迁移到 @napu-rs/canvas\n添加 Qrevo S & Qrevo 曲线"
       }
     },
     "titleLang": {
