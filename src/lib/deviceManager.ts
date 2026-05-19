@@ -275,6 +275,9 @@ export class DeviceManager {
 				this.skipPollUntilNextHomeData.clear();
 				this.adapter.rLog("System", null, "Debug", undefined, undefined, "Running scheduled main device update...", "debug");
 				await this.adapter.http_api.updateHomeData();
+				void this.adapter.local_api?.refreshStaleLocalEndpoints?.("slow poll")?.catch((e: unknown) => {
+					this.adapter.rLog("TCP", null, "Debug", undefined, undefined, `Scheduled local endpoint refresh failed: ${this.adapter.errorMessage(e)}`, "debug");
+				});
 			}
 
 			const cloudDevices = this.adapter.http_api.getDevices();

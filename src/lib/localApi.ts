@@ -2,7 +2,7 @@ import { Parser } from "binary-parser";
 import * as crc32 from "crc-32";
 import * as crypto from "node:crypto";
 import * as dgram from "node:dgram";
-import { Socket, SocketConstructorOpts } from "node:net";
+import { isIP, Socket, SocketConstructorOpts } from "node:net";
 import * as ping from "ping";
 import type { Roborock } from "../main";
 
@@ -20,11 +20,17 @@ function nextSocketRandom(): number {
 // Interfaces & Types
 // --------------------
 
+type LocalEndpointSource = "udp" | "network_info" | "probe";
+
 interface LocalDevice {
 	ip: string;
 	version: string;
 	connectNonce?: number;
 	ackNonce?: number;
+	lastSeenAt?: number;
+	lastConnectAttemptAt?: number;
+	staleSince?: number;
+	endpointSource?: LocalEndpointSource;
 }
 
 class EnhancedSocket extends Socket {
@@ -109,10 +115,19 @@ export class local_api {
 	private discoveryServer: dgram.Socket | null = null;
 	private discoveryTimer: NodeJS.Timeout | null = null;
 	private gracePeriodTimer: NodeJS.Timeout | null = null;
+	private discoveryRestartTimer: NodeJS.Timeout | null = null;
+	private discoveryWindowPromise: Promise<void> | null = null;
+	private resolveDiscoveryWindow: (() => void) | null = null;
+	private discoveryStopping = false;
+	private endpointRefreshPromises = new Map<string, Promise<boolean>>();
+	private endpointRefreshLastStartedAt = new Map<string, number>();
 	private tcpKeepaliveInterval: ioBroker.Interval | undefined = undefined;
 	private static readonly TCP_KEEPALIVE_MS = 10_000;
 	private static readonly TCP_KEEPALIVE_GRACE_MS = 1_000;
 	private static readonly TCP_KEEPALIVE_CHECK_MS = 1_000;
+	private static readonly UDP_DISCOVERY_RESTART_MS = 30_000;
+	private static readonly ENDPOINT_REFRESH_MIN_INTERVAL_MS = 60_000;
+	private static readonly STALE_ENDPOINT_CONNECT_MIN_INTERVAL_MS = 60_000;
 
 	constructor(adapter: Roborock) {
 		this.adapter = adapter;
@@ -150,7 +165,11 @@ export class local_api {
 			}
 			const logLevel = suppressLog ? "debug" : "warn";
 			this.adapter.rLog("TCP", duid, "Error", undefined, undefined, `TCP connect failed for ${duid}: ${this.adapter.errorMessage(err)}`, logLevel);
-			this.scheduleReconnect(duid, "connect failed", !!suppressLog);
+			if (this.isEndpointRefreshError(err)) {
+				this.markEndpointStale(duid, `connect failed: ${this.adapter.errorMessage(err)}`);
+			} else {
+				this.scheduleReconnect(duid, "connect failed", !!suppressLog);
+			}
 			this.cloudDevices.add(duid);
 		}
 	}
@@ -163,9 +182,18 @@ export class local_api {
 			return; // Resolves void
 		}
 
+		const dev = this.localDevices[duid];
+		if (dev) {
+			dev.lastConnectAttemptAt = Date.now();
+		}
+
 		// Check if already connected
 		const existing = this.deviceSockets?.[duid];
 		if (existing?.connected) {
+			if (dev) {
+				dev.staleSince = undefined;
+				dev.lastSeenAt = Date.now();
+			}
 			this.adapter.rLog("TCP", duid, "Debug", "TCP", undefined, `Already connected via TCP`, "debug");
 			this.cloudDevices.delete(duid);
 			return; // Resolves void
@@ -329,6 +357,11 @@ export class local_api {
 		client.on("end", () => this.scheduleReconnect(duid, "connection ended"));
 
 		this.adapter.rLog("TCP", duid, "Info", undefined, undefined, `Connected`, "debug");
+		const connectedDev = this.localDevices[duid];
+		if (connectedDev) {
+			connectedDev.staleSince = undefined;
+			connectedDev.lastSeenAt = Date.now();
+		}
 		this.cloudDevices.delete(duid);
 	}
 
@@ -384,10 +417,10 @@ export class local_api {
 		}
 	}
 
-	/** Schedules reconnect in 5s. */
-	scheduleReconnect(duid: string, reason: string, silent = false): void {
-		this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `TCP ${reason} for ${duid}, retry in 5s`, "debug");
-		this.adapter.requestsHandler?.rejectPendingTcpRequests?.(duid, reason);
+	private resetDeviceSocket(duid: string, reason: string, rejectPendingRequests = true): void {
+		if (rejectPendingRequests) {
+			this.adapter.requestsHandler?.rejectPendingTcpRequests?.(duid, reason);
+		}
 
 		const old = this.deviceSockets[duid];
 		if (old) {
@@ -395,6 +428,40 @@ export class local_api {
 			if (!old.destroyed) old.destroy();
 			delete this.deviceSockets[duid];
 		}
+	}
+
+	private isEndpointRefreshError(error: unknown): boolean {
+		const code = typeof error === "object" && error !== null && "code" in error ? String((error as { code?: unknown }).code) : "";
+		const message = this.adapter.errorMessage(error);
+		return code === "EHOSTUNREACH"
+			|| code === "ENETUNREACH"
+			|| code === "ETIMEDOUT"
+			|| code === "ECONNREFUSED"
+			|| message.includes("TCP connect timeout")
+			|| message.includes("EHOSTUNREACH")
+			|| message.includes("ENETUNREACH")
+			|| message.includes("ETIMEDOUT")
+			|| message.includes("ECONNREFUSED");
+	}
+
+	private markEndpointStale(duid: string, reason: string): void {
+		const dev = this.localDevices[duid];
+		if (dev) {
+			dev.staleSince = dev.staleSince ?? Date.now();
+			dev.connectNonce = undefined;
+			dev.ackNonce = undefined;
+		}
+
+		this.resetDeviceSocket(duid, reason);
+		this.refreshEndpoint(duid, reason).catch((e: unknown) => {
+			this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `Endpoint refresh failed after ${reason}: ${this.adapter.errorMessage(e)}`, "debug");
+		});
+	}
+
+	/** Schedules reconnect in 5s. */
+	scheduleReconnect(duid: string, reason: string, silent = false): void {
+		this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `TCP ${reason} for ${duid}, retry in 5s`, "debug");
+		this.resetDeviceSocket(duid, reason);
 
 		if (this.reconnectPlanned.has(duid)) return;
 		this.reconnectPlanned.add(duid);
@@ -403,7 +470,9 @@ export class local_api {
 			this.reconnectPlanned.delete(duid);
 
 			// Retry only if device is still considered local
-			if (this.getIpForDuid(duid)) {
+			if (this.localDevices[duid]?.staleSince) {
+				this.refreshEndpoint(duid, reason).catch((e: unknown) => this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `Endpoint refresh failed: ${this.adapter.errorMessage(e)}`, "debug"));
+			} else if (this.getIpForDuid(duid)) {
 				this.initiateClient(duid, silent).catch((e) => this.adapter.rLog("TCP", duid, "Error", undefined, undefined, `Reconnect failed: ${e?.message || e}`, silent ? "debug" : "warn"));
 			} else if (!silent) {
 				this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `Skip reconnect: no longer in localDevices`, "debug");
@@ -554,174 +623,376 @@ export class local_api {
 		this.adapter.requestsHandler.resolvePendingRequest(id, result, String(protocol), duid, "TCP");
 	}
 
+	private normalizeNetworkInfo(result: unknown): Record<string, unknown> | null {
+		const value = Array.isArray(result) ? result[0] : result;
+		if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+		const record = value as Record<string, unknown>;
+		const nested = record.data ?? record.result;
+		if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+			return nested as Record<string, unknown>;
+		}
+		return record;
+	}
+
+	private extractIpFromNetworkInfo(result: unknown): string | null {
+		const info = this.normalizeNetworkInfo(result);
+		if (!info) return null;
+
+		const candidate = info.ip ?? info.ipAddress ?? info.ipAdress;
+		if (typeof candidate !== "string") return null;
+
+		const ip = candidate.trim();
+		return isIP(ip) !== 0 ? ip : null;
+	}
+
+	private connectLocalEndpointIfDue(duid: string, timeoutMs = 5000, minIntervalMs = local_api.STALE_ENDPOINT_CONNECT_MIN_INTERVAL_MS): void {
+		if (this.isConnected(duid)) return;
+
+		const dev = this.localDevices[duid];
+		if (!dev) return;
+
+		const now = Date.now();
+		if (dev.lastConnectAttemptAt && now - dev.lastConnectAttemptAt < minIntervalMs) return;
+		dev.lastConnectAttemptAt = now;
+
+		this.initiateClient(duid, true, timeoutMs).catch((e: unknown) => {
+			this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `Local endpoint probe failed for ${dev.ip}: ${this.adapter.errorMessage(e)}`, "debug");
+		});
+	}
+
+	public updateLocalEndpoint(duid: string, ip: string, version: string, source: LocalEndpointSource = "network_info"): boolean {
+		if (!duid || typeof duid !== "string" || !ip || isIP(ip) === 0 || !version) return false;
+
+		const now = Date.now();
+		const existing = this.localDevices[duid];
+		if (!existing) {
+			this.localDevices[duid] = {
+				ip,
+				version,
+				lastSeenAt: now,
+				endpointSource: source,
+			};
+			const logConnection = source === "udp" ? "UDP" : "TCP";
+			this.adapter.rLog(logConnection, duid, "Info", version, undefined, `Local endpoint discovered at ${ip} via ${source}.`, "debug");
+			this.connectLocalEndpointIfDue(duid, 5000, 0);
+			return true;
+		}
+
+		const oldIp = existing.ip;
+		const ipChanged = oldIp !== ip;
+		const versionChanged = existing.version !== version;
+
+		existing.ip = ip;
+		existing.version = version;
+		existing.lastSeenAt = now;
+		existing.endpointSource = source;
+
+		if (ipChanged || versionChanged) {
+			existing.connectNonce = undefined;
+			existing.ackNonce = undefined;
+		}
+
+		if (ipChanged) {
+			existing.staleSince = undefined;
+			this.reconnectPlanned.delete(duid);
+			this.adapter.rLog("TCP", duid, "Info", version, undefined, `Local endpoint changed from ${oldIp} to ${ip} via ${source}. Reconnecting TCP.`, "info");
+			this.resetDeviceSocket(duid, `local endpoint changed from ${oldIp} to ${ip}`);
+			this.connectLocalEndpointIfDue(duid, 5000, 0);
+			return true;
+		}
+
+		if (existing.staleSince || !this.isConnected(duid)) {
+			this.connectLocalEndpointIfDue(duid);
+		}
+
+		return false;
+	}
+
+	public async refreshEndpoint(duid: string, reason = "endpoint refresh", force = false): Promise<boolean> {
+		const existingRefresh = this.endpointRefreshPromises.get(duid);
+		if (existingRefresh) return existingRefresh;
+
+		const now = Date.now();
+		const lastStartedAt = this.endpointRefreshLastStartedAt.get(duid) ?? 0;
+		if (!force && now - lastStartedAt < local_api.ENDPOINT_REFRESH_MIN_INTERVAL_MS) {
+			return false;
+		}
+
+		const promise = this.refreshEndpointInternal(duid, reason)
+			.finally(() => {
+				this.endpointRefreshPromises.delete(duid);
+			});
+
+		this.endpointRefreshLastStartedAt.set(duid, now);
+		this.endpointRefreshPromises.set(duid, promise);
+		return promise;
+	}
+
+	private async refreshEndpointInternal(duid: string, reason: string): Promise<boolean> {
+		if (!this.adapter.requestsHandler?.sendRequest || !this.adapter.mqtt_api?.isConnected?.()) {
+			this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `Skipping endpoint refresh after ${reason}: MQTT unavailable.`, "debug");
+			return false;
+		}
+
+		const version = await this.adapter.getDeviceProtocolVersion(duid);
+		const method = version === "B01" ? "service.get_net_info" : "get_network_info";
+		const params = version === "B01" ? {} : [];
+
+		let result: unknown;
+		try {
+			result = await this.adapter.requestsHandler.sendRequest(duid, method, params, { priority: -10, timeout: 5000 });
+		} catch (e: unknown) {
+			this.adapter.rLog("TCP", duid, "Debug", version, undefined, `Endpoint refresh ${method} failed after ${reason}: ${this.adapter.errorMessage(e)}`, "debug");
+			return false;
+		}
+
+		const ip = this.extractIpFromNetworkInfo(result);
+		if (!ip) {
+			this.adapter.rLog("TCP", duid, "Debug", version, undefined, `Endpoint refresh ${method} returned no usable IP.`, "debug");
+			return false;
+		}
+
+		const changed = this.updateLocalEndpoint(duid, ip, version, "network_info");
+		this.adapter.rLog("TCP", duid, "Debug", version, undefined, `Endpoint refresh resolved ${ip}${changed ? " (updated)" : ""}.`, "debug");
+		return true;
+	}
+
+	public async refreshStaleLocalEndpoints(reason = "scheduled endpoint refresh"): Promise<void> {
+		const duids = Object.keys(this.localDevices).filter((duid) => {
+			const dev = this.localDevices[duid];
+			return !!dev?.ip && !this.isConnected(duid);
+		});
+
+		await Promise.all(duids.map((duid) => this.refreshEndpoint(duid, reason).catch((e: unknown) => {
+			this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `Scheduled endpoint refresh failed: ${this.adapter.errorMessage(e)}`, "debug");
+			return false;
+		})));
+	}
+
 	/**
 	 * Starts listening for UDP broadcast packets to discover devices.
 	 * @see test/unit/transport_specification.test.ts for the UDP discovery protocol.
 	 */
 	async startUdpDiscovery(timeoutMs = 10_000): Promise<void> {
-		if (this.discoveryServer) {
-			this.adapter.rLog("UDP", null, "Warn", "N/A", undefined, "UDP discovery already running", "warn");
-			return;
-		}
+		this.discoveryStopping = false;
+		this.ensureUdpDiscoveryServer();
 
-		const devices: Record<string, LocalDevice> = {};
+		if (timeoutMs <= 0) return;
+		if (this.discoveryWindowPromise) return this.discoveryWindowPromise;
 
-		// Create UDP socket
+		this.discoveryWindowPromise = this.waitForUdpDiscoveryWindow(timeoutMs)
+			.finally(() => {
+				this.discoveryWindowPromise = null;
+			});
+
+		return this.discoveryWindowPromise;
+	}
+
+	private ensureUdpDiscoveryServer(): void {
+		if (this.discoveryServer) return;
+
 		const socketOptions: dgram.SocketOptions = process.platform === "win32" ? { type: "udp4", reuseAddr: true } : { type: "udp4", reusePort: true };
+		const server = dgram.createSocket(socketOptions);
+		this.discoveryServer = server;
 
-		this.discoveryServer = dgram.createSocket(socketOptions);
+		server.on("message", (msg) => this.handleUdpDiscoveryMessage(msg));
 
-		this.discoveryServer.on("message", async (msg) => {
-			let decodedMessage: string | null = null;
-			let parsedMessage: any; // Structure depends on version
+		server.on("listening", () => {
+			const addr = server.address();
+			const ownedDevices = this.getExpectedOwnedDiscoveryDuids();
+			this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP listening on ${addr.address}:${addr.port} (expecting ${ownedDevices.length} online owned devices).`, "info");
+		});
 
-			const version = versionParser.parse(msg).version;
+		server.on("error", (error) => {
+			this.adapter.rLog("UDP", null, "Warn", "N/A", undefined, `Discovery socket error: ${this.adapter.errorMessage(error)}. Restarting listener.`, "warn");
+			if (this.discoveryServer === server) {
+				this.discoveryServer = null;
+			}
 			try {
-				switch (version) {
-					case "L01":
-						parsedMessage = vL01_Parser.parse(msg.subarray(3));
-						decodedMessage = this.decryptGCM(msg.toString("hex"));
-						break;
-					case "B01":
-						// Try L01 (GCM) first
-						try {
-							parsedMessage = vL01_Parser.parse(msg.subarray(3));
-							decodedMessage = this.decryptGCM(msg.toString("hex"));
-						} catch { /* ignore */ }
+				server.close();
+			} catch {
+				// ignore close errors
+			}
+			this.scheduleUdpDiscoveryRestart("socket error");
+		});
 
-						if (!decodedMessage) {
-							// Fallback to 1.0 (ECB)
-							try {
-								parsedMessage = v1_0_Parser.parse(msg.subarray(3));
-								decodedMessage = this.decryptECB(parsedMessage.payload);
-							} catch {
-								this.adapter.rLog("UDP", null, "Debug", "B01", undefined, `B01 discovery decryption failed for both GCM and ECB`, "debug");
-							}
-						}
-						break;
-					case "1.0":
-						parsedMessage = v1_0_Parser.parse(msg.subarray(3));
-						decodedMessage = this.decryptECB(parsedMessage.payload);
-						break;
-					default:
-						this.adapter.rLog("UDP", null, "Warn", version, undefined, `Unknown protocol version "${version}" found in local discovery packet.`, "warn");
-				}
-
-				if (!decodedMessage) return;
-
-				const parsedDecodedMessage = JSON.parse(decodedMessage);
-				if (!parsedDecodedMessage) return;
-
-				const duid = parsedDecodedMessage.duid;
-				const ip = parsedDecodedMessage.ip;
-				const localKeys = this.adapter.http_api.getMatchedLocalKeys();
-				const localKey = localKeys.get(duid);
-
-				// Only track devices we have a key for
-				if (!localKey) return;
-
-				if (!devices[duid]) {
-					devices[duid] = { ip, version };
-				}
-			} catch (error: unknown) {
-				this.adapter.rLog("UDP", null, "Error", "N/A", undefined, `Failed to process UDP message: ${this.adapter.errorStack(error)}`, "warn");
+		server.on("close", () => {
+			if (this.discoveryServer === server) {
+				this.discoveryServer = null;
+			}
+			if (!this.discoveryStopping) {
+				this.scheduleUdpDiscoveryRestart("socket closed");
 			}
 		});
 
-		this.discoveryServer.on("listening", () => {
-			const addr = this.discoveryServer!.address();
-			const allDevices = this.adapter.http_api.getDevices();
-			const ownedDevices = allDevices.filter(d => !this.adapter.http_api.isSharedDevice(d.duid));
-			this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP listening on ${addr.address}:${addr.port} (Expecting ${ownedDevices.length} owned devices)`, "info");
-		});
+		try {
+			server.bind(UDP_DISCOVERY_PORT);
+		} catch (e: unknown) {
+			this.adapter.rLog("UDP", null, "Warn", "N/A", undefined, `Failed to bind UDP discovery port: ${this.adapter.errorMessage(e)}. Restarting listener.`, "warn");
+			if (this.discoveryServer === server) {
+				this.discoveryServer = null;
+			}
+			try {
+				server.close();
+			} catch {
+				// ignore close errors
+			}
+			this.scheduleUdpDiscoveryRestart("bind failed");
+		}
+	}
 
-		this.discoveryServer.on("error", (error) => this.adapter.rLog("UDP", null, "Error", "N/A", undefined, `Server error: ${error.stack}`, "error"));
+	private scheduleUdpDiscoveryRestart(reason: string): void {
+		if (this.discoveryStopping || this.discoveryRestartTimer) return;
+
+		this.discoveryRestartTimer = this.adapter.setTimeout(() => {
+			this.discoveryRestartTimer = null;
+			if (this.discoveryStopping) return;
+			this.adapter.rLog("UDP", null, "Debug", undefined, undefined, `Restarting UDP discovery listener after ${reason}.`, "debug");
+			this.ensureUdpDiscoveryServer();
+		}, local_api.UDP_DISCOVERY_RESTART_MS) as unknown as NodeJS.Timeout;
+	}
+
+	private handleUdpDiscoveryMessage(msg: Buffer): void {
+		let decodedMessage: string | null = null;
+		let parsedMessage: any; // Structure depends on version
 
 		try {
-			this.discoveryServer.bind(UDP_DISCOVERY_PORT);
-		} catch (e: unknown) {
-			this.adapter.rLog("UDP", null, "Error", "N/A", undefined, `Failed to bind UDP port: ${this.adapter.errorMessage(e)}`, "error");
+			const version = versionParser.parse(msg).version;
+			switch (version) {
+				case "L01":
+					parsedMessage = vL01_Parser.parse(msg.subarray(3));
+					decodedMessage = this.decryptGCM(msg.toString("hex"));
+					break;
+				case "B01":
+					// Try L01 (GCM) first
+					try {
+						parsedMessage = vL01_Parser.parse(msg.subarray(3));
+						decodedMessage = this.decryptGCM(msg.toString("hex"));
+					} catch { /* ignore */ }
+
+					if (!decodedMessage) {
+						// Fallback to 1.0 (ECB)
+						try {
+							parsedMessage = v1_0_Parser.parse(msg.subarray(3));
+							decodedMessage = this.decryptECB(parsedMessage.payload);
+						} catch {
+							this.adapter.rLog("UDP", null, "Debug", "B01", undefined, `B01 discovery decryption failed for both GCM and ECB`, "debug");
+						}
+					}
+					break;
+				case "1.0":
+					parsedMessage = v1_0_Parser.parse(msg.subarray(3));
+					decodedMessage = this.decryptECB(parsedMessage.payload);
+					break;
+				default:
+					this.adapter.rLog("UDP", null, "Warn", version, undefined, `Unknown protocol version "${version}" found in local discovery packet.`, "warn");
+			}
+
+			if (!decodedMessage) return;
+
+			const parsedDecodedMessage = JSON.parse(decodedMessage);
+			if (!parsedDecodedMessage || typeof parsedDecodedMessage !== "object") return;
+
+			const duid = parsedDecodedMessage.duid;
+			const ip = parsedDecodedMessage.ip;
+			if (typeof duid !== "string" || typeof ip !== "string") return;
+
+			const localKeys = this.adapter.http_api.getMatchedLocalKeys();
+			const localKey = localKeys.get(duid);
+
+			// Only track devices we have a key for
+			if (!localKey) return;
+
+			this.updateLocalEndpoint(duid, ip, version, "udp");
+		} catch (error: unknown) {
+			this.adapter.rLog("UDP", null, "Error", "N/A", undefined, `Failed to process UDP message: ${this.adapter.errorStack(error)}`, "warn");
+		}
+	}
+
+	private getExpectedOwnedDiscoveryDuids(): string[] {
+		const allDevices = this.adapter.http_api.getDevices();
+		return allDevices
+			.filter((d) => d.online !== false && !this.adapter.http_api.isSharedDevice(d.duid))
+			.map((d) => d.duid);
+	}
+
+	private getFreshDiscoveryDuids(startedAt: number, onlyOwned = false): string[] {
+		return Object.keys(this.localDevices).filter((duid) => {
+			const dev = this.localDevices[duid];
+			if (!dev?.lastSeenAt || dev.lastSeenAt < startedAt) return false;
+			return !onlyOwned || !this.adapter.http_api.isSharedDevice(duid);
+		});
+	}
+
+	private waitForUdpDiscoveryWindow(timeoutMs: number): Promise<void> {
+		const server = this.discoveryServer;
+		const startedAt = Date.now();
+		const expectedOwnedDuids = new Set(this.getExpectedOwnedDiscoveryDuids());
+
+		if (expectedOwnedDuids.size === 0) {
+			this.adapter.rLog("UDP", null, "Debug", undefined, undefined, "UDP discovery listener is active; no online owned devices to wait for.", "debug");
+			return Promise.resolve();
 		}
 
-		// Run discovery for specified timeout
-		await new Promise<void>((resolve) => {
-			const allDevices = this.adapter.http_api.getDevices();
-			// We only want to wait for "Owned" devices to be found before finishing early.
-			// Shared devices might be remote, so we shouldn't block/wait for them.
-			const ownedDevices = allDevices.filter(d => !this.adapter.http_api.isSharedDevice(d.duid));
-			const expectedCount = ownedDevices.length;
+		return new Promise<void>((resolve) => {
+			let resolved = false;
 
-			const checkFinished = () => {
-				// We check if we found ALL owned devices.
-				// (We might have found shared ones too, which is fine, but we only care about owned for the count)
-				let foundOwnedCount = 0;
-				for (const duid of Object.keys(devices)) {
-					if (!this.adapter.http_api.isSharedDevice(duid)) {
-						foundOwnedCount++;
-					}
+			const cleanup = () => {
+				if (this.discoveryTimer) {
+					clearTimeout(this.discoveryTimer);
+					this.discoveryTimer = null;
 				}
-
-				if (foundOwnedCount >= expectedCount && expectedCount > 0) {
-					// All OWNED devices found!
-					// Enter Grace Period to catch potential Local Shared devices.
-					if (!this.gracePeriodTimer) {
-						// Cancel the main timeout (10s) immediately, as we are now in "Finishing" mode.
-						if (this.discoveryTimer) {
-							clearTimeout(this.discoveryTimer);
-							this.discoveryTimer = null;
-						}
-
-						this.gracePeriodTimer = setTimeout(() => {
-							this.stopUdpDiscovery();
-							const duids = Object.keys(devices).join(", ");
-							this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP discovery finished. Found ${Object.keys(devices).length} total devices: [${duids}]`, "info");
-							this.localDevices = { ...devices };
-
-							// Trigger connection for all found devices
-							for (const duid of Object.keys(this.localDevices)) {
-								this.initiateClient(duid).catch((e) => this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `Initial connect failed: ${e.message}`, "debug"));
-							}
-
-							resolve();
-						}, 1500); // 1.5s Grace Period
-					}
-					return true; // Return true to stop further "checkFinished" calls from triggering logic, though timer is async.
+				if (this.gracePeriodTimer) {
+					clearTimeout(this.gracePeriodTimer);
+					this.gracePeriodTimer = null;
 				}
-				return false;
+				server?.removeListener("message", onMessage);
+				this.resolveDiscoveryWindow = null;
 			};
 
-			// Initial check (unlikely but safe)
-			if (checkFinished()) return;
+			const finish = (finishReason: string) => {
+				if (resolved) return;
+				resolved = true;
+				cleanup();
+				const freshDuids = this.getFreshDiscoveryDuids(startedAt);
+				this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP discovery window finished (${finishReason}). Fresh devices: [${freshDuids.join(", ")}]. Listener remains active.`, "info");
+				resolve();
+			};
 
-			// Update the message handler to check for finish
-			// We can't easily hook into the existing listener without re-binding,
-			// assuming the listener above is the one adding to 'devices'.
-			// We'll add a specific listener that runs AFTER the main one.
-			this.discoveryServer?.on("message", () => {
-				// We wait for the next tick to ensure the message handler finished adding to 'devices'
-				setImmediate(() => {
-					checkFinished();
-				});
-			});
+			const checkFinished = () => {
+				const freshOwnedCount = this.getFreshDiscoveryDuids(startedAt, true)
+					.filter((duid) => expectedOwnedDuids.has(duid))
+					.length;
 
-			this.discoveryTimer = setTimeout(() => {
-				this.stopUdpDiscovery();
-				const duids = Object.keys(devices).join(", ");
-				this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP discovery finished. Found ${Object.keys(devices).length}/${expectedCount} devices: [${duids}]`, "info");
-				// Update main list of local devices
-				this.localDevices = { ...devices };
+				if (freshOwnedCount < expectedOwnedDuids.size || this.gracePeriodTimer) return;
 
-				// Trigger connection for all found devices
-				for (const duid of Object.keys(this.localDevices)) {
-					this.initiateClient(duid).catch((e) => this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `Initial connect failed: ${e.message}`, "debug"));
+				if (this.discoveryTimer) {
+					clearTimeout(this.discoveryTimer);
+					this.discoveryTimer = null;
 				}
 
-				resolve();
+				this.gracePeriodTimer = setTimeout(() => {
+					finish("all owned devices seen");
+				}, 1500);
+			};
+
+			const onMessage = () => {
+				setImmediate(checkFinished);
+			};
+
+			this.resolveDiscoveryWindow = () => finish("stopped");
+			server?.on("message", onMessage);
+			this.discoveryTimer = setTimeout(() => {
+				finish("timeout");
 			}, timeoutMs);
+
+			checkFinished();
 		});
 	}
 
 	stopUdpDiscovery(): void {
+		this.discoveryStopping = true;
+		this.resolveDiscoveryWindow?.();
 		if (this.discoveryTimer) {
 			clearTimeout(this.discoveryTimer);
 			this.discoveryTimer = null;
@@ -729,6 +1000,10 @@ export class local_api {
 		if (this.gracePeriodTimer) {
 			clearTimeout(this.gracePeriodTimer);
 			this.gracePeriodTimer = null;
+		}
+		if (this.discoveryRestartTimer) {
+			clearTimeout(this.discoveryRestartTimer);
+			this.discoveryRestartTimer = null;
 		}
 		if (this.discoveryServer) {
 			try {
@@ -777,11 +1052,17 @@ export class local_api {
 			this.localDevices[duid] = {
 				ip: ip,
 				version: version,
+				lastSeenAt: Date.now(),
+				endpointSource: "probe",
 			} as LocalDevice;
 		} else {
 			if (this.localDevices[duid].ip !== ip) {
 				this.localDevices[duid].ip = ip;
+				this.localDevices[duid].connectNonce = undefined;
+				this.localDevices[duid].ackNonce = undefined;
 			}
+			this.localDevices[duid].lastSeenAt = Date.now();
+			this.localDevices[duid].endpointSource = "probe";
 		}
 
 		try {
