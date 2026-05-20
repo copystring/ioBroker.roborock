@@ -719,6 +719,12 @@ export class local_api {
 		}
 
 		const promise = this.refreshEndpointInternal(duid, reason)
+			.then((refreshed) => {
+				if (!refreshed && (!this.adapter.requestsHandler?.sendRequest || !this.adapter.mqtt_api?.isConnected?.())) {
+					this.endpointRefreshLastStartedAt.delete(duid);
+				}
+				return refreshed;
+			})
 			.finally(() => {
 				this.endpointRefreshPromises.delete(duid);
 			});
@@ -730,7 +736,6 @@ export class local_api {
 
 	private async refreshEndpointInternal(duid: string, reason: string): Promise<boolean> {
 		if (!this.adapter.requestsHandler?.sendRequest || !this.adapter.mqtt_api?.isConnected?.()) {
-			this.endpointRefreshLastStartedAt.delete(duid);
 			this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `Skipping endpoint refresh after ${reason}: MQTT unavailable.`, "debug");
 			return false;
 		}
