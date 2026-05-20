@@ -320,3 +320,9 @@
 
 ### 0.0.2-alpha.0 (2023-01-28)
 * (copystring) initial release
+## 0.6.19 (2025-02-08)
+* (copystring) Rewrite of mqtt connection logic
+* (copystring) Add missing features to Qrevo Slim
+* (copystring) Start websocket & web server onReady
+* (copystring) Update LICENSE
+* (copystring) Update README.md

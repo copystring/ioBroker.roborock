@@ -52,7 +52,7 @@ This feature only works when map creation is enabled in the adapter options. Ope
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.7.2 (2026-05-20)
 
 * (copystring) Fixed missing auto-empty command for Roborock Qrevo MaxV (#1272).
 * (copystring) Fixed local endpoint refresh after temporary MQTT outages so stale local IP recovery retries immediately again.
@@ -106,16 +106,7 @@ This feature only works when map creation is enabled in the adapter options. Ope
 * (copystring) **Fix:** Cleaning history (records) now updates correctly after a cleaning run.
 * (copystring) **Stability:** Adapter no longer gets stuck in a boot loop when login fails or returns an error.
 
-### 0.6.19 (2025-02-08)
-* (copystring) Rewrite of mqtt connection logic
-* (copystring) Add missing features to Qrevo Slim
-* (copystring) Start websocket & web server onReady
-* (copystring) Update LICENSE
-* (copystring) Update README.md
-
-Older changes can be found in [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
-
-## License
+Older changes can be found in [CHANGELOG_OLD.md](CHANGELOG_OLD.md).## License
 MIT License
 
 Copyright (c) 2025-2026 copystring <copystring@gmail.com>

@@ -1,9 +1,22 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.7.1",
+    "version": "0.7.2",
     "tier": 1,
     "news": {
+      "0.7.2": {
+        "en": "Fixed missing auto-empty command for Roborock Qrevo MaxV (#1272).\nFixed local endpoint refresh after temporary MQTT outages so stale local IP recovery retries immediately again.\nRequire bug reports to upload a `.txt` debug log file.",
+        "de": "Behobene fehlende Auto-Empty-Befehl für Roborock Qrevo MaxV (#1272).\nBehobene lokale Endpoint-Erfrischung nach temporären MQTT-Ausgängen, so stale lokale IP-Recovery-Retries sofort wieder.\nErfordere Bug-Berichte, um eine debug-Log-Datei `.txt` hochzuladen.",
+        "ru": "Исправлена отсутствующая команда автопустоты для Roborock Qrevo MaxV (#1272).\nЗафиксированное локальное обновление конечной точки после временного отключения MQTT, поэтому локальное восстановление IP немедленно снова задерживается.\nТребуйте отчеты об ошибках для загрузки файла журнала отладки «.txt».",
+        "pt": "Corrigido o comando de vazio automático para Roborock Qrevo MaxV (# 1272).\nRefresca o endpoint local fixo após interrupções temporárias do MQTT, então as repetições de recuperação de IP local são repetidas imediatamente novamente.\nRequer relatórios de bug para enviar um arquivo de registro de depuração `.txt`.",
+        "nl": "Fixed ontbrekende auto-leeg commando voor Roborock Qrevo MaxV (#1272).\nFixed local endpoint refresh na tijdelijke MQTT-uitval, zodat lokale IP-herstel onmiddellijk opnieuw wordt uitgesteld.\nVereiste bug rapporten om een debug-logbestand te uploaden.",
+        "fr": "Commande automatique manquante corrigée pour Roborock Qrevo MaxV (#1272).\nCorrection du rafraîchissement local après des pannes temporaires de MQTT afin que la récupération locale de l'IP se répète immédiatement.\nExiger des rapports de bogues pour télécharger un fichier de débogage `.txt`.",
+        "it": "Corretto il comando automatico mancante per Roborock Qrevo MaxV (#1272).\nRinfresco endpoint locale riparato dopo interruzioni di MQTT temporanei in modo stantile recupero IP locale si ricarica immediatamente.\nRichiedere segnalazioni di bug per caricare un file di registro `.txt` debug.",
+        "es": "Orden de auto-empty fijo faltante para Roborock Qrevo MaxV (#1272).\nRefrigerio local fijo de punto final después de los outages temporales de MQTT por lo que se estancó la recuperación IP local de nuevo.\nRequiere informes de fallos para subir un archivo de registro de depuración `.txt`.",
+        "pl": "Naprawiono brak automatycznego pustego polecenia dla Robolock Qrevo MaxV (# 1272).\nPoprawiony lokalny punkt końcowy odświeża się po tymczasowym przestoju MQTT, co powoduje, że nieświeży lokalny odzysk IP powraca natychmiast.\nWymagane raporty o błędach, aby przesłać plik '.txt'.",
+        "uk": "Виправлено відсутній автоматичний командний ряд Roborock Qrevo MaxV (#1272).\nВиправлено локальне оновлення кінцевої точки після тимчасової вихідної частини MQTT, так само, як і раніше, зафіксовано локальне відновлення IP.\nЗапитайте звіти про помилки, щоб завантажити файл журналу `.txt`.",
+        "zh-cn": "Roborock Qrevo MaxV (# 1272) 的固定丢失自动空命令 .\n固定的本地端点在 MQTT 暂时停电后刷新, 从而使得本地 IP 恢复重试立即重新开始 .\n要求错误报告上传“.txt”调试日志文件."
+      },
       "0.7.1": {
         "en": "Fixed local TCP recovery when a Roborock device gets a new LAN IP address.\nUpdated dependencies: `@napi-rs/canvas` to 1.0.0, `protobufjs` to 8.2.0 and `zod` to 4.4.3.\nResolved npm audit security advisories in transitive dependencies and documented the temporary dependency overrides.",
         "de": "Feste lokale TCP-Recovery, wenn ein Roborock-Gerät eine neue LAN-IP-Adresse erhält.\nAktualisierte Abhängigkeiten: `@napi-rs/canvas` bis 1.0.0, `protobufjs` bis 8.2.0 und `zod` bis 4.4.3.\nAufgelöste npm Audit-Sicherheitsberater in Transitionsabhängigkeiten und dokumentiert die vorübergehende Abhängigkeitsüberschreitung.",
@@ -81,19 +94,6 @@
         "pl": "Dodaj oczyszczoną powierzchnię do S8\nPoprawki dla krzywej Qrevo\nNapraw resetowanie materiałów eksploatacyjnych\nNapraw jo- package.json\nDodaj Robolock Qrevo Master\nRefaktor logowania api i odnowić logowanie co 3 godziny\nNapraw jednostkę czystego _%\nDodaj obsługę skrzynki wodnej do S6\nWiele małych naprawionych nie mogę być kłopotliwy, aby wykaz",
         "uk": "Додати cleaned_area до S8\nВиправлення помилок для Qrevo Curve\nВиправлення скидання витратних матеріалів\nEnglish, Українська, Français..\nДодати майстер Roborock Qrevo\nРефакторний логін Api і новий логін кожні 3 години\nФіксований блок чистоти\nДодавання підтримки водяної коробки до S6\nБагато малий фіксований я не можу бути якірований до списку 😅",
         "zh-cn": "将清除的区域添加到 S8\nQurevo 曲线的错误修正\n更换消耗品\n修复 io- package.json\n添加 Roborock Qurevo 主控器\n每3小时重置登录 api 并更新登录\n清洁单位% (%)\n向 S6 添加水箱支持\n很多小的修补,我不用再提了"
-      },
-      "0.6.17": {
-        "en": "Add some missing attributes\nChange min of update interval to 60s to prevent issues\nAdd web interface to sidebar",
-        "de": "Einige fehlende Attribute hinzufügen\nÄnderung min von Update-Intervall auf 60s, um Probleme zu verhindern\nWeb-Schnittstelle zu Sidebar hinzufügen",
-        "ru": "Добавить недостающие атрибуты\nИзменение интервала обновления до 60-х, чтобы предотвратить проблемы\nДобавить веб-интерфейс на боковой панели",
-        "pt": "Adicione alguns atributos ausentes\nAlterar min de intervalo de atualização para 60s para evitar problemas\nAdicionar interface web à barra lateral",
-        "nl": "Enkele ontbrekende attributen toevoegen\nVerander min van update interval naar 60s om problemen te voorkomen\nWebinterface toevoegen aan zijbalk",
-        "fr": "Ajouter quelques attributs manquants\nChanger l'intervalle min de mise à jour en 60s pour prévenir les problèmes\nAjouter une interface web à la barre latérale",
-        "it": "Aggiungere alcuni attributi mancanti\nCambia min di intervallo di aggiornamento a 60s per evitare problemi\nAggiungere l'interfaccia web alla barra laterale",
-        "es": "Añadir algunos atributos perdidos\nCambio min de intervalo de actualización a 60s para evitar problemas\nAñadir interfaz web a la barra lateral",
-        "pl": "Dodaj brakujące atrybuty\nZmień min interwał aktualizacji do 60, aby zapobiec problemom\nDodaj interfejs WWW do paska bocznego",
-        "uk": "Додати деякі відсутні атрибути\nЗміна інтервалу оновлення до 60-х\nДодати веб-інтерфейс на бічну панель",
-        "zh-cn": "添加一些缺失属性\n将更新间隔分钟改为60秒,以防止出现问题\n向侧边栏添加网页接口"
       }
     },
     "titleLang": {
