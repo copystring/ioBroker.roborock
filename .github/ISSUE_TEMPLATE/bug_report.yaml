@@ -58,14 +58,14 @@ body:
         - label: "I have saved the log as a `.txt` file and attached it below (DON'T PASTE!)."
           required: true
 
-  - type: textarea
+  - type: upload
     id: debug_log_upload
     attributes:
-      label: "Debug Log Upload (Drag & Drop .txt file here)"
-      description: "DO NOT PASTE! Just drag and drop your .txt file into this field."
-      placeholder: "Drag & drop file here. DO NOT PASTE!"
+      label: "Debug Log Upload (.txt file required)"
+      description: "Upload the debug log as a .txt file. Pasted logs or plain text are not accepted."
     validations:
       required: true
+      accept: ".txt"
 
   - type: markdown
     attributes:
