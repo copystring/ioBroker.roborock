@@ -38,7 +38,8 @@ const a87Config: DeviceModelConfig = {
 		Feature.Rdt,
 		Feature.CleanArea,
 		Feature.CleanTime,
-		Feature.SwitchStatus
+		Feature.SwitchStatus,
+		Feature.AutoEmptyDock
 	]
 };
 

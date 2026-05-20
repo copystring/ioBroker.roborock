@@ -52,6 +52,11 @@ This feature only works when map creation is enabled in the adapter options. Ope
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (copystring) Fixed missing auto-empty command for Roborock Qrevo MaxV (#1272).
+* (copystring) Require bug reports to upload a `.txt` debug log file.
+
 ### 0.7.1 (2026-05-19)
 
 * (copystring) Fixed local TCP recovery when a Roborock device gets a new LAN IP address.
@@ -107,7 +112,9 @@ This feature only works when map creation is enabled in the adapter options. Ope
 * (copystring) Update LICENSE
 * (copystring) Update README.md
 
-Older changes can be found in [CHANGELOG_OLD.md](CHANGELOG_OLD.md).## License
+Older changes can be found in [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
+
+## License
 MIT License
 
 Copyright (c) 2025-2026 copystring <copystring@gmail.com>
