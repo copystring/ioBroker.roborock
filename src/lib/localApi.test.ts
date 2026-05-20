@@ -422,4 +422,35 @@ describe("local_api transport sequence", () => {
 		expect(requests).to.deep.equal([{ method: "service.get_net_info", params: {} }]);
 		expect(api.localDevices[duid].ip).to.equal("10.1.1.90");
 	});
+
+	it("does not throttle the next endpoint refresh after MQTT was temporarily unavailable", async () => {
+		const duid = "duid";
+		const adapter = new MockAdapter() as any;
+		const api = new local_api(adapter);
+		const requests: string[] = [];
+		let mqttConnected = false;
+
+		adapter.mqtt_api = { isConnected: () => mqttConnected };
+		adapter.requestsHandler = {
+			sendRequest: async (_duid: string, method: string) => {
+				requests.push(method);
+				return [{ ip: "10.1.1.91" }];
+			},
+			rejectPendingTcpRequests: () => 0,
+		};
+		adapter.getDeviceProtocolVersion = async () => "1.0";
+		api.initiateClient = async () => {};
+		api.localDevices[duid] = {
+			ip: "10.1.1.81",
+			version: "1.0",
+			staleSince: 100,
+		};
+
+		await expect(api.refreshEndpoint(duid, "mqtt down", false)).resolves.to.equal(false);
+		mqttConnected = true;
+		await expect(api.refreshEndpoint(duid, "mqtt back", false)).resolves.to.equal(true);
+
+		expect(requests).to.deep.equal(["get_network_info"]);
+		expect(api.localDevices[duid].ip).to.equal("10.1.1.91");
+	});
 });

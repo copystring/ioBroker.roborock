@@ -55,6 +55,7 @@ This feature only works when map creation is enabled in the adapter options. Ope
 ### **WORK IN PROGRESS**
 
 * (copystring) Fixed missing auto-empty command for Roborock Qrevo MaxV (#1272).
+* (copystring) Fixed local endpoint refresh after temporary MQTT outages so stale local IP recovery retries immediately again.
 * (copystring) Require bug reports to upload a `.txt` debug log file.
 
 ### 0.7.1 (2026-05-19)

@@ -719,6 +719,12 @@ export class local_api {
 		}
 
 		const promise = this.refreshEndpointInternal(duid, reason)
+			.then((refreshed) => {
+				if (!refreshed && (!this.adapter.requestsHandler?.sendRequest || !this.adapter.mqtt_api?.isConnected?.())) {
+					this.endpointRefreshLastStartedAt.delete(duid);
+				}
+				return refreshed;
+			})
 			.finally(() => {
 				this.endpointRefreshPromises.delete(duid);
 			});
