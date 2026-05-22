@@ -1,9 +1,22 @@
 {
   "common": {
     "name": "roborock",
-    "version": "0.7.2",
+    "version": "0.7.3",
     "tier": 1,
     "news": {
+      "0.7.3": {
+        "en": "Fixed V1 auto-empty dust collection to use the AppPlugin-verified `app_start_collect_dust` command.",
+        "de": "Behobene V1 Auto-Empty-Staubsammlung, um den AppPlugin-verified `app start collect dust` Befehl zu verwenden.",
+        "ru": "Fixed V1 auto-empty dust collection для использования команды AppPlugin-verified 'app start collect dust'.",
+        "pt": "Fixo V1 coleção de poeira auto-vazio para usar o comando `app start collect dust` verificado pelo AppPlugin.",
+        "nl": "Vaste V1 auto-leeg stof opvang voor het gebruik van de AppPlugin-verifieerde .",
+        "fr": "Correction de la collecte automatique de poussières V1 pour utiliser la commande AppPlugin-verified `app start collect dust`.",
+        "it": "Risolto V1 auto-vuoto polvere raccolta per utilizzare il comando AppPlugin-verified `app start collect dust` .",
+        "es": "Recopilación automática V1 fija para utilizar el comando AppPlugin-verified `app start collect dust`.",
+        "pl": "Naprawiono automatyczne zbieranie kurzu V1, aby użyć komendy AppPlugin- sprawdzonej 'app _ start _ collect _ dust'.",
+        "uk": "Виправлено V1 автоматично-порожня колекція пилу для використання програмиPlugin-verified `app start collect dust` команди.",
+        "zh-cn": "使用 AppPlugin 验证的`app  start collect dust' 命令的固定 V1 自动空尘收集 ."
+      },
       "0.7.2": {
         "en": "Fixed missing auto-empty command for Roborock Qrevo MaxV (#1272).\nFixed local endpoint refresh after temporary MQTT outages so stale local IP recovery retries immediately again.\nRequire bug reports to upload a `.txt` debug log file.",
         "de": "Behobene fehlende Auto-Empty-Befehl für Roborock Qrevo MaxV (#1272).\nBehobene lokale Endpoint-Erfrischung nach temporären MQTT-Ausgängen, so stale lokale IP-Recovery-Retries sofort wieder.\nErfordere Bug-Berichte, um eine debug-Log-Datei `.txt` hochzuladen.",
@@ -81,19 +94,6 @@
         "pl": "Przepisz logikę połączenia mqtt\nDodaj brakujące funkcje do Qrevo Slim\nUruchom websocket i serwer WWW onReady\nAktualizacja LICENCJI\nAktualizacja README.md",
         "uk": "Перезапис логіки з'єднання mqtt\nДодати відсутні функції до Qrevo Slim\nВеб-сервер наReady\nОновлення LICENSE\nОновлення README.md",
         "zh-cn": "重写 mqtt 连接逻辑\n添加缺失的特性到 Qrevo Slim\n在 Ready 上启动 Websocket 服务器( W)\n更新自由度\n更新 README.md"
-      },
-      "0.6.18": {
-        "en": "Add cleaned_area to S8\nBugfixes for Qrevo Curve\nFix reset of consumables\nFix io-package.json\nAdd Roborock Qrevo Master\nRefactor login api and renew login every 3 hours\nFix unit of clean_percent\nAdd water box support to S6\nMany small fixed I can't be bothered to list 😅",
-        "de": "Gesäubert_area zu S8 hinzufügen\nBugfixes für Qrevo Curve\nReset von Verbrauchsmaterialien\nIo-package.json\nRoborock Qrevo Master hinzufügen\nRefactor login api und erneuern Login alle 3 Stunden\nFixeinheit von clean_percent\nWasserkastenunterstützung für S6 hinzufügen\nViele kleine fixierte ich kann nicht gestört werden, um 😅",
-        "ru": "Добавить очищенный_area в S8\nQrevo Curve\nИсправление расходуемых материалов\nFix io-package.json\nДобавить мастера Roborock Qrevo\nРефакторный логин api и обновляет логин каждые 3 часа\nFix unit of clean_percent\nДобавить поддержку водной коробки S6\nМного маленьких фиксированных я не могу быть потрудился перечислить 😅",
-        "pt": "Adicionar cleaned_area a S8\nBugfixs para a curva Qrevo\nFix reset de consumíveis\nFix io-package.json\nAdicionar Roborock Qrevo Master\nRefactor login api e renovar login a cada 3 horas\nFix unidade de clean_percent\nAdicionar suporte de caixa de água para S6\nMuitos pequenos fixos não posso ser incomodado para listar  to",
-        "nl": "_Geschoond gebied toevoegen aan S8\nBugfixes voor Qrevo-curve\nReset van verbruiksartikelen herstellen\nFix io-package.json\nRoborock Qrevo Meester toevoegen\nRefactor login api en vernieuwen login elke 3 uur\nRepareren eenheid van clean_percent\nWaterbakondersteuning toevoegen aan S6\nVeel kleine vaste ik kan niet worden lastig gemaakt om lijst",
-        "fr": "Ajouter la zone nettoyée à S8\nBugfixes pour la courbe Qrevo\nCorrection de la remise des consommables\nRéparez io-package.json\nAjouter Roborock Qrevo Master\nRefactor login api et renouveler la connexion toutes les 3 heures\nCorrection de l'unité de pourcentage propre\nAjouter le support de boîte à eau à S6\nBeaucoup de petits fixes Je ne peux pas être dérangé pour lister",
-        "it": "Aggiungi clean_area a S8\nBugfixs per la curva di Qrevo\nRipristino dei materiali di consumo\nFissare io-package.json\nAggiungi Roborock Qrevo Master\nRefactor login api e rinnovare il login ogni 3 ore\nUnità di fissaggio di clean_percent\nAggiungi supporto scatola acqua a S6\nMolti piccoli fissi non posso essere disturbato a elencare 😅",
-        "es": "Añadir cleaned_area a S8\nBugfixes para Qrevo Curve\nFijación de los bienes fungibles\nFijar io-paquete.json\nAñadir Roborock Qrevo Master\nRefactor login api y renovar login cada 3 horas\nUnidad de fijación limpia_porcent\nAñadir soporte de caja de agua a S6\nMuchos pequeños fijos no puedo ser molestado en la lista 😅",
-        "pl": "Dodaj oczyszczoną powierzchnię do S8\nPoprawki dla krzywej Qrevo\nNapraw resetowanie materiałów eksploatacyjnych\nNapraw jo- package.json\nDodaj Robolock Qrevo Master\nRefaktor logowania api i odnowić logowanie co 3 godziny\nNapraw jednostkę czystego _%\nDodaj obsługę skrzynki wodnej do S6\nWiele małych naprawionych nie mogę być kłopotliwy, aby wykaz",
-        "uk": "Додати cleaned_area до S8\nВиправлення помилок для Qrevo Curve\nВиправлення скидання витратних матеріалів\nEnglish, Українська, Français..\nДодати майстер Roborock Qrevo\nРефакторний логін Api і новий логін кожні 3 години\nФіксований блок чистоти\nДодавання підтримки водяної коробки до S6\nБагато малий фіксований я не можу бути якірований до списку 😅",
-        "zh-cn": "将清除的区域添加到 S8\nQurevo 曲线的错误修正\n更换消耗品\n修复 io- package.json\n添加 Roborock Qurevo 主控器\n每3小时重置登录 api 并更新登录\n清洁单位% (%)\n向 S6 添加水箱支持\n很多小的修补,我不用再提了"
       }
     },
     "titleLang": {
