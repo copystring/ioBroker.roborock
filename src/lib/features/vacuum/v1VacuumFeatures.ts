@@ -36,6 +36,8 @@ export const DEFAULT_PROFILE: VacuumProfile = {
 };
 
 export class V1VacuumFeatures extends BaseDeviceFeatures {
+	private static readonly autoEmptyDockStartCommand = "app_start_collect_dust";
+
 	protected profile: VacuumProfile;
 	protected consumableService: V1ConsumableService;
 	protected stationService: StationService;
@@ -401,6 +403,10 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			let repeat = Number(params);
 			if (isNaN(repeat)) repeat = 1;
 			return { repeat };
+		}
+
+		if (method === V1VacuumFeatures.autoEmptyDockStartCommand) {
+			return [];
 		}
 
 		return params;
@@ -893,10 +899,10 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 
 	@BaseDeviceFeatures.DeviceFeature(Feature.AutoEmptyDock)
 	public async initAutoEmptyDock(): Promise<void> {
-		this.addCommand("app_start_dust_collection", {
+		this.addCommand(V1VacuumFeatures.autoEmptyDockStartCommand, {
 			type: "boolean",
 			role: "button",
-			name: "Empty Dust",
+			name: "Start Collect Dust",
 			def: false
 		});
 	}

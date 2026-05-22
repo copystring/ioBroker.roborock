@@ -4,7 +4,7 @@ import { Feature } from "../features.enum";
 import "./index";
 
 describe("registered vacuum model features", () => {
-	function createDependencies(): FeatureDependencies {
+	function createHarness() {
 		const requestsHandlerMock = {
 			sendRequest: vi.fn().mockResolvedValue({}),
 			command: vi.fn().mockResolvedValue(undefined),
@@ -41,7 +41,7 @@ describe("registered vacuum model features", () => {
 			errorMessage: (error: unknown) => error instanceof Error ? error.message : String(error)
 		};
 
-		return {
+		const dependencies = {
 			adapter: adapterMock,
 			http_api: adapterMock.http_api,
 			ensureState: vi.fn().mockResolvedValue(undefined),
@@ -49,17 +49,23 @@ describe("registered vacuum model features", () => {
 			log: adapterMock.log,
 			config: { staticFeatures: [] }
 		} as unknown as FeatureDependencies;
+
+		return { adapterMock, dependencies };
 	}
 
-	it("exposes the auto-empty command for Qrevo MaxV through the model registry", async () => {
+	it("exposes the verified Qrevo MaxV dust collection command through the model registry", async () => {
 		const ModelClass = BaseDeviceFeatures.getRegisteredModelClass("roborock.vacuum.a87");
 		expect(ModelClass).toBeDefined();
 		if (!ModelClass) throw new Error("roborock.vacuum.a87 is not registered");
 
-		const vacuum = new ModelClass(createDependencies(), "duid1");
+		const { dependencies } = createHarness();
+
+		const vacuum = new ModelClass(dependencies, "duid1");
 		await vacuum.initialize();
 
 		expect(vacuum.hasStaticFeature(Feature.AutoEmptyDock)).toBe(true);
-		expect(vacuum.commands).toHaveProperty("app_start_dust_collection");
+		expect(vacuum.commands).toHaveProperty("app_start_collect_dust");
+		expect(vacuum.commands).not.toHaveProperty("app_start_dust_collection");
+		await expect(vacuum.getCommandParams("app_start_collect_dust")).resolves.toEqual([]);
 	});
 });

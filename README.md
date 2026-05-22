@@ -52,6 +52,10 @@ This feature only works when map creation is enabled in the adapter options. Ope
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (copystring) Fixed V1 auto-empty dust collection to use the AppPlugin-verified `app_start_collect_dust` command.
+
 ### 0.7.2 (2026-05-20)
 
 * (copystring) Fixed missing auto-empty command for Roborock Qrevo MaxV (#1272).
