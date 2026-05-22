@@ -11,7 +11,8 @@ import { commitInfo } from "./lib/commitInfo";
 import { AppPluginManager } from "./lib/AppPluginManager";
 import { B01Variant, getB01VariantFromModel } from "./lib/b01Variant";
 import { DeviceManager } from "./lib/deviceManager";
-import { BaseDeviceFeatures, type CommandSpec } from "./lib/features/baseDeviceFeatures";
+import { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
+import type { CommandSpec } from "./lib/features/baseDeviceFeatures";
 import { Feature } from "./lib/features/features.enum";
 
 import { Device, http_api } from "./lib/httpApi";
