@@ -79,7 +79,7 @@
     "strip-json-comments": "^5.0.3",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.4",
-    "vitest": "^4.1.6",
+    "vitest": "^4.1.7",
     "yaml-lint": "^1.7.0"
   },
   "overrides": {
