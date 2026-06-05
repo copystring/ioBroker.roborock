@@ -148,6 +148,7 @@ export class DeviceManager {
 					});
 
 					await this.adapter.updateDeviceInfo(duid, devices);
+					await this.updateConsumablesPercent(duid, devices);
 
 					// Apply static features
 					await handler.initialize(device.online);
@@ -298,6 +299,7 @@ export class DeviceManager {
 				try {
 					if (isSlowTick) {
 						await this.adapter.updateDeviceInfo(duid, cloudDevices);
+						await this.updateConsumablesPercent(duid, cloudDevices);
 					}
 					if (!device.online) continue;
 					const version = await this.adapter.getDeviceProtocolVersion(duid);
@@ -494,15 +496,13 @@ export class DeviceManager {
 	/**
 	 * Fetches consumable percentages.
 	 */
-	public async updateConsumablesPercent(duid: string): Promise<void> {
+	public async updateConsumablesPercent(duid: string, devices = this.adapter.http_api.getDevices()): Promise<void> {
 		const handler = this.deviceFeatureHandlers.get(duid);
 		if (!handler) return;
 
-		const devices = this.adapter.http_api.getDevices();
-
 		const device = devices.find((d) => d.duid === duid);
 		if (!device?.deviceStatus) return; // 'deviceStatus' exists on Device type
-		const status = device.deviceStatus as Record<string, number>;
+		const status = device.deviceStatus as Record<string, unknown>;
 
 		const consumableMap: Record<string, string> = {
 			"125": "main_brush_life",
@@ -512,14 +512,16 @@ export class DeviceManager {
 
 		for (const [attribute, value] of Object.entries(status)) {
 			// Cloud consumable percentages
-			if (attribute === "125" || attribute === "126" || attribute === "127") {
-				const val = value >= 0 && value <= 100 ? value : 0;
-				const mappedName = consumableMap[attribute];
-				const common = handler.getCommonConsumable(mappedName); // Use mapped name
+			const mappedName = consumableMap[attribute];
+			if (!mappedName) continue;
 
-				await this.adapter.ensureState(`Devices.${duid}.consumables.${mappedName}`, common || {});
-				await this.adapter.setStateChanged(`Devices.${duid}.consumables.${mappedName}`, { val, ack: true });
-			}
+			if (typeof value !== "number" || !Number.isInteger(value)) continue;
+			const val = value >= 0 && value <= 100 ? value : 0;
+
+			const common = handler.getCommonConsumable(mappedName); // Use mapped name
+
+			await this.adapter.ensureState(`Devices.${duid}.consumables.${mappedName}`, common || {});
+			await this.adapter.setStateChanged(`Devices.${duid}.consumables.${mappedName}`, { val, ack: true });
 		}
 	}
 }
