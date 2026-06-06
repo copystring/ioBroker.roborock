@@ -111,11 +111,11 @@ export class local_api {
 	localDevicesInterval: NodeJS.Timeout | null = null;
 	private reconnectPlanned = new Set<string>();
 	private connectPromises = new Map<string, Promise<void>>();
-	private sessionAckWaiters = new Map<string, { resolve: () => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>();
+	private sessionAckWaiters = new Map<string, { resolve: () => void; reject: (error: Error) => void; timer: ioBroker.Timeout }>();
 	private discoveryServer: dgram.Socket | null = null;
-	private discoveryTimer: NodeJS.Timeout | null = null;
-	private gracePeriodTimer: NodeJS.Timeout | null = null;
-	private discoveryRestartTimer: NodeJS.Timeout | null = null;
+	private discoveryTimer: ioBroker.Timeout | null = null;
+	private gracePeriodTimer: ioBroker.Timeout | null = null;
+	private discoveryRestartTimer: ioBroker.Timeout | null = null;
 	private discoveryWindowPromise: Promise<void> | null = null;
 	private resolveDiscoveryWindow: (() => void) | null = null;
 	private discoveryStopping = false;
@@ -525,20 +525,24 @@ export class local_api {
 
 		const existingWaiter = this.sessionAckWaiters.get(duid);
 		if (existingWaiter) {
-			clearTimeout(existingWaiter.timer);
+			this.adapter.clearTimeout(existingWaiter.timer);
 			existingWaiter.reject(new Error(`TCP session handshake superseded for ${duid}`));
 			this.sessionAckWaiters.delete(duid);
 		}
 
 		return new Promise<void>((resolve, reject) => {
-			const timer = setTimeout(() => {
+			const timer = this.adapter.setTimeout(() => {
 				this.sessionAckWaiters.delete(duid);
 				reject(new Error(`TCP session handshake timeout for ${duid} (${version})`));
 			}, timeoutMs);
+			if (!timer) {
+				reject(new Error(`TCP session handshake timer could not be created for ${duid} (${version})`));
+				return;
+			}
 
 			this.sessionAckWaiters.set(duid, {
 				resolve: () => {
-					clearTimeout(timer);
+					this.adapter.clearTimeout(timer);
 					this.sessionAckWaiters.delete(duid);
 					resolve();
 				},
@@ -558,7 +562,7 @@ export class local_api {
 	private rejectSessionAck(duid: string, error: Error): void {
 		const waiter = this.sessionAckWaiters.get(duid);
 		if (waiter) {
-			clearTimeout(waiter.timer);
+			this.adapter.clearTimeout(waiter.timer);
 			this.sessionAckWaiters.delete(duid);
 			waiter.reject(error);
 		}
@@ -850,12 +854,14 @@ export class local_api {
 	private scheduleUdpDiscoveryRestart(reason: string): void {
 		if (this.discoveryStopping || this.discoveryRestartTimer) return;
 
-		this.discoveryRestartTimer = this.adapter.setTimeout(() => {
+		const restartTimer = this.adapter.setTimeout(() => {
 			this.discoveryRestartTimer = null;
 			if (this.discoveryStopping) return;
 			this.adapter.rLog("UDP", null, "Debug", undefined, undefined, `Restarting UDP discovery listener after ${reason}.`, "debug");
 			this.ensureUdpDiscoveryServer();
-		}, local_api.UDP_DISCOVERY_RESTART_MS) as unknown as NodeJS.Timeout;
+		}, local_api.UDP_DISCOVERY_RESTART_MS);
+		if (!restartTimer) return;
+		this.discoveryRestartTimer = restartTimer;
 	}
 
 	private handleUdpDiscoveryMessage(msg: Buffer): void {
@@ -945,11 +951,11 @@ export class local_api {
 
 			const cleanup = () => {
 				if (this.discoveryTimer) {
-					clearTimeout(this.discoveryTimer);
+					this.adapter.clearTimeout(this.discoveryTimer);
 					this.discoveryTimer = null;
 				}
 				if (this.gracePeriodTimer) {
-					clearTimeout(this.gracePeriodTimer);
+					this.adapter.clearTimeout(this.gracePeriodTimer);
 					this.gracePeriodTimer = null;
 				}
 				server?.removeListener("message", onMessage);
@@ -973,13 +979,18 @@ export class local_api {
 				if (freshOwnedCount < expectedOwnedDuids.size || this.gracePeriodTimer) return;
 
 				if (this.discoveryTimer) {
-					clearTimeout(this.discoveryTimer);
+					this.adapter.clearTimeout(this.discoveryTimer);
 					this.discoveryTimer = null;
 				}
 
-				this.gracePeriodTimer = setTimeout(() => {
+				const gracePeriodTimer = this.adapter.setTimeout(() => {
 					finish("all owned devices seen");
 				}, 1500);
+				if (!gracePeriodTimer) {
+					finish("all owned devices seen");
+					return;
+				}
+				this.gracePeriodTimer = gracePeriodTimer;
 			};
 
 			const onMessage = () => {
@@ -988,9 +999,14 @@ export class local_api {
 
 			this.resolveDiscoveryWindow = () => finish("stopped");
 			server?.on("message", onMessage);
-			this.discoveryTimer = setTimeout(() => {
+			const discoveryTimer = this.adapter.setTimeout(() => {
 				finish("timeout");
 			}, timeoutMs);
+			if (!discoveryTimer) {
+				finish("timeout");
+				return;
+			}
+			this.discoveryTimer = discoveryTimer;
 
 			checkFinished();
 		});
@@ -1000,15 +1016,15 @@ export class local_api {
 		this.discoveryStopping = true;
 		this.resolveDiscoveryWindow?.();
 		if (this.discoveryTimer) {
-			clearTimeout(this.discoveryTimer);
+			this.adapter.clearTimeout(this.discoveryTimer);
 			this.discoveryTimer = null;
 		}
 		if (this.gracePeriodTimer) {
-			clearTimeout(this.gracePeriodTimer);
+			this.adapter.clearTimeout(this.gracePeriodTimer);
 			this.gracePeriodTimer = null;
 		}
 		if (this.discoveryRestartTimer) {
-			clearTimeout(this.discoveryRestartTimer);
+			this.adapter.clearTimeout(this.discoveryRestartTimer);
 			this.discoveryRestartTimer = null;
 		}
 		if (this.discoveryServer) {

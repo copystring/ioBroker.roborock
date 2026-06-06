@@ -1,119 +1,124 @@
-import iobroker from "@iobroker/eslint-config";
-import tseslint from "typescript-eslint";
-const tsPlugin = tseslint.plugin;
-const tsParser = tseslint.parser;
+import config from "@iobroker/eslint-config";
+import { esmConfig } from "@iobroker/eslint-config";
 import sonarjs from "eslint-plugin-sonarjs";
-import unicorn from "eslint-plugin-unicorn";
-import globals from "globals";
-import { dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const sharedConfig = [...config, ...esmConfig];
+
+const projectIgnores = [
+	"**/*.d.ts",
+	"**/build/**",
+	"**/admin/**",
+	"**/test/**",
+	"**/www/**",
+	"**/scripts/**",
+	"**/.antigravityignore/**",
+	"**/.AppPlugins/**",
+	"**/.tmp/**",
+	"**/.Roborock Q7 Series/**",
+	"**/.sniff/**",
+	"**/.agent/**",
+	"**/.apk/**",
+	"**/coverage/**"
+];
+
+const legacyRuleIgnores = [
+	"**/*.d.ts",
+	"**/build/**",
+	"**/admin/**",
+	"**/test/**",
+	"www/**",
+	"src/www/**",
+	"scripts/**",
+	"**/.antigravityignore/**",
+	"**/.agent/**",
+	"**/.tmp/**"
+];
+
+const mochaGlobals = {
+	after: "readonly",
+	afterEach: "readonly",
+	before: "readonly",
+	beforeEach: "readonly",
+	context: "readonly",
+	describe: "readonly",
+	it: "readonly",
+	specify: "readonly"
+};
+
+const disabledSharedRules = Object.fromEntries(
+	sharedConfig.flatMap(({ rules = {} }) => Object.keys(rules)).map((rule) => [rule, "off"])
+);
+
+const legacyRules = {
+	indent: ["error", "tab", { SwitchCase: 1 }],
+	"no-console": "off",
+	"no-unused-vars": "off",
+	"@typescript-eslint/no-unused-vars": "error",
+	"no-var": "error",
+	"no-trailing-spaces": "error",
+	"prefer-const": "error",
+	quotes: ["error", "double", { avoidEscape: true, allowTemplateLiterals: true }],
+	semi: ["error", "always"],
+	"linebreak-style": ["error", "unix"],
+	"no-multiple-empty-lines": ["error", { max: 1, maxEOF: 0, maxBOF: 0 }],
+	"eol-last": ["error", "always"],
+	"max-statements-per-line": ["error", { max: 1 }],
+	"brace-style": ["error", "1tbs", { allowSingleLine: false }],
+	"padded-blocks": ["error", "never"],
+	"keyword-spacing": ["error", { before: true, after: true }],
+	"space-before-blocks": ["error", "always"],
+	"object-curly-spacing": ["error", "always"],
+	"comma-spacing": ["error", { before: false, after: true }],
+	"arrow-spacing": ["error", { before: true, after: true }],
+	"sonarjs/no-collapsible-if": "error",
+	"sonarjs/no-extra-arguments": "error",
+	"sonarjs/nested-control-flow": "off",
+	"sonarjs/expression-complexity": "off",
+	"sonarjs/no-nested-assignment": "error",
+	"unicorn/prevent-abbreviations": "off",
+	"unicorn/filename-case": "off",
+	"unicorn/no-null": "off",
+	"unicorn/prefer-module": "off",
+	"unicorn/prefer-node-protocol": "off",
+	"unicorn/no-process-exit": "off",
+	"unicorn/no-array-for-each": "off"
+};
 
 export default [
-	// Global ignores
 	{
-		ignores: [
-			"**/*.d.ts",
-			"**/build/**",
-			"**/admin/**",
-			"**/test/**",
-			"**/www/**",
-			"**/scripts/**",
-			"**/.antigravityignore/**",
-			"**/.AppPlugins/**",
-			"**/.tmp/**",
-			"**/.Roborock Q7 Series/**",
-			"**/.sniff/**",
-			"**/.agent/**",
-			"**/.apk/**",
-			"**/coverage/**"
-		],
+		ignores: projectIgnores
 	},
-	// 1. Project standard rules
+	...sharedConfig,
 	{
-		...iobroker.backend,
-		files: ["**/*.js", "**/*.ts"],
+		files: ["**/*.js", "**/*.cjs", "**/*.mjs", "**/*.ts"],
+		rules: disabledSharedRules
 	},
-	// 2. Logic Guardrails
 	{
 		files: ["**/*.js", "**/*.ts"],
-		ignores: ["**/*.d.ts", "**/build/**", "**/admin/**", "**/test/**", "www/**", "src/www/**", "scripts/**", "**/.antigravityignore/**", "**/.agent/**", "**/.tmp/**"],
+		ignores: legacyRuleIgnores,
 		languageOptions: {
-			parser: tsParser,
 			ecmaVersion: 2020,
 			sourceType: "module",
-			globals: {
-				...globals.node,
-				...globals.mocha,
+			parserOptions: {
+				projectService: false
 			},
+			globals: mochaGlobals
 		},
 		plugins: {
-			"@typescript-eslint": tsPlugin,
-			sonarjs,
-			unicorn,
+			sonarjs
 		},
-		rules: {
-			indent: ["error", "tab", { SwitchCase: 1 }],
-			"no-console": "off",
-			"no-unused-vars": "off",
-			"@typescript-eslint/no-unused-vars": "error",
-			"no-var": "error",
-			"no-trailing-spaces": "error",
-			"prefer-const": "error",
-			quotes: ["error", "double", { avoidEscape: true, allowTemplateLiterals: true }],
-			semi: ["error", "always"],
-			"linebreak-style": ["error", "unix"],
-			"no-multiple-empty-lines": ["error", { "max": 1, "maxEOF": 0, "maxBOF": 0 }],
-			"eol-last": ["error", "always"],
-			"max-statements-per-line": ["error", { "max": 1 }],
-			"brace-style": ["error", "1tbs", { "allowSingleLine": false }],
-			"padded-blocks": ["error", "never"],
-			"keyword-spacing": ["error", { "before": true, "after": true }],
-			"space-before-blocks": ["error", "always"],
-			"object-curly-spacing": ["error", "always"],
-			"comma-spacing": ["error", { "before": false, "after": true }],
-			"arrow-spacing": ["error", { "before": true, "after": true }],
-			"sonarjs/no-collapsible-if": "error",
-			"sonarjs/no-extra-arguments": "error",
-			"sonarjs/nested-control-flow": "off",
-			"sonarjs/expression-complexity": "off",
-			"sonarjs/no-nested-assignment": "error",
-			"unicorn/prevent-abbreviations": "off",
-			"unicorn/filename-case": "off",
-			"unicorn/no-null": "off",
-			"unicorn/prefer-module": "off",
-			"unicorn/no-process-exit": "off",
-			"unicorn/no-array-for-each": "off",
-		},
+		rules: legacyRules
 	},
-	// 3. Frontend rules
-	{
-		...iobroker.frontend,
-		files: ["src/www/**/*.ts", "src/www/**/*.js"],
-		languageOptions: {
-			parser: tsParser,
-			ecmaVersion: 2020,
-			sourceType: "module",
-		},
-		plugins: {
-			"@typescript-eslint": tsPlugin,
-		},
-	},
-	// 4. Type-Aware Rules
 	{
 		files: ["src/**/*.ts"],
-		// Exclude files not in tsconfig.json to avoid parsing errors
 		ignores: ["src/www/**", "**/test/**", "**/*.test.ts"],
 		languageOptions: {
 			parserOptions: {
-				project: "./tsconfig.json",
-				tsconfigRootDir: __dirname,
-			},
+				projectService: true
+			}
 		},
 		rules: {
-			"@typescript-eslint/no-deprecated": "error",
-		},
-	},
+			"@typescript-eslint/no-deprecated": "error"
+		}
+	}
 ];

@@ -31,7 +31,10 @@ function readI16BE(buf: Buffer, offset: number): number {
 }
 
 const MAX_MAP_PIXELS = 2000 * 2000; // sanity cap
-const Q10_COMPAT_FALLBACKS_ENABLED = process.env.ROBOROCK_Q10_COMPAT_FALLBACKS === "1";
+
+export interface Q10YxMapParseOptions {
+	compatFallbacks?: boolean;
+}
 
 interface Q10RoomModel {
 	roomID: number;
@@ -1651,12 +1654,12 @@ function parseStrictOriginalQ10Map(buf: Buffer): B01MapData | null {
  * A separate compatibility mode can be enabled explicitly for malformed legacy
  * captures that do not follow the original transport shape.
  */
-export function parseQ10YxMapToB01(buf: Buffer): B01MapData | null {
+export function parseQ10YxMapToB01(buf: Buffer, options: Q10YxMapParseOptions = {}): B01MapData | null {
 	if (!buf || buf.length < Q10_HEADER_LEN) return null;
 
 	const strict = parseStrictOriginalQ10Map(buf);
 	if (strict) return strict;
-	if (!Q10_COMPAT_FALLBACKS_ENABLED) return null;
+	if (!options.compatFallbacks) return null;
 
 	const preferredCandidates: Array<{ offset: number; endian: "le" | "be" }> = [
 		{ offset: 1, endian: "be" },

@@ -196,7 +196,10 @@ export class V1MapService {
 				if (hasMapInfo || (Array.isArray(rawResult) && rawResult.length > 0)) {
 					break;
 				}
-				if (i < 2) await new Promise(resolve => setTimeout(resolve, 2000));
+				if (i < 2) await new Promise(resolve => {
+					const timeout = this.adapter.setTimeout(() => resolve(undefined), 2000);
+					if (!timeout) resolve(undefined);
+				});
 			}
 
 			const mapInfoFromApi: any[] | undefined = Array.isArray(rawResult) && rawResult[0] && (rawResult[0] as any).map_info

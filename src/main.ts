@@ -96,6 +96,22 @@ export class Roborock extends utils.Adapter {
 	}
 
 	/**
+	 * Loads admin translations from the current short i18n format and keeps a fallback
+	 * for older local builds that still contain long-format files.
+	 */
+	private loadAdminTranslations(): Record<string, string> {
+		const lang = this.language || "en";
+		for (const candidate of [`../admin/i18n/${lang}.json`, `../admin/i18n/${lang}/translations.json`, "../admin/i18n/en.json", "../admin/i18n/en/translations.json"]) {
+			try {
+				return require(candidate);
+			} catch {
+				// Try the next supported translation layout.
+			}
+		}
+		return {};
+	}
+
+	/**
 	 * Adapter ready logic.
 	 */
 	async onReady() {
@@ -109,7 +125,7 @@ export class Roborock extends utils.Adapter {
 		this.translationManager.init();
 
 		this.sentryInstance = this.getPluginInstance("sentry") as SentryPlugin | undefined;
-		this.translations = require(`../admin/i18n/${this.language || "en"}/translations.json`);
+		this.translations = this.loadAdminTranslations();
 
 		this.rLog("System", null, "Info", undefined, undefined, `Build Info: Date=${commitInfo.commitDate}, Commit=${commitInfo.commitHash}`, "debug");
 
@@ -194,7 +210,10 @@ export class Roborock extends utils.Adapter {
 			// Wait for all probes to finish (with timeout to not block forever)
 			await Promise.race([
 				Promise.all(probePromises),
-				new Promise(resolve => setTimeout(resolve, 2000)) // Max 2s probe time
+				new Promise(resolve => {
+					const timeout = this.setTimeout(() => resolve(undefined), 2000);
+					if (!timeout) resolve(undefined);
+				}) // Max 2s probe time
 			]);
 			this.rLog("System", null, "Info", undefined, undefined, "Network Probe finished.", "info");
 			// ----------------------------------------------------
@@ -563,7 +582,10 @@ export class Roborock extends utils.Adapter {
 			await this.http_api.ensureProductInfo();
 			let devices = this.http_api.getDevices() || [];
 			for (let wait = 0; wait < 6 && devices.length === 0; wait++) {
-				await new Promise((r) => setTimeout(r, 500));
+				await new Promise(resolve => {
+					const timeout = this.setTimeout(() => resolve(undefined), 500);
+					if (!timeout) resolve(undefined);
+				});
 				devices = this.http_api.getDevices() || [];
 			}
 			const modelsInAccount = new Set<string>();
@@ -758,7 +780,7 @@ export class Roborock extends utils.Adapter {
 
 				if (!commonObj.type) commonObj.type = "mixed";
 
-				await this.setObject(path, {
+				await this.setObjectNotExistsAsync(path, {
 					type: "state",
 					common: commonObj,
 					native: native,
@@ -862,14 +884,20 @@ export class Roborock extends utils.Adapter {
 			oldObj = null; // Does not exist
 		}
 
-		if (!oldObj || oldObj.type !== "folder") {
-			await this.setObject(path, {
-				type: "folder",
-				common: {
-					name: name
-				},
-				native: {}
+		const folderObject = {
+			type: "folder" as const,
+			common: {
+				name: name
+			},
+			native: {}
+		};
+
+		if (!oldObj) {
+			await this.setObjectNotExistsAsync(path, {
+				...folderObject
 			});
+		} else if (oldObj.type !== "folder") {
+			await this.extendObject(path, folderObject);
 		} else if (customName !== undefined) {
 			// Only update name when explicitly passed; avoid overwriting with path segment when ensuring existence (issue #1140)
 			const currentName = oldObj.common.name;
@@ -1135,7 +1163,10 @@ export class Roborock extends utils.Adapter {
 					break;
 				}
 				this.rLog("Requests", duid, "Info", handler.protocolVersion || undefined, undefined, `[floorSwitch] Waiting for sync (current=${currentIndex}, target=${mapFlag}, status=${rawStatus}, attempt=${i + 1}/10, elapsed=${elapsed}ms)`, "info");
-				await new Promise(resolve => setTimeout(resolve, 2000));
+				await new Promise(resolve => {
+					const timeout = this.setTimeout(() => resolve(undefined), 2000);
+					if (!timeout) resolve(undefined);
+				});
 			}
 
 			if (!verified) {

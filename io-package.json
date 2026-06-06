@@ -133,7 +133,7 @@
     "licenseInformation": {
       "license": "MIT",
       "type": "free",
-      "link": "https://github.com/copystring/ioBroker.roborock/blob/main/README.md"
+      "link": "https://opensource.org/license/mit"
     },
     "platform": "Javascript/Node.js",
     "icon": "roborock.png",
@@ -143,7 +143,7 @@
     "loglevel": "info",
     "mode": "daemon",
     "type": "household",
-    "compact": true,
+    "compact": false,
     "connectionType": "cloud",
     "dataSource": "poll",
     "adminUI": {
