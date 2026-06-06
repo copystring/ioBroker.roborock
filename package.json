@@ -22,9 +22,6 @@
   "engines": {
     "node": ">= 22"
   },
-  "os": [
-    "!darwin"
-  ],
   "dependencies": {
     "@iobroker/adapter-core": "^3.3.2",
     "@napi-rs/canvas": "^1.0.0",
