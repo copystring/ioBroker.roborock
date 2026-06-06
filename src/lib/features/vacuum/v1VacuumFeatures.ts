@@ -307,7 +307,10 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			// User request: active fetch status after map load to ensure trigger
 			// We trigger these in the background immediately
 			(async () => {
-				await new Promise(r => setTimeout(r, 2000));
+				await new Promise(resolve => {
+					const timeout = this.deps.adapter.setTimeout(() => resolve(undefined), 2000);
+					if (!timeout) resolve(undefined);
+				});
 				await this.updateStatus().catch(() => {});
 				await this.mapService.updateMap().catch(() => {});
 				await this.mapService.updateRoomMapping().catch(() => {});

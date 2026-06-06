@@ -1,119 +1,141 @@
 {
-	"i18n": true,
-	"type": "panel",
-	"items": {
-		"loginMethod": {
-			"type": "select",
-			"label": "Login Method",
-			"options": [
-				{ "label": "Email + 2FA Code", "value": "email" },
-				{ "label": "Email + Password", "value": "password" }
-			],
-			"default": "email",
-			"newLine": true,
-			"xs": 12,
-			"sm": 12,
-			"md": 6,
-			"lg": 6,
-			"xl": 6
-		},
-		"region": {
-			"type": "select",
-			"label": "Region",
-			"options": [
-				{ "label": "Europe", "value": "eu" },
-				{ "label": "United States", "value": "us" },
-				{ "label": "China", "value": "cn" },
-				{ "label": "Asia", "value": "asia" }
-			],
-			"default": "eu",
-			"newLine": true,
-			"xs": 12,
-			"sm": 12,
-			"md": 6,
-			"lg": 6,
-			"xl": 6
-		},
-		"username": {
-			"type": "text",
-			"label": "Login",
-			"newLine": true,
-			"xs": 12,
-            "sm": 12,
-            "md": 6,
-            "lg": 6,
-            "xl": 6
-		},
-		"password": {
-			"type": "password",
-			"label": "Password",
-			"newLine": true,
-			"hidden": "data.loginMethod !== 'password'",
-			"xs": 12,
-			"sm": 12,
-			"md": 6,
-			"lg": 6,
-			"xl": 6
-		},
-		"enable_map_creation": {
-			"type": "checkbox",
-			"label": "Enable Map Creation",
-			"newLine": true,
-			"xs": 12,
-			"sm": 12,
-            "md": 6,
-            "lg": 6,
-            "xl": 6
-		},
-
-		"updateInterval": {
-			"type": "number",
-			"label": "Update interval",
-			"newLine": true,
-			"min": 60,
-			"max": 240,
-			"xs": 12,
-			"sm": 12,
-            "md": 6,
-            "lg": 6,
-            "xl": 6
-		},
-
-		"map_theme": {
-			"type": "select",
-			"label": "Map Theme",
-			"options": [
-				{ "label": "Dark", "value": "dark" },
-				{ "label": "Light", "value": "light" }
-			],
-			"default": "dark",
-			"newLine": true,
-			"hidden": "!data.enable_map_creation",
-			"xs": 12,
-			"sm": 12,
-			"md": 6,
-			"lg": 6,
-			"xl": 6
-		},
-		"hostname_ip": {
-			"type": "text",
-			"label": "Hostname/IP for camera stream",
-			"newLine": true,
-			"xs": 12,
-			"sm": 12,
-            "md": 6,
-            "lg": 6,
-            "xl": 6
-		},
-		"cameraPin": {
-			"type": "number",
-			"label": "PIN for streaming the camera",
-			"newLine": true,
-			"xs": 12,
-			"sm": 12,
-            "md": 6,
-            "lg": 6,
-            "xl": 6
-		}
-	}
+  "i18n": true,
+  "type": "panel",
+  "items": {
+    "loginMethod": {
+      "type": "select",
+      "label": "Login Method",
+      "options": [
+        {
+          "label": "Email + 2FA Code",
+          "value": "email"
+        },
+        {
+          "label": "Email + Password",
+          "value": "password"
+        }
+      ],
+      "default": "email",
+      "newLine": true,
+      "xs": 12,
+      "sm": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
+    "region": {
+      "type": "select",
+      "label": "Region",
+      "options": [
+        {
+          "label": "Europe",
+          "value": "eu"
+        },
+        {
+          "label": "United States",
+          "value": "us"
+        },
+        {
+          "label": "China",
+          "value": "cn"
+        },
+        {
+          "label": "Asia",
+          "value": "asia"
+        }
+      ],
+      "default": "eu",
+      "newLine": true,
+      "xs": 12,
+      "sm": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
+    "username": {
+      "type": "text",
+      "label": "Login",
+      "newLine": true,
+      "xs": 12,
+      "sm": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
+    "password": {
+      "type": "password",
+      "label": "Password",
+      "newLine": true,
+      "hidden": "data.loginMethod !== 'password'",
+      "xs": 12,
+      "sm": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
+    "enable_map_creation": {
+      "type": "checkbox",
+      "label": "Enable Map Creation",
+      "newLine": true,
+      "xs": 12,
+      "sm": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
+    "updateInterval": {
+      "type": "number",
+      "label": "Update interval",
+      "newLine": true,
+      "min": 60,
+      "max": 240,
+      "xs": 12,
+      "sm": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
+    "map_theme": {
+      "type": "select",
+      "label": "Map Theme",
+      "options": [
+        {
+          "label": "Dark",
+          "value": "dark"
+        },
+        {
+          "label": "Light",
+          "value": "light"
+        }
+      ],
+      "default": "dark",
+      "newLine": true,
+      "hidden": "!data.enable_map_creation",
+      "xs": 12,
+      "sm": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
+    "hostname_ip": {
+      "type": "text",
+      "label": "Hostname/IP for camera stream",
+      "newLine": true,
+      "xs": 12,
+      "sm": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
+    "cameraPin": {
+      "type": "number",
+      "label": "PIN for streaming the camera",
+      "newLine": true,
+      "xs": 12,
+      "sm": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    }
+  }
 }

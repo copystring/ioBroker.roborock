@@ -477,14 +477,20 @@ export class requestsHandler {
 
 				if (Array.isArray(result) && result[0] === "retry" && retryCount < MAX_REQUEST_RETRIES) {
 					this.adapter.rLog("System", duid, "Debug", "Retry", undefined, `[sendRequest] Received 'retry' for ${method} on ${duid}. Retrying (${retryCount + 1}/${MAX_REQUEST_RETRIES + 1})...`, "debug");
-					await new Promise((resolve) => setTimeout(resolve, 1000));
+					await new Promise((resolve) => {
+						const timeout = this.adapter.setTimeout(() => resolve(undefined), 1000);
+						if (!timeout) resolve(undefined);
+					});
 					return attempt(retryCount + 1);
 				}
 				return result;
 			} catch (error) {
 				if (retryCount < MAX_REQUEST_RETRIES && isRetryableError(error)) {
 					this.adapter.rLog("System", duid, "Warn", "Retry", undefined, `[sendRequest] ${method} failed (${(error as Error).message}). Retrying (${retryCount + 1}/${MAX_REQUEST_RETRIES + 1})...`, "warn");
-					await new Promise((resolve) => setTimeout(resolve, 1000));
+					await new Promise((resolve) => {
+						const timeout = this.adapter.setTimeout(() => resolve(undefined), 1000);
+						if (!timeout) resolve(undefined);
+					});
 					return attempt(retryCount + 1);
 				}
 				throw error;

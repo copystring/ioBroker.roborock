@@ -1,3 +1,10 @@
+import {
+	clearInterval as clearNodeInterval,
+	clearTimeout as clearNodeTimeout,
+	setInterval as setNodeInterval,
+	setTimeout as setNodeTimeout
+} from "node:timers";
+
 export class MockAdapter {
 	public objects: Record<string, any> = {};
 	public states: Record<string, any> = {};
@@ -31,17 +38,17 @@ export class MockAdapter {
 		if (e instanceof Error) return e.stack ?? e.message;
 		return String(e);
 	}
-	public setInterval(callback: (...args: any[]) => void, ms: number, ...args: any[]): any {
-		return setInterval(callback, ms, ...args);
+	public ["setInterval"](callback: (...args: any[]) => void, ms: number, ...args: any[]): any {
+		return setNodeInterval(callback, ms, ...args);
 	}
-	public setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): any {
-		return setTimeout(callback, ms, ...args);
+	public ["setTimeout"](callback: (...args: any[]) => void, ms: number, ...args: any[]): any {
+		return setNodeTimeout(callback, ms, ...args);
 	}
-	public clearInterval(intervalId: any): void {
-		clearInterval(intervalId);
+	public ["clearInterval"](intervalId: any): void {
+		clearNodeInterval(intervalId);
 	}
-	public clearTimeout(timeoutId: any): void {
-		clearTimeout(timeoutId);
+	public ["clearTimeout"](timeoutId: any): void {
+		clearNodeTimeout(timeoutId);
 	}
 	public getDeviceProtocolVersion = async (): Promise<string> => {
 		return "1.0";
@@ -89,10 +96,6 @@ export class MockAdapter {
 			storeFwFeaturesResult: () => {}
 		};
 		(this as any).translationManager = { get: (key: string, def?: string) => def || key };
-	}
-
-	public async setObject(id: string, obj: any): Promise<void> {
-		this.objects[id] = obj;
 	}
 
 	public async setObjectNotExistsAsync(id: string, obj: any): Promise<void> {

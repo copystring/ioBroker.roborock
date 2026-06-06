@@ -269,11 +269,12 @@ export class http_api {
 
 					// 2. Wait for Code
 					let code = "";
+					let timeout: ioBroker.Timeout | undefined;
 					try {
 						code = await new Promise<string>((resolve, reject) => {
 							this.loginCodeResolver = resolve;
 							// Timeout after 15 minutes
-							setTimeout(() => {
+							timeout = this.adapter.setTimeout(() => {
 								if (this.loginCodeResolver) {
 									this.loginCodeResolver = null;
 									reject(new Error("Timeout waiting for 2FA code"));
@@ -282,6 +283,8 @@ export class http_api {
 						});
 					} catch (e: unknown) {
 						throw e;
+					} finally {
+						if (timeout) this.adapter.clearTimeout(timeout);
 					}
 
 					this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, "2FA code received. Proceeding with login...", "info");

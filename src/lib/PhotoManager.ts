@@ -62,7 +62,7 @@ export class PhotoManager {
 	// Stores expected msgId for raw streams (P300 with 0 chunks) per DUID
 	private expectedRawStreams: Map<string, { msgIdRaw: number; totalSize: number }> = new Map();
 	// Buffer for packets arriving before P300 header (Out-of-Order / Early Data)
-	private earlyDataPackets: Map<string, { buffers: Buffer[]; timer: any }> = new Map();
+	private earlyDataPackets: Map<string, { buffers: Buffer[]; timer: ioBroker.Timeout }> = new Map();
 	private photoCleanupInterval: any = null;
 
 	constructor(adapter: Roborock) {
@@ -196,7 +196,7 @@ export class PhotoManager {
 		// Check for early data packets that arrived before the header
 		const earlyData = this.earlyDataPackets.get(duid);
 		if (earlyData) {
-			clearTimeout(earlyData.timer);
+			this.adapter.clearTimeout(earlyData.timer);
 			this.earlyDataPackets.delete(duid);
 
 			// Process strictly in order
@@ -257,11 +257,13 @@ export class PhotoManager {
 	private bufferEarlyDataPacket(duid: string, payloadBuf: Buffer): void {
 		let entry = this.earlyDataPackets.get(duid);
 		if (!entry) {
+			const timer = this.adapter.setTimeout(() => {
+				this.earlyDataPackets.delete(duid);
+			}, 2000);
+			if (!timer) return;
 			entry = {
 				buffers: [],
-				timer: setTimeout(() => {
-					this.earlyDataPackets.delete(duid);
-				}, 2000) // Keep for 2s
+				timer // Keep for 2s
 			};
 			this.earlyDataPackets.set(duid, entry);
 		}
