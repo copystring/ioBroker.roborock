@@ -210,10 +210,7 @@ export class Roborock extends utils.Adapter {
 			// Wait for all probes to finish (with timeout to not block forever)
 			await Promise.race([
 				Promise.all(probePromises),
-				new Promise(resolve => {
-					const timeout = this.setTimeout(() => resolve(undefined), 2000);
-					if (!timeout) resolve(undefined);
-				}) // Max 2s probe time
+				this.delay(2000) // Max 2s probe time
 			]);
 			this.rLog("System", null, "Info", undefined, undefined, "Network Probe finished.", "info");
 			// ----------------------------------------------------
@@ -581,11 +578,8 @@ export class Roborock extends utils.Adapter {
 		try {
 			await this.http_api.ensureProductInfo();
 			let devices = this.http_api.getDevices() || [];
-			for (let wait = 0; wait < 6 && devices.length === 0; wait++) {
-				await new Promise(resolve => {
-					const timeout = this.setTimeout(() => resolve(undefined), 500);
-					if (!timeout) resolve(undefined);
-				});
+			for (let attempt = 0; attempt < 6 && devices.length === 0; attempt++) {
+				await this.delay(500);
 				devices = this.http_api.getDevices() || [];
 			}
 			const modelsInAccount = new Set<string>();
@@ -1163,10 +1157,7 @@ export class Roborock extends utils.Adapter {
 					break;
 				}
 				this.rLog("Requests", duid, "Info", handler.protocolVersion || undefined, undefined, `[floorSwitch] Waiting for sync (current=${currentIndex}, target=${mapFlag}, status=${rawStatus}, attempt=${i + 1}/10, elapsed=${elapsed}ms)`, "info");
-				await new Promise(resolve => {
-					const timeout = this.setTimeout(() => resolve(undefined), 2000);
-					if (!timeout) resolve(undefined);
-				});
+				await this.delay(2000);
 			}
 
 			if (!verified) {

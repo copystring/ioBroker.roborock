@@ -20,6 +20,7 @@ This adapter allows you the control, get states, cleaning history and view the m
 - [Supported robots](#supported-robots)
 - [Zone cleaning](#zone-cleaning)
 - [Changelog](#changelog)
+- [License](#license)
 
 **This adapter uses Sentry libraries to automatically report exceptions and code errors to the developers.** For more details and for information how to disable the error reporting see [Sentry-Plugin Documentation](https://github.com/ioBroker/plugin-sentry#plugin-sentry)! Sentry reporting is used starting with js-controller 3.0.
 
@@ -79,3 +80,13 @@ This feature only works when map creation is enabled in the adapter options. Ope
 
 * (copystring) **Fix:** Request handling – message IDs are now assigned internally (externalId removed), avoiding ID conflicts.
 * (copystring) **Maps/Rooms:** Room states are only created for segments that exist on the loaded map for that floor; room names are taken only from the API so custom names are not overwritten.
+
+Older changelog entries are available in [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
+
+## License
+
+MIT License
+
+Copyright (c) 2026 copystring <copystring@gmail.com>
+
+See [LICENSE](LICENSE) for the full license text.

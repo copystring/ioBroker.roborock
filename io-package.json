@@ -132,8 +132,7 @@
     ],
     "licenseInformation": {
       "license": "MIT",
-      "type": "free",
-      "link": "https://opensource.org/license/mit"
+      "type": "free"
     },
     "platform": "Javascript/Node.js",
     "icon": "roborock.png",
