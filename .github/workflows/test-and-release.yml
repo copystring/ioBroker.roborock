@@ -69,6 +69,7 @@ jobs:
           os: ${{ matrix.os }}
           package-cache: 'npm'
           build: true
+          build-command: 'npm run clean && npm run build:www && npm run docs'
 
   # Deploys the final package to NPM
   deploy:
