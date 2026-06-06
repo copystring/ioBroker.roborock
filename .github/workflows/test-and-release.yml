@@ -24,18 +24,13 @@ env:
   NPM_CONFIG_FUND: false
 
 jobs:
-  # Performs quick checks before the expensive test runs
+  # Performs quick checks alongside the adapter test matrix
   check-and-lint:
     if: contains(github.event.head_commit.message, '[skip ci]') == false
 
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24.x'
-          cache: 'npm'
       - uses: ioBroker/testing-action-check@v2
         with:
           node-version: '24.x'
@@ -47,7 +42,6 @@ jobs:
 
   # Runs adapter tests on all supported node versions and OSes
   adapter-tests:
-    needs: check-and-lint
     if: contains(github.event.head_commit.message, '[skip ci]') == false
 
     runs-on: ${{ matrix.os }}
@@ -68,10 +62,6 @@ jobs:
           key: iobroker-controller-${{ runner.os }}-${{ matrix.node-version }}-${{ hashFiles('package-lock.json') }}
           restore-keys: |
             iobroker-controller-${{ runner.os }}-${{ matrix.node-version }}-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'npm'
 
       - uses: ioBroker/testing-action-adapter@v1
         with:
