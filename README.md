@@ -51,6 +51,12 @@ This feature only works when map creation is enabled in the adapter options. Ope
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (copystring) Fixed consumable percentage values for devices where Roborock reports maintenance data via HomeData.
+* (copystring) Re-enabled macOS support and added macOS test coverage.
+* (copystring) Improved dependency update automation so updates are checked weekly and merged only after successful checks.
+
 ### 0.7.3 (2026-05-22)
 
 * (copystring) Fixed V1 auto-empty dust collection to use the AppPlugin-verified `app_start_collect_dust` command.
