@@ -76,11 +76,6 @@ This feature only works when map creation is enabled in the adapter options. Ope
 * (copystring) Improved local connections for newer Roborock models so reconnects, keepalive checks and map transfers are more reliable.
 * (copystring) Fixed empty images in `mapBase64` and `mapBase64Truncated`.
 
-### 0.7.0-beta.1 (2026-03-16)
-
-* (copystring) **Fix:** Request handling – message IDs are now assigned internally (externalId removed), avoiding ID conflicts.
-* (copystring) **Maps/Rooms:** Room states are only created for segments that exist on the loaded map for that floor; room names are taken only from the API so custom names are not overwritten.
-
 Older changelog entries are available in [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 
 ## License
