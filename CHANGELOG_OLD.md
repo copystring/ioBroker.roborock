@@ -1,5 +1,10 @@
 # Older changes
 
+### 0.7.0-beta.1 (2026-03-16)
+
+* (copystring) **Fix:** Request handling – message IDs are now assigned internally (externalId removed), avoiding ID conflicts.
+* (copystring) **Maps/Rooms:** Room states are only created for segments that exist on the loaded map for that floor; room names are taken only from the API so custom names are not overwritten.
+
 ### 0.6.18 (2024-12-11)
  * (copystring) Add cleaned_area to S8
  * (copystring) Bugfixes for Qrevo Curve
