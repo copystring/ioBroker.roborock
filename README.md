@@ -56,6 +56,8 @@ This feature only works when map creation is enabled in the adapter options. Ope
 * (copystring) Fixed consumable percentage values for devices where Roborock reports maintenance data via HomeData.
 * (copystring) Re-enabled macOS support and added macOS test coverage.
 * (copystring) Improved dependency update automation so updates are checked weekly and merged only after successful checks.
+* (copystring) Updated `p-queue` to 9.3.0 and `protobufjs` to 8.5.0.
+* (copystring) Improved CI performance for Linux, macOS and Windows adapter tests without reducing test coverage.
 
 ### 0.7.3 (2026-05-22)
 
