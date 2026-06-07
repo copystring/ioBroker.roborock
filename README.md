@@ -51,7 +51,7 @@ This feature only works when map creation is enabled in the adapter options. Ope
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.7.4 (2026-06-07)
 
 * (copystring) Documented tested Roborock S8+ support.
 * (copystring) Fixed consumable percentage values for devices where Roborock reports maintenance data via HomeData.
