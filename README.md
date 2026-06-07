@@ -32,7 +32,7 @@ This adapter allows you the control, get states, cleaning history and view the m
 
 ## Supported robots
 
-- **S-Series:** S4, S4 Max, S5 Max, S6, S6 Pure, S6 MaxV, S7, S7 MaxV (Pro/Ultra), S7 Pro Ultra, S7 Max Ultra, S8, S8 Pro Ultra, S8 MaxV Ultra
+- **S-Series:** S4, S4 Max, S5 Max, S6, S6 Pure, S6 MaxV, S7, S7 MaxV (Pro/Ultra), S7 Pro Ultra, S7 Max Ultra, S8, S8+, S8 Pro Ultra, S8 MaxV Ultra
 - **Q-Series:** Q5 Pro, Q7, Q7 Max, Q7 L5, Q8 Max
 - **Q Revo:** Q Revo, Q Revo Pro
 - **Qrevo:** Qrevo Slim, Qrevo S, Qrevo Curve, Qrevo Curv Series, Qrevo Edge, Qrevo Edge Series, Qrevo L, Qrevo Master, Qrevo MaxV
@@ -53,6 +53,7 @@ This feature only works when map creation is enabled in the adapter options. Ope
 -->
 ### **WORK IN PROGRESS**
 
+* (copystring) Documented tested Roborock S8+ support.
 * (copystring) Fixed consumable percentage values for devices where Roborock reports maintenance data via HomeData.
 * (copystring) Re-enabled macOS support and added macOS test coverage.
 * (copystring) Improved dependency update automation so updates are checked weekly and merged only after successful checks.
