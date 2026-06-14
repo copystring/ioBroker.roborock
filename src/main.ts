@@ -29,6 +29,11 @@ interface SentryPlugin {
 	};
 }
 
+type SceneSegmentsBatch = {
+	duid: string;
+	params: Record<string, unknown>;
+};
+
 export class Roborock extends utils.Adapter {
 	// --- Public APIs (accessible by helpers) ---
 	public http_api: http_api;
@@ -276,78 +281,329 @@ export class Roborock extends utils.Adapter {
 	/**
 	 * Executes a scene locally by parsing the scene definition and sending commands to the device.
 	 */
-	async executeSceneLocal(sceneId: string | number): Promise<void> {
+	async executeSceneLocal(duid: string, sceneId: string | number): Promise<void> {
 		try {
-			this.rLog("Requests", null, "Info", undefined, undefined, `[Scene] Executing local scene ${sceneId}`, "info");
+			this.rLog("Requests", duid, "Info", undefined, undefined, `[Scene] Executing local scene ${sceneId}`, "info");
 
 			// 1. Fetch scenes
 			const scenes = await this.http_api.getScenes();
 			if (!scenes || !scenes.result) {
-				this.rLog("Requests", null, "Error", undefined, undefined, `[Scene] Failed to fetch scenes or no result for ${sceneId}`, "error");
+				this.rLog("Requests", duid, "Error", undefined, undefined, `[Scene] Failed to fetch scenes or no result for ${sceneId}`, "error");
 				return;
 			}
 
 			// 2. Find target scene
 			// Scene ID from state might be string, API returns number. Compare loosely or convert.
 			const scene = scenes.result.find((s) => s.id == sceneId);
-
 			if (!scene) {
-				this.rLog("Requests", null, "Error", undefined, undefined, `[Scene] Scene ${sceneId} not found`, "error");
+				this.rLog("Requests", duid, "Error", undefined, undefined, `[Scene] Scene ${sceneId} not found`, "error");
 				return;
 			}
 
-			this.rLog("Requests", null, "Debug", undefined, undefined, `[Scene] Found scene "${scene.name}"`, "debug");
+			this.rLog("Requests", duid, "Debug", undefined, undefined, `[Scene] Found scene "${scene.name}"`, "debug");
 
-			// 3. Parse 'param' field
 			let params;
 			try {
 				params = JSON.parse(scene.param);
 			} catch (e: unknown) {
-				this.rLog("Requests", null, "Error", undefined, undefined, `[Scene] Failed to parse params for ${sceneId}: ${this.errorMessage(e)}`, "error");
+				this.rLog("Requests", duid, "Error", undefined, undefined, `[Scene] Failed to parse params for ${sceneId}: ${this.errorMessage(e)}`, "error");
 				return;
 			}
 
-			// 4. Iterate actions and execute
-			if (params.action && params.action.items) {
-				for (const item of params.action.items) {
-					if (item.type === "CMD") {
-						const targetDuid = item.entityId;
-						let commandPayload;
+			const actionItems = params?.action?.items;
+			if (!Array.isArray(actionItems) || actionItems.length === 0) {
+				this.rLog("Requests", duid, "Warn", undefined, undefined, `[Scene] Scene ${sceneId} has no actions`, "warn");
+				return;
+			}
 
-						try {
-							commandPayload = JSON.parse(item.param);
-						} catch (e: unknown) {
-							this.rLog("Requests", targetDuid, "Error", undefined, undefined, `[Scene] Failed to parse command params for item ${item.id}: ${this.errorMessage(e)}`, "error");
+			const targetDuid = this.resolveSceneTargetDuid(duid, actionItems);
+			let pendingSegmentsBatch: SceneSegmentsBatch | null = null;
+			const flushPendingSegmentsBatch = async (): Promise<void> => {
+				if (!pendingSegmentsBatch) return;
+				const batch = pendingSegmentsBatch;
+				pendingSegmentsBatch = null;
+				await this.executeSceneCommand(batch.duid, "do_scenes_segments", batch.params);
+			};
+
+			for (const item of actionItems) {
+				const sceneItem = item as Record<string, unknown>;
+				if (!sceneItem || sceneItem.type !== "CMD") continue;
+				const itemDuid = typeof sceneItem.entityId === "string" && sceneItem.entityId.trim().length > 0 ? sceneItem.entityId : targetDuid;
+
+				const rawCommandPayload = this.tryParseSceneCommandPayload(sceneItem.param);
+				const parsedCommandPayload = typeof rawCommandPayload === "object" && rawCommandPayload !== null ? rawCommandPayload as Record<string, unknown> : null;
+				if (!parsedCommandPayload?.method) {
+					const itemId = typeof sceneItem.id === "string" ? sceneItem.id : `${sceneItem.id}`;
+					this.rLog("Requests", itemDuid, "Warn", undefined, undefined, `[Scene] Invalid command item ${itemId} in ${sceneId}`, "warn");
+					continue;
+				}
+
+				const method = typeof parsedCommandPayload.method === "string" ? parsedCommandPayload.method : "";
+				if (!method) {
+					const itemId = typeof sceneItem.id === "string" ? sceneItem.id : `${sceneItem.id}`;
+					this.rLog("Requests", itemDuid, "Warn", undefined, undefined, `[Scene] Command without string method for item ${itemId} in ${sceneId}`, "warn");
+					continue;
+				}
+
+				const args = this.tryParseSceneCommandPayload(parsedCommandPayload.params);
+				const commandArgs = args !== undefined ? args : parsedCommandPayload.params;
+
+				try {
+					if (method === "do_scenes_segments") {
+						const segmentsPayload = this.asSceneSegmentsPayload(commandArgs);
+						if (segmentsPayload) {
+							if (
+								pendingSegmentsBatch
+								&& pendingSegmentsBatch.duid === itemDuid
+								&& this.canMergeSceneSegmentsPayload(pendingSegmentsBatch.params, segmentsPayload)
+							) {
+								pendingSegmentsBatch.params = this.mergeSceneSegmentsPayload(pendingSegmentsBatch.params, segmentsPayload);
+							} else {
+								await flushPendingSegmentsBatch();
+								pendingSegmentsBatch = { duid: itemDuid, params: segmentsPayload };
+							}
 							continue;
 						}
-
-						const method = commandPayload.method;
-						const args = commandPayload.params;
-
-						this.rLog("Requests", targetDuid, "Info", undefined, undefined, `[Scene] Executing "${scene.name}": sending "${method}"`, "info");
-
-						// 5. Send command via requestsHandler
-						// We pass 'null' as handler because we are sending a raw command directly via specific method/args
-						// and don't need the abstraction of 'BaseDeviceFeatures' here if we go direct.
-						// However, requestsHandler.command expects a handler.
-						// Let's resolve the handler for the target Duid if possible, or cast/hack if needed.
-						const handler = this.deviceFeatureHandlers.get(targetDuid);
-
-						if (handler) {
-							await this.requestsHandler.command(handler, targetDuid, method, args);
-						} else {
-							this.rLog("Requests", targetDuid, "Warn", undefined, undefined, `[Scene] No handler found. Falling back to raw send for "${method}"`, "warn");
-							// Fallback: sendRequest only. Status refresh after activity-start is still triggered in resolvePendingRequest when response arrives.
-							await this.requestsHandler.sendRequest(targetDuid, method, args);
-						}
 					}
+
+					await flushPendingSegmentsBatch();
+
+					if (method === "app_start_program") {
+						const startArgs = await this.resolveStartProgramArgs(itemDuid, commandArgs ?? {});
+						await this.executeSceneCommand(itemDuid, method, startArgs);
+					} else {
+						await this.executeSceneCommand(itemDuid, method, commandArgs);
+					}
+				} catch (error: unknown) {
+					if (method === "app_start_program") {
+						this.rLog(
+							"Requests",
+							itemDuid,
+							"Error",
+							undefined,
+							undefined,
+							`[Scene] Failed to resolve full app_start_program payload for ${sceneId}: ${this.errorMessage(error)}`,
+							"error"
+						);
+						continue;
+					}
+
+					this.rLog(
+						"Requests",
+						itemDuid,
+						"Warn",
+						undefined,
+						undefined,
+						`[Scene] Falling back to direct send for ${method} in ${sceneId}: ${this.errorMessage(error)}`,
+						"warn"
+					);
+					await this.executeSceneCommand(itemDuid, method, parsedCommandPayload.params);
 				}
-			} else {
-				this.rLog("Requests", null, "Warn", undefined, undefined, `[Scene] Scene ${sceneId} has no actions`, "warn");
 			}
+
+			await flushPendingSegmentsBatch();
 		} catch (e: unknown) {
-			this.rLog("Requests", null, "Error", undefined, undefined, `[Scene] Error executing ${sceneId}: ${this.errorMessage(e)}`, "error");
+			this.rLog("Requests", duid, "Error", undefined, undefined, `[Scene] Error executing ${sceneId}: ${this.errorMessage(e)}`, "error");
 		}
+	}
+
+	private resolveSceneTargetDuid(defaultDuid: string, actionItems: unknown[]): string {
+		for (const item of actionItems) {
+			const sceneItem = item as Record<string, unknown>;
+			const entityId = typeof sceneItem?.entityId === "string" && sceneItem.entityId.trim().length > 0 ? sceneItem.entityId : null;
+			if (entityId) return entityId;
+		}
+		return defaultDuid;
+	}
+
+	private async executeSceneCommand(duid: string, method: string, args: unknown): Promise<void> {
+		const handler = this.deviceFeatureHandlers.get(duid);
+		if (handler) {
+			await this.requestsHandler.command(handler, duid, method, this.tryParseSceneCommandPayload(args) ?? args);
+		} else {
+			await this.requestsHandler.sendRequest(duid, method, this.tryParseSceneCommandPayload(args) ?? args);
+		}
+	}
+
+	private asSceneSegmentsPayload(value: unknown): Record<string, unknown> | null {
+		const parsed = this.tryParseSceneCommandPayload(value);
+		if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+			return null;
+		}
+
+		const payload = parsed as Record<string, unknown>;
+		return Array.isArray(payload.data) ? payload : null;
+	}
+
+	private canMergeSceneSegmentsPayload(left: Record<string, unknown>, right: Record<string, unknown>): boolean {
+		if (!Array.isArray(left.data) || !Array.isArray(right.data)) return false;
+		return this.getComparableSceneSegmentsPayload(left) === this.getComparableSceneSegmentsPayload(right);
+	}
+
+	private mergeSceneSegmentsPayload(left: Record<string, unknown>, right: Record<string, unknown>): Record<string, unknown> {
+		const leftData = Array.isArray(left.data) ? left.data : [];
+		const rightData = Array.isArray(right.data) ? right.data : [];
+		return {
+			...left,
+			...right,
+			source: left.source ?? right.source,
+			data: [...leftData, ...rightData]
+		};
+	}
+
+	private getComparableSceneSegmentsPayload(payload: Record<string, unknown>): string {
+		const comparable: Record<string, unknown> = {};
+		for (const key of Object.keys(payload).sort()) {
+			if (key !== "data") {
+				comparable[key] = payload[key];
+			}
+		}
+		return JSON.stringify(comparable);
+	}
+
+	private tryParseSceneCommandPayload(value: unknown): unknown | undefined {
+		if (typeof value === "string") {
+			const parsed = this.tryParseJson(value);
+			return parsed !== undefined ? parsed : value;
+		}
+		return value as unknown;
+	}
+
+	private async resolveStartProgramArgs(duid: string, value: unknown): Promise<Record<string, unknown>> {
+		const parsed = this.resolveProgramArgPayload(this.tryParseSceneCommandPayload(value) ?? value);
+		const cmdIds = this.collectNonEmptyArray(parsed, "cmd_ids");
+		if (cmdIds.length > 0) {
+			return { cmd_ids: cmdIds };
+		}
+
+		const programId = this.resolveProgramId(parsed);
+		if (programId != null) {
+			return this.resolveStartProgramFromProgramId(duid, programId);
+		}
+
+		throw new Error("app_start_program payload has no program_id/cmd_ids");
+	}
+
+	private resolveProgramArgPayload(value: unknown): Record<string, unknown> {
+		if (Array.isArray(value)) {
+			if (value.length === 1) {
+				const entry = value[0];
+				if (
+					typeof entry === "number"
+					|| typeof entry === "string"
+					|| (
+						typeof entry === "object"
+						&& entry !== null
+						&& !Array.isArray(entry)
+						&& ("program_id" in entry || "programId" in entry || "cmd_ids" in entry)
+					)
+				) {
+					return this.resolveProgramArgPayload(entry);
+				}
+			}
+
+			if (value.length > 0) {
+				return { cmd_ids: value };
+			}
+
+			return {};
+		}
+
+		if (typeof value === "number") {
+			return { program_id: value };
+		}
+
+		if (typeof value === "string") {
+			const parsed = this.tryParseJson(value);
+			if (parsed !== undefined) {
+				const normalized = this.resolveProgramArgPayload(parsed);
+				if (normalized && typeof normalized === "object" && !Array.isArray(normalized)) {
+					return normalized as Record<string, unknown>;
+				}
+			}
+
+			if (value.trim() !== "" && Number.isFinite(Number(value))) {
+				return { program_id: Number(value) };
+			}
+		}
+
+		if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+			return value as Record<string, unknown>;
+		}
+
+		return {};
+	}
+
+	private resolveProgramId(payload: Record<string, unknown>): number | null {
+		if (typeof payload.program_id === "number" && Number.isFinite(payload.program_id)) {
+			return payload.program_id;
+		}
+
+		if (typeof payload.programId === "number" && Number.isFinite(payload.programId)) {
+			return payload.programId;
+		}
+
+		if (typeof payload.program_id === "string" && payload.program_id.trim() !== "" && Number.isFinite(Number(payload.program_id))) {
+			return Number(payload.program_id);
+		}
+
+		return null;
+	}
+
+	private collectNonEmptyArray(payload: Record<string, unknown>, key: string): unknown[] {
+		const rawValue = payload[key];
+		if (!rawValue) return [];
+
+		if (Array.isArray(rawValue)) {
+			return rawValue.length > 0 ? rawValue : [];
+		}
+
+		if (typeof rawValue === "string") {
+			const parsed = this.tryParseJson(rawValue);
+			if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+			if (rawValue.trim() !== "" && Number.isFinite(Number(rawValue))) return [Number(rawValue)];
+		}
+
+		if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
+			return [rawValue];
+		}
+
+		return [];
+	}
+
+	private async resolveStartProgramFromProgramId(duid: string, programId: number): Promise<Record<string, unknown>> {
+		const response = await this.requestsHandler.sendRequest(duid, "app_get_program", { program_id: programId });
+		const normalized = this.unwrapSingleItemArrays(this.normalizeSceneRpcPayload(response));
+		if (typeof normalized !== "object" || normalized === null || Array.isArray(normalized)) {
+			throw new Error(`app_get_program returned no usable payload for program_id ${programId}`);
+		}
+
+		const cmdIds = this.collectNonEmptyArray(normalized as Record<string, unknown>, "cmd_ids");
+		if (cmdIds.length === 0) {
+			throw new Error(`app_get_program returned no cmd_ids for program_id ${programId}`);
+		}
+
+		return { cmd_ids: cmdIds };
+	}
+
+	private normalizeSceneRpcPayload(value: unknown): unknown {
+		let current = value;
+		while (typeof current === "object" && current !== null && !Array.isArray(current) && "version" in current && "data" in current) {
+			current = (current as { data?: unknown }).data;
+		}
+
+		if (typeof current === "object" && current !== null && !Array.isArray(current) && "result" in current) {
+			current = (current as { result?: unknown }).result;
+		}
+		return current;
+	}
+
+	private unwrapSingleItemArrays(value: unknown): unknown {
+		let current = value;
+		while (Array.isArray(current) && current.length === 1) {
+			current = current[0];
+		}
+		return current;
 	}
 
 	/** Legacy request-based keepalive. TCP socket sessions now use localApi PINGREQ frames. */
@@ -461,7 +717,7 @@ export class Roborock extends utils.Adapter {
 			// Reset button
 			this.setResetTimeout(id);
 		} else if (folder === "programs" && command === "startProgram") {
-			await this.executeSceneLocal(state.val as string);
+			await this.executeSceneLocal(duid, state.val as string | number);
 			this.setResetTimeout(id); // Use setResetTimeout to reset to null/empty after 1s?
 			// Actually executeSceneLocal takes time.
 			// Better: explicit reset.
