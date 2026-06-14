@@ -15,7 +15,7 @@ The Roborock Cloud API requires a multi-step login authentication to obtain RRIO
 #### 2. Authentication (Hawk)
 Once logged in, all requests must be signed using Hawk Authentication.
 * **Authorization Header**: `Hawk id="...",s="...",ts="...",nonce="...",mac="..."`
-* **HomeData Endpoints**: The adapter requests `v3/user/homes/{homeID}` first and can fall back once to `user/homes/{homeID}` without starting another login.
+* **HomeData Endpoints**: The adapter requests `v3/user/homes/{homeID}` first and can fall back to other `getHomeDetail` identifiers and the legacy `user/homes/{homeID}` endpoint without starting another login.
 * **MAC Calculation**:
   ```text
   PRESTR = [u, s, nonce, timestamp, md5(urlPath), md5(sortedQueryParams), md5(sortedFormData)]

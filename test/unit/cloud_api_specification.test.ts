@@ -17,7 +17,7 @@ import { createHawkAuthentication, http_api, type RriotData, USER_DATA_AUTH_PROF
  * #### 2. Authentication (Hawk)
  * Once logged in, all requests must be signed using Hawk Authentication.
  * * **Authorization Header**: `Hawk id="...",s="...",ts="...",nonce="...",mac="..."`
- * * **HomeData Endpoints**: The adapter requests `v3/user/homes/{homeID}` first and can fall back once to `user/homes/{homeID}` without starting another login.
+ * * **HomeData Endpoints**: The adapter requests `v3/user/homes/{homeID}` first and can fall back to other `getHomeDetail` identifiers and the legacy `user/homes/{homeID}` endpoint without starting another login.
  * * **MAC Calculation**:
  *   ```text
  *   PRESTR = [u, s, nonce, timestamp, md5(urlPath), md5(sortedQueryParams), md5(sortedFormData)]
@@ -161,6 +161,43 @@ describe("Roborock Cloud API Specification", () => {
 			}),
 			ack: true,
 		});
+	});
+
+	it("tries the alternate getHomeDetail id before legacy HomeData endpoints", async () => {
+		const adapter = {
+			config: {},
+			rLog: vi.fn(),
+			errorStack: (error: unknown) => error instanceof Error ? error.stack : String(error),
+			errorMessage: (error: unknown) => error instanceof Error ? error.message : String(error),
+			setState: vi.fn().mockResolvedValue(undefined),
+		};
+		const api = new http_api(adapter as any);
+		const realApi = {
+			get: vi.fn()
+				.mockRejectedValueOnce({ response: { status: 401, data: { code: 401, msg: "unauthorized" } } })
+				.mockResolvedValueOnce({
+					data: {
+						success: true,
+						result: {
+							id: 456,
+							products: [],
+							devices: [],
+							receivedDevices: [],
+							rooms: [],
+						},
+					},
+				}),
+		};
+		(api as any).loginApi = {};
+		(api as any).realApi = realApi;
+		(api as any).homeID = 123;
+		(api as any).homeDetailID = 456;
+
+		await expect(api.updateHomeData()).resolves.toBeUndefined();
+
+		expect(realApi.get).toHaveBeenNthCalledWith(1, "v3/user/homes/123");
+		expect(realApi.get).toHaveBeenNthCalledWith(2, "v3/user/homes/456");
+		expect(realApi.get).toHaveBeenCalledTimes(2);
 	});
 
 	it("clears persisted UserData from an outdated auth profile", async () => {

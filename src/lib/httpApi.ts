@@ -85,6 +85,7 @@ interface HomeDetailResponse {
 	code?: number;
 	msg?: string;
 	data?: {
+		id?: number;
 		rrHomeId?: number;
 	};
 }
@@ -222,6 +223,18 @@ function isUnauthorizedError(error: unknown): boolean {
 	return status === 401 || code === 401 || msg.includes("invalid token") || msg.includes("auth_failed");
 }
 
+function describeHttpError(error: unknown): string {
+	const err = error as { response?: { status?: number; data?: unknown }; message?: string };
+	const status = err?.response?.status;
+	const data = err?.response?.data;
+	const details: string[] = [];
+
+	if (status !== undefined) details.push(`status ${status}`);
+	if (data !== undefined) details.push(`response ${JSON.stringify(data).slice(0, 500)}`);
+	if (details.length > 0) return details.join(", ");
+	return err?.message || String(error);
+}
+
 export class http_api {
 	adapter: Roborock;
 	loginApi: AxiosInstance | null = null;
@@ -229,6 +242,7 @@ export class http_api {
 	userData: UserData | null = null;
 	homeData: HomeData | null = null;
 	homeID: number | null = null;
+	homeDetailID: number | null = null;
 	public productInfo: ProductV5Response | null = null;
 	private loginRegionConfig: RegionConfig | null = null;
 
@@ -334,6 +348,7 @@ export class http_api {
 	private async clearPersistedUserData(): Promise<void> {
 		this.userData = null;
 		this.homeID = null;
+		this.homeDetailID = null;
 		this.realApi = null;
 		if (this.loginApi) delete this.loginApi.defaults.headers.common["Authorization"];
 		await this.adapter.setState("UserData", { val: "", ack: true });
@@ -491,6 +506,7 @@ export class http_api {
 					if (loginResult.code === 200) {
 						this.userData = loginResult.data!; // data IS UserData
 						this.markUserDataCurrent();
+						this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, `Login with code successful. Stored UserData auth profile ${USER_DATA_AUTH_PROFILE_VERSION}.`, "info");
 						await this.adapter.setState(stateId, { val: "", ack: true });
 					} else {
 						throw new Error(`Login with code failed: ${JSON.stringify(loginResult)}`);
@@ -784,9 +800,10 @@ export class http_api {
 			const response = await this.loginApi.get<HomeDetailResponse>("api/v1/getHomeDetail");
 			if (response.data.data) {
 				this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, `getHomeDetail: ${JSON.stringify(response.data)}`, "debug");
+				this.homeDetailID = response.data.data.id ?? null;
 				this.homeID = response.data.data.rrHomeId ?? null;
 				if (!this.homeID) throw new Error("getHomeDetail returned no rrHomeId");
-				this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, `this.homeID: ${this.homeID}`, "debug");
+				this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, `Home identifiers: rrHomeId=${this.homeID}, id=${this.homeDetailID ?? "none"}`, "debug");
 			} else {
 				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `failed to get getHomeDetail: ${response.data.msg}`, "error");
 
@@ -840,27 +857,48 @@ export class http_api {
 		if (!this.homeID) throw new Error("No homeId found");
 
 		let lastError: unknown;
-		for (const [index, endpoint] of HOME_DATA_ENDPOINTS.entries()) {
-			const path = endpoint.path(this.homeID);
+		const attempts = this.getHomeDataAttempts();
+		for (const [index, attempt] of attempts.entries()) {
 			try {
-				const res = await this.realApi.get<HomeDataResponse>(path);
+				const res = await this.realApi.get<HomeDataResponse>(attempt.path);
 
 				if (!res.data?.success || !res.data?.result) {
-					throw new Error(`${endpoint.label} HomeData response missing or not success: ${JSON.stringify(res.data)}`);
+					throw new Error(`${attempt.label} HomeData response missing or not success: ${JSON.stringify(res.data)}`);
 				}
 
-				this.storeHomeDataResult(res.data.result, endpoint.label);
+				this.storeHomeDataResult(res.data.result, attempt.label);
 				await this.adapter.setState("HomeData", { val: JSON.stringify(this.homeData), ack: true });
 				return;
 			} catch (error: unknown) {
 				lastError = error;
-				if (index < HOME_DATA_ENDPOINTS.length - 1) {
-					this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `${endpoint.label} HomeData request failed: ${this.adapter.errorMessage(error)}. Trying legacy HomeData endpoint without re-authentication.`, "warn");
+				const nextAttempt = attempts[index + 1];
+				const nextMessage = nextAttempt ? ` Trying next HomeData candidate: ${nextAttempt.label}.` : "";
+				const level = nextAttempt ? "Warn" : "Error";
+				const severity = nextAttempt ? "warn" : "error";
+				this.adapter.rLog("HTTP", null, level, "Cloud", undefined, `${attempt.label} HomeData request failed (${attempt.path}): ${describeHttpError(error)}.${nextMessage}`, severity);
+				if (!nextAttempt) {
+					break;
 				}
 			}
 		}
 
 		throw lastError ?? new Error("HomeData request failed");
+	}
+
+	private getHomeDataAttempts(): Array<{ label: string; path: string }> {
+		if (!this.homeID) return [];
+		const ids = [
+			{ label: "rrHomeId", id: this.homeID },
+			{ label: "homeDetailId", id: this.homeDetailID },
+		].filter((entry): entry is { label: string; id: number } => typeof entry.id === "number");
+		const dedupedIds = ids.filter((entry, index, all) => all.findIndex((candidate) => candidate.id === entry.id) === index);
+
+		return HOME_DATA_ENDPOINTS.flatMap((endpoint) =>
+			dedupedIds.map((id) => ({
+				label: `${endpoint.label}/${id.label}`,
+				path: endpoint.path(id.id),
+			})),
+		);
 	}
 
 	private storeHomeDataResult(result: NonNullable<HomeDataResponse["result"]>, source: string): void {
