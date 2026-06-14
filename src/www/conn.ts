@@ -63,9 +63,9 @@ export class Connection {
 	public user: string = "";
 
 	// Internal timers
-	private _connectInterval: any = null;
-	private _countInterval: any = null;
-	private _timer: any = null;
+	private _connectInterval: number | null = null;
+	private _countInterval: number | null = null;
+	private _timer: number | null = null;
 	private _lastTimer: number = 0;
 
 	constructor(options?: { useStorage?: boolean }) {
@@ -167,11 +167,11 @@ export class Connection {
 		}
 
 		if (this._connectInterval) {
-			clearInterval(this._connectInterval);
+			window.clearInterval(this._connectInterval);
 			this._connectInterval = null;
 		}
 		if (this._countInterval) {
-			clearInterval(this._countInterval);
+			window.clearInterval(this._countInterval);
 			this._countInterval = null;
 		}
 		const elem = document.getElementById("server-disconnect");
@@ -180,13 +180,13 @@ export class Connection {
 		this._socket.emit("name", connOptions.name);
 		console.log(new Date().toISOString() + " Connected => authenticate");
 
-		const wait = setTimeout(() => {
+		const authTimeout = window.setTimeout(() => {
 			console.error("No answer from server");
 			window.location.reload();
 		}, 3000);
 
 		this._socket.emit("authenticate", (isOk: boolean, isSecure: boolean) => {
-			clearTimeout(wait);
+			window.clearTimeout(authTimeout);
 			console.log(new Date().toISOString() + " Authenticated: " + isOk);
 			if (isOk) {
 				this._onAuth(objectsRequired, isSecure);
@@ -218,7 +218,7 @@ export class Connection {
 
 		this._isConnected = true;
 		if (this._connCallbacks.onConnChange) {
-			setTimeout(() => {
+			window.setTimeout(() => {
 				this._socket.emit("authEnabled", (_auth: boolean, user: string) => {
 					this.user = user;
 					this._connCallbacks.onConnChange!(this._isConnected);
@@ -258,7 +258,7 @@ export class Connection {
 		});
 
 		if (this._connCallbacks.onConnChange) {
-			setTimeout(() => {
+			window.setTimeout(() => {
 				const elem = document.getElementById("server-disconnect");
 				if (elem) elem.style.display = "";
 				this._connCallbacks.onConnChange!(this._isConnected);
@@ -358,7 +358,7 @@ export class Connection {
 
 	public reconnect(connOptions: ConnOptions) {
 		if ((!connOptions.mayReconnect || connOptions.mayReconnect()) && !this._connectInterval) {
-			this._connectInterval = setInterval(() => {
+			this._connectInterval = window.setInterval(() => {
 				console.log("Trying connect...");
 				this._socket.connect();
 				// ... (remaining reconnect logic with jQuery) ...
@@ -584,7 +584,7 @@ export class Connection {
 		} else {
 			this._lastTimer = ts;
 		}
-		this._timer = setTimeout(() => {
+		this._timer = window.setTimeout(() => {
 			this._timer = null;
 			this._monitor();
 		}, 10000);
