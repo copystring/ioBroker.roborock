@@ -9,6 +9,8 @@ The Roborock Cloud API requires a multi-step login authentication to obtain RRIO
 #### 1. Client Initialization
 * **Headers**: `header_clientid` (MD5 of username + clientID), `header_appversion` ("4.XX.XX").
 * **Region Discovery**: `/api/v1/getUrlByEmail` resolves the account's actual IoT base URL and country metadata before login.
+* **Persisted UserData**: cached RRIOT credentials are reused only when their auth profile version matches the current login/signing profile.
+* **2FA Rate Protection**: email code requests are persistently throttled so adapter restarts cannot request codes repeatedly.
 
 #### 2. Authentication (Hawk)
 Once logged in, all requests must be signed using Hawk Authentication.

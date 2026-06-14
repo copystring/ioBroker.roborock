@@ -12,6 +12,10 @@ const API_V4_LOGIN_CODE = "api/v4/auth/email/login/code";
 const API_V4_LOGIN_PASSWORD = "api/v4/auth/email/login/pwd";
 const API_V4_EMAIL_CODE = "api/v4/email/code/send";
 const API_V5_PRODUCT = "api/v5/product";
+export const USER_DATA_AUTH_PROFILE_VERSION = 2;
+const AUTH_RATE_LIMIT_STATE = "AuthRateLimit";
+const EMAIL_CODE_COOLDOWN_MS = 60 * 60 * 1000;
+const EMAIL_CODE_RATE_LIMIT_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 const HOME_DATA_ENDPOINTS = [
 	{ label: "V3", path: (homeID: number) => `v3/user/homes/${homeID}` },
 	{ label: "Legacy", path: (homeID: number) => `user/homes/${homeID}` },
@@ -69,6 +73,12 @@ export interface RriotData {
 interface UserData {
 	token: string;
 	rriot: RriotData;
+	authProfileVersion?: number;
+}
+
+interface AuthRateLimitData {
+	emailCodeRequestedAt?: number;
+	rateLimitedUntil?: number;
 }
 
 interface HomeDetailResponse {
@@ -336,6 +346,12 @@ export class http_api {
 		await this.getHomeID();
 	}
 
+	private markUserDataCurrent(): void {
+		if (this.userData) {
+			this.userData.authProfileVersion = USER_DATA_AUTH_PROFILE_VERSION;
+		}
+	}
+
 	/**
 	 * Restores UserData from state.
 	 */
@@ -345,6 +361,12 @@ export class http_api {
 			if (userDataState && userDataState.val) {
 				const data = JSON.parse(userDataState.val as string);
 				if (data && data.token && data.rriot) {
+					if (data.authProfileVersion !== USER_DATA_AUTH_PROFILE_VERSION) {
+						const version = data.authProfileVersion ?? "legacy";
+						this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `Persisted UserData auth profile ${version} is outdated. Clearing it so fresh RRIOT credentials can be requested.`, "warn");
+						await this.clearPersistedUserData();
+						return;
+					}
 					this.userData = data;
 					this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, "Restored persisted UserData.", "info");
 				}
@@ -389,6 +411,7 @@ export class http_api {
 						const loginResult = await this.loginByPassword(this.adapter.config.password, k, s);
 						if (loginResult.code === 200) {
 							this.userData = loginResult.data!;
+							this.markUserDataCurrent();
 							this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, "Login with password successful.", "info");
 						} else if (loginResult.code === 2031) {
 							this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "Password login requires 2FA (Code 2031). Falling back to 2FA flow.", "warn");
@@ -467,6 +490,7 @@ export class http_api {
 
 					if (loginResult.code === 200) {
 						this.userData = loginResult.data!; // data IS UserData
+						this.markUserDataCurrent();
 						await this.adapter.setState(stateId, { val: "", ack: true });
 					} else {
 						throw new Error(`Login with code failed: ${JSON.stringify(loginResult)}`);
@@ -536,6 +560,8 @@ export class http_api {
 		if (!this.loginApi) throw new Error("loginApi is not initialized.");
 
 		try {
+			await this.reserveEmailCodeRequestSlot();
+
 			const params = new URLSearchParams();
 			params.append("type", "login");
 			params.append("email", username);
@@ -544,15 +570,68 @@ export class http_api {
 			const res = await this.loginApi.post(API_V4_EMAIL_CODE, params.toString());
 
 			if (res.data && res.data.code != 200) {
+				if (res.data.code === 9002) {
+					await this.markEmailCodeRateLimited();
+				}
 				throw new Error(`Start 2FA failed: ${res.data.msg} (Code: ${res.data.code})`);
 			}
 		} catch (error: unknown) {
-			const err = error as { response?: { data?: unknown } };
+			const err = error as { response?: { data?: { code?: number } } };
 			if (err?.response?.data !== undefined) {
+				if (err.response.data.code === 9002) {
+					await this.markEmailCodeRateLimited();
+				}
 				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Request email code failed with response: ${JSON.stringify(err.response.data)}`, "error");
 			}
 			throw error; // Re-throw exact error to be caught by caller
 		}
+	}
+
+	private async loadAuthRateLimitData(): Promise<AuthRateLimitData> {
+		await this.adapter.ensureState(AUTH_RATE_LIMIT_STATE, { name: "Auth rate limit data", type: "string", write: false, def: "" });
+		try {
+			const state = await this.adapter.getStateAsync(AUTH_RATE_LIMIT_STATE);
+			if (state?.val) {
+				const data = JSON.parse(String(state.val)) as AuthRateLimitData;
+				return data && typeof data === "object" ? data : {};
+			}
+		} catch {
+			this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, "No previous auth rate limit data found or invalid.", "debug");
+		}
+		return {};
+	}
+
+	private async storeAuthRateLimitData(data: AuthRateLimitData): Promise<void> {
+		await this.adapter.ensureState(AUTH_RATE_LIMIT_STATE, { name: "Auth rate limit data", type: "string", write: false, def: "" });
+		await this.adapter.setState(AUTH_RATE_LIMIT_STATE, { val: JSON.stringify(data), ack: true });
+	}
+
+	private async reserveEmailCodeRequestSlot(): Promise<void> {
+		const now = Date.now();
+		const rateLimit = await this.loadAuthRateLimitData();
+		const nextRequestAt = Math.max(
+			(rateLimit.emailCodeRequestedAt ?? 0) + EMAIL_CODE_COOLDOWN_MS,
+			rateLimit.rateLimitedUntil ?? 0,
+		);
+
+		if (nextRequestAt > now) {
+			throw new Error(`Roborock 2FA code request suppressed to avoid rate limits. Next automatic attempt is allowed after ${new Date(nextRequestAt).toISOString()}.`);
+		}
+
+		await this.storeAuthRateLimitData({
+			...rateLimit,
+			emailCodeRequestedAt: now,
+			rateLimitedUntil: rateLimit.rateLimitedUntil && rateLimit.rateLimitedUntil > now ? rateLimit.rateLimitedUntil : undefined,
+		});
+	}
+
+	private async markEmailCodeRateLimited(): Promise<void> {
+		const rateLimit = await this.loadAuthRateLimitData();
+		const rateLimitedUntil = Date.now() + EMAIL_CODE_RATE_LIMIT_COOLDOWN_MS;
+		await this.storeAuthRateLimitData({
+			...rateLimit,
+			rateLimitedUntil,
+		});
 	}
 
 	async signRequest(s: string): Promise<{ k: string } | null> {

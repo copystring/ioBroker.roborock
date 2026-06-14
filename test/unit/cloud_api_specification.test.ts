@@ -1,7 +1,7 @@
 
 import * as crypto from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { createHawkAuthentication, http_api, type RriotData } from "../../src/lib/httpApi";
+import { createHawkAuthentication, http_api, type RriotData, USER_DATA_AUTH_PROFILE_VERSION } from "../../src/lib/httpApi";
 
 /**
  * @doc:CloudAPI.md
@@ -11,6 +11,8 @@ import { createHawkAuthentication, http_api, type RriotData } from "../../src/li
  * #### 1. Client Initialization
  * * **Headers**: `header_clientid` (MD5 of username + clientID), `header_appversion` ("4.XX.XX").
  * * **Region Discovery**: `/api/v1/getUrlByEmail` resolves the account's actual IoT base URL and country metadata before login.
+ * * **Persisted UserData**: cached RRIOT credentials are reused only when their auth profile version matches the current login/signing profile.
+ * * **2FA Rate Protection**: email code requests are persistently throttled so adapter restarts cannot request codes repeatedly.
  *
  * #### 2. Authentication (Hawk)
  * Once logged in, all requests must be signed using Hawk Authentication.
@@ -159,5 +161,77 @@ describe("Roborock Cloud API Specification", () => {
 			}),
 			ack: true,
 		});
+	});
+
+	it("clears persisted UserData from an outdated auth profile", async () => {
+		const rriot: RriotData = {
+			u: "user-id",
+			s: "session-salt",
+			h: "hawk-secret",
+			k: "mqtt-key",
+			r: {
+				a: "https://api-eu.roborock.com",
+				m: "ssl://mqtt-eu-4.roborock.com:8883",
+			},
+		};
+		const adapter = {
+			rLog: vi.fn(),
+			getStateAsync: vi.fn().mockResolvedValue({
+				val: JSON.stringify({ token: "old-token", rriot }),
+			}),
+			setState: vi.fn().mockResolvedValue(undefined),
+		};
+		const api = new http_api(adapter as any);
+
+		await api.loadUserData();
+
+		expect(api.userData).toBeNull();
+		expect(adapter.setState).toHaveBeenCalledWith("UserData", { val: "", ack: true });
+	});
+
+	it("restores persisted UserData only when the auth profile matches", async () => {
+		const rriot: RriotData = {
+			u: "user-id",
+			s: "session-salt",
+			h: "hawk-secret",
+			k: "mqtt-key",
+			r: {
+				a: "https://api-eu.roborock.com",
+				m: "ssl://mqtt-eu-4.roborock.com:8883",
+			},
+		};
+		const adapter = {
+			rLog: vi.fn(),
+			getStateAsync: vi.fn().mockResolvedValue({
+				val: JSON.stringify({ token: "current-token", rriot, authProfileVersion: USER_DATA_AUTH_PROFILE_VERSION }),
+			}),
+			setState: vi.fn().mockResolvedValue(undefined),
+		};
+		const api = new http_api(adapter as any);
+
+		await api.loadUserData();
+
+		expect(api.userData?.token).toBe("current-token");
+		expect(adapter.setState).not.toHaveBeenCalledWith("UserData", { val: "", ack: true });
+	});
+
+	it("suppresses repeated 2FA email code requests during the cooldown", async () => {
+		const loginApi = {
+			post: vi.fn().mockResolvedValue({ data: { code: 200 } }),
+		};
+		const adapter = {
+			rLog: vi.fn(),
+			ensureState: vi.fn().mockResolvedValue(undefined),
+			getStateAsync: vi.fn().mockResolvedValue({
+				val: JSON.stringify({ emailCodeRequestedAt: Date.now() }),
+			}),
+			setState: vi.fn().mockResolvedValue(undefined),
+		};
+		const api = new http_api(adapter as any);
+		(api as any).loginApi = loginApi;
+
+		await expect(api.requestEmailCode("user@example.com")).rejects.toThrow("2FA code request suppressed");
+
+		expect(loginApi.post).not.toHaveBeenCalled();
 	});
 });
