@@ -12,6 +12,10 @@ const API_V4_LOGIN_CODE = "api/v4/auth/email/login/code";
 const API_V4_LOGIN_PASSWORD = "api/v4/auth/email/login/pwd";
 const API_V4_EMAIL_CODE = "api/v4/email/code/send";
 const API_V5_PRODUCT = "api/v5/product";
+const HOME_DATA_ENDPOINTS = [
+	{ label: "V3", path: (homeID: number) => `v3/user/homes/${homeID}` },
+	{ label: "Legacy", path: (homeID: number) => `user/homes/${homeID}` },
+] as const;
 
 interface RegionConfig {
 	apiBaseUrl: string;
@@ -127,6 +131,17 @@ interface HomeData {
 	devices: Device[];
 	receivedDevices: Device[];
 	rooms: Room[];
+}
+
+interface HomeDataResponse {
+	success?: boolean;
+	result?: {
+		id: number;
+		products?: Product[];
+		devices?: Device[];
+		receivedDevices?: Device[];
+		rooms?: Room[];
+	};
 }
 
 /**
@@ -256,10 +271,11 @@ export class http_api {
 			baseURL,
 			headers: {
 				header_clientid: headerClientId,
-				header_appversion: "4.57.02",
+				"Content-Type": "application/x-www-form-urlencoded",
+				header_appversion: "4.54.02",
 				header_clientlang: "en",
-				header_phonemodel: "Pixel 9 Pro XL",
-				header_phonesystem: "Android",
+				header_phonemodel: "iPhone16,1",
+				header_phonesystem: "iOS",
 			},
 		});
 	}
@@ -543,7 +559,7 @@ export class http_api {
 		if (!this.loginApi) return null;
 
 		try {
-			const res = await this.loginApi.post(`${API_V3_SIGN}?s=${s}`);
+			const res = await this.loginApi.post(API_V3_SIGN, undefined, { params: { s } });
 			return res.data.data;
 		} catch (e: unknown) {
 			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `SignRequest failed: ${this.adapter.errorMessage(e)}`, "error");
@@ -557,7 +573,6 @@ export class http_api {
 		const headers = {
 			"x-mercy-k": k,
 			"x-mercy-ks": s
-			// content-type application/x-www-form-urlencoded is default for axios with URLSearchParams
 		};
 
 		const region = this.adapter.config.region || "eu";
@@ -708,7 +723,7 @@ export class http_api {
 
 	/**
 	 * Downloads the latest Home Data (Devices, Rooms, Products) and stores it in state.
-	 * Uses GET v3/user/homes/{homeID} only (same as Roborock app).
+	 * Uses the current V3 endpoint first and a bounded legacy fallback for accounts that reject V3.
 	 */
 	async updateHomeData(): Promise<void> {
 		if (!this.loginApi) throw new Error("loginApi is not initialized. Call init() first.");
@@ -745,13 +760,31 @@ export class http_api {
 		if (!this.realApi) throw new Error("realApi is not initialized. Call initializeRealApi() first");
 		if (!this.homeID) throw new Error("No homeId found");
 
-		const res = await this.realApi.get<{ success?: boolean; result?: { id: number; products?: Product[]; devices?: Device[]; receivedDevices?: Device[]; rooms?: Room[] } }>(`v3/user/homes/${this.homeID}`);
+		let lastError: unknown;
+		for (const [index, endpoint] of HOME_DATA_ENDPOINTS.entries()) {
+			const path = endpoint.path(this.homeID);
+			try {
+				const res = await this.realApi.get<HomeDataResponse>(path);
 
-		if (!res.data?.success || !res.data?.result) {
-			throw new Error(`V3 HomeData response missing or not success: ${JSON.stringify(res.data)}`);
+				if (!res.data?.success || !res.data?.result) {
+					throw new Error(`${endpoint.label} HomeData response missing or not success: ${JSON.stringify(res.data)}`);
+				}
+
+				this.storeHomeDataResult(res.data.result, endpoint.label);
+				await this.adapter.setState("HomeData", { val: JSON.stringify(this.homeData), ack: true });
+				return;
+			} catch (error: unknown) {
+				lastError = error;
+				if (index < HOME_DATA_ENDPOINTS.length - 1) {
+					this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `${endpoint.label} HomeData request failed: ${this.adapter.errorMessage(error)}. Trying legacy HomeData endpoint without re-authentication.`, "warn");
+				}
+			}
 		}
 
-		const result = res.data.result;
+		throw lastError ?? new Error("HomeData request failed");
+	}
+
+	private storeHomeDataResult(result: NonNullable<HomeDataResponse["result"]>, source: string): void {
 		this.homeData = {
 			rrHomeId: result.id,
 			products: result.products || [],
@@ -759,8 +792,7 @@ export class http_api {
 			receivedDevices: result.receivedDevices || [],
 			rooms: result.rooms || []
 		};
-		this.adapter.rLog("HTTP", null, "<-", "Cloud", undefined, `HomeData updated (HomeID: ${this.homeID}, Devices: ${this.homeData.devices?.length}, Received: ${this.homeData.receivedDevices?.length})`, "debug");
-		await this.adapter.setState("HomeData", { val: JSON.stringify(this.homeData), ack: true });
+		this.adapter.rLog("HTTP", null, "<-", "Cloud", undefined, `HomeData updated via ${source} endpoint (HomeID: ${this.homeID}, Devices: ${this.homeData.devices?.length}, Received: ${this.homeData.receivedDevices?.length})`, "debug");
 	}
 
 	/**
