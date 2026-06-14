@@ -16,6 +16,8 @@ export const USER_DATA_AUTH_PROFILE_VERSION = 2;
 const AUTH_RATE_LIMIT_STATE = "AuthRateLimit";
 const EMAIL_CODE_COOLDOWN_MS = 60 * 60 * 1000;
 const EMAIL_CODE_RATE_LIMIT_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+const REAL_API_CLOCK_SKEW_RETRY_THRESHOLD_SECONDS = 30;
+const REAL_API_CLOCK_SKEW_RETRY_TOLERANCE_SECONDS = 1;
 const HOME_DATA_ENDPOINTS = [
 	{ label: "V3", path: (homeID: number) => `v3/user/homes/${homeID}` },
 	{ label: "Legacy", path: (homeID: number) => `user/homes/${homeID}` },
@@ -215,18 +217,73 @@ function getRealApiSignatureInput(config: InternalAxiosRequestConfig): { path: s
 	};
 }
 
+function getHttpErrorResponse(error: unknown): { status?: number; data?: unknown; headers?: unknown } | undefined {
+	return (error as { response?: { status?: number; data?: unknown; headers?: unknown } })?.response;
+}
+
+function getResponseField(data: unknown, field: string): unknown {
+	if (!data || typeof data !== "object") return undefined;
+	return (data as Record<string, unknown>)[field];
+}
+
+function getResponseStringField(data: unknown, field: string): string | undefined {
+	const value = getResponseField(data, field);
+	return typeof value === "string" ? value : undefined;
+}
+
+function getResponseHeader(headers: unknown, name: string): string | undefined {
+	if (!headers || typeof headers !== "object") return undefined;
+
+	const headerRecord = headers as Record<string, unknown>;
+	const directValue = headerRecord[name] ?? headerRecord[name.toLowerCase()] ?? headerRecord[name.toUpperCase()];
+	if (typeof directValue === "string") return directValue;
+
+	const getter = (headers as { get?: (header: string) => unknown }).get;
+	if (typeof getter === "function") {
+		const value = getter.call(headers, name);
+		if (typeof value === "string") return value;
+	}
+
+	return undefined;
+}
+
+function parseTimestampSeconds(value: unknown): number | null {
+	if (typeof value !== "string" && typeof value !== "number") return null;
+
+	if (typeof value === "number") {
+		return Number.isFinite(value) ? Math.floor(value > 10_000_000_000 ? value / 1000 : value) : null;
+	}
+
+	const parsed = Date.parse(value);
+	if (!Number.isFinite(parsed)) return null;
+
+	return Math.floor(parsed / 1000);
+}
+
+function getServerTimestampSeconds(error: unknown): number | null {
+	const response = getHttpErrorResponse(error);
+	if (!response) return null;
+
+	const bodyTimestamp = getResponseField(response.data, "timestamp");
+	const bodyTimestampSeconds = parseTimestampSeconds(bodyTimestamp);
+	if (bodyTimestampSeconds !== null) return bodyTimestampSeconds;
+
+	return parseTimestampSeconds(getResponseHeader(response.headers, "date"));
+}
+
 function isUnauthorizedError(error: unknown): boolean {
-	const err = error as { response?: { status?: number; data?: { code?: number; msg?: string } }; message?: string };
-	const status = err?.response?.status;
-	const code = err?.response?.data?.code;
-	const msg = err?.response?.data?.msg || err?.message || "";
-	return status === 401 || code === 401 || msg.includes("invalid token") || msg.includes("auth_failed");
+	const response = getHttpErrorResponse(error);
+	const status = response?.status;
+	const code = getResponseField(response?.data, "code");
+	const msg = (getResponseStringField(response?.data, "msg") || (error as { message?: string }).message || "").toLowerCase();
+	return status === 401 || code === 401 || code === "401" || msg.includes("invalid token") || msg.includes("invalid.token") || msg.includes("auth_failed");
 }
 
 function describeHttpError(error: unknown): string {
-	const err = error as { response?: { status?: number; data?: unknown }; message?: string };
-	const status = err?.response?.status;
-	const data = err?.response?.data;
+	const err = error as { message?: string };
+	const response = getHttpErrorResponse(error);
+	const status = response?.status;
+	const data = response?.data;
 	const details: string[] = [];
 
 	if (status !== undefined) details.push(`status ${status}`);
@@ -245,6 +302,7 @@ export class http_api {
 	homeDetailID: number | null = null;
 	public productInfo: ProductV5Response | null = null;
 	private loginRegionConfig: RegionConfig | null = null;
+	private realApiClockOffsetSeconds = 0;
 
 	private fwFeaturesCache = new Map<string, number[]>();
 
@@ -403,6 +461,35 @@ export class http_api {
 		}
 	}
 
+	private getRealApiTimestamp(): number {
+		return Math.floor(Date.now() / 1000) + this.realApiClockOffsetSeconds;
+	}
+
+	private createRealApiAuthorization(rriot: RriotData, path: string, params: Record<string, unknown>): string {
+		return createHawkAuthentication(rriot, path, params, {}, this.getRealApiTimestamp());
+	}
+
+	private syncRealApiClockOffsetFromError(error: unknown): boolean {
+		const serverTimestampSeconds = getServerTimestampSeconds(error);
+		if (serverTimestampSeconds === null) return false;
+
+		const detectedOffsetSeconds = serverTimestampSeconds - Math.floor(Date.now() / 1000);
+		const nextOffsetSeconds = Math.abs(detectedOffsetSeconds) > REAL_API_CLOCK_SKEW_RETRY_THRESHOLD_SECONDS ? detectedOffsetSeconds : 0;
+		if (Math.abs(nextOffsetSeconds - this.realApiClockOffsetSeconds) <= REAL_API_CLOCK_SKEW_RETRY_TOLERANCE_SECONDS) {
+			return false;
+		}
+
+		this.realApiClockOffsetSeconds = nextOffsetSeconds;
+		if (nextOffsetSeconds === 0) {
+			this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "Roborock Real API timestamp now matches the local clock. Retrying signed request without timestamp offset.", "warn");
+			return true;
+		}
+
+		const direction = nextOffsetSeconds > 0 ? "ahead of" : "behind";
+		this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `Roborock Real API timestamp is ${Math.abs(nextOffsetSeconds)}s ${direction} the local clock. Retrying signed request with server timestamp offset. Please check host NTP/time sync.`, "warn");
+		return true;
+	}
+
 	async initializeRealApi(): Promise<void> {
 		this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, "Initializing Real API (Hawk Auth)", "debug");
 
@@ -559,7 +646,7 @@ export class http_api {
 
 			realApi.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 				const { path, params } = getRealApiSignatureInput(config);
-				config.headers["Authorization"] = createHawkAuthentication(rriot, path, params);
+				config.headers["Authorization"] = this.createRealApiAuthorization(rriot, path, params);
 				return config;
 			});
 
@@ -819,7 +906,7 @@ export class http_api {
 
 	/**
 	 * Downloads the latest Home Data (Devices, Rooms, Products) and stores it in state.
-	 * Uses the current V3 endpoint first and a bounded legacy fallback for accounts that reject V3.
+	 * Uses the current V3 endpoint first and bounded fallbacks for non-auth endpoint failures.
 	 */
 	async updateHomeData(): Promise<void> {
 		if (!this.loginApi) throw new Error("loginApi is not initialized. Call init() first.");
@@ -858,28 +945,47 @@ export class http_api {
 
 		let lastError: unknown;
 		const attempts = this.getHomeDataAttempts();
+		let stopAttempts = false;
 		for (const [index, attempt] of attempts.entries()) {
-			try {
-				const res = await this.realApi.get<HomeDataResponse>(attempt.path);
+			let retriedWithClockOffset = false;
+			while (true) {
+				try {
+					const res = await this.realApi.get<HomeDataResponse>(attempt.path);
 
-				if (!res.data?.success || !res.data?.result) {
-					throw new Error(`${attempt.label} HomeData response missing or not success: ${JSON.stringify(res.data)}`);
-				}
+					if (!res.data?.success || !res.data?.result) {
+						throw new Error(`${attempt.label} HomeData response missing or not success: ${JSON.stringify(res.data)}`);
+					}
 
-				this.storeHomeDataResult(res.data.result, attempt.label);
-				await this.adapter.setState("HomeData", { val: JSON.stringify(this.homeData), ack: true });
-				return;
-			} catch (error: unknown) {
-				lastError = error;
-				const nextAttempt = attempts[index + 1];
-				const nextMessage = nextAttempt ? ` Trying next HomeData candidate: ${nextAttempt.label}.` : "";
-				const level = nextAttempt ? "Warn" : "Error";
-				const severity = nextAttempt ? "warn" : "error";
-				this.adapter.rLog("HTTP", null, level, "Cloud", undefined, `${attempt.label} HomeData request failed (${attempt.path}): ${describeHttpError(error)}.${nextMessage}`, severity);
-				if (!nextAttempt) {
+					this.storeHomeDataResult(res.data.result, attempt.label);
+					await this.adapter.setState("HomeData", { val: JSON.stringify(this.homeData), ack: true });
+					return;
+				} catch (error: unknown) {
+					lastError = error;
+
+					if (!retriedWithClockOffset && isUnauthorizedError(error) && this.syncRealApiClockOffsetFromError(error)) {
+						retriedWithClockOffset = true;
+						this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `${attempt.label} HomeData request failed (${attempt.path}): ${describeHttpError(error)}. Retrying the same HomeData request once with the adjusted Real API timestamp.`, "warn");
+						continue;
+					}
+
+					const unauthorized = isUnauthorizedError(error);
+					const nextAttempt = attempts[index + 1];
+					const canTryNextAttempt = !unauthorized && !!nextAttempt;
+					let nextMessage = "";
+					if (canTryNextAttempt) {
+						nextMessage = ` Trying next HomeData candidate: ${nextAttempt.label}.`;
+					} else if (unauthorized && nextAttempt) {
+						nextMessage = " Not trying additional HomeData candidates because Roborock rejected the signed auth token.";
+					}
+					const level = canTryNextAttempt ? "Warn" : "Error";
+					const severity = canTryNextAttempt ? "warn" : "error";
+					this.adapter.rLog("HTTP", null, level, "Cloud", undefined, `${attempt.label} HomeData request failed (${attempt.path}): ${describeHttpError(error)}.${nextMessage}`, severity);
+					stopAttempts = !canTryNextAttempt;
 					break;
 				}
 			}
+
+			if (stopAttempts) break;
 		}
 
 		throw lastError ?? new Error("HomeData request failed");

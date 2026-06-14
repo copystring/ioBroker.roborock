@@ -17,7 +17,8 @@ import { createHawkAuthentication, http_api, type RriotData, USER_DATA_AUTH_PROF
  * #### 2. Authentication (Hawk)
  * Once logged in, all requests must be signed using Hawk Authentication.
  * * **Authorization Header**: `Hawk id="...",s="...",ts="...",nonce="...",mac="..."`
- * * **HomeData Endpoints**: The adapter requests `v3/user/homes/{homeID}` first and can fall back to other `getHomeDetail` identifiers and the legacy `user/homes/{homeID}` endpoint without starting another login.
+ * * **Clock Skew Handling**: if Roborock rejects a signed Real API request with a server timestamp that differs from the local clock, the adapter retries the same request once with that timestamp offset.
+ * * **HomeData Endpoints**: The adapter requests `v3/user/homes/{homeID}` first and can fall back to other `getHomeDetail` identifiers and the legacy `user/homes/{homeID}` endpoint after non-auth failures without starting another login.
  * * **MAC Calculation**:
  *   ```text
  *   PRESTR = [u, s, nonce, timestamp, md5(urlPath), md5(sortedQueryParams), md5(sortedFormData)]
@@ -60,6 +61,32 @@ describe("Roborock Cloud API Specification", () => {
 		expect(createHawkAuthentication(rriot, path, { b: 2, a: 1 }, {}, timestamp, nonce)).toBe(
 			`Hawk id="${rriot.u}",s="${rriot.s}",ts="${timestamp}",nonce="${nonce}",mac="${mac}"`,
 		);
+	});
+
+	it("uses the adjusted Real API timestamp for Hawk authorization", () => {
+		const rriot: RriotData = {
+			u: "user-id",
+			s: "session-salt",
+			h: "hawk-secret",
+			k: "mqtt-key",
+			r: {
+				a: "https://api-eu.roborock.com",
+				m: "ssl://mqtt-eu-4.roborock.com:8883",
+			},
+		};
+		const adapter = { rLog: vi.fn() };
+		const api = new http_api(adapter as any);
+		const localTimestamp = 1_700_000_000;
+		const dateNow = vi.spyOn(Date, "now").mockReturnValue(localTimestamp * 1000);
+		(api as any).realApiClockOffsetSeconds = 508;
+
+		try {
+			const authorization = (api as any).createRealApiAuthorization(rriot, "/v3/user/homes/123", {});
+
+			expect(authorization).toContain(`ts="${localTimestamp + 508}"`);
+		} finally {
+			dateNow.mockRestore();
+		}
 	});
 
 	it("does not re-authenticate after a HomeData 401", async () => {
@@ -115,7 +142,7 @@ describe("Roborock Cloud API Specification", () => {
 		expect(adapter.setState).not.toHaveBeenCalledWith("UserData", { val: "", ack: true });
 	});
 
-	it("falls back to the legacy HomeData endpoint after a V3 401", async () => {
+	it("falls back to the legacy HomeData endpoint after a non-auth V3 failure", async () => {
 		const adapter = {
 			config: {},
 			rLog: vi.fn(),
@@ -127,7 +154,7 @@ describe("Roborock Cloud API Specification", () => {
 		const initializeRealApi = vi.fn().mockResolvedValue(undefined);
 		const realApi = {
 			get: vi.fn()
-				.mockRejectedValueOnce({ response: { status: 401 } })
+				.mockResolvedValueOnce({ data: { success: false, result: null } })
 				.mockResolvedValueOnce({
 					data: {
 						success: true,
@@ -174,7 +201,7 @@ describe("Roborock Cloud API Specification", () => {
 		const api = new http_api(adapter as any);
 		const realApi = {
 			get: vi.fn()
-				.mockRejectedValueOnce({ response: { status: 401, data: { code: 401, msg: "unauthorized" } } })
+				.mockRejectedValueOnce({ response: { status: 404, data: { code: 404, msg: "not_found" } } })
 				.mockResolvedValueOnce({
 					data: {
 						success: true,
@@ -198,6 +225,90 @@ describe("Roborock Cloud API Specification", () => {
 		expect(realApi.get).toHaveBeenNthCalledWith(1, "v3/user/homes/123");
 		expect(realApi.get).toHaveBeenNthCalledWith(2, "v3/user/homes/456");
 		expect(realApi.get).toHaveBeenCalledTimes(2);
+	});
+
+	it("retries HomeData once with the Roborock server timestamp offset after auth 401", async () => {
+		const adapter = {
+			config: {},
+			rLog: vi.fn(),
+			errorStack: (error: unknown) => error instanceof Error ? error.stack : String(error),
+			errorMessage: (error: unknown) => error instanceof Error ? error.message : String(error),
+			setState: vi.fn().mockResolvedValue(undefined),
+		};
+		const api = new http_api(adapter as any);
+		const localTimestamp = 1_700_000_000;
+		const serverOffset = 508;
+		const dateNow = vi.spyOn(Date, "now").mockReturnValue(localTimestamp * 1000);
+		const realApi = {
+			get: vi.fn()
+				.mockRejectedValueOnce({
+					response: {
+						status: 401,
+						data: {
+							code: "auth.err",
+							msg: "auth.err.invalid.token",
+							timestamp: new Date((localTimestamp + serverOffset) * 1000).toISOString(),
+						},
+					},
+				})
+				.mockResolvedValueOnce({
+					data: {
+						success: true,
+						result: {
+							id: 123,
+							products: [],
+							devices: [],
+							receivedDevices: [],
+							rooms: [],
+						},
+					},
+				}),
+		};
+		(api as any).loginApi = {};
+		(api as any).realApi = realApi;
+		(api as any).homeID = 123;
+
+		try {
+			await expect(api.updateHomeData()).resolves.toBeUndefined();
+		} finally {
+			dateNow.mockRestore();
+		}
+
+		expect(realApi.get).toHaveBeenNthCalledWith(1, "v3/user/homes/123");
+		expect(realApi.get).toHaveBeenNthCalledWith(2, "v3/user/homes/123");
+		expect(realApi.get).toHaveBeenCalledTimes(2);
+		expect((api as any).realApiClockOffsetSeconds).toBe(serverOffset);
+	});
+
+	it("stops HomeData fallbacks after Roborock rejects the signed auth token", async () => {
+		const adapter = {
+			config: {},
+			rLog: vi.fn(),
+			errorStack: (error: unknown) => error instanceof Error ? error.stack : String(error),
+			errorMessage: (error: unknown) => error instanceof Error ? error.message : String(error),
+			setState: vi.fn().mockResolvedValue(undefined),
+		};
+		const api = new http_api(adapter as any);
+		const realApi = {
+			get: vi.fn().mockRejectedValue({
+				response: {
+					status: 401,
+					data: {
+						code: "auth.err",
+						msg: "auth.err.invalid.token",
+					},
+				},
+			}),
+		};
+		(api as any).loginApi = {};
+		(api as any).realApi = realApi;
+		(api as any).homeID = 123;
+		(api as any).homeDetailID = 456;
+
+		await expect(api.updateHomeData()).rejects.toThrow("Automatic re-authentication is disabled");
+
+		expect(realApi.get).toHaveBeenCalledTimes(1);
+		expect(realApi.get).toHaveBeenNthCalledWith(1, "v3/user/homes/123");
 	});
 
 	it("clears persisted UserData from an outdated auth profile", async () => {
