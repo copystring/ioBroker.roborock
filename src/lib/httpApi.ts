@@ -494,6 +494,7 @@ export class http_api {
 
 		try {
 			const rriot = this.get_rriot();
+			this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, `Using Roborock Real API endpoint: ${rriot.r.a} (MQTT: ${rriot.r.m})`, "debug");
 
 			// Initialize the real API with Hawk Authentication Interceptor
 			const realApi = axios.create({
@@ -721,23 +722,22 @@ export class http_api {
 		try {
 			await this.fetchAndStoreHomeData();
 		} catch (e: unknown) {
-			let finalError = e;
 			if (isUnauthorizedError(e)) {
-				try {
-					await this.reauthenticate("Roborock HomeData request returned 401");
-					await this.fetchAndStoreHomeData();
+				const message = "Roborock HomeData request returned 401 after successful login. Automatic re-authentication is disabled to avoid Roborock 2FA rate limits.";
+				if (hadHomeData) {
+					this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `${message} Keeping previous HomeData after refresh failure.`, "warn");
 					return;
-				} catch (retryError: unknown) {
-					finalError = retryError;
 				}
+				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, message, "error");
+				throw new Error(message);
 			}
 
-			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error updating HomeData: ${this.adapter.errorStack(finalError)}`, "error");
+			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error updating HomeData: ${this.adapter.errorStack(e)}`, "error");
 			if (hadHomeData) {
 				this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "Keeping previous HomeData after refresh failure.", "warn");
 				return;
 			}
-			throw finalError;
+			throw e;
 		}
 	}
 

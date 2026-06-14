@@ -19,4 +19,4 @@ Once logged in, all requests must be signed using Hawk Authentication.
   MAC = HMAC-SHA256(Key=h, Data=PRESTR)
   ```
   (Where `u`, `s`, `h` come from the RRIOT login response).
-* **401 Handling**: HomeData authentication failures clear persisted UserData, re-authenticate once, and retry before startup proceeds.
+* **401 Handling**: HomeData authentication failures never start an automatic re-authentication flow because code login would trigger another 2FA attempt and can hit Roborock rate limits.
