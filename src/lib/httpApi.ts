@@ -1,11 +1,12 @@
 import type { AxiosInstance, InternalAxiosRequestConfig } from "axios";
 import axios from "axios";
 import * as crypto from "node:crypto";
-import { Roborock } from "../main";
+import type { Roborock } from "../main";
 import { LoginV4Response, ProductV5Response } from "./apiTypes";
 import { cryptoEngine } from "./cryptoEngine";
 
 // Constants
+const API_V1_GET_URL_BY_EMAIL = "api/v1/getUrlByEmail";
 const API_V3_SIGN = "api/v3/key/sign";
 const API_V4_LOGIN_CODE = "api/v4/auth/email/login/code";
 const API_V4_LOGIN_PASSWORD = "api/v4/auth/email/login/pwd";
@@ -41,11 +42,19 @@ const REGION_CONFIG: Record<string, RegionConfig> = {
 	},
 };
 
+const REGION_DISCOVERY_BASE_URLS = [
+	REGION_CONFIG.eu.apiBaseUrl,
+	REGION_CONFIG.us.apiBaseUrl,
+	REGION_CONFIG.cn.apiBaseUrl,
+	"https://ruiot.roborock.com",
+	REGION_CONFIG.asia.apiBaseUrl,
+];
+
 // --------------------
 // Interfaces & Types
 // --------------------
 
-interface RriotData {
+export interface RriotData {
 	u: string;
 	s: string;
 	h: string;
@@ -56,6 +65,24 @@ interface RriotData {
 interface UserData {
 	token: string;
 	rriot: RriotData;
+}
+
+interface HomeDetailResponse {
+	code?: number;
+	msg?: string;
+	data?: {
+		rrHomeId?: number;
+	};
+}
+
+interface IotLoginInfoResponse {
+	code?: number;
+	msg?: string;
+	data?: {
+		url?: string;
+		country?: string;
+		countrycode?: string | number;
+	};
 }
 
 export interface Device {
@@ -109,6 +136,67 @@ function md5hex(str: string): string {
 	return crypto.createHash("md5").update(str).digest("hex");
 }
 
+function normalizeApiPath(path: string): string {
+	return path.startsWith("/") ? path : `/${path}`;
+}
+
+function sortedValueHash(values: Record<string, unknown>): string {
+	const pairs = Object.keys(values)
+		.filter((key) => values[key] !== undefined && values[key] !== null)
+		.sort()
+		.map((key) => `${key}=${values[key]}`);
+
+	return pairs.length > 0 ? md5hex(pairs.join("&")) : "";
+}
+
+function collectSearchParams(url: URL): Record<string, string> {
+	const params: Record<string, string> = {};
+	url.searchParams.forEach((value, key) => {
+		params[key] = value;
+	});
+	return params;
+}
+
+export function createHawkAuthentication(
+	rriot: RriotData,
+	path: string,
+	params: Record<string, unknown> = {},
+	formData: Record<string, unknown> = {},
+	timestamp = Math.floor(Date.now() / 1000),
+	nonce = crypto.randomBytes(6).toString("base64url"),
+): string {
+	const normalizedPath = normalizeApiPath(path);
+	const prestr = [
+		rriot.u,
+		rriot.s,
+		nonce,
+		String(timestamp),
+		md5hex(normalizedPath),
+		sortedValueHash(params),
+		sortedValueHash(formData),
+	].join(":");
+	const mac = crypto.createHmac("sha256", rriot.h).update(prestr).digest("base64");
+
+	return `Hawk id="${rriot.u}",s="${rriot.s}",ts="${timestamp}",nonce="${nonce}",mac="${mac}"`;
+}
+
+function getRealApiSignatureInput(config: InternalAxiosRequestConfig): { path: string; params: Record<string, string> } {
+	const fullUrl = axios.getUri(config);
+	const url = new URL(fullUrl, config.baseURL || "http://dummy");
+	return {
+		path: url.pathname,
+		params: collectSearchParams(url),
+	};
+}
+
+function isUnauthorizedError(error: unknown): boolean {
+	const err = error as { response?: { status?: number; data?: { code?: number; msg?: string } }; message?: string };
+	const status = err?.response?.status;
+	const code = err?.response?.data?.code;
+	const msg = err?.response?.data?.msg || err?.message || "";
+	return status === 401 || code === 401 || msg.includes("invalid token") || msg.includes("auth_failed");
+}
+
 export class http_api {
 	adapter: Roborock;
 	loginApi: AxiosInstance | null = null;
@@ -117,6 +205,7 @@ export class http_api {
 	homeData: HomeData | null = null;
 	homeID: number | null = null;
 	public productInfo: ProductV5Response | null = null;
+	private loginRegionConfig: RegionConfig | null = null;
 
 	private fwFeaturesCache = new Map<string, number[]>();
 
@@ -132,20 +221,14 @@ export class http_api {
 	async init(clientID: string): Promise<void> {
 		// Initialize the login API (needed to get access to the real API)
 		const region = this.adapter.config.region || "eu";
-		const regionConfig = REGION_CONFIG[region] || REGION_CONFIG["eu"];
+		const fallbackRegionConfig = REGION_CONFIG[region] || REGION_CONFIG["eu"];
+		const headerClientId = this.getHeaderClientId(clientID);
+		const regionConfig = await this.resolveIotLoginInfo(fallbackRegionConfig, headerClientId);
+		this.loginRegionConfig = regionConfig;
 
 		this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, `Initializing HTTP API with region: ${region} (${regionConfig.apiBaseUrl})`, "info");
 
-		this.loginApi = axios.create({
-			baseURL: regionConfig.apiBaseUrl,
-			headers: {
-				header_clientid: crypto.createHash("md5").update(this.adapter.config.username).update(clientID).digest().toString("base64"),
-				header_appversion: "4.57.02",
-				header_clientlang: "de",
-				header_phonemodel: "Pixel 9 Pro XL",
-				header_phonesystem: "Android",
-			},
-		});
+		this.loginApi = this.createLoginApi(regionConfig.apiBaseUrl, headerClientId);
 
 		// Attempt to restore session
 		await this.loadUserData();
@@ -157,20 +240,84 @@ export class http_api {
 		} catch (e: unknown) {
 			const msg = this.adapter.errorMessage(e);
 			if (msg && (msg.includes("invalid token") || msg.includes("auth_failed"))) {
-				this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "Token expired or invalid. Clearing session and re-authenticating...", "warn");
-
-				// Clear bad data
-				this.userData = null;
-				this.homeID = null;
-				await this.adapter.setState("UserData", { val: "", ack: true });
-
-				// Re-initialize (will force fresh login because userData is null)
-				await this.initializeRealApi();
-				await this.getHomeID();
+				await this.reauthenticate("Token expired or invalid");
 			} else {
 				throw e; // Rethrow other errors
 			}
 		}
+	}
+
+	private getHeaderClientId(clientID: string): string {
+		return crypto.createHash("md5").update(this.adapter.config.username).update(clientID).digest().toString("base64");
+	}
+
+	private createLoginApi(baseURL: string, headerClientId: string): AxiosInstance {
+		return axios.create({
+			baseURL,
+			headers: {
+				header_clientid: headerClientId,
+				header_appversion: "4.57.02",
+				header_clientlang: "en",
+				header_phonemodel: "Pixel 9 Pro XL",
+				header_phonesystem: "Android",
+			},
+		});
+	}
+
+	private async resolveIotLoginInfo(fallbackRegionConfig: RegionConfig, headerClientId: string): Promise<RegionConfig> {
+		const candidates = [
+			fallbackRegionConfig.apiBaseUrl,
+			...REGION_DISCOVERY_BASE_URLS,
+		].filter((url, index, all) => all.indexOf(url) === index);
+
+		for (const baseURL of candidates) {
+			try {
+				const discoveryApi = this.createLoginApi(baseURL, headerClientId);
+				const response = await discoveryApi.post<IotLoginInfoResponse>(API_V1_GET_URL_BY_EMAIL, undefined, {
+					params: {
+						email: this.adapter.config.username,
+						needtwostepauth: "false",
+					},
+				});
+
+				if (response.data?.code !== 200 || !response.data.data?.url) {
+					this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, `Region discovery via ${baseURL} returned ${response.data?.code}: ${response.data?.msg}`, "debug");
+					continue;
+				}
+
+				const discovered = response.data.data;
+				const discoveredUrl = discovered.url;
+				if (!discoveredUrl) continue;
+				const resolvedConfig = {
+					apiBaseUrl: discoveredUrl,
+					loginCountry: discovered.country || fallbackRegionConfig.loginCountry,
+					loginCountryCode: String(discovered.countrycode || fallbackRegionConfig.loginCountryCode),
+				};
+
+				this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, `Resolved Roborock account region: ${resolvedConfig.apiBaseUrl} (${resolvedConfig.loginCountry}/${resolvedConfig.loginCountryCode})`, "info");
+				return resolvedConfig;
+			} catch (error: unknown) {
+				this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, `Region discovery via ${baseURL} failed: ${this.adapter.errorMessage(error)}`, "debug");
+			}
+		}
+
+		this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `Could not resolve account region from Roborock. Falling back to configured region (${fallbackRegionConfig.apiBaseUrl}).`, "warn");
+		return fallbackRegionConfig;
+	}
+
+	private async clearPersistedUserData(): Promise<void> {
+		this.userData = null;
+		this.homeID = null;
+		this.realApi = null;
+		if (this.loginApi) delete this.loginApi.defaults.headers.common["Authorization"];
+		await this.adapter.setState("UserData", { val: "", ack: true });
+	}
+
+	private async reauthenticate(reason: string): Promise<void> {
+		this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `${reason}. Clearing session and re-authenticating...`, "warn");
+		await this.clearPersistedUserData();
+		await this.initializeRealApi();
+		await this.getHomeID();
 	}
 
 	/**
@@ -351,45 +498,11 @@ export class http_api {
 			// Initialize the real API with Hawk Authentication Interceptor
 			const realApi = axios.create({
 				baseURL: this.userData.rriot.r.a,
-				headers: {
-					"x-iotsdk-version": "1.0.1",
-					"x-app-name": "com.roborock.smart",
-					"x-app-version-code": "100834",
-					"x-app-version-name": "4.57.02",
-					"x-uid": this.userData.rriot.u,
-					"User-Agent": "UA=RRSDKAndroid/1.0.1",
-				},
 			});
 
 			realApi.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-				const timestamp = Math.floor(Date.now() / 1000);
-				const nonce = crypto
-					.randomBytes(6)
-					.toString("base64")
-					.substring(0, 6)
-					.replace(/[+/]/g, (m) => (m === "+" ? "X" : "Y"));
-
-				// Calculate signature
-				let urlPath = "";
-				if (config.url) {
-					// Handle relative URLs correctly by creating a dummy base if needed
-					// or using the instance's baseURL if config.url is relative
-					const fullUrl = axios.getUri(config);
-					try {
-						// Provide a dummy base to handle relative URLs returned by getUri
-						const urlObj = new URL(fullUrl, "http://dummy");
-						urlPath = urlObj.pathname + urlObj.search;
-					} catch {
-						// Fallback if URL construction fails
-						urlPath = config.url || "";
-					}
-				}
-
-				const prestr = [rriot.u, rriot.s, nonce, timestamp, md5hex(urlPath), "", ""].join(":");
-				const mac = crypto.createHmac("sha256", rriot.h).update(prestr).digest("base64");
-
-				config.headers["Authorization"] = `Hawk id="${rriot.u}", s="${rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
-
+				const { path, params } = getRealApiSignatureInput(config);
+				config.headers["Authorization"] = createHawkAuthentication(rriot, path, params);
 				return config;
 			});
 
@@ -447,7 +560,7 @@ export class http_api {
 		};
 
 		const region = this.adapter.config.region || "eu";
-		const regionConfig = REGION_CONFIG[region] || REGION_CONFIG["eu"];
+		const regionConfig = this.loginRegionConfig || REGION_CONFIG[region] || REGION_CONFIG["eu"];
 
 		const params = new URLSearchParams({
 			country: regionConfig.loginCountry,
@@ -573,10 +686,11 @@ export class http_api {
 		}
 
 		try {
-			const response = await this.loginApi.get("api/v1/getHomeDetail");
+			const response = await this.loginApi.get<HomeDetailResponse>("api/v1/getHomeDetail");
 			if (response.data.data) {
 				this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, `getHomeDetail: ${JSON.stringify(response.data)}`, "debug");
-				this.homeID = response.data.data.rrHomeId;
+				this.homeID = response.data.data.rrHomeId ?? null;
+				if (!this.homeID) throw new Error("getHomeDetail returned no rrHomeId");
 				this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, `this.homeID: ${this.homeID}`, "debug");
 			} else {
 				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `failed to get getHomeDetail: ${response.data.msg}`, "error");
@@ -599,33 +713,54 @@ export class http_api {
 		if (!this.loginApi) throw new Error("loginApi is not initialized. Call init() first.");
 		if (!this.realApi) throw new Error("realApi is not initialized. Call initializeRealApi() first");
 
-		if (this.homeID) {
-			try {
-				const res = await this.realApi.get<{ success?: boolean; result?: { id: number; products?: Product[]; devices?: Device[]; receivedDevices?: Device[]; rooms?: Room[] } }>(`v3/user/homes/${this.homeID}`);
-
-				if (res.data?.success && res.data?.result) {
-					const result = res.data.result;
-					this.homeData = {
-						rrHomeId: result.id,
-						products: result.products || [],
-						devices: result.devices || [],
-						receivedDevices: result.receivedDevices || [],
-						rooms: result.rooms || []
-					};
-					this.adapter.rLog("HTTP", null, "<-", "Cloud", undefined, `HomeData updated (HomeID: ${this.homeID}, Devices: ${this.homeData.devices?.length}, Received: ${this.homeData.receivedDevices?.length})`, "debug");
-				} else {
-					this.homeData = null;
-					this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "V3 HomeData response missing or not success.", "warn");
-				}
-
-				await this.adapter.setState("HomeData", { val: JSON.stringify(this.homeData), ack: true });
-			} catch (e: unknown) {
-				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error updating HomeData: ${this.adapter.errorStack(e)}`, "error");
-				this.homeData = null;
-			}
-		} else {
-			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `No homeId found`, "error");
+		if (!this.homeID) {
+			throw new Error("No homeId found");
 		}
+
+		const hadHomeData = this.homeData !== null;
+		try {
+			await this.fetchAndStoreHomeData();
+		} catch (e: unknown) {
+			let finalError = e;
+			if (isUnauthorizedError(e)) {
+				try {
+					await this.reauthenticate("Roborock HomeData request returned 401");
+					await this.fetchAndStoreHomeData();
+					return;
+				} catch (retryError: unknown) {
+					finalError = retryError;
+				}
+			}
+
+			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error updating HomeData: ${this.adapter.errorStack(finalError)}`, "error");
+			if (hadHomeData) {
+				this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "Keeping previous HomeData after refresh failure.", "warn");
+				return;
+			}
+			throw finalError;
+		}
+	}
+
+	private async fetchAndStoreHomeData(): Promise<void> {
+		if (!this.realApi) throw new Error("realApi is not initialized. Call initializeRealApi() first");
+		if (!this.homeID) throw new Error("No homeId found");
+
+		const res = await this.realApi.get<{ success?: boolean; result?: { id: number; products?: Product[]; devices?: Device[]; receivedDevices?: Device[]; rooms?: Room[] } }>(`v3/user/homes/${this.homeID}`);
+
+		if (!res.data?.success || !res.data?.result) {
+			throw new Error(`V3 HomeData response missing or not success: ${JSON.stringify(res.data)}`);
+		}
+
+		const result = res.data.result;
+		this.homeData = {
+			rrHomeId: result.id,
+			products: result.products || [],
+			devices: result.devices || [],
+			receivedDevices: result.receivedDevices || [],
+			rooms: result.rooms || []
+		};
+		this.adapter.rLog("HTTP", null, "<-", "Cloud", undefined, `HomeData updated (HomeID: ${this.homeID}, Devices: ${this.homeData.devices?.length}, Received: ${this.homeData.receivedDevices?.length})`, "debug");
+		await this.adapter.setState("HomeData", { val: JSON.stringify(this.homeData), ack: true });
 	}
 
 	/**
