@@ -13,6 +13,7 @@ The Roborock Cloud API requires a multi-step login authentication to obtain RRIO
 #### 2. Authentication (Hawk)
 Once logged in, all requests must be signed using Hawk Authentication.
 * **Authorization Header**: `Hawk id="...", s="...", ts="...", nonce="...", mac="..."`
+* **Host Clock Check**: if Roborock rejects a signed Real API request and the response timestamp shows that the local host clock is wrong, the adapter refuses to start and asks the user to fix NTP/time synchronization.
 * **MAC Calculation**:
   ```text
   PRESTR = [u, s, nonce, timestamp, md5(urlPath), "", ""]

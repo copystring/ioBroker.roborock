@@ -11,6 +11,7 @@ const API_V4_LOGIN_CODE = "api/v4/auth/email/login/code";
 const API_V4_LOGIN_PASSWORD = "api/v4/auth/email/login/pwd";
 const API_V4_EMAIL_CODE = "api/v4/email/code/send";
 const API_V5_PRODUCT = "api/v5/product";
+const REAL_API_CLOCK_SKEW_ABORT_THRESHOLD_SECONDS = 60;
 
 interface RegionConfig {
 	apiBaseUrl: string;
@@ -109,6 +110,68 @@ function md5hex(str: string): string {
 	return crypto.createHash("md5").update(str).digest("hex");
 }
 
+function getHttpErrorResponse(error: unknown): { status?: number; data?: unknown; headers?: unknown } | undefined {
+	return (error as { response?: { status?: number; data?: unknown; headers?: unknown } })?.response;
+}
+
+function getResponseField(data: unknown, field: string): unknown {
+	if (!data || typeof data !== "object") return undefined;
+	return (data as Record<string, unknown>)[field];
+}
+
+function getResponseHeader(headers: unknown, name: string): string | undefined {
+	if (!headers || typeof headers !== "object") return undefined;
+
+	const headerRecord = headers as Record<string, unknown>;
+	const directValue = headerRecord[name] ?? headerRecord[name.toLowerCase()] ?? headerRecord[name.toUpperCase()];
+	if (typeof directValue === "string") return directValue;
+
+	const getter = (headers as { get?: (header: string) => unknown }).get;
+	if (typeof getter === "function") {
+		const value = getter.call(headers, name);
+		if (typeof value === "string") return value;
+	}
+
+	return undefined;
+}
+
+function parseTimestampSeconds(value: unknown): number | null {
+	if (typeof value !== "string" && typeof value !== "number") return null;
+
+	if (typeof value === "number") {
+		return Number.isFinite(value) ? Math.floor(value > 10_000_000_000 ? value / 1000 : value) : null;
+	}
+
+	const parsed = Date.parse(value);
+	if (!Number.isFinite(parsed)) return null;
+
+	return Math.floor(parsed / 1000);
+}
+
+function getServerTimestampSeconds(error: unknown): number | null {
+	const response = getHttpErrorResponse(error);
+	if (!response) return null;
+
+	const bodyTimestamp = getResponseField(response.data, "timestamp");
+	const bodyTimestampSeconds = parseTimestampSeconds(bodyTimestamp);
+	if (bodyTimestampSeconds !== null) return bodyTimestampSeconds;
+
+	return parseTimestampSeconds(getResponseHeader(response.headers, "date"));
+}
+
+function getRealApiClockSkewSeconds(error: unknown): number | null {
+	const response = getHttpErrorResponse(error);
+	const status = response?.status;
+	const code = getResponseField(response?.data, "code");
+	if (status !== 401 && code !== 401 && code !== "401") return null;
+
+	const serverTimestampSeconds = getServerTimestampSeconds(error);
+	if (serverTimestampSeconds === null) return null;
+
+	const offsetSeconds = serverTimestampSeconds - Math.floor(Date.now() / 1000);
+	return Math.abs(offsetSeconds) > REAL_API_CLOCK_SKEW_ABORT_THRESHOLD_SECONDS ? offsetSeconds : null;
+}
+
 export class http_api {
 	adapter: Roborock;
 	loginApi: AxiosInstance | null = null;
@@ -201,6 +264,14 @@ export class http_api {
 			this.loginCodeResolver(code);
 			this.loginCodeResolver = null;
 		}
+	}
+
+	private getRealApiClockSkewError(error: unknown): Error | null {
+		const offsetSeconds = getRealApiClockSkewSeconds(error);
+		if (offsetSeconds === null) return null;
+
+		const direction = offsetSeconds > 0 ? "ahead of" : "behind";
+		return new Error(`Roborock Real API rejected the signed request and the server timestamp is ${Math.abs(offsetSeconds)}s ${direction} the local clock. Refusing to start because the ioBroker host clock appears to be wrong. Please fix NTP/time synchronization and restart the adapter.`);
 	}
 
 	async initializeRealApi(): Promise<void> {
@@ -620,6 +691,13 @@ export class http_api {
 
 				await this.adapter.setState("HomeData", { val: JSON.stringify(this.homeData), ack: true });
 			} catch (e: unknown) {
+				const clockSkewError = this.getRealApiClockSkewError(e);
+				if (clockSkewError) {
+					this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, clockSkewError.message, "error");
+					this.homeData = null;
+					throw clockSkewError;
+				}
+
 				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error updating HomeData: ${this.adapter.errorStack(e)}`, "error");
 				this.homeData = null;
 			}
