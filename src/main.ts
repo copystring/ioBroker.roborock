@@ -29,10 +29,36 @@ interface SentryPlugin {
 	};
 }
 
-type SceneSegmentsBatch = {
+type SceneSegmentCommand = {
 	duid: string;
 	params: Record<string, unknown>;
 };
+
+const SCENE_SEGMENT_START_TIMEOUT_MS = 60 * 1000;
+const SCENE_SEGMENT_FINISH_TIMEOUT_MS = 4 * 60 * 60 * 1000;
+const SCENE_SEGMENT_POLL_INTERVAL_MS = 10 * 1000;
+const SCENE_SEGMENT_ACTIVE_STATES = new Set([
+	5,  // Cleaning
+	6,  // Returning Dock
+	7,  // Manual Mode
+	10, // Paused
+	11, // Spot Cleaning
+	15, // Docking
+	16, // Go To
+	17, // Zone Clean
+	18, // Room Clean
+	22, // Emptying dust container
+	23, // Washing the mop
+	25, // Washing duster
+	26, // Going to wash the mop
+	29, // Mapping
+	33, // Setting up the mop
+	34, // Removing the mop
+	38, // Tidy-up housework
+	39, // Remote pick-up
+	41, // Arm resetting
+	42, // Program mode
+]);
 
 export class Roborock extends utils.Adapter {
 	// --- Public APIs (accessible by helpers) ---
@@ -317,12 +343,19 @@ export class Roborock extends utils.Adapter {
 			}
 
 			const targetDuid = this.resolveSceneTargetDuid(duid, actionItems);
-			let pendingSegmentsBatch: SceneSegmentsBatch | null = null;
-			const flushPendingSegmentsBatch = async (): Promise<void> => {
-				if (!pendingSegmentsBatch) return;
-				const batch = pendingSegmentsBatch;
-				pendingSegmentsBatch = null;
-				await this.executeSceneCommand(batch.duid, "do_scenes_segments", batch.params);
+			let pendingSceneSegment: SceneSegmentCommand | null = null;
+			const flushPendingSceneSegment = async (waitForCompletion: boolean): Promise<void> => {
+				if (!pendingSceneSegment) return;
+				const segment = pendingSceneSegment;
+				pendingSceneSegment = null;
+				await this.executeSceneCommand(segment.duid, "do_scenes_segments", segment.params);
+				if (waitForCompletion) {
+					await this.waitForSceneSegmentReadyForNext(segment.duid);
+				}
+			};
+			const queueSceneSegment = async (sceneSegment: SceneSegmentCommand): Promise<void> => {
+				await flushPendingSceneSegment(true);
+				pendingSceneSegment = sceneSegment;
 			};
 
 			for (const item of actionItems) {
@@ -350,23 +383,16 @@ export class Roborock extends utils.Adapter {
 
 				try {
 					if (method === "do_scenes_segments") {
-						const segmentsPayload = this.asSceneSegmentsPayload(commandArgs);
-						if (segmentsPayload) {
-							if (
-								pendingSegmentsBatch
-								&& pendingSegmentsBatch.duid === itemDuid
-								&& this.canMergeSceneSegmentsPayload(pendingSegmentsBatch.params, segmentsPayload)
-							) {
-								pendingSegmentsBatch.params = this.mergeSceneSegmentsPayload(pendingSegmentsBatch.params, segmentsPayload);
-							} else {
-								await flushPendingSegmentsBatch();
-								pendingSegmentsBatch = { duid: itemDuid, params: segmentsPayload };
+						const segmentPayloads = this.toSingleSceneSegmentsPayloads(commandArgs);
+						if (segmentPayloads) {
+							for (const segmentPayload of segmentPayloads) {
+								await queueSceneSegment({ duid: itemDuid, params: segmentPayload });
 							}
 							continue;
 						}
 					}
 
-					await flushPendingSegmentsBatch();
+					await flushPendingSceneSegment(true);
 
 					if (method === "app_start_program") {
 						const startArgs = await this.resolveStartProgramArgs(itemDuid, commandArgs ?? {});
@@ -388,6 +414,19 @@ export class Roborock extends utils.Adapter {
 						continue;
 					}
 
+					if (method === "do_scenes_segments") {
+						this.rLog(
+							"Requests",
+							itemDuid,
+							"Error",
+							undefined,
+							undefined,
+							`[Scene] Failed to execute do_scenes_segments task in ${sceneId}: ${this.errorMessage(error)}`,
+							"error"
+						);
+						continue;
+					}
+
 					this.rLog(
 						"Requests",
 						itemDuid,
@@ -401,7 +440,7 @@ export class Roborock extends utils.Adapter {
 				}
 			}
 
-			await flushPendingSegmentsBatch();
+			await flushPendingSceneSegment(false);
 		} catch (e: unknown) {
 			this.rLog("Requests", duid, "Error", undefined, undefined, `[Scene] Error executing ${sceneId}: ${this.errorMessage(e)}`, "error");
 		}
@@ -416,6 +455,118 @@ export class Roborock extends utils.Adapter {
 		return defaultDuid;
 	}
 
+	private toSingleSceneSegmentsPayloads(value: unknown): Record<string, unknown>[] | null {
+		const parsed = this.tryParseSceneCommandPayload(value);
+		if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+			return null;
+		}
+
+		const payload = parsed as Record<string, unknown>;
+		if (!Array.isArray(payload.data) || payload.data.length === 0) {
+			return null;
+		}
+
+		return payload.data.map((entry) => ({
+			...payload,
+			data: [entry],
+		}));
+	}
+
+	private async waitForSceneSegmentReadyForNext(duid: string): Promise<void> {
+		const started = await this.waitForSceneSegmentState(duid, true, SCENE_SEGMENT_START_TIMEOUT_MS);
+		if (!started) {
+			this.rLog(
+				"Requests",
+				duid,
+				"Warn",
+				undefined,
+				undefined,
+				"[Scene] Segment task did not report an active state before timeout; continuing with next scene task",
+				"warn"
+			);
+			return;
+		}
+
+		const finished = await this.waitForSceneSegmentState(duid, false, SCENE_SEGMENT_FINISH_TIMEOUT_MS);
+		if (!finished) {
+			this.rLog(
+				"Requests",
+				duid,
+				"Warn",
+				undefined,
+				undefined,
+				"[Scene] Segment task did not finish before timeout; continuing with next scene task",
+				"warn"
+			);
+		}
+	}
+
+	private async waitForSceneSegmentState(duid: string, active: boolean, timeoutMs: number): Promise<boolean> {
+		const deadline = Date.now() + timeoutMs;
+		do {
+			const status = await this.refreshSceneSegmentStatus(duid);
+			if (this.isSceneSegmentActiveStatus(status) === active) {
+				return true;
+			}
+			await this.delay(SCENE_SEGMENT_POLL_INTERVAL_MS);
+		} while (Date.now() < deadline);
+		return false;
+	}
+
+	private async refreshSceneSegmentStatus(duid: string): Promise<Record<string, unknown>> {
+		const handler = this.deviceFeatureHandlers.get(duid);
+		if (handler) {
+			try {
+				await handler.updateStatus();
+			} catch (error: unknown) {
+				this.rLog(
+					"Requests",
+					duid,
+					"Warn",
+					handler.protocolVersion || undefined,
+					undefined,
+					`[Scene] Failed to update status while sequencing scene tasks: ${this.errorMessage(error)}`,
+					"warn"
+				);
+			}
+		}
+
+		const status: Record<string, unknown> = {};
+		await Promise.all(["state", "status", "in_cleaning", "in_returning"].map(async (key) => {
+			try {
+				const state = await this.getStateAsync(`Devices.${duid}.deviceStatus.${key}`);
+				if (state?.val !== null && state?.val !== undefined) {
+					status[key] = state.val;
+				}
+			} catch {
+				// Some protocols expose only a subset of these states.
+			}
+		}));
+		return status;
+	}
+
+	private isSceneSegmentActiveStatus(status: Record<string, unknown>): boolean {
+		const inCleaning = this.numberFromStateValue(status.in_cleaning);
+		const inReturning = this.numberFromStateValue(status.in_returning);
+		if (inCleaning === 1 || inReturning === 1) {
+			return true;
+		}
+
+		const state = this.numberFromStateValue(status.state ?? status.status);
+		return state !== null && SCENE_SEGMENT_ACTIVE_STATES.has(state);
+	}
+
+	private numberFromStateValue(value: unknown): number | null {
+		if (typeof value === "number" && Number.isFinite(value)) {
+			return value;
+		}
+		if (typeof value === "string" && value.trim() !== "") {
+			const parsed = Number(value);
+			return Number.isFinite(parsed) ? parsed : null;
+		}
+		return null;
+	}
+
 	private async executeSceneCommand(duid: string, method: string, args: unknown): Promise<void> {
 		const handler = this.deviceFeatureHandlers.get(duid);
 		if (handler) {
@@ -423,42 +574,6 @@ export class Roborock extends utils.Adapter {
 		} else {
 			await this.requestsHandler.sendRequest(duid, method, this.tryParseSceneCommandPayload(args) ?? args);
 		}
-	}
-
-	private asSceneSegmentsPayload(value: unknown): Record<string, unknown> | null {
-		const parsed = this.tryParseSceneCommandPayload(value);
-		if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-			return null;
-		}
-
-		const payload = parsed as Record<string, unknown>;
-		return Array.isArray(payload.data) ? payload : null;
-	}
-
-	private canMergeSceneSegmentsPayload(left: Record<string, unknown>, right: Record<string, unknown>): boolean {
-		if (!Array.isArray(left.data) || !Array.isArray(right.data)) return false;
-		return this.getComparableSceneSegmentsPayload(left) === this.getComparableSceneSegmentsPayload(right);
-	}
-
-	private mergeSceneSegmentsPayload(left: Record<string, unknown>, right: Record<string, unknown>): Record<string, unknown> {
-		const leftData = Array.isArray(left.data) ? left.data : [];
-		const rightData = Array.isArray(right.data) ? right.data : [];
-		return {
-			...left,
-			...right,
-			source: left.source ?? right.source,
-			data: [...leftData, ...rightData]
-		};
-	}
-
-	private getComparableSceneSegmentsPayload(payload: Record<string, unknown>): string {
-		const comparable: Record<string, unknown> = {};
-		for (const key of Object.keys(payload).sort()) {
-			if (key !== "data") {
-				comparable[key] = payload[key];
-			}
-		}
-		return JSON.stringify(comparable);
 	}
 
 	private tryParseSceneCommandPayload(value: unknown): unknown | undefined {

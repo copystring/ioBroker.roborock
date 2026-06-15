@@ -118,7 +118,7 @@ describe("command state handling", () => {
 		expect(commandSpy).toHaveBeenCalledWith(handler, "duid1", "app_start_program", { cmd_ids: cmdIds });
 	});
 
-	it("batches multi-step do_scenes_segments scene actions into one robot request", async () => {
+	it("runs multi-step do_scenes_segments scene actions as single-task requests and waits between them", async () => {
 		const tasks = [
 			{ tid: "1780688479002", segs: [{ sid: 1 }], map_flag: 0, fan_power: 108, water_box_mode: 200, mop_mode: 303, repeat: 1 },
 			{ tid: "1780688480859", segs: [{ sid: 2 }], map_flag: 0, fan_power: 108, water_box_mode: 200, mop_mode: 303, repeat: 2 },
@@ -141,18 +141,63 @@ describe("command state handling", () => {
 		const sendRequest = vi.fn().mockResolvedValue({});
 		const commandSpy = vi.fn().mockResolvedValue(undefined);
 		const { adapter, handler } = await createSceneAdapter(sceneParam, sendRequest, commandSpy);
+		const waitSpy = vi.spyOn(adapter as any, "waitForSceneSegmentReadyForNext").mockResolvedValue(undefined);
 
 		await adapter.executeSceneLocal("duid1", 23);
 
-		expect(commandSpy).toHaveBeenCalledTimes(1);
-		expect(commandSpy).toHaveBeenCalledWith(handler, "duid1", "do_scenes_segments", {
-			data: tasks,
-			source: 101
-		});
+		expect(commandSpy).toHaveBeenCalledTimes(4);
+		for (const [index, task] of tasks.entries()) {
+			expect(commandSpy).toHaveBeenNthCalledWith(index + 1, handler, "duid1", "do_scenes_segments", {
+				data: [task],
+				source: 101
+			});
+		}
+		expect(waitSpy).toHaveBeenCalledTimes(3);
 		expect(sendRequest).not.toHaveBeenCalled();
 	});
 
-	it("does not batch do_scenes_segments scene actions with different metadata", async () => {
+	it("splits multi-entry do_scenes_segments payloads before sending them to the robot", async () => {
+		const tasks = [
+			{ tid: "task-0", segs: [{ sid: 1 }] },
+			{ tid: "task-1", segs: [{ sid: 2 }] }
+		];
+		const sceneParam = JSON.stringify({
+			action: {
+				items: [{
+					id: "scene-item-1",
+					type: "CMD",
+					entityId: "duid1",
+					param: JSON.stringify({
+						method: "do_scenes_segments",
+						params: {
+							data: tasks,
+							source: 101
+						}
+					})
+				}]
+			}
+		});
+		const sendRequest = vi.fn().mockResolvedValue({});
+		const commandSpy = vi.fn().mockResolvedValue(undefined);
+		const { adapter, handler } = await createSceneAdapter(sceneParam, sendRequest, commandSpy);
+		const waitSpy = vi.spyOn(adapter as any, "waitForSceneSegmentReadyForNext").mockResolvedValue(undefined);
+
+		await adapter.executeSceneLocal("duid1", 23);
+
+		expect(commandSpy).toHaveBeenCalledTimes(2);
+		expect(commandSpy).toHaveBeenNthCalledWith(1, handler, "duid1", "do_scenes_segments", {
+			data: [tasks[0]],
+			source: 101
+		});
+		expect(commandSpy).toHaveBeenNthCalledWith(2, handler, "duid1", "do_scenes_segments", {
+			data: [tasks[1]],
+			source: 101
+		});
+		expect(waitSpy).toHaveBeenCalledTimes(1);
+		expect(sendRequest).not.toHaveBeenCalled();
+	});
+
+	it("preserves do_scenes_segments metadata while sequencing scene actions", async () => {
 		const sceneParam = JSON.stringify({
 			action: {
 				items: [101, 102].map((source, index) => ({
@@ -172,6 +217,7 @@ describe("command state handling", () => {
 		const sendRequest = vi.fn().mockResolvedValue({});
 		const commandSpy = vi.fn().mockResolvedValue(undefined);
 		const { adapter, handler } = await createSceneAdapter(sceneParam, sendRequest, commandSpy);
+		const waitSpy = vi.spyOn(adapter as any, "waitForSceneSegmentReadyForNext").mockResolvedValue(undefined);
 
 		await adapter.executeSceneLocal("duid1", 23);
 
@@ -184,6 +230,7 @@ describe("command state handling", () => {
 			data: [{ tid: "task-1", segs: [{ sid: 2 }] }],
 			source: 102
 		});
+		expect(waitSpy).toHaveBeenCalledTimes(1);
 	});
 
 	it("does not start scene programs with a raw program_id when cmd_ids cannot be resolved", async () => {
