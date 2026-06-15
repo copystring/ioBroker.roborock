@@ -1,27 +1,17 @@
 import type { AxiosInstance, InternalAxiosRequestConfig } from "axios";
 import axios from "axios";
 import * as crypto from "node:crypto";
-import type { Roborock } from "../main";
+import { Roborock } from "../main";
 import { LoginV4Response, ProductV5Response } from "./apiTypes";
 import { cryptoEngine } from "./cryptoEngine";
 
 // Constants
-const API_V1_GET_URL_BY_EMAIL = "api/v1/getUrlByEmail";
 const API_V3_SIGN = "api/v3/key/sign";
 const API_V4_LOGIN_CODE = "api/v4/auth/email/login/code";
 const API_V4_LOGIN_PASSWORD = "api/v4/auth/email/login/pwd";
 const API_V4_EMAIL_CODE = "api/v4/email/code/send";
 const API_V5_PRODUCT = "api/v5/product";
-export const USER_DATA_AUTH_PROFILE_VERSION = 2;
-const AUTH_RATE_LIMIT_STATE = "AuthRateLimit";
-const EMAIL_CODE_COOLDOWN_MS = 60 * 60 * 1000;
-const EMAIL_CODE_RATE_LIMIT_COOLDOWN_MS = 6 * 60 * 60 * 1000;
-const REAL_API_CLOCK_SKEW_RETRY_THRESHOLD_SECONDS = 30;
-const REAL_API_CLOCK_SKEW_RETRY_TOLERANCE_SECONDS = 1;
-const HOME_DATA_ENDPOINTS = [
-	{ label: "V3", path: (homeID: number) => `v3/user/homes/${homeID}` },
-	{ label: "Legacy", path: (homeID: number) => `user/homes/${homeID}` },
-] as const;
+const REAL_API_CLOCK_SKEW_ABORT_THRESHOLD_SECONDS = 60;
 
 interface RegionConfig {
 	apiBaseUrl: string;
@@ -52,19 +42,11 @@ const REGION_CONFIG: Record<string, RegionConfig> = {
 	},
 };
 
-const REGION_DISCOVERY_BASE_URLS = [
-	REGION_CONFIG.eu.apiBaseUrl,
-	REGION_CONFIG.us.apiBaseUrl,
-	REGION_CONFIG.cn.apiBaseUrl,
-	"https://ruiot.roborock.com",
-	REGION_CONFIG.asia.apiBaseUrl,
-];
-
 // --------------------
 // Interfaces & Types
 // --------------------
 
-export interface RriotData {
+interface RriotData {
 	u: string;
 	s: string;
 	h: string;
@@ -75,31 +57,6 @@ export interface RriotData {
 interface UserData {
 	token: string;
 	rriot: RriotData;
-	authProfileVersion?: number;
-}
-
-interface AuthRateLimitData {
-	emailCodeRequestedAt?: number;
-	rateLimitedUntil?: number;
-}
-
-interface HomeDetailResponse {
-	code?: number;
-	msg?: string;
-	data?: {
-		id?: number;
-		rrHomeId?: number;
-	};
-}
-
-interface IotLoginInfoResponse {
-	code?: number;
-	msg?: string;
-	data?: {
-		url?: string;
-		country?: string;
-		countrycode?: string | number;
-	};
 }
 
 export interface Device {
@@ -146,75 +103,11 @@ interface HomeData {
 	rooms: Room[];
 }
 
-interface HomeDataResponse {
-	success?: boolean;
-	result?: {
-		id: number;
-		products?: Product[];
-		devices?: Device[];
-		receivedDevices?: Device[];
-		rooms?: Room[];
-	};
-}
-
 /**
  * Helper to calculate MD5 hex string
  */
 function md5hex(str: string): string {
 	return crypto.createHash("md5").update(str).digest("hex");
-}
-
-function normalizeApiPath(path: string): string {
-	return path.startsWith("/") ? path : `/${path}`;
-}
-
-function sortedValueHash(values: Record<string, unknown>): string {
-	const pairs = Object.keys(values)
-		.filter((key) => values[key] !== undefined && values[key] !== null)
-		.sort()
-		.map((key) => `${key}=${values[key]}`);
-
-	return pairs.length > 0 ? md5hex(pairs.join("&")) : "";
-}
-
-function collectSearchParams(url: URL): Record<string, string> {
-	const params: Record<string, string> = {};
-	url.searchParams.forEach((value, key) => {
-		params[key] = value;
-	});
-	return params;
-}
-
-export function createHawkAuthentication(
-	rriot: RriotData,
-	path: string,
-	params: Record<string, unknown> = {},
-	formData: Record<string, unknown> = {},
-	timestamp = Math.floor(Date.now() / 1000),
-	nonce = crypto.randomBytes(6).toString("base64url"),
-): string {
-	const normalizedPath = normalizeApiPath(path);
-	const prestr = [
-		rriot.u,
-		rriot.s,
-		nonce,
-		String(timestamp),
-		md5hex(normalizedPath),
-		sortedValueHash(params),
-		sortedValueHash(formData),
-	].join(":");
-	const mac = crypto.createHmac("sha256", rriot.h).update(prestr).digest("base64");
-
-	return `Hawk id="${rriot.u}",s="${rriot.s}",ts="${timestamp}",nonce="${nonce}",mac="${mac}"`;
-}
-
-function getRealApiSignatureInput(config: InternalAxiosRequestConfig): { path: string; params: Record<string, string> } {
-	const fullUrl = axios.getUri(config);
-	const url = new URL(fullUrl, config.baseURL || "http://dummy");
-	return {
-		path: url.pathname,
-		params: collectSearchParams(url),
-	};
 }
 
 function getHttpErrorResponse(error: unknown): { status?: number; data?: unknown; headers?: unknown } | undefined {
@@ -224,11 +117,6 @@ function getHttpErrorResponse(error: unknown): { status?: number; data?: unknown
 function getResponseField(data: unknown, field: string): unknown {
 	if (!data || typeof data !== "object") return undefined;
 	return (data as Record<string, unknown>)[field];
-}
-
-function getResponseStringField(data: unknown, field: string): string | undefined {
-	const value = getResponseField(data, field);
-	return typeof value === "string" ? value : undefined;
 }
 
 function getResponseHeader(headers: unknown, name: string): string | undefined {
@@ -271,25 +159,17 @@ function getServerTimestampSeconds(error: unknown): number | null {
 	return parseTimestampSeconds(getResponseHeader(response.headers, "date"));
 }
 
-function isUnauthorizedError(error: unknown): boolean {
+function getRealApiClockSkewSeconds(error: unknown): number | null {
 	const response = getHttpErrorResponse(error);
 	const status = response?.status;
 	const code = getResponseField(response?.data, "code");
-	const msg = (getResponseStringField(response?.data, "msg") || (error as { message?: string }).message || "").toLowerCase();
-	return status === 401 || code === 401 || code === "401" || msg.includes("invalid token") || msg.includes("invalid.token") || msg.includes("auth_failed");
-}
+	if (status !== 401 && code !== 401 && code !== "401") return null;
 
-function describeHttpError(error: unknown): string {
-	const err = error as { message?: string };
-	const response = getHttpErrorResponse(error);
-	const status = response?.status;
-	const data = response?.data;
-	const details: string[] = [];
+	const serverTimestampSeconds = getServerTimestampSeconds(error);
+	if (serverTimestampSeconds === null) return null;
 
-	if (status !== undefined) details.push(`status ${status}`);
-	if (data !== undefined) details.push(`response ${JSON.stringify(data).slice(0, 500)}`);
-	if (details.length > 0) return details.join(", ");
-	return err?.message || String(error);
+	const offsetSeconds = serverTimestampSeconds - Math.floor(Date.now() / 1000);
+	return Math.abs(offsetSeconds) > REAL_API_CLOCK_SKEW_ABORT_THRESHOLD_SECONDS ? offsetSeconds : null;
 }
 
 export class http_api {
@@ -299,10 +179,7 @@ export class http_api {
 	userData: UserData | null = null;
 	homeData: HomeData | null = null;
 	homeID: number | null = null;
-	homeDetailID: number | null = null;
 	public productInfo: ProductV5Response | null = null;
-	private loginRegionConfig: RegionConfig | null = null;
-	private realApiClockOffsetSeconds = 0;
 
 	private fwFeaturesCache = new Map<string, number[]>();
 
@@ -318,14 +195,20 @@ export class http_api {
 	async init(clientID: string): Promise<void> {
 		// Initialize the login API (needed to get access to the real API)
 		const region = this.adapter.config.region || "eu";
-		const fallbackRegionConfig = REGION_CONFIG[region] || REGION_CONFIG["eu"];
-		const headerClientId = this.getHeaderClientId(clientID);
-		const regionConfig = await this.resolveIotLoginInfo(fallbackRegionConfig, headerClientId);
-		this.loginRegionConfig = regionConfig;
+		const regionConfig = REGION_CONFIG[region] || REGION_CONFIG["eu"];
 
 		this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, `Initializing HTTP API with region: ${region} (${regionConfig.apiBaseUrl})`, "info");
 
-		this.loginApi = this.createLoginApi(regionConfig.apiBaseUrl, headerClientId);
+		this.loginApi = axios.create({
+			baseURL: regionConfig.apiBaseUrl,
+			headers: {
+				header_clientid: crypto.createHash("md5").update(this.adapter.config.username).update(clientID).digest().toString("base64"),
+				header_appversion: "4.57.02",
+				header_clientlang: "de",
+				header_phonemodel: "Pixel 9 Pro XL",
+				header_phonesystem: "Android",
+			},
+		});
 
 		// Attempt to restore session
 		await this.loadUserData();
@@ -337,91 +220,19 @@ export class http_api {
 		} catch (e: unknown) {
 			const msg = this.adapter.errorMessage(e);
 			if (msg && (msg.includes("invalid token") || msg.includes("auth_failed"))) {
-				await this.reauthenticate("Token expired or invalid");
+				this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "Token expired or invalid. Clearing session and re-authenticating...", "warn");
+
+				// Clear bad data
+				this.userData = null;
+				this.homeID = null;
+				await this.adapter.setState("UserData", { val: "", ack: true });
+
+				// Re-initialize (will force fresh login because userData is null)
+				await this.initializeRealApi();
+				await this.getHomeID();
 			} else {
 				throw e; // Rethrow other errors
 			}
-		}
-	}
-
-	private getHeaderClientId(clientID: string): string {
-		return crypto.createHash("md5").update(this.adapter.config.username).update(clientID).digest().toString("base64");
-	}
-
-	private createLoginApi(baseURL: string, headerClientId: string): AxiosInstance {
-		return axios.create({
-			baseURL,
-			headers: {
-				header_clientid: headerClientId,
-				"Content-Type": "application/x-www-form-urlencoded",
-				header_appversion: "4.54.02",
-				header_clientlang: "en",
-				header_phonemodel: "iPhone16,1",
-				header_phonesystem: "iOS",
-			},
-		});
-	}
-
-	private async resolveIotLoginInfo(fallbackRegionConfig: RegionConfig, headerClientId: string): Promise<RegionConfig> {
-		const candidates = [
-			fallbackRegionConfig.apiBaseUrl,
-			...REGION_DISCOVERY_BASE_URLS,
-		].filter((url, index, all) => all.indexOf(url) === index);
-
-		for (const baseURL of candidates) {
-			try {
-				const discoveryApi = this.createLoginApi(baseURL, headerClientId);
-				const response = await discoveryApi.post<IotLoginInfoResponse>(API_V1_GET_URL_BY_EMAIL, undefined, {
-					params: {
-						email: this.adapter.config.username,
-						needtwostepauth: "false",
-					},
-				});
-
-				if (response.data?.code !== 200 || !response.data.data?.url) {
-					this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, `Region discovery via ${baseURL} returned ${response.data?.code}: ${response.data?.msg}`, "debug");
-					continue;
-				}
-
-				const discovered = response.data.data;
-				const discoveredUrl = discovered.url;
-				if (!discoveredUrl) continue;
-				const resolvedConfig = {
-					apiBaseUrl: discoveredUrl,
-					loginCountry: discovered.country || fallbackRegionConfig.loginCountry,
-					loginCountryCode: String(discovered.countrycode || fallbackRegionConfig.loginCountryCode),
-				};
-
-				this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, `Resolved Roborock account region: ${resolvedConfig.apiBaseUrl} (${resolvedConfig.loginCountry}/${resolvedConfig.loginCountryCode})`, "info");
-				return resolvedConfig;
-			} catch (error: unknown) {
-				this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, `Region discovery via ${baseURL} failed: ${this.adapter.errorMessage(error)}`, "debug");
-			}
-		}
-
-		this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `Could not resolve account region from Roborock. Falling back to configured region (${fallbackRegionConfig.apiBaseUrl}).`, "warn");
-		return fallbackRegionConfig;
-	}
-
-	private async clearPersistedUserData(): Promise<void> {
-		this.userData = null;
-		this.homeID = null;
-		this.homeDetailID = null;
-		this.realApi = null;
-		if (this.loginApi) delete this.loginApi.defaults.headers.common["Authorization"];
-		await this.adapter.setState("UserData", { val: "", ack: true });
-	}
-
-	private async reauthenticate(reason: string): Promise<void> {
-		this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `${reason}. Clearing session and re-authenticating...`, "warn");
-		await this.clearPersistedUserData();
-		await this.initializeRealApi();
-		await this.getHomeID();
-	}
-
-	private markUserDataCurrent(): void {
-		if (this.userData) {
-			this.userData.authProfileVersion = USER_DATA_AUTH_PROFILE_VERSION;
 		}
 	}
 
@@ -434,12 +245,6 @@ export class http_api {
 			if (userDataState && userDataState.val) {
 				const data = JSON.parse(userDataState.val as string);
 				if (data && data.token && data.rriot) {
-					if (data.authProfileVersion !== USER_DATA_AUTH_PROFILE_VERSION) {
-						const version = data.authProfileVersion ?? "legacy";
-						this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `Persisted UserData auth profile ${version} is outdated. Clearing it so fresh RRIOT credentials can be requested.`, "warn");
-						await this.clearPersistedUserData();
-						return;
-					}
 					this.userData = data;
 					this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, "Restored persisted UserData.", "info");
 				}
@@ -461,33 +266,12 @@ export class http_api {
 		}
 	}
 
-	private getRealApiTimestamp(): number {
-		return Math.floor(Date.now() / 1000) + this.realApiClockOffsetSeconds;
-	}
+	private getRealApiClockSkewError(error: unknown): Error | null {
+		const offsetSeconds = getRealApiClockSkewSeconds(error);
+		if (offsetSeconds === null) return null;
 
-	private createRealApiAuthorization(rriot: RriotData, path: string, params: Record<string, unknown>): string {
-		return createHawkAuthentication(rriot, path, params, {}, this.getRealApiTimestamp());
-	}
-
-	private syncRealApiClockOffsetFromError(error: unknown): boolean {
-		const serverTimestampSeconds = getServerTimestampSeconds(error);
-		if (serverTimestampSeconds === null) return false;
-
-		const detectedOffsetSeconds = serverTimestampSeconds - Math.floor(Date.now() / 1000);
-		const nextOffsetSeconds = Math.abs(detectedOffsetSeconds) > REAL_API_CLOCK_SKEW_RETRY_THRESHOLD_SECONDS ? detectedOffsetSeconds : 0;
-		if (Math.abs(nextOffsetSeconds - this.realApiClockOffsetSeconds) <= REAL_API_CLOCK_SKEW_RETRY_TOLERANCE_SECONDS) {
-			return false;
-		}
-
-		this.realApiClockOffsetSeconds = nextOffsetSeconds;
-		if (nextOffsetSeconds === 0) {
-			this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "Roborock Real API timestamp now matches the local clock. Retrying signed request without timestamp offset.", "warn");
-			return true;
-		}
-
-		const direction = nextOffsetSeconds > 0 ? "ahead of" : "behind";
-		this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `Roborock Real API timestamp is ${Math.abs(nextOffsetSeconds)}s ${direction} the local clock. Retrying signed request with server timestamp offset. Please check host NTP/time sync.`, "warn");
-		return true;
+		const direction = offsetSeconds > 0 ? "ahead of" : "behind";
+		return new Error(`Roborock Real API rejected the signed request and the server timestamp is ${Math.abs(offsetSeconds)}s ${direction} the local clock. Refusing to start because the ioBroker host clock appears to be wrong. Please fix NTP/time synchronization and restart the adapter.`);
 	}
 
 	async initializeRealApi(): Promise<void> {
@@ -513,7 +297,6 @@ export class http_api {
 						const loginResult = await this.loginByPassword(this.adapter.config.password, k, s);
 						if (loginResult.code === 200) {
 							this.userData = loginResult.data!;
-							this.markUserDataCurrent();
 							this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, "Login with password successful.", "info");
 						} else if (loginResult.code === 2031) {
 							this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "Password login requires 2FA (Code 2031). Falling back to 2FA flow.", "warn");
@@ -592,8 +375,6 @@ export class http_api {
 
 					if (loginResult.code === 200) {
 						this.userData = loginResult.data!; // data IS UserData
-						this.markUserDataCurrent();
-						this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, `Login with code successful. Stored UserData auth profile ${USER_DATA_AUTH_PROFILE_VERSION}.`, "info");
 						await this.adapter.setState(stateId, { val: "", ack: true });
 					} else {
 						throw new Error(`Login with code failed: ${JSON.stringify(loginResult)}`);
@@ -637,16 +418,49 @@ export class http_api {
 
 		try {
 			const rriot = this.get_rriot();
-			this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, `Using Roborock Real API endpoint: ${rriot.r.a} (MQTT: ${rriot.r.m})`, "debug");
 
 			// Initialize the real API with Hawk Authentication Interceptor
 			const realApi = axios.create({
 				baseURL: this.userData.rriot.r.a,
+				headers: {
+					"x-iotsdk-version": "1.0.1",
+					"x-app-name": "com.roborock.smart",
+					"x-app-version-code": "100834",
+					"x-app-version-name": "4.57.02",
+					"x-uid": this.userData.rriot.u,
+					"User-Agent": "UA=RRSDKAndroid/1.0.1",
+				},
 			});
 
 			realApi.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-				const { path, params } = getRealApiSignatureInput(config);
-				config.headers["Authorization"] = this.createRealApiAuthorization(rriot, path, params);
+				const timestamp = Math.floor(Date.now() / 1000);
+				const nonce = crypto
+					.randomBytes(6)
+					.toString("base64")
+					.substring(0, 6)
+					.replace(/[+/]/g, (m) => (m === "+" ? "X" : "Y"));
+
+				// Calculate signature
+				let urlPath = "";
+				if (config.url) {
+					// Handle relative URLs correctly by creating a dummy base if needed
+					// or using the instance's baseURL if config.url is relative
+					const fullUrl = axios.getUri(config);
+					try {
+						// Provide a dummy base to handle relative URLs returned by getUri
+						const urlObj = new URL(fullUrl, "http://dummy");
+						urlPath = urlObj.pathname + urlObj.search;
+					} catch {
+						// Fallback if URL construction fails
+						urlPath = config.url || "";
+					}
+				}
+
+				const prestr = [rriot.u, rriot.s, nonce, timestamp, md5hex(urlPath), "", ""].join(":");
+				const mac = crypto.createHmac("sha256", rriot.h).update(prestr).digest("base64");
+
+				config.headers["Authorization"] = `Hawk id="${rriot.u}", s="${rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
+
 				return config;
 			});
 
@@ -663,8 +477,6 @@ export class http_api {
 		if (!this.loginApi) throw new Error("loginApi is not initialized.");
 
 		try {
-			await this.reserveEmailCodeRequestSlot();
-
 			const params = new URLSearchParams();
 			params.append("type", "login");
 			params.append("email", username);
@@ -673,75 +485,22 @@ export class http_api {
 			const res = await this.loginApi.post(API_V4_EMAIL_CODE, params.toString());
 
 			if (res.data && res.data.code != 200) {
-				if (res.data.code === 9002) {
-					await this.markEmailCodeRateLimited();
-				}
 				throw new Error(`Start 2FA failed: ${res.data.msg} (Code: ${res.data.code})`);
 			}
 		} catch (error: unknown) {
-			const err = error as { response?: { data?: { code?: number } } };
+			const err = error as { response?: { data?: unknown } };
 			if (err?.response?.data !== undefined) {
-				if (err.response.data.code === 9002) {
-					await this.markEmailCodeRateLimited();
-				}
 				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Request email code failed with response: ${JSON.stringify(err.response.data)}`, "error");
 			}
 			throw error; // Re-throw exact error to be caught by caller
 		}
 	}
 
-	private async loadAuthRateLimitData(): Promise<AuthRateLimitData> {
-		await this.adapter.ensureState(AUTH_RATE_LIMIT_STATE, { name: "Auth rate limit data", type: "string", write: false, def: "" });
-		try {
-			const state = await this.adapter.getStateAsync(AUTH_RATE_LIMIT_STATE);
-			if (state?.val) {
-				const data = JSON.parse(String(state.val)) as AuthRateLimitData;
-				return data && typeof data === "object" ? data : {};
-			}
-		} catch {
-			this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, "No previous auth rate limit data found or invalid.", "debug");
-		}
-		return {};
-	}
-
-	private async storeAuthRateLimitData(data: AuthRateLimitData): Promise<void> {
-		await this.adapter.ensureState(AUTH_RATE_LIMIT_STATE, { name: "Auth rate limit data", type: "string", write: false, def: "" });
-		await this.adapter.setState(AUTH_RATE_LIMIT_STATE, { val: JSON.stringify(data), ack: true });
-	}
-
-	private async reserveEmailCodeRequestSlot(): Promise<void> {
-		const now = Date.now();
-		const rateLimit = await this.loadAuthRateLimitData();
-		const nextRequestAt = Math.max(
-			(rateLimit.emailCodeRequestedAt ?? 0) + EMAIL_CODE_COOLDOWN_MS,
-			rateLimit.rateLimitedUntil ?? 0,
-		);
-
-		if (nextRequestAt > now) {
-			throw new Error(`Roborock 2FA code request suppressed to avoid rate limits. Next automatic attempt is allowed after ${new Date(nextRequestAt).toISOString()}.`);
-		}
-
-		await this.storeAuthRateLimitData({
-			...rateLimit,
-			emailCodeRequestedAt: now,
-			rateLimitedUntil: rateLimit.rateLimitedUntil && rateLimit.rateLimitedUntil > now ? rateLimit.rateLimitedUntil : undefined,
-		});
-	}
-
-	private async markEmailCodeRateLimited(): Promise<void> {
-		const rateLimit = await this.loadAuthRateLimitData();
-		const rateLimitedUntil = Date.now() + EMAIL_CODE_RATE_LIMIT_COOLDOWN_MS;
-		await this.storeAuthRateLimitData({
-			...rateLimit,
-			rateLimitedUntil,
-		});
-	}
-
 	async signRequest(s: string): Promise<{ k: string } | null> {
 		if (!this.loginApi) return null;
 
 		try {
-			const res = await this.loginApi.post(API_V3_SIGN, undefined, { params: { s } });
+			const res = await this.loginApi.post(`${API_V3_SIGN}?s=${s}`);
 			return res.data.data;
 		} catch (e: unknown) {
 			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `SignRequest failed: ${this.adapter.errorMessage(e)}`, "error");
@@ -755,10 +514,11 @@ export class http_api {
 		const headers = {
 			"x-mercy-k": k,
 			"x-mercy-ks": s
+			// content-type application/x-www-form-urlencoded is default for axios with URLSearchParams
 		};
 
 		const region = this.adapter.config.region || "eu";
-		const regionConfig = this.loginRegionConfig || REGION_CONFIG[region] || REGION_CONFIG["eu"];
+		const regionConfig = REGION_CONFIG[region] || REGION_CONFIG["eu"];
 
 		const params = new URLSearchParams({
 			country: regionConfig.loginCountry,
@@ -884,13 +644,11 @@ export class http_api {
 		}
 
 		try {
-			const response = await this.loginApi.get<HomeDetailResponse>("api/v1/getHomeDetail");
+			const response = await this.loginApi.get("api/v1/getHomeDetail");
 			if (response.data.data) {
 				this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, `getHomeDetail: ${JSON.stringify(response.data)}`, "debug");
-				this.homeDetailID = response.data.data.id ?? null;
-				this.homeID = response.data.data.rrHomeId ?? null;
-				if (!this.homeID) throw new Error("getHomeDetail returned no rrHomeId");
-				this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, `Home identifiers: rrHomeId=${this.homeID}, id=${this.homeDetailID ?? "none"}`, "debug");
+				this.homeID = response.data.data.rrHomeId;
+				this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, `this.homeID: ${this.homeID}`, "debug");
 			} else {
 				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `failed to get getHomeDetail: ${response.data.msg}`, "error");
 
@@ -906,116 +664,46 @@ export class http_api {
 
 	/**
 	 * Downloads the latest Home Data (Devices, Rooms, Products) and stores it in state.
-	 * Uses the current V3 endpoint first and bounded fallbacks for non-auth endpoint failures.
+	 * Uses GET v3/user/homes/{homeID} only (same as Roborock app).
 	 */
 	async updateHomeData(): Promise<void> {
 		if (!this.loginApi) throw new Error("loginApi is not initialized. Call init() first.");
 		if (!this.realApi) throw new Error("realApi is not initialized. Call initializeRealApi() first");
 
-		if (!this.homeID) {
-			throw new Error("No homeId found");
-		}
+		if (this.homeID) {
+			try {
+				const res = await this.realApi.get<{ success?: boolean; result?: { id: number; products?: Product[]; devices?: Device[]; receivedDevices?: Device[]; rooms?: Room[] } }>(`v3/user/homes/${this.homeID}`);
 
-		const hadHomeData = this.homeData !== null;
-		try {
-			await this.fetchAndStoreHomeData();
-		} catch (e: unknown) {
-			if (isUnauthorizedError(e)) {
-				const message = "Roborock HomeData request returned 401 after successful login. Automatic re-authentication is disabled to avoid Roborock 2FA rate limits.";
-				if (hadHomeData) {
-					this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `${message} Keeping previous HomeData after refresh failure.`, "warn");
-					return;
+				if (res.data?.success && res.data?.result) {
+					const result = res.data.result;
+					this.homeData = {
+						rrHomeId: result.id,
+						products: result.products || [],
+						devices: result.devices || [],
+						receivedDevices: result.receivedDevices || [],
+						rooms: result.rooms || []
+					};
+					this.adapter.rLog("HTTP", null, "<-", "Cloud", undefined, `HomeData updated (HomeID: ${this.homeID}, Devices: ${this.homeData.devices?.length}, Received: ${this.homeData.receivedDevices?.length})`, "debug");
+				} else {
+					this.homeData = null;
+					this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "V3 HomeData response missing or not success.", "warn");
 				}
-				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, message, "error");
-				throw new Error(message);
-			}
 
-			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error updating HomeData: ${this.adapter.errorStack(e)}`, "error");
-			if (hadHomeData) {
-				this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "Keeping previous HomeData after refresh failure.", "warn");
-				return;
-			}
-			throw e;
-		}
-	}
-
-	private async fetchAndStoreHomeData(): Promise<void> {
-		if (!this.realApi) throw new Error("realApi is not initialized. Call initializeRealApi() first");
-		if (!this.homeID) throw new Error("No homeId found");
-
-		let lastError: unknown;
-		const attempts = this.getHomeDataAttempts();
-		let stopAttempts = false;
-		for (const [index, attempt] of attempts.entries()) {
-			let retriedWithClockOffset = false;
-			while (true) {
-				try {
-					const res = await this.realApi.get<HomeDataResponse>(attempt.path);
-
-					if (!res.data?.success || !res.data?.result) {
-						throw new Error(`${attempt.label} HomeData response missing or not success: ${JSON.stringify(res.data)}`);
-					}
-
-					this.storeHomeDataResult(res.data.result, attempt.label);
-					await this.adapter.setState("HomeData", { val: JSON.stringify(this.homeData), ack: true });
-					return;
-				} catch (error: unknown) {
-					lastError = error;
-
-					if (!retriedWithClockOffset && isUnauthorizedError(error) && this.syncRealApiClockOffsetFromError(error)) {
-						retriedWithClockOffset = true;
-						this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, `${attempt.label} HomeData request failed (${attempt.path}): ${describeHttpError(error)}. Retrying the same HomeData request once with the adjusted Real API timestamp.`, "warn");
-						continue;
-					}
-
-					const unauthorized = isUnauthorizedError(error);
-					const nextAttempt = attempts[index + 1];
-					const canTryNextAttempt = !unauthorized && !!nextAttempt;
-					let nextMessage = "";
-					if (canTryNextAttempt) {
-						nextMessage = ` Trying next HomeData candidate: ${nextAttempt.label}.`;
-					} else if (unauthorized && nextAttempt) {
-						nextMessage = " Not trying additional HomeData candidates because Roborock rejected the signed auth token.";
-					}
-					const level = canTryNextAttempt ? "Warn" : "Error";
-					const severity = canTryNextAttempt ? "warn" : "error";
-					this.adapter.rLog("HTTP", null, level, "Cloud", undefined, `${attempt.label} HomeData request failed (${attempt.path}): ${describeHttpError(error)}.${nextMessage}`, severity);
-					stopAttempts = !canTryNextAttempt;
-					break;
+				await this.adapter.setState("HomeData", { val: JSON.stringify(this.homeData), ack: true });
+			} catch (e: unknown) {
+				const clockSkewError = this.getRealApiClockSkewError(e);
+				if (clockSkewError) {
+					this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, clockSkewError.message, "error");
+					this.homeData = null;
+					throw clockSkewError;
 				}
+
+				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error updating HomeData: ${this.adapter.errorStack(e)}`, "error");
+				this.homeData = null;
 			}
-
-			if (stopAttempts) break;
+		} else {
+			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `No homeId found`, "error");
 		}
-
-		throw lastError ?? new Error("HomeData request failed");
-	}
-
-	private getHomeDataAttempts(): Array<{ label: string; path: string }> {
-		if (!this.homeID) return [];
-		const ids = [
-			{ label: "rrHomeId", id: this.homeID },
-			{ label: "homeDetailId", id: this.homeDetailID },
-		].filter((entry): entry is { label: string; id: number } => typeof entry.id === "number");
-		const dedupedIds = ids.filter((entry, index, all) => all.findIndex((candidate) => candidate.id === entry.id) === index);
-
-		return HOME_DATA_ENDPOINTS.flatMap((endpoint) =>
-			dedupedIds.map((id) => ({
-				label: `${endpoint.label}/${id.label}`,
-				path: endpoint.path(id.id),
-			})),
-		);
-	}
-
-	private storeHomeDataResult(result: NonNullable<HomeDataResponse["result"]>, source: string): void {
-		this.homeData = {
-			rrHomeId: result.id,
-			products: result.products || [],
-			devices: result.devices || [],
-			receivedDevices: result.receivedDevices || [],
-			rooms: result.rooms || []
-		};
-		this.adapter.rLog("HTTP", null, "<-", "Cloud", undefined, `HomeData updated via ${source} endpoint (HomeID: ${this.homeID}, Devices: ${this.homeData.devices?.length}, Received: ${this.homeData.receivedDevices?.length})`, "debug");
 	}
 
 	/**
