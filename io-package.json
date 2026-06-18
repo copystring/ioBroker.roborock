@@ -204,7 +204,8 @@
     "hostname_ip": "iobroker",
     "cameraPin": 1234,
     "region": "eu",
-    "map_theme": "dark"
+    "map_theme": "dark",
+    "sceneExecutionMode": "local"
   },
   "objects": [],
   "instanceObjects": [

@@ -83,6 +83,28 @@
       "lg": 6,
       "xl": 6
     },
+    "sceneExecutionMode": {
+      "type": "select",
+      "label": "Saved program execution",
+      "help": "Local stores the adapter queue and continues it after adapter restart. Cloud only starts the Roborock scene like the app; no local queue or local resume.",
+      "options": [
+        {
+          "label": "Local adapter queue",
+          "value": "local"
+        },
+        {
+          "label": "Cloud like Roborock app",
+          "value": "cloud"
+        }
+      ],
+      "default": "local",
+      "newLine": true,
+      "xs": 12,
+      "sm": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
     "updateInterval": {
       "type": "number",
       "label": "Update interval",

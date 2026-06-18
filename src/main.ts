@@ -29,11 +29,28 @@ interface SentryPlugin {
 	};
 }
 
-type SceneSegmentCommand = {
+type SceneQueueCommand = {
 	duid: string;
-	params: Record<string, unknown>;
+	method: string;
+	params: unknown;
+	waitForCompletionAfter?: boolean;
 };
 
+type PersistedSceneQueue = {
+	version: 1;
+	id: string;
+	sceneId: string;
+	sceneName?: string;
+	commands: SceneQueueCommand[];
+	nextIndex: number;
+	waitingForCompletion: boolean;
+	createdAt: number;
+	updatedAt: number;
+};
+
+type SceneExecutionMode = "local" | "cloud";
+
+const SCENE_QUEUE_VERSION = 1;
 const SCENE_SEGMENT_START_TIMEOUT_MS = 60 * 1000;
 const SCENE_SEGMENT_FINISH_TIMEOUT_MS = 4 * 60 * 60 * 1000;
 const SCENE_SEGMENT_POLL_INTERVAL_MS = 10 * 1000;
@@ -84,6 +101,8 @@ export class Roborock extends utils.Adapter {
 	public translations: Record<string, string> = {};
 
 	private commandTimeouts: Map<string, ioBroker.Timeout> = new Map();
+	private activeSceneQueueProcessors: Set<string> = new Set();
+	private ensuredSceneQueueStates: Set<string> = new Set();
 	private mqttReconnectInterval: ioBroker.Interval | undefined = undefined;
 	public instance: number = 0;
 	private go2rtcProcess: ChildProcess | null = null;
@@ -167,6 +186,7 @@ export class Roborock extends utils.Adapter {
 			region: this.config.region,
 			loginMethod: this.config.loginMethod,
 			map_theme: this.config.map_theme,
+			sceneExecutionMode: this.getSceneExecutionMode(),
 		};
 		if ("map_creation_interval" in this.config) safeSettings.map_creation_interval = (this.config as Record<string, unknown>).map_creation_interval;
 		if ("map_scale" in this.config) safeSettings.map_scale = (this.config as Record<string, unknown>).map_scale;
@@ -268,6 +288,8 @@ export class Roborock extends utils.Adapter {
 				this.subscribeStatesAsync("loginCode")
 			]);
 
+			await this.resumeSceneQueues();
+
 			this.deviceManager.startPolling();
 			this.local_api.startTcpKeepaliveInterval();
 
@@ -301,6 +323,36 @@ export class Roborock extends utils.Adapter {
 				this.rLog("Requests", null, "Error", undefined, undefined, `Failed to execute command ${obj.command}: ${this.errorMessage(err)}`, "error");
 				this.sendTo(obj.from, obj.command, { error: this.errorMessage(err) }, obj.callback);
 			}
+		}
+	}
+
+	private getSceneExecutionMode(): SceneExecutionMode {
+		return this.config.sceneExecutionMode === "cloud" ? "cloud" : "local";
+	}
+
+	async executeSceneProgram(duid: string, sceneId: string | number): Promise<void> {
+		const mode = this.getSceneExecutionMode();
+		await this.ensureSceneQueueState(duid);
+		await this.setState(this.getSceneQueueModeStateId(duid), { val: mode, ack: true });
+
+		if (mode === "cloud") {
+			await this.executeSceneCloud(duid, sceneId);
+			return;
+		}
+
+		await this.executeSceneLocal(duid, sceneId);
+	}
+
+	private async executeSceneCloud(duid: string, sceneId: string | number): Promise<void> {
+		try {
+			this.rLog("Requests", duid, "Info", undefined, undefined, `[Scene] Executing cloud scene ${sceneId} via Roborock scene endpoint`, "info");
+			await this.clearSceneQueue(duid, "cloud");
+			const response = await this.http_api.executeScene(sceneId);
+			await this.setSceneQueueStatus(duid, "cloud-triggered");
+			this.rLog("Requests", duid, "Debug", undefined, undefined, `[Scene] Cloud scene ${sceneId} response: ${JSON.stringify(response)}`, "debug");
+		} catch (error: unknown) {
+			await this.setSceneQueueStatus(duid, "cloud-error");
+			this.rLog("Requests", duid, "Error", undefined, undefined, `[Scene] Failed to execute cloud scene ${sceneId}: ${this.errorMessage(error)}`, "error");
 		}
 	}
 
@@ -343,106 +395,382 @@ export class Roborock extends utils.Adapter {
 			}
 
 			const targetDuid = this.resolveSceneTargetDuid(duid, actionItems);
-			let pendingSceneSegment: SceneSegmentCommand | null = null;
-			const flushPendingSceneSegment = async (waitForCompletion: boolean): Promise<void> => {
-				if (!pendingSceneSegment) return;
-				const segment = pendingSceneSegment;
-				pendingSceneSegment = null;
-				await this.executeSceneCommand(segment.duid, "do_scenes_segments", segment.params);
-				if (waitForCompletion) {
-					await this.waitForSceneSegmentReadyForNext(segment.duid);
-				}
+			const commands = await this.buildSceneQueueCommands(targetDuid, sceneId, actionItems);
+			if (commands.length === 0) {
+				this.rLog("Requests", targetDuid, "Warn", undefined, undefined, `[Scene] Scene ${sceneId} has no executable commands`, "warn");
+				return;
+			}
+
+			for (let index = 0; index < commands.length; index++) {
+				commands[index].waitForCompletionAfter = commands[index].method === "do_scenes_segments" && index < commands.length - 1;
+			}
+
+			const now = Date.now();
+			const queue: PersistedSceneQueue = {
+				version: SCENE_QUEUE_VERSION,
+				id: `${now}-${randomBytes(4).toString("hex")}`,
+				sceneId: String(sceneId),
+				sceneName: typeof scene.name === "string" ? scene.name : undefined,
+				commands,
+				nextIndex: 0,
+				waitingForCompletion: false,
+				createdAt: now,
+				updatedAt: now,
 			};
-			const queueSceneSegment = async (sceneSegment: SceneSegmentCommand): Promise<void> => {
-				await flushPendingSceneSegment(true);
-				pendingSceneSegment = sceneSegment;
-			};
 
-			for (const item of actionItems) {
-				const sceneItem = item as Record<string, unknown>;
-				if (!sceneItem || sceneItem.type !== "CMD") continue;
-				const itemDuid = typeof sceneItem.entityId === "string" && sceneItem.entityId.trim().length > 0 ? sceneItem.entityId : targetDuid;
+			await this.saveSceneQueue(targetDuid, queue);
+			this.rLog("Requests", targetDuid, "Info", undefined, undefined, `[Scene] Queued local scene ${sceneId} with ${commands.length} command(s)`, "info");
+			void this.processSceneQueue(targetDuid);
+		} catch (e: unknown) {
+			this.rLog("Requests", duid, "Error", undefined, undefined, `[Scene] Error executing ${sceneId}: ${this.errorMessage(e)}`, "error");
+		}
+	}
 
-				const rawCommandPayload = this.tryParseSceneCommandPayload(sceneItem.param);
-				const parsedCommandPayload = typeof rawCommandPayload === "object" && rawCommandPayload !== null ? rawCommandPayload as Record<string, unknown> : null;
-				if (!parsedCommandPayload?.method) {
-					const itemId = typeof sceneItem.id === "string" ? sceneItem.id : `${sceneItem.id}`;
-					this.rLog("Requests", itemDuid, "Warn", undefined, undefined, `[Scene] Invalid command item ${itemId} in ${sceneId}`, "warn");
+	private async buildSceneQueueCommands(defaultDuid: string, sceneId: string | number, actionItems: unknown[]): Promise<SceneQueueCommand[]> {
+		const commands: SceneQueueCommand[] = [];
+
+		for (const item of actionItems) {
+			const sceneItem = item as Record<string, unknown>;
+			if (!sceneItem || sceneItem.type !== "CMD") continue;
+			const itemDuid = typeof sceneItem.entityId === "string" && sceneItem.entityId.trim().length > 0 ? sceneItem.entityId : defaultDuid;
+
+			const rawCommandPayload = this.tryParseSceneCommandPayload(sceneItem.param);
+			const parsedCommandPayload = typeof rawCommandPayload === "object" && rawCommandPayload !== null ? rawCommandPayload as Record<string, unknown> : null;
+			if (!parsedCommandPayload?.method) {
+				const itemId = typeof sceneItem.id === "string" ? sceneItem.id : `${sceneItem.id}`;
+				this.rLog("Requests", itemDuid, "Warn", undefined, undefined, `[Scene] Invalid command item ${itemId} in ${sceneId}`, "warn");
+				continue;
+			}
+
+			const method = typeof parsedCommandPayload.method === "string" ? parsedCommandPayload.method : "";
+			if (!method) {
+				const itemId = typeof sceneItem.id === "string" ? sceneItem.id : `${sceneItem.id}`;
+				this.rLog("Requests", itemDuid, "Warn", undefined, undefined, `[Scene] Command without string method for item ${itemId} in ${sceneId}`, "warn");
+				continue;
+			}
+
+			const args = this.tryParseSceneCommandPayload(parsedCommandPayload.params);
+			const commandArgs = args !== undefined ? args : parsedCommandPayload.params;
+
+			if (method === "do_scenes_segments") {
+				const segmentPayloads = this.toSingleSceneSegmentsPayloads(commandArgs);
+				if (segmentPayloads) {
+					for (const segmentPayload of segmentPayloads) {
+						commands.push({ duid: itemDuid, method, params: segmentPayload });
+					}
 					continue;
-				}
-
-				const method = typeof parsedCommandPayload.method === "string" ? parsedCommandPayload.method : "";
-				if (!method) {
-					const itemId = typeof sceneItem.id === "string" ? sceneItem.id : `${sceneItem.id}`;
-					this.rLog("Requests", itemDuid, "Warn", undefined, undefined, `[Scene] Command without string method for item ${itemId} in ${sceneId}`, "warn");
-					continue;
-				}
-
-				const args = this.tryParseSceneCommandPayload(parsedCommandPayload.params);
-				const commandArgs = args !== undefined ? args : parsedCommandPayload.params;
-
-				try {
-					if (method === "do_scenes_segments") {
-						const segmentPayloads = this.toSingleSceneSegmentsPayloads(commandArgs);
-						if (segmentPayloads) {
-							for (const segmentPayload of segmentPayloads) {
-								await queueSceneSegment({ duid: itemDuid, params: segmentPayload });
-							}
-							continue;
-						}
-					}
-
-					await flushPendingSceneSegment(true);
-
-					if (method === "app_start_program") {
-						const startArgs = await this.resolveStartProgramArgs(itemDuid, commandArgs ?? {});
-						await this.executeSceneCommand(itemDuid, method, startArgs);
-					} else {
-						await this.executeSceneCommand(itemDuid, method, commandArgs);
-					}
-				} catch (error: unknown) {
-					if (method === "app_start_program") {
-						this.rLog(
-							"Requests",
-							itemDuid,
-							"Error",
-							undefined,
-							undefined,
-							`[Scene] Failed to resolve full app_start_program payload for ${sceneId}: ${this.errorMessage(error)}`,
-							"error"
-						);
-						continue;
-					}
-
-					if (method === "do_scenes_segments") {
-						this.rLog(
-							"Requests",
-							itemDuid,
-							"Error",
-							undefined,
-							undefined,
-							`[Scene] Failed to execute do_scenes_segments task in ${sceneId}: ${this.errorMessage(error)}`,
-							"error"
-						);
-						continue;
-					}
-
-					this.rLog(
-						"Requests",
-						itemDuid,
-						"Warn",
-						undefined,
-						undefined,
-						`[Scene] Falling back to direct send for ${method} in ${sceneId}: ${this.errorMessage(error)}`,
-						"warn"
-					);
-					await this.executeSceneCommand(itemDuid, method, parsedCommandPayload.params);
 				}
 			}
 
-			await flushPendingSceneSegment(false);
-		} catch (e: unknown) {
-			this.rLog("Requests", duid, "Error", undefined, undefined, `[Scene] Error executing ${sceneId}: ${this.errorMessage(e)}`, "error");
+			if (method === "app_start_program") {
+				try {
+					const startArgs = await this.resolveStartProgramArgs(itemDuid, commandArgs ?? {});
+					commands.push({ duid: itemDuid, method, params: startArgs });
+				} catch (error: unknown) {
+					this.rLog(
+						"Requests",
+						itemDuid,
+						"Error",
+						undefined,
+						undefined,
+						`[Scene] Failed to resolve full app_start_program payload for ${sceneId}: ${this.errorMessage(error)}`,
+						"error"
+					);
+				}
+				continue;
+			}
+
+			commands.push({ duid: itemDuid, method, params: commandArgs });
+		}
+
+		return commands;
+	}
+
+	private async processSceneQueue(duid: string): Promise<void> {
+		if (this.activeSceneQueueProcessors.has(duid)) return;
+		this.activeSceneQueueProcessors.add(duid);
+
+		try {
+			while (true) {
+				const queue = await this.loadSceneQueue(duid);
+				if (!queue) return;
+
+				if (queue.nextIndex >= queue.commands.length) {
+					await this.clearSceneQueue(duid, "completed");
+					this.rLog("Requests", duid, "Info", undefined, undefined, `[Scene] Local scene ${queue.sceneId} queue completed`, "info");
+					return;
+				}
+
+				if (queue.waitingForCompletion) {
+					const previousCommand = queue.commands[Math.max(0, queue.nextIndex - 1)];
+					const nextCommand = queue.commands[queue.nextIndex];
+					const waitDuid = previousCommand?.duid ?? nextCommand?.duid ?? duid;
+					this.rLog(
+						"Requests",
+						waitDuid,
+						"Info",
+						undefined,
+						undefined,
+						`[Scene] Waiting for segment completion before continuing scene ${queue.sceneId} (${queue.nextIndex}/${queue.commands.length})`,
+						"info"
+					);
+					await this.waitForSceneSegmentReadyForNext(waitDuid);
+
+					const latestQueue = await this.loadSceneQueue(duid);
+					if (!latestQueue) return;
+					if (latestQueue.id !== queue.id) continue;
+
+					latestQueue.waitingForCompletion = false;
+					latestQueue.updatedAt = Date.now();
+					await this.saveSceneQueue(duid, latestQueue);
+					continue;
+				}
+
+				const command = queue.commands[queue.nextIndex];
+				if (!command) {
+					await this.clearSceneQueue(duid, "invalid");
+					return;
+				}
+
+				this.rLog(
+					"Requests",
+					command.duid,
+					"Info",
+					undefined,
+					undefined,
+					`[Scene] Executing queued local scene command ${queue.nextIndex + 1}/${queue.commands.length}: ${command.method}`,
+					"info"
+				);
+
+				let commandSucceeded = false;
+				try {
+					await this.executeSceneCommand(command.duid, command.method, command.params);
+					commandSucceeded = true;
+				} catch (error: unknown) {
+					this.logSceneQueueCommandError(queue, command, error);
+				}
+
+				const latestQueue = await this.loadSceneQueue(duid);
+				if (!latestQueue) return;
+				if (latestQueue.id !== queue.id) continue;
+
+				latestQueue.nextIndex = queue.nextIndex + 1;
+				latestQueue.waitingForCompletion = commandSucceeded && command.method === "do_scenes_segments" && command.waitForCompletionAfter === true;
+				latestQueue.updatedAt = Date.now();
+
+				if (latestQueue.nextIndex >= latestQueue.commands.length && !latestQueue.waitingForCompletion) {
+					await this.clearSceneQueue(duid, "completed");
+					this.rLog("Requests", duid, "Info", undefined, undefined, `[Scene] Local scene ${latestQueue.sceneId} queue completed`, "info");
+					return;
+				}
+
+				await this.saveSceneQueue(duid, latestQueue);
+			}
+		} catch (error: unknown) {
+			await this.setSceneQueueStatus(duid, "error");
+			this.rLog("Requests", duid, "Error", undefined, undefined, `[Scene] Local scene queue failed: ${this.errorMessage(error)}`, "error");
+		} finally {
+			this.activeSceneQueueProcessors.delete(duid);
+		}
+	}
+
+	private logSceneQueueCommandError(queue: PersistedSceneQueue, command: SceneQueueCommand, error: unknown): void {
+		const level = command.method === "do_scenes_segments" || command.method === "app_start_program" ? "Error" : "Warn";
+		this.rLog(
+			"Requests",
+			command.duid,
+			level,
+			undefined,
+			undefined,
+			`[Scene] Failed to execute queued command ${command.method} in ${queue.sceneId}: ${this.errorMessage(error)}`,
+			level === "Error" ? "error" : "warn"
+		);
+	}
+
+	private getSceneQueueStateId(duid: string): string {
+		return `Devices.${duid}.programs.sceneQueue`;
+	}
+
+	private getSceneQueueLengthStateId(duid: string): string {
+		return `Devices.${duid}.programs.sceneQueueLength`;
+	}
+
+	private getSceneQueueStatusStateId(duid: string): string {
+		return `Devices.${duid}.programs.sceneQueueStatus`;
+	}
+
+	private getSceneQueueModeStateId(duid: string): string {
+		return `Devices.${duid}.programs.sceneExecutionMode`;
+	}
+
+	private async ensureSceneQueueState(duid: string): Promise<void> {
+		if (this.ensuredSceneQueueStates.has(duid)) return;
+		await this.ensureFolder(`Devices.${duid}.programs`);
+		await this.ensureState(this.getSceneQueueStateId(duid), {
+			name: "Local scene queue",
+			type: "string",
+			role: "json",
+			read: true,
+			write: false,
+		});
+		await this.ensureState(this.getSceneQueueLengthStateId(duid), {
+			name: "Local scene queue length",
+			type: "number",
+			role: "value",
+			read: true,
+			write: false,
+			def: 0,
+		});
+		await this.ensureState(this.getSceneQueueStatusStateId(duid), {
+			name: "Scene queue status",
+			type: "string",
+			role: "text",
+			read: true,
+			write: false,
+			def: "idle",
+		});
+		await this.ensureState(this.getSceneQueueModeStateId(duid), {
+			name: "Scene execution mode",
+			type: "string",
+			role: "text",
+			read: true,
+			write: false,
+			states: {
+				local: "local",
+				cloud: "cloud",
+			},
+			def: "local",
+		});
+		this.ensuredSceneQueueStates.add(duid);
+	}
+
+	private async saveSceneQueue(duid: string, queue: PersistedSceneQueue): Promise<void> {
+		await this.ensureSceneQueueState(duid);
+		await this.setState(this.getSceneQueueStateId(duid), { val: JSON.stringify(queue), ack: true });
+		await this.setSceneQueueSummaryStates(duid, queue, queue.waitingForCompletion ? "waiting" : "running");
+	}
+
+	private async clearSceneQueue(duid: string, status = "idle"): Promise<void> {
+		await this.ensureSceneQueueState(duid);
+		await this.setState(this.getSceneQueueStateId(duid), { val: "", ack: true });
+		await this.setSceneQueueSummaryStates(duid, null, status);
+	}
+
+	private async setSceneQueueStatus(duid: string, status: string): Promise<void> {
+		await this.ensureSceneQueueState(duid);
+		await this.setSceneQueueSummaryStates(duid, await this.loadSceneQueue(duid), status);
+	}
+
+	private async setSceneQueueSummaryStates(duid: string, queue: PersistedSceneQueue | null, status: string): Promise<void> {
+		const length = queue ? Math.max(0, queue.commands.length - queue.nextIndex) : 0;
+		await Promise.all([
+			this.setState(this.getSceneQueueLengthStateId(duid), { val: length, ack: true }),
+			this.setState(this.getSceneQueueStatusStateId(duid), { val: status, ack: true }),
+			this.setState(this.getSceneQueueModeStateId(duid), { val: this.getSceneExecutionMode(), ack: true }),
+		]);
+	}
+
+	private async loadSceneQueue(duid: string): Promise<PersistedSceneQueue | null> {
+		let state: ioBroker.State | null | undefined;
+		try {
+			state = await this.getStateAsync(this.getSceneQueueStateId(duid));
+		} catch {
+			return null;
+		}
+
+		if (typeof state?.val !== "string" || state.val.trim() === "") {
+			return null;
+		}
+
+		try {
+			return this.parseSceneQueueState(state.val);
+		} catch (error: unknown) {
+			this.rLog("Requests", duid, "Warn", undefined, undefined, `[Scene] Ignoring invalid persisted scene queue: ${this.errorMessage(error)}`, "warn");
+			await this.clearSceneQueue(duid);
+			return null;
+		}
+	}
+
+	private parseSceneQueueState(value: string): PersistedSceneQueue {
+		const parsed = JSON.parse(value) as Record<string, unknown>;
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+			throw new Error("queue state is not an object");
+		}
+		if (parsed.version !== SCENE_QUEUE_VERSION) {
+			throw new Error(`unsupported queue version ${String(parsed.version)}`);
+		}
+		if (!Array.isArray(parsed.commands) || parsed.commands.length === 0) {
+			throw new Error("queue has no commands");
+		}
+
+		const commands = parsed.commands.map((command) => this.parseSceneQueueCommand(command));
+		const nextIndex = typeof parsed.nextIndex === "number" && Number.isInteger(parsed.nextIndex)
+			? Math.max(0, Math.min(parsed.nextIndex, commands.length))
+			: 0;
+		const now = Date.now();
+
+		return {
+			version: SCENE_QUEUE_VERSION,
+			id: typeof parsed.id === "string" && parsed.id.trim() !== "" ? parsed.id : `${now}-${randomBytes(4).toString("hex")}`,
+			sceneId: typeof parsed.sceneId === "string" && parsed.sceneId.trim() !== "" ? parsed.sceneId : "unknown",
+			sceneName: typeof parsed.sceneName === "string" ? parsed.sceneName : undefined,
+			commands,
+			nextIndex,
+			waitingForCompletion: parsed.waitingForCompletion === true,
+			createdAt: typeof parsed.createdAt === "number" && Number.isFinite(parsed.createdAt) ? parsed.createdAt : now,
+			updatedAt: typeof parsed.updatedAt === "number" && Number.isFinite(parsed.updatedAt) ? parsed.updatedAt : now,
+		};
+	}
+
+	private parseSceneQueueCommand(value: unknown): SceneQueueCommand {
+		if (!value || typeof value !== "object" || Array.isArray(value)) {
+			throw new Error("queue command is not an object");
+		}
+
+		const command = value as Record<string, unknown>;
+		if (typeof command.duid !== "string" || command.duid.trim() === "") {
+			throw new Error("queue command has no duid");
+		}
+		if (typeof command.method !== "string" || command.method.trim() === "") {
+			throw new Error("queue command has no method");
+		}
+
+		return {
+			duid: command.duid,
+			method: command.method,
+			params: command.params,
+			waitForCompletionAfter: command.waitForCompletionAfter === true,
+		};
+	}
+
+	private async resumeSceneQueues(): Promise<void> {
+		const duids = new Set<string>();
+		for (const device of this.http_api.getDevices() || []) {
+			if (typeof device.duid === "string" && device.duid.trim() !== "") {
+				duids.add(device.duid);
+			}
+		}
+
+		const mode = this.getSceneExecutionMode();
+		for (const duid of duids) {
+			await this.ensureSceneQueueState(duid);
+			if (mode === "cloud") {
+				await this.clearSceneQueue(duid, "cloud-idle");
+				continue;
+			}
+
+			const queue = await this.loadSceneQueue(duid);
+			if (!queue) continue;
+			this.rLog(
+				"Requests",
+				duid,
+				"Info",
+				undefined,
+				undefined,
+				`[Scene] Resuming local scene ${queue.sceneId} at command ${queue.nextIndex + 1}/${queue.commands.length}`,
+				"info"
+			);
+			void this.processSceneQueue(duid);
 		}
 	}
 
@@ -548,7 +876,7 @@ export class Roborock extends utils.Adapter {
 	private isSceneSegmentActiveStatus(status: Record<string, unknown>): boolean {
 		const inCleaning = this.numberFromStateValue(status.in_cleaning);
 		const inReturning = this.numberFromStateValue(status.in_returning);
-		if (inCleaning === 1 || inReturning === 1) {
+		if ((inCleaning !== null && inCleaning > 0) || (inReturning !== null && inReturning > 0)) {
 			return true;
 		}
 
@@ -832,9 +1160,9 @@ export class Roborock extends utils.Adapter {
 			// Reset button
 			this.setResetTimeout(id);
 		} else if (folder === "programs" && command === "startProgram") {
-			await this.executeSceneLocal(duid, state.val as string | number);
+			await this.executeSceneProgram(duid, state.val as string | number);
 			this.setResetTimeout(id); // Use setResetTimeout to reset to null/empty after 1s?
-			// Actually executeSceneLocal takes time.
+			// Scene execution can continue asynchronously in local queue mode.
 			// Better: explicit reset.
 			await this.setState(id, { val: null, ack: true });
 		} else if (handler.hasCommandFolder(folder)) {
@@ -1012,6 +1340,7 @@ export class Roborock extends utils.Adapter {
 				write: true,
 				states: programs[duid],
 			});
+			await this.ensureSceneQueueState(duid);
 		}
 	}
 

@@ -674,6 +674,16 @@ export class http_api {
 	}
 
 	/**
+	 * Executes a scene via the same cloud scene endpoint used by the official app.
+	 */
+	async executeScene(sceneId: string | number): Promise<unknown> {
+		if (!this.loginApi) throw new Error("loginApi is not initialized.");
+		if (!this.realApi) throw new Error("realApi is not initialized.");
+
+		return await this.realApi.post(`user/scene/${sceneId}/execute`).then((res) => res.data);
+	}
+
+	/**
 	 * Stores firmware feature IDs in the cache for a specific device.
 	 */
 	public storeFwFeaturesResult(duid: string, featureIds: number[]): void {
