@@ -34,6 +34,7 @@ type SceneQueueCommand = {
 	method: string;
 	params: unknown;
 	waitForCompletionAfter?: boolean;
+	attempts?: number;
 };
 
 type PersistedSceneQueue = {
@@ -49,11 +50,18 @@ type PersistedSceneQueue = {
 };
 
 type SceneExecutionMode = "local" | "cloud";
+type SceneSegmentWaitResult = "ready" | "not-started" | "finish-timeout";
 
 const SCENE_QUEUE_VERSION = 1;
-const SCENE_SEGMENT_START_TIMEOUT_MS = 60 * 1000;
+const SCENE_SEGMENT_START_MAX_ATTEMPTS = 3;
+const SCENE_SEGMENT_START_TIMEOUT_MS = 2 * 60 * 1000;
 const SCENE_SEGMENT_FINISH_TIMEOUT_MS = 4 * 60 * 60 * 1000;
+const SCENE_SEGMENT_READY_STABLE_MS = 30 * 1000;
+const SCENE_SEGMENT_RETRY_DELAY_MS = 30 * 1000;
 const SCENE_SEGMENT_POLL_INTERVAL_MS = 10 * 1000;
+const SCENE_SEGMENT_STARTED_STATES = new Set([
+	18, // Room Clean
+]);
 const SCENE_SEGMENT_ACTIVE_STATES = new Set([
 	5,  // Cleaning
 	6,  // Returning Dock
@@ -495,13 +503,8 @@ export class Roborock extends utils.Adapter {
 				const queue = await this.loadSceneQueue(duid);
 				if (!queue) return;
 
-				if (queue.nextIndex >= queue.commands.length) {
-					await this.clearSceneQueue(duid, "completed");
-					this.rLog("Requests", duid, "Info", undefined, undefined, `[Scene] Local scene ${queue.sceneId} queue completed`, "info");
-					return;
-				}
-
 				if (queue.waitingForCompletion) {
+					const previousIndex = Math.max(0, queue.nextIndex - 1);
 					const previousCommand = queue.commands[Math.max(0, queue.nextIndex - 1)];
 					const nextCommand = queue.commands[queue.nextIndex];
 					const waitDuid = previousCommand?.duid ?? nextCommand?.duid ?? duid;
@@ -514,16 +517,45 @@ export class Roborock extends utils.Adapter {
 						`[Scene] Waiting for segment completion before continuing scene ${queue.sceneId} (${queue.nextIndex}/${queue.commands.length})`,
 						"info"
 					);
-					await this.waitForSceneSegmentReadyForNext(waitDuid);
+					const waitResult = await this.waitForSceneSegmentReadyForNext(waitDuid);
 
 					const latestQueue = await this.loadSceneQueue(duid);
 					if (!latestQueue) return;
 					if (latestQueue.id !== queue.id) continue;
 
+					if (waitResult === "not-started" && previousCommand?.method === "do_scenes_segments") {
+						const retryCommand = latestQueue.commands[previousIndex];
+						if (retryCommand && (retryCommand.attempts ?? 0) < SCENE_SEGMENT_START_MAX_ATTEMPTS) {
+							latestQueue.nextIndex = previousIndex;
+							latestQueue.waitingForCompletion = false;
+							latestQueue.updatedAt = Date.now();
+							await this.saveSceneQueue(duid, latestQueue);
+							await this.setSceneQueueStatus(duid, "retrying");
+							await this.delay(SCENE_SEGMENT_RETRY_DELAY_MS);
+							continue;
+						}
+
+						this.rLog(
+							"Requests",
+							waitDuid,
+							"Error",
+							undefined,
+							undefined,
+							`[Scene] Segment task in ${latestQueue.sceneId} did not start after ${SCENE_SEGMENT_START_MAX_ATTEMPTS} attempt(s); continuing`,
+							"error"
+						);
+					}
+
 					latestQueue.waitingForCompletion = false;
 					latestQueue.updatedAt = Date.now();
 					await this.saveSceneQueue(duid, latestQueue);
 					continue;
+				}
+
+				if (queue.nextIndex >= queue.commands.length) {
+					await this.clearSceneQueue(duid, "completed");
+					this.rLog("Requests", duid, "Info", undefined, undefined, `[Scene] Local scene ${queue.sceneId} queue completed`, "info");
+					return;
 				}
 
 				const command = queue.commands[queue.nextIndex];
@@ -542,6 +574,11 @@ export class Roborock extends utils.Adapter {
 					"info"
 				);
 
+				command.attempts = (command.attempts ?? 0) + 1;
+				queue.commands[queue.nextIndex] = command;
+				queue.updatedAt = Date.now();
+				await this.saveSceneQueue(duid, queue);
+
 				let commandSucceeded = false;
 				try {
 					await this.executeSceneCommand(command.duid, command.method, command.params);
@@ -555,7 +592,7 @@ export class Roborock extends utils.Adapter {
 				if (latestQueue.id !== queue.id) continue;
 
 				latestQueue.nextIndex = queue.nextIndex + 1;
-				latestQueue.waitingForCompletion = commandSucceeded && command.method === "do_scenes_segments" && command.waitForCompletionAfter === true;
+				latestQueue.waitingForCompletion = commandSucceeded && command.method === "do_scenes_segments";
 				latestQueue.updatedAt = Date.now();
 
 				if (latestQueue.nextIndex >= latestQueue.commands.length && !latestQueue.waitingForCompletion) {
@@ -740,6 +777,7 @@ export class Roborock extends utils.Adapter {
 			method: command.method,
 			params: command.params,
 			waitForCompletionAfter: command.waitForCompletionAfter === true,
+			attempts: typeof command.attempts === "number" && Number.isInteger(command.attempts) && command.attempts > 0 ? command.attempts : undefined,
 		};
 	}
 
@@ -800,8 +838,8 @@ export class Roborock extends utils.Adapter {
 		}));
 	}
 
-	private async waitForSceneSegmentReadyForNext(duid: string): Promise<void> {
-		const started = await this.waitForSceneSegmentState(duid, true, SCENE_SEGMENT_START_TIMEOUT_MS);
+	private async waitForSceneSegmentReadyForNext(duid: string): Promise<SceneSegmentWaitResult> {
+		const started = await this.waitForSceneSegmentStarted(duid, SCENE_SEGMENT_START_TIMEOUT_MS);
 		if (!started) {
 			this.rLog(
 				"Requests",
@@ -809,13 +847,13 @@ export class Roborock extends utils.Adapter {
 				"Warn",
 				undefined,
 				undefined,
-				"[Scene] Segment task did not report an active state before timeout; continuing with next scene task",
+				"[Scene] Segment task did not report a room-cleaning start before timeout",
 				"warn"
 			);
-			return;
+			return "not-started";
 		}
 
-		const finished = await this.waitForSceneSegmentState(duid, false, SCENE_SEGMENT_FINISH_TIMEOUT_MS);
+		const finished = await this.waitForSceneSegmentInactiveStable(duid, SCENE_SEGMENT_FINISH_TIMEOUT_MS, SCENE_SEGMENT_READY_STABLE_MS);
 		if (!finished) {
 			this.rLog(
 				"Requests",
@@ -823,18 +861,40 @@ export class Roborock extends utils.Adapter {
 				"Warn",
 				undefined,
 				undefined,
-				"[Scene] Segment task did not finish before timeout; continuing with next scene task",
+				"[Scene] Segment task did not reach stable idle before timeout; continuing with next scene task",
 				"warn"
 			);
+			return "finish-timeout";
 		}
+
+		return "ready";
 	}
 
-	private async waitForSceneSegmentState(duid: string, active: boolean, timeoutMs: number): Promise<boolean> {
+	private async waitForSceneSegmentStarted(duid: string, timeoutMs: number): Promise<boolean> {
 		const deadline = Date.now() + timeoutMs;
 		do {
 			const status = await this.refreshSceneSegmentStatus(duid);
-			if (this.isSceneSegmentActiveStatus(status) === active) {
+			if (this.isSceneSegmentStartedStatus(status)) {
 				return true;
+			}
+			await this.delay(SCENE_SEGMENT_POLL_INTERVAL_MS);
+		} while (Date.now() < deadline);
+		return false;
+	}
+
+	private async waitForSceneSegmentInactiveStable(duid: string, timeoutMs: number, stableMs: number): Promise<boolean> {
+		const deadline = Date.now() + timeoutMs;
+		let idleSince: number | null = null;
+
+		do {
+			const status = await this.refreshSceneSegmentStatus(duid);
+			if (!this.isSceneSegmentActiveStatus(status)) {
+				idleSince ??= Date.now();
+				if (Date.now() - idleSince >= stableMs) {
+					return true;
+				}
+			} else {
+				idleSince = null;
 			}
 			await this.delay(SCENE_SEGMENT_POLL_INTERVAL_MS);
 		} while (Date.now() < deadline);
@@ -882,6 +942,16 @@ export class Roborock extends utils.Adapter {
 
 		const state = this.numberFromStateValue(status.state ?? status.status);
 		return state !== null && SCENE_SEGMENT_ACTIVE_STATES.has(state);
+	}
+
+	private isSceneSegmentStartedStatus(status: Record<string, unknown>): boolean {
+		const state = this.numberFromStateValue(status.state ?? status.status);
+		if (state !== null) {
+			return SCENE_SEGMENT_STARTED_STATES.has(state);
+		}
+
+		const inCleaning = this.numberFromStateValue(status.in_cleaning);
+		return inCleaning !== null && inCleaning > 0;
 	}
 
 	private numberFromStateValue(value: unknown): number | null {
