@@ -86,7 +86,7 @@
     "sceneExecutionMode": {
       "type": "select",
       "label": "Saved program execution",
-      "help": "Local stores the adapter queue and continues it after adapter restart. Cloud only starts the Roborock scene like the app; no local queue or local resume.",
+      "help": "Local-first default: the adapter runs the saved program with a persistent local queue and resumes it after adapter restart. Cloud explicitly starts the Roborock scene like the app; no local queue or local resume.",
       "options": [
         {
           "label": "Local adapter queue",

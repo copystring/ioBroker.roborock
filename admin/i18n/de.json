@@ -127,7 +127,7 @@
   "Saved program execution": "Ausführung gespeicherter Programme",
   "Local adapter queue": "Lokal mit Adapter-Queue",
   "Cloud like Roborock app": "Cloud wie Roborock-App",
-  "Local stores the adapter queue and continues it after adapter restart. Cloud only starts the Roborock scene like the app; no local queue or local resume.": "Lokal speichert die Adapter-Queue und setzt sie nach Adapter-Neustart fort. Cloud startet nur die Roborock-Szene wie die App; keine lokale Queue und kein lokales Fortsetzen.",
+  "Local-first default: the adapter runs the saved program with a persistent local queue and resumes it after adapter restart. Cloud explicitly starts the Roborock scene like the app; no local queue or local resume.": "Local-first Standard: Der Adapter führt das gespeicherte Programm mit persistenter lokaler Queue aus und setzt sie nach Adapter-Neustart fort. Cloud startet explizit die Roborock-Szene wie die App; keine lokale Queue und kein lokales Fortsetzen.",
   "start_cleaning_time": "Startzeitpunkt der Reinigung",
   "start_type": "Starttyp",
   "state": "Zustand",

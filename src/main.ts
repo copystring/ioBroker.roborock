@@ -920,7 +920,23 @@ export class Roborock extends utils.Adapter {
 		}
 
 		const status: Record<string, unknown> = {};
-		await Promise.all(["state", "status", "in_cleaning", "in_returning"].map(async (key) => {
+		const deviceStatusKeys = [
+			"state",
+			"status",
+			"in_cleaning",
+			"in_returning",
+			"isWashing",
+			"dockCanStopWash",
+			"isInBackDockTask",
+			"wash_phase",
+			"wash_status",
+			"washingTaskStatus",
+		];
+		const dockingStationStatusKeys = [
+			"washingTaskStatus",
+		];
+
+		await Promise.all(deviceStatusKeys.map(async (key) => {
 			try {
 				const state = await this.getStateAsync(`Devices.${duid}.deviceStatus.${key}`);
 				if (state?.val !== null && state?.val !== undefined) {
@@ -930,6 +946,16 @@ export class Roborock extends utils.Adapter {
 				// Some protocols expose only a subset of these states.
 			}
 		}));
+		await Promise.all(dockingStationStatusKeys.map(async (key) => {
+			try {
+				const state = await this.getStateAsync(`Devices.${duid}.dockingStationStatus.${key}`);
+				if (state?.val !== null && state?.val !== undefined) {
+					status[`dockingStationStatus.${key}`] = state.val;
+				}
+			} catch {
+				// Some devices do not expose station detail states.
+			}
+		}));
 		return status;
 	}
 
@@ -937,6 +963,34 @@ export class Roborock extends utils.Adapter {
 		const inCleaning = this.numberFromStateValue(status.in_cleaning);
 		const inReturning = this.numberFromStateValue(status.in_returning);
 		if ((inCleaning !== null && inCleaning > 0) || (inReturning !== null && inReturning > 0)) {
+			return true;
+		}
+
+		if (
+			this.booleanFromStateValue(status.isWashing)
+			|| this.booleanFromStateValue(status.dockCanStopWash)
+			|| this.booleanFromStateValue(status.isInBackDockTask)
+		) {
+			return true;
+		}
+
+		const rawWashStatus = this.numberFromStateValue(status.wash_status);
+		if (rawWashStatus !== null && this.isActiveWashingTaskStatus(rawWashStatus & 0xff)) {
+			return true;
+		}
+
+		const deviceWashingTaskStatus = this.numberFromStateValue(status.washingTaskStatus);
+		if (deviceWashingTaskStatus !== null && this.isActiveWashingTaskStatus(deviceWashingTaskStatus)) {
+			return true;
+		}
+
+		const dockWashingTaskStatus = this.numberFromStateValue(status["dockingStationStatus.washingTaskStatus"]);
+		if (dockWashingTaskStatus !== null && this.isActiveWashingTaskStatus(dockWashingTaskStatus)) {
+			return true;
+		}
+
+		const washPhase = this.numberFromStateValue(status.wash_phase);
+		if (washPhase !== null && washPhase !== 0 && washPhase !== 17) {
 			return true;
 		}
 
@@ -952,6 +1006,24 @@ export class Roborock extends utils.Adapter {
 
 		const inCleaning = this.numberFromStateValue(status.in_cleaning);
 		return inCleaning !== null && inCleaning > 0;
+	}
+
+	private isActiveWashingTaskStatus(status: number): boolean {
+		return Number.isFinite(status) && status > 0 && status !== 4;
+	}
+
+	private booleanFromStateValue(value: unknown): boolean {
+		if (typeof value === "boolean") {
+			return value;
+		}
+		if (typeof value === "number" && Number.isFinite(value)) {
+			return value !== 0;
+		}
+		if (typeof value === "string") {
+			const normalized = value.trim().toLowerCase();
+			return normalized === "true" || normalized === "1";
+		}
+		return false;
 	}
 
 	private numberFromStateValue(value: unknown): number | null {
