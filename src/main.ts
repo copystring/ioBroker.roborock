@@ -866,14 +866,23 @@ export class Roborock extends utils.Adapter {
 	}
 
 	private async waitForSceneSegmentStarted(duid: string, timeoutMs: number): Promise<boolean> {
-		const deadline = Date.now() + timeoutMs;
+		let deadline = Date.now() + timeoutMs;
+		const hardDeadline = Date.now() + SCENE_SEGMENT_FINISH_TIMEOUT_MS;
 		do {
 			const status = await this.refreshSceneSegmentStatus(duid);
 			if (this.isSceneSegmentStartedStatus(status)) {
 				return true;
 			}
+
+			const now = Date.now();
+			if (this.isSceneSegmentActiveStatus(status)) {
+				deadline = now + timeoutMs;
+			} else if (now >= deadline) {
+				return false;
+			}
+
 			await this.delay(SCENE_SEGMENT_POLL_INTERVAL_MS);
-		} while (Date.now() < deadline);
+		} while (Date.now() < hardDeadline);
 		return false;
 	}
 
