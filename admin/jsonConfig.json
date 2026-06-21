@@ -86,7 +86,7 @@
     "sceneExecutionMode": {
       "type": "select",
       "label": "Saved program execution",
-      "help": "Local-first default: the adapter starts a matching robot-side program locally with app_start_program. If no local program mapping exists, it reports that instead of falling back to segment commands. Cloud explicitly starts the Roborock scene like the app; no local queue or local resume.",
+      "help": "Local: runs the saved scene locally from its Roborock scene steps and keeps the local queue/resume. Cloud: starts the saved scene through Roborock cloud like the app. No automatic fallback between modes.",
       "options": [
         {
           "label": "Local adapter queue",

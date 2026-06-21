@@ -401,25 +401,8 @@ export class Roborock extends utils.Adapter {
 				this.rLog("Requests", duid, "Warn", undefined, undefined, `[Scene] Scene ${sceneId} has no actions`, "warn");
 				return;
 			}
-
 			const targetDuid = this.resolveSceneTargetDuid(duid, actionItems);
-			const nativeProgramCommand = await this.tryBuildLocalProgramStartCommand(targetDuid, sceneId, scene.name);
-			if (!nativeProgramCommand) {
-				await this.clearSceneQueue(targetDuid, "local-program-not-found");
-				this.rLog(
-					"Requests",
-					targetDuid,
-					"Error",
-					undefined,
-					undefined,
-					`[Scene] Local scene ${sceneId} cannot be executed with app_start_program because no matching robot-side program was found. Local mode does not fall back to do_scenes_segments.`,
-					"error"
-				);
-				return;
-			}
-
-			const commands = [nativeProgramCommand];
-			if (commands.length === 0) {
+			const commands = await this.buildSceneQueueCommands(targetDuid, sceneId, actionItems);			if (commands.length === 0) {
 				this.rLog("Requests", targetDuid, "Warn", undefined, undefined, `[Scene] Scene ${sceneId} has no executable commands`, "warn");
 				return;
 			}
@@ -448,87 +431,63 @@ export class Roborock extends utils.Adapter {
 			this.rLog("Requests", duid, "Error", undefined, undefined, `[Scene] Error executing ${sceneId}: ${this.errorMessage(e)}`, "error");
 		}
 	}
+	private async buildSceneQueueCommands(defaultDuid: string, sceneId: string | number, actionItems: unknown[]): Promise<SceneQueueCommand[]> {
+		const commands: SceneQueueCommand[] = [];
 
-	private async tryBuildLocalProgramStartCommand(duid: string, sceneId: string | number, sceneName: unknown): Promise<SceneQueueCommand | null> {
-		try {
-			const startArgs = await this.resolveLocalProgramStartArgsForScene(duid, sceneId, sceneName);
-			if (!startArgs) {
-				return null;
+		for (const item of actionItems) {
+			if (!this.isRecord(item) || item.type !== "CMD") continue;
+			const itemDuid = typeof item.entityId === "string" && item.entityId.trim().length > 0 ? item.entityId : defaultDuid;
+
+			const rawCommandPayload = this.tryParseSceneCommandPayload(item.param);
+			const parsedCommandPayload = this.isRecord(rawCommandPayload) ? rawCommandPayload : null;
+			if (!parsedCommandPayload?.method) {
+				const itemId = typeof item.id === "string" ? item.id : `${item.id}`;
+				this.rLog("Requests", itemDuid, "Warn", undefined, undefined, `[Scene] Invalid command item ${itemId} in ${sceneId}`, "warn");
+				continue;
 			}
 
-			this.rLog("Requests", duid, "Info", undefined, undefined, `[Scene] Using local app_start_program for scene ${sceneId}`, "info");
-			return { duid, method: "app_start_program", params: startArgs };
-		} catch (error: unknown) {
-			this.rLog(
-				"Requests",
-				duid,
-				"Debug",
-				undefined,
-				undefined,
-				`[Scene] No local app_start_program mapping for scene ${sceneId}: ${this.errorMessage(error)}`,
-				"debug"
-			);
-			return null;
-		}
-	}
-
-	private async resolveLocalProgramStartArgsForScene(duid: string, sceneId: string | number, sceneName: unknown): Promise<Record<string, unknown> | null> {
-		const response = await this.requestsHandler.sendRequest(duid, "app_get_programs_summary", {});
-		const normalized = this.unwrapSingleItemArrays(this.normalizeSceneRpcPayload(response));
-		const entries = this.normalizeSceneProgramSummaryEntries(normalized);
-		if (entries.length === 0) {
-			return null;
-		}
-
-		const sceneIdText = String(sceneId);
-		const sceneNameKey = this.normalizeComparableSceneName(sceneName);
-		const idMatch = entries.find((entry) => {
-			const programId = entry.program_id ?? entry.programId;
-			return programId !== undefined && programId !== null && String(programId) === sceneIdText;
-		});
-		const nameMatch = sceneNameKey
-			? entries.find((entry) => this.normalizeComparableSceneName(entry.name) === sceneNameKey)
-			: undefined;
-		const match = idMatch ?? nameMatch;
-		if (!match) {
-			return null;
-		}
-
-		const cmdIds = this.collectNonEmptyArray(match, "cmd_ids");
-		const camelCmdIds = cmdIds.length > 0 ? cmdIds : this.collectNonEmptyArray(match, "cmdIds");
-		if (camelCmdIds.length > 0) {
-			return { cmd_ids: camelCmdIds };
-		}
-
-		const programId = this.resolveProgramId(match);
-		return programId != null ? this.resolveStartProgramFromProgramId(duid, programId) : null;
-	}
-
-	private normalizeSceneProgramSummaryEntries(value: unknown): Record<string, unknown>[] {
-		if (Array.isArray(value)) {
-			return value.filter((entry): entry is Record<string, unknown> => this.isRecord(entry));
-		}
-
-		if (!this.isRecord(value)) {
-			return [];
-		}
-
-		for (const key of ["programs", "program_list", "programList", "list", "items", "data", "result"]) {
-			const nested = value[key];
-			if (Array.isArray(nested)) {
-				return nested.filter((entry): entry is Record<string, unknown> => this.isRecord(entry));
+			const method = typeof parsedCommandPayload.method === "string" ? parsedCommandPayload.method : "";
+			if (!method) {
+				const itemId = typeof item.id === "string" ? item.id : `${item.id}`;
+				this.rLog("Requests", itemDuid, "Warn", undefined, undefined, `[Scene] Command without string method for item ${itemId} in ${sceneId}`, "warn");
+				continue;
 			}
+
+			const args = this.tryParseSceneCommandPayload(parsedCommandPayload.params);
+			const commandArgs = args !== undefined ? args : parsedCommandPayload.params;
+
+			if (method === "do_scenes_segments") {
+				const segmentPayloads = this.toSingleSceneSegmentsPayloads(commandArgs);
+				if (segmentPayloads) {
+					for (const segmentPayload of segmentPayloads) {
+						commands.push({ duid: itemDuid, method, params: segmentPayload });
+					}
+					continue;
+				}
+			}
+
+			if (method === "app_start_program") {
+				try {
+					const startArgs = await this.resolveStartProgramArgs(itemDuid, commandArgs ?? {});
+					commands.push({ duid: itemDuid, method, params: startArgs });
+				} catch (error: unknown) {
+					this.rLog(
+						"Requests",
+						itemDuid,
+						"Error",
+						undefined,
+						undefined,
+						`[Scene] Failed to resolve app_start_program payload for ${sceneId}: ${this.errorMessage(error)}`,
+						"error"
+					);
+				}
+				continue;
+			}
+
+			commands.push({ duid: itemDuid, method, params: commandArgs });
 		}
 
-		if ("program_id" in value || "programId" in value || "cmd_ids" in value || "cmdIds" in value) {
-			return [value];
-		}
-
-		return [];
-	}
-
-	private normalizeComparableSceneName(value: unknown): string {
-		return typeof value === "string" ? value.trim().toLowerCase() : "";
+		return commands;
 	}
 
 	private isRecord(value: unknown): value is Record<string, unknown> {
@@ -861,6 +820,18 @@ export class Roborock extends utils.Adapter {
 		}
 		return defaultDuid;
 	}
+	private toSingleSceneSegmentsPayloads(value: unknown): Record<string, unknown>[] | null {
+		const parsed = this.tryParseSceneCommandPayload(value);
+		const payload = Array.isArray(parsed) && parsed.length === 1 ? parsed[0] : parsed;
+		if (!this.isRecord(payload) || !Array.isArray(payload.data) || payload.data.length === 0) {
+			return null;
+		}
+
+		return payload.data.map((entry) => ({
+			...payload,
+			data: [entry],
+		}));
+	}
 
 	private async waitForSceneSegmentReadyForNext(duid: string): Promise<SceneSegmentWaitResult> {
 		const started = await this.waitForSceneSegmentStarted(duid, SCENE_SEGMENT_START_TIMEOUT_MS);
@@ -1077,6 +1048,68 @@ export class Roborock extends utils.Adapter {
 		}
 		return value as unknown;
 	}
+	private async resolveStartProgramArgs(duid: string, value: unknown): Promise<Record<string, unknown>> {
+		const parsed = this.resolveProgramArgPayload(this.tryParseSceneCommandPayload(value) ?? value);
+		const cmdIds = this.collectNonEmptyArray(parsed, "cmd_ids");
+		if (cmdIds.length > 0) {
+			return { cmd_ids: cmdIds };
+		}
+
+		const programId = this.resolveProgramId(parsed);
+		if (programId != null) {
+			return this.resolveStartProgramFromProgramId(duid, programId);
+		}
+
+		throw new Error("app_start_program payload has no program_id/cmd_ids");
+	}
+
+	private resolveProgramArgPayload(value: unknown): Record<string, unknown> {
+		if (Array.isArray(value)) {
+			if (value.length === 1) {
+				const entry = value[0];
+				if (
+					typeof entry === "number"
+					|| typeof entry === "string"
+					|| (
+						this.isRecord(entry)
+						&& ("program_id" in entry || "programId" in entry || "cmd_ids" in entry)
+					)
+				) {
+					return this.resolveProgramArgPayload(entry);
+				}
+			}
+
+			if (value.length > 0) {
+				return { cmd_ids: value };
+			}
+
+			return {};
+		}
+
+		if (typeof value === "number") {
+			return { program_id: value };
+		}
+
+		if (typeof value === "string") {
+			const parsed = this.tryParseJson(value);
+			if (parsed !== undefined) {
+				const normalized = this.resolveProgramArgPayload(parsed);
+				if (this.isRecord(normalized)) {
+					return normalized;
+				}
+			}
+
+			if (value.trim() !== "" && Number.isFinite(Number(value))) {
+				return { program_id: Number(value) };
+			}
+		}
+
+		if (this.isRecord(value)) {
+			return value;
+		}
+
+		return {};
+	}
 
 	private resolveProgramId(payload: Record<string, unknown>): number | null {
 		if (typeof payload.program_id === "number" && Number.isFinite(payload.program_id)) {
@@ -1266,11 +1299,8 @@ export class Roborock extends utils.Adapter {
 			this.setResetTimeout(id);
 		} else if (folder === "programs" && command === "startProgram") {
 			await this.executeSceneProgram(duid, state.val as string | number);
-			this.setResetTimeout(id); // Use setResetTimeout to reset to null/empty after 1s?
 			// Scene execution can continue asynchronously in local queue mode.
-			// Better: explicit reset.
-			await this.setState(id, { val: null, ack: true });
-		} else if (handler.hasCommandFolder(folder)) {
+			await this.setState(id, { val: null, ack: true });		} else if (handler.hasCommandFolder(folder)) {
 			const cmdDef: CommandSpec | undefined = handler.getCommandSpec(folder, command);
 			if (!cmdDef) {
 				this.rLog("Requests", duid, "Warn", handler.protocolVersion || undefined, undefined, `[handleCommand] Ignoring unregistered command ${folder}.${command}`, "warn");
