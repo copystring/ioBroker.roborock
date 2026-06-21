@@ -693,6 +693,17 @@ export class Roborock extends utils.Adapter {
 		await this.setSceneQueueSummaryStates(duid, null, status);
 	}
 
+	private shouldClearSceneQueueForCommand(command: string, value: unknown): boolean {
+		return (command === "app_stop" || command === "app_charge") && this.isTruthy(value);
+	}
+
+	private async clearSceneQueueForManualCancel(duid: string, command: string): Promise<void> {
+		const queue = await this.loadSceneQueue(duid);
+		if (!queue) return;
+		await this.clearSceneQueue(duid, "cancelled");
+		this.rLog("Requests", duid, "Info", undefined, undefined, `[Scene] Cleared local scene ${queue.sceneId} queue because ${command} was requested`, "info");
+	}
+
 	private async setSceneQueueStatus(duid: string, status: string): Promise<void> {
 		await this.ensureSceneQueueState(duid);
 		await this.setSceneQueueSummaryStates(duid, await this.loadSceneQueue(duid), status);
@@ -799,6 +810,22 @@ export class Roborock extends utils.Adapter {
 
 			const queue = await this.loadSceneQueue(duid);
 			if (!queue) continue;
+
+			const status = await this.refreshSceneSegmentStatus(duid);
+			if (!this.isSceneSegmentActiveStatus(status)) {
+				await this.clearSceneQueue(duid, "cancelled");
+				this.rLog(
+					"Requests",
+					duid,
+					"Info",
+					undefined,
+					undefined,
+					`[Scene] Cleared local scene ${queue.sceneId} queue on adapter start because the robot is idle`,
+					"info"
+				);
+				continue;
+			}
+
 			this.rLog(
 				"Requests",
 				duid,
@@ -1318,6 +1345,9 @@ export class Roborock extends utils.Adapter {
 
 			this.rLog("Requests", duid, "Info", handler.protocolVersion || undefined, undefined, `[handleCommand] Entering commands block for ${command}`, "info");
 			try {
+				if (this.shouldClearSceneQueueForCommand(command, state.val)) {
+					await this.clearSceneQueueForManualCancel(duid, command);
+				}
 				await this.executeCommand(handler, duid, command, state, cmdDef);
 			} finally {
 				// Reset boolean command state ONLY if it is defined as boolean
