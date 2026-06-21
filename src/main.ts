@@ -465,7 +465,7 @@ export class Roborock extends utils.Adapter {
 				"Debug",
 				undefined,
 				undefined,
-				`[Scene] No local app_start_program mapping for scene ${sceneId}; using local segment queue: ${this.errorMessage(error)}`,
+				`[Scene] No local app_start_program mapping for scene ${sceneId}: ${this.errorMessage(error)}`,
 				"debug"
 			);
 			return null;
@@ -534,66 +534,6 @@ export class Roborock extends utils.Adapter {
 	private isRecord(value: unknown): value is Record<string, unknown> {
 		return typeof value === "object" && value !== null && !Array.isArray(value);
 	}
-	private async buildSceneQueueCommands(defaultDuid: string, sceneId: string | number, actionItems: unknown[]): Promise<SceneQueueCommand[]> {
-		const commands: SceneQueueCommand[] = [];
-
-		for (const item of actionItems) {
-			const sceneItem = item as Record<string, unknown>;
-			if (!sceneItem || sceneItem.type !== "CMD") continue;
-			const itemDuid = typeof sceneItem.entityId === "string" && sceneItem.entityId.trim().length > 0 ? sceneItem.entityId : defaultDuid;
-
-			const rawCommandPayload = this.tryParseSceneCommandPayload(sceneItem.param);
-			const parsedCommandPayload = typeof rawCommandPayload === "object" && rawCommandPayload !== null ? rawCommandPayload as Record<string, unknown> : null;
-			if (!parsedCommandPayload?.method) {
-				const itemId = typeof sceneItem.id === "string" ? sceneItem.id : `${sceneItem.id}`;
-				this.rLog("Requests", itemDuid, "Warn", undefined, undefined, `[Scene] Invalid command item ${itemId} in ${sceneId}`, "warn");
-				continue;
-			}
-
-			const method = typeof parsedCommandPayload.method === "string" ? parsedCommandPayload.method : "";
-			if (!method) {
-				const itemId = typeof sceneItem.id === "string" ? sceneItem.id : `${sceneItem.id}`;
-				this.rLog("Requests", itemDuid, "Warn", undefined, undefined, `[Scene] Command without string method for item ${itemId} in ${sceneId}`, "warn");
-				continue;
-			}
-
-			const args = this.tryParseSceneCommandPayload(parsedCommandPayload.params);
-			const commandArgs = args !== undefined ? args : parsedCommandPayload.params;
-
-			if (method === "do_scenes_segments") {
-				const segmentPayloads = this.toSingleSceneSegmentsPayloads(commandArgs);
-				if (segmentPayloads) {
-					for (const segmentPayload of segmentPayloads) {
-						commands.push({ duid: itemDuid, method, params: segmentPayload });
-					}
-					continue;
-				}
-			}
-
-			if (method === "app_start_program") {
-				try {
-					const startArgs = await this.resolveStartProgramArgs(itemDuid, commandArgs ?? {});
-					commands.push({ duid: itemDuid, method, params: startArgs });
-				} catch (error: unknown) {
-					this.rLog(
-						"Requests",
-						itemDuid,
-						"Error",
-						undefined,
-						undefined,
-						`[Scene] Failed to resolve full app_start_program payload for ${sceneId}: ${this.errorMessage(error)}`,
-						"error"
-					);
-				}
-				continue;
-			}
-
-			commands.push({ duid: itemDuid, method, params: commandArgs });
-		}
-
-		return commands;
-	}
-
 	private async processSceneQueue(duid: string): Promise<void> {
 		if (this.activeSceneQueueProcessors.has(duid)) return;
 		this.activeSceneQueueProcessors.add(duid);
@@ -698,7 +638,7 @@ export class Roborock extends utils.Adapter {
 				if (latestQueue.nextIndex >= latestQueue.commands.length && !latestQueue.waitingForCompletion) {
 					const completedStatus = command.method === "app_start_program" ? "program-started" : "completed";
 					await this.clearSceneQueue(duid, completedStatus);
-					this.rLog("Requests", duid, "Info", undefined, undefined, [Scene] Local scene ${latestQueue.sceneId} queue completed, "info");
+					this.rLog("Requests", duid, "Info", undefined, undefined, `[Scene] Local scene ${latestQueue.sceneId} queue completed`, "info");
 					return;
 				}
 
@@ -922,23 +862,6 @@ export class Roborock extends utils.Adapter {
 		return defaultDuid;
 	}
 
-	private toSingleSceneSegmentsPayloads(value: unknown): Record<string, unknown>[] | null {
-		const parsed = this.tryParseSceneCommandPayload(value);
-		if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-			return null;
-		}
-
-		const payload = parsed as Record<string, unknown>;
-		if (!Array.isArray(payload.data) || payload.data.length === 0) {
-			return null;
-		}
-
-		return payload.data.map((entry) => ({
-			...payload,
-			data: [entry],
-		}));
-	}
-
 	private async waitForSceneSegmentReadyForNext(duid: string): Promise<SceneSegmentWaitResult> {
 		const started = await this.waitForSceneSegmentStarted(duid, SCENE_SEGMENT_START_TIMEOUT_MS);
 		if (!started) {
@@ -1153,71 +1076,6 @@ export class Roborock extends utils.Adapter {
 			return parsed !== undefined ? parsed : value;
 		}
 		return value as unknown;
-	}
-
-	private async resolveStartProgramArgs(duid: string, value: unknown): Promise<Record<string, unknown>> {
-		const parsed = this.resolveProgramArgPayload(this.tryParseSceneCommandPayload(value) ?? value);
-		const cmdIds = this.collectNonEmptyArray(parsed, "cmd_ids");
-		if (cmdIds.length > 0) {
-			return { cmd_ids: cmdIds };
-		}
-
-		const programId = this.resolveProgramId(parsed);
-		if (programId != null) {
-			return this.resolveStartProgramFromProgramId(duid, programId);
-		}
-
-		throw new Error("app_start_program payload has no program_id/cmd_ids");
-	}
-
-	private resolveProgramArgPayload(value: unknown): Record<string, unknown> {
-		if (Array.isArray(value)) {
-			if (value.length === 1) {
-				const entry = value[0];
-				if (
-					typeof entry === "number"
-					|| typeof entry === "string"
-					|| (
-						typeof entry === "object"
-						&& entry !== null
-						&& !Array.isArray(entry)
-						&& ("program_id" in entry || "programId" in entry || "cmd_ids" in entry)
-					)
-				) {
-					return this.resolveProgramArgPayload(entry);
-				}
-			}
-
-			if (value.length > 0) {
-				return { cmd_ids: value };
-			}
-
-			return {};
-		}
-
-		if (typeof value === "number") {
-			return { program_id: value };
-		}
-
-		if (typeof value === "string") {
-			const parsed = this.tryParseJson(value);
-			if (parsed !== undefined) {
-				const normalized = this.resolveProgramArgPayload(parsed);
-				if (normalized && typeof normalized === "object" && !Array.isArray(normalized)) {
-					return normalized as Record<string, unknown>;
-				}
-			}
-
-			if (value.trim() !== "" && Number.isFinite(Number(value))) {
-				return { program_id: Number(value) };
-			}
-		}
-
-		if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-			return value as Record<string, unknown>;
-		}
-
-		return {};
 	}
 
 	private resolveProgramId(payload: Record<string, unknown>): number | null {
