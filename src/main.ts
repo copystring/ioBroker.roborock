@@ -403,7 +403,10 @@ export class Roborock extends utils.Adapter {
 			}
 
 			const targetDuid = this.resolveSceneTargetDuid(duid, actionItems);
-			const commands = await this.buildSceneQueueCommands(targetDuid, sceneId, actionItems);
+			const nativeProgramCommand = await this.tryBuildLocalProgramStartCommand(targetDuid, sceneId, scene.name);
+			const commands = nativeProgramCommand
+				? [nativeProgramCommand]
+				: await this.buildSceneQueueCommands(targetDuid, sceneId, actionItems);
 			if (commands.length === 0) {
 				this.rLog("Requests", targetDuid, "Warn", undefined, undefined, `[Scene] Scene ${sceneId} has no executable commands`, "warn");
 				return;
@@ -434,6 +437,91 @@ export class Roborock extends utils.Adapter {
 		}
 	}
 
+	private async tryBuildLocalProgramStartCommand(duid: string, sceneId: string | number, sceneName: unknown): Promise<SceneQueueCommand | null> {
+		try {
+			const startArgs = await this.resolveLocalProgramStartArgsForScene(duid, sceneId, sceneName);
+			if (!startArgs) {
+				return null;
+			}
+
+			this.rLog("Requests", duid, "Info", undefined, undefined, `[Scene] Using local app_start_program for scene ${sceneId}`, "info");
+			return { duid, method: "app_start_program", params: startArgs };
+		} catch (error: unknown) {
+			this.rLog(
+				"Requests",
+				duid,
+				"Debug",
+				undefined,
+				undefined,
+				`[Scene] No local app_start_program mapping for scene ${sceneId}; using local segment queue: ${this.errorMessage(error)}`,
+				"debug"
+			);
+			return null;
+		}
+	}
+
+	private async resolveLocalProgramStartArgsForScene(duid: string, sceneId: string | number, sceneName: unknown): Promise<Record<string, unknown> | null> {
+		const response = await this.requestsHandler.sendRequest(duid, "app_get_programs_summary", {});
+		const normalized = this.unwrapSingleItemArrays(this.normalizeSceneRpcPayload(response));
+		const entries = this.normalizeSceneProgramSummaryEntries(normalized);
+		if (entries.length === 0) {
+			return null;
+		}
+
+		const sceneIdText = String(sceneId);
+		const sceneNameKey = this.normalizeComparableSceneName(sceneName);
+		const idMatch = entries.find((entry) => {
+			const programId = entry.program_id ?? entry.programId;
+			return programId !== undefined && programId !== null && String(programId) === sceneIdText;
+		});
+		const nameMatch = sceneNameKey
+			? entries.find((entry) => this.normalizeComparableSceneName(entry.name) === sceneNameKey)
+			: undefined;
+		const match = idMatch ?? nameMatch;
+		if (!match) {
+			return null;
+		}
+
+		const cmdIds = this.collectNonEmptyArray(match, "cmd_ids");
+		const camelCmdIds = cmdIds.length > 0 ? cmdIds : this.collectNonEmptyArray(match, "cmdIds");
+		if (camelCmdIds.length > 0) {
+			return { cmd_ids: camelCmdIds };
+		}
+
+		const programId = this.resolveProgramId(match);
+		return programId != null ? this.resolveStartProgramFromProgramId(duid, programId) : null;
+	}
+
+	private normalizeSceneProgramSummaryEntries(value: unknown): Record<string, unknown>[] {
+		if (Array.isArray(value)) {
+			return value.filter((entry): entry is Record<string, unknown> => this.isRecord(entry));
+		}
+
+		if (!this.isRecord(value)) {
+			return [];
+		}
+
+		for (const key of ["programs", "program_list", "programList", "list", "items", "data", "result"]) {
+			const nested = value[key];
+			if (Array.isArray(nested)) {
+				return nested.filter((entry): entry is Record<string, unknown> => this.isRecord(entry));
+			}
+		}
+
+		if ("program_id" in value || "programId" in value || "cmd_ids" in value || "cmdIds" in value) {
+			return [value];
+		}
+
+		return [];
+	}
+
+	private normalizeComparableSceneName(value: unknown): string {
+		return typeof value === "string" ? value.trim().toLowerCase() : "";
+	}
+
+	private isRecord(value: unknown): value is Record<string, unknown> {
+		return typeof value === "object" && value !== null && !Array.isArray(value);
+	}
 	private async buildSceneQueueCommands(defaultDuid: string, sceneId: string | number, actionItems: unknown[]): Promise<SceneQueueCommand[]> {
 		const commands: SceneQueueCommand[] = [];
 
@@ -596,8 +684,9 @@ export class Roborock extends utils.Adapter {
 				latestQueue.updatedAt = Date.now();
 
 				if (latestQueue.nextIndex >= latestQueue.commands.length && !latestQueue.waitingForCompletion) {
-					await this.clearSceneQueue(duid, "completed");
-					this.rLog("Requests", duid, "Info", undefined, undefined, `[Scene] Local scene ${latestQueue.sceneId} queue completed`, "info");
+					const completedStatus = command.method === "app_start_program" ? "program-started" : "completed";
+					await this.clearSceneQueue(duid, completedStatus);
+					this.rLog("Requests", duid, "Info", undefined, undefined, [Scene] Local scene ${latestQueue.sceneId} queue completed, "info");
 					return;
 				}
 
@@ -1126,6 +1215,10 @@ export class Roborock extends utils.Adapter {
 
 		if (typeof payload.programId === "number" && Number.isFinite(payload.programId)) {
 			return payload.programId;
+		}
+
+		if (typeof payload.programId === "string" && payload.programId.trim() !== "" && Number.isFinite(Number(payload.programId))) {
+			return Number(payload.programId);
 		}
 
 		if (typeof payload.program_id === "string" && payload.program_id.trim() !== "" && Number.isFinite(Number(payload.program_id))) {

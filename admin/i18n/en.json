@@ -127,7 +127,7 @@
   "Saved program execution": "Saved program execution",
   "Local adapter queue": "Local adapter queue",
   "Cloud like Roborock app": "Cloud like Roborock app",
-  "Local-first default: the adapter runs the saved program with a persistent local queue and resumes it after adapter restart. Cloud explicitly starts the Roborock scene like the app; no local queue or local resume.": "Local-first default: the adapter runs the saved program with a persistent local queue and resumes it after adapter restart. Cloud explicitly starts the Roborock scene like the app; no local queue or local resume.",
+  "Local-first default: the adapter starts a robot-side program locally where available; otherwise it uses a persistent local queue and resumes it after adapter restart. Cloud explicitly starts the Roborock scene like the app; no local queue or local resume.": "Local-first default: the adapter starts a robot-side program locally where available; otherwise it uses a persistent local queue and resumes it after adapter restart. Cloud explicitly starts the Roborock scene like the app; no local queue or local resume.",
   "start_cleaning_time": "Start cleaning time",
   "start_type": "Start Type",
   "state": "State",
