@@ -404,9 +404,21 @@ export class Roborock extends utils.Adapter {
 
 			const targetDuid = this.resolveSceneTargetDuid(duid, actionItems);
 			const nativeProgramCommand = await this.tryBuildLocalProgramStartCommand(targetDuid, sceneId, scene.name);
-			const commands = nativeProgramCommand
-				? [nativeProgramCommand]
-				: await this.buildSceneQueueCommands(targetDuid, sceneId, actionItems);
+			if (!nativeProgramCommand) {
+				await this.clearSceneQueue(targetDuid, "local-program-not-found");
+				this.rLog(
+					"Requests",
+					targetDuid,
+					"Error",
+					undefined,
+					undefined,
+					[Scene] Local scene ${sceneId} cannot be executed with app_start_program because no matching robot-side program was found. Local mode does not fall back to do_scenes_segments.,
+					"error"
+				);
+				return;
+			}
+
+			const commands = [nativeProgramCommand];
 			if (commands.length === 0) {
 				this.rLog("Requests", targetDuid, "Warn", undefined, undefined, `[Scene] Scene ${sceneId} has no executable commands`, "warn");
 				return;
