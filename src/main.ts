@@ -412,7 +412,7 @@ export class Roborock extends utils.Adapter {
 					"Error",
 					undefined,
 					undefined,
-					[Scene] Local scene ${sceneId} cannot be executed with app_start_program because no matching robot-side program was found. Local mode does not fall back to do_scenes_segments.,
+					`[Scene] Local scene ${sceneId} cannot be executed with app_start_program because no matching robot-side program was found. Local mode does not fall back to do_scenes_segments.`,
 					"error"
 				);
 				return;
