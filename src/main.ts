@@ -947,6 +947,7 @@ export class Roborock extends utils.Adapter {
 		let deadline = Date.now() + timeoutMs;
 		const hardDeadline = Date.now() + SCENE_SEGMENT_FINISH_TIMEOUT_MS;
 		let idleSince: number | null = null;
+		let sawPaused = false;
 		let sawReturnToDock = false;
 		let sawDockServiceAfterReturn = false;
 
@@ -957,6 +958,9 @@ export class Roborock extends utils.Adapter {
 			}
 
 			const now = Date.now();
+			if (this.isSceneSegmentPausedStatus(status)) {
+				sawPaused = true;
+			}
 			if (this.isSceneSegmentReturnToDockStatus(status)) {
 				sawReturnToDock = true;
 			}
@@ -969,7 +973,7 @@ export class Roborock extends utils.Adapter {
 				idleSince = null;
 			} else {
 				idleSince ??= now;
-				if (sawReturnToDock && !sawDockServiceAfterReturn) {
+				if (sawReturnToDock && (sawPaused || !sawDockServiceAfterReturn)) {
 					if (now - idleSince >= SCENE_SEGMENT_DOCK_CANCEL_STABLE_MS) {
 						return "cancelled";
 					}
@@ -985,12 +989,16 @@ export class Roborock extends utils.Adapter {
 	private async waitForSceneSegmentInactiveStable(duid: string, timeoutMs: number, stableMs: number): Promise<SceneSegmentInactiveResult> {
 		const deadline = Date.now() + timeoutMs;
 		let idleSince: number | null = null;
+		let sawPaused = false;
 		let sawReturnToDock = false;
 		let sawDockServiceAfterReturn = false;
 
 		do {
 			const status = await this.refreshSceneSegmentStatus(duid);
 			const now = Date.now();
+			if (this.isSceneSegmentPausedStatus(status)) {
+				sawPaused = true;
+			}
 			if (this.isSceneSegmentReturnToDockStatus(status)) {
 				sawReturnToDock = true;
 			}
@@ -1001,7 +1009,7 @@ export class Roborock extends utils.Adapter {
 			if (!this.isSceneSegmentActiveStatus(status)) {
 				idleSince ??= now;
 				const idleFor = now - idleSince;
-				if (sawReturnToDock && !sawDockServiceAfterReturn) {
+				if (sawReturnToDock && (sawPaused || !sawDockServiceAfterReturn)) {
 					if (idleFor >= SCENE_SEGMENT_DOCK_CANCEL_STABLE_MS) {
 						return "cancelled";
 					}
@@ -1074,6 +1082,10 @@ export class Roborock extends utils.Adapter {
 		return status;
 	}
 
+	private isSceneSegmentPausedStatus(status: Record<string, unknown>): boolean {
+		const state = this.numberFromStateValue(status.state ?? status.status);
+		return state === 10;
+	}
 	private isSceneSegmentReturnToDockStatus(status: Record<string, unknown>): boolean {
 		const inReturning = this.numberFromStateValue(status.in_returning);
 		if (inReturning !== null && inReturning > 0) {
