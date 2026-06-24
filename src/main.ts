@@ -50,7 +50,9 @@ type PersistedSceneQueue = {
 };
 
 type SceneExecutionMode = "local" | "cloud";
-type SceneSegmentWaitResult = "ready" | "not-started" | "finish-timeout";
+type SceneSegmentWaitResult = "ready" | "not-started" | "finish-timeout" | "cancelled";
+type SceneSegmentStartResult = "started" | "not-started" | "cancelled";
+type SceneSegmentInactiveResult = "ready" | "timeout" | "cancelled";
 
 const SCENE_QUEUE_VERSION = 1;
 const SCENE_SEGMENT_START_MAX_ATTEMPTS = 3;
@@ -58,6 +60,7 @@ const SCENE_SEGMENT_START_TIMEOUT_MS = 2 * 60 * 1000;
 const SCENE_SEGMENT_FINISH_TIMEOUT_MS = 4 * 60 * 60 * 1000;
 const SCENE_SEGMENT_READY_STABLE_MS = 30 * 1000;
 const SCENE_SEGMENT_RETRY_DELAY_MS = 30 * 1000;
+const SCENE_SEGMENT_DOCK_CANCEL_STABLE_MS = 2 * 60 * 1000;
 const SCENE_SEGMENT_POLL_INTERVAL_MS = 10 * 1000;
 const SCENE_SEGMENT_STARTED_STATES = new Set([
 	18, // Room Clean
@@ -84,7 +87,18 @@ const SCENE_SEGMENT_ACTIVE_STATES = new Set([
 	41, // Arm resetting
 	42, // Program mode
 ]);
-
+const SCENE_SEGMENT_RETURN_TO_DOCK_STATES = new Set([
+	6,  // Returning Dock
+	15, // Docking
+]);
+const SCENE_SEGMENT_DOCK_SERVICE_STATES = new Set([
+	22, // Emptying dust container
+	23, // Washing the mop
+	25, // Washing duster
+	26, // Going to wash the mop
+	33, // Setting up the mop
+	34, // Removing the mop
+]);
 export class Roborock extends utils.Adapter {
 	// --- Public APIs (accessible by helpers) ---
 	public http_api: http_api;
@@ -522,6 +536,20 @@ export class Roborock extends utils.Adapter {
 					if (!latestQueue) return;
 					if (latestQueue.id !== queue.id) continue;
 
+					if (waitResult === "cancelled") {
+						await this.clearSceneQueue(duid, "cancelled");
+						this.rLog(
+							"Requests",
+							waitDuid,
+							"Info",
+							undefined,
+							undefined,
+							`[Scene] Cleared local scene ${latestQueue.sceneId} queue because the robot returned to dock`,
+							"info"
+						);
+						return;
+					}
+
 					if (waitResult === "not-started" && previousCommand?.method === "do_scenes_segments") {
 						const retryCommand = latestQueue.commands[previousIndex];
 						if (retryCommand && (retryCommand.attempts ?? 0) < SCENE_SEGMENT_START_MAX_ATTEMPTS) {
@@ -861,8 +889,20 @@ export class Roborock extends utils.Adapter {
 	}
 
 	private async waitForSceneSegmentReadyForNext(duid: string): Promise<SceneSegmentWaitResult> {
-		const started = await this.waitForSceneSegmentStarted(duid, SCENE_SEGMENT_START_TIMEOUT_MS);
-		if (!started) {
+		const startResult = await this.waitForSceneSegmentStarted(duid, SCENE_SEGMENT_START_TIMEOUT_MS);
+		if (startResult === "cancelled") {
+			this.rLog(
+				"Requests",
+				duid,
+				"Info",
+				undefined,
+				undefined,
+				"[Scene] Segment task was cancelled by return to dock",
+				"info"
+			);
+			return "cancelled";
+		}
+		if (startResult === "not-started") {
 			this.rLog(
 				"Requests",
 				duid,
@@ -875,8 +915,20 @@ export class Roborock extends utils.Adapter {
 			return "not-started";
 		}
 
-		const finished = await this.waitForSceneSegmentInactiveStable(duid, SCENE_SEGMENT_FINISH_TIMEOUT_MS, SCENE_SEGMENT_READY_STABLE_MS);
-		if (!finished) {
+		const finishResult = await this.waitForSceneSegmentInactiveStable(duid, SCENE_SEGMENT_FINISH_TIMEOUT_MS, SCENE_SEGMENT_READY_STABLE_MS);
+		if (finishResult === "cancelled") {
+			this.rLog(
+				"Requests",
+				duid,
+				"Info",
+				undefined,
+				undefined,
+				"[Scene] Segment task was cancelled by return to dock",
+				"info"
+			);
+			return "cancelled";
+		}
+		if (finishResult === "timeout") {
 			this.rLog(
 				"Requests",
 				duid,
@@ -891,47 +943,78 @@ export class Roborock extends utils.Adapter {
 
 		return "ready";
 	}
-
-	private async waitForSceneSegmentStarted(duid: string, timeoutMs: number): Promise<boolean> {
+	private async waitForSceneSegmentStarted(duid: string, timeoutMs: number): Promise<SceneSegmentStartResult> {
 		let deadline = Date.now() + timeoutMs;
 		const hardDeadline = Date.now() + SCENE_SEGMENT_FINISH_TIMEOUT_MS;
+		let idleSince: number | null = null;
+		let sawReturnToDock = false;
+		let sawDockServiceAfterReturn = false;
+
 		do {
 			const status = await this.refreshSceneSegmentStatus(duid);
 			if (this.isSceneSegmentStartedStatus(status)) {
-				return true;
+				return "started";
 			}
 
 			const now = Date.now();
+			if (this.isSceneSegmentReturnToDockStatus(status)) {
+				sawReturnToDock = true;
+			}
+			if (sawReturnToDock && this.isSceneSegmentDockServiceStatus(status)) {
+				sawDockServiceAfterReturn = true;
+			}
+
 			if (this.isSceneSegmentActiveStatus(status)) {
 				deadline = now + timeoutMs;
-			} else if (now >= deadline) {
-				return false;
+				idleSince = null;
+			} else {
+				idleSince ??= now;
+				if (sawReturnToDock && !sawDockServiceAfterReturn) {
+					if (now - idleSince >= SCENE_SEGMENT_DOCK_CANCEL_STABLE_MS) {
+						return "cancelled";
+					}
+				} else if (now >= deadline) {
+					return "not-started";
+				}
 			}
 
 			await this.delay(SCENE_SEGMENT_POLL_INTERVAL_MS);
 		} while (Date.now() < hardDeadline);
-		return false;
+		return "not-started";
 	}
-
-	private async waitForSceneSegmentInactiveStable(duid: string, timeoutMs: number, stableMs: number): Promise<boolean> {
+	private async waitForSceneSegmentInactiveStable(duid: string, timeoutMs: number, stableMs: number): Promise<SceneSegmentInactiveResult> {
 		const deadline = Date.now() + timeoutMs;
 		let idleSince: number | null = null;
+		let sawReturnToDock = false;
+		let sawDockServiceAfterReturn = false;
 
 		do {
 			const status = await this.refreshSceneSegmentStatus(duid);
+			const now = Date.now();
+			if (this.isSceneSegmentReturnToDockStatus(status)) {
+				sawReturnToDock = true;
+			}
+			if (sawReturnToDock && this.isSceneSegmentDockServiceStatus(status)) {
+				sawDockServiceAfterReturn = true;
+			}
+
 			if (!this.isSceneSegmentActiveStatus(status)) {
-				idleSince ??= Date.now();
-				if (Date.now() - idleSince >= stableMs) {
-					return true;
+				idleSince ??= now;
+				const idleFor = now - idleSince;
+				if (sawReturnToDock && !sawDockServiceAfterReturn) {
+					if (idleFor >= SCENE_SEGMENT_DOCK_CANCEL_STABLE_MS) {
+						return "cancelled";
+					}
+				} else if (idleFor >= stableMs) {
+					return "ready";
 				}
 			} else {
 				idleSince = null;
 			}
 			await this.delay(SCENE_SEGMENT_POLL_INTERVAL_MS);
 		} while (Date.now() < deadline);
-		return false;
+		return "timeout";
 	}
-
 	private async refreshSceneSegmentStatus(duid: string): Promise<Record<string, unknown>> {
 		const handler = this.deviceFeatureHandlers.get(duid);
 		if (handler) {
@@ -962,6 +1045,7 @@ export class Roborock extends utils.Adapter {
 			"wash_phase",
 			"wash_status",
 			"washingTaskStatus",
+			"dust_collection_status",
 		];
 		const dockingStationStatusKeys = [
 			"washingTaskStatus",
@@ -990,6 +1074,49 @@ export class Roborock extends utils.Adapter {
 		return status;
 	}
 
+	private isSceneSegmentReturnToDockStatus(status: Record<string, unknown>): boolean {
+		const inReturning = this.numberFromStateValue(status.in_returning);
+		if (inReturning !== null && inReturning > 0) {
+			return true;
+		}
+
+		const state = this.numberFromStateValue(status.state ?? status.status);
+		return state !== null && SCENE_SEGMENT_RETURN_TO_DOCK_STATES.has(state);
+	}
+
+	private isSceneSegmentDockServiceStatus(status: Record<string, unknown>): boolean {
+		if (this.booleanFromStateValue(status.isWashing) || this.booleanFromStateValue(status.dockCanStopWash)) {
+			return true;
+		}
+
+		const rawWashStatus = this.numberFromStateValue(status.wash_status);
+		if (rawWashStatus !== null && this.isActiveWashingTaskStatus(rawWashStatus & 0xff)) {
+			return true;
+		}
+
+		const deviceWashingTaskStatus = this.numberFromStateValue(status.washingTaskStatus);
+		if (deviceWashingTaskStatus !== null && this.isActiveWashingTaskStatus(deviceWashingTaskStatus)) {
+			return true;
+		}
+
+		const dockWashingTaskStatus = this.numberFromStateValue(status["dockingStationStatus.washingTaskStatus"]);
+		if (dockWashingTaskStatus !== null && this.isActiveWashingTaskStatus(dockWashingTaskStatus)) {
+			return true;
+		}
+
+		const washPhase = this.numberFromStateValue(status.wash_phase);
+		if (washPhase !== null && washPhase !== 0 && washPhase !== 17) {
+			return true;
+		}
+
+		const dustCollectionStatus = this.numberFromStateValue(status.dust_collection_status);
+		if (dustCollectionStatus !== null && dustCollectionStatus > 0) {
+			return true;
+		}
+
+		const state = this.numberFromStateValue(status.state ?? status.status);
+		return state !== null && SCENE_SEGMENT_DOCK_SERVICE_STATES.has(state);
+	}
 	private isSceneSegmentActiveStatus(status: Record<string, unknown>): boolean {
 		const inCleaning = this.numberFromStateValue(status.in_cleaning);
 		const inReturning = this.numberFromStateValue(status.in_returning);
