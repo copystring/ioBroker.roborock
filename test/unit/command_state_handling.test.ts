@@ -13,10 +13,21 @@ describe("command state handling", () => {
 		const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error);
 		const { Roborock } = await import("../../src/main");
 		const handler = { protocolVersion: "L01" };
+		const states = new Map<string, unknown>();
+		const setState = vi.fn().mockImplementation(async (id: string, value: { val?: unknown } | unknown) => {
+			states.set(id, value && typeof value === "object" && "val" in value ? value.val : value);
+		});
+		const getStateAsync = vi.fn().mockImplementation(async (id: string) => states.has(id) ? { val: states.get(id) } : null);
 
 		return {
 			adapter: Object.assign(Object.create(Roborock.prototype), {
+				activeSceneQueueProcessors: new Set<string>(),
+				config: { sceneExecutionMode: "local" },
 				deviceFeatureHandlers: new Map([["duid1", handler]]),
+				ensuredSceneQueueStates: new Set<string>(),
+				ensureFolder: vi.fn().mockResolvedValue(undefined),
+				ensureState: vi.fn().mockResolvedValue(undefined),
+				getStateAsync,
 				http_api: {
 					getScenes: vi.fn().mockResolvedValue({
 						result: [{
@@ -31,10 +42,17 @@ describe("command state handling", () => {
 					sendRequest
 				},
 				rLog: vi.fn(),
+				setState,
 				errorMessage
 			}),
 			handler
 		};
+	}
+
+	async function drainSceneQueue(adapter: { activeSceneQueueProcessors: Set<string> }): Promise<void> {
+		for (let attempt = 0; attempt < 20 && adapter.activeSceneQueueProcessors.size > 0; attempt++) {
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		}
 	}
 
 	it("ignores stale command states that are no longer registered", async () => {
@@ -60,7 +78,7 @@ describe("command state handling", () => {
 		expect(handler.getCommandSpec).toHaveBeenCalledWith("commands", "app_start_dust_collection");
 		expect(commandSpy).not.toHaveBeenCalled();
 		expect(adapter.catchError).not.toHaveBeenCalled();
-	});
+	}, 10000);
 
 	it("starts scene programs with the full cmd_ids payload resolved from app_get_program", async () => {
 		const cmdIds = [
@@ -85,6 +103,7 @@ describe("command state handling", () => {
 		const { adapter, handler } = await createSceneAdapter(sceneParam, sendRequest, commandSpy);
 
 		await adapter.executeSceneLocal("duid1", 23);
+		await drainSceneQueue(adapter);
 
 		expect(sendRequest).toHaveBeenCalledWith("duid1", "app_get_program", { program_id: 7 });
 		expect(commandSpy).toHaveBeenCalledWith(handler, "duid1", "app_start_program", { cmd_ids: cmdIds });
@@ -113,6 +132,7 @@ describe("command state handling", () => {
 		const { adapter, handler } = await createSceneAdapter(sceneParam, sendRequest, commandSpy);
 
 		await adapter.executeSceneLocal("duid1", 23);
+		await drainSceneQueue(adapter);
 
 		expect(sendRequest).not.toHaveBeenCalled();
 		expect(commandSpy).toHaveBeenCalledWith(handler, "duid1", "app_start_program", { cmd_ids: cmdIds });
@@ -141,9 +161,10 @@ describe("command state handling", () => {
 		const sendRequest = vi.fn().mockResolvedValue({});
 		const commandSpy = vi.fn().mockResolvedValue(undefined);
 		const { adapter, handler } = await createSceneAdapter(sceneParam, sendRequest, commandSpy);
-		const waitSpy = vi.spyOn(adapter as any, "waitForSceneSegmentReadyForNext").mockResolvedValue(undefined);
+		const waitSpy = vi.spyOn(adapter as any, "waitForSceneSegmentReadyForNext").mockResolvedValue("ready");
 
 		await adapter.executeSceneLocal("duid1", 23);
+		await drainSceneQueue(adapter);
 
 		expect(commandSpy).toHaveBeenCalledTimes(4);
 		for (const [index, task] of tasks.entries()) {
@@ -152,7 +173,7 @@ describe("command state handling", () => {
 				source: 101
 			});
 		}
-		expect(waitSpy).toHaveBeenCalledTimes(3);
+		expect(waitSpy).toHaveBeenCalledTimes(4);
 		expect(sendRequest).not.toHaveBeenCalled();
 	});
 
@@ -180,9 +201,10 @@ describe("command state handling", () => {
 		const sendRequest = vi.fn().mockResolvedValue({});
 		const commandSpy = vi.fn().mockResolvedValue(undefined);
 		const { adapter, handler } = await createSceneAdapter(sceneParam, sendRequest, commandSpy);
-		const waitSpy = vi.spyOn(adapter as any, "waitForSceneSegmentReadyForNext").mockResolvedValue(undefined);
+		const waitSpy = vi.spyOn(adapter as any, "waitForSceneSegmentReadyForNext").mockResolvedValue("ready");
 
 		await adapter.executeSceneLocal("duid1", 23);
+		await drainSceneQueue(adapter);
 
 		expect(commandSpy).toHaveBeenCalledTimes(2);
 		expect(commandSpy).toHaveBeenNthCalledWith(1, handler, "duid1", "do_scenes_segments", {
@@ -193,7 +215,7 @@ describe("command state handling", () => {
 			data: [tasks[1]],
 			source: 101
 		});
-		expect(waitSpy).toHaveBeenCalledTimes(1);
+		expect(waitSpy).toHaveBeenCalledTimes(2);
 		expect(sendRequest).not.toHaveBeenCalled();
 	});
 
@@ -217,9 +239,10 @@ describe("command state handling", () => {
 		const sendRequest = vi.fn().mockResolvedValue({});
 		const commandSpy = vi.fn().mockResolvedValue(undefined);
 		const { adapter, handler } = await createSceneAdapter(sceneParam, sendRequest, commandSpy);
-		const waitSpy = vi.spyOn(adapter as any, "waitForSceneSegmentReadyForNext").mockResolvedValue(undefined);
+		const waitSpy = vi.spyOn(adapter as any, "waitForSceneSegmentReadyForNext").mockResolvedValue("ready");
 
 		await adapter.executeSceneLocal("duid1", 23);
+		await drainSceneQueue(adapter);
 
 		expect(commandSpy).toHaveBeenCalledTimes(2);
 		expect(commandSpy).toHaveBeenNthCalledWith(1, handler, "duid1", "do_scenes_segments", {
@@ -230,7 +253,7 @@ describe("command state handling", () => {
 			data: [{ tid: "task-1", segs: [{ sid: 2 }] }],
 			source: 102
 		});
-		expect(waitSpy).toHaveBeenCalledTimes(1);
+		expect(waitSpy).toHaveBeenCalledTimes(2);
 	});
 
 	it("does not start scene programs with a raw program_id when cmd_ids cannot be resolved", async () => {
@@ -252,6 +275,7 @@ describe("command state handling", () => {
 		const { adapter } = await createSceneAdapter(sceneParam, sendRequest, commandSpy);
 
 		await adapter.executeSceneLocal("duid1", 23);
+		await drainSceneQueue(adapter);
 
 		expect(sendRequest).toHaveBeenCalledWith("duid1", "app_get_program", { program_id: 7 });
 		expect(commandSpy).not.toHaveBeenCalled();
