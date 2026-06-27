@@ -416,7 +416,8 @@ export class Roborock extends utils.Adapter {
 				return;
 			}
 			const targetDuid = this.resolveSceneTargetDuid(duid, actionItems);
-			const commands = await this.buildSceneQueueCommands(targetDuid, sceneId, actionItems);			if (commands.length === 0) {
+			const commands = await this.buildSceneQueueCommands(targetDuid, sceneId, actionItems);
+			if (commands.length === 0) {
 				this.rLog("Requests", targetDuid, "Warn", undefined, undefined, `[Scene] Scene ${sceneId} has no executable commands`, "warn");
 				return;
 			}
@@ -1475,7 +1476,8 @@ export class Roborock extends utils.Adapter {
 		} else if (folder === "programs" && command === "startProgram") {
 			await this.executeSceneProgram(duid, state.val as string | number);
 			// Scene execution can continue asynchronously in local queue mode.
-			await this.setState(id, { val: null, ack: true });		} else if (handler.hasCommandFolder(folder)) {
+			await this.setState(id, { val: null, ack: true });
+		} else if (handler.hasCommandFolder(folder)) {
 			const cmdDef: CommandSpec | undefined = handler.getCommandSpec(folder, command);
 			if (!cmdDef) {
 				this.rLog("Requests", duid, "Warn", handler.protocolVersion || undefined, undefined, `[handleCommand] Ignoring unregistered command ${folder}.${command}`, "warn");
