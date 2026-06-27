@@ -83,6 +83,28 @@
       "lg": 6,
       "xl": 6
     },
+    "sceneExecutionMode": {
+      "type": "select",
+      "label": "Saved program execution",
+      "help": "Local: runs the saved scene locally from its Roborock scene steps and keeps the local queue/resume. Cloud: starts the saved scene through Roborock cloud like the app. No automatic fallback between modes.",
+      "options": [
+        {
+          "label": "Local adapter queue",
+          "value": "local"
+        },
+        {
+          "label": "Cloud like Roborock app",
+          "value": "cloud"
+        }
+      ],
+      "default": "local",
+      "newLine": true,
+      "xs": 12,
+      "sm": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
     "updateInterval": {
       "type": "number",
       "label": "Update interval",

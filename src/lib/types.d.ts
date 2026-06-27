@@ -18,6 +18,7 @@ declare global {
 			forceRuntimeDetectEveryTime?: boolean;
 
 			downloadRoborockImages?: boolean;
+			sceneExecutionMode?: "local" | "cloud";
 			region: "eu" | "us" | "cn" | "asia";
 			map_theme?: "dark" | "light";
 		}
@@ -26,4 +27,3 @@ declare global {
 
 // This is required to make TypeScript treat this file as a module
 export { };
-
