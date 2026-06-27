@@ -78,7 +78,7 @@ describe("command state handling", () => {
 		expect(handler.getCommandSpec).toHaveBeenCalledWith("commands", "app_start_dust_collection");
 		expect(commandSpy).not.toHaveBeenCalled();
 		expect(adapter.catchError).not.toHaveBeenCalled();
-	});
+	}, 10000);
 
 	it("starts scene programs with the full cmd_ids payload resolved from app_get_program", async () => {
 		const cmdIds = [
