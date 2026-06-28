@@ -423,6 +423,33 @@ describe("local_api transport sequence", () => {
 		expect(api.localDevices[duid].ip).to.equal("10.1.1.90");
 	});
 
+	it("promotes a B01 endpoint during pre-init probing with the B01 network info method", async () => {
+		const duid = "duid";
+		const adapter = new MockAdapter() as any;
+		const api = new local_api(adapter);
+		const requests: Array<{ method: string; params: unknown; timeout: number | undefined }> = [];
+		const promotions: Array<{ ip: string; timeoutMs: number | undefined; suppressLog: boolean | undefined }> = [];
+
+		adapter.mqtt_api = { isConnected: () => true };
+		adapter.requestsHandler = {
+			sendRequest: async (_duid: string, method: string, params: unknown, options: { timeout?: number }) => {
+				requests.push({ method, params, timeout: options.timeout });
+				return { ip: "10.1.1.90" };
+			},
+			rejectPendingTcpRequests: () => 0,
+		};
+		adapter.getDeviceProtocolVersion = async () => "B01";
+		api.checkAndPromoteLocalConnection = async (_duid: string, ip: string, timeoutMs?: number, suppressLog?: boolean) => {
+			promotions.push({ ip, timeoutMs, suppressLog });
+			return true;
+		};
+
+		await expect(api.probeLocalEndpointFromNetworkInfo(duid, "test", 1500, true, 3000)).resolves.to.equal(true);
+
+		expect(requests).to.deep.equal([{ method: "service.get_net_info", params: {}, timeout: 3000 }]);
+		expect(promotions).to.deep.equal([{ ip: "10.1.1.90", timeoutMs: 1500, suppressLog: true }]);
+	});
+
 	it("does not throttle the next endpoint refresh after MQTT was temporarily unavailable", async () => {
 		const duid = "duid";
 		const adapter = new MockAdapter() as any;

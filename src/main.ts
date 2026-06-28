@@ -259,20 +259,9 @@ export class Roborock extends utils.Adapter {
 				}
 
 				try {
-					// 1. Get Network Info (via MQTT as we have no TCP yet)
-					const result = await this.requestsHandler.sendRequest(duid, "get_network_info", []);
-
-					// 2. Extract IP
-					let networkData: Record<string, unknown> | undefined;
-					if (Array.isArray(result)) {
-						networkData = result[0] as Record<string, unknown>;
-					} else if (result && typeof result === "object") {
-						networkData = result as Record<string, unknown>;
-					}
-
-					if (networkData && typeof networkData.ip === "string") {
-						// 3. Attempt TCP Connect with short timeout (1.5s) and silent logging
-						await this.local_api.checkAndPromoteLocalConnection(duid, networkData.ip, 1500, true);
+					const promoted = await this.local_api.probeLocalEndpointFromNetworkInfo(duid, "pre-init network probe", 1500, true, 3000);
+					if (!promoted) {
+						this.rLog("System", duid, "Debug", undefined, undefined, "Probe did not resolve a local TCP endpoint.", "debug");
 					}
 				} catch (e: unknown) {
 					const errorMsg = e instanceof Error ? e.message : String(e);
@@ -283,7 +272,7 @@ export class Roborock extends utils.Adapter {
 			// Wait for all probes to finish (with timeout to not block forever)
 			await Promise.race([
 				Promise.all(probePromises),
-				this.delay(2000) // Max 2s probe time
+				this.delay(4000) // Max 4s probe time
 			]);
 			this.rLog("System", null, "Info", undefined, undefined, "Network Probe finished.", "info");
 			// ----------------------------------------------------
