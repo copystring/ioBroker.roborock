@@ -259,7 +259,7 @@ export class Roborock extends utils.Adapter {
 				}
 
 				try {
-					const promoted = await this.local_api.probeLocalEndpointFromNetworkInfo(duid, "pre-init network probe", 1500, true, 3000);
+					const promoted = await this.local_api.probeLocalEndpointFromNetworkInfo(duid, "pre-init network probe", 1500, true, 10000);
 					if (!promoted) {
 						this.rLog("System", duid, "Debug", undefined, undefined, "Probe did not resolve a local TCP endpoint.", "debug");
 					}
@@ -272,7 +272,7 @@ export class Roborock extends utils.Adapter {
 			// Wait for all probes to finish (with timeout to not block forever)
 			await Promise.race([
 				Promise.all(probePromises),
-				this.delay(4000) // Max 4s probe time
+				this.delay(10000) // Max 10s probe time
 			]);
 			this.rLog("System", null, "Info", undefined, undefined, "Network Probe finished.", "info");
 			// ----------------------------------------------------
