@@ -738,10 +738,10 @@ export class local_api {
 		return promise;
 	}
 
-	private async refreshEndpointInternal(duid: string, reason: string): Promise<boolean> {
+	private async fetchNetworkInfoEndpoint(duid: string, reason: string, timeoutMs = 5000): Promise<{ ip: string; version: string; method: string } | null> {
 		if (!this.adapter.requestsHandler?.sendRequest || !this.adapter.mqtt_api?.isConnected?.()) {
 			this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `Skipping endpoint refresh after ${reason}: MQTT unavailable.`, "debug");
-			return false;
+			return null;
 		}
 
 		const version = await this.adapter.getDeviceProtocolVersion(duid);
@@ -750,21 +750,39 @@ export class local_api {
 
 		let result: unknown;
 		try {
-			result = await this.adapter.requestsHandler.sendRequest(duid, method, params, { priority: -10, timeout: 5000 });
+			result = await this.adapter.requestsHandler.sendRequest(duid, method, params, { priority: -10, timeout: timeoutMs });
 		} catch (e: unknown) {
 			this.adapter.rLog("TCP", duid, "Debug", version, undefined, `Endpoint refresh ${method} failed after ${reason}: ${this.adapter.errorMessage(e)}`, "debug");
-			return false;
+			return null;
 		}
 
 		const ip = this.extractIpFromNetworkInfo(result);
 		if (!ip) {
 			this.adapter.rLog("TCP", duid, "Debug", version, undefined, `Endpoint refresh ${method} returned no usable IP.`, "debug");
+			return null;
+		}
+
+		return { ip, version, method };
+	}
+
+	private async refreshEndpointInternal(duid: string, reason: string): Promise<boolean> {
+		const endpoint = await this.fetchNetworkInfoEndpoint(duid, reason);
+		if (!endpoint) {
 			return false;
 		}
 
-		const changed = this.updateLocalEndpoint(duid, ip, version, "network_info");
-		this.adapter.rLog("TCP", duid, "Debug", version, undefined, `Endpoint refresh resolved ${ip}${changed ? " (updated)" : ""}.`, "debug");
+		const changed = this.updateLocalEndpoint(duid, endpoint.ip, endpoint.version, "network_info");
+		this.adapter.rLog("TCP", duid, "Debug", endpoint.version, undefined, `Endpoint refresh resolved ${endpoint.ip}${changed ? " (updated)" : ""}.`, "debug");
 		return true;
+	}
+
+	public async probeLocalEndpointFromNetworkInfo(duid: string, reason = "endpoint probe", tcpTimeoutMs = 5000, suppressLog = false, networkInfoTimeoutMs = 5000): Promise<boolean> {
+		const endpoint = await this.fetchNetworkInfoEndpoint(duid, reason, networkInfoTimeoutMs);
+		if (!endpoint) {
+			return false;
+		}
+
+		return this.checkAndPromoteLocalConnection(duid, endpoint.ip, tcpTimeoutMs, suppressLog);
 	}
 
 	public async refreshStaleLocalEndpoints(reason = "scheduled endpoint refresh"): Promise<void> {

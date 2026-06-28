@@ -1072,6 +1072,52 @@ describe("Q10 B01 Map Support", () => {
 		expect(raw102Logs).toHaveLength(1);
 	});
 
+	it("should resolve B01 command responses wrapped in protocol 102 dps 10001", async () => {
+		const adapter = new MockAdapter() as MockAdapter & {
+			deviceFeatureHandlers: Map<string, unknown>;
+			pendingRequests: Map<number, unknown>;
+			requestsHandler: {
+				resolvePendingRequest: ReturnType<typeof vi.fn>;
+				isRequestRecentlyFinished: ReturnType<typeof vi.fn>;
+			};
+			rLog: ReturnType<typeof vi.fn>;
+		};
+		adapter.deviceFeatureHandlers = new Map([[Q10_DUID, {}]]);
+		adapter.pendingRequests = new Map([[1782631354171, { method: "prop.get", duid: Q10_DUID }]]);
+		adapter.requestsHandler = {
+			resolvePendingRequest: vi.fn(),
+			isRequestRecentlyFinished: vi.fn().mockReturnValue(false)
+		} as any;
+		adapter.rLog = vi.fn();
+
+		const mqttApi = new mqtt_api(adapter as any);
+		const rawPayload = JSON.stringify({
+			dps: {
+				"10001": JSON.stringify({
+					msgId: "1782631354171",
+					code: 1,
+					method: "prop.get",
+					data: { status: 4, quantity: 100 }
+				})
+			}
+		});
+
+		await (mqttApi as any).handleProtocol102(Q10_DUID, {
+			version: "B01",
+			protocol: 102,
+			payload: Buffer.from(rawPayload, "utf8")
+		});
+
+		expect(adapter.requestsHandler.resolvePendingRequest).toHaveBeenCalledWith(
+			1782631354171,
+			{ status: 4, quantity: 100 },
+			"MQTT-B01",
+			Q10_DUID,
+			"MQTT"
+		);
+		expect(adapter.rLog).not.toHaveBeenCalledWith("MQTT", Q10_DUID, "<-", "B01", "102", rawPayload, "debug");
+	});
+
 	it("should suppress raw logs for recognized unsolicited Q10 protocol 102 payloads", async () => {
 		const adapter = new MockAdapter() as MockAdapter & {
 			deviceFeatureHandlers: Map<string, unknown>;
