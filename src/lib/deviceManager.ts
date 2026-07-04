@@ -516,7 +516,8 @@ export class DeviceManager {
 			if (!mappedName) continue;
 
 			if (typeof value !== "number" || !Number.isInteger(value)) continue;
-			const val = value >= 0 && value <= 100 ? value : 0;
+			if (value < 0 || value > 100) continue;
+			const val = value;
 
 			const common = handler.getCommonConsumable(mappedName); // Use mapped name
 

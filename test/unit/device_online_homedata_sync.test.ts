@@ -58,7 +58,7 @@ describe("device online state sync from HomeData", () => {
 		expect(handler.updateStatus).not.toHaveBeenCalled();
 	});
 
-	it("ignores textual consumable attributes because only numeric HomeData keys are mapped", async () => {
+	it("ignores textual and out-of-range consumable attributes because only valid numeric HomeData percentages are mapped", async () => {
 		const handler = {
 			getCommonConsumable: vi.fn((id: string) => ({ type: "number", unit: "%", name: id })),
 		};
@@ -91,7 +91,6 @@ describe("device online state sync from HomeData", () => {
 		await manager.updateConsumablesPercent("duid-1");
 
 		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.consumables.main_brush_life", { val: 91, ack: true });
-		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.consumables.filter_life", { val: 0, ack: true });
-		expect(adapter.setStateChanged).toHaveBeenCalledTimes(2);
+		expect(adapter.setStateChanged).toHaveBeenCalledTimes(1);
 	});
 });

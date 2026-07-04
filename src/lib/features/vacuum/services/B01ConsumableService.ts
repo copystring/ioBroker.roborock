@@ -20,6 +20,12 @@ export class B01ConsumableService {
 		filter_element: "filter_element_work_time"
 	};
 
+	private readonly LIFE_STATE_MAP: Record<string, string> = {
+		main_brush: "main_brush_life",
+		side_brush: "side_brush_life",
+		filter: "filter_life"
+	};
+
 	public async updateConsumables(data?: unknown): Promise<void> {
 		let resultObj: Record<string, any> | undefined;
 
@@ -67,13 +73,26 @@ export class B01ConsumableService {
 				unit = "cycles";
 				suffix = " cycles";
 			} else if (key.endsWith("_work_time") || key.endsWith("_dirty_time")) {
-				const totalSeconds = this.getConsumableLifeSpan(deviceName) * 3600;
+				const totalHours = this.getConsumableLifeSpan(deviceName);
+				const totalSeconds = totalHours * 3600;
+				const usedSeconds = Number(val);
+				if (!Number.isFinite(usedSeconds)) continue;
 
 				if (totalSeconds > 0) {
 					// Convert seconds used to remaining hours
-					val = Math.max(0, Math.round((totalSeconds - val) / 3600));
+					val = Math.max(0, Math.round((totalSeconds - usedSeconds) / 3600));
 					unit = "h";
 					suffix = " remaining time";
+
+					const lifeState = this.LIFE_STATE_MAP[deviceName];
+					if (lifeState) {
+						const remainingPercent = Math.max(0, Math.min(100, Math.round(((totalSeconds - usedSeconds) / totalSeconds) * 100)));
+						const common = VACUUM_CONSTANTS.consumables[lifeState as keyof typeof VACUUM_CONSTANTS.consumables];
+						await this.stateWriter.ensureAndSetValueState(`consumables.${lifeState}`, {
+							name: `${localizedName} remaining life`,
+							...common
+						}, remainingPercent);
+					}
 				} else {
 					unit = "s";
 					suffix = " work time";
