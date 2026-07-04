@@ -405,19 +405,34 @@ export class mqtt_api {
 	 */
 	private async dispatchB01Message(duid: string, parsedPayload: any): Promise<void> {
 		// Standard B01 Wrapper: { dps: { "10001": { ... } } }
-		if (parsedPayload.dps?.["10001"]) {
-			let inner = parsedPayload.dps["10001"];
-
-			if (typeof inner === "string") {
-				try {
-					inner = JSON.parse(inner);
-				} catch (e) {
-					this.adapter.rLog("MQTT", duid, "Error", "B01", undefined, `Failed to parse B01 nested string payload: ${e}`, "warn");
-					return;
-				}
-			}
-			await this.handleB01Response(inner, duid);
+		if (parsedPayload.dps?.["10001"] !== undefined) {
+			await this.dispatchB01Dps10001(duid, parsedPayload.dps["10001"]);
 		}
+	}
+
+	private parseB01Dps10001(duid: string, value: unknown): Record<string, unknown> | null {
+		let inner = value;
+
+		if (typeof inner === "string") {
+			try {
+				inner = JSON.parse(inner);
+			} catch (e) {
+				this.adapter.rLog("MQTT", duid, "Error", "B01", undefined, `Failed to parse B01 nested string payload: ${e}`, "warn");
+				return null;
+			}
+		}
+
+		return inner && typeof inner === "object" && !Array.isArray(inner)
+			? inner as Record<string, unknown>
+			: null;
+	}
+
+	private async dispatchB01Dps10001(duid: string, value: unknown): Promise<boolean> {
+		const inner = this.parseB01Dps10001(duid, value);
+		if (!inner) return false;
+
+		await this.handleB01Response(inner, duid);
+		return true;
 	}
 
 	/**
@@ -427,7 +442,16 @@ export class mqtt_api {
 		try {
 			const payloadStr = Buffer.isBuffer(data.payload) ? data.payload.toString("utf8") : String(data.payload ?? "");
 			const parsed = JSON.parse(payloadStr);
-			let dps102 = parsed.dps?.["102"] || (parsed.dps ? parsed.dps : null);
+
+			const hasB01RpcDps = parsed.dps?.["10001"] !== undefined;
+			if (hasB01RpcDps) {
+				await this.dispatchB01Dps10001(duid, parsed.dps["10001"]);
+			}
+
+			let dps102 =
+				parsed.dps?.["102"] ??
+				(!hasB01RpcDps && parsed.dps ? parsed.dps : null) ??
+				(parsed && typeof parsed === "object" && ("id" in parsed || "result" in parsed) ? parsed : null);
 			const b01Variant = await this.adapter.getB01Variant(duid);
 			const handler = this.adapter.deviceFeatureHandlers.get(duid);
 

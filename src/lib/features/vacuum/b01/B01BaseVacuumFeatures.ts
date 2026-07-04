@@ -26,6 +26,15 @@ export class B01BaseVacuumFeatures extends BaseDeviceFeatures {
 	public readonly b01Variant: B01Variant;
 
 	protected mappedRooms: Array<{ id: number; name: string }> | null = null;
+	private static readonly STANDARD_STATUS_ALIASES: Record<string, string[]> = {
+		quantity: ["battery"],
+		fault: ["error_code"],
+		wind: ["fan_power"],
+		water: ["water_box_mode"],
+		sweep_type: ["mop_mode"],
+		cleaning_time: ["clean_time"],
+		cleaning_area: ["clean_area"],
+	};
 
 	protected async cleanupVariantCommandObjects(): Promise<void> {
 		return;
@@ -417,6 +426,9 @@ export class B01BaseVacuumFeatures extends BaseDeviceFeatures {
 		await this.deps.ensureFolder(`Devices.${this.duid}.deviceStatus`);
 		for (const key in resultObj) {
 			await this.processStatusProperty(key, resultObj[key]);
+			for (const alias of B01BaseVacuumFeatures.STANDARD_STATUS_ALIASES[key] || []) {
+				await this.processStatusProperty(alias, resultObj[key]);
+			}
 		}
 	}
 
@@ -427,7 +439,7 @@ export class B01BaseVacuumFeatures extends BaseDeviceFeatures {
 		const cleanModeValue = resultObj.clean_mode ?? resultObj.cleanMode ?? resultObj.mode;
 		const faultValue = resultObj.fault ?? resultObj.error_code;
 		const dustCollectValue = resultObj.dust_action ?? resultObj.dust_collection_status;
-		const batteryValue = resultObj.battery;
+		const batteryValue = resultObj.battery ?? resultObj.quantity;
 
 		if (stateValue !== undefined && stateValue !== null) nextStatus.deviceState = Number(stateValue);
 		if (workModeValue !== undefined && workModeValue !== null) nextStatus.deviceWorkMode = Number(workModeValue);
@@ -715,6 +727,13 @@ export class B01BaseVacuumFeatures extends BaseDeviceFeatures {
 			};
 		}
 		if (attribute === "quantity") {
+			return {
+				type: "number",
+				name: this.locales.getNameAll(String(attribute)),
+				unit: "%"
+			};
+		}
+		if (attribute === "battery") {
 			return {
 				type: "number",
 				name: this.locales.getNameAll(String(attribute)),

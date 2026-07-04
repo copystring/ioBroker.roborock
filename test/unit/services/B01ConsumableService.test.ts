@@ -71,6 +71,8 @@ describe("B01ConsumableService", () => {
 		// Expect State Calculation (Remaining Hours)
 		expect(mockAdapter.setStateChanged).toHaveBeenCalledWith(`Devices.${duid}.consumables.main_brush_work_time`, { val: 150, ack: true });
 		expect(mockAdapter.setStateChanged).toHaveBeenCalledWith(`Devices.${duid}.consumables.side_brush_work_time`, { val: 0, ack: true });
+		expect(mockAdapter.setStateChanged).toHaveBeenCalledWith(`Devices.${duid}.consumables.main_brush_life`, { val: 50, ack: true });
+		expect(mockAdapter.setStateChanged).toHaveBeenCalledWith(`Devices.${duid}.consumables.side_brush_life`, { val: 0, ack: true });
 	});
 
 	it("should process consumable work times and calculate remaining hours", async () => {
@@ -88,6 +90,7 @@ describe("B01ConsumableService", () => {
 		// Expect State Calculation (Remaining Hours)
 		expect(mockDeps.ensureState).toHaveBeenCalledWith(`Devices.${duid}.consumables.main_brush_work_time`, expect.objectContaining({ unit: "h" }));
 		expect(mockAdapter.setStateChanged).toHaveBeenCalledWith(`Devices.${duid}.consumables.main_brush_work_time`, { val: 150, ack: true });
+		expect(mockAdapter.setStateChanged).toHaveBeenCalledWith(`Devices.${duid}.consumables.main_brush_life`, { val: 50, ack: true });
 
 		// Expect Reset Button
 		expect(mockDeps.ensureState).toHaveBeenCalledWith(`Devices.${duid}.resetConsumables.reset_main_brush`, expect.objectContaining({ role: "button" }), expect.anything());
@@ -119,5 +122,6 @@ describe("B01ConsumableService", () => {
 		await service.updateConsumables(data);
 		// side_brush life: 200h. Used: 0. Remaining: 200h.
 		expect(mockAdapter.setStateChanged).toHaveBeenCalledWith(`Devices.${duid}.consumables.side_brush_work_time`, { val: 200, ack: true });
+		expect(mockAdapter.setStateChanged).toHaveBeenCalledWith(`Devices.${duid}.consumables.side_brush_life`, { val: 100, ack: true });
 	});
 });
