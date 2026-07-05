@@ -92,6 +92,14 @@ function createFeaturesForModel(adapter: Roborock, duid: string, robotModel: str
 
 export class DeviceManager {
 	private adapter: Roborock;
+	private static readonly HOME_DATA_DEVICE_STATUS_MAP: Record<string, string> = {
+		"122": "battery",
+	};
+	private static readonly HOME_DATA_CONSUMABLE_MAP: Record<string, string> = {
+		"125": "main_brush_life",
+		"126": "side_brush_life",
+		"127": "filter_life",
+	};
 	// Interval handle
 	private mainUpdateInterval: ioBroker.Interval | undefined = undefined;
 	private pollingDevices = new Set<string>();
@@ -148,7 +156,7 @@ export class DeviceManager {
 					});
 
 					await this.adapter.updateDeviceInfo(duid, devices);
-					await this.updateConsumablesPercent(duid, devices);
+					await this.updateHomeDataDeviceStatus(duid, devices);
 
 					// Apply static features
 					await handler.initialize(device.online);
@@ -299,7 +307,7 @@ export class DeviceManager {
 				try {
 					if (isSlowTick) {
 						await this.adapter.updateDeviceInfo(duid, cloudDevices);
-						await this.updateConsumablesPercent(duid, cloudDevices);
+						await this.updateHomeDataDeviceStatus(duid, cloudDevices);
 					}
 					if (!device.online) continue;
 					const version = await this.adapter.getDeviceProtocolVersion(duid);
@@ -494,9 +502,9 @@ export class DeviceManager {
 	}
 
 	/**
-	 * Fetches consumable percentages.
+	 * Applies numeric device.status values from cloud HomeData.
 	 */
-	public async updateConsumablesPercent(duid: string, devices = this.adapter.http_api.getDevices()): Promise<void> {
+	public async updateHomeDataDeviceStatus(duid: string, devices = this.adapter.http_api.getDevices()): Promise<void> {
 		const handler = this.deviceFeatureHandlers.get(duid);
 		if (!handler) return;
 
@@ -504,25 +512,27 @@ export class DeviceManager {
 		if (!device?.deviceStatus) return; // 'deviceStatus' exists on Device type
 		const status = device.deviceStatus as Record<string, unknown>;
 
-		const consumableMap: Record<string, string> = {
-			"125": "main_brush_life",
-			"126": "side_brush_life",
-			"127": "filter_life",
-		};
-
 		for (const [attribute, value] of Object.entries(status)) {
-			// Cloud consumable percentages
-			const mappedName = consumableMap[attribute];
+			const statusName = DeviceManager.HOME_DATA_DEVICE_STATUS_MAP[attribute];
+			if (statusName) {
+				if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 100) continue;
+				const common = handler.getCommonDeviceStates(statusName);
+
+				await this.adapter.ensureState(`Devices.${duid}.deviceStatus.${statusName}`, common || {});
+				await this.adapter.setStateChanged(`Devices.${duid}.deviceStatus.${statusName}`, { val: value, ack: true });
+				continue;
+			}
+
+			const mappedName = DeviceManager.HOME_DATA_CONSUMABLE_MAP[attribute];
 			if (!mappedName) continue;
 
 			if (typeof value !== "number" || !Number.isInteger(value)) continue;
 			if (value < 0 || value > 100) continue;
-			const val = value;
 
 			const common = handler.getCommonConsumable(mappedName); // Use mapped name
 
 			await this.adapter.ensureState(`Devices.${duid}.consumables.${mappedName}`, common || {});
-			await this.adapter.setStateChanged(`Devices.${duid}.consumables.${mappedName}`, { val, ack: true });
+			await this.adapter.setStateChanged(`Devices.${duid}.consumables.${mappedName}`, { val: value, ack: true });
 		}
 	}
 }

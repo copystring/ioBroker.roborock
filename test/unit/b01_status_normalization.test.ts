@@ -16,6 +16,7 @@ function createDeps() {
 			setStateChanged,
 			rLog: vi.fn(),
 			formatRoborockDate: vi.fn((value: number) => String(value)),
+			checkForNewFirmware: vi.fn().mockResolvedValue(undefined),
 			errorMessage: vi.fn((error: unknown) => error instanceof Error ? error.message : String(error)),
 		} as any,
 		config: {} as any,
@@ -58,5 +59,36 @@ describe("B01 status normalization", () => {
 			deviceFault: 0,
 			deviceWorkMode: 1,
 		}));
+	});
+
+	it("loads B01 consumables during initial online data refresh", async () => {
+		const { deps } = createDeps();
+		const feature = new Q7VacuumFeatures(deps, "duid-q7", "roborock.vacuum.sc01", { staticFeatures: [] });
+		const calls: string[] = [];
+
+		vi.spyOn(feature as any, "updateStatus").mockImplementation(async () => { calls.push("status"); });
+		vi.spyOn(feature as any, "updateMap").mockImplementation(async () => { calls.push("map"); });
+		vi.spyOn(feature as any, "updateMultiMapsList").mockImplementation(async () => { calls.push("multiMap"); });
+		vi.spyOn(feature as any, "updateRoomMapping").mockImplementation(async () => { calls.push("rooms"); });
+		vi.spyOn(feature as any, "updateFirmwareFeatures").mockImplementation(async () => { calls.push("firmware"); });
+		vi.spyOn(feature as any, "updateExtraStatus").mockImplementation(async () => { calls.push("extra"); });
+		vi.spyOn(feature as any, "updateConsumables").mockImplementation(async () => { calls.push("consumables"); });
+		vi.spyOn(feature as any, "updateNetworkInfo").mockImplementation(async () => { calls.push("network"); });
+		vi.spyOn(feature as any, "updateTimers").mockImplementation(async () => { calls.push("timers"); });
+
+		await feature.initializeDeviceData();
+
+		expect(calls).toEqual(expect.arrayContaining([
+			"status",
+			"map",
+			"multiMap",
+			"rooms",
+			"firmware",
+			"extra",
+			"consumables",
+			"network",
+			"timers",
+		]));
+		expect(feature.updateConsumables).toHaveBeenCalledTimes(1);
 	});
 });

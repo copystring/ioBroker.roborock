@@ -341,6 +341,7 @@ export class B01BaseVacuumFeatures extends BaseDeviceFeatures {
 		await Promise.all([
 			this.updateFirmwareFeatures(),
 			this.updateExtraStatus(),
+			this.updateConsumables(),
 			this.updateNetworkInfo(),
 			this.updateTimers()
 		]);
