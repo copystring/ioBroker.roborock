@@ -112,6 +112,21 @@ export class MockAdapter {
 		return this.objects[id];
 	}
 
+	public async ensureState(path: string, commonOptions: Partial<ioBroker.StateCommon>, native: Record<string, unknown> = {}): Promise<void> {
+		await this.setObjectNotExistsAsync(path, {
+			type: "state",
+			common: {
+				name: commonOptions.name ?? path.split(".").pop() ?? path,
+				type: commonOptions.type ?? "mixed",
+				role: commonOptions.role ?? "state",
+				read: commonOptions.read ?? true,
+				write: commonOptions.write ?? false,
+				...commonOptions,
+			},
+			native,
+		});
+	}
+
 	public async delObjectAsync(id: string, options?: { recursive?: boolean }): Promise<void> {
 		const recursive = options?.recursive === true;
 		if (recursive) {
@@ -205,12 +220,20 @@ export class MockAdapter {
 		}
 	};
 
+	private fullStateId(id: string): string {
+		return /^roborock\.\d+\./.test(id) ? id : `${this.namespace}.${id}`;
+	}
+
+	private stateIdMatchesPattern(id: string, pattern: string): boolean {
+		const regexPattern = new RegExp("^" + pattern.replace(/\./g, "\\.").replace(/\*/g, ".*") + "$");
+		return regexPattern.test(id);
+	}
+
 	public async getStatesAsync(pattern: string): Promise<Record<string, ioBroker.State> | null> {
 		const result: Record<string, ioBroker.State> = {};
-		const regexPattern = new RegExp("^" + pattern.replace(/\./g, "\\.").replace(/\*/g, ".*") + "$");
 
 		for (const id in this.states) {
-			if (regexPattern.test(id)) {
+			if (this.stateIdMatchesPattern(id, pattern)) {
 				result[id] = { val: this.states[id], ack: true, ts: Date.now(), lc: Date.now(), from: "mock" };
 			}
 		}
@@ -223,15 +246,10 @@ export class MockAdapter {
 		const result: Record<string, ioBroker.State> = {};
 
 		for (const p of patterns) {
-			// Strip namespace for mock lookup if present
-			const lookupPattern = p.startsWith(this.namespace + ".") ? p.substring(this.namespace.length + 1) : p;
-			const matches = await this.getStatesAsync(lookupPattern);
-			if (matches) {
-				// We must return the original IDs (with namespace) if they were requested that way
-				for (const [id, state] of Object.entries(matches)) {
-					const finalId = p.includes("*") ? id : p; // simplistic for mock
-					result[finalId] = state;
-				}
+			for (const [id, value] of Object.entries(this.states)) {
+				const fullId = this.fullStateId(id);
+				if (!this.stateIdMatchesPattern(fullId, p)) continue;
+				result[fullId] = { val: value, ack: true, ts: Date.now(), lc: Date.now(), from: "mock" };
 			}
 		}
 

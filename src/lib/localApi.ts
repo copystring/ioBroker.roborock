@@ -20,7 +20,8 @@ function nextSocketRandom(): number {
 // Interfaces & Types
 // --------------------
 
-type LocalEndpointSource = "udp" | "network_info" | "probe";
+type LocalEndpointSource = "udp" | "udp_peer" | "network_info" | "probe";
+type UdpDiscoveryRole = "leader" | "follower";
 
 interface LocalDevice {
 	ip: string;
@@ -31,6 +32,38 @@ interface LocalDevice {
 	lastConnectAttemptAt?: number;
 	staleSince?: number;
 	endpointSource?: LocalEndpointSource;
+}
+
+interface UdpDiscoveryInstanceState {
+	instance: number;
+	namespace: string;
+	updatedAt: number;
+	leaseUntil: number;
+	canLead: boolean;
+}
+
+interface UdpDiscoveryLeaderState {
+	instance: number;
+	namespace: string;
+	updatedAt: number;
+	leaseUntil: number;
+	port: number;
+	epoch: number;
+}
+
+interface UdpDiscoveryEndpointState {
+	ip: string;
+	version: string;
+	lastSeenAt: number;
+	sourceInstance: number;
+	epoch: number;
+}
+
+interface UdpDiscoveryEndpointCache {
+	updatedAt: number;
+	sourceInstance: number;
+	epoch: number;
+	endpoints: Record<string, UdpDiscoveryEndpointState>;
 }
 
 class EnhancedSocket extends Socket {
@@ -119,6 +152,12 @@ export class local_api {
 	private discoveryWindowPromise: Promise<void> | null = null;
 	private resolveDiscoveryWindow: (() => void) | null = null;
 	private discoveryStopping = false;
+	private udpDiscoveryRole: UdpDiscoveryRole = "follower";
+	private udpDiscoveryBindPending = false;
+	private udpDiscoveryBindFailureLogged = false;
+	private udpDiscoveryStateObjectsReady = false;
+	private udpDiscoveryCoordinationTimer: ioBroker.Interval | null = null;
+	private udpDiscoveryLeadershipEpoch = 0;
 	private endpointRefreshPromises = new Map<string, Promise<boolean>>();
 	private endpointRefreshLastStartedAt = new Map<string, number>();
 	private tcpKeepaliveInterval: ioBroker.Interval | undefined = undefined;
@@ -126,6 +165,10 @@ export class local_api {
 	private static readonly TCP_KEEPALIVE_GRACE_MS = 1_000;
 	private static readonly TCP_KEEPALIVE_CHECK_MS = 1_000;
 	private static readonly UDP_DISCOVERY_RESTART_MS = 30_000;
+	private static readonly UDP_DISCOVERY_COORDINATION_MS = 10_000;
+	private static readonly UDP_DISCOVERY_LEASE_MS = 45_000;
+	private static readonly UDP_DISCOVERY_ENDPOINT_STALE_MS = 120_000;
+	private static readonly UDP_DISCOVERY_STATE_PREFIX = "info.udpDiscovery";
 	private static readonly ENDPOINT_REFRESH_MIN_INTERVAL_MS = 60_000;
 	private static readonly STALE_ENDPOINT_CONNECT_MIN_INTERVAL_MS = 60_000;
 
@@ -676,7 +719,7 @@ export class local_api {
 				lastSeenAt: now,
 				endpointSource: source,
 			};
-			const logConnection = source === "udp" ? "UDP" : "TCP";
+			const logConnection = source === "udp" || source === "udp_peer" ? "UDP" : "TCP";
 			this.adapter.rLog(logConnection, duid, "Info", version, undefined, `Local endpoint discovered at ${ip} via ${source}.`, "debug");
 			this.connectLocalEndpointIfDue(duid, 5000, 0);
 			return true;
@@ -781,11 +824,13 @@ export class local_api {
 
 	/**
 	 * Starts listening for UDP broadcast packets to discover devices.
+	 * In multi-instance setups only one adapter instance owns the UDP socket; followers read the leader's endpoint cache.
 	 * @see test/unit/transport_specification.test.ts for the UDP discovery protocol.
 	 */
 	async startUdpDiscovery(timeoutMs = 10_000): Promise<void> {
 		this.discoveryStopping = false;
-		this.ensureUdpDiscoveryServer();
+		await this.ensureUdpDiscoveryCoordinationStarted();
+		await this.runUdpDiscoveryCoordination("startup");
 
 		if (timeoutMs <= 0) return;
 		if (this.discoveryWindowPromise) return this.discoveryWindowPromise;
@@ -798,56 +843,369 @@ export class local_api {
 		return this.discoveryWindowPromise;
 	}
 
-	private ensureUdpDiscoveryServer(): void {
-		if (this.discoveryServer) return;
+	private async ensureUdpDiscoveryCoordinationStarted(): Promise<void> {
+		await this.ensureUdpDiscoveryStateObjects();
+		if (this.udpDiscoveryCoordinationTimer) return;
+
+		const timer = this.adapter.setInterval(() => {
+			this.runUdpDiscoveryCoordination("interval").catch((e: unknown) => {
+				this.adapter.rLog("UDP", null, "Debug", undefined, undefined, `UDP discovery coordination failed: ${this.adapter.errorMessage(e)}`, "debug");
+			});
+		}, local_api.UDP_DISCOVERY_COORDINATION_MS);
+		if (timer) this.udpDiscoveryCoordinationTimer = timer;
+	}
+
+	private async ensureUdpDiscoveryStateObjects(): Promise<void> {
+		if (this.udpDiscoveryStateObjectsReady) return;
+		const prefix = local_api.UDP_DISCOVERY_STATE_PREFIX;
+		await this.adapter.ensureState(`${prefix}.role`, { name: "UDP discovery role", type: "string", role: "text", read: true, write: false });
+		await this.adapter.ensureState(`${prefix}.instance`, { name: "UDP discovery instance lease", type: "string", role: "json", read: true, write: false });
+		await this.adapter.ensureState(`${prefix}.leader`, { name: "UDP discovery leader lease", type: "string", role: "json", read: true, write: false });
+		await this.adapter.ensureState(`${prefix}.endpoints`, { name: "UDP discovery endpoints", type: "string", role: "json", read: true, write: false });
+		this.udpDiscoveryStateObjectsReady = true;
+	}
+
+	private async runUdpDiscoveryCoordination(reason: string): Promise<void> {
+		if (this.discoveryStopping) return;
+
+		const now = Date.now();
+		await this.publishUdpDiscoveryInstanceState(now);
+
+		const instances = await this.readUdpDiscoveryInstanceStates(now);
+		const preferredInstance = this.getPreferredUdpDiscoveryInstance(instances, now);
+		const leaders = await this.readUdpDiscoveryLeaderStates();
+		const validLeader = this.getValidUdpDiscoveryLeader(leaders, now);
+		const selfInstance = this.getAdapterInstanceNumber();
+
+		if (validLeader?.instance === selfInstance && this.udpDiscoveryRole !== "leader" && !this.discoveryServer) {
+			await this.releaseUdpDiscoveryLeadership("stale local leader lease without UDP socket", false);
+			if (preferredInstance !== selfInstance) return;
+		}
+
+		if (this.udpDiscoveryRole === "leader" && preferredInstance !== selfInstance) {
+			await this.releaseUdpDiscoveryLeadership(`preferred instance ${preferredInstance} is alive`);
+			return;
+		}
+
+		if (validLeader && validLeader.instance !== selfInstance) {
+			if (this.discoveryServer || this.udpDiscoveryRole === "leader") {
+				await this.releaseUdpDiscoveryLeadership(`instance ${validLeader.instance} owns the UDP discovery lease`);
+			}
+			this.udpDiscoveryRole = "follower";
+			await this.publishUdpDiscoveryRoleState();
+			await this.applyPeerUdpDiscoveryEndpoints(validLeader, now);
+			return;
+		}
+
+		if (preferredInstance === selfInstance) {
+			this.ensureUdpDiscoveryServer(reason);
+			if (this.discoveryServer && this.udpDiscoveryRole === "leader") {
+				await this.publishUdpDiscoveryLeaderState(now, now + local_api.UDP_DISCOVERY_LEASE_MS);
+				await this.publishUdpDiscoveryEndpoints(now);
+			}
+			return;
+		}
+
+		if (validLeader) {
+			await this.applyPeerUdpDiscoveryEndpoints(validLeader, now);
+		}
+	}
+
+	private getAdapterInstanceNumber(): number {
+		const instance = Number(this.adapter.instance);
+		return Number.isInteger(instance) && instance >= 0 ? instance : 0;
+	}
+
+	private getAdapterNamespace(): string {
+		return this.adapter.namespace || `roborock.${this.getAdapterInstanceNumber()}`;
+	}
+
+	private async publishUdpDiscoveryInstanceState(now = Date.now()): Promise<void> {
+		const state: UdpDiscoveryInstanceState = {
+			instance: this.getAdapterInstanceNumber(),
+			namespace: this.getAdapterNamespace(),
+			updatedAt: now,
+			leaseUntil: now + local_api.UDP_DISCOVERY_LEASE_MS,
+			canLead: true,
+		};
+		await this.setUdpDiscoveryJsonState("instance", state);
+		await this.publishUdpDiscoveryRoleState();
+	}
+
+	private async publishUdpDiscoveryRoleState(): Promise<void> {
+		await this.adapter.setStateChanged(`${local_api.UDP_DISCOVERY_STATE_PREFIX}.role`, { val: this.udpDiscoveryRole, ack: true });
+	}
+
+	private async setUdpDiscoveryJsonState(suffix: "instance" | "leader" | "endpoints", value: unknown): Promise<void> {
+		await this.adapter.setStateChanged(`${local_api.UDP_DISCOVERY_STATE_PREFIX}.${suffix}`, { val: JSON.stringify(value), ack: true });
+	}
+
+	private async readUdpDiscoveryInstanceStates(now = Date.now()): Promise<UdpDiscoveryInstanceState[]> {
+		const instances = new Map<number, UdpDiscoveryInstanceState>();
+		const pattern = `roborock.*.${local_api.UDP_DISCOVERY_STATE_PREFIX}.instance`;
+
+		try {
+			const states = await this.adapter.getForeignStatesAsync(pattern);
+			for (const state of Object.values(states ?? {})) {
+				const parsed = this.parseUdpDiscoveryJsonState<UdpDiscoveryInstanceState>(state);
+				if (!this.isUdpDiscoveryInstanceState(parsed)) continue;
+				instances.set(parsed.instance, parsed);
+			}
+		} catch (e: unknown) {
+			this.adapter.rLog("UDP", null, "Debug", undefined, undefined, `Could not read UDP discovery instance states: ${this.adapter.errorMessage(e)}`, "debug");
+		}
+
+		const self: UdpDiscoveryInstanceState = {
+			instance: this.getAdapterInstanceNumber(),
+			namespace: this.getAdapterNamespace(),
+			updatedAt: now,
+			leaseUntil: now + local_api.UDP_DISCOVERY_LEASE_MS,
+			canLead: true,
+		};
+		instances.set(self.instance, self);
+
+		return [...instances.values()];
+	}
+
+	private async readUdpDiscoveryLeaderStates(): Promise<UdpDiscoveryLeaderState[]> {
+		const leaders: UdpDiscoveryLeaderState[] = [];
+		const pattern = `roborock.*.${local_api.UDP_DISCOVERY_STATE_PREFIX}.leader`;
+
+		try {
+			const states = await this.adapter.getForeignStatesAsync(pattern);
+			for (const state of Object.values(states ?? {})) {
+				const parsed = this.parseUdpDiscoveryJsonState<UdpDiscoveryLeaderState>(state);
+				if (this.isUdpDiscoveryLeaderState(parsed)) leaders.push(parsed);
+			}
+		} catch (e: unknown) {
+			this.adapter.rLog("UDP", null, "Debug", undefined, undefined, `Could not read UDP discovery leader states: ${this.adapter.errorMessage(e)}`, "debug");
+		}
+
+		return leaders;
+	}
+
+	private parseUdpDiscoveryJsonState<T>(state: ioBroker.State | null | undefined): T | null {
+		const value = state?.val;
+		if (typeof value !== "string" || value.length === 0) return null;
+		try {
+			return JSON.parse(value) as T;
+		} catch {
+			return null;
+		}
+	}
+
+	private isUdpDiscoveryInstanceState(value: UdpDiscoveryInstanceState | null): value is UdpDiscoveryInstanceState {
+		return !!value
+			&& Number.isInteger(value.instance)
+			&& value.instance >= 0
+			&& typeof value.namespace === "string"
+			&& value.namespace.length > 0
+			&& Number.isFinite(value.updatedAt)
+			&& Number.isFinite(value.leaseUntil)
+			&& value.canLead === true;
+	}
+
+	private isUdpDiscoveryLeaderState(value: UdpDiscoveryLeaderState | null): value is UdpDiscoveryLeaderState {
+		return !!value
+			&& Number.isInteger(value.instance)
+			&& value.instance >= 0
+			&& typeof value.namespace === "string"
+			&& value.namespace.length > 0
+			&& value.port === UDP_DISCOVERY_PORT
+			&& Number.isFinite(value.updatedAt)
+			&& Number.isFinite(value.leaseUntil)
+			&& Number.isFinite(value.epoch);
+	}
+
+	private getPreferredUdpDiscoveryInstance(instances: UdpDiscoveryInstanceState[], now = Date.now()): number | null {
+		const alive = instances
+			.filter((instance) => instance.canLead && instance.leaseUntil > now)
+			.map((instance) => instance.instance)
+			.sort((a, b) => a - b);
+		return alive[0] ?? null;
+	}
+
+	private getValidUdpDiscoveryLeader(leaders: UdpDiscoveryLeaderState[], now = Date.now()): UdpDiscoveryLeaderState | null {
+		const valid = leaders
+			.filter((leader) => leader.leaseUntil > now)
+			.sort((a, b) => a.instance - b.instance || b.epoch - a.epoch);
+		return valid[0] ?? null;
+	}
+
+	private ensureUdpDiscoveryServer(reason = "coordination"): void {
+		if (this.discoveryServer || this.udpDiscoveryBindPending) return;
 
 		const socketOptions: dgram.SocketOptions = process.platform === "win32" ? { type: "udp4", reuseAddr: true } : { type: "udp4", reusePort: true };
 		const server = dgram.createSocket(socketOptions);
 		this.discoveryServer = server;
+		this.udpDiscoveryBindPending = true;
 
 		server.on("message", (msg) => this.handleUdpDiscoveryMessage(msg));
 
 		server.on("listening", () => {
+			this.udpDiscoveryBindPending = false;
+			this.udpDiscoveryBindFailureLogged = false;
+			if (this.discoveryStopping) {
+				try {
+					server.close();
+				} catch {
+					// ignore close errors
+				}
+				return;
+			}
+
+			if (this.udpDiscoveryRole !== "leader") {
+				this.udpDiscoveryLeadershipEpoch += 1;
+			}
+			this.udpDiscoveryRole = "leader";
+			const now = Date.now();
 			const addr = server.address();
 			const ownedDevices = this.getExpectedOwnedDiscoveryDuids();
-			this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP listening on ${addr.address}:${addr.port} (expecting ${ownedDevices.length} online owned devices).`, "info");
+			this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP discovery leader ${this.getAdapterNamespace()} listening on ${addr.address}:${addr.port} after ${reason} (expecting ${ownedDevices.length} online owned devices).`, "info");
+			this.publishUdpDiscoveryLeaderState(now, now + local_api.UDP_DISCOVERY_LEASE_MS)
+				.then(() => this.publishUdpDiscoveryEndpoints(now))
+				.catch((e: unknown) => this.adapter.rLog("UDP", null, "Debug", undefined, undefined, `Could not publish UDP discovery leader state: ${this.adapter.errorMessage(e)}`, "debug"));
 		});
 
-		server.on("error", (error) => {
-			this.adapter.rLog("UDP", null, "Warn", "N/A", undefined, `Discovery socket error: ${this.adapter.errorMessage(error)}. Restarting listener.`, "warn");
-			if (this.discoveryServer === server) {
-				this.discoveryServer = null;
-			}
-			try {
-				server.close();
-			} catch {
-				// ignore close errors
-			}
-			this.scheduleUdpDiscoveryRestart("socket error");
-		});
-
-		server.on("close", () => {
-			if (this.discoveryServer === server) {
-				this.discoveryServer = null;
-			}
-			if (!this.discoveryStopping) {
-				this.scheduleUdpDiscoveryRestart("socket closed");
-			}
-		});
+		server.on("error", (error) => this.handleUdpDiscoverySocketError(server, error));
+		server.on("close", () => this.handleUdpDiscoverySocketClose(server));
 
 		try {
 			server.bind(UDP_DISCOVERY_PORT);
 		} catch (e: unknown) {
-			this.adapter.rLog("UDP", null, "Warn", "N/A", undefined, `Failed to bind UDP discovery port: ${this.adapter.errorMessage(e)}. Restarting listener.`, "warn");
-			if (this.discoveryServer === server) {
-				this.discoveryServer = null;
+			this.handleUdpDiscoverySocketError(server, e);
+		}
+	}
+
+	private handleUdpDiscoverySocketError(server: dgram.Socket, error: unknown): void {
+		this.udpDiscoveryBindPending = false;
+		if (this.discoveryServer === server) this.discoveryServer = null;
+
+		try {
+			server.close();
+		} catch {
+			// ignore close errors
+		}
+
+		if (this.isTerminalUdpDiscoveryBindError(error)) {
+			this.udpDiscoveryRole = "follower";
+			this.resolveDiscoveryWindow?.();
+			this.releaseUdpDiscoveryLeadership("bind failed", false).catch((e: unknown) => {
+				this.adapter.rLog("UDP", null, "Debug", undefined, undefined, `Could not invalidate UDP discovery leader lease after bind failure: ${this.adapter.errorMessage(e)}`, "debug");
+			});
+			if (!this.udpDiscoveryBindFailureLogged) {
+				this.udpDiscoveryBindFailureLogged = true;
+				this.adapter.rLog("UDP", null, "Warn", "N/A", undefined, `UDP discovery port ${UDP_DISCOVERY_PORT} is not available: ${this.adapter.errorMessage(error)}. This instance will stay follower and use shared discovery data when another instance provides it.`, "warn");
 			}
+			return;
+		}
+
+		this.adapter.rLog("UDP", null, "Warn", "N/A", undefined, `Discovery socket error: ${this.adapter.errorMessage(error)}. Rechecking leader election.`, "warn");
+		this.releaseUdpDiscoveryLeadership("socket error", false).catch((e: unknown) => {
+			this.adapter.rLog("UDP", null, "Debug", undefined, undefined, `Could not release UDP discovery leadership after socket error: ${this.adapter.errorMessage(e)}`, "debug");
+		});
+		this.scheduleUdpDiscoveryRestart("socket error");
+	}
+
+	private handleUdpDiscoverySocketClose(server: dgram.Socket): void {
+		this.udpDiscoveryBindPending = false;
+		if (this.discoveryServer === server) this.discoveryServer = null;
+		if (!this.discoveryStopping && this.udpDiscoveryRole === "leader") {
+			this.releaseUdpDiscoveryLeadership("socket closed", false).catch((e: unknown) => {
+				this.adapter.rLog("UDP", null, "Debug", undefined, undefined, `Could not release UDP discovery leadership after socket close: ${this.adapter.errorMessage(e)}`, "debug");
+			});
+			this.scheduleUdpDiscoveryRestart("socket closed");
+		}
+	}
+
+	private isTerminalUdpDiscoveryBindError(error: unknown): boolean {
+		const code = typeof error === "object" && error !== null && "code" in error ? String((error as { code?: unknown }).code) : "";
+		const syscall = typeof error === "object" && error !== null && "syscall" in error ? String((error as { syscall?: unknown }).syscall) : "";
+		const message = this.adapter.errorMessage(error);
+		const terminalCode = code === "EACCES" || code === "EADDRINUSE";
+		return terminalCode && (syscall === "bind" || message.includes("bind EACCES") || message.includes("bind EADDRINUSE"));
+	}
+
+	private async releaseUdpDiscoveryLeadership(reason: string, closeSocket = true): Promise<void> {
+		const wasLeader = this.udpDiscoveryRole === "leader";
+		this.udpDiscoveryRole = "follower";
+		this.resolveDiscoveryWindow?.();
+
+		if (closeSocket && this.discoveryServer) {
+			const server = this.discoveryServer;
+			this.discoveryServer = null;
+			server.removeAllListeners();
 			try {
 				server.close();
 			} catch {
 				// ignore close errors
 			}
-			this.scheduleUdpDiscoveryRestart("bind failed");
+		}
+
+		const now = Date.now();
+		await this.publishUdpDiscoveryLeaderState(now, now);
+		await this.publishUdpDiscoveryRoleState();
+		if (wasLeader) {
+			this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP discovery leadership released: ${reason}.`, "info");
+		}
+	}
+
+	private async publishUdpDiscoveryLeaderState(now = Date.now(), leaseUntil = now + local_api.UDP_DISCOVERY_LEASE_MS): Promise<void> {
+		const state: UdpDiscoveryLeaderState = {
+			instance: this.getAdapterInstanceNumber(),
+			namespace: this.getAdapterNamespace(),
+			updatedAt: now,
+			leaseUntil,
+			port: UDP_DISCOVERY_PORT,
+			epoch: this.udpDiscoveryLeadershipEpoch,
+		};
+		await this.setUdpDiscoveryJsonState("leader", state);
+	}
+
+	private async publishUdpDiscoveryEndpoints(now = Date.now()): Promise<void> {
+		if (this.udpDiscoveryRole !== "leader") return;
+
+		const endpoints: Record<string, UdpDiscoveryEndpointState> = {};
+		for (const [duid, device] of Object.entries(this.localDevices)) {
+			if (!device.ip || !device.version || !device.lastSeenAt) continue;
+			endpoints[duid] = {
+				ip: device.ip,
+				version: device.version,
+				lastSeenAt: device.lastSeenAt,
+				sourceInstance: this.getAdapterInstanceNumber(),
+				epoch: this.udpDiscoveryLeadershipEpoch,
+			};
+		}
+
+		const cache: UdpDiscoveryEndpointCache = {
+			updatedAt: now,
+			sourceInstance: this.getAdapterInstanceNumber(),
+			epoch: this.udpDiscoveryLeadershipEpoch,
+			endpoints,
+		};
+		await this.setUdpDiscoveryJsonState("endpoints", cache);
+	}
+
+	private async applyPeerUdpDiscoveryEndpoints(leader: UdpDiscoveryLeaderState, now = Date.now()): Promise<void> {
+		const stateId = `${leader.namespace}.${local_api.UDP_DISCOVERY_STATE_PREFIX}.endpoints`;
+		let cacheState: ioBroker.State | null | undefined;
+
+		try {
+			const states = await this.adapter.getForeignStatesAsync(stateId);
+			cacheState = states?.[stateId] ?? Object.values(states ?? {})[0];
+		} catch (e: unknown) {
+			this.adapter.rLog("UDP", null, "Debug", undefined, undefined, `Could not read UDP discovery endpoints from ${leader.namespace}: ${this.adapter.errorMessage(e)}`, "debug");
+			return;
+		}
+
+		const cache = this.parseUdpDiscoveryJsonState<UdpDiscoveryEndpointCache>(cacheState);
+		if (!cache || cache.sourceInstance !== leader.instance || !cache.endpoints || typeof cache.endpoints !== "object") return;
+
+		const localKeys = this.adapter.http_api.getMatchedLocalKeys();
+		for (const [duid, endpoint] of Object.entries(cache.endpoints)) {
+			if (!localKeys.get(duid)) continue;
+			if (!endpoint || now - endpoint.lastSeenAt > local_api.UDP_DISCOVERY_ENDPOINT_STALE_MS) continue;
+			this.updateLocalEndpoint(duid, endpoint.ip, endpoint.version, "udp_peer");
 		}
 	}
 
@@ -857,13 +1215,95 @@ export class local_api {
 		const restartTimer = this.adapter.setTimeout(() => {
 			this.discoveryRestartTimer = null;
 			if (this.discoveryStopping) return;
-			this.adapter.rLog("UDP", null, "Debug", undefined, undefined, `Restarting UDP discovery listener after ${reason}.`, "debug");
-			this.ensureUdpDiscoveryServer();
+			this.adapter.rLog("UDP", null, "Debug", undefined, undefined, `Rechecking UDP discovery leader election after ${reason}.`, "debug");
+			this.runUdpDiscoveryCoordination(`restart after ${reason}`).catch((e: unknown) => {
+				this.adapter.rLog("UDP", null, "Debug", undefined, undefined, `UDP discovery restart coordination failed: ${this.adapter.errorMessage(e)}`, "debug");
+			});
 		}, local_api.UDP_DISCOVERY_RESTART_MS);
 		if (!restartTimer) return;
 		this.discoveryRestartTimer = restartTimer;
 	}
 
+	private waitForUdpDiscoveryWindow(timeoutMs: number): Promise<void> {
+		const server = this.discoveryServer;
+		const startedAt = Date.now();
+		const expectedOwnedDuids = new Set(this.getExpectedOwnedDiscoveryDuids());
+
+		if (!server) {
+			this.adapter.rLog("UDP", null, "Debug", undefined, undefined, "UDP discovery runs as follower; no local listener window to wait for.", "debug");
+			return Promise.resolve();
+		}
+
+		if (expectedOwnedDuids.size === 0) {
+			this.adapter.rLog("UDP", null, "Debug", undefined, undefined, "UDP discovery listener is active; no online owned devices to wait for.", "debug");
+			return Promise.resolve();
+		}
+
+		return new Promise<void>((resolve) => {
+			let resolved = false;
+
+			const cleanup = () => {
+				if (this.discoveryTimer) {
+					this.adapter.clearTimeout(this.discoveryTimer);
+					this.discoveryTimer = null;
+				}
+				if (this.gracePeriodTimer) {
+					this.adapter.clearTimeout(this.gracePeriodTimer);
+					this.gracePeriodTimer = null;
+				}
+				server.removeListener("message", onMessage);
+				this.resolveDiscoveryWindow = null;
+			};
+
+			const finish = (finishReason: string) => {
+				if (resolved) return;
+				resolved = true;
+				cleanup();
+				const freshDuids = this.getFreshDiscoveryDuids(startedAt);
+				this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP discovery window finished (${finishReason}). Fresh devices: [${freshDuids.join(", ")}]. Listener remains active.`, "info");
+				resolve();
+			};
+
+			const checkFinished = () => {
+				const freshOwnedCount = this.getFreshDiscoveryDuids(startedAt, true)
+					.filter((duid) => expectedOwnedDuids.has(duid))
+					.length;
+
+				if (freshOwnedCount < expectedOwnedDuids.size || this.gracePeriodTimer) return;
+
+				if (this.discoveryTimer) {
+					this.adapter.clearTimeout(this.discoveryTimer);
+					this.discoveryTimer = null;
+				}
+
+				const gracePeriodTimer = this.adapter.setTimeout(() => {
+					finish("all owned devices seen");
+				}, 1500);
+				if (!gracePeriodTimer) {
+					finish("all owned devices seen");
+					return;
+				}
+				this.gracePeriodTimer = gracePeriodTimer;
+			};
+
+			const onMessage = () => {
+				setImmediate(checkFinished);
+			};
+
+			this.resolveDiscoveryWindow = () => finish("stopped");
+			server.on("message", onMessage);
+			const discoveryTimer = this.adapter.setTimeout(() => {
+				finish("timeout");
+			}, timeoutMs);
+			if (!discoveryTimer) {
+				finish("timeout");
+				return;
+			}
+			this.discoveryTimer = discoveryTimer;
+
+			checkFinished();
+		});
+	}
 	private handleUdpDiscoveryMessage(msg: Buffer): void {
 		let decodedMessage: string | null = null;
 		let parsedMessage: any; // Structure depends on version
@@ -916,6 +1356,7 @@ export class local_api {
 			if (!localKey) return;
 
 			this.updateLocalEndpoint(duid, ip, version, "udp");
+			this.publishUdpDiscoveryEndpoints().catch((e: unknown) => this.adapter.rLog("UDP", null, "Debug", undefined, undefined, `Could not publish UDP discovery endpoints: ${this.adapter.errorMessage(e)}`, "debug"));
 		} catch (error: unknown) {
 			this.adapter.rLog("UDP", null, "Error", "N/A", undefined, `Failed to process UDP message: ${this.adapter.errorStack(error)}`, "warn");
 		}
@@ -936,82 +1377,6 @@ export class local_api {
 		});
 	}
 
-	private waitForUdpDiscoveryWindow(timeoutMs: number): Promise<void> {
-		const server = this.discoveryServer;
-		const startedAt = Date.now();
-		const expectedOwnedDuids = new Set(this.getExpectedOwnedDiscoveryDuids());
-
-		if (expectedOwnedDuids.size === 0) {
-			this.adapter.rLog("UDP", null, "Debug", undefined, undefined, "UDP discovery listener is active; no online owned devices to wait for.", "debug");
-			return Promise.resolve();
-		}
-
-		return new Promise<void>((resolve) => {
-			let resolved = false;
-
-			const cleanup = () => {
-				if (this.discoveryTimer) {
-					this.adapter.clearTimeout(this.discoveryTimer);
-					this.discoveryTimer = null;
-				}
-				if (this.gracePeriodTimer) {
-					this.adapter.clearTimeout(this.gracePeriodTimer);
-					this.gracePeriodTimer = null;
-				}
-				server?.removeListener("message", onMessage);
-				this.resolveDiscoveryWindow = null;
-			};
-
-			const finish = (finishReason: string) => {
-				if (resolved) return;
-				resolved = true;
-				cleanup();
-				const freshDuids = this.getFreshDiscoveryDuids(startedAt);
-				this.adapter.rLog("UDP", null, "Info", undefined, undefined, `UDP discovery window finished (${finishReason}). Fresh devices: [${freshDuids.join(", ")}]. Listener remains active.`, "info");
-				resolve();
-			};
-
-			const checkFinished = () => {
-				const freshOwnedCount = this.getFreshDiscoveryDuids(startedAt, true)
-					.filter((duid) => expectedOwnedDuids.has(duid))
-					.length;
-
-				if (freshOwnedCount < expectedOwnedDuids.size || this.gracePeriodTimer) return;
-
-				if (this.discoveryTimer) {
-					this.adapter.clearTimeout(this.discoveryTimer);
-					this.discoveryTimer = null;
-				}
-
-				const gracePeriodTimer = this.adapter.setTimeout(() => {
-					finish("all owned devices seen");
-				}, 1500);
-				if (!gracePeriodTimer) {
-					finish("all owned devices seen");
-					return;
-				}
-				this.gracePeriodTimer = gracePeriodTimer;
-			};
-
-			const onMessage = () => {
-				setImmediate(checkFinished);
-			};
-
-			this.resolveDiscoveryWindow = () => finish("stopped");
-			server?.on("message", onMessage);
-			const discoveryTimer = this.adapter.setTimeout(() => {
-				finish("timeout");
-			}, timeoutMs);
-			if (!discoveryTimer) {
-				finish("timeout");
-				return;
-			}
-			this.discoveryTimer = discoveryTimer;
-
-			checkFinished();
-		});
-	}
-
 	stopUdpDiscovery(): void {
 		this.discoveryStopping = true;
 		this.resolveDiscoveryWindow?.();
@@ -1027,6 +1392,13 @@ export class local_api {
 			this.adapter.clearTimeout(this.discoveryRestartTimer);
 			this.discoveryRestartTimer = null;
 		}
+		if (this.udpDiscoveryCoordinationTimer) {
+			this.adapter.clearInterval(this.udpDiscoveryCoordinationTimer);
+			this.udpDiscoveryCoordinationTimer = null;
+		}
+		this.udpDiscoveryRole = "follower";
+		this.udpDiscoveryBindPending = false;
+		void this.releaseUdpDiscoveryLeadership("stopped", false);
 		if (this.discoveryServer) {
 			try {
 				this.discoveryServer.removeAllListeners();

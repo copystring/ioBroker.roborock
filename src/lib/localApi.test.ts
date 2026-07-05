@@ -453,4 +453,187 @@ describe("local_api transport sequence", () => {
 		expect(requests).to.deep.equal(["get_network_info"]);
 		expect(api.localDevices[duid].ip).to.equal("10.1.1.91");
 	});
+	it("uses shared UDP discovery endpoints from an active leader without binding", async () => {
+		const duid = "duid";
+		const adapter = new MockAdapter() as any;
+		const api = new local_api(adapter);
+		const now = Date.now();
+		let bindAttempts = 0;
+		const attempts: string[] = [];
+
+		adapter.instance = 1;
+		adapter.namespace = "roborock.1";
+		adapter.http_api = {
+			getMatchedLocalKeys: () => new Map([[duid, "0011223344556677"]]),
+			getDevices: () => [],
+			isSharedDevice: () => false,
+		};
+		api.initiateClient = async (attemptDuid: string) => {
+			attempts.push(attemptDuid);
+		};
+		(api as any).ensureUdpDiscoveryServer = () => {
+			bindAttempts += 1;
+		};
+
+		adapter.states["roborock.0.info.udpDiscovery.instance"] = JSON.stringify({
+			instance: 0,
+			namespace: "roborock.0",
+			updatedAt: now,
+			leaseUntil: now + 45_000,
+			canLead: true,
+		});
+		adapter.states["roborock.0.info.udpDiscovery.leader"] = JSON.stringify({
+			instance: 0,
+			namespace: "roborock.0",
+			updatedAt: now,
+			leaseUntil: now + 45_000,
+			port: 58866,
+			epoch: 7,
+		});
+		adapter.states["roborock.0.info.udpDiscovery.endpoints"] = JSON.stringify({
+			updatedAt: now,
+			sourceInstance: 0,
+			epoch: 7,
+			endpoints: {
+				[duid]: {
+					ip: "10.1.1.81",
+					version: "1.0",
+					lastSeenAt: now,
+					sourceInstance: 0,
+					epoch: 7,
+				},
+			},
+		});
+
+		await (api as any).runUdpDiscoveryCoordination("test");
+
+		expect(bindAttempts).to.equal(0);
+		expect(api.localDevices[duid]).to.include({ ip: "10.1.1.81", version: "1.0", endpointSource: "udp_peer" });
+		expect(attempts).to.deep.equal([duid]);
+		expect(adapter.states["info.udpDiscovery.role"]).to.equal("follower");
+	});
+
+	it("releases a higher-instance leader when a lower live instance returns", async () => {
+		const adapter = new MockAdapter() as any;
+		const api = new local_api(adapter);
+		const now = Date.now();
+		let closeCalls = 0;
+		let removeCalls = 0;
+
+		adapter.instance = 1;
+		adapter.namespace = "roborock.1";
+		adapter.http_api = {
+			getMatchedLocalKeys: () => new Map(),
+			getDevices: () => [],
+			isSharedDevice: () => false,
+		};
+		adapter.states["roborock.0.info.udpDiscovery.instance"] = JSON.stringify({
+			instance: 0,
+			namespace: "roborock.0",
+			updatedAt: now,
+			leaseUntil: now + 45_000,
+			canLead: true,
+		});
+		(api as any).udpDiscoveryRole = "leader";
+		(api as any).udpDiscoveryLeadershipEpoch = 3;
+		(api as any).discoveryServer = {
+			removeAllListeners: () => {
+				removeCalls += 1;
+			},
+			close: () => {
+				closeCalls += 1;
+			},
+		};
+
+		await (api as any).runUdpDiscoveryCoordination("test");
+
+		const leaderState = JSON.parse(adapter.states["info.udpDiscovery.leader"]);
+		expect((api as any).udpDiscoveryRole).to.equal("follower");
+		expect((api as any).discoveryServer).to.equal(null);
+		expect(closeCalls).to.equal(1);
+		expect(removeCalls).to.equal(1);
+		expect(leaderState.leaseUntil).to.equal(leaderState.updatedAt);
+		expect(adapter.states["info.udpDiscovery.role"]).to.equal("follower");
+	});
+
+	it("invalidates a stale local leader lease when the instance no longer owns a UDP socket", async () => {
+		const adapter = new MockAdapter() as any;
+		const api = new local_api(adapter);
+		const now = Date.now();
+
+		adapter.instance = 1;
+		adapter.namespace = "roborock.1";
+		adapter.http_api = {
+			getMatchedLocalKeys: () => new Map(),
+			getDevices: () => [],
+			isSharedDevice: () => false,
+		};
+		adapter.states["roborock.0.info.udpDiscovery.instance"] = JSON.stringify({
+			instance: 0,
+			namespace: "roborock.0",
+			updatedAt: now,
+			leaseUntil: now + 45_000,
+			canLead: true,
+		});
+		adapter.states["info.udpDiscovery.leader"] = JSON.stringify({
+			instance: 1,
+			namespace: "roborock.1",
+			updatedAt: now,
+			leaseUntil: now + 45_000,
+			port: 58866,
+			epoch: 4,
+		});
+
+		await (api as any).runUdpDiscoveryCoordination("test");
+
+		const leaderState = JSON.parse(adapter.states["info.udpDiscovery.leader"]);
+		expect((api as any).udpDiscoveryRole).to.equal("follower");
+		expect(leaderState.leaseUntil).to.equal(leaderState.updatedAt);
+		expect(adapter.states["info.udpDiscovery.role"]).to.equal("follower");
+	});
+	it("lets only the lowest live instance attempt UDP binding when no leader is valid", async () => {
+		const now = Date.now();
+		const followerAdapter = new MockAdapter() as any;
+		const followerApi = new local_api(followerAdapter);
+		let followerBindAttempts = 0;
+
+		followerAdapter.instance = 1;
+		followerAdapter.namespace = "roborock.1";
+		followerAdapter.http_api = {
+			getMatchedLocalKeys: () => new Map(),
+			getDevices: () => [],
+			isSharedDevice: () => false,
+		};
+		followerAdapter.states["roborock.0.info.udpDiscovery.instance"] = JSON.stringify({
+			instance: 0,
+			namespace: "roborock.0",
+			updatedAt: now,
+			leaseUntil: now + 45_000,
+			canLead: true,
+		});
+		(followerApi as any).ensureUdpDiscoveryServer = () => {
+			followerBindAttempts += 1;
+		};
+
+		await (followerApi as any).runUdpDiscoveryCoordination("test");
+		expect(followerBindAttempts).to.equal(0);
+
+		const leaderAdapter = new MockAdapter() as any;
+		const leaderApi = new local_api(leaderAdapter);
+		let leaderBindAttempts = 0;
+
+		leaderAdapter.instance = 0;
+		leaderAdapter.namespace = "roborock.0";
+		leaderAdapter.http_api = {
+			getMatchedLocalKeys: () => new Map(),
+			getDevices: () => [],
+			isSharedDevice: () => false,
+		};
+		(leaderApi as any).ensureUdpDiscoveryServer = () => {
+			leaderBindAttempts += 1;
+		};
+
+		await (leaderApi as any).runUdpDiscoveryCoordination("test");
+		expect(leaderBindAttempts).to.equal(1);
+	});
 });
