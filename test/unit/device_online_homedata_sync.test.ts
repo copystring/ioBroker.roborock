@@ -2,10 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { DeviceManager } from "../../src/lib/deviceManager";
 
 describe("device online state sync from HomeData", () => {
-	it("writes HomeData for offline devices on slow ticks before skipping polling", async () => {
+	it("writes HomeData for offline Q7 devices on slow ticks before skipping polling", async () => {
 		let tick: (() => Promise<void>) | undefined;
 
 		const handler = {
+			b01Variant: "Q7",
 			updateStatus: vi.fn().mockResolvedValue(undefined),
 			updateMap: vi.fn().mockResolvedValue(undefined),
 			updateCleanSummary: vi.fn().mockResolvedValue(undefined),
@@ -18,9 +19,9 @@ describe("device online state sync from HomeData", () => {
 			online: false,
 			deviceStatus: {
 				"122": 100,
-				"125": 83,
-				"126": 100,
-				"127": 42,
+				"125": 98,
+				"126": 4294967249,
+				"127": 97,
 			},
 		}];
 
@@ -32,7 +33,7 @@ describe("device online state sync from HomeData", () => {
 				getDevices: () => devices,
 			},
 			updateDeviceInfo: vi.fn().mockResolvedValue(undefined),
-			getDeviceProtocolVersion: vi.fn().mockResolvedValue("1.0"),
+			getDeviceProtocolVersion: vi.fn().mockResolvedValue("B01"),
 			catchError: vi.fn(),
 			ensureState: vi.fn().mockResolvedValue(undefined),
 			setStateChanged: vi.fn().mockResolvedValue(undefined),
@@ -55,14 +56,15 @@ describe("device online state sync from HomeData", () => {
 		expect(adapter.http_api.updateHomeData).toHaveBeenCalledTimes(1);
 		expect(adapter.updateDeviceInfo).toHaveBeenCalledWith("duid-1", devices);
 		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.deviceStatus.battery", { val: 100, ack: true });
-		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.consumables.main_brush_life", { val: 83, ack: true });
-		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.consumables.side_brush_life", { val: 100, ack: true });
-		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.consumables.filter_life", { val: 42, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.consumables.side_brush_life", { val: 98, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.consumables.filter_life", { val: 97, ack: true });
+		expect(adapter.setStateChanged).not.toHaveBeenCalledWith("Devices.duid-1.consumables.main_brush_life", expect.anything());
 		expect(handler.updateStatus).not.toHaveBeenCalled();
 	});
 
 	it("ignores textual and out-of-range HomeData status attributes because only valid numeric percentages are mapped", async () => {
 		const handler = {
+			b01Variant: "Q7",
 			getCommonConsumable: vi.fn((id: string) => ({ type: "number", unit: "%", name: id })),
 			getCommonDeviceStates: vi.fn((id: string) => ({ type: "number", unit: "%", name: id })),
 		};
@@ -95,7 +97,7 @@ describe("device online state sync from HomeData", () => {
 
 		await manager.updateHomeDataDeviceStatus("duid-1");
 
-		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.consumables.main_brush_life", { val: 91, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.consumables.side_brush_life", { val: 91, ack: true });
 		expect(adapter.setStateChanged).toHaveBeenCalledTimes(1);
 	});
 });

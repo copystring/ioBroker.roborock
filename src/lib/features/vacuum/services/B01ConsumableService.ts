@@ -74,19 +74,18 @@ export class B01ConsumableService {
 				suffix = " cycles";
 			} else if (key.endsWith("_work_time") || key.endsWith("_dirty_time")) {
 				const totalHours = this.getConsumableLifeSpan(deviceName);
-				const totalSeconds = totalHours * 3600;
-				const usedSeconds = Number(val);
-				if (!Number.isFinite(usedSeconds)) continue;
+				const totalMinutes = totalHours * 60;
+				const usedMinutes = this.normalizeConsumableUsedMinutes(val, totalMinutes);
+				if (!Number.isFinite(usedMinutes)) continue;
 
-				if (totalSeconds > 0) {
-					// Convert seconds used to remaining hours
-					val = Math.max(0, Math.round((totalSeconds - usedSeconds) / 3600));
+				if (totalMinutes > 0) {
+					val = Math.max(0, Math.round((totalMinutes - usedMinutes) / 60));
 					unit = "h";
 					suffix = " remaining time";
 
 					const lifeState = this.LIFE_STATE_MAP[deviceName];
 					if (lifeState) {
-						const remainingPercent = Math.max(0, Math.min(100, Math.round(((totalSeconds - usedSeconds) / totalSeconds) * 100)));
+						const remainingPercent = Math.max(0, Math.min(100, Math.ceil(((totalMinutes - usedMinutes) / totalMinutes) * 100)));
 						const common = VACUUM_CONSTANTS.consumables[lifeState as keyof typeof VACUUM_CONSTANTS.consumables];
 						await this.stateWriter.ensureAndSetValueState(`consumables.${lifeState}`, {
 							name: `${localizedName} remaining life`,
@@ -118,6 +117,13 @@ export class B01ConsumableService {
 				def: false
 			}, { resetParam: key });
 		}
+	}
+
+	private normalizeConsumableUsedMinutes(value: unknown, totalMinutes: number): number {
+		const numericValue = Number(value);
+		if (!Number.isFinite(numericValue)) return Number.NaN;
+
+		return totalMinutes > 0 && numericValue > totalMinutes ? numericValue / 60 : numericValue;
 	}
 
 	private getConsumableLifeSpan(deviceName: string): number {

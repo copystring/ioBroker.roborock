@@ -100,6 +100,10 @@ export class DeviceManager {
 		"126": "side_brush_life",
 		"127": "filter_life",
 	};
+	private static readonly Q7_HOME_DATA_CONSUMABLE_MAP: Record<string, string> = {
+		"125": "side_brush_life",
+		"127": "filter_life",
+	};
 	// Interval handle
 	private mainUpdateInterval: ioBroker.Interval | undefined = undefined;
 	private pollingDevices = new Set<string>();
@@ -107,6 +111,12 @@ export class DeviceManager {
 
 	constructor(adapter: Roborock) {
 		this.adapter = adapter;
+	}
+
+	private getHomeDataConsumableMap(handler: BaseDeviceFeatures): Record<string, string> {
+		return (handler as unknown as { b01Variant?: string }).b01Variant === "Q7"
+			? DeviceManager.Q7_HOME_DATA_CONSUMABLE_MAP
+			: DeviceManager.HOME_DATA_CONSUMABLE_MAP;
 	}
 
 	/**
@@ -523,7 +533,7 @@ export class DeviceManager {
 				continue;
 			}
 
-			const mappedName = DeviceManager.HOME_DATA_CONSUMABLE_MAP[attribute];
+			const mappedName = this.getHomeDataConsumableMap(handler)[attribute];
 			if (!mappedName) continue;
 
 			if (typeof value !== "number" || !Number.isInteger(value)) continue;
