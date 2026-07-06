@@ -40,30 +40,30 @@ describe("Deterministic Logic Verification", () => {
 		});
 	});
 
-	describe("Hour Conversion Logic", () => {
-		it("should correctly convert seconds used to remaining hours (300h life, 150h used)", () => {
+	describe("B01 Minute Conversion Logic", () => {
+		it("should correctly convert used minutes to remaining hours (300h life, 150h used)", () => {
 			const totalLifeHours = 300;
-			const usedSeconds = 150 * 3600;
-			const totalSeconds = totalLifeHours * 3600;
-			const remainingHours = Math.max(0, Math.round((totalSeconds - usedSeconds) / 3600));
+			const usedMinutes = 150 * 60;
+			const totalMinutes = totalLifeHours * 60;
+			const remainingHours = Math.max(0, Math.round((totalMinutes - usedMinutes) / 60));
 
 			expect(remainingHours).toBe(150);
 		});
 
-		it("should correctly convert seconds used to remaining hours (200h life, 150h used)", () => {
+		it("should correctly convert used minutes to remaining hours (200h life, 150h used)", () => {
 			const totalLifeHours = 200;
-			const usedSeconds = 150 * 3600;
-			const totalSeconds = totalLifeHours * 3600;
-			const remainingHours = Math.max(0, Math.round((totalSeconds - usedSeconds) / 3600));
+			const usedMinutes = 150 * 60;
+			const totalMinutes = totalLifeHours * 60;
+			const remainingHours = Math.max(0, Math.round((totalMinutes - usedMinutes) / 60));
 
 			expect(remainingHours).toBe(50);
 		});
 
 		it("should handle over-usage (returning 0h)", () => {
 			const totalLifeHours = 150;
-			const usedSeconds = 200 * 3600;
-			const totalSeconds = totalLifeHours * 3600;
-			const remainingHours = Math.max(0, Math.round((totalSeconds - usedSeconds) / 3600));
+			const usedMinutes = 200 * 60;
+			const totalMinutes = totalLifeHours * 60;
+			const remainingHours = Math.max(0, Math.round((totalMinutes - usedMinutes) / 60));
 
 			expect(remainingHours).toBe(0);
 		});
