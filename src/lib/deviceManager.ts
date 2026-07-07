@@ -101,8 +101,8 @@ export class DeviceManager {
 		"127": "filter_life",
 	};
 	private static readonly Q7_HOME_DATA_CONSUMABLE_MAP: Record<string, string> = {
-		"125": "side_brush_life",
-		"127": "filter_life",
+		// Q7 HomeData consumables are stale/incomplete and can overwrite the
+		// live prop.get values. Q7 consumables must come from B01 prop.get.
 	};
 	// Interval handle
 	private mainUpdateInterval: ioBroker.Interval | undefined = undefined;
