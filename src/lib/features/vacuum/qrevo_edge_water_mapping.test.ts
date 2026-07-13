@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { FeatureDependencies } from "../baseDeviceFeatures";
-import { A187Features } from "./a187_features";
+import { A298Features } from "./a298_features";
 
 function createDeps(): FeatureDependencies {
 	const adapter: any = {
@@ -31,8 +31,8 @@ function createDeps(): FeatureDependencies {
 }
 
 describe("Qrevo Edge 2 water mapping", () => {
-	it("uses the Edge 2 custom water range for a187", async () => {
-		const vacuum = new A187Features(createDeps(), "duid1") as any;
+	it("uses the Edge 2 custom water range for a298", async () => {
+		const vacuum = new A298Features(createDeps(), "duid1") as any;
 
 		await vacuum.setupProtocolFeatures();
 
