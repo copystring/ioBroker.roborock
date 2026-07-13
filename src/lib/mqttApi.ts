@@ -427,6 +427,12 @@ export class mqtt_api {
 		try {
 			const payloadStr = Buffer.isBuffer(data.payload) ? data.payload.toString("utf8") : String(data.payload ?? "");
 			const parsed = JSON.parse(payloadStr);
+
+			if (data.version === "B01" && parsed.dps?.["10001"]) {
+				await this.dispatchB01Message(duid, parsed);
+				return;
+			}
+
 			let dps102 = parsed.dps?.["102"] || (parsed.dps ? parsed.dps : null);
 			const b01Variant = await this.adapter.getB01Variant(duid);
 			const handler = this.adapter.deviceFeatureHandlers.get(duid);
