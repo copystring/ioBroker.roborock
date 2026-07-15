@@ -66,10 +66,21 @@ describe("V1VacuumFeatures", () => {
 		protected getDynamicFeatures(): Set<Feature> {
 			return new Set();
 		}
-		public async detectAndApplyRuntimeFeatures(): Promise<boolean> {
-			return false;
-		}
 	}
+
+	it("should initialize docking station states when status reports a dock without dss", async () => {
+		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a62", { staticFeatures: [] });
+
+		const changed = await vacuum.detectAndApplyRuntimeFeatures({ dock_type: 3 });
+
+		expect(changed).toBe(true);
+		expect(depsMock.ensureFolder).toHaveBeenCalledWith("Devices.duid1.dockingStationStatus");
+		expect(depsMock.ensureState).toHaveBeenCalledTimes(6);
+		expect(depsMock.ensureState).toHaveBeenCalledWith(
+			"Devices.duid1.dockingStationStatus.dustBagStatus",
+			expect.objectContaining({ read: true, write: false })
+		);
+	});
 
 	it("should parse dss bitmask correctly in updateDockingStationStatus", async () => {
 		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a70", { staticFeatures: [Feature.DockingStationStatus] });

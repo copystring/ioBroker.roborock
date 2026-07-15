@@ -188,9 +188,12 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 		// Consumables detection (usually static, but can check for keys)
 		if (await this.applyFeature(Feature.Consumables)) changed = true;
 
+		const dockType = Number(statusData["dock_type"]);
+		const hasDock = (Number.isFinite(dockType) && dockType > 0) || statusData["dss"] !== undefined;
+		if (hasDock && await this.applyFeature(Feature.DockingStationStatus)) changed = true;
+
 		if (statusData["dss"] !== undefined) {
 			const dss = Number(statusData["dss"]);
-			// DockingStationStatus: no applyFeature – folder/states created lazily in updateDockingStationStatus()
 
 			// Bits 6-7: Dust bag status (0=not supported/missing)
 			if (((dss >> 6) & 0b11) > 0) {
