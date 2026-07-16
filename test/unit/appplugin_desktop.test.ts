@@ -21,9 +21,9 @@ describe("AppPlugin desktop smart-home PoC", () => {
 
 		expect(source).toContain("new LiveAppPluginMapSurface");
 		expect(source).not.toContain("OriginalMapSurface");
-		expect(surface).toContain("fetch(`${this.#apiBaseUrl}/health`");
-		expect(surface).toContain("fetch(`${this.#apiBaseUrl}/pointer`");
-		expect(surface).toContain("/frame.svg?revision=");
+		expect(surface).toContain("fetch(`${this.#apiBaseUrl}/health?view=${view}`");
+		expect(surface).toContain("fetch(`${this.#apiBaseUrl}/pointer?view=${this.#health.view}`");
+		expect(surface).toContain("/frame.svg?view=${this.#health.view}&revision=");
 		expect(surface).toContain('dataset.renderMode = "unchanged-appplugin-session"');
 		expect(surface).not.toMatch(/roomIds|roomDisplayColor|RNSVGPath|station.*zIndex/iu);
 		expect(probe).toContain("selectApkServedSurfaceRoot");
@@ -56,6 +56,27 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(surface).not.toContain('addEventListener("wheel"');
 		expect(html).toContain('data-tool="zones" disabled');
 		expect(sourcePath).toBeTruthy();
+	});
+
+	it("exposes the full unchanged AppPlugin root as a test view and logs its own DPS", () => {
+		const html = fs.readFileSync(htmlPath, "utf8");
+		const source = fs.readFileSync(sourcePath, "utf8");
+		const surface = fs.readFileSync(surfacePath, "utf8");
+		const probe = fs.readFileSync(probePath, "utf8");
+
+		expect(html).toContain('data-surface-view="map"');
+		expect(html).toContain('data-surface-view="full"');
+		expect(html).toContain("Original testen");
+		expect(source).toContain("this.mapSurface.setView");
+		expect(surface).toContain("/health?view=${view}");
+		expect(surface).toContain("/frame.svg?view=${this.#health.view}");
+		expect(surface).toContain("/pointer?view=${this.#health.view}");
+		expect(surface).toContain("/published-dps?after=${after}");
+		expect(surface).toContain("Originaler AppPlugin-Aufruf – nicht an Gerät gesendet");
+		expect(probe).toContain('availableViews: ["map", "full"]');
+		expect(probe).toContain('publishedDps: publishedDps.slice(after)');
+		expect(probe).toContain('fullRootTag: view === "full" ? rootTag : undefined');
+		expect(surface).not.toMatch(/service\.arrange_room|service\.split_room|app_segment_clean/iu);
 	});
 
 	it("fits the embedded Codex browser height without forcing vertical overflow", () => {
@@ -91,7 +112,7 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(html).toContain(':root[data-theme="dark"]');
 		expect(source).toContain("document.documentElement.dataset.theme = snapshot.colorScheme");
 		expect(source).toContain("this.mapSurface.setTheme");
-		expect(surface).toContain("fetch(`${this.#apiBaseUrl}/theme`");
+		expect(surface).toContain("fetch(`${this.#apiBaseUrl}/theme?view=${this.#health.view}`");
 		expect(probe).toContain('session.emitDeviceEvent("themeDidChange"');
 		expect(probe).toContain('session.emitDeviceEvent("appearanceChanged"');
 		expect(probe).toContain('url.pathname === "/ui-state"');

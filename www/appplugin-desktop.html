@@ -4,7 +4,7 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>Roborock Desktop · AppPlugin PoC</title>
-		<script type="module" src="./appplugin-desktop.js"></script>
+		<script type="module" src="./appplugin-desktop.js?v=dual-appplugin-surface-1"></script>
 		<style>
 			:root {
 				color-scheme: light;
@@ -115,6 +115,11 @@
 			.workspace-heading p { margin: 3px 0 0; color: var(--muted); font-size: 11px; }
 			.source-badge { border: 1px solid var(--accent); background: var(--surface); color: var(--accent-dark); padding: 6px 9px; font-size: 10px; white-space: nowrap; }
 			.tool-row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 1px; }
+			.surface-switch { display: inline-flex; flex: 0 0 auto; border: 1px solid var(--line); background: var(--surface); }
+			.surface-switch .tool-button { border: 0; border-right: 1px solid var(--line); }
+			.surface-switch .tool-button:last-child { border-right: 0; }
+			.surface-switch .tool-button.active { box-shadow: inset 0 -2px 0 var(--accent); }
+			.tool-separator { width: 1px; flex: 0 0 1px; background: var(--line); margin: 2px 2px; }
 			.tool-button {
 				border: 1px solid var(--line); background: var(--surface); color: var(--control-text); padding: 7px 10px; white-space: nowrap; font-size: 11px;
 			}
@@ -306,10 +311,15 @@
 					<div class="content-grid">
 						<section class="map-workspace" aria-label="AppPlugin-Karte">
 							<div class="workspace-heading">
-								<div><h1>Unveränderte AppPlugin-Karte</h1><p>Geometrie, Farben, Raumnamen, Roboter, Station, Skalierung und Auswahlzustand werden von derselben laufenden Hermes-Sitzung erzeugt. Der Desktop hostet nur APK-Verträge, Eingabe und Ausgabe.</p></div>
+								<div><h1 id="mapViewTitle">Unveränderte AppPlugin-Karte</h1><p id="mapViewDescription">Geometrie, Farben, Raumnamen, Roboter, Station, Skalierung und Auswahlzustand werden von derselben laufenden Hermes-Sitzung erzeugt. Der Desktop hostet nur APK-Verträge, Eingabe und Ausgabe.</p></div>
 								<span class="source-badge">Live-AppPlugin · kein Kartenfallback</span>
 							</div>
-							<div class="tool-row" aria-label="Kartenwerkzeuge">
+							<div class="tool-row" aria-label="Kartenwerkzeuge und Testansicht">
+								<div class="surface-switch" role="group" aria-label="AppPlugin-Ansicht">
+									<button class="tool-button active" type="button" data-surface-view="map">Karte</button>
+									<button class="tool-button" type="button" data-surface-view="full">Original testen</button>
+								</div>
+								<span class="tool-separator" aria-hidden="true"></span>
 								<button class="tool-button" type="button" data-tool="view" disabled>Ansehen</button>
 								<button class="tool-button active" type="button" data-tool="rooms"><span>Raum</span></button>
 								<button class="tool-button" type="button" data-tool="zones" disabled><span>Zone</span></button>
@@ -320,14 +330,14 @@
 								<button id="clearSelection" class="tool-button" type="button">Auswahl leeren</button>
 							</div>
 							<div class="map-card">
-								<div class="map-origin-label">Q7 L5 / SC01 · Hermes-AppPlugin · direkter Lauf</div>
+								<div id="mapOriginLabel" class="map-origin-label">Q7 L5 / SC01 · AppPlugin-Kartenviewport</div>
 								<div class="map-zoom-controls" aria-label="Kartenzoom">
 									<button id="zoomOut" type="button" title="Verkleinern" aria-label="Verkleinern">−</button>
 									<button id="zoomReset" type="button" title="Ansicht zurücksetzen"><span id="zoomValue">1,00×</span></button>
 									<button id="zoomIn" type="button" title="Vergrößern" aria-label="Vergrößern">+</button>
 								</div>
 								<div id="desktopMap" role="application" aria-label="Direkt vom unveränderten Roborock-AppPlugin gerenderte Karte" data-tool="rooms"><img id="desktopMapFrame" alt="AppPlugin-Kartenframe" draggable="false" /></div>
-								<div class="map-notice">Direkte native Teilstruktur des laufenden Q7-AppPlugins. Pointer und Pinch werden als APK-Touchereignisse zurück in dieselbe Sitzung geleitet; Gerätebefehle werden in diesem Offline-PoC nicht gesendet.</div>
+								<div id="mapNotice" class="map-notice">Direkte native Kartenteilstruktur des laufenden Q7-AppPlugins. Pointer und Pinch werden als APK-Touchereignisse zurück in dieselbe Sitzung geleitet; Gerätebefehle werden nicht gesendet.</div>
 							</div>
 							<div class="map-footer"><span id="mapInstruction">Raum/Räume zum Reinigen auswählen</span><span id="selectionSummary">Direkte AppPlugin-Sitzung wird verbunden …</span></div>
 						</section>
@@ -367,7 +377,7 @@
 										<button class="action-button" type="button" data-intent="clean.pause"><span>Pause</span></button>
 										<button class="action-button" type="button" data-intent="clean.dock"><span>Andocken</span></button>
 									</div>
-									<div class="offline-note" style="margin-top:8px">Raumauswahl und Karteninteraktion laufen bereits direkt im AppPlugin. Methode, Parameter, Route und DPS bleiben gesperrt, bis der semantische AppPlugin-Aktionsadapter belegt ist.</div>
+									<div class="offline-note" style="margin-top:8px"><strong>Jetzt testbar:</strong> Wechsle oberhalb der Karte auf „Original testen“. Dort kannst du die originalen AppPlugin-Menüs bedienen, Räume auswählen sowie Bearbeiten → Unterteilen oder Zusammenführen öffnen. Entstehende DPS werden unten angezeigt, aber nicht an ein Gerät gesendet.</div>
 								</div>
 							</section>
 
@@ -418,7 +428,7 @@
 							<div id="eventLog" aria-live="polite"></div>
 						</div>
 						<div class="console-pane">
-							<div class="console-header"><strong>Payload-Vorschau · Bundle-Grenze</strong><span style="color:#6f8794;font-size:9px">sent: false</span></div>
+							<div class="console-header"><strong>Payload-Vorschau · Bundle-Grenze</strong><span style="color:#6f8794;font-size:9px">Gerät offline · AppPlugin-Aufrufe sichtbar</span></div>
 							<pre id="payloadPreview">Noch keine Absicht erfasst.</pre>
 						</div>
 					</section>

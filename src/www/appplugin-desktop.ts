@@ -97,6 +97,12 @@ class AppPluginDesktop {
 			if (this.themeMode.value === "system") void this.mapSurface.setTheme("system");
 		});
 
+		document.querySelectorAll<HTMLButtonElement>("[data-surface-view]").forEach(button => {
+			button.addEventListener("click", () => {
+				void this.mapSurface.setView(button.dataset.surfaceView as LiveAppPluginSurfaceView);
+			});
+		});
+
 		document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach(button => {
 			button.addEventListener("click", () => {
 				const requestedTool = button.dataset.tool as MapTool;
@@ -234,8 +240,27 @@ class AppPluginDesktop {
 		}, "Reinigung noch nicht gesendet – AppPlugin-Aktionsadapter fehlt");
 	}
 	private updateMapSummary(snapshot: LiveAppPluginMapSnapshot): void {
+		const fullView = snapshot.view === "full";
 		byId<HTMLElement>("selectionSummary").textContent =
-			`Unveränderte ${snapshot.bundleKind}-Sitzung · Revision ${snapshot.revision} · React-Tag ${snapshot.surface.tag}`;
+			`Unveränderte ${snapshot.bundleKind}-Sitzung · Revision ${snapshot.revision} · React-Tag ${snapshot.surface.tag} · DPS ${snapshot.publishedDpsCount}`;
+		byId<HTMLElement>("mapViewTitle").textContent = fullView
+			? "Originale AppPlugin-Testansicht"
+			: "Unveränderte AppPlugin-Karte";
+		byId<HTMLElement>("mapViewDescription").textContent = fullView
+			? "Das vollständige AppPlugin inklusive seiner originalen Menüs. Alle Klicks laufen als APK-Touchereignisse durch dieselbe Hermes-Sitzung."
+			: "Geometrie, Farben, Raumnamen, Roboter, Station, Skalierung und Auswahlzustand werden von derselben laufenden Hermes-Sitzung erzeugt. Der Desktop hostet nur APK-Verträge, Eingabe und Ausgabe.";
+		byId<HTMLElement>("mapOriginLabel").textContent = fullView
+			? "Q7 L5 / SC01 · vollständiger AppPlugin-Root"
+			: "Q7 L5 / SC01 · AppPlugin-Kartenviewport";
+		byId<HTMLElement>("mapNotice").textContent = fullView
+			? "Testmodus: Öffne hier direkt die originalen AppPlugin-Menüs, beispielsweise Bearbeiten → Zusammenführen. Veröffentlichte DPS erscheinen unten im Protokoll und werden nicht an ein Gerät gesendet."
+			: "Direkte native Kartenteilstruktur des laufenden Q7-AppPlugins. Pointer und Pinch werden als APK-Touchereignisse zurück in dieselbe Sitzung geleitet; Gerätebefehle werden nicht gesendet.";
+		document.querySelectorAll<HTMLButtonElement>("[data-surface-view]").forEach(button => {
+			const active = button.dataset.surfaceView === snapshot.view;
+			button.classList.toggle("active", active);
+			button.setAttribute("aria-pressed", String(active));
+			button.disabled = !snapshot.availableViews.includes(button.dataset.surfaceView as LiveAppPluginSurfaceView);
+		});
 	}
 	private updateControlStates(): void {
 		document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach(button => {
@@ -267,7 +292,9 @@ class AppPluginDesktop {
 			if (button.disabled) button.title = "Wird erst nach einem belegten AppPlugin-UI-Vertrag freigeschaltet";
 		});
 		byId<HTMLElement>("mapInstruction").textContent = this.mapSnapshot
-			? "Direkter AppPlugin-Modus Räume · Karte anklicken, ziehen oder per Zwei-Finger-Geste zoomen"
+			? this.mapSnapshot.view === "full"
+				? "Original-Testansicht · AppPlugin-Menüs direkt anklicken · DPS unten prüfen"
+				: "Direkter AppPlugin-Kartenmodus · Räume anklicken, ziehen oder per Zwei-Finger-Geste zoomen"
 			: "Direkte AppPlugin-Sitzung wird verbunden …";
 		const zoomOut = document.getElementById("zoomOut") as HTMLButtonElement | null;
 		const zoomIn = document.getElementById("zoomIn") as HTMLButtonElement | null;

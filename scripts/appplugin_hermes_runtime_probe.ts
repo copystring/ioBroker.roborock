@@ -1222,19 +1222,35 @@ async function main(): Promise<void> {
 				throw new Error("Interaktive AppPlugin-Oberfläche oder Viewport fehlt" );
 			}
 
-			const currentFrame = () => {
+			type ServedView = "map" | "full";
+			const defaultServedView: ServedView = options.serveFullRoot ? "full" : "map";
+			const requestedView = (url: URL): ServedView => {
+				const view = url.searchParams.get("view") ?? defaultServedView;
+				if (view !== "map" && view !== "full") throw new Error(`Unbekannte AppPlugin-Ansicht: ${view}`);
+				return view;
+			};
+			const currentFrame = (view: ServedView = defaultServedView) => {
 				const currentHierarchy = uiExecution.nativeHierarchyRuntime().snapshot();
-				const currentSurface = selectApkServedSurfaceRoot(currentHierarchy, servedSurfaceOptions);
+				const currentSurface = selectApkServedSurfaceRoot(currentHierarchy, {
+					...servedSurfaceOptions,
+					fullRootTag: view === "full" ? rootTag : undefined,
+				});
+				const viewport = view === "full" ? {
+					x: 0,
+					y: 0,
+					width: currentSurface.width,
+					height: currentSurface.height,
+				} : interactiveViewport;
 				const artifact = renderApkNativeUiSnapshotToSvg({
 					shadowRoot: uiManager.snapshot(),
 					nativeHierarchy: currentHierarchy,
 					rootTag: currentSurface.tag,
-					viewport: interactiveViewport,
-					width: interactiveViewport.width,
-					height: interactiveViewport.height,
+					viewport,
+					width: viewport.width,
+					height: viewport.height,
 					fontPath: skiaDiagnostics.fontPaths[0],
 				});
-				return { currentSurface, viewport: interactiveViewport, artifact };
+				return { currentSurface, viewport, artifact, view };
 			};
 			const server = createServer((request, response) => {
 				response.setHeader("Access-Control-Allow-Origin", "*");
@@ -1249,19 +1265,22 @@ async function main(): Promise<void> {
 				void enqueue(async () => {
 					const url = new URL(request.url ?? "/", "http://127.0.0.1");
 					if (request.method === "GET" && url.pathname === "/health") {
-						const { currentSurface } = currentFrame();
+						const { currentSurface, viewport, view } = currentFrame(requestedView(url));
 						sendJson(response, 200, {
 							status: "appplugin-session-ready",
 							revision,
 							surface: currentSurface,
 							bundleKind: session.bundleKind,
-							viewport: interactiveViewport,
+							viewport,
 							productFallbackAllowed: false,
-							surfaceKind: options.serveFullRoot ? "full-appplugin-root" : "interactive-map",
+							surfaceKind: view === "full" ? "full-appplugin-root" : "interactive-map",
+							view,
+							availableViews: ["map", "full"],
 							colorScheme: darkMode.getColorScheme(),
 							colorModel: darkMode.getColorModel(),
 							cardStyle: darkMode.getCardStyle(),
 							themeSwitching: true,
+							publishedDpsCount: publishedDps.length,
 						});
 						return;
 					}
@@ -1306,6 +1325,7 @@ async function main(): Promise<void> {
 						return;
 					}
 					if (request.method === "POST" && url.pathname === "/theme") {
+						const view = requestedView(url);
 						const theme = parseThemeHttpRequest(await readJsonRequest(request));
 						const previousScheme = darkMode.getColorScheme();
 						darkMode.setColorModel(theme.mode === "system" ? "default" : theme.mode);
@@ -1320,11 +1340,12 @@ async function main(): Promise<void> {
 							await stabilizeUi();
 							revision += 1;
 						}
-						const { currentSurface } = currentFrame();
+						const { currentSurface, viewport } = currentFrame(view);
 						sendJson(response, 200, {
 							revision,
 							surface: currentSurface,
-							viewport: interactiveViewport,
+							viewport,
+							view,
 							colorScheme: darkMode.getColorScheme(),
 							colorModel: darkMode.getColorModel(),
 							cardStyle: darkMode.getCardStyle(),
@@ -1348,9 +1369,15 @@ async function main(): Promise<void> {
 						return;
 					}
 					if (request.method === "GET" && url.pathname === "/published-dps") {
+						const after = Number(url.searchParams.get("after") ?? "0");
+						if (!Number.isSafeInteger(after) || after < 0 || after > publishedDps.length) {
+							throw new Error("after muss zwischen 0 und der Anzahl veröffentlichter DPS liegen");
+						}
 						sendJson(response, 200, {
 							revision,
-							publishedDps,
+							publishedDps: publishedDps.slice(after),
+							publishedDpsCount: publishedDps.length,
+							after,
 							publishReplayEvents,
 							publishReplayResponseErrors,
 							publishResponseMatches: publishResponseStates.map(({ response, matchCount }) => ({
@@ -1418,7 +1445,7 @@ async function main(): Promise<void> {
 						return;
 					}
 					if (request.method === "GET" && url.pathname === "/frame.svg") {
-						const { artifact } = currentFrame();
+						const { artifact } = currentFrame(requestedView(url));
 						response.statusCode = 200;
 						response.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
 						response.setHeader("X-AppPlugin-Revision", String(revision));
@@ -1426,6 +1453,7 @@ async function main(): Promise<void> {
 						return;
 					}
 					if (request.method === "POST" && url.pathname === "/pointer") {
+						const view = requestedView(url);
 						const pointer = parsePointerHttpRequest(await readJsonRequest(request));
 						const dispatch = pointer.kind === "cancel"
 							? await pointerInput.cancel(pointer.timeMs as number)
@@ -1438,11 +1466,12 @@ async function main(): Promise<void> {
 						imminentTimerCycles += await settleImminentOneShotTimers();
 						await stabilizeUi();
 						revision += 1;
-						const { currentSurface } = currentFrame();
+						const { currentSurface, viewport } = currentFrame(view);
 						sendJson(response, 200, {
 							revision,
 							surface: currentSurface,
-							viewport: interactiveViewport,
+							viewport,
+							view,
 							targets: dispatch.touches.map(touch => touch.target),
 							changedIndices: dispatch.changedIndices,
 							activePointerIds: pointerInput.activePointerIds(),

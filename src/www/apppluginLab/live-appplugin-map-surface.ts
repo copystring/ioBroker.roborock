@@ -1,6 +1,7 @@
 export type LiveAppPluginMapTool = "view" | "rooms" | "zones" | "noGo" | "noMop" | "virtualWall" | "pin";
 export type LiveAppPluginThemeMode = "dark" | "light" | "system";
 export type LiveAppPluginColorScheme = "dark" | "light";
+export type LiveAppPluginSurfaceView = "map" | "full";
 
 interface LiveAppPluginSurfaceDescriptor {
 	tag: number;
@@ -29,6 +30,9 @@ interface LiveAppPluginHealth {
 	colorModel: "dark" | "default" | "light";
 	cardStyle: number;
 	themeSwitching: boolean;
+	view: LiveAppPluginSurfaceView;
+	availableViews: LiveAppPluginSurfaceView[];
+	publishedDpsCount: number;
 }
 
 interface PointerResponse {
@@ -39,6 +43,7 @@ interface PointerResponse {
 	changedIndices: number[];
 	activePointerIds: number[];
 	publishedDpsCount: number;
+	view: LiveAppPluginSurfaceView;
 }
 
 interface ThemeResponse {
@@ -48,6 +53,14 @@ interface ThemeResponse {
 	colorScheme: LiveAppPluginColorScheme;
 	colorModel: "dark" | "default" | "light";
 	cardStyle: number;
+	view: LiveAppPluginSurfaceView;
+}
+
+interface PublishedDpsResponse {
+	revision: number;
+	publishedDps: unknown[];
+	publishedDpsCount: number;
+	after: number;
 }
 
 export interface LiveAppPluginMapSnapshot {
@@ -60,6 +73,9 @@ export interface LiveAppPluginMapSnapshot {
 	colorModel: "dark" | "default" | "light";
 	cardStyle: number;
 	themeSwitching: boolean;
+	view: LiveAppPluginSurfaceView;
+	availableViews: LiveAppPluginSurfaceView[];
+	publishedDpsCount: number;
 }
 
 export interface LiveAppPluginMapSurfaceOptions {
@@ -80,31 +96,39 @@ export class LiveAppPluginMapSurface {
 	readonly #activePointers = new Set<number>();
 	#requestQueue: Promise<unknown> = Promise.resolve();
 	#health!: LiveAppPluginHealth;
+	#publishedDpsCount = 0;
 
 	public constructor(private readonly options: LiveAppPluginMapSurfaceOptions) {
 		this.#apiBaseUrl = (options.apiBaseUrl ?? "http://127.0.0.1:4174").replace(/\/$/u, "");
 	}
 
 	public async init(): Promise<void> {
-		const response = await fetch(`${this.#apiBaseUrl}/health`, { cache: "no-store" });
-		if (!response.ok) throw new Error(`AppPlugin-Sitzung antwortet mit HTTP ${response.status}`);
-		const health = await response.json() as LiveAppPluginHealth;
-		if (health.status !== "appplugin-session-ready" || health.productFallbackAllowed !== false) {
-			throw new Error("Die Kartenquelle ist keine unveränderte laufende AppPlugin-Sitzung");
-		}
-		this.#health = {
-			...health,
-			colorScheme: health.colorScheme ?? "light",
-			colorModel: health.colorModel ?? "default",
-			cardStyle: health.cardStyle ?? 0,
-			themeSwitching: health.themeSwitching === true,
-		};
+		this.#health = await this.#fetchHealth("map");
+		this.#publishedDpsCount = this.#health.publishedDpsCount;
 		this.options.viewport.dataset.renderMode = "unchanged-appplugin-session";
-		this.options.viewport.dataset.bundleKind = health.bundleKind;
-		this.options.viewport.dataset.productFallbackAllowed = String(health.productFallbackAllowed);
+		this.options.viewport.dataset.bundleKind = this.#health.bundleKind;
+		this.options.viewport.dataset.productFallbackAllowed = String(this.#health.productFallbackAllowed);
 		this.#refreshFrame();
 		this.#bindPointers();
 		this.#emitChange();
+	}
+
+	public setView(view: LiveAppPluginSurfaceView): Promise<void> {
+		if (view === this.#health.view) return Promise.resolve();
+		if (!this.#health.availableViews.includes(view)) {
+			return Promise.reject(new Error(`Die laufende AppPlugin-Sitzung bietet die Ansicht ${view} nicht an`));
+		}
+		return this.#enqueue(async () => {
+			this.#health = await this.#fetchHealth(view);
+			this.#publishedDpsCount = this.#health.publishedDpsCount;
+			this.#refreshFrame();
+			this.#emitChange();
+			this.options.onEvent("AppPlugin-Ansicht gewechselt", {
+				view,
+				surface: this.#health.surface,
+				viewport: this.#health.viewport,
+			});
+		});
 	}
 
 	public snapshot(): LiveAppPluginMapSnapshot {
@@ -118,6 +142,9 @@ export class LiveAppPluginMapSurface {
 			colorModel: this.#health.colorModel,
 			cardStyle: this.#health.cardStyle,
 			themeSwitching: this.#health.themeSwitching,
+			view: this.#health.view,
+			availableViews: [...this.#health.availableViews],
+			publishedDpsCount: this.#publishedDpsCount,
 		};
 	}
 
@@ -129,7 +156,7 @@ export class LiveAppPluginMapSurface {
 			? "dark"
 			: "light";
 		return this.#enqueue(async () => {
-			const response = await fetch(`${this.#apiBaseUrl}/theme`, {
+			const response = await fetch(`${this.#apiBaseUrl}/theme?view=${this.#health.view}`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ mode, systemColorScheme }),
@@ -223,7 +250,7 @@ export class LiveAppPluginMapSurface {
 
 	#sendPointer(kind: "down" | "move" | "up", pointerId: number, x: number, y: number): Promise<void> {
 		return this.#enqueue(async () => {
-			const response = await fetch(`${this.#apiBaseUrl}/pointer`, {
+			const response = await fetch(`${this.#apiBaseUrl}/pointer?view=${this.#health.view}`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ kind, pointerId, x, y, timeMs: performance.timeOrigin + performance.now() }),
@@ -232,7 +259,7 @@ export class LiveAppPluginMapSurface {
 			if (!response.ok || "error" in payload) {
 				throw new Error("error" in payload ? payload.error : `Pointer-Bridge antwortet mit HTTP ${response.status}`);
 			}
-			this.#applyPointerResponse(payload);
+			await this.#applyPointerResponse(payload);
 			this.options.onEvent(`AppPlugin-Pointer ${kind}`, payload);
 		});
 	}
@@ -240,7 +267,7 @@ export class LiveAppPluginMapSurface {
 	#sendCancel(): Promise<void> {
 		this.#activePointers.clear();
 		return this.#enqueue(async () => {
-			const response = await fetch(`${this.#apiBaseUrl}/pointer`, {
+			const response = await fetch(`${this.#apiBaseUrl}/pointer?view=${this.#health.view}`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ kind: "cancel", timeMs: performance.timeOrigin + performance.now() }),
@@ -249,18 +276,65 @@ export class LiveAppPluginMapSurface {
 			if (!response.ok || "error" in payload) {
 				throw new Error("error" in payload ? payload.error : `Pointer-Abbruch antwortet mit HTTP ${response.status}`);
 			}
-			this.#applyPointerResponse(payload);
+			await this.#applyPointerResponse(payload);
 		});
 	}
 
-	#applyPointerResponse(response: PointerResponse): void {
-		this.#health = { ...this.#health, revision: response.revision, surface: response.surface, viewport: response.viewport };
+	async #applyPointerResponse(response: PointerResponse): Promise<void> {
+		this.#health = {
+			...this.#health,
+			revision: response.revision,
+			surface: response.surface,
+			viewport: response.viewport,
+			view: response.view,
+			publishedDpsCount: response.publishedDpsCount,
+		};
 		this.#refreshFrame();
+		this.#emitChange();
+		if (response.publishedDpsCount > this.#publishedDpsCount) await this.#syncPublishedDps(response.publishedDpsCount);
+	}
+
+	async #fetchHealth(view: LiveAppPluginSurfaceView): Promise<LiveAppPluginHealth> {
+		const response = await fetch(`${this.#apiBaseUrl}/health?view=${view}`, { cache: "no-store" });
+		if (!response.ok) throw new Error(`AppPlugin-Sitzung antwortet mit HTTP ${response.status}`);
+		const health = await response.json() as LiveAppPluginHealth;
+		if (health.status !== "appplugin-session-ready" || health.productFallbackAllowed !== false) {
+			throw new Error("Die Kartenquelle ist keine unveränderte laufende AppPlugin-Sitzung");
+		}
+		return {
+			...health,
+			colorScheme: health.colorScheme ?? "light",
+			colorModel: health.colorModel ?? "default",
+			cardStyle: health.cardStyle ?? 0,
+			themeSwitching: health.themeSwitching === true,
+			view: health.view ?? view,
+			availableViews: health.availableViews ?? [health.view ?? view],
+			publishedDpsCount: health.publishedDpsCount ?? 0,
+		};
+	}
+
+	async #syncPublishedDps(expectedCount: number): Promise<void> {
+		const after = this.#publishedDpsCount;
+		const response = await fetch(`${this.#apiBaseUrl}/published-dps?after=${after}`, { cache: "no-store" });
+		if (!response.ok) throw new Error(`AppPlugin-DPS-Protokoll antwortet mit HTTP ${response.status}`);
+		const payload = await response.json() as PublishedDpsResponse;
+		if (payload.after !== after || payload.publishedDpsCount < expectedCount) {
+			throw new Error("AppPlugin-DPS-Protokoll ist nicht konsistent mit der Pointer-Antwort");
+		}
+		payload.publishedDps.forEach((publication, index) => {
+			this.options.onEvent("Originaler AppPlugin-Aufruf – nicht an Gerät gesendet", {
+				sequence: after + index + 1,
+				source: "RRDevice.deviceIOT.publishDps",
+				publication,
+			});
+		});
+		this.#publishedDpsCount = payload.publishedDpsCount;
+		this.#health = { ...this.#health, publishedDpsCount: payload.publishedDpsCount };
 		this.#emitChange();
 	}
 
 	#refreshFrame(): void {
-		this.options.frame.src = `${this.#apiBaseUrl}/frame.svg?revision=${this.#health.revision}`;
+		this.options.frame.src = `${this.#apiBaseUrl}/frame.svg?view=${this.#health.view}&revision=${this.#health.revision}`;
 	}
 
 	#emitChange(): void {
