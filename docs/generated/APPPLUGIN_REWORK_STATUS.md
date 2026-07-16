@@ -10,15 +10,15 @@ Quelle: [`docs/appplugin-rework-tracker.json`](../appplugin-rework-tracker.json)
 
 Aktuelle Phase: **0C – Verhaltensnachweis**
 
-- ✅ 16 abgeschlossen
+- ✅ 17 abgeschlossen
 - 🔄 13 in Arbeit
-- ⏳ 44 offen
+- ⏳ 43 offen
 - ⛔ 4 blockiert
 
 ## Aktueller Fokus
 
-- **P0C-Q7-SPLIT** – Raum teilen mit originaler Linie, Griffen, Grenzen und Befehlsabsicht prüfen: Originalen Menüeinstieg automatisieren und Erfolg, Ablehnung, Abbruch, Mindestgröße sowie Wandgrenzen erfassen.
 - **P0C-Q7-MERGE** – Räume zusammenführen mit originaler Auswahl und Nachbarschaftsgrenzen prüfen: Erfolg, nicht benachbarte Räume, Anzahlgrenze, Ablehnung und Abbruch durch die AppPlugin-Zustandsmaschine testen.
+- **P0C-Q7-THEME** – Hell, Dunkel und Systemmodus in derselben laufenden Kartenfixture nachweisen: Themewechsel ohne Sitzungsneustart mit Kartenpixeln, Dialogen und AppPlugin-Zustand als Gate automatisieren.
 
 ## Danach
 
@@ -196,7 +196,7 @@ Aktuelle Phase: **0C – Verhaltensnachweis**
 | `P0C-Q7-RENAME-MAX-LENGTH` | P0 | ✅ abgeschlossen | AppPlugin-eigene Kürzung überlanger Raumnamen und resultierenden Payload prüfen | `P0C-Q7-RENAME-HAPPY`, `P0B-INPUT-LAYOUT` | [`scripts/prove_q7_appplugin_rename.ts`](../../scripts/prove_q7_appplugin_rename.ts)<br>[`test/fixtures/appplugin/q7-l5-room-rename-max-length.json`](../../test/fixtures/appplugin/q7-l5-room-rename-max-length.json)<br>[`docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md`](../../docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md)<br>`npm run poc:appplugin-q7-rename-proof` | TEXTMAXLENGTH und die Kürzung weiterhin aus dem geladenen AppPlugin übernehmen; kein modellabhängiges Limit im Host pflegen. |
 | `P0C-Q7-RENAME-VALIDATION` | P0 | ✅ abgeschlossen | Vordefinierte und doppelte Raumnamen prüfen | `P0C-Q7-RENAME-HAPPY`, `P0C-Q7-RENAME-EMPTY`, `P0C-Q7-RENAME-MAX-LENGTH` | [`scripts/prove_q7_appplugin_rename.ts`](../../scripts/prove_q7_appplugin_rename.ts)<br>[`test/fixtures/appplugin/q7-l5-room-rename-predefined.json`](../../test/fixtures/appplugin/q7-l5-room-rename-predefined.json)<br>[`test/fixtures/appplugin/q7-l5-room-rename-duplicate.json`](../../test/fixtures/appplugin/q7-l5-room-rename-duplicate.json)<br>[`docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md`](../../docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md)<br>`npm run poc:appplugin-q7-rename-proof` | Lokalisierte Namen, Typ-IDs und Duplikatprüfung weiterhin vollständig aus dem geladenen AppPlugin übernehmen. |
 | `P0C-Q7-RENAME-FAILURE` | P0 | ✅ abgeschlossen | Gerätefehler, Timeout, AppPlugin-eigenen Retry und erneuten Kartenabruf beim Umbenennen prüfen | `P0C-Q7-RENAME-HAPPY`, `P0B-ERROR-CLASSIFICATION` | [`scripts/prove_q7_appplugin_rename.ts`](../../scripts/prove_q7_appplugin_rename.ts)<br>[`test/fixtures/appplugin/q7-l5-room-rename-device-error.json`](../../test/fixtures/appplugin/q7-l5-room-rename-device-error.json)<br>[`test/fixtures/appplugin/q7-l5-room-rename-device-timeout.json`](../../test/fixtures/appplugin/q7-l5-room-rename-device-timeout.json)<br>[`test/fixtures/appplugin/q7-l5-room-rename-device-error-retry-success.json`](../../test/fixtures/appplugin/q7-l5-room-rename-device-error-retry-success.json)<br>[`docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md`](../../docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md)<br>`npm run poc:appplugin-q7-rename-failure-proof` | Keinen Host-Rollback ergänzen: Fehlerzustand, offener Dialog, Retry, Erfolg und Karten-Reload bleiben Eigentum des geladenen AppPlugins. |
-| `P0C-Q7-SPLIT` | P0 | ⏳ offen | Raum teilen mit originaler Linie, Griffen, Grenzen und Befehlsabsicht prüfen | `P0C-Q7-FULL-SCENE`, `P0B-CAPTURE-ONLY` | — | Originalen Menüeinstieg automatisieren und Erfolg, Ablehnung, Abbruch, Mindestgröße sowie Wandgrenzen erfassen. |
+| `P0C-Q7-SPLIT` | P0 | ✅ abgeschlossen | Raum teilen mit originaler Linie, Griffen, Grenzen und Befehlsabsicht prüfen | `P0C-Q7-FULL-SCENE`, `P0B-CAPTURE-ONLY` | [`scripts/prove_q7_appplugin_split.ts`](../../scripts/prove_q7_appplugin_split.ts)<br>[`test/unit/appplugin_q7_split_gate.test.ts`](../../test/unit/appplugin_q7_split_gate.test.ts)<br>[`test/fixtures/appplugin/q7-l5-room-split-success.json`](../../test/fixtures/appplugin/q7-l5-room-split-success.json)<br>[`test/fixtures/appplugin/q7-l5-room-split-invalid-line.json`](../../test/fixtures/appplugin/q7-l5-room-split-invalid-line.json)<br>[`test/fixtures/appplugin/q7-l5-room-split-cancel.json`](../../test/fixtures/appplugin/q7-l5-room-split-cancel.json)<br>[`docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md`](../../docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md)<br>`npm run poc:appplugin-q7-split-proof` | Geometrie, Validierung, Payload, Fehlerzustand, Abbruch und Reload weiterhin vollständig dem geladenen AppPlugin überlassen; dieselbe Gate-Struktur als Nächstes auf Zusammenführen anwenden. |
 | `P0C-Q7-MERGE` | P0 | ⏳ offen | Räume zusammenführen mit originaler Auswahl und Nachbarschaftsgrenzen prüfen | `P0C-Q7-FULL-SCENE`, `P0B-CAPTURE-ONLY` | — | Erfolg, nicht benachbarte Räume, Anzahlgrenze, Ablehnung und Abbruch durch die AppPlugin-Zustandsmaschine testen. |
 | `P0C-Q7-ROOM-PROPERTIES` | P1 | ⏳ offen | Bodentyp, Raumtyp/-symbol und Reihenfolge über AppPlugin-Werkzeuge prüfen | `P0C-Q7-FULL-SCENE`, `P0B-CAPTURE-ONLY` | — | Jedes tatsächlich angebotene Werkzeug bis zur semantischen Absicht und Kartenaktualisierung nachweisen. |
 | `P0C-Q7-BOUNDARIES` | P0 | ⏳ offen | Sperrzonen, wischfreie Zonen, virtuelle Wände und Schwellen vollständig bedienen | `P0C-Q7-FULL-SCENE`, `P0B-CAPTURE-ONLY` | — | Erzeugen, auswählen, verschieben, skalieren, drehen, löschen, mehrere Objekte und Originalgrenzen als Gates erfassen. |

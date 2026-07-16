@@ -38,6 +38,7 @@ import {
 	ApkPointerInputBridge,
 	ApkSkiaHostRuntime,
 	ApkSoundManagerRuntime,
+	ApkStatusBarRuntime,
 	ApkTimingRuntime,
 	ApkTextInputRuntime,
 	ApkTouchEventDispatcher,
@@ -786,6 +787,11 @@ async function main(): Promise<void> {
 	registry.register(
 		installedModule(contract, "SoundManager").javaClass,
 		soundManager as unknown as Record<string, unknown>,
+	);
+	const statusBar = new ApkStatusBarRuntime();
+	registry.register(
+		installedModule(contract, "StatusBarManager").javaClass,
+		statusBar as unknown as Record<string, unknown>,
 	);
 	registry.register(
 		installedModule(contract, "AppState").javaClass,
@@ -1549,6 +1555,7 @@ async function main(): Promise<void> {
 			i18nPreferences: i18nManager.snapshot(),
 			appSysLogs,
 			touchSoundCount: soundManager.touchSoundCount(),
+			statusBar: statusBar.snapshot(),
 			nativeInvocations,
 			nativeInvocationRejections,
 			uiTree: options.runApplication ? uiManager.snapshot() : undefined,

@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ApkDarkModeRuntime } from "../../src/apppluginHost/apkDarkModeRuntime";
 import { ApkNetInfoRuntime } from "../../src/apppluginHost/apkNetInfoRuntime";
 import { ApkPluginSdkEnvironmentRuntime } from "../../src/apppluginHost/apkPluginSdkEnvironmentRuntime";
+import { ApkStatusBarRuntime } from "../../src/apppluginHost/apkStatusBarRuntime";
 import { ApkV8WorkerRuntime } from "../../src/apppluginHost/apkV8WorkerRuntime";
 
 describe("APK AppPlugin environment runtimes", () => {
@@ -179,6 +180,25 @@ describe("APK AppPlugin environment runtimes", () => {
 		await vi.waitFor(() => expect(callback).toHaveBeenCalledWith(true, 8));
 	});
 
+	it("captures the APK status-bar request for a desktop shell", () => {
+		const states: unknown[] = [];
+		const statusBar = new ApkStatusBarRuntime({ onChange: state => states.push(state) });
+
+		statusBar.setColor(0xff102030, false);
+		statusBar.setStyle("dark-content");
+		statusBar.setHidden(true);
+		statusBar.setTranslucent(true);
+
+		expect(statusBar.snapshot()).toEqual({
+			color: 0xff102030,
+			animated: false,
+			hidden: true,
+			style: "dark-content",
+			translucent: true,
+		});
+		expect(states).toHaveLength(4);
+		expect(() => statusBar.setStyle("invalid")).toThrow(/Statusleistenstil/u);
+	});
 	it("derives color and network state with the APK-visible shapes", () => {
 		const events: unknown[] = [];
 		const appliedActivityStyles: boolean[] = [];

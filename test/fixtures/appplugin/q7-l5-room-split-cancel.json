@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "viewport": {
+    "width": 360,
+    "height": 800
+  },
+  "events": [
+    {
+      "kind": "down",
+      "pointerId": 0,
+      "x": 180,
+      "y": 634,
+      "timeMs": 1000
+    },
+    {
+      "kind": "up",
+      "pointerId": 0,
+      "x": 180,
+      "y": 634,
+      "timeMs": 1040,
+      "waitAfterMs": 350
+    },
+    {
+      "kind": "down",
+      "pointerId": 0,
+      "x": 242,
+      "y": 309,
+      "timeMs": 1400
+    },
+    {
+      "kind": "up",
+      "pointerId": 0,
+      "x": 242,
+      "y": 309,
+      "timeMs": 1440,
+      "waitAfterMs": 350
+    },
+    {
+      "kind": "down",
+      "pointerId": 0,
+      "x": 256,
+      "y": 80,
+      "timeMs": 1800
+    },
+    {
+      "kind": "up",
+      "pointerId": 0,
+      "x": 256,
+      "y": 80,
+      "timeMs": 1840,
+      "waitAfterMs": 2500
+    },
+    {
+      "kind": "assert",
+      "rawTextIncludes": [
+        "Unterteilen",
+        "Zusammenführen",
+        "Name"
+      ]
+    },
+    {
+      "kind": "down",
+      "pointerId": 0,
+      "x": 78,
+      "y": 579,
+      "timeMs": 4400
+    },
+    {
+      "kind": "up",
+      "pointerId": 0,
+      "x": 78,
+      "y": 579,
+      "timeMs": 4440,
+      "waitAfterMs": 500
+    },
+    {
+      "kind": "assert",
+      "rawTextIncludes": [
+        "Wähle einen Raum zum Unterteilen aus."
+      ]
+    },
+    {
+      "kind": "down",
+      "pointerId": 0,
+      "x": 145,
+      "y": 103,
+      "timeMs": 5000
+    },
+    {
+      "kind": "up",
+      "pointerId": 0,
+      "x": 145,
+      "y": 103,
+      "timeMs": 5040,
+      "waitAfterMs": 500
+    },
+    {
+      "kind": "down",
+      "pointerId": 0,
+      "x": 145,
+      "y": 103,
+      "timeMs": 5600
+    },
+    {
+      "kind": "up",
+      "pointerId": 0,
+      "x": 145,
+      "y": 103,
+      "timeMs": 5640,
+      "waitAfterMs": 800
+    },
+    {
+      "kind": "down",
+      "pointerId": 0,
+      "x": 50,
+      "y": 679,
+      "timeMs": 6500
+    },
+    {
+      "kind": "up",
+      "pointerId": 0,
+      "x": 50,
+      "y": 679,
+      "timeMs": 6540,
+      "waitAfterMs": 500
+    },
+    {
+      "kind": "assert",
+      "rawTextIncludes": [
+        "Änderungen verwerfen?",
+        "Abbrechen",
+        "Verwerfen"
+      ],
+      "waitAfterMs": 100
+    },
+    {
+      "kind": "down",
+      "pointerId": 0,
+      "x": 255,
+      "y": 700,
+      "timeMs": 7100
+    },
+    {
+      "kind": "up",
+      "pointerId": 0,
+      "x": 255,
+      "y": 700,
+      "timeMs": 7140,
+      "waitAfterMs": 500
+    },
+    {
+      "kind": "assert",
+      "rawTextIncludes": [
+        "Unterteilen",
+        "Zusammenführen",
+        "Name"
+      ],
+      "waitAfterMs": 100
+    }
+  ]
+}

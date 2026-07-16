@@ -13,6 +13,8 @@ interface RenderDiagnostics {
 	svgViews: number;
 	svgGroups: number;
 	svgPaths: number;
+	svgLines: number;
+	svgCircles: number;
 	embeddedImages: number;
 	textNodes: number;
 }
@@ -219,6 +221,66 @@ function lineJoin(value: unknown): string | undefined {
 	return undefined;
 }
 
+function svgLength(value: unknown, context: string): string {
+	if (typeof value === "number" && Number.isFinite(value)) return String(value);
+	if (typeof value === "string" && value.trim().length > 0) return value.trim();
+	throw new Error(`${context} besitzt keine gültige SVG-Länge`);
+}
+
+function dashArrayAttribute(value: unknown, context: string): string {
+	if (value === null || value === undefined) return "";
+	if (typeof value === "string" && value.trim().length > 0) {
+		return ` stroke-dasharray="${escapeXml(value.trim())}"`;
+	}
+	if (Array.isArray(value) && value.every(item =>
+		typeof item === "number" && Number.isFinite(item)
+		|| typeof item === "string" && item.trim().length > 0)) {
+		return ` stroke-dasharray="${value.map(item => escapeXml(item)).join(" ")}"`;
+	}
+	throw new Error(`${context} besitzt kein gültiges strokeDasharray`);
+}
+
+function optionalNumberAttribute(name: string, value: unknown): string {
+	return typeof value === "number" && Number.isFinite(value)
+		? ` ${name}="${value}"`
+		: "";
+}
+
+function virtualTransformAttribute(props: Readonly<Record<string, unknown>>, context: string): string {
+	if (Array.isArray(props.matrix)) {
+		if (props.matrix.length !== 6
+			|| props.matrix.some(value => typeof value !== "number" || !Number.isFinite(value))) {
+			throw new Error(`${context}.matrix muss aus sechs endlichen Zahlen bestehen`);
+		}
+		return ` transform="matrix(${props.matrix.join(" ")})"`;
+	}
+	if (typeof props.transform === "string" && props.transform.trim().length > 0) {
+		return ` transform="${escapeXml(props.transform.trim())}"`;
+	}
+	return "";
+}
+
+function renderableAttributes(
+	node: ApkUiManagerNodeSnapshot,
+	options: Readonly<{ includeFill: boolean }>,
+): string {
+	const context = `${node.viewName} ${node.tag}`;
+	const fill = options.includeFill ? ` fill="${brushColor(node.props.fill, `${context}.fill`)}"` : "";
+	const stroke = ` stroke="${brushColor(node.props.stroke, `${context}.stroke`)}"`;
+	const width = ` stroke-width="${finite(node.props.strokeWidth, 1)}"`;
+	const dash = dashArrayAttribute(node.props.strokeDasharray, `${context}.strokeDasharray`);
+	const cap = lineCap(node.props.strokeLinecap);
+	const join = lineJoin(node.props.strokeLinejoin);
+	return fill + stroke + width + dash
+		+ (cap ? ` stroke-linecap="${cap}"` : "")
+		+ (join ? ` stroke-linejoin="${join}"` : "")
+		+ optionalNumberAttribute("fill-opacity", node.props.fillOpacity)
+		+ optionalNumberAttribute("stroke-opacity", node.props.strokeOpacity)
+		+ optionalNumberAttribute("stroke-dashoffset", node.props.strokeDashoffset)
+		+ optionalNumberAttribute("stroke-miterlimit", node.props.strokeMiterlimit)
+		+ virtualTransformAttribute(node.props, context);
+}
+
 class SnapshotSvgRenderer {
 	readonly #shadowByTag: ReadonlyMap<number, ApkUiManagerNodeSnapshot>;
 	readonly #layouts: ReadonlyMap<number, Readonly<NativeLayoutBox>>;
@@ -228,6 +290,8 @@ class SnapshotSvgRenderer {
 		svgViews: 0,
 		svgGroups: 0,
 		svgPaths: 0,
+		svgLines: 0,
+		svgCircles: 0,
 		embeddedImages: 0,
 		textNodes: 0,
 	};
@@ -357,20 +421,22 @@ class SnapshotSvgRenderer {
 	#virtualSvg(node: ApkUiManagerNodeSnapshot): string {
 		if (node.viewName === "RNSVGGroup") {
 			this.#diagnostics.svgGroups += 1;
-			return `<g>${node.children.map(child => this.#virtualSvg(child)).join("")}</g>`;
+			return `<g${virtualTransformAttribute(node.props, `RNSVGGroup ${node.tag}`)}>${node.children.map(child =>
+				this.#virtualSvg(child)).join("")}</g>`;
 		}
 		if (node.viewName === "RNSVGPath") {
 			this.#diagnostics.svgPaths += 1;
 			const d = node.props.d;
 			if (typeof d !== "string") throw new Error(`RNSVGPath ${node.tag} besitzt keine Pfadgeometrie`);
-			const fill = brushColor(node.props.fill, `RNSVGPath ${node.tag}.fill`);
-			const stroke = brushColor(node.props.stroke, `RNSVGPath ${node.tag}.stroke`);
-			const dash = Array.isArray(node.props.strokeDasharray)
-				? ` stroke-dasharray="${node.props.strokeDasharray.map(value => escapeXml(value)).join(" ")}"`
-				: "";
-			const cap = lineCap(node.props.strokeLinecap);
-			const join = lineJoin(node.props.strokeLinejoin);
-			return `<path data-react-tag="${node.tag}" d="${escapeXml(d)}" fill="${fill}" stroke="${stroke}" stroke-width="${finite(node.props.strokeWidth, 1)}"${dash}${cap ? ` stroke-linecap="${cap}"` : ""}${join ? ` stroke-linejoin="${join}"` : ""}/>`;
+			return `<path data-react-tag="${node.tag}" d="${escapeXml(d)}"${renderableAttributes(node, { includeFill: true })}/>`;
+		}
+		if (node.viewName === "RNSVGLine") {
+			this.#diagnostics.svgLines += 1;
+			return `<line data-react-tag="${node.tag}" x1="${escapeXml(svgLength(node.props.x1, `RNSVGLine ${node.tag}.x1`))}" y1="${escapeXml(svgLength(node.props.y1, `RNSVGLine ${node.tag}.y1`))}" x2="${escapeXml(svgLength(node.props.x2, `RNSVGLine ${node.tag}.x2`))}" y2="${escapeXml(svgLength(node.props.y2, `RNSVGLine ${node.tag}.y2`))}" fill="none"${renderableAttributes(node, { includeFill: false })}/>`;
+		}
+		if (node.viewName === "RNSVGCircle") {
+			this.#diagnostics.svgCircles += 1;
+			return `<circle data-react-tag="${node.tag}" cx="${escapeXml(svgLength(node.props.cx, `RNSVGCircle ${node.tag}.cx`))}" cy="${escapeXml(svgLength(node.props.cy, `RNSVGCircle ${node.tag}.cy`))}" r="${escapeXml(svgLength(node.props.r, `RNSVGCircle ${node.tag}.r`))}"${renderableAttributes(node, { includeFill: true })}/>`;
 		}
 		throw new Error(`Der unveränderte AppPlugin-Baum verwendet den noch nicht nachgebildeten SVG-Typ ${node.viewName}`);
 	}

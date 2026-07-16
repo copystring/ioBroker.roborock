@@ -80,6 +80,66 @@ describe("APK-native UI snapshot renderer", () => {
 		expect(result.diagnostics).toMatchObject({ svgViews: 1, svgGroups: 1, svgPaths: 1 });
 	});
 
+	it("preserves AppPlugin split lines and draggable endpoint circles", () => {
+		const line = {
+			tag: 6,
+			viewName: "RNSVGLine",
+			rootTag: 1,
+			props: {
+				x1: 2,
+				y1: 3,
+				x2: 8,
+				y2: 9,
+				stroke: { type: 0, payload: -65536 },
+				strokeWidth: 1.5,
+				strokeDasharray: ["0.5", "0.5"],
+			},
+			children: [],
+		} satisfies ApkUiManagerNodeSnapshot;
+		const circle = {
+			tag: 7,
+			viewName: "RNSVGCircle",
+			rootTag: 1,
+			props: {
+				cx: 2,
+				cy: 3,
+				r: 4,
+				fill: { type: 0, payload: -16745729 },
+				stroke: { type: 0, payload: -1 },
+				strokeWidth: 1.5,
+			},
+			children: [],
+		} satisfies ApkUiManagerNodeSnapshot;
+		const splitSvg = {
+			...svgShadow,
+			children: [{ ...groupNode, children: [line, circle] }],
+		};
+		const splitRoot = {
+			...shadowRoot,
+			children: [{ ...shadowRoot.children[0], children: [splitSvg] }],
+		};
+		const splitHierarchy: ApkNativeViewHierarchySnapshot = {
+			...nativeHierarchy,
+			root: {
+				...nativeHierarchy.root,
+				children: [{ ...nativeHierarchy.root.children[0], children: [{ ...splitSvg, children: [] }] }],
+			},
+			virtualTags: [4, 6, 7],
+		};
+
+		const result = renderApkNativeUiSnapshotToSvg({
+			shadowRoot: splitRoot,
+			nativeHierarchy: splitHierarchy,
+			width: 20,
+			height: 20,
+		});
+
+		expect(result.svg).toContain('data-react-tag="6" x1="2" y1="3" x2="8" y2="9"');
+		expect(result.svg).toContain('stroke-dasharray="0.5 0.5"');
+		expect(result.svg).toContain('data-react-tag="7" cx="2" cy="3" r="4"');
+		expect(result.svg).toContain('fill="rgb(0 122 255)"');
+		expect(result.diagnostics).toMatchObject({ svgLines: 1, svgCircles: 1 });
+	});
 	it("crops an unchanged AppPlugin native subtree without rebuilding its children", () => {
 		const hierarchyWithOffset: ApkNativeViewHierarchySnapshot = {
 			...nativeHierarchy,

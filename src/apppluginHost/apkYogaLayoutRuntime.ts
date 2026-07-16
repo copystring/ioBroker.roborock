@@ -423,6 +423,14 @@ export class ApkYogaLayoutRuntime {
 		const children = yogaChildren(snapshot);
 		for (const [index, child] of children.entries()) {
 			const yogaChild = this.#createNode(child, config, nodes);
+			// ReactModalHostShadowNode sets its only child to the Android window size
+			// when it is inserted. The native host then moves that child into a
+			// separate fullscreen DialogRootViewGroup. Keeping this at the Yoga
+			// boundary reproduces the APK invariant for every AppPlugin modal.
+			if (snapshot.viewName === "RCTModalHostView") {
+				yogaChild.setWidth(this.#width * this.#density);
+				yogaChild.setHeight(this.#height * this.#density);
+			}
 			node.insertChild(yogaChild, index);
 		}
 		return node;

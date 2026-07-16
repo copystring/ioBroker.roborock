@@ -3,7 +3,7 @@
 	"project": "ioBroker Roborock AppPlugin-first Rework",
 	"lastReviewed": "2026-07-16",
 	"currentPhase": "0C",
-	"currentFocus": ["P0C-Q7-SPLIT", "P0C-Q7-MERGE"],
+	"currentFocus": ["P0C-Q7-MERGE", "P0C-Q7-THEME"],
 	"nextUp": ["P0C-Q7-MERGE", "P0C-Q7-THEME", "P0C-Q7-M5-CONTRACT", "P0C-Q10-FULL-SCENE"],
 	"phases": [
 		{
@@ -566,11 +566,19 @@
 			"area": "Q7 L5 – Kartenbearbeitung",
 			"family": "scmap",
 			"title": "Raum teilen mit originaler Linie, Griffen, Grenzen und Befehlsabsicht prüfen",
-			"status": "pending",
+			"status": "completed",
 			"priority": "P0",
 			"dependsOn": ["P0C-Q7-FULL-SCENE", "P0B-CAPTURE-ONLY"],
-			"evidence": [],
-			"nextAction": "Originalen Menüeinstieg automatisieren und Erfolg, Ablehnung, Abbruch, Mindestgröße sowie Wandgrenzen erfassen."
+			"evidence": [
+				"scripts/prove_q7_appplugin_split.ts",
+				"test/unit/appplugin_q7_split_gate.test.ts",
+				"test/fixtures/appplugin/q7-l5-room-split-success.json",
+				"test/fixtures/appplugin/q7-l5-room-split-invalid-line.json",
+				"test/fixtures/appplugin/q7-l5-room-split-cancel.json",
+				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
+				"`npm run poc:appplugin-q7-split-proof`"
+			],
+			"nextAction": "Geometrie, Validierung, Payload, Fehlerzustand, Abbruch und Reload weiterhin vollständig dem geladenen AppPlugin überlassen; dieselbe Gate-Struktur als Nächstes auf Zusammenführen anwenden."
 		},
 		{
 			"id": "P0C-Q7-MERGE",

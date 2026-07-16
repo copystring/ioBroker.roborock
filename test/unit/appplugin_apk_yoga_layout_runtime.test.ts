@@ -62,6 +62,30 @@ describe("APK Yoga layout runtime", () => {
 		expect(result.get(3)).toEqual({ x: 10, y: 5, width: 270, height: 30 });
 	});
 
+	it("sizes modal content to the Android dialog viewport outside the ordinary parent layout", () => {
+		const root = node(1, "Root", {}, [
+			node(2, "RCTView", { width: 40, height: 30 }, [
+				node(3, "RCTModalHostView", { position: "absolute" }, [
+					node(4, "RCTView", { flex: 1 }, [
+						node(5, "RCTView", {
+							position: "absolute",
+							left: 0,
+							right: 0,
+							top: 0,
+							bottom: 0,
+							paddingBottom: 46,
+							justifyContent: "flex-end",
+						}),
+					]),
+				]),
+			]),
+		]);
+		const result = layouts(new ApkYogaLayoutRuntime({ width: 360, height: 720 }).calculate(root));
+
+		expect(result.get(3)).toEqual({ x: 0, y: 0, width: 360, height: 720 });
+		expect(result.get(4)).toEqual({ x: 0, y: 0, width: 360, height: 720 });
+		expect(result.get(5)).toEqual({ x: 0, y: 0, width: 360, height: 720 });
+	});
 	it("applies calculated boxes to the native hit-test runtime", () => {
 		const ui = new ApkUiManagerRuntime(contract, 1);
 		ui.createView(2, "RCTView", 1, { width: 200, height: 100 });

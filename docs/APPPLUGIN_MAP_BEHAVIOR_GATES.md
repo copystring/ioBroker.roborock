@@ -78,6 +78,22 @@ Der ergänzende Lauf `npm run poc:appplugin-q7-rename-failure-proof` spielt nach
 
 Der Failure-Runner prüft getrennte Fehler- und Timeout-Sitzungen sowie Fehler → Retry → Erfolg. Er verlangt die lokalisierten Bundle-Texte, den nach dem Fehler weiter montierten `AndroidTextInput`, exakt zwei unterschiedlich benannte Rename-Absichten im Retry-Fall und zwei Kartenantworten: eine beim Einstieg in die Kartenbearbeitung und eine nach dem vom Bundle verarbeiteten Erfolg.
 
+### Q7-L5-Raumteilung
+
+`npm run poc:appplugin-q7-split-proof` startet sieben frische, isolierte Sitzungen mit demselben unveränderten Q7-L5-Hermes-Bundle und der synthetischen Vollszene. Der Host wählt nur die sichtbaren AppPlugin-Werkzeuge und spielt Touchereignisse ein. Er erzeugt weder Teilungsgeometrie noch `service.split_room`-Parameter.
+
+Nach der originalen Raumauswahl montiert das Bundle drei `RNSVGLine`-Knoten und zwei `RNSVGCircle`-Griffe. Die Defaultlinie verläuft in AppPlugin-Kartenkoordinaten von `(65, 163)` bis `(155, 163)`; die beiden Wandsegmente besitzen `strokeWidth = 0.75` und `strokeDasharray = ["0.5", "0.5"]`, die solide Linie `strokeWidth = 1.5`. Die Griffe stammen mit Radius `4`, blauem Fill und weißem Rand direkt aus dem Bundle. Der Host ergänzt dafür nur generische, APK-abgeleitete SVG-Line-/Circle-Komposition. Er kennt keine Q7-Raumform, Wand oder Griffposition.
+
+Der vollständige Gate-Satz beweist folgende AppPlugin-Zustände:
+
+- Erfolg erzeugt genau eine Absicht `service.split_room` mit ausschließlich `lang`, `map_id`, `room_id` und `split_points`. Nach `event.map_change.post.result = 3` entfernt das Bundle Linie und Griffe, kehrt ins Bearbeitungsmenü zurück und fordert selbst erneut `service.upload_by_maptype` an.
+- Ergebnis `4` zeigt „Teilen fehlgeschlagen. Geteilte Bereiche zu klein.“, Ergebnis `6` „Unterteilung fehlgeschlagen“ und Ergebnis `1000` „Zeitüberschreitung bei Vorgang“. In allen drei Fällen behält das AppPlugin seine Teilungsansicht; der Host führt keinen Rollback aus.
+- Wird ein Griff von der Wand weggezogen, blockiert das Bundle lokal und zeigt „Die beiden Enden der Trennlinie sollten möglichst nahe an den Wänden des Raums sein.“ sowie „Ziehe eine Linie durch den ausgewählten Raum.“. Dabei entsteht keine Geräteabsicht.
+- Abbrechen öffnet den originalen AppPlugin-Dialog „Änderungen verwerfen?“ mit „Abbrechen“ und „Verwerfen“. „Verwerfen“ entfernt die Teilungsansicht und sendet ebenfalls keine Geräteabsicht.
+
+Für den Abbruchpfad musste der Host eine allgemeine APK-Invariante schließen: `RCTModalHostView` legt laut dekompilierter APK einen separaten Fullscreen-Dialog an und setzt dessen ersten React-Child auf die Fenstergröße. Der Yoga-Host bildet genau diese Grenze nun für alle AppPlugin-Modals ab. Die anschließend angeforderten `StatusBarManager`-Werte werden über einen generischen Desktop-Shell-Zustand erfasst; sie sind kein Q7-Sonderfall.
+
+Die versionierten Interaktionsfixtures enthalten ausschließlich Touches und sichtbare AppPlugin-Texte. Capture-only-Rohergebnisse bleiben unter `artifacts/` ignoriert. Der Runner prüft zusätzlich den unveränderten Bundle-Hash, originale SVG-Stile und Endpunkte, Pointer-Cleanup, keine AppPlugin-Ausnahmen, keine unerwarteten Native-Module-Ablehnungen, direkte Blob-Provenienz, lokalisierte Gerätereaktionen und den erneuten Kartenabruf nach Erfolg.
 ### Transport- und Pointer-Invarianten
 
 Der Host kann einen bereits als AppPlugin-Blob vorliegenden Bytepuffer ohne lokalen Schlüssel direkt über `RRDeviceBlobPayloadUpdateEvent` in das unveränderte Q7-L5-Hermes-Bundle geben. B01-Frames durchlaufen davor ausschließlich Entschlüsselung und Segmentzusammenbau; beide Wege verwenden danach dieselbe Emissionsfunktion. Die versionierte synthetische Full-Scene-Fixture beweist inzwischen den vollständigen direkten Blob-Renderweg. Ein B01-Ende-zu-Ende-Gate bleibt davon getrennt, weil es zusätzlich den originalen äußeren Frame-, Schlüssel- und Segmentvertrag prüfen muss.

@@ -29,6 +29,7 @@ export * from "./apkPluginSdkRpcModule";
 export * from "./apkRobotToAppMessage";
 export * from "./apkSkiaHostRuntime";
 export * from "./apkSoundManagerRuntime";
+export * from "./apkStatusBarRuntime";
 export * from "./apkRpcBlobCodec";
 export * from "./apkRpcRequestBroker";
 export * from "./apkTimingRuntime";
