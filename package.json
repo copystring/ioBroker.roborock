@@ -27,6 +27,7 @@
     "@napi-rs/canvas": "^1.0.1",
     "axios": "^1.18.1",
     "binary-parser": "^2.3.0",
+    "canvaskit-wasm": "^0.41.1",
     "crc-32": "^1.2.2",
     "d3": "^7.9.0",
     "go2rtc-static": "^1.9.4",
@@ -36,6 +37,7 @@
     "p-queue": "^9.3.1",
     "ping": "^1.0.0",
     "protobufjs": "^8.6.5",
+    "yoga-layout": "^2.0.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -95,7 +97,7 @@
   "scripts": {
     "clean": "shx rm -rf www/*.d.ts www/*.tsbuildinfo",
     "build": "npm run clean && npm run build:www && npm run lint && npm run typecheck && npm run docs",
-    "build:www": "esbuild src/www/map.ts --bundle --minify --sourcemap --outfile=www/app.js --format=esm",
+    "build:www": "esbuild src/www/map.ts --bundle --minify --sourcemap --outfile=www/app.js --format=esm && esbuild src/www/appplugin-lab.ts --bundle --minify --sourcemap --outfile=www/appplugin-lab.js --format=esm",
     "precommit": "npm run build:www && git add www/app.js www/app.js.map && node scripts/updateCommitInfo.js --force-current-date && git add src/lib/commitInfo.ts",
     "watch": "npm run clean && npm run watch:www",
     "watch:www": "esbuild src/www/map.ts --bundle --sourcemap --outfile=www/app.js --format=esm --watch",
@@ -113,14 +115,27 @@
     "ci:check:full": "npm ci && npm run lint && npm run typecheck && npm run test:unit",
     "translate": "translate-adapter",
     "watch:all": "node scripts/watch-build.js",
-    "docs": "node scripts/generate-docs.js",
+    "docs": "node scripts/generate-docs.js && npm run generate:apk-host-contract && npm run generate:apk-host-bridge",
+    "docs:appplugin-status": "node scripts/appplugin_rework_tracker.js",
+    "generate:apk-host-contract": "esbuild scripts/generate_apk_appplugin_contract.ts --bundle --platform=node --format=cjs --outfile=artifacts/appplugin-poc/generate_apk_appplugin_contract.cjs && node artifacts/appplugin-poc/generate_apk_appplugin_contract.cjs && shx rm -f artifacts/appplugin-poc/generate_apk_appplugin_contract.cjs",
+    "generate:apk-host-bridge": "esbuild scripts/generate_apk_bridge_bootstrap.ts --bundle --platform=node --format=cjs --outfile=artifacts/appplugin-poc/generate_apk_bridge_bootstrap.cjs && node artifacts/appplugin-poc/generate_apk_bridge_bootstrap.cjs && shx rm -f artifacts/appplugin-poc/generate_apk_bridge_bootstrap.cjs",
     "appplugins:convert": "node scripts/appplugins.js convert bundle",
     "appplugins:extract": "node scripts/appplugins.js extract translations",
     "prepare:appplugin-bundles": "node scripts/prepare_appplugin_bundles.js",
     "extract:appplugin-translations": "node scripts/extract_appplugin_translations.js",
+    "poc:appplugin-phase0": "node scripts/appplugin_phase0.js --root .AppPlugins",
+    "poc:appplugin-runtime": "node scripts/appplugin_runtime_poc.js",
+    "poc:appplugin-desktop": "node scripts/build_appplugin_desktop.js",
+    "poc:appplugin-q7-rename-proof": "esbuild scripts/appplugin_hermes_runtime_probe.ts --bundle --platform=node --format=cjs --packages=external --outfile=artifacts/appplugin-poc/appplugin_hermes_runtime_probe-v33.cjs && esbuild scripts/prove_q7_appplugin_rename.ts --bundle --platform=node --format=cjs --outfile=artifacts/appplugin-poc/prove_q7_appplugin_rename.cjs && node artifacts/appplugin-poc/prove_q7_appplugin_rename.cjs && node artifacts/appplugin-poc/prove_q7_appplugin_rename.cjs --interaction artifacts/appplugin-poc/runtime-probes/q7-l5-room-rename-empty-interaction.json --output artifacts/appplugin-poc/runtime-probes/q7-l5-room-rename-empty-proof.json --expect-blocked",
+    "poc:hermes-host:check": "node scripts/build_hermes_appplugin_host.js --check",
+    "poc:hermes-host:build": "node scripts/build_hermes_appplugin_host.js",
+    "poc:extract-rrcodec": "node scripts/extract_rrcodec.js",
+    "poc:rrcodec-oracle": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run_rrcodec_oracle.ps1",
     "copy:protocols": "shx mkdir -p build/lib/protocols && shx cp lib/protocols/*.json build/lib/protocols/",
     "build:git": "npm run clean && npm run copy:protocols && tsc -b tsconfig.json && npm run build:www",
-    "release": "release-script"
+    "release": "release-script",
+    "poc:appplugin-render-scene": "esbuild scripts/render_q10_original_scene.ts --bundle --platform=node --format=cjs --packages=external --outfile=artifacts/appplugin-poc/render_q10_original_scene.cjs && node artifacts/appplugin-poc/render_q10_original_scene.cjs && shx rm -f artifacts/appplugin-poc/render_q10_original_scene.cjs",
+    "poc:appplugin-lab:fixture": "npm run poc:appplugin-render-scene && esbuild scripts/generate_appplugin_lab_fixture.ts --bundle --platform=node --format=cjs --packages=external --outfile=artifacts/appplugin-poc/generate_appplugin_lab_fixture.cjs && node artifacts/appplugin-poc/generate_appplugin_lab_fixture.cjs && shx rm -f artifacts/appplugin-poc/generate_appplugin_lab_fixture.cjs"
   },
   "bugs": {
     "url": "https://github.com/copystring/ioBroker.roborock/issues"

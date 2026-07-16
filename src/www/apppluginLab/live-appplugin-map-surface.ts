@@ -1,0 +1,279 @@
+export type LiveAppPluginMapTool = "view" | "rooms" | "zones" | "noGo" | "noMop" | "virtualWall" | "pin";
+export type LiveAppPluginThemeMode = "dark" | "light" | "system";
+export type LiveAppPluginColorScheme = "dark" | "light";
+
+interface LiveAppPluginSurfaceDescriptor {
+	tag: number;
+	viewName: string;
+	width: number;
+	height: number;
+	area: number;
+	responderContractCount: number;
+}
+
+interface LiveAppPluginViewport {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+interface LiveAppPluginHealth {
+	status: "appplugin-session-ready";
+	revision: number;
+	surface: LiveAppPluginSurfaceDescriptor;
+	viewport: LiveAppPluginViewport;
+	bundleKind: string;
+	productFallbackAllowed: false;
+	colorScheme: LiveAppPluginColorScheme;
+	colorModel: "dark" | "default" | "light";
+	cardStyle: number;
+	themeSwitching: boolean;
+}
+
+interface PointerResponse {
+	revision: number;
+	surface: LiveAppPluginSurfaceDescriptor;
+	viewport: LiveAppPluginViewport;
+	targets: number[];
+	changedIndices: number[];
+	activePointerIds: number[];
+	publishedDpsCount: number;
+}
+
+interface ThemeResponse {
+	revision: number;
+	surface: LiveAppPluginSurfaceDescriptor;
+	viewport: LiveAppPluginViewport;
+	colorScheme: LiveAppPluginColorScheme;
+	colorModel: "dark" | "default" | "light";
+	cardStyle: number;
+}
+
+export interface LiveAppPluginMapSnapshot {
+	revision: number;
+	surface: LiveAppPluginSurfaceDescriptor;
+	viewport: LiveAppPluginViewport;
+	bundleKind: string;
+	productFallbackAllowed: false;
+	colorScheme: LiveAppPluginColorScheme;
+	colorModel: "dark" | "default" | "light";
+	cardStyle: number;
+	themeSwitching: boolean;
+}
+
+export interface LiveAppPluginMapSurfaceOptions {
+	viewport: HTMLElement;
+	frame: HTMLImageElement;
+	onEvent: (label: string, data: unknown) => void;
+	onChange: (snapshot: LiveAppPluginMapSnapshot) => void;
+	apiBaseUrl?: string;
+}
+
+function finite(value: number, name: string): number {
+	if (!Number.isFinite(value)) throw new Error(`${name} muss endlich sein`);
+	return value;
+}
+
+export class LiveAppPluginMapSurface {
+	readonly #apiBaseUrl: string;
+	readonly #activePointers = new Set<number>();
+	#requestQueue: Promise<unknown> = Promise.resolve();
+	#health!: LiveAppPluginHealth;
+
+	public constructor(private readonly options: LiveAppPluginMapSurfaceOptions) {
+		this.#apiBaseUrl = (options.apiBaseUrl ?? "http://127.0.0.1:4174").replace(/\/$/u, "");
+	}
+
+	public async init(): Promise<void> {
+		const response = await fetch(`${this.#apiBaseUrl}/health`, { cache: "no-store" });
+		if (!response.ok) throw new Error(`AppPlugin-Sitzung antwortet mit HTTP ${response.status}`);
+		const health = await response.json() as LiveAppPluginHealth;
+		if (health.status !== "appplugin-session-ready" || health.productFallbackAllowed !== false) {
+			throw new Error("Die Kartenquelle ist keine unveränderte laufende AppPlugin-Sitzung");
+		}
+		this.#health = {
+			...health,
+			colorScheme: health.colorScheme ?? "light",
+			colorModel: health.colorModel ?? "default",
+			cardStyle: health.cardStyle ?? 0,
+			themeSwitching: health.themeSwitching === true,
+		};
+		this.options.viewport.dataset.renderMode = "unchanged-appplugin-session";
+		this.options.viewport.dataset.bundleKind = health.bundleKind;
+		this.options.viewport.dataset.productFallbackAllowed = String(health.productFallbackAllowed);
+		this.#refreshFrame();
+		this.#bindPointers();
+		this.#emitChange();
+	}
+
+	public snapshot(): LiveAppPluginMapSnapshot {
+		return {
+			revision: this.#health.revision,
+			surface: { ...this.#health.surface },
+			viewport: { ...this.#health.viewport },
+			bundleKind: this.#health.bundleKind,
+			productFallbackAllowed: false,
+			colorScheme: this.#health.colorScheme,
+			colorModel: this.#health.colorModel,
+			cardStyle: this.#health.cardStyle,
+			themeSwitching: this.#health.themeSwitching,
+		};
+	}
+
+	public setTheme(mode: LiveAppPluginThemeMode): Promise<void> {
+		if (!this.#health.themeSwitching) {
+			throw new Error("Die laufende AppPlugin-Sitzung unterstützt den APK-Theme-Wechsel noch nicht");
+		}
+		const systemColorScheme: LiveAppPluginColorScheme = matchMedia("(prefers-color-scheme: dark)").matches
+			? "dark"
+			: "light";
+		return this.#enqueue(async () => {
+			const response = await fetch(`${this.#apiBaseUrl}/theme`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ mode, systemColorScheme }),
+			});
+			const payload = await response.json() as ThemeResponse | { error: string };
+			if (!response.ok || "error" in payload) {
+				throw new Error("error" in payload ? payload.error : `Theme-Bridge antwortet mit HTTP ${response.status}`);
+			}
+			this.#health = { ...this.#health, ...payload };
+			this.#refreshFrame();
+			this.#emitChange();
+			this.options.onEvent("APK-Konfigurationswechsel an AppPlugin gesendet", { mode, ...payload });
+		});
+	}
+
+	public async zoomBy(delta: number): Promise<void> {
+		if (delta === 0) return;
+		const { width, height } = this.#health.surface;
+		const centerX = width / 2;
+		const centerY = height / 2;
+		const startDistance = Math.min(width * 0.28, 100);
+		const endDistance = delta > 0
+			? Math.min(width * 0.72, startDistance * 1.8)
+			: Math.max(24, startDistance * 0.55);
+		const rightX = centerX + startDistance / 2;
+		const startLeftX = rightX - startDistance;
+		const endLeftX = rightX - endDistance;
+		const leftId = 10_001;
+		const rightId = 10_002;
+		await this.#sendPointer("down", leftId, startLeftX, centerY);
+		await this.#sendPointer("down", rightId, rightX, centerY);
+		// Android liefert eine fortlaufende MotionEvent-Folge. Das erste MOVE kann
+		// React Native lediglich zum Beanspruchen des Responders dienen; erst die
+		// folgenden MOVEs erreichen den bereits aktiven AppPlugin-PanResponder.
+		for (let step = 1; step <= 5; step += 1) {
+			const progress = step / 5;
+			const leftX = startLeftX + (endLeftX - startLeftX) * progress;
+			await this.#sendPointer("move", leftId, leftX, centerY);
+		}
+		await this.#sendPointer("up", rightId, rightX, centerY);
+		await this.#sendPointer("up", leftId, endLeftX, centerY);
+		this.options.onEvent("APK-Pinch an AppPlugin gesendet", { delta, revision: this.#health.revision });
+	}
+
+	#bindPointers(): void {
+		this.options.viewport.addEventListener("pointerdown", event => {
+			const point = this.#toSurfacePoint(event.clientX, event.clientY);
+			if (!point) return;
+			event.preventDefault();
+			this.options.viewport.setPointerCapture(event.pointerId);
+			this.#activePointers.add(event.pointerId);
+			void this.#sendPointer("down", event.pointerId, point.x, point.y);
+		});
+		this.options.viewport.addEventListener("pointermove", event => {
+			if (!this.#activePointers.has(event.pointerId)) return;
+			const point = this.#toSurfacePoint(event.clientX, event.clientY);
+			if (!point) return;
+			event.preventDefault();
+			void this.#sendPointer("move", event.pointerId, point.x, point.y);
+		});
+		const release = (kind: "up" | "cancel", event: PointerEvent): void => {
+			if (!this.#activePointers.delete(event.pointerId)) return;
+			const point = this.#toSurfacePoint(event.clientX, event.clientY);
+			if (kind === "cancel" || !point) {
+				void this.#sendCancel();
+				return;
+			}
+			event.preventDefault();
+			void this.#sendPointer("up", event.pointerId, point.x, point.y);
+		};
+		this.options.viewport.addEventListener("pointerup", event => release("up", event));
+		this.options.viewport.addEventListener("pointercancel", event => release("cancel", event));
+	}
+
+	#toSurfacePoint(clientX: number, clientY: number): { x: number; y: number } | undefined {
+		const rect = this.options.viewport.getBoundingClientRect();
+		const { width, height, x, y } = this.#health.viewport;
+		const scale = Math.min(rect.width / width, rect.height / height);
+		const renderedWidth = width * scale;
+		const renderedHeight = height * scale;
+		const left = rect.left + (rect.width - renderedWidth) / 2;
+		const top = rect.top + (rect.height - renderedHeight) / 2;
+		if (clientX < left || clientY < top || clientX > left + renderedWidth || clientY > top + renderedHeight) {
+			return undefined;
+		}
+		return {
+			x: x + finite((clientX - left) / scale, "Pointer-x"),
+			y: y + finite((clientY - top) / scale, "Pointer-y"),
+		};
+	}
+
+	#sendPointer(kind: "down" | "move" | "up", pointerId: number, x: number, y: number): Promise<void> {
+		return this.#enqueue(async () => {
+			const response = await fetch(`${this.#apiBaseUrl}/pointer`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ kind, pointerId, x, y, timeMs: performance.timeOrigin + performance.now() }),
+			});
+			const payload = await response.json() as PointerResponse | { error: string };
+			if (!response.ok || "error" in payload) {
+				throw new Error("error" in payload ? payload.error : `Pointer-Bridge antwortet mit HTTP ${response.status}`);
+			}
+			this.#applyPointerResponse(payload);
+			this.options.onEvent(`AppPlugin-Pointer ${kind}`, payload);
+		});
+	}
+
+	#sendCancel(): Promise<void> {
+		this.#activePointers.clear();
+		return this.#enqueue(async () => {
+			const response = await fetch(`${this.#apiBaseUrl}/pointer`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ kind: "cancel", timeMs: performance.timeOrigin + performance.now() }),
+			});
+			const payload = await response.json() as PointerResponse | { error: string };
+			if (!response.ok || "error" in payload) {
+				throw new Error("error" in payload ? payload.error : `Pointer-Abbruch antwortet mit HTTP ${response.status}`);
+			}
+			this.#applyPointerResponse(payload);
+		});
+	}
+
+	#applyPointerResponse(response: PointerResponse): void {
+		this.#health = { ...this.#health, revision: response.revision, surface: response.surface, viewport: response.viewport };
+		this.#refreshFrame();
+		this.#emitChange();
+	}
+
+	#refreshFrame(): void {
+		this.options.frame.src = `${this.#apiBaseUrl}/frame.svg?revision=${this.#health.revision}`;
+	}
+
+	#emitChange(): void {
+		this.options.onChange(this.snapshot());
+	}
+
+	#enqueue<T>(operation: () => Promise<T>): Promise<T> {
+		const pending = this.#requestQueue.then(operation, operation);
+		this.#requestQueue = pending.catch(error => {
+			this.options.onEvent("AppPlugin-Sitzungsfehler", {
+				message: error instanceof Error ? error.message : String(error),
+			});
+		});
+		return pending;
+	}
+}

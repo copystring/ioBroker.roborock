@@ -1,8 +1,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { generateTrackerDocumentation } = require('./appplugin_rework_tracker.js');
 
 const OUTPUT_DIR = path.join(__dirname, '../docs');
 const ROOT_DIR = path.join(__dirname, '..');
+const AUTO_GENERATED_MARKER = '> **Auto-Generated**: This document is generated from the source code/tests to ensure 1:1 accuracy with the implementation.';
 const SCAN_DIRS = [
     path.join(__dirname, '../src'),
     path.join(__dirname, '../test')
@@ -94,9 +96,9 @@ function clearDocs(dir) {
             if (fs.readdirSync(filePath).length === 0) {
                 fs.rmdirSync(filePath);
             }
-        } else {
-            if (file === 'README.md') continue; // Preserve main README
-            if (file.endsWith('.md')) {
+        } else if (file.endsWith('.md')) {
+            const content = fs.readFileSync(filePath, 'utf8');
+            if (content.includes(AUTO_GENERATED_MARKER)) {
                 fs.unlinkSync(filePath);
             }
         }
@@ -104,6 +106,7 @@ function clearDocs(dir) {
 }
 
 function generateDocs() {
+    docsMap.clear();
     console.log('📖 Cleaning old documentation...');
     clearDocs(OUTPUT_DIR);
 
@@ -136,6 +139,17 @@ function generateDocs() {
         fs.writeFileSync(filePath, fileContent);
         console.log(`   ✅ Generated ${filename} (${blocks.length} sections)`);
     });
+
+    const trackerResult = generateTrackerDocumentation();
+    console.log(`   ✅ Generated ${path.relative(ROOT_DIR, trackerResult.outputPath)} (${trackerResult.tracker.items.length} tasks)`);
 }
 
-generateDocs();
+if (require.main === module) {
+    generateDocs();
+}
+
+module.exports = {
+    AUTO_GENERATED_MARKER,
+    clearDocs,
+    generateDocs
+};

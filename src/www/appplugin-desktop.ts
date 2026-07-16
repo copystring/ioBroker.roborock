@@ -1,0 +1,310 @@
+import {
+	createOfflineAppPluginEnvelope,
+	type AppPluginDesktopIntent,
+} from "./apppluginLab/desktop-intents";
+import {
+	LiveAppPluginMapSurface,
+	type LiveAppPluginThemeMode,
+	type LiveAppPluginMapSnapshot,
+	type LiveAppPluginMapTool,
+} from "./apppluginLab/live-appplugin-map-surface";
+type MapTool = LiveAppPluginMapTool;
+type CleanScope = "full" | "rooms" | "zones";
+type CleanMethod = "smart" | "vacuum" | "mop" | "vacuumThenMop";
+
+function byId<T extends HTMLElement | SVGElement>(id: string): T {
+	const element = document.getElementById(id);
+	if (!element) throw new Error(`Desktop-PoC-Element fehlt: ${id}`);
+	return element as T;
+}
+
+class AppPluginDesktop {
+	private activeNavigation = "map";
+	private tool: MapTool = "rooms";
+	private scope: CleanScope = "rooms";
+	private method: CleanMethod = "smart";
+	private passes = 1;
+	private logCount = 0;
+	private mapSurface!: LiveAppPluginMapSurface;
+	private mapSnapshot: LiveAppPluginMapSnapshot | null = null;
+
+	private readonly map = byId<HTMLElement>("desktopMap");
+	private readonly mapFrame = byId<HTMLImageElement>("desktopMapFrame");
+	private readonly log = byId<HTMLElement>("eventLog");
+	private readonly payload = byId<HTMLElement>("payloadPreview");
+	private readonly themeMode = byId<HTMLSelectElement>("themeMode");
+
+	public async init(): Promise<void> {
+		this.mapSurface = new LiveAppPluginMapSurface({
+			viewport: this.map,
+			frame: this.mapFrame,
+			onEvent: (label, data) => this.logEvent(label, data),
+			onChange: snapshot => {
+				this.mapSnapshot = snapshot;
+				document.documentElement.dataset.theme = snapshot.colorScheme;
+				this.themeMode.value = snapshot.colorModel === "default" ? "system" : snapshot.colorModel;
+				this.themeMode.disabled = !snapshot.themeSwitching;
+				this.themeMode.title = snapshot.themeSwitching
+					? "APK-Theme wird an das unveränderte AppPlugin gesendet"
+					: "Die laufende PoC-Sitzung muss mit dem neuen Theme-Host neu gestartet werden";
+				this.updateMapSummary(snapshot);
+				const zoomValue = document.getElementById("zoomValue");
+				if (zoomValue) zoomValue.textContent = `AppPlugin r${snapshot.revision}`;
+				this.updateControlStates();
+			},
+		});
+		await this.mapSurface.init();
+		this.bindNavigation();
+		this.bindControls();
+		this.activateNavigation("map", false);
+		this.emitIntent({
+			name: "navigation.open",
+			arguments: {
+				page: "map",
+				mapSource: this.mapSurface.snapshot(),
+				localization: { owner: "unchanged-model-appplugin", status: "live" },
+			},
+		}, "Direkte AppPlugin-Sitzung verbunden");
+	}
+
+	private bindNavigation(): void {
+		document.querySelectorAll<HTMLButtonElement>("[data-navigation]").forEach(button => {
+			button.addEventListener("click", () => this.activateNavigation(button.dataset.navigation ?? "map"));
+		});
+	}
+
+	private activateNavigation(page: string, emit = true): void {
+		this.activeNavigation = page;
+		document.querySelectorAll<HTMLElement>("[data-navigation]").forEach(element => {
+			element.classList.toggle("active", element.dataset.navigation === page);
+		});
+		document.querySelectorAll<HTMLElement>("[data-context-page]").forEach(element => {
+			element.hidden = element.dataset.contextPage !== page;
+		});
+		byId<HTMLElement>("currentSection").textContent = page === "map" ? "Karte & Reinigung" :
+			page === "overview" ? "Geräteübersicht" :
+			page === "schedules" ? "Pläne" :
+			page === "history" ? "Reinigungsverlauf" :
+			"Einstellungen";
+		if (emit) this.emitIntent({ name: "navigation.open", arguments: { page } }, "Desktop-Menü geöffnet");
+	}
+
+	private bindControls(): void {
+		this.themeMode.addEventListener("change", () => {
+			void this.mapSurface.setTheme(this.themeMode.value as LiveAppPluginThemeMode);
+		});
+		matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+			if (this.themeMode.value === "system") void this.mapSurface.setTheme("system");
+		});
+
+		document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach(button => {
+			button.addEventListener("click", () => {
+				const requestedTool = button.dataset.tool as MapTool;
+				if (requestedTool !== "rooms") {
+					this.logEvent("AppPlugin-Werkzeugadapter noch nicht verbunden", {
+						requestedTool,
+						fallbackUsed: false,
+					});
+					return;
+				}
+				this.tool = "rooms";
+				this.scope = "rooms";
+				this.applyMapMode();
+			});
+		});
+
+		document.querySelectorAll<HTMLButtonElement>("[data-clean-scope]").forEach(button => {
+			button.addEventListener("click", () => {
+				const requestedScope = button.dataset.cleanScope as CleanScope;
+				if (requestedScope !== "rooms") {
+					this.logEvent("AppPlugin-Bereichsadapter noch nicht verbunden", {
+						requestedScope,
+						fallbackUsed: false,
+					});
+					return;
+				}
+				this.scope = "rooms";
+				this.tool = "rooms";
+				this.applyMapMode();
+			});
+		});
+
+		document.querySelectorAll<HTMLButtonElement>("[data-clean-method]").forEach(button => {
+			button.addEventListener("click", () => {
+				this.method = button.dataset.cleanMethod as CleanMethod;
+				this.updateControlStates();
+				this.emitIntent({ name: "clean.setting.change", arguments: { method: this.method } }, "Reinigungsmethode geändert");
+			});
+		});
+
+		document.querySelectorAll<HTMLButtonElement>("[data-pass-count]").forEach(button => {
+			button.addEventListener("click", () => {
+				this.passes = Number(button.dataset.passCount) || 1;
+				this.updateControlStates();
+				this.emitIntent({ name: "clean.setting.change", arguments: { passes: this.passes } }, "Reinigungsdurchläufe geändert");
+			});
+		});
+
+		document.querySelectorAll<HTMLSelectElement>("[data-setting]").forEach(select => {
+			select.addEventListener("change", () => {
+				this.emitIntent({
+					name: "clean.setting.change",
+					arguments: { setting: select.dataset.setting, value: select.value },
+				}, "Reinigungseinstellung geändert");
+			});
+		});
+
+		document.querySelectorAll<HTMLInputElement>("[data-device-setting]").forEach(input => {
+			input.addEventListener("change", () => {
+				const setting = input.dataset.deviceSetting;
+
+				this.emitIntent({
+					name: "device.setting.change",
+					arguments: { setting, enabled: input.checked },
+				}, "Geräteeinstellung geändert");
+			});
+		});
+
+		document.querySelectorAll<HTMLButtonElement>("[data-intent]").forEach(button => {
+			button.addEventListener("click", () => {
+				const name = button.dataset.intent as AppPluginDesktopIntent["name"];
+				if (name === "clean.start") this.startCleaning();
+				else this.emitIntent({ name, arguments: button.dataset.intentArgument ? { action: button.dataset.intentArgument } : undefined });
+			});
+		});
+
+		document.querySelectorAll<HTMLInputElement>("[data-schedule]").forEach(input => {
+			input.addEventListener("change", () => {
+				this.emitIntent({
+					name: "schedule.toggle",
+					arguments: { scheduleId: input.dataset.schedule, enabled: input.checked },
+				}, "Zeitplan geändert");
+			});
+		});
+
+		document.querySelectorAll<HTMLButtonElement>("[data-history-id]").forEach(button => {
+			button.addEventListener("click", () => this.emitIntent({
+				name: "history.open",
+				arguments: { historyId: button.dataset.historyId },
+			}, "Reinigungsdatensatz geöffnet"));
+		});
+
+		byId<HTMLButtonElement>("clearSelection").addEventListener("click", () => {
+			this.logEvent("AppPlugin-Auswahl löschen noch nicht über UI-Vertrag aufgelöst", { fallbackUsed: false });
+		});
+		byId<HTMLButtonElement>("zoomOut").addEventListener("click", () => void this.mapSurface.zoomBy(-1));
+		byId<HTMLButtonElement>("zoomIn").addEventListener("click", () => void this.mapSurface.zoomBy(1));
+		byId<HTMLButtonElement>("zoomReset").addEventListener("click", () => {
+			this.logEvent("AppPlugin-Ansicht zurücksetzen noch nicht über UI-Vertrag aufgelöst", { fallbackUsed: false });
+		});
+
+		byId<HTMLButtonElement>("clearLog").addEventListener("click", () => {
+			this.log.replaceChildren();
+			this.payload.textContent = "Noch keine Absicht erfasst.";
+			this.logCount = 0;
+			byId<HTMLElement>("logCount").textContent = "0";
+		});
+		this.updateControlStates();
+	}
+
+	private applyMapMode(): void {
+		this.updateControlStates();
+	}
+
+	private startCleaning(): void {
+		const snapshot = this.mapSurface.snapshot();
+		this.emitIntent({
+			name: "clean.start",
+			arguments: {
+				scope: this.scope,
+				selection: {
+					owner: "unchanged-appplugin-session",
+					revision: snapshot.revision,
+					status: "semantic-action-adapter-pending",
+				},
+				cleanMethod: this.method,
+				passes: this.passes,
+				settings: {
+					suction: byId<HTMLSelectElement>("suctionSetting").value,
+					water: byId<HTMLSelectElement>("waterSetting").value,
+					route: byId<HTMLSelectElement>("routeSetting").value,
+				},
+				mapProvenance: snapshot,
+			},
+		}, "Reinigung noch nicht gesendet – AppPlugin-Aktionsadapter fehlt");
+	}
+	private updateMapSummary(snapshot: LiveAppPluginMapSnapshot): void {
+		byId<HTMLElement>("selectionSummary").textContent =
+			`Unveränderte ${snapshot.bundleKind}-Sitzung · Revision ${snapshot.revision} · React-Tag ${snapshot.surface.tag}`;
+	}
+	private updateControlStates(): void {
+		document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach(button => {
+			const active = button.dataset.tool === this.tool;
+			button.classList.toggle("active", active);
+			button.setAttribute("aria-pressed", String(active));
+		});
+		document.querySelectorAll<HTMLButtonElement>("[data-clean-scope]").forEach(button => {
+			const active = button.dataset.cleanScope === this.scope;
+			button.classList.toggle("active", active);
+			button.setAttribute("aria-pressed", String(active));
+		});
+		document.querySelectorAll<HTMLButtonElement>("[data-clean-method]").forEach(button => {
+			const active = button.dataset.cleanMethod === this.method;
+			button.classList.toggle("active", active);
+			button.setAttribute("aria-pressed", String(active));
+		});
+		document.querySelectorAll<HTMLButtonElement>("[data-pass-count]").forEach(button => {
+			const active = Number(button.dataset.passCount) === this.passes;
+			button.classList.toggle("active", active);
+			button.setAttribute("aria-pressed", String(active));
+		});
+		this.map.dataset.tool = this.tool;
+		document.querySelectorAll<HTMLButtonElement>("[data-clean-scope]").forEach(button => {
+			button.disabled = button.dataset.cleanScope !== "rooms";
+		});
+		document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach(button => {
+			button.disabled = button.dataset.tool !== "rooms";
+			if (button.disabled) button.title = "Wird erst nach einem belegten AppPlugin-UI-Vertrag freigeschaltet";
+		});
+		byId<HTMLElement>("mapInstruction").textContent = this.mapSnapshot
+			? "Direkter AppPlugin-Modus Räume · Karte anklicken, ziehen oder per Zwei-Finger-Geste zoomen"
+			: "Direkte AppPlugin-Sitzung wird verbunden …";
+		const zoomOut = document.getElementById("zoomOut") as HTMLButtonElement | null;
+		const zoomIn = document.getElementById("zoomIn") as HTMLButtonElement | null;
+		if (zoomOut) zoomOut.disabled = this.mapSnapshot === null;
+		if (zoomIn) zoomIn.disabled = this.mapSnapshot === null;
+	}
+
+	private emitIntent(intent: AppPluginDesktopIntent, label = "Absicht erfasst – nicht gesendet"): void {
+		const envelope = createOfflineAppPluginEnvelope(intent);
+		this.payload.textContent = JSON.stringify(envelope, null, 2);
+		this.logEvent(label, envelope);
+	}
+
+	private logEvent(label: string, data: unknown): void {
+		const entry = document.createElement("button");
+		entry.type = "button";
+		entry.className = "log-entry";
+		const time = document.createElement("time");
+		time.textContent = new Date().toLocaleTimeString("de-DE");
+		const content = document.createElement("span");
+		content.textContent = label;
+		const detail = document.createElement("small");
+		detail.textContent = JSON.stringify(data);
+		entry.append(time, content, detail);
+		entry.addEventListener("click", () => {
+			this.payload.textContent = JSON.stringify(data, null, 2);
+		});
+		this.log.prepend(entry);
+		while (this.log.children.length > 60) this.log.lastElementChild?.remove();
+		this.logCount = this.log.children.length;
+		byId<HTMLElement>("logCount").textContent = String(this.logCount);
+	}
+}
+
+void new AppPluginDesktop().init().catch(error => {
+	const message = error instanceof Error ? error.message : String(error);
+	const instruction = document.getElementById("mapInstruction");
+	if (instruction) instruction.textContent = `Originalkarte konnte nicht gestartet werden: ${message}`;
+	throw error;
+});

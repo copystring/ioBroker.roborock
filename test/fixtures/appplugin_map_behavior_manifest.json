@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 2,
+  "families": [
+    {
+      "id": "yx-skia",
+      "fixtureStatus": "available",
+      "directBundleMapDataFlowVerified": true,
+      "nativeRenderEndpointReached": true,
+      "originalMapRasterVerified": true,
+      "pngGoldenVerified": true,
+      "directBundleRenderingVerified": false,
+      "evidence": [
+        "test/unit/q10RepresentativeFixture.ts",
+        "test/unit/appplugin_q10_map_event_poc.test.ts",
+        "artifacts/appplugin-poc/q10-original-map.png",
+        "docs/APPPLUGIN_Q10_MAP_EVENT_POC.md"
+      ],
+      "missing": [
+        "direct-original-bundle-render",
+        "full-skia-picture-composition",
+        "room-selection-callback",
+        "full-object-scene-parity",
+        "room-selection-parity",
+        "zone-editing-parity",
+        "gesture-parity",
+        "own-ui-map-engine-bridge"
+      ],
+      "fullSceneParityVerified": false,
+      "roomSelectionParityVerified": false,
+      "zoneEditingParityVerified": false,
+      "gestureParityVerified": false,
+      "ownUiBridgeVerified": false
+    },
+    {
+      "id": "scmap-skia",
+      "fixtureStatus": "available",
+      "directBundleMapDataFlowVerified": false,
+      "nativeRenderEndpointReached": false,
+      "originalMapRasterVerified": false,
+      "pngGoldenVerified": false,
+      "directBundleRenderingVerified": false,
+      "evidence": [
+        "test/unit/b01_research_maps_regression.fixtures.ts"
+      ],
+      "missing": [
+        "direct-original-bundle-render",
+        "reference-image",
+        "room-selection-callback",
+        "full-object-scene-parity",
+        "room-selection-parity",
+        "zone-editing-parity",
+        "gesture-parity",
+        "own-ui-map-engine-bridge"
+      ],
+      "fullSceneParityVerified": false,
+      "roomSelectionParityVerified": false,
+      "zoneEditingParityVerified": false,
+      "gestureParityVerified": false,
+      "ownUiBridgeVerified": false
+    },
+    {
+      "id": "tanos-native",
+      "fixtureStatus": "missing",
+      "directBundleMapDataFlowVerified": false,
+      "nativeRenderEndpointReached": false,
+      "originalMapRasterVerified": false,
+      "pngGoldenVerified": false,
+      "directBundleRenderingVerified": false,
+      "evidence": [],
+      "missing": [
+        "real-map-payload",
+        "native-map-host",
+        "direct-original-bundle-render",
+        "reference-image",
+        "room-selection-callback",
+        "full-object-scene-parity",
+        "room-selection-parity",
+        "zone-editing-parity",
+        "gesture-parity",
+        "own-ui-map-engine-bridge"
+      ],
+      "fullSceneParityVerified": false,
+      "roomSelectionParityVerified": false,
+      "zoneEditingParityVerified": false,
+      "gestureParityVerified": false,
+      "ownUiBridgeVerified": false
+    },
+    {
+      "id": "tanos-native-skia",
+      "fixtureStatus": "missing",
+      "directBundleMapDataFlowVerified": false,
+      "nativeRenderEndpointReached": false,
+      "originalMapRasterVerified": false,
+      "pngGoldenVerified": false,
+      "directBundleRenderingVerified": false,
+      "evidence": [],
+      "missing": [
+        "real-saros-map-payload",
+        "native-map-host",
+        "skia-host",
+        "direct-original-bundle-render",
+        "reference-image",
+        "room-selection-callback",
+        "full-object-scene-parity",
+        "room-selection-parity",
+        "zone-editing-parity",
+        "gesture-parity",
+        "own-ui-map-engine-bridge"
+      ],
+      "fullSceneParityVerified": false,
+      "roomSelectionParityVerified": false,
+      "zoneEditingParityVerified": false,
+      "gestureParityVerified": false,
+      "ownUiBridgeVerified": false
+    }
+  ]
+}

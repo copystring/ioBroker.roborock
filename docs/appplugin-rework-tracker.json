@@ -1,0 +1,1045 @@
+{
+	"version": 1,
+	"project": "ioBroker Roborock AppPlugin-first Rework",
+	"lastReviewed": "2026-07-16",
+	"currentPhase": "0C",
+	"currentFocus": ["P0C-Q7-RENAME-VALIDATION", "P0C-Q7-RENAME-FAILURE", "P0C-Q7-FULL-SCENE"],
+	"nextUp": ["P0C-Q7-SPLIT", "P0C-Q7-MERGE", "P0C-Q7-THEME", "P0C-Q7-M5-CONTRACT", "P0C-Q10-FULL-SCENE"],
+	"phases": [
+		{
+			"id": "0A",
+			"title": "Inventur und belastbare Verträge",
+			"status": "in_progress",
+			"exitCriterion": "APK-, Bundle-, Feature-, Codec- und Datenprovenienz sind für alle lokal vorhandenen Varianten nachvollziehbar inventarisiert."
+		},
+		{
+			"id": "0B",
+			"title": "Laufzeithost und APK-Brücke",
+			"status": "in_progress",
+			"exitCriterion": "Metro und Hermes sowie alle tatsächlich benötigten nativen APK-Verträge laufen reproduzierbar, isoliert und ohne Bundleänderung."
+		},
+		{
+			"id": "0C",
+			"title": "Verhaltensnachweis",
+			"status": "in_progress",
+			"exitCriterion": "Jede unterschiedliche Kartenfamilie besteht mit echten Daten ihre Render-, Interaktions-, Editier-, Fehler-, Theme-, Locale- und Wiederanlauf-Gates."
+		},
+		{
+			"id": "1",
+			"title": "Produkt-Runtime",
+			"status": "pending",
+			"exitCriterion": "Ein versionierter, begrenzter AppPlugin-Dienst bietet eine stabile semantische API und sichere Befehlsabsichten auf Linux, macOS und Windows."
+		},
+		{
+			"id": "2",
+			"title": "ioBroker- und Desktop-Integration",
+			"status": "pending",
+			"exitCriterion": "Adapter, Desktop-UI, Geräteereignisse, Lokalisierung, Freigaben und Dokumentation nutzen ausschließlich die freigegebene Produkt-Runtime."
+		},
+		{
+			"id": "3",
+			"title": "Migration und Release",
+			"status": "pending",
+			"exitCriterion": "Alte Spezialpfade sind mit Vergleichsnachweisen kontrolliert abgelöst und der Rollout besitzt Rückfall-, Diagnose- und Release-Gates."
+		}
+	],
+	"families": [
+		{
+			"id": "scmap",
+			"title": "SCMap/Skia – Q7 L5, Q7 M5 und B01",
+			"contract": "Hermes HBC, SCMap.RobotMap, React Native und Skia",
+			"status": "in_progress",
+			"gate": "Q7 L5 vollständig schließen, danach Q7 M5 gegen denselben Hostvertrag und alle Abweichungen prüfen."
+		},
+		{
+			"id": "yx",
+			"title": "YX/Skia – Q10 und Q10 X5+",
+			"contract": "Metro, YXHomeMapContentView, .jx-Worker und Skia",
+			"status": "in_progress",
+			"gate": "Vom belegten Originalraster zur vollständigen Szene, Interaktion und Editierung gelangen."
+		},
+		{
+			"id": "v1",
+			"title": "V1-Kartenpfad",
+			"contract": "Proprietäres Binärformat; zugehöriger AppPlugin-Hostvertrag noch unbelegt",
+			"status": "blocked",
+			"gate": "Eingangsdaten einem konkreten Original-AppPlugin und APK-Vertrag zuordnen."
+		},
+		{
+			"id": "tanos",
+			"title": "Tanos Native AR/3D",
+			"contract": "RRARMapViewManager und RR3DMapViewManager",
+			"status": "blocked",
+			"gate": "Eindeutig zugeordnete echte Tanos-Payloads und den nativen 2D-/3D-Hostvertrag beschaffen."
+		},
+		{
+			"id": "tanos-hybrid",
+			"title": "Tanos Native AR/3D plus Skia – Saros 20/Z70",
+			"contract": "RRARMapViewManager, RR3DMapViewManager, Skia und CanvasKit",
+			"status": "blocked",
+			"gate": "Echte Saros-Payloads beschaffen und den hybriden nativen sowie Skia-Vertrag schließen."
+		},
+		{
+			"id": "codec",
+			"title": "Codec- und Transportfamilien",
+			"contract": "codec, codec2, librrcodec und APK-Transportverträge",
+			"status": "in_progress",
+			"gate": "Originale Codec-Pfade dynamisch auswählen, plattformübergreifend paketieren und mit Originalvektoren absichern."
+		}
+	],
+	"items": [
+		{
+			"id": "P0A-ARCHITECTURE-BOUNDARY",
+			"phase": "0A",
+			"area": "Architektur",
+			"title": "AppPlugin-first-Verantwortungsgrenze verbindlich festhalten",
+			"status": "completed",
+			"priority": "P0",
+			"dependsOn": [],
+			"evidence": ["docs/APPPLUGIN_FIRST_ARCHITECTURE.md", "docs/APPPLUGIN_REWORK_PHASES.md"],
+			"nextAction": "Bei jedem neuen Hostvertrag prüfen, dass keine AppPlugin-Fachlogik in den Host wandert."
+		},
+		{
+			"id": "P0A-APK-CONTRACT-INVENTORY",
+			"phase": "0A",
+			"area": "Inventur",
+			"title": "APK-Hostverträge und ihre Aufrufketten vollständig inventarisieren",
+			"status": "in_progress",
+			"priority": "P0",
+			"dependsOn": ["P0A-ARCHITECTURE-BOUNDARY"],
+			"evidence": ["docs/generated/AppPlugin_APK_Host.md", "scripts/generate_apk_appplugin_contract.ts"],
+			"nextAction": "Neue native Aufrufe aus jedem Familienlauf mit APK-Provenienz ergänzen und fehlende Verträge explizit als Gate erfassen."
+		},
+		{
+			"id": "P0A-BUNDLE-INVENTORY",
+			"phase": "0A",
+			"area": "Inventur",
+			"title": "Alle lokal vorhandenen AppPlugin-Dateien, ZIPs, Bundle-Formate und Hashes inventarisieren",
+			"status": "completed",
+			"priority": "P0",
+			"dependsOn": [],
+			"evidence": [
+				"docs/APPPLUGIN_MAP_COMPATIBILITY.md",
+				"docs/generated/appplugin-map-inventory.json",
+				"scripts/appplugin_map_matrix.js"
+			],
+			"nextAction": "Inventur bei neuen oder geänderten AppPlugins erneut ausführen; bestehende Dateien nicht stillschweigend überschreiben."
+		},
+		{
+			"id": "P0A-SOURCE-PROVENANCE",
+			"phase": "0A",
+			"area": "Inventur",
+			"title": "Quellenkette und Modellzuordnung jedes Bundles zweifelsfrei belegen",
+			"status": "in_progress",
+			"priority": "P0",
+			"dependsOn": ["P0A-BUNDLE-INVENTORY"],
+			"evidence": ["docs/APPPLUGIN_MAP_COMPATIBILITY.md"],
+			"nextAction": "Die abweichenden Q10-ZIP-/Bundle-Hashes und nur entpackt vorhandene Pakete auf ihre konkrete Quelle zurückführen."
+		},
+		{
+			"id": "P0A-FEATURE-DETECTION",
+			"phase": "0A",
+			"area": "Features",
+			"title": "HomeData-Featurestrings, Docktyp und AppPlugin-Parserpfad gegen die APK prüfen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0A-APK-CONTRACT-INVENTORY", "P0A-SOURCE-PROVENANCE"],
+			"evidence": [],
+			"nextAction": "Beide Featurestring-Varianten lokalisieren, Parser- und Mappingweg nachzeichnen und Modell-/Dock-Fälle als Fixtures sichern."
+		},
+		{
+			"id": "P0A-CODEC-INVENTORY",
+			"phase": "0A",
+			"area": "Codecs",
+			"family": "codec",
+			"title": "codec-, codec2- und librrcodec-Auswahl samt Versionen inventarisieren",
+			"status": "in_progress",
+			"priority": "P0",
+			"dependsOn": ["P0A-APK-CONTRACT-INVENTORY"],
+			"evidence": ["scripts/extract_rrcodec.js", "test/unit/rrcodec_original_vectors.test.ts"],
+			"nextAction": "APK-Auswahlregeln, ABI/Exports und unbekannte Codecvarianten in eine versionierte Runtime-Matrix überführen."
+		},
+		{
+			"id": "P0A-REFERENCE-CAPTURES",
+			"phase": "0A",
+			"area": "Referenzen",
+			"title": "Original-App-Referenzen für Karten, Gesten, Zustände und Werkzeuge pro Familie katalogisieren",
+			"status": "pending",
+			"priority": "P1",
+			"dependsOn": ["P0A-SOURCE-PROVENANCE"],
+			"evidence": [],
+			"nextAction": "Reproduzierbare Referenzszenen und erwartete semantische Ergebnisse mit Modell, App- und Pluginversion erfassen."
+		},
+		{
+			"id": "P0A-TRACKER",
+			"phase": "0A",
+			"area": "Projektsteuerung",
+			"title": "Maschinenlesbare Aufgabenmatrix mit generierter Statusseite etablieren",
+			"status": "completed",
+			"priority": "P0",
+			"dependsOn": ["P0A-ARCHITECTURE-BOUNDARY"],
+			"evidence": [
+				"docs/appplugin-rework-tracker.json",
+				"scripts/appplugin_rework_tracker.js",
+				"test/unit/documentation_generation.test.ts"
+			],
+			"nextAction": "Bei neuen Arbeitssträngen Task-ID, Abhängigkeiten, Belege, Blocker und nächsten Schritt in derselben Quelle ergänzen."
+		},
+		{
+			"id": "P0B-METRO-HOST",
+			"phase": "0B",
+			"area": "JavaScript-Runtime",
+			"title": "Unveränderte Metro-Bundles direkt aus dem Pluginverzeichnis ausführen",
+			"status": "in_progress",
+			"priority": "P0",
+			"dependsOn": ["P0A-BUNDLE-INVENTORY", "P0A-APK-CONTRACT-INVENTORY"],
+			"evidence": ["scripts/appplugin_runtime_poc.js", "test/unit/appplugin_runtime_poc.test.ts"],
+			"nextAction": "Den Direktstart in eine langlebige, isolierte Sitzung mit vollständiger Vertragsdiagnose überführen."
+		},
+		{
+			"id": "P0B-HERMES-HOST",
+			"phase": "0B",
+			"area": "JavaScript-Runtime",
+			"title": "Unveränderte Hermes-Bytecode-Bundles direkt aus dem Pluginverzeichnis ausführen",
+			"status": "in_progress",
+			"priority": "P0",
+			"dependsOn": ["P0A-BUNDLE-INVENTORY", "P0A-APK-CONTRACT-INVENTORY"],
+			"evidence": [
+				"scripts/build_hermes_appplugin_host.js",
+				"src/apppluginHost/apkHermesHostSession.ts",
+				"test/unit/appplugin_apk_hermes_host_session.test.ts"
+			],
+			"nextAction": "Den Q7-Nachweis auf weitere Hermes-Bundles und abweichende native Verträge ausweiten."
+		},
+		{
+			"id": "P0B-REACT-NATIVE-BRIDGE",
+			"phase": "0B",
+			"area": "APK-Brücke",
+			"title": "React-Native-Modul-, UIManager- und Ereignisverträge APK-konform bereitstellen",
+			"status": "in_progress",
+			"priority": "P0",
+			"dependsOn": ["P0A-APK-CONTRACT-INVENTORY", "P0B-HERMES-HOST", "P0B-METRO-HOST"],
+			"evidence": [
+				"src/apppluginHost",
+				"test/unit/appplugin_apk_ui_manager_runtime.test.ts",
+				"test/unit/appplugin_apk_js_module_call_protocol.test.ts"
+			],
+			"nextAction": "Nur tatsächlich aufgerufene, aus der APK belegte Verträge zentral ergänzen und unbekannte Aufrufe hart sichtbar machen."
+		},
+		{
+			"id": "P0B-INPUT-LAYOUT",
+			"phase": "0B",
+			"area": "APK-Brücke",
+			"title": "Layout, Dichte, Touch, Pointer, TextInput und native Animationen zentral abbilden",
+			"status": "in_progress",
+			"priority": "P0",
+			"dependsOn": ["P0B-REACT-NATIVE-BRIDGE"],
+			"evidence": [
+				"src/apppluginHost/apkPointerInputBridge.ts",
+				"test/unit/appplugin_apk_pointer_input_bridge.test.ts",
+				"test/unit/appplugin_apk_text_input_runtime.test.ts",
+				"test/unit/appplugin_apk_native_animated_runtime.test.ts"
+			],
+			"nextAction": "Grenzfälle für Zielknotentausch, Abbruch, Fokus, Tastatur und Dichtetransformation gegen Familienläufe schließen."
+		},
+		{
+			"id": "P0B-SKIA-HOST",
+			"phase": "0B",
+			"area": "Rendering",
+			"title": "Skia-/CanvasKit-Verträge des AppPlugins vollständig bereitstellen",
+			"status": "in_progress",
+			"priority": "P0",
+			"dependsOn": ["P0B-REACT-NATIVE-BRIDGE"],
+			"evidence": [
+				"src/apppluginHost",
+				"test/unit/appplugin_apk_skia_host_runtime.test.ts",
+				"test/unit/canvaskit_skia_host.test.ts"
+			],
+			"nextAction": "Fehlende Zeichenoperationen aus Q7- und Q10-Vollszenen implementieren, ohne Kartenlogik zu kopieren."
+		},
+		{
+			"id": "P0B-TANOS-NATIVE-HOST",
+			"phase": "0B",
+			"area": "Rendering",
+			"family": "tanos",
+			"title": "RRARMapViewManager- und RR3DMapViewManager-Verträge nachbilden",
+			"status": "blocked",
+			"priority": "P0",
+			"dependsOn": ["P0A-APK-CONTRACT-INVENTORY", "P0C-TANOS-PAYLOAD"],
+			"evidence": ["docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md"],
+			"blocker": "Kein eindeutig zugeordnetes echtes Tanos-Kartenpaket im Repository; statische Signaturen reichen für den Laufzeitvertrag nicht aus.",
+			"nextAction": "Mit echten Payloads die tatsächlich aufgerufenen APK-Native-Methoden und Renderausgaben protokollieren."
+		},
+		{
+			"id": "P0B-DEVICE-INGRESS",
+			"phase": "0B",
+			"area": "Datenfluss",
+			"title": "Geräte-, Blob-, Karten- und Antwort-Ereignisse über einen zentralen APK-konformen Eingang leiten",
+			"status": "in_progress",
+			"priority": "P0",
+			"dependsOn": ["P0B-REACT-NATIVE-BRIDGE"],
+			"evidence": [
+				"src/apppluginHost",
+				"test/unit/appplugin_apk_device_ingress.test.ts",
+				"test/unit/appplugin_apk_device_blob_path.test.ts"
+			],
+			"nextAction": "Live-, Historien-, segmentierte und inkrementelle Ereignisse pro Familie mit Reihenfolge- und Deduplizierungsinvarianten prüfen."
+		},
+		{
+			"id": "P0B-CODEC-RUNTIME",
+			"phase": "0B",
+			"area": "Codecs",
+			"family": "codec",
+			"title": "Originale Codecimplementierungen schlank und dynamisch aus der Runtime verwenden",
+			"status": "in_progress",
+			"priority": "P0",
+			"dependsOn": ["P0A-CODEC-INVENTORY"],
+			"evidence": [
+				"scripts/run_rrcodec_oracle.ps1",
+				"test/unit/rrcodec_original_vectors.test.ts",
+				"test/unit/protocol_frame_roundtrip.test.ts"
+			],
+			"nextAction": "Dynamische Auswahl, Fehlerverträge und plattformneutrale TypeScript-Hülle für bekannte sowie neue Codecvarianten festlegen."
+		},
+		{
+			"id": "P0B-CAPTURE-ONLY",
+			"phase": "0B",
+			"area": "Sicherheit",
+			"title": "publishDps und vergleichbare Ausgänge im PoC ausschließlich als Befehlsabsicht erfassen",
+			"status": "completed",
+			"priority": "P0",
+			"dependsOn": ["P0B-REACT-NATIVE-BRIDGE"],
+			"evidence": [
+				"scripts/prove_q7_appplugin_rename.ts",
+				"test/unit/appplugin_ui_contract_probe.test.ts",
+				"`npm run poc:appplugin-q7-rename-proof`"
+			],
+			"nextAction": "Capture-only als harte Standardinvariante aller weiteren Phase-0-Gates beibehalten."
+		},
+		{
+			"id": "P0B-ERROR-CLASSIFICATION",
+			"phase": "0B",
+			"area": "Fehlerverträge",
+			"title": "Native Vertragsfehler, Promise-Ergebnisse und erwartete Geräteablehnungen getrennt klassifizieren",
+			"status": "completed",
+			"priority": "P0",
+			"dependsOn": ["P0B-REACT-NATIVE-BRIDGE"],
+			"evidence": [
+				"src/apppluginHost/apkHermesHostProtocol.ts",
+				"test/unit/appplugin_apk_hermes_host_protocol.test.ts",
+				"scripts/prove_q7_appplugin_rename.ts"
+			],
+			"nextAction": "Neue native Methoden müssen denselben zentralen Klassifizierungsvertrag verwenden."
+		},
+		{
+			"id": "P0B-THEME-LOCALE-EVENTS",
+			"phase": "0B",
+			"area": "APK-Brücke",
+			"title": "Dark-Mode-, Appearance-, Locale- und Layout-Ereignisse an laufende Sitzungen weiterreichen",
+			"status": "in_progress",
+			"priority": "P0",
+			"dependsOn": ["P0B-REACT-NATIVE-BRIDGE"],
+			"evidence": [
+				"docs/APPPLUGIN_THEME_POC.md",
+				"test/unit/appplugin_apk_environment_runtimes.test.ts",
+				"test/unit/appplugin_desktop.test.ts"
+			],
+			"nextAction": "Theme und Locale in derselben echten Kartenfixture wechseln und Pixel sowie semantischen Zustand prüfen."
+		},
+		{
+			"id": "P0B-SESSION-LIFECYCLE",
+			"phase": "0B",
+			"area": "Betrieb",
+			"title": "Start, Wiederverwendung, Abbruch, Neustart und parallele Sitzungen deterministisch steuern",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0B-HERMES-HOST", "P0B-METRO-HOST"],
+			"evidence": [],
+			"nextAction": "Lebenszykluszustände und Cleanup-Invarianten definieren und mit Absturz-/Timeout-Fällen testen."
+		},
+		{
+			"id": "P0B-RESOURCE-LIMITS",
+			"phase": "0B",
+			"area": "Betrieb",
+			"title": "Zeit-, RAM-, CPU-, Datei- und Netzwerkgrenzen des Hosts messen und erzwingen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0B-SESSION-LIFECYCLE"],
+			"evidence": [],
+			"nextAction": "Messbare Budgets, harte Timeouts und reproduzierbare Abbruchtests für jede Runtime festlegen."
+		},
+		{
+			"id": "P0B-CROSS-PLATFORM",
+			"phase": "0B",
+			"area": "Plattformen",
+			"title": "Runtime und notwendige native Helfer auf Linux, macOS und Windows nachweisen",
+			"status": "pending",
+			"priority": "P1",
+			"dependsOn": ["P0B-CODEC-RUNTIME", "P0B-HERMES-HOST", "P0B-METRO-HOST", "P0B-RESOURCE-LIMITS"],
+			"evidence": [],
+			"nextAction": "CI-Matrix, ABI-Prüfung und paketierte Smoke-Tests ohne Java oder Emulator aufbauen."
+		},
+		{
+			"id": "P0C-Q7-DIRECT-RUN",
+			"phase": "0C",
+			"area": "Q7 L5 – Basis",
+			"family": "scmap",
+			"title": "Q7-L5-Hermes-Bundle unverändert in einer laufenden AppPlugin-Sitzung ausführen",
+			"status": "completed",
+			"priority": "P0",
+			"dependsOn": ["P0B-HERMES-HOST", "P0B-DEVICE-INGRESS"],
+			"evidence": [
+				"scripts/appplugin_hermes_runtime_probe.ts",
+				"test/unit/appplugin_apk_hermes_host_session.test.ts",
+				"docs/APPPLUGIN_REWORK_PHASES.md"
+			],
+			"nextAction": "Bundle-Hash und Capture-only-Grenze bei jedem weiteren Q7-Gate erneut prüfen."
+		},
+		{
+			"id": "P0C-Q7-ROOM-SELECTION",
+			"phase": "0C",
+			"area": "Q7 L5 – Interaktion",
+			"family": "scmap",
+			"title": "Raum-Tap, Auswahl, Abwahl und AppPlugin-eigene Farbumschaltung nachweisen",
+			"status": "completed",
+			"priority": "P0",
+			"dependsOn": ["P0C-Q7-DIRECT-RUN", "P0B-INPUT-LAYOUT"],
+			"evidence": [
+				"test/unit/appplugin_apk_interaction_replay_manifest.test.ts",
+				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md"
+			],
+			"nextAction": "Mehrfachauswahl, Grenzpixel und Auswahl nach Karten-/Moduswechsel in die Vollszenen-Gates aufnehmen."
+		},
+		{
+			"id": "P0C-Q7-GESTURES",
+			"phase": "0C",
+			"area": "Q7 L5 – Interaktion",
+			"family": "scmap",
+			"title": "Pinch-Zoom-Grundpfad durch die originale Touchkette nachweisen",
+			"status": "completed",
+			"priority": "P0",
+			"dependsOn": ["P0C-Q7-DIRECT-RUN", "P0B-INPUT-LAYOUT"],
+			"evidence": [
+				"test/unit/appplugin_apk_pointer_replay_manifest.test.ts",
+				"test/unit/appplugin_apk_pointer_input_bridge.test.ts",
+				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md"
+			],
+			"nextAction": "Drag, Fokuspunkt, minimale/maximale Skalierung, Pointerverlust und Abbruch gegen die Original-App prüfen."
+		},
+		{
+			"id": "P0C-Q7-FULL-SCENE",
+			"phase": "0C",
+			"area": "Q7 L5 – Rendering",
+			"family": "scmap",
+			"title": "Vollständige Q7-L5-Szene mit korrekter Z-Reihenfolge und Golden absichern",
+			"status": "in_progress",
+			"priority": "P0",
+			"dependsOn": ["P0C-Q7-DIRECT-RUN", "P0B-SKIA-HOST"],
+			"evidence": [
+				"test/unit/appplugin_apk_native_ui_snapshot_renderer.test.ts",
+				"docs/APPPLUGIN_REWORK_PHASES.md"
+			],
+			"nextAction": "Alle vom Payload angebotenen Layer, Roboter, Dock, Labels, Pfad und Overlays mit Originalreferenz und semantischen Assertions vergleichen."
+		},
+		{
+			"id": "P0C-Q7-THEME",
+			"phase": "0C",
+			"area": "Q7 L5 – Theme und Locale",
+			"family": "scmap",
+			"title": "Hell, Dunkel und Systemmodus in derselben laufenden Kartenfixture nachweisen",
+			"status": "in_progress",
+			"priority": "P0",
+			"dependsOn": ["P0B-THEME-LOCALE-EVENTS", "P0C-Q7-FULL-SCENE"],
+			"evidence": [
+				"docs/APPPLUGIN_THEME_POC.md",
+				"test/unit/appplugin_apk_environment_runtimes.test.ts",
+				"test/unit/appplugin_desktop.test.ts"
+			],
+			"nextAction": "Themewechsel ohne Sitzungsneustart mit Kartenpixeln, Dialogen und AppPlugin-Zustand als Gate automatisieren."
+		},
+		{
+			"id": "P0C-Q7-LOCALE",
+			"phase": "0C",
+			"area": "Q7 L5 – Theme und Locale",
+			"family": "scmap",
+			"title": "AppPlugin-Übersetzungen, Raumtypen und Raumnamen über den originalen Localeweg prüfen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0B-THEME-LOCALE-EVENTS", "P0C-Q7-DIRECT-RUN"],
+			"evidence": [],
+			"nextAction": "Mindestens Deutsch, Englisch und eine Fallback-Locale in derselben Bundle-Sitzungsart testen."
+		},
+		{
+			"id": "P0C-Q7-RENAME-HAPPY",
+			"phase": "0C",
+			"area": "Q7 L5 – Kartenbearbeitung",
+			"family": "scmap",
+			"title": "Raum umbenennen bis zur AppPlugin-eigenen service.rename_room-Absicht nachweisen",
+			"status": "completed",
+			"priority": "P0",
+			"dependsOn": ["P0C-Q7-DIRECT-RUN", "P0B-CAPTURE-ONLY", "P0B-INPUT-LAYOUT"],
+			"evidence": [
+				"scripts/prove_q7_appplugin_rename.ts",
+				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
+				"`npm run poc:appplugin-q7-rename-proof`"
+			],
+			"nextAction": "Den belegten Payload ausschließlich als semantische Befehlsabsicht behandeln und nicht im Host nachbauen."
+		},
+		{
+			"id": "P0C-Q7-RENAME-EMPTY",
+			"phase": "0C",
+			"area": "Q7 L5 – Kartenbearbeitung",
+			"family": "scmap",
+			"title": "Leeren Raumnamen durch die AppPlugin-eigene Validierung blockieren",
+			"status": "completed",
+			"priority": "P0",
+			"dependsOn": ["P0C-Q7-RENAME-HAPPY"],
+			"evidence": [
+				"scripts/prove_q7_appplugin_rename.ts",
+				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
+				"`npm run poc:appplugin-q7-rename-proof`"
+			],
+			"nextAction": "Die gleiche Gate-Struktur für weitere Namen- und Fehlerfälle wiederverwenden."
+		},
+		{
+			"id": "P0C-Q7-RENAME-VALIDATION",
+			"phase": "0C",
+			"area": "Q7 L5 – Kartenbearbeitung",
+			"family": "scmap",
+			"title": "Vordefinierte, zu lange und doppelte Raumnamen prüfen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0C-Q7-RENAME-HAPPY", "P0C-Q7-RENAME-EMPTY"],
+			"evidence": [],
+			"nextAction": "Je Fall eine frische Sitzung und Assertions für Dialogzustand, lokalisierte Auswahl und erzeugte beziehungsweise unterdrückte Absicht ergänzen."
+		},
+		{
+			"id": "P0C-Q7-RENAME-FAILURE",
+			"phase": "0C",
+			"area": "Q7 L5 – Kartenbearbeitung",
+			"family": "scmap",
+			"title": "Gerätefehler, Timeout, Rollback und erneuten Kartenabruf beim Umbenennen prüfen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0C-Q7-RENAME-HAPPY", "P0B-ERROR-CLASSIFICATION"],
+			"evidence": [],
+			"nextAction": "APK-konforme Antwort- und Timeoutereignisse einspielen und AppPlugin-Zustand sowie Wiederherstellung belegen."
+		},
+		{
+			"id": "P0C-Q7-SPLIT",
+			"phase": "0C",
+			"area": "Q7 L5 – Kartenbearbeitung",
+			"family": "scmap",
+			"title": "Raum teilen mit originaler Linie, Griffen, Grenzen und Befehlsabsicht prüfen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0C-Q7-FULL-SCENE", "P0B-CAPTURE-ONLY"],
+			"evidence": [],
+			"nextAction": "Originalen Menüeinstieg automatisieren und Erfolg, Ablehnung, Abbruch, Mindestgröße sowie Wandgrenzen erfassen."
+		},
+		{
+			"id": "P0C-Q7-MERGE",
+			"phase": "0C",
+			"area": "Q7 L5 – Kartenbearbeitung",
+			"family": "scmap",
+			"title": "Räume zusammenführen mit originaler Auswahl und Nachbarschaftsgrenzen prüfen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0C-Q7-FULL-SCENE", "P0B-CAPTURE-ONLY"],
+			"evidence": [],
+			"nextAction": "Erfolg, nicht benachbarte Räume, Anzahlgrenze, Ablehnung und Abbruch durch die AppPlugin-Zustandsmaschine testen."
+		},
+		{
+			"id": "P0C-Q7-ROOM-PROPERTIES",
+			"phase": "0C",
+			"area": "Q7 L5 – Kartenbearbeitung",
+			"family": "scmap",
+			"title": "Bodentyp, Raumtyp/-symbol und Reihenfolge über AppPlugin-Werkzeuge prüfen",
+			"status": "pending",
+			"priority": "P1",
+			"dependsOn": ["P0C-Q7-FULL-SCENE", "P0B-CAPTURE-ONLY"],
+			"evidence": [],
+			"nextAction": "Jedes tatsächlich angebotene Werkzeug bis zur semantischen Absicht und Kartenaktualisierung nachweisen."
+		},
+		{
+			"id": "P0C-Q7-BOUNDARIES",
+			"phase": "0C",
+			"area": "Q7 L5 – Kartenbearbeitung",
+			"family": "scmap",
+			"title": "Sperrzonen, wischfreie Zonen, virtuelle Wände und Schwellen vollständig bedienen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0C-Q7-FULL-SCENE", "P0B-CAPTURE-ONLY"],
+			"evidence": [],
+			"nextAction": "Erzeugen, auswählen, verschieben, skalieren, drehen, löschen, mehrere Objekte und Originalgrenzen als Gates erfassen."
+		},
+		{
+			"id": "P0C-Q7-ZONES",
+			"phase": "0C",
+			"area": "Q7 L5 – Reinigung",
+			"family": "scmap",
+			"title": "Reinigungszonen und Raumreinigung aus der eigenen UI semantisch steuern",
+			"status": "pending",
+			"priority": "P1",
+			"dependsOn": ["P0C-Q7-BOUNDARIES", "P0C-Q7-ROOM-SELECTION"],
+			"evidence": [],
+			"nextAction": "Desktop-Hülle nur Modus und Bestätigung senden lassen; Geometrie, Auswahl und Parameter verbleiben im AppPlugin."
+		},
+		{
+			"id": "P0C-Q7-MAP-STOCK",
+			"phase": "0C",
+			"area": "Q7 L5 – Kartenbestand",
+			"family": "scmap",
+			"title": "Livekarte, Historie, gespeicherte Karten, Wechsel und mehrere Etagen prüfen",
+			"status": "pending",
+			"priority": "P1",
+			"dependsOn": ["P0B-DEVICE-INGRESS", "P0C-Q7-FULL-SCENE"],
+			"evidence": [],
+			"nextAction": "Karten-ID, Auswahl, Transformation und Bearbeitungszustand zwischen allen Kartenereignissen auf Vermischung prüfen."
+		},
+		{
+			"id": "P0C-Q7-INVALID-DATA",
+			"phase": "0C",
+			"area": "Q7 L5 – Fehlerfälle",
+			"family": "scmap",
+			"title": "Leere, gekürzte, beschädigte und unbekannte SCMap-Payloads kontrolliert behandeln",
+			"status": "pending",
+			"priority": "P1",
+			"dependsOn": ["P0B-ERROR-CLASSIFICATION", "P0B-DEVICE-INGRESS"],
+			"evidence": [],
+			"nextAction": "Deterministische Fehler ohne Prozessabsturz, Endlosschleife oder ungesicherte Absicht nachweisen."
+		},
+		{
+			"id": "P0C-Q7-M5-CONTRACT",
+			"phase": "0C",
+			"area": "Q7 M5",
+			"family": "scmap",
+			"title": "Q7 M5 direkt starten und Hostvertragsdifferenz zu Q7 L5 bestimmen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0C-Q7-DIRECT-RUN", "P0C-Q7-FULL-SCENE"],
+			"evidence": [],
+			"nextAction": "Unverändertes M5-Bundle mit denselben Fixtures starten, Native-Aufrufe diffen und Abweichungen als zentrale Verträge schließen."
+		},
+		{
+			"id": "P0C-Q7-M5-GATES",
+			"phase": "0C",
+			"area": "Q7 M5",
+			"family": "scmap",
+			"title": "Q7-M5-Familienabweichungen durch vollständige Verhaltens-Gates absichern",
+			"status": "pending",
+			"priority": "P1",
+			"dependsOn": ["P0C-Q7-M5-CONTRACT", "P0C-Q7-SPLIT", "P0C-Q7-MERGE", "P0C-Q7-THEME"],
+			"evidence": [],
+			"nextAction": "Gemeinsame Gates wiederverwenden und nur technisch belegte M5-Abweichungen separat testen."
+		},
+		{
+			"id": "P0C-B01-RAW-INGRESS",
+			"phase": "0C",
+			"area": "B01/SCMap – Transport",
+			"family": "scmap",
+			"title": "Bereits entschlüsselten AppPlugin-Blob schlüssellos über den originalen Ereignispfad einspeisen",
+			"status": "completed",
+			"priority": "P0",
+			"dependsOn": ["P0B-DEVICE-INGRESS"],
+			"evidence": ["test/unit/appplugin_apk_device_blob_path.test.ts", "docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md"],
+			"nextAction": "Diesen Eingang als gemeinsame Zielkante für Entschlüsselung und Replay beibehalten."
+		},
+		{
+			"id": "P0C-B01-DECRYPTED-MAP",
+			"phase": "0C",
+			"area": "B01/SCMap – Transport",
+			"family": "scmap",
+			"title": "Echten B01-Rahmen entschlüsseln, zusammensetzen und im unveränderten AppPlugin rendern",
+			"status": "in_progress",
+			"priority": "P0",
+			"dependsOn": ["P0B-CODEC-RUNTIME", "P0C-B01-RAW-INGRESS", "P0C-Q7-FULL-SCENE"],
+			"evidence": [
+				"test/unit/appplugin_apk_b01_mqtt_frame_codec.test.ts",
+				"test/unit/b01_research_maps_regression.fixtures.ts"
+			],
+			"nextAction": "Entschlüsselten Echtdatenblob ohne Geheimnisse als reproduzierbare Fixture bis zum gleichen Q7-Vollszenen-Gate führen."
+		},
+		{
+			"id": "P0C-B01-SEGMENTS",
+			"phase": "0C",
+			"area": "B01/SCMap – Transport",
+			"family": "scmap",
+			"title": "Segmentierung, Historie, Reihenfolge, Deduplizierung und inkrementelle Updates prüfen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0C-B01-DECRYPTED-MAP"],
+			"evidence": [],
+			"nextAction": "Nicht segmentierte und segmentierte Echtdaten über denselben Emissionspfad vergleichen und Update-Invarianten testen."
+		},
+		{
+			"id": "P0C-Q10-RASTER",
+			"phase": "0C",
+			"area": "Q10/YX – Rendering",
+			"family": "yx",
+			"title": "Originalbundle und .jx-Worker erzeugen deterministisches YX-Raster und PNG",
+			"status": "completed",
+			"priority": "P0",
+			"dependsOn": ["P0B-METRO-HOST", "P0B-SKIA-HOST"],
+			"evidence": [
+				"docs/APPPLUGIN_Q10_MAP_EVENT_POC.md",
+				"test/unit/appplugin_q10_full_scene.test.ts",
+				"`npm run poc:appplugin-render-scene`"
+			],
+			"nextAction": "Rasterbeweis als Teilnachweis behalten; keine Vollszenen- oder Interaktionsfreigabe daraus ableiten."
+		},
+		{
+			"id": "P0C-Q10-FULL-SCENE",
+			"phase": "0C",
+			"area": "Q10/YX – Rendering",
+			"family": "yx",
+			"title": "Vollständige Q10/YX-Szene aus den originalen Skia-Operationen komponieren",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0C-Q10-RASTER", "P0B-SKIA-HOST"],
+			"evidence": [],
+			"nextAction": "Alle angebotenen Ebenen in Originalreihenfolge rendern und Bild sowie Semantik gegen eine App-Referenz prüfen."
+		},
+		{
+			"id": "P0C-Q10-INTERACTION",
+			"phase": "0C",
+			"area": "Q10/YX – Interaktion",
+			"family": "yx",
+			"title": "Raumauswahl, Zonen, Drag und Pinch über den originalen PanResponder prüfen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0C-Q10-FULL-SCENE", "P0B-INPUT-LAYOUT"],
+			"evidence": [],
+			"nextAction": "Originale Hit-Tests, Farbwechsel, Griffe, Fokuspunkt und Grenzwerte als semantische Gates automatisieren."
+		},
+		{
+			"id": "P0C-Q10-EDITING",
+			"phase": "0C",
+			"area": "Q10/YX – Kartenbearbeitung",
+			"family": "yx",
+			"title": "Alle vom Q10-AppPlugin angebotenen Editierwerkzeuge bis zur Befehlsabsicht prüfen",
+			"status": "pending",
+			"priority": "P1",
+			"dependsOn": ["P0C-Q10-INTERACTION", "P0B-CAPTURE-ONLY"],
+			"evidence": [],
+			"nextAction": "Werkzeugkatalog aus dem laufenden Bundle ableiten und dieselben Erfolgs-, Validierungs-, Fehler- und Rollback-Gates ausführen."
+		},
+		{
+			"id": "P0C-Q10-DATA-LIFECYCLE",
+			"phase": "0C",
+			"area": "Q10/YX – Datenfluss",
+			"family": "yx",
+			"title": "Livekarte, Historie, inkrementelle Updates und Kartenwechsel im YX-Pfad prüfen",
+			"status": "pending",
+			"priority": "P1",
+			"dependsOn": ["P0C-Q10-FULL-SCENE", "P0B-DEVICE-INGRESS"],
+			"evidence": [],
+			"nextAction": "Echte YX-Datensätze mit konsistenten Karten-IDs und Updatefolgen durch die laufende Sitzung spielen."
+		},
+		{
+			"id": "P0C-V1-PROVENANCE",
+			"phase": "0C",
+			"area": "V1",
+			"family": "v1",
+			"title": "V1-Eingangsdaten einem konkreten AppPlugin- und APK-Vertrag zuordnen",
+			"status": "blocked",
+			"priority": "P0",
+			"dependsOn": ["P0A-SOURCE-PROVENANCE"],
+			"evidence": ["src/lib/map/v1/MapParser.ts", "docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md"],
+			"blocker": "Die vorhandenen Dateien belegen nicht, welches Original-AppPlugin den proprietären V1-Datenpfad verarbeitet.",
+			"nextAction": "Modell, AppPluginversion, Transportereignis und passende Echtdaten gemeinsam erfassen."
+		},
+		{
+			"id": "P0C-V1-GATES",
+			"phase": "0C",
+			"area": "V1",
+			"family": "v1",
+			"title": "V1-Renderer-, Interaktions- und Editier-Gates im Original-AppPlugin ausführen",
+			"status": "pending",
+			"priority": "P1",
+			"dependsOn": ["P0C-V1-PROVENANCE"],
+			"evidence": [],
+			"nextAction": "Nach geklärter Provenienz den zugehörigen Hostvertrag direkt statt des Adapterparsers als Zielpfad prüfen."
+		},
+		{
+			"id": "P0C-TANOS-PAYLOAD",
+			"phase": "0C",
+			"area": "Tanos Native AR/3D",
+			"family": "tanos",
+			"title": "Eindeutig zugeordnete echte Tanos-2D-/3D-Payloads beschaffen",
+			"status": "blocked",
+			"priority": "P0",
+			"dependsOn": ["P0A-SOURCE-PROVENANCE"],
+			"evidence": ["docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md"],
+			"blocker": "Im Repository ist kein echtes Kartenpaket mit belastbarer Tanos-Modell-, Plugin- und Transportzuordnung vorhanden.",
+			"nextAction": "Capture mit Modell, App-, Plugin- und Kartenkennung sowie unverändertem Eingangspayload erfassen und sanitisiert ablegen."
+		},
+		{
+			"id": "P0C-TANOS-GATES",
+			"phase": "0C",
+			"area": "Tanos Native AR/3D",
+			"family": "tanos",
+			"title": "Tanos-2D-/3D-Rendering, Kamera, Auswahl und Editierung prüfen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0C-TANOS-PAYLOAD", "P0B-TANOS-NATIVE-HOST"],
+			"evidence": [],
+			"nextAction": "Nach Schließen des nativen Vertrags die vollständigen Familien-Gates für 2D und 3D getrennt ausführen."
+		},
+		{
+			"id": "P0C-SAROS-HYBRID",
+			"phase": "0C",
+			"area": "Saros Hybrid",
+			"family": "tanos-hybrid",
+			"title": "Saros-Native-/Skia-Hybridvertrag und vollständige Kartenmodi prüfen",
+			"status": "blocked",
+			"priority": "P1",
+			"dependsOn": ["P0C-TANOS-PAYLOAD", "P0B-TANOS-NATIVE-HOST", "P0B-SKIA-HOST"],
+			"evidence": ["docs/APPPLUGIN_MAP_COMPATIBILITY.md"],
+			"blocker": "Es fehlen eindeutig zugeordnete Saros-Payloads; ohne Laufzeitdaten ist die Grenze zwischen nativen und Skia-Layern nicht belegbar.",
+			"nextAction": "Saros 20 und Z70 mit echten Kartenereignissen getrennt protokollieren und den hybriden Hostvertrag ableiten."
+		},
+		{
+			"id": "P0C-CROSS-FAMILY-MATRIX",
+			"phase": "0C",
+			"area": "Abnahme",
+			"title": "Signatur, Start, Rendering, Interaktion und Freigabe als getrennte Matrix automatisch pflegen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0A-TRACKER", "P0A-BUNDLE-INVENTORY"],
+			"evidence": [],
+			"nextAction": "Kompatibilitätsinventur mit reproduzierbaren Gate-Artefakten statt veralteten manuellen Statusfeldern verknüpfen."
+		},
+		{
+			"id": "P0C-GOLDEN-HARNESS",
+			"phase": "0C",
+			"area": "Abnahme",
+			"title": "Pixel- und Semantik-Golden-Harness für alle Kartenfamilien etablieren",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0C-Q7-FULL-SCENE", "P0C-Q10-FULL-SCENE"],
+			"evidence": [],
+			"nextAction": "Bilder, Raum-IDs, Auswahlzustände, Matrizen, Callbacks und Bundle-Hash gemeinsam versionieren und vergleichen."
+		},
+		{
+			"id": "P0C-RESILIENCE",
+			"phase": "0C",
+			"area": "Abnahme",
+			"title": "Timeout, Abbruch, Neustart, Parallelität und Spitzen-RAM pro Familie belegen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0B-RESOURCE-LIMITS", "P0B-SESSION-LIFECYCLE"],
+			"evidence": [],
+			"nextAction": "Identische Betriebs-Gates gegen mindestens einen Vertreter jeder technisch unterschiedlichen Runtimefamilie ausführen."
+		},
+		{
+			"id": "P1-SERVICE-API",
+			"phase": "1",
+			"area": "Produkt-Runtime",
+			"title": "Versionierten isolierten AppPlugin-Dienst mit stabiler API bauen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0C-CROSS-FAMILY-MATRIX", "P0C-RESILIENCE"],
+			"evidence": [],
+			"nextAction": "Prozessgrenze und API aus den tatsächlich bewiesenen Phase-0-Ein-/Ausgaben ableiten."
+		},
+		{
+			"id": "P1-SEMANTIC-CONTRACT",
+			"phase": "1",
+			"area": "Produkt-Runtime",
+			"title": "Semantische Host-API für Kartenmodi, Eingaben, Zustände und Ergebnisse festlegen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P1-SERVICE-API", "P0C-Q7-ZONES", "P0C-Q10-INTERACTION"],
+			"evidence": [],
+			"nextAction": "Nur Modus, Layout, Locale, Eingabe und semantische Ergebnisse exponieren; keine AppPlugin-Geometrie duplizieren."
+		},
+		{
+			"id": "P1-COMMAND-INTENTS",
+			"phase": "1",
+			"area": "Sicherheit",
+			"title": "Befehlsabsichten schema-validieren, autorisieren und mit Timeout versehen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P1-SERVICE-API", "P0B-CAPTURE-ONLY", "P0C-Q7-SPLIT", "P0C-Q7-MERGE"],
+			"evidence": [],
+			"nextAction": "Generische Freigabeschicht bauen; modellabhängige Parameter bleiben vollständig aus dem AppPlugin."
+		},
+		{
+			"id": "P1-PLUGIN-RESOLVER",
+			"phase": "1",
+			"area": "Produkt-Runtime",
+			"title": "Modell-, Version-, Bundle- und Codecauflösung mit Cache und Integritätsprüfung bauen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0A-FEATURE-DETECTION", "P0A-SOURCE-PROVENANCE", "P0B-CODEC-RUNTIME"],
+			"evidence": [],
+			"nextAction": "Plugin direkt nach ZIP-Entpackung laden, Hash und Kompatibilität prüfen und unbekannte Verträge sicher stoppen."
+		},
+		{
+			"id": "P1-SANDBOX",
+			"phase": "1",
+			"area": "Sicherheit",
+			"title": "Dateisystem, Netzwerk, Prozess, CPU und RAM des AppPlugin-Dienstes begrenzen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P1-SERVICE-API", "P0B-RESOURCE-LIMITS"],
+			"evidence": [],
+			"nextAction": "Default-deny-Rechte, harte Limits, Kill/Restart und auditierbare Diagnose pro Plattform implementieren."
+		},
+		{
+			"id": "P1-PLATFORM-PACKAGING",
+			"phase": "1",
+			"area": "Plattformen",
+			"title": "Linux-, macOS- und Windows-Pakete ohne Java oder Emulator bereitstellen",
+			"status": "pending",
+			"priority": "P1",
+			"dependsOn": ["P0B-CROSS-PLATFORM", "P1-SANDBOX", "P1-PLUGIN-RESOLVER"],
+			"evidence": [],
+			"nextAction": "So viel wie möglich in TypeScript halten und nur technisch notwendige native Runtime-/Codec-Binaries paketieren."
+		},
+		{
+			"id": "P1-DIAGNOSTICS",
+			"phase": "1",
+			"area": "Betrieb",
+			"title": "Sanitisierte Diagnosen, Vertragsdifferenzen und reproduzierbare Supportpakete erzeugen",
+			"status": "pending",
+			"priority": "P1",
+			"dependsOn": ["P1-SERVICE-API"],
+			"evidence": [],
+			"nextAction": "Keine Schlüssel, Gerätekennungen oder Kartendaten protokollieren; Hashes, Versions- und Gateinformationen strukturiert ausgeben."
+		},
+		{
+			"id": "P2-ADAPTER-BRIDGE",
+			"phase": "2",
+			"area": "ioBroker",
+			"title": "ioBroker-Adapter an die freigegebene AppPlugin-Runtime anbinden",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P1-SEMANTIC-CONTRACT", "P1-COMMAND-INTENTS", "P1-PLATFORM-PACKAGING"],
+			"evidence": [],
+			"nextAction": "Geräteereignisse und Zustände zentral übersetzen, ohne bestehende Kartenparser als stillen Produktfallback zu verwenden."
+		},
+		{
+			"id": "P2-DESKTOP-SHELL",
+			"phase": "2",
+			"area": "Desktop-/Smart-Home-UI",
+			"title": "Responsive Desktop-Hülle um die originale AppPlugin-Kartenfläche bauen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P1-SEMANTIC-CONTRACT"],
+			"evidence": [],
+			"nextAction": "Navigation, Gerätewahl, Status und Bestätigung PC-gerecht gestalten; die Karten-Engine unverändert einbetten."
+		},
+		{
+			"id": "P2-UI-INTERACTION",
+			"phase": "2",
+			"area": "Desktop-/Smart-Home-UI",
+			"title": "Raum-, Zonen-, Karten- und Editiermodi semantisch aus der Desktop-UI bedienen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P2-DESKTOP-SHELL", "P1-COMMAND-INTENTS"],
+			"evidence": [],
+			"nextAction": "Eigene Bedienelemente dürfen nur bewiesene AppPlugin-Fähigkeiten aktivieren und deren Ergebnisse anzeigen."
+		},
+		{
+			"id": "P2-THEME-LOCALE",
+			"phase": "2",
+			"area": "Desktop-/Smart-Home-UI",
+			"title": "Hell/Dunkel/System und alle AppPlugin-Sprachen konsistent in Hülle und Karte führen",
+			"status": "pending",
+			"priority": "P1",
+			"dependsOn": ["P2-DESKTOP-SHELL", "P0C-Q7-THEME", "P0C-Q7-LOCALE"],
+			"evidence": [],
+			"nextAction": "Locale und Theme einmal wählen, an AppPlugin weiterreichen und Hosttexte über denselben UI-Kontext synchronisieren."
+		},
+		{
+			"id": "P2-MULTI-DEVICE",
+			"phase": "2",
+			"area": "ioBroker",
+			"title": "Mehrere Geräte, Modelle, Pluginversionen und parallele Karten sicher verwalten",
+			"status": "pending",
+			"priority": "P1",
+			"dependsOn": ["P2-ADAPTER-BRIDGE", "P1-PLUGIN-RESOLVER"],
+			"evidence": [],
+			"nextAction": "Sitzungen, Caches, Befehlsfreigaben und Diagnosen strikt je Gerät und Bundle isolieren."
+		},
+		{
+			"id": "P2-USER-DOCS",
+			"phase": "2",
+			"area": "Dokumentation",
+			"title": "Benutzerdokumentation automatisch aus freigegebenen Fähigkeiten und UI-Verträgen erzeugen",
+			"status": "pending",
+			"priority": "P1",
+			"dependsOn": ["P2-UI-INTERACTION", "P0A-TRACKER"],
+			"evidence": [],
+			"nextAction": "Modellfähigkeiten, Einschränkungen, Bedienabläufe und Fehlermeldungen aus versionierten Quellen generieren."
+		},
+		{
+			"id": "P2-DEV-DOCS",
+			"phase": "2",
+			"area": "Dokumentation",
+			"title": "Entwicklerdokumentation automatisch aus Hostverträgen, Schemas und Tests erzeugen",
+			"status": "pending",
+			"priority": "P1",
+			"dependsOn": ["P1-SERVICE-API", "P0A-TRACKER"],
+			"evidence": [],
+			"nextAction": "API, Ereignisse, Sicherheitsgrenzen, Gateartefakte und Erweiterungsablauf ohne doppelte manuelle Wahrheit dokumentieren."
+		},
+		{
+			"id": "P3-LEGACY-AUDIT",
+			"phase": "3",
+			"area": "Migration",
+			"title": "Alte Parser-, Renderer-, Befehls- und Feature-Sonderpfade vollständig inventarisieren",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P2-ADAPTER-BRIDGE"],
+			"evidence": [],
+			"nextAction": "Jeden alten Pfad einem bewiesenen Ersatz, einer fachlichen Ausnahme oder einem expliziten Restblocker zuordnen."
+		},
+		{
+			"id": "P3-SHADOW-COMPARE",
+			"phase": "3",
+			"area": "Migration",
+			"title": "Alten und neuen Pfad mit Echtdaten im Schattenbetrieb vergleichen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P3-LEGACY-AUDIT", "P2-MULTI-DEVICE"],
+			"evidence": [],
+			"nextAction": "Zustände, Bilder, Absichten, Fehler und Ressourcen vergleichen, ohne doppelte Gerätebefehle auszuführen."
+		},
+		{
+			"id": "P3-ROLLBACK",
+			"phase": "3",
+			"area": "Release",
+			"title": "Versionierter Rückfall- und Wiederherstellungspfad für Runtime- oder Pluginfehler bereitstellen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P3-SHADOW-COMPARE", "P1-PLUGIN-RESOLVER"],
+			"evidence": [],
+			"nextAction": "Letzte bekannte kompatible Runtime-/Pluginkombination sicher aktivierbar halten, ohne unbekannte Payloads umzudeuten."
+		},
+		{
+			"id": "P3-CANARY-RELEASE",
+			"phase": "3",
+			"area": "Release",
+			"title": "Canary-, CI-, Upgrade- und Release-Gates für den finalen Umbau etablieren",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P3-ROLLBACK", "P2-USER-DOCS", "P2-DEV-DOCS"],
+			"evidence": [],
+			"nextAction": "Freigabe nur bei grüner Familienmatrix, Ressourcenbudgets, Migrationstests und dokumentiertem Rückfallpfad."
+		},
+		{
+			"id": "P3-REMOVE-LEGACY",
+			"phase": "3",
+			"area": "Migration",
+			"title": "Ersetzte Spezialpfade erst nach belastbarer Freigabe entfernen",
+			"status": "pending",
+			"priority": "P1",
+			"dependsOn": ["P3-CANARY-RELEASE"],
+			"evidence": [],
+			"nextAction": "Nur nach Echtdatenvergleich und Rollbacknachweis löschen; fachlich belegte Ausnahmen separat dokumentieren."
+		}
+	]
+}

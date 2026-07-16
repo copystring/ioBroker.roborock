@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="de">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Roborock Desktop · AppPlugin PoC</title>
+		<script type="module" src="./appplugin-desktop.js"></script>
+		<style>
+			:root {
+				color-scheme: light;
+				--shell: #17212b;
+				--shell-2: #202d39;
+				--canvas: #eef2f3;
+				--surface: #ffffff;
+				--surface-2: #f6f8f8;
+				--line: #d9e0e1;
+				--line-dark: #344553;
+				--text: #172128;
+				--muted: #66747d;
+				--muted-light: #a7b2ba;
+				--accent: #0f9f86;
+				--accent-dark: #087663;
+				--accent-soft: #e2f5f0;
+				--warning: #c9791a;
+				--danger: #d64c5f;
+				--shadow: 0 12px 30px rgba(22, 35, 43, .08);
+				--topbar: rgba(255,255,255,.96);
+				--control-text: #46555e;
+				--map-surface: #e9edee;
+				--map-grid: #dfe5e6;
+				--overlay: rgba(255,255,255,.92);
+				--notice-surface: rgba(242,251,248,.94);
+				--notice-text: #356d62;
+			}
+			:root[data-theme="dark"] {
+				color-scheme: dark;
+				--canvas: #11181d;
+				--surface: #1b252c;
+				--surface-2: #202c34;
+				--line: #35434c;
+				--text: #edf3f5;
+				--muted: #a8b5bc;
+				--accent: #35c6aa;
+				--accent-dark: #68dbc5;
+				--accent-soft: #153f38;
+				--shadow: 0 12px 30px rgba(0, 0, 0, .24);
+				--topbar: rgba(27,37,44,.96);
+				--control-text: #d8e1e5;
+				--map-surface: #121a1f;
+				--map-grid: #25323a;
+				--overlay: rgba(27,37,44,.94);
+				--notice-surface: rgba(21,63,56,.94);
+				--notice-text: #bdece2;
+			}
+
+			* { box-sizing: border-box; }
+			html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+			body {
+				height: 100dvh;
+				background: var(--canvas);
+				color: var(--text);
+				font: 14px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+			}
+			button, select, input { font: inherit; }
+			button { cursor: pointer; }
+			button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid rgba(15, 159, 134, .24); outline-offset: 2px; }
+			[hidden] { display: none !important; }
+
+			.app-shell { width: 100%; height: 100dvh; min-height: 0; display: grid; grid-template-columns: 228px minmax(0, 1fr); overflow: hidden; }
+			.sidebar {
+				background: var(--shell);
+				color: white;
+				padding: 22px 14px 16px;
+				display: flex;
+				flex-direction: column;
+				min-height: 0;
+			}
+			.brand { display: flex; align-items: center; gap: 11px; padding: 0 8px 22px; border-bottom: 1px solid var(--line-dark); }
+			.brand-mark { width: 36px; height: 36px; display: grid; place-items: center; background: #22c1a4; color: #10201f; font-weight: 900; letter-spacing: -.05em; }
+			.brand strong { display: block; font-size: 15px; }
+			.brand small { color: var(--muted-light); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+			.side-label { margin: 22px 9px 8px; color: #7f909c; font-size: 10px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+			.nav-list { display: grid; gap: 4px; }
+			.nav-button {
+				width: 100%; border: 0; background: transparent; color: #b9c4ca; padding: 10px 11px;
+				display: flex; align-items: center; gap: 11px; text-align: left; border-left: 3px solid transparent;
+			}
+			.nav-button:hover { color: white; background: rgba(255,255,255,.05); }
+			.nav-button.active { color: white; background: var(--shell-2); border-left-color: #2dc9aa; }
+			.nav-icon { width: 23px; height: 23px; display: grid; place-items: center; color: currentColor; font-size: 15px; }
+			.device-mini { margin-top: auto; border-top: 1px solid var(--line-dark); padding: 17px 9px 0; }
+			.device-mini-row { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 9px; }
+			.robot-dot { width: 34px; height: 34px; border: 1px solid #5b6b76; border-radius: 50%; display: grid; place-items: center; color: #d8e0e4; font-size: 11px; }
+			.device-mini strong { font-size: 12px; }
+			.device-mini small { display: block; color: #8797a2; font-size: 10px; }
+			.online-dot { width: 8px; height: 8px; border-radius: 50%; background: #27c8a7; box-shadow: 0 0 0 4px rgba(39,200,167,.12); }
+
+			.app-main { min-width: 0; min-height: 0; height: 100dvh; display: grid; grid-template-rows: 70px minmax(0, 1fr); overflow: hidden; }
+			.topbar {
+				background: var(--topbar); border-bottom: 1px solid var(--line); padding: 0 22px;
+				display: flex; align-items: center; justify-content: space-between; gap: 20px;
+			}
+			.breadcrumb small { display: block; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+			.breadcrumb strong { display: block; margin-top: 2px; font-size: 17px; }
+			.top-actions { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 9px; }
+			.status-pill { border: 1px solid var(--accent); color: var(--accent-dark); background: var(--accent-soft); padding: 7px 10px; font-size: 11px; }
+			.language-control, .theme-control { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
+			.language-control select, .theme-control select { border: 1px solid var(--line); background: var(--surface); color: var(--text); padding: 7px 28px 7px 9px; }
+
+			.workbench { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) clamp(150px, 24vh, 220px); gap: 1px; background: var(--line); overflow: hidden; }
+			.content-grid { min-height: 0; overflow: hidden; display: grid; grid-template-columns: minmax(520px, 1fr) 344px; background: var(--canvas); }
+			.map-workspace { min-width: 0; min-height: 0; padding: 18px; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 11px; }
+			.workspace-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+			.workspace-heading h1 { margin: 0; font-size: 18px; }
+			.workspace-heading p { margin: 3px 0 0; color: var(--muted); font-size: 11px; }
+			.source-badge { border: 1px solid var(--accent); background: var(--surface); color: var(--accent-dark); padding: 6px 9px; font-size: 10px; white-space: nowrap; }
+			.tool-row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 1px; }
+			.tool-button {
+				border: 1px solid var(--line); background: var(--surface); color: var(--control-text); padding: 7px 10px; white-space: nowrap; font-size: 11px;
+			}
+			.tool-button:hover { border-color: #9aa8ad; }
+			.tool-button.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-dark); }
+			.map-card { min-width: 0; min-height: 0; position: relative; background: var(--map-surface); border: 1px solid var(--line); overflow: hidden; box-shadow: var(--shadow); }
+			.map-card::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(var(--map-grid) 1px, transparent 1px), linear-gradient(90deg, var(--map-grid) 1px, transparent 1px); background-size: 22px 22px; opacity: .45; }
+			#desktopMap { position: absolute; z-index: 1; inset: 0; display: flex; align-items: center; justify-content: center; touch-action: none; user-select: none; overflow: hidden; }
+			#desktopMapFrame { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
+			#desktopMap[data-render-mode="unchanged-appplugin-session"] { cursor: crosshair; }
+			#desktopMap[data-render-mode="unchanged-appplugin-session"]:active { cursor: grabbing; }
+			#originalMapViewport > path:not(.room-surface),
+			.original-clean-path,
+			.original-room-label,
+			.map-object { pointer-events: none; }
+			.room-surface { pointer-events: all; cursor: pointer; }
+			.original-room-label text { font-family: Inter, "Segoe UI", sans-serif; letter-spacing: -.02em; }
+			.area-body { cursor: move; }
+			.area-handle { cursor: nwse-resize; }
+			.area-delete { cursor: pointer; }
+			.wall-handle { cursor: grab; }
+			.drawing-preview { pointer-events: none; }
+			.map-origin-label { position: absolute; z-index: 3; left: 11px; top: 10px; background: var(--overlay); border: 1px solid var(--line); color: var(--muted); padding: 5px 7px; font-size: 9px; letter-spacing: .07em; text-transform: uppercase; pointer-events: none; }
+			.map-notice { position: absolute; z-index: 3; right: 11px; bottom: 10px; max-width: 330px; border: 1px solid var(--accent); background: var(--notice-surface); color: var(--notice-text); padding: 7px 9px; font-size: 9px; pointer-events: none; }
+			.map-zoom-controls { position: absolute; z-index: 4; right: 11px; top: 10px; display: flex; align-items: stretch; background: var(--overlay); border: 1px solid var(--line); box-shadow: 0 4px 12px rgba(31,48,55,.12); }
+			.map-zoom-controls button { min-width: 34px; height: 32px; border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--control-text); font: inherit; cursor: pointer; }
+			.map-zoom-controls button:last-child { border-right: 0; }
+			.map-zoom-controls button:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent-dark); }
+			.map-zoom-controls button:disabled { opacity: .35; cursor: default; }
+			#zoomReset { min-width: 62px; font-size: 10px; font-weight: 700; }
+			.desktop-pin { pointer-events: none; }
+			.desktop-pin path { fill: #0f9f86; stroke: white; stroke-width: 2; }
+			.desktop-pin circle { fill: white; }
+			.map-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 10px; }
+			#mapInstruction { color: var(--accent-dark); font-weight: 700; }
+
+			.inspector { min-height: 0; border-left: 1px solid var(--line); background: var(--surface); overflow: auto; padding: 18px; }
+			.context-page { display: grid; gap: 14px; }
+			.panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+			.panel-heading h2 { margin: 0; font-size: 15px; }
+			.panel-heading small { color: var(--muted); font-size: 10px; }
+			.section-card { border-top: 1px solid var(--line); padding-top: 14px; }
+			.section-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
+			.section-title strong { font-size: 11px; letter-spacing: .04em; }
+			.section-title small { color: var(--muted); font-size: 9px; }
+			.segmented { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); }
+			.segmented button { border: 0; border-right: 1px solid var(--line); background: var(--surface); padding: 8px 5px; color: var(--control-text); font-size: 10px; }
+			.segmented button:last-child { border-right: 0; }
+			.segmented button.active { background: var(--accent-soft); color: var(--accent-dark); font-weight: 700; }
+			.method-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+			.method-button { min-height: 54px; border: 1px solid var(--line); background: var(--surface); text-align: left; padding: 8px; color: var(--text); }
+			.method-button span { display: block; font-size: 10px; font-weight: 700; }
+			.method-button small { color: var(--muted); font-size: 9px; }
+			.method-button.active { border-color: var(--accent); background: var(--accent-soft); }
+			.setting-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+			.setting-field { display: grid; gap: 4px; color: var(--muted); font-size: 9px; }
+			.setting-field select { width: 100%; border: 1px solid var(--line); background: var(--surface); padding: 7px; color: var(--text); font-size: 10px; }
+			.action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+			.action-button { border: 1px solid var(--line); background: var(--surface); color: var(--control-text); padding: 9px; font-size: 10px; }
+			.action-button:hover { border-color: #a3b0b5; }
+			.action-button.primary { grid-column: 1 / -1; background: var(--accent); border-color: var(--accent); color: white; font-weight: 800; padding: 11px; }
+			.action-button.primary:hover { background: var(--accent-dark); }
+			.offline-note { border: 1px solid var(--accent); background: var(--notice-surface); color: var(--notice-text); padding: 9px; font-size: 9px; }
+			.quick-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+			.stat { border: 1px solid var(--line); background: var(--surface-2); padding: 10px 7px; }
+			.stat strong { display: block; font-size: 16px; }
+			.stat small { color: var(--muted); font-size: 8px; text-transform: uppercase; letter-spacing: .06em; }
+			.list-card { border: 1px solid var(--line); background: var(--surface); }
+			.list-row { width: 100%; border: 0; border-bottom: 1px solid var(--line); background: var(--surface); padding: 10px; display: grid; grid-template-columns: 1fr auto; gap: 10px; text-align: left; }
+			.list-row:last-child { border-bottom: 0; }
+			.list-row:hover { background: var(--surface-2); }
+			.list-row strong { display: block; font-size: 10px; }
+			.list-row small { display: block; color: var(--muted); font-size: 9px; margin-top: 2px; }
+			.list-row time, .list-row em { color: var(--muted); font-size: 9px; font-style: normal; }
+			.toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+			.toggle-row:last-child { border-bottom: 0; }
+			.toggle-row strong { display: block; font-size: 10px; }
+			.toggle-row small { color: var(--muted); font-size: 9px; }
+			.switch { width: 34px; height: 19px; position: relative; flex: 0 0 auto; }
+			.switch input { opacity: 0; width: 0; height: 0; }
+			.switch span { position: absolute; inset: 0; background: #c5ced1; transition: 120ms ease; }
+			.switch span::after { content: ""; position: absolute; width: 15px; height: 15px; left: 2px; top: 2px; background: white; transition: 120ms ease; }
+			.switch input:checked + span { background: var(--accent); }
+			.switch input:checked + span::after { transform: translateX(15px); }
+
+			.console { min-width: 0; min-height: 0; background: #111a22; color: #d9e4e8; display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); overflow: hidden; }
+			.console-pane { min-width: 0; min-height: 0; display: grid; grid-template-rows: 38px minmax(0, 1fr); overflow: hidden; }
+			.console-pane + .console-pane { border-left: 1px solid #2a3842; }
+			.console-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 13px; border-bottom: 1px solid #2a3842; }
+			.console-header strong { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+			.console-header button { border: 1px solid #344650; background: #192630; color: #aab8bf; padding: 4px 7px; font-size: 9px; }
+			.count { min-width: 18px; height: 18px; display: inline-grid; place-items: center; margin-left: 5px; background: #253640; color: #9ddfd2; font-size: 9px; }
+			#eventLog { min-width: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
+			.log-entry { width: 100%; min-width: 0; border: 0; border-bottom: 1px solid #24333d; background: transparent; color: inherit; display: grid; grid-template-columns: 72px minmax(0, 1fr); column-gap: 10px; row-gap: 3px; padding: 9px 12px; text-align: left; font: 11px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; }
+			.log-entry:hover { background: #182630; }
+			.log-entry > * { min-width: 0; }
+			.log-entry span { color: #c8f0e8; overflow-wrap: anywhere; font-weight: 700; }
+			.log-entry small { grid-column: 1 / -1; color: #9fb0b9; font-size: 10px; line-height: 1.45; white-space: normal; overflow-wrap: anywhere; word-break: break-word; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+			#payloadPreview { min-width: 0; margin: 0; padding: 12px 14px 20px; overflow: auto; color: #c8d9e0; font: 10.5px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+
+			@media (max-height: 820px) and (min-width: 881px) {
+				.app-main { grid-template-rows: 58px minmax(0, 1fr); }
+				.topbar { padding: 0 16px; }
+				.breadcrumb strong { font-size: 15px; }
+				.status-pill, .language-control, .theme-control { font-size: 10px; }
+				.workbench { grid-template-rows: minmax(0, 1fr) clamp(120px, 21vh, 170px); }
+				.map-workspace { padding: 10px 12px; gap: 7px; }
+				.workspace-heading h1 { font-size: 16px; }
+				.workspace-heading p { display: none; }
+				.source-badge { padding: 4px 7px; font-size: 9px; }
+				.tool-button { padding: 5px 8px; font-size: 10px; }
+				.inspector { padding: 12px; }
+				.context-page { gap: 10px; }
+				.section-card { padding-top: 10px; }
+				.section-title { margin-bottom: 6px; }
+				.method-button { min-height: 44px; padding: 6px; }
+				.console-pane { grid-template-rows: 32px minmax(0, 1fr); }
+				.console-header { padding: 0 10px; }
+				.log-entry { padding: 7px 10px; font-size: 10.5px; }
+			}
+			@media (max-height: 620px) and (min-width: 881px) {
+				.app-main { grid-template-rows: 52px minmax(0, 1fr); }
+				.workbench { grid-template-rows: minmax(0, 1fr) 112px; }
+				.map-workspace { padding: 7px 10px; gap: 5px; }
+				.workspace-heading h1 { font-size: 14px; }
+				.map-footer { font-size: 9px; }
+				.map-notice { max-width: 250px; padding: 5px 7px; }
+			}
+			@media (max-width: 1120px) {
+				.app-shell { grid-template-columns: 190px minmax(0, 1fr); }
+				.content-grid { grid-template-columns: minmax(360px, 1fr) minmax(270px, 310px); }
+			}
+			@media (max-width: 1200px) { .language-control { display: none; } }
+			@media (max-width: 880px) {
+				html, body { height: auto; min-height: 100%; overflow: auto; }
+				body { height: auto; }
+				.app-shell { display: block; height: auto; min-height: 100dvh; overflow: visible; }
+				.app-main { display: block; height: auto; min-height: 0; overflow: visible; }
+				.topbar { min-height: 64px; }
+				.sidebar { min-height: auto; padding: 10px; }
+				.brand, .device-mini, .side-label { display: none; }
+				.nav-list { display: flex; overflow-x: auto; }
+				.nav-button { width: auto; white-space: nowrap; border-left: 0; border-bottom: 3px solid transparent; }
+				.nav-button.active { border-left: 0; border-bottom-color: #2dc9aa; }
+				.content-grid { display: block; overflow: visible; }
+				.map-card { min-height: clamp(320px, 62vh, 520px); }
+				.inspector { border-left: 0; border-top: 1px solid var(--line); }
+				.workbench { overflow: visible; grid-template-rows: auto 340px; }
+				.console { grid-template-columns: 1fr; }
+				.console-pane + .console-pane { border-left: 0; border-top: 1px solid #2a3842; }
+			}
+		</style>
+	</head>
+	<body>
+		<div class="app-shell">
+			<aside class="sidebar" aria-label="Hauptnavigation">
+				<div class="brand">
+					<div class="brand-mark">RR</div>
+					<div><strong>Roborock</strong><small>Smart Home Console</small></div>
+				</div>
+				<div class="side-label">Gerät</div>
+				<nav class="nav-list">
+					<button class="nav-button" type="button" data-navigation="overview"><span class="nav-icon">⌂</span><span>Übersicht</span></button>
+					<button class="nav-button active" type="button" data-navigation="map"><span class="nav-icon">⌗</span><span>Karte & Reinigung</span></button>
+					<button class="nav-button" type="button" data-navigation="schedules"><span class="nav-icon">◷</span><span>Pläne</span></button>
+					<button class="nav-button" type="button" data-navigation="history"><span class="nav-icon">≡</span><span>Reinigungsverlauf</span></button>
+					<button class="nav-button" type="button" data-navigation="settings"><span class="nav-icon">⚙</span><span>Einstellungen</span></button>
+				</nav>
+				<div class="device-mini">
+					<div class="device-mini-row">
+						<div class="robot-dot">Q7</div>
+						<div><strong>Q7 Testgerät</strong><small>Offline-Fixture · 82 %</small></div>
+						<span class="online-dot" title="PoC aktiv"></span>
+					</div>
+				</div>
+			</aside>
+
+			<main class="app-main">
+				<header class="topbar">
+					<div class="breadcrumb"><small>Roborock / Q7 Testgerät</small><strong id="currentSection">Karte & Reinigung</strong></div>
+					<div class="top-actions">
+						<span class="status-pill">Lokale unveränderte AppPlugin-Sitzung</span>
+						<label class="theme-control" for="themeMode">Darstellung <select id="themeMode"><option value="system">System</option><option value="light">Hell</option><option value="dark">Dunkel</option></select></label>
+						<span class="language-control">AppPlugin-Sprache: <strong>direkt aus laufendem Bundle</strong></span>
+					</div>
+				</header>
+
+				<div class="workbench">
+					<div class="content-grid">
+						<section class="map-workspace" aria-label="AppPlugin-Karte">
+							<div class="workspace-heading">
+								<div><h1>Unveränderte AppPlugin-Karte</h1><p>Geometrie, Farben, Raumnamen, Roboter, Station, Skalierung und Auswahlzustand werden von derselben laufenden Hermes-Sitzung erzeugt. Der Desktop hostet nur APK-Verträge, Eingabe und Ausgabe.</p></div>
+								<span class="source-badge">Live-AppPlugin · kein Kartenfallback</span>
+							</div>
+							<div class="tool-row" aria-label="Kartenwerkzeuge">
+								<button class="tool-button" type="button" data-tool="view" disabled>Ansehen</button>
+								<button class="tool-button active" type="button" data-tool="rooms"><span>Raum</span></button>
+								<button class="tool-button" type="button" data-tool="zones" disabled><span>Zone</span></button>
+								<button class="tool-button" type="button" data-tool="noGo" disabled><span>Sperrzone</span></button>
+								<button class="tool-button" type="button" data-tool="noMop" disabled><span>Wischfreie Zone</span></button>
+								<button class="tool-button" type="button" data-tool="virtualWall" disabled><span>Unsichtbare Wand</span></button>
+								<button class="tool-button" type="button" data-tool="pin" disabled>Zielpunkt</button>
+								<button id="clearSelection" class="tool-button" type="button">Auswahl leeren</button>
+							</div>
+							<div class="map-card">
+								<div class="map-origin-label">Q7 L5 / SC01 · Hermes-AppPlugin · direkter Lauf</div>
+								<div class="map-zoom-controls" aria-label="Kartenzoom">
+									<button id="zoomOut" type="button" title="Verkleinern" aria-label="Verkleinern">−</button>
+									<button id="zoomReset" type="button" title="Ansicht zurücksetzen"><span id="zoomValue">1,00×</span></button>
+									<button id="zoomIn" type="button" title="Vergrößern" aria-label="Vergrößern">+</button>
+								</div>
+								<div id="desktopMap" role="application" aria-label="Direkt vom unveränderten Roborock-AppPlugin gerenderte Karte" data-tool="rooms"><img id="desktopMapFrame" alt="AppPlugin-Kartenframe" draggable="false" /></div>
+								<div class="map-notice">Direkte native Teilstruktur des laufenden Q7-AppPlugins. Pointer und Pinch werden als APK-Touchereignisse zurück in dieselbe Sitzung geleitet; Gerätebefehle werden in diesem Offline-PoC nicht gesendet.</div>
+							</div>
+							<div class="map-footer"><span id="mapInstruction">Raum/Räume zum Reinigen auswählen</span><span id="selectionSummary">Direkte AppPlugin-Sitzung wird verbunden …</span></div>
+						</section>
+
+						<aside class="inspector" aria-label="Kontextmenü">
+							<section class="context-page" data-context-page="map">
+								<div class="panel-heading"><h2>Reinigungsverwaltung</h2><small>Desktop-PoC</small></div>
+								<div class="section-card">
+									<div class="section-title"><strong>Bereich</strong><small>Host-Drahtmodell · AppPlugin-Lokalisierung offen</small></div>
+									<div class="segmented">
+										<button type="button" data-clean-scope="full" disabled><span>Alles</span></button>
+										<button class="active" type="button" data-clean-scope="rooms"><span>Raum</span></button>
+										<button type="button" data-clean-scope="zones" disabled><span>Zone</span></button>
+									</div>
+								</div>
+								<div class="section-card">
+									<div class="section-title"><strong>Reinigungsmethode</strong><small>Host-Drahtmodell · Live-AppPlugin offen</small></div>
+									<div class="method-grid">
+										<button class="method-button active" type="button" data-clean-method="smart"><span>SmartPlan</span><small>Automatisch je Raum</small></button>
+										<button class="method-button" type="button" data-clean-method="vacuum"><span>Staubsaugen</span><small>Nur saugen</small></button>
+										<button class="method-button" type="button" data-clean-method="mop"><span>Wischen</span><small>Nur wischen</small></button>
+										<button class="method-button" type="button" data-clean-method="vacuumThenMop"><span>Saugen, dann Wischen</span><small>Zwei Phasen</small></button>
+									</div>
+								</div>
+								<div class="section-card">
+									<div class="section-title"><strong>Parameter</strong><small>Offline-Vorschau</small></div>
+									<div class="setting-grid">
+										<label class="setting-field">Saugleistung<select id="suctionSetting" data-setting="suction"><option value="balanced">Ausgeglichen</option><option value="quiet">Leise</option><option value="turbo">Turbo</option><option value="max">Max</option></select></label>
+										<label class="setting-field">Wasserfluss<select id="waterSetting" data-setting="water"><option value="moderate">Mittel</option><option value="low">Niedrig</option><option value="high">Hoch</option></select></label>
+										<label class="setting-field">Route<select id="routeSetting" data-setting="route"><option value="standard">Standard</option><option value="fast">Schnell</option><option value="deep">Gründlich</option></select></label>
+										<div class="setting-field">Durchläufe<div class="segmented"><button class="active" type="button" data-pass-count="1">1×</button><button type="button" data-pass-count="2">2×</button><button type="button" data-pass-count="3">3×</button></div></div>
+									</div>
+								</div>
+								<div class="section-card">
+									<div class="action-grid">
+										<button class="action-button primary" type="button" data-intent="clean.start"><span>Reinigen</span> · nur vorbereiten</button>
+										<button class="action-button" type="button" data-intent="clean.pause"><span>Pause</span></button>
+										<button class="action-button" type="button" data-intent="clean.dock"><span>Andocken</span></button>
+									</div>
+									<div class="offline-note" style="margin-top:8px">Raumauswahl und Karteninteraktion laufen bereits direkt im AppPlugin. Methode, Parameter, Route und DPS bleiben gesperrt, bis der semantische AppPlugin-Aktionsadapter belegt ist.</div>
+								</div>
+							</section>
+
+							<section class="context-page" data-context-page="overview" hidden>
+								<div class="panel-heading"><h2>Geräteübersicht</h2><small>Offline-Fixture</small></div>
+								<div class="quick-stats"><div class="stat"><strong>82 %</strong><small>Akku</small></div><div class="stat"><strong>42 m²</strong><small>Fläche</small></div><div class="stat"><strong>48 min</strong><small>Dauer</small></div></div>
+								<div class="section-card"><div class="section-title"><strong>Roboter</strong><small>Bereit</small></div><div class="action-grid"><button class="action-button" type="button" data-intent="clean.locate"><span>Meinen Roboter suchen</span></button><button class="action-button" type="button" data-intent="clean.dock"><span>Andocken</span></button></div></div>
+								<div class="section-card"><div class="section-title"><strong>Station</strong><small>Q Revo-Funktionsbild</small></div><div class="action-grid"><button class="action-button" type="button" data-intent="dock.empty"><span>Staubbehälter entleeren</span></button><button class="action-button" type="button" data-intent="dock.wash"><span>Mopp waschen</span></button><button class="action-button" type="button" data-intent="dock.dry"><span>Trocknen</span></button></div></div>
+								<div class="offline-note">Statuswerte und Beschriftungen der Desktop-Hülle sind Demo-Fixtures. Im Produktpfad liefert ausschließlich das aktuell geladene AppPlugin seine Funktionsnamen und Übersetzungen.</div>
+							</section>
+
+							<section class="context-page" data-context-page="schedules" hidden>
+								<div class="panel-heading"><h2>Pläne</h2><small>3 Einträge</small></div>
+								<div class="list-card">
+									<label class="toggle-row" style="padding-inline:10px"><span><strong>Werktags morgens</strong><small>07:30 · Küche + Flur</small></span><span class="switch"><input type="checkbox" checked data-schedule="weekday-morning" /><span></span></span></label>
+									<label class="toggle-row" style="padding-inline:10px"><span><strong>Wohnbereich</strong><small>Mo, Mi, Fr · 13:00</small></span><span class="switch"><input type="checkbox" data-schedule="living-area" /><span></span></span></label>
+									<label class="toggle-row" style="padding-inline:10px"><span><strong>Nachtprogramm</strong><small>Täglich · 22:30 · Leise</small></span><span class="switch"><input type="checkbox" checked data-schedule="night" /><span></span></span></label>
+								</div>
+								<div class="offline-note">Zeitpläne werden hier nur als Desktop-Menü simuliert. Umschalten schreibt ausschließlich einen Eintrag ins Ereignisprotokoll.</div>
+							</section>
+
+							<section class="context-page" data-context-page="history" hidden>
+								<div class="panel-heading"><h2>Reinigungsverlauf</h2><small>Offline-Daten</small></div>
+								<div class="segmented"><button class="active" type="button"><span>Alle</span></button><button type="button">Reinigung</button><button type="button">Station</button></div>
+								<div class="list-card">
+									<button class="list-row" type="button" data-history-id="today-0730"><span><strong>Komplette Reinigung</strong><small>42 m² · 48 min · beendet</small></span><time>Heute 07:30</time></button>
+									<button class="list-row" type="button" data-history-id="yesterday-kitchen"><span><strong>Küche + Flur</strong><small>18 m² · 22 min · beendet</small></span><time>Gestern</time></button>
+									<button class="list-row" type="button" data-history-id="mop-wash"><span><strong>Moppwäsche</strong><small>Station · beendet</small></span><time>Gestern</time></button>
+								</div>
+							</section>
+
+							<section class="context-page" data-context-page="settings" hidden>
+								<div class="panel-heading"><h2>Einstellungen</h2><small>Offline-Vorschau</small></div>
+								<div class="section-card"><div class="section-title"><strong>Kartendetails</strong><small>Host-Drahtmodell · Live-AppPlugin offen</small></div>
+									<label class="toggle-row"><span><strong>Möbel</strong><small>Auf der Karte anzeigen</small></span><span class="switch"><input type="checkbox" checked data-device-setting="map.furniture" /><span></span></span></label>
+									<label class="toggle-row"><span><strong>Fahrweg</strong><small>Reinigungsroute anzeigen</small></span><span class="switch"><input type="checkbox" checked data-device-setting="map.path" /><span></span></span></label>
+									<label class="toggle-row"><span><strong>Raumnamen</strong><small>Beschriftungen anzeigen</small></span><span class="switch"><input type="checkbox" checked data-device-setting="map.roomNames" /><span></span></span></label>
+								</div>
+								<div class="section-card"><div class="section-title"><strong>Karte bearbeiten</strong><small>Menüvorschau</small></div><div class="action-grid"><button class="action-button" type="button" data-intent="map.tool.change" data-intent-argument="editSurface"><span>Fläche bearbeiten</span></button><button class="action-button" type="button" data-intent="map.tool.change" data-intent-argument="cleaningArea"><span>Reinigungsfläche verwalten</span></button></div></div>
+								<div class="section-card"><div class="section-title"><strong>Wartung</strong><small>Funktionsmenü</small></div><div class="list-card"><button class="list-row" type="button" data-intent="device.setting.change" data-intent-argument="brush"><span><strong>Hauptbürste</strong><small>82 % verbleibend</small></span><em>›</em></button><button class="list-row" type="button" data-intent="device.setting.change" data-intent-argument="filter"><span><strong>Filter</strong><small>64 % verbleibend</small></span><em>›</em></button></div></div>
+							</section>
+						</aside>
+					</div>
+
+					<section class="console" aria-label="Offline-Ereignisprotokoll">
+						<div class="console-pane">
+							<div class="console-header"><strong>Ereignisse <span id="logCount" class="count">0</span></strong><button id="clearLog" type="button">Leeren</button></div>
+							<div id="eventLog" aria-live="polite"></div>
+						</div>
+						<div class="console-pane">
+							<div class="console-header"><strong>Payload-Vorschau · Bundle-Grenze</strong><span style="color:#6f8794;font-size:9px">sent: false</span></div>
+							<pre id="payloadPreview">Noch keine Absicht erfasst.</pre>
+						</div>
+					</section>
+				</div>
+			</main>
+		</div>
+	</body>
+</html>

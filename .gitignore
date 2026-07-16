@@ -28,8 +28,10 @@ lib/go2rtc/go2rtc_win64.zip
 images/products/
 # Build artifacts
 build/
+artifacts/
 coverage/
 junit.xml
+tools/rrcodec-oracle/target/
 
 *.tsbuildinfo
 www/assets
