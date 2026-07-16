@@ -5,7 +5,12 @@ import os from "node:os";
 import path from "node:path";
 
 type JsonRecord = Record<string, unknown>;
-type ProofScenario = "rename-success" | "empty-room-name-blocked" | "appplugin-max-length-filtered";
+type ProofScenario =
+	| "rename-success"
+	| "empty-room-name-blocked"
+	| "appplugin-max-length-filtered"
+	| "predefined-room-name"
+	| "duplicate-room-name-blocked";
 
 interface ProofOptions {
 	repositoryRoot: string;
@@ -83,7 +88,9 @@ function parseArgs(args: string[]): ProofOptions {
 			const scenario = args[++index];
 			if (scenario !== "rename-success"
 				&& scenario !== "empty-room-name-blocked"
-				&& scenario !== "appplugin-max-length-filtered") {
+				&& scenario !== "appplugin-max-length-filtered"
+				&& scenario !== "predefined-room-name"
+				&& scenario !== "duplicate-room-name-blocked") {
 				throw new Error(`Unbekanntes Q7-Rename-Szenario: ${scenario ?? "<fehlt>"}`);
 			}
 			options.scenario = scenario;
@@ -356,38 +363,54 @@ function buildSanitizedProof(
 		const payload = record(typeof rawPayload === "string" ? JSON.parse(rawPayload) : rawPayload, "DPS 10000");
 		return payload.method === "service.rename_room" ? [payload] : [];
 	});
-	const textInputManifestEvents = expectedEvents
-		.map(event => record(event, "Interaktionsmanifest-Ereignis"))
-		.filter(event => event.kind === "text-input");
+	const manifestEvents = expectedEvents.map(event => record(event, "Interaktionsmanifest-Ereignis"));
+	const textInputManifestEvents = manifestEvents.filter(event => event.kind === "text-input");
 	const requestedInputText = textInputManifestEvents.at(-1)?.text;
-	if (typeof requestedInputText !== "string") {
-		throw new Error("Q7-Rename-Beweis benötigt ein TextInput-Ereignis");
-	}
+	const assertedInputTexts = manifestEvents.flatMap(event => {
+		if (event.kind !== "assert" || !Array.isArray(event.activeTextInputTextsInclude)) return [];
+		return event.activeTextInputTextsInclude.filter(value => typeof value === "string") as string[];
+	});
+	const assertedInputText = assertedInputTexts.at(-1);
 	const textInputReplayEvents = replayEvents
 		.map(event => record(event, "Interaktionsreplay-Ereignis"))
 		.filter(event => event.kind === "text-input");
 	const textInputDispatch = textInputReplayEvents.length > 0
 		? textInputReplayEvents.at(-1)
 		: undefined;
-	if (!textInputDispatch) throw new Error("Q7-Rename-Beweis enthält keinen TextInput-Dispatch");
 	let publishedIntent: JsonRecord | undefined;
 	let validation: JsonRecord | undefined;
-	if (scenario === "empty-room-name-blocked") {
+	if (scenario === "empty-room-name-blocked" || scenario === "duplicate-room-name-blocked") {
 		if (renameIntents.length !== 0) {
-			throw new Error(`Leerer Raumname erzeugte unerwartet ${renameIntents.length} Rename-Absichten`);
+			throw new Error(`Blockierter Raumname erzeugte unerwartet ${renameIntents.length} Rename-Absichten`);
 		}
-		if (requestedInputText !== "") throw new Error("Blockierungsbeweis benötigt eine leere TextInput-Fixture");
+		if (typeof requestedInputText !== "string" || !textInputDispatch) {
+			throw new Error("Blockierungsbeweis benötigt ein TextInput-Ereignis samt Dispatch");
+		}
+		const duplicateNameVisible = manifestEvents.some(event =>
+			event.kind === "assert"
+			&& Array.isArray(event.rawTextIncludes)
+			&& event.rawTextIncludes.includes(requestedInputText)
+		);
+		if (scenario === "empty-room-name-blocked" && requestedInputText !== "") {
+			throw new Error("Leereingabe-Beweis benötigt eine leere TextInput-Fixture");
+		}
+		if (scenario === "duplicate-room-name-blocked"
+			&& (requestedInputText.length === 0 || !duplicateNameVisible)) {
+			throw new Error("Duplikat-Beweis benötigt einen bereits sichtbaren, nichtleeren Raumnamen");
+		}
 		const activeTextInputs = array(interactionReplay.activeTextInputs, "interactionReplay.activeTextInputs");
 		const activeInput =
 			activeTextInputs.length === 1 ? record(activeTextInputs[0], "Aktiver TextInput") : undefined;
 		if (!activeInput || activeInput.text !== requestedInputText) {
-			throw new Error("Das AppPlugin hielt den leeren Umbenennungsdialog nicht offen");
+			throw new Error("Das AppPlugin hielt den blockierten Umbenennungsdialog nicht offen");
 		}
 		validation = {
 			inputText: requestedInputText,
+			reason: scenario === "empty-room-name-blocked" ? "empty" : "duplicate",
 			renameIntentCount: 0,
 			activeTextInputCount: 1,
 			dialogRemainedOpen: true,
+			...(scenario === "duplicate-room-name-blocked" ? { existingNameVisibleInOriginalUi: true } : {}),
 		};
 	} else {
 		if (renameIntents.length !== 1) {
@@ -399,50 +422,67 @@ function buildSanitizedProof(
 		if (JSON.stringify(parameterKeys) !== JSON.stringify(expectedParameterKeys)) {
 			throw new Error(`Unerwartetes Rename-Parameterschema: ${parameterKeys.join(",")}`);
 		}
-		let expectedRoomName = requestedInputText;
-		if (scenario === "appplugin-max-length-filtered") {
-			const textInputManifestIndex = expectedEvents.findLastIndex(event =>
-				record(event, "Interaktionsmanifest-Ereignis").kind === "text-input"
+		let expectedRoomName: string;
+		if (scenario === "predefined-room-name") {
+			if (textInputManifestEvents.length !== 0 || textInputReplayEvents.length !== 0
+				|| typeof assertedInputText !== "string" || assertedInputText.length === 0) {
+				throw new Error("Vordefinierter Name muss ausschließlich über die originale AppPlugin-UI gewählt werden");
+			}
+			const localizedOptionVisible = manifestEvents.some(event =>
+				event.kind === "assert"
+				&& Array.isArray(event.rawTextIncludes)
+				&& event.rawTextIncludes.includes(assertedInputText)
 			);
-			const postInputAssertion = expectedEvents
-				.slice(textInputManifestIndex + 1)
-				.map(event => record(event, "Interaktionsmanifest-Ereignis"))
-				.find(event => event.kind === "assert" && Array.isArray(event.activeTextInputTextsInclude));
-			const expectedActiveTexts = postInputAssertion
-				? array(postInputAssertion.activeTextInputTextsInclude, "TextInput-Assertion")
-				: [];
-			if (expectedActiveTexts.length !== 1 || typeof expectedActiveTexts[0] !== "string") {
-				throw new Error("AppPlugin-Längenbeweis benötigt genau einen erwarteten Text nach onChangeText");
+			if (!localizedOptionVisible) {
+				throw new Error("Vordefinierter Name war nicht als lokalisierte AppPlugin-Option sichtbar");
 			}
-			expectedRoomName = expectedActiveTexts[0];
-			if (expectedRoomName === requestedInputText
-				|| requestedInputText.slice(0, expectedRoomName.length) !== expectedRoomName) {
-				throw new Error("AppPlugin-Längenfixture weist keine Präfix-Kürzung nach");
-			}
-			if (textInputDispatch.maxLength !== undefined
-				|| textInputDispatch.truncated !== false
-				|| textInputDispatch.requestedTextLength !== requestedInputText.length
-				|| textInputDispatch.textLength !== requestedInputText.length) {
-				throw new Error("Der Text wurde entgegen dem Q7-Vertrag bereits im APK-Host gekürzt");
-			}
+			expectedRoomName = assertedInputText;
 			validation = {
-				requestedLength: requestedInputText.length,
-				effectiveLength: expectedRoomName.length,
-				nativeMaxLengthPresent: false,
-				truncatedByNativeHost: false,
-				truncatedByAppPlugin: true,
-				payloadMatchesFilteredText: params.room_name === expectedRoomName,
+				localizedName: assertedInputText,
+				selectedByOriginalAppPluginUi: true,
+				hostTextInputEventCount: 0,
+				typeIdProvidedByAppPlugin: Object.prototype.hasOwnProperty.call(params, "type_id"),
 			};
-		} else if (textInputDispatch.truncated !== false) {
-			throw new Error("Normaler Rename-Beweis wurde unerwartet durch maxLength gekürzt");
+		} else {
+			if (typeof requestedInputText !== "string" || !textInputDispatch) {
+				throw new Error("Freitext-Rename-Beweis benötigt ein TextInput-Ereignis samt Dispatch");
+			}
+			expectedRoomName = requestedInputText;
+			if (scenario === "appplugin-max-length-filtered") {
+				if (typeof assertedInputText !== "string") {
+					throw new Error("AppPlugin-Längenbeweis benötigt einen erwarteten Text nach onChangeText");
+				}
+				expectedRoomName = assertedInputText;
+				if (expectedRoomName === requestedInputText
+					|| requestedInputText.slice(0, expectedRoomName.length) !== expectedRoomName) {
+					throw new Error("AppPlugin-Längenfixture weist keine Präfix-Kürzung nach");
+				}
+				if (textInputDispatch.maxLength !== undefined
+					|| textInputDispatch.truncated !== false
+					|| textInputDispatch.requestedTextLength !== requestedInputText.length
+					|| textInputDispatch.textLength !== requestedInputText.length) {
+					throw new Error("Der Text wurde entgegen dem Q7-Vertrag bereits im APK-Host gekürzt");
+				}
+				validation = {
+					requestedLength: requestedInputText.length,
+					effectiveLength: expectedRoomName.length,
+					nativeMaxLengthPresent: false,
+					truncatedByNativeHost: false,
+					truncatedByAppPlugin: true,
+					payloadMatchesFilteredText: params.room_name === expectedRoomName,
+				};
+			} else if (textInputDispatch.truncated !== false) {
+				throw new Error("Normaler Rename-Beweis wurde unerwartet durch maxLength gekürzt");
+			}
 		}
 		if (params.room_name !== expectedRoomName) {
-			throw new Error("Das AppPlugin übernahm nicht den vom APK-TextInput gelieferten Raumnamen");
+			throw new Error("Das AppPlugin übernahm nicht den erwarteten Raumnamen");
 		}
 		publishedIntent = {
 			method: "service.rename_room",
 			parameterKeys,
 			roomName: params.room_name,
+			typeId: params.type_id,
 			mapIdPresent: Object.prototype.hasOwnProperty.call(params, "map_id"),
 			roomIdPresent: Object.prototype.hasOwnProperty.call(params, "room_id"),
 			typeIdPresent: Object.prototype.hasOwnProperty.call(params, "type_id"),

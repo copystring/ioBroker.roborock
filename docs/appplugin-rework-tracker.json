@@ -3,7 +3,7 @@
 	"project": "ioBroker Roborock AppPlugin-first Rework",
 	"lastReviewed": "2026-07-16",
 	"currentPhase": "0C",
-	"currentFocus": ["P0C-Q7-RENAME-VALIDATION", "P0C-Q7-RENAME-FAILURE", "P0C-Q7-FULL-SCENE"],
+	"currentFocus": ["P0C-Q7-RENAME-FAILURE", "P0C-Q7-FULL-SCENE", "P0C-Q7-SPLIT"],
 	"nextUp": ["P0C-Q7-SPLIT", "P0C-Q7-MERGE", "P0C-Q7-THEME", "P0C-Q7-M5-CONTRACT", "P0C-Q10-FULL-SCENE"],
 	"phases": [
 		{
@@ -524,11 +524,17 @@
 			"area": "Q7 L5 – Kartenbearbeitung",
 			"family": "scmap",
 			"title": "Vordefinierte und doppelte Raumnamen prüfen",
-			"status": "pending",
+			"status": "completed",
 			"priority": "P0",
 			"dependsOn": ["P0C-Q7-RENAME-HAPPY", "P0C-Q7-RENAME-EMPTY", "P0C-Q7-RENAME-MAX-LENGTH"],
-			"evidence": [],
-			"nextAction": "Je Fall eine frische Sitzung und Assertions für lokalisierte Auswahl sowie erzeugte beziehungsweise unterdrückte Absicht ergänzen."
+			"evidence": [
+				"scripts/prove_q7_appplugin_rename.ts",
+				"test/fixtures/appplugin/q7-l5-room-rename-predefined.json",
+				"test/fixtures/appplugin/q7-l5-room-rename-duplicate.json",
+				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
+				"`npm run poc:appplugin-q7-rename-proof`"
+			],
+			"nextAction": "Lokalisierte Namen, Typ-IDs und Duplikatprüfung weiterhin vollständig aus dem geladenen AppPlugin übernehmen."
 		},
 		{
 			"id": "P0C-Q7-RENAME-FAILURE",

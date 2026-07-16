@@ -31,7 +31,7 @@ Der Q10-X5+-PoC führt damit die originale Funktion `packageMap` aus. Dieser Pfa
 
 Geräteschreibzugriffe werden ausschließlich aufgezeichnet. `publishDps` sendet weder an MQTT noch an Cloud, ioBroker oder Roboter. Geräteereignisse stammen im PoC aus Test-Fixtures.
 
-Der unveränderte Q7-L5-Hermes-Pfad ist inzwischen bidirektional belegt: APK-konforme Touch- und `AndroidTextInput`-Ereignisse erreichen die originale Editier-Zustandsmaschine; nach Dialog- und Kartenbestätigung bildet das Bundle selbst die Raumumbenennungsabsicht `service.rename_room` mit `map_id`, `room_id`, `room_name` und `type_id`. Gültige und leere Eingabe sowie die AppPlugin-eigene Kürzung eines überlangen Raumnamens von 26 auf `TEXTMAXLENGTH = 24` sind reproduzierbar geprüft. Der Host zeichnet die Absicht weiterhin nur auf.
+Der unveränderte Q7-L5-Hermes-Pfad ist inzwischen bidirektional belegt: APK-konforme Touch- und `AndroidTextInput`-Ereignisse erreichen die originale Editier-Zustandsmaschine; nach Dialog- und Kartenbestätigung bildet das Bundle selbst die Raumumbenennungsabsicht `service.rename_room` mit `map_id`, `room_id`, `room_name` und `type_id`. Gültige, leere, überlange, vordefinierte und doppelte Namen sind reproduzierbar geprüft: Limit, Kürzung, lokalisierter Name, Typ-ID und Duplikatprüfung stammen vollständig aus dem AppPlugin. Der Host zeichnet die Absicht weiterhin nur auf.
 
 ### Protokoll-Codecs
 
