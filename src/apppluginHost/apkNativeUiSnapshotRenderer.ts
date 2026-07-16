@@ -11,10 +11,14 @@ import type { ApkUiManagerNodeSnapshot } from "./apkUiManagerRuntime";
 interface RenderDiagnostics {
 	renderedNativeViews: number;
 	svgViews: number;
+	svgDefinitions: number;
+	svgLinearGradients: number;
+	svgRadialGradients: number;
 	svgGroups: number;
 	svgPaths: number;
 	svgLines: number;
 	svgCircles: number;
+	svgRects: number;
 	embeddedImages: number;
 	textNodes: number;
 }
@@ -201,6 +205,12 @@ function brushColor(value: unknown, context: string): string {
 		throw new Error(`${context} besitzt keinen APK-kompatiblen RNSVG-Brush`);
 	}
 	const brush = value as Readonly<Record<string, unknown>>;
+	if (brush.type === 1) {
+		if (typeof brush.brushRef !== "string" || brush.brushRef.length === 0) {
+			throw new Error(`${context} besitzt keine RNSVG-Brush-Referenz`);
+		}
+		return `url(#${escapeXml(brush.brushRef)})`;
+	}
 	if (brush.type !== 0) throw new Error(`${context} verwendet den noch nicht nachgebildeten RNSVG-Brush-Typ ${String(brush.type)}`);
 	const color = apkArgbToCss(brush.payload);
 	if (!color) throw new Error(`${context} besitzt keine ARGB-Farbe`);
@@ -225,6 +235,12 @@ function svgLength(value: unknown, context: string): string {
 	if (typeof value === "number" && Number.isFinite(value)) return String(value);
 	if (typeof value === "string" && value.trim().length > 0) return value.trim();
 	throw new Error(`${context} besitzt keine gültige SVG-Länge`);
+}
+
+function optionalSvgLengthAttribute(name: string, value: unknown, context: string): string {
+	return value === null || value === undefined
+		? ""
+		: ` ${name}="${escapeXml(svgLength(value, context))}"`;
 }
 
 function dashArrayAttribute(value: unknown, context: string): string {
@@ -260,6 +276,47 @@ function virtualTransformAttribute(props: Readonly<Record<string, unknown>>, con
 	return "";
 }
 
+function gradientStops(value: unknown, context: string): string {
+	if (!Array.isArray(value) || value.length < 4 || value.length % 2 !== 0) {
+		throw new Error(`${context} besitzt keine gültigen RNSVG-Farbstopps`);
+	}
+	const stops: string[] = [];
+	for (let index = 0; index < value.length; index += 2) {
+		const offset = value[index];
+		const color = apkArgbToCss(value[index + 1]);
+		if (typeof offset !== "number" || !Number.isFinite(offset) || !color) {
+			throw new Error(`${context} besitzt einen ungültigen RNSVG-Farbstopp`);
+		}
+		stops.push(`<stop offset="${offset}" stop-color="${color}"/>`);
+	}
+	return stops.join("");
+}
+
+function gradientTransformAttribute(value: unknown, context: string): string {
+	if (value === null || value === undefined) return "";
+	if (!Array.isArray(value) || value.length !== 6
+		|| value.some(item => typeof item !== "number" || !Number.isFinite(item))) {
+		throw new Error(`${context} besitzt keine gültige RNSVG-Gradientenmatrix`);
+	}
+	return ` gradientTransform="matrix(${value.join(" ")})"`;
+}
+
+function radialGradientTransformAttribute(
+	props: Readonly<Record<string, unknown>>,
+	context: string,
+): string {
+	const base = props.gradientTransform;
+	if (base !== null && base !== undefined) return gradientTransformAttribute(base, context);
+	const { cx, cy, rx, ry } = props;
+	if (typeof cx === "number" && Number.isFinite(cx)
+		&& typeof cy === "number" && Number.isFinite(cy)
+		&& typeof rx === "number" && Number.isFinite(rx) && rx !== 0
+		&& typeof ry === "number" && Number.isFinite(ry) && ry !== rx) {
+		return ` gradientTransform="translate(${cx} ${cy}) scale(1 ${ry / rx}) translate(${-cx} ${-cy})"`;
+	}
+	return "";
+}
+
 function renderableAttributes(
 	node: ApkUiManagerNodeSnapshot,
 	options: Readonly<{ includeFill: boolean }>,
@@ -288,10 +345,14 @@ class SnapshotSvgRenderer {
 	readonly #diagnostics: MutableDiagnostics = {
 		renderedNativeViews: 0,
 		svgViews: 0,
+		svgDefinitions: 0,
+		svgLinearGradients: 0,
+		svgRadialGradients: 0,
 		svgGroups: 0,
 		svgPaths: 0,
 		svgLines: 0,
 		svgCircles: 0,
+		svgRects: 0,
 		embeddedImages: 0,
 		textNodes: 0,
 	};
@@ -419,6 +480,31 @@ class SnapshotSvgRenderer {
 	}
 
 	#virtualSvg(node: ApkUiManagerNodeSnapshot): string {
+		if (node.viewName === "RNSVGDefs") {
+			this.#diagnostics.svgDefinitions += 1;
+			return `<defs data-react-tag="${node.tag}">${node.children.map(child =>
+				this.#virtualSvg(child)).join("")}</defs>`;
+		}
+		if (node.viewName === "RNSVGLinearGradient") {
+			this.#diagnostics.svgLinearGradients += 1;
+			const context = `RNSVGLinearGradient ${node.tag}`;
+			const name = node.props.name;
+			if (typeof name !== "string" || name.length === 0) {
+				throw new Error(`${context} besitzt keinen Namen`);
+			}
+			const units = finite(node.props.gradientUnits) === 1 ? "userSpaceOnUse" : "objectBoundingBox";
+			return `<linearGradient data-react-tag="${node.tag}" id="${escapeXml(name)}" x1="${escapeXml(svgLength(node.props.x1, `${context}.x1`))}" y1="${escapeXml(svgLength(node.props.y1, `${context}.y1`))}" x2="${escapeXml(svgLength(node.props.x2, `${context}.x2`))}" y2="${escapeXml(svgLength(node.props.y2, `${context}.y2`))}" gradientUnits="${units}"${gradientTransformAttribute(node.props.gradientTransform, `${context}.gradientTransform`)}>${gradientStops(node.props.gradient, `${context}.gradient`)}</linearGradient>`;
+		}
+		if (node.viewName === "RNSVGRadialGradient") {
+			this.#diagnostics.svgRadialGradients += 1;
+			const context = `RNSVGRadialGradient ${node.tag}`;
+			const name = node.props.name;
+			if (typeof name !== "string" || name.length === 0) {
+				throw new Error(`${context} besitzt keinen Namen`);
+			}
+			const units = finite(node.props.gradientUnits) === 1 ? "userSpaceOnUse" : "objectBoundingBox";
+			return `<radialGradient data-react-tag="${node.tag}" id="${escapeXml(name)}" cx="${escapeXml(svgLength(node.props.cx, `${context}.cx`))}" cy="${escapeXml(svgLength(node.props.cy, `${context}.cy`))}" r="${escapeXml(svgLength(node.props.rx, `${context}.rx`))}" fx="${escapeXml(svgLength(node.props.fx, `${context}.fx`))}" fy="${escapeXml(svgLength(node.props.fy, `${context}.fy`))}" gradientUnits="${units}"${radialGradientTransformAttribute(node.props, `${context}.gradientTransform`)}>${gradientStops(node.props.gradient, `${context}.gradient`)}</radialGradient>`;
+		}
 		if (node.viewName === "RNSVGGroup") {
 			this.#diagnostics.svgGroups += 1;
 			return `<g${virtualTransformAttribute(node.props, `RNSVGGroup ${node.tag}`)}>${node.children.map(child =>
@@ -437,6 +523,11 @@ class SnapshotSvgRenderer {
 		if (node.viewName === "RNSVGCircle") {
 			this.#diagnostics.svgCircles += 1;
 			return `<circle data-react-tag="${node.tag}" cx="${escapeXml(svgLength(node.props.cx, `RNSVGCircle ${node.tag}.cx`))}" cy="${escapeXml(svgLength(node.props.cy, `RNSVGCircle ${node.tag}.cy`))}" r="${escapeXml(svgLength(node.props.r, `RNSVGCircle ${node.tag}.r`))}"${renderableAttributes(node, { includeFill: true })}/>`;
+		}
+		if (node.viewName === "RNSVGRect") {
+			this.#diagnostics.svgRects += 1;
+			const context = `RNSVGRect ${node.tag}`;
+			return `<rect data-react-tag="${node.tag}" x="${escapeXml(svgLength(node.props.x ?? 0, `${context}.x`))}" y="${escapeXml(svgLength(node.props.y ?? 0, `${context}.y`))}" width="${escapeXml(svgLength(node.props.width, `${context}.width`))}" height="${escapeXml(svgLength(node.props.height, `${context}.height`))}"${optionalSvgLengthAttribute("rx", node.props.rx, `${context}.rx`)}${optionalSvgLengthAttribute("ry", node.props.ry, `${context}.ry`)}${renderableAttributes(node, { includeFill: true })}/>`;
 		}
 		throw new Error(`Der unveränderte AppPlugin-Baum verwendet den noch nicht nachgebildeten SVG-Typ ${node.viewName}`);
 	}

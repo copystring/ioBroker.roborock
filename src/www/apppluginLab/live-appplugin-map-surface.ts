@@ -21,6 +21,8 @@ interface LiveAppPluginViewport {
 
 interface LiveAppPluginHealth {
 	status: "appplugin-session-ready";
+	deviceModel: string;
+	profileLabel: string;
 	revision: number;
 	frameRevision: number;
 	surface: LiveAppPluginSurfaceDescriptor;
@@ -68,6 +70,8 @@ interface PublishedDpsResponse {
 }
 
 export interface LiveAppPluginMapSnapshot {
+	deviceModel: string;
+	profileLabel: string;
 	revision: number;
 	frameRevision: number;
 	surface: LiveAppPluginSurfaceDescriptor;
@@ -89,6 +93,7 @@ export interface LiveAppPluginMapSurfaceOptions {
 	onEvent: (label: string, data: unknown) => void;
 	onChange: (snapshot: LiveAppPluginMapSnapshot) => void;
 	apiBaseUrl?: string;
+	initialView?: LiveAppPluginSurfaceView;
 }
 
 function finite(value: number, name: string): number {
@@ -110,7 +115,7 @@ export class LiveAppPluginMapSurface {
 	}
 
 	public async init(): Promise<void> {
-		this.#health = await this.#fetchHealth("map");
+		this.#health = await this.#fetchHealth(this.options.initialView ?? "map");
 		this.#publishedDpsCount = this.#health.publishedDpsCount;
 		this.options.viewport.dataset.renderMode = "unchanged-appplugin-session";
 		this.options.viewport.dataset.bundleKind = this.#health.bundleKind;
@@ -140,6 +145,8 @@ export class LiveAppPluginMapSurface {
 
 	public snapshot(): LiveAppPluginMapSnapshot {
 		return {
+			deviceModel: this.#health.deviceModel,
+			profileLabel: this.#health.profileLabel,
 			revision: this.#health.revision,
 			frameRevision: this.#health.frameRevision,
 			surface: { ...this.#health.surface },
@@ -194,19 +201,26 @@ export class LiveAppPluginMapSurface {
 		const endLeftX = rightX - endDistance;
 		const leftId = 10_001;
 		const rightId = 10_002;
-		await this.#sendPointer("down", leftId, startLeftX, centerY);
-		await this.#sendPointer("down", rightId, rightX, centerY);
 		// Das erste MOVE beansprucht den React-Native-Responder. Das zweite MOVE
 		// verändert den Zoom im bereits aktiven AppPlugin-PanResponder. Ein einzelnes
 		// MOVE wird beim Loslassen verworfen; weitere Zwischenstufen sind unnötig.
 		const movementSteps = 2;
-		for (let step = 1; step <= movementSteps; step += 1) {
-			const progress = step / movementSteps;
-			const leftX = startLeftX + (endLeftX - startLeftX) * progress;
-			await this.#sendPointer("move", leftId, leftX, centerY);
-		}
-		await this.#sendPointer("up", rightId, rightX, centerY);
-		await this.#sendPointer("up", leftId, endLeftX, centerY);
+		const moves = Array.from({ length: movementSteps }, (_, index) => {
+			const progress = (index + 1) / movementSteps;
+			return {
+				kind: "move" as const,
+				pointerId: leftId,
+				x: startLeftX + (endLeftX - startLeftX) * progress,
+				y: centerY,
+			};
+		});
+		await this.#sendPointerSequence([
+			{ kind: "down", pointerId: leftId, x: startLeftX, y: centerY },
+			{ kind: "down", pointerId: rightId, x: rightX, y: centerY },
+			...moves,
+			{ kind: "up", pointerId: rightId, x: rightX, y: centerY },
+			{ kind: "up", pointerId: leftId, x: endLeftX, y: centerY },
+		]);
 		this.options.onEvent("APK-Pinch an AppPlugin gesendet", { delta, revision: this.#health.revision });
 	}
 
@@ -294,7 +308,27 @@ export class LiveAppPluginMapSurface {
 		pointers: readonly Readonly<{ kind: "down" | "move" | "up"; pointerId: number; x: number; y: number }>[],
 	): Promise<void> {
 		return this.#enqueue(async () => {
-			for (const pointer of pointers) await this.#requestPointer(pointer);
+			if (pointers.length === 1) {
+				await this.#requestPointer(pointers[0]);
+				return;
+			}
+			const startedAt = performance.timeOrigin + performance.now();
+			const response = await fetch(`${this.#apiBaseUrl}/pointer-sequence?view=${this.#health.view}`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					pointers: pointers.map((pointer, index) => ({ ...pointer, timeMs: startedAt + index })),
+				}),
+			});
+			const payload = await response.json() as PointerResponse | { error: string };
+			if (!response.ok || "error" in payload) {
+				throw new Error("error" in payload ? payload.error : `Pointer-Sequenz antwortet mit HTTP ${response.status}`);
+			}
+			await this.#applyPointerResponse(payload);
+			this.options.onEvent("AppPlugin-Pointersequenz", {
+				kinds: pointers.map(pointer => pointer.kind),
+				...payload,
+			});
 		});
 	}
 

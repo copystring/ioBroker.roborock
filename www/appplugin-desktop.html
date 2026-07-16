@@ -4,7 +4,7 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>Roborock Desktop · AppPlugin PoC</title>
-		<script type="module" src="./appplugin-desktop.js?v=04634fa4ea52"></script>
+		<script type="module" src="./appplugin-desktop.js?v=0bcd7eeac973"></script>
 		<style>
 			:root {
 				color-scheme: light;
@@ -104,8 +104,8 @@
 			.breadcrumb strong { display: block; margin-top: 2px; font-size: 17px; }
 			.top-actions { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 9px; }
 			.status-pill { border: 1px solid var(--accent); color: var(--accent-dark); background: var(--accent-soft); padding: 7px 10px; font-size: 11px; }
-			.language-control, .theme-control { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
-			.language-control select, .theme-control select { border: 1px solid var(--line); background: var(--surface); color: var(--text); padding: 7px 28px 7px 9px; }
+			.language-control, .theme-control, .profile-control { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
+			.language-control select, .theme-control select, .profile-control select { border: 1px solid var(--line); background: var(--surface); color: var(--text); padding: 7px 28px 7px 9px; }
 
 			.workbench { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) clamp(150px, 24vh, 220px); gap: 1px; background: var(--line); overflow: hidden; }
 			.content-grid { min-height: 0; overflow: hidden; display: grid; grid-template-columns: minmax(520px, 1fr) 344px; background: var(--canvas); }
@@ -224,7 +224,7 @@
 				.app-main { grid-template-rows: 58px minmax(0, 1fr); }
 				.topbar { padding: 0 16px; }
 				.breadcrumb strong { font-size: 15px; }
-				.status-pill, .language-control, .theme-control { font-size: 10px; }
+				.status-pill, .language-control, .theme-control, .profile-control { font-size: 10px; }
 				.workbench { grid-template-rows: minmax(0, 1fr) clamp(120px, 21vh, 170px); }
 				.map-workspace { padding: 10px 12px; gap: 7px; }
 				.workspace-heading h1 { font-size: 16px; }
@@ -290,8 +290,8 @@
 				</nav>
 				<div class="device-mini">
 					<div class="device-mini-row">
-						<div class="robot-dot">Q7</div>
-						<div><strong>Q7 Testgerät</strong><small>Offline-Fixture · 82 %</small></div>
+						<div class="robot-dot" id="deviceFamilyBadge">…</div>
+						<div><strong id="deviceName">AppPlugin Testgerät</strong><small>Lokale Originalaufnahme</small></div>
 						<span class="online-dot" title="PoC aktiv"></span>
 					</div>
 				</div>
@@ -299,9 +299,10 @@
 
 			<main class="app-main">
 				<header class="topbar">
-					<div class="breadcrumb"><small>Roborock / Q7 Testgerät</small><strong id="currentSection">Karte & Reinigung</strong></div>
+					<div class="breadcrumb"><small>Roborock / AppPlugin Testgerät</small><strong id="currentSection">Karte & Reinigung</strong></div>
 					<div class="top-actions">
 						<span class="status-pill">Lokale unveränderte AppPlugin-Sitzung</span>
+						<label class="profile-control" for="runtimeProfile">Kartenprofil <select id="runtimeProfile"><option value="4174">Q7 · SC01</option><option value="4175">Q10 · B01</option></select></label>
 						<label class="theme-control" for="themeMode">Darstellung <select id="themeMode"><option value="system">System</option><option value="light">Hell</option><option value="dark">Dunkel</option></select></label>
 						<span class="language-control">AppPlugin-Sprache: <strong>direkt aus laufendem Bundle</strong></span>
 					</div>

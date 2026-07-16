@@ -12,6 +12,7 @@ const sourcePath = path.join(repositoryRoot, "src", "www", "appplugin-desktop.ts
 const surfacePath = path.join(repositoryRoot, "src", "www", "apppluginLab", "live-appplugin-map-surface.ts");
 const probePath = path.join(repositoryRoot, "scripts", "appplugin_hermes_runtime_probe.ts");
 const buildScriptPath = path.join(repositoryRoot, "scripts", "build_appplugin_desktop.js");
+const runtimeLauncherPath = path.join(repositoryRoot, "scripts", "start_appplugin_desktop_runtime.ts");
 
 describe("AppPlugin desktop smart-home PoC", () => {
 	it("renders and updates the unchanged AppPlugin session instead of rebuilding a map", () => {
@@ -21,9 +22,18 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		const probe = fs.readFileSync(probePath, "utf8");
 
 		expect(source).toContain("new LiveAppPluginMapSurface");
+		expect(source).toContain("function localRuntimePort(): 4174 | 4175");
+		expect(source).toContain("apiBaseUrl: `http://127.0.0.1:${runtimePort}`");
+		expect(source).toContain('initialView: runtimePort === 4175 ? "full" : "map"');
+		expect(surface).toContain('this.#fetchHealth(this.options.initialView ?? "map")');
+		expect(source).toContain('url.searchParams.set("runtimePort", this.runtimeProfile.value)');
+		expect(html).toContain('id="runtimeProfile"');
+		expect(html).toContain('<option value="4174">Q7 · SC01</option>');
+		expect(html).toContain('<option value="4175">Q10 · B01</option>');
 		expect(source).not.toContain("OriginalMapSurface");
 		expect(surface).toContain("fetch(`${this.#apiBaseUrl}/health?view=${view}`");
 		expect(surface).toContain("fetch(`${this.#apiBaseUrl}/pointer?view=${this.#health.view}`");
+		expect(surface).toContain("fetch(`${this.#apiBaseUrl}/pointer-sequence?view=${this.#health.view}`");
 		expect(surface).toContain("/frame.svg?view=${this.#health.view}&revision=");
 		expect(surface).toContain('dataset.renderMode = "unchanged-appplugin-session"');
 		expect(surface).not.toMatch(/roomIds|roomDisplayColor|RNSVGPath|station.*zIndex/iu);
@@ -64,6 +74,8 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(surface).toContain('addEventListener("pointerup"');
 		expect(surface).toContain("APK-Pinch an AppPlugin gesendet");
 		expect(surface).toContain("const movementSteps = 2");
+		expect(surface).toContain("await this.#sendPointerSequence([");
+		expect(surface).not.toContain('await this.#sendPointer("down"');
 		expect(source).not.toContain("AppPlugin r${snapshot.revision}");
 		expect(source).not.toContain("Revision ${snapshot.revision}");
 		expect(source).not.toContain("React-Tag ${snapshot.surface.tag}");
@@ -88,6 +100,19 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(probe).toContain('response.setHeader("X-AppPlugin-Frame-Revision"');
 		expect(pointerEndpoint).toContain("resolveCurrentSurface(view)");
 		expect(pointerEndpoint).not.toContain("currentFrame(view)");
+	});
+
+	it("does not await future AppPlugin timers for interactive touches and batches gestures", () => {
+		const surface = fs.readFileSync(surfacePath, "utf8");
+		const probe = fs.readFileSync(probePath, "utf8");
+		const pointerEndpoint = probe.slice(probe.indexOf('url.pathname === "/pointer"'));
+
+		expect(probe).toContain("stabilizeInteractiveUi");
+		expect(probe).toContain('url.pathname === "/pointer-sequence"');
+		expect(probe).toContain("cachedCurrentFrame");
+		expect(pointerEndpoint).not.toContain("settleImminentOneShotTimers()");
+		expect(surface).toContain("pointers.length === 1");
+		expect(surface).toContain("AppPlugin-Pointersequenz");
 	});
 
 	it("exposes the full unchanged AppPlugin root as a test view and logs its own DPS", () => {
@@ -184,6 +209,26 @@ describe("AppPlugin desktop smart-home PoC", () => {
 			sent: false
 		});
 		expect(JSON.stringify(envelope)).not.toMatch(/app_(?:start|segment|zoned)_clean/);
+	});
+
+	it("starts Q7 and Q10 from the real ignored local recordings instead of the synthetic map", () => {
+		const html = fs.readFileSync(htmlPath, "utf8");
+		const source = fs.readFileSync(sourcePath, "utf8");
+		const surface = fs.readFileSync(surfacePath, "utf8");
+		const probe = fs.readFileSync(probePath, "utf8");
+		const launcher = fs.readFileSync(runtimeLauncherPath, "utf8");
+		const packageJson = fs.readFileSync(path.join(repositoryRoot, "package.json"), "utf8");
+
+		expect(launcher).toContain("q7-l5-sc01-live-map.blob");
+		expect(launcher).toContain("q10-history-replay.json");
+		expect(launcher).toContain("Q10_FIXTURE_DEFAULTS");
+		expect(launcher).not.toContain("q7-l5-full-scene-synthetic.blob");
+		expect(packageJson).toContain('"poc:appplugin-desktop:runtime"');
+		expect(probe).toContain("profileLabel: options.profileLabel");
+		expect(surface).toContain("profileLabel: this.#health.profileLabel");
+		expect(source).toContain("snapshot.profileLabel");
+		expect(source).not.toContain("Q7 L5 / SC01 · AppPlugin-Kartenviewport");
+		expect(html).not.toContain("Q7 Testgerät");
 	});
 
 	it("builds the live desktop client without regenerating the quarantined snapshot contract", () => {

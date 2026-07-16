@@ -18,6 +18,13 @@ function byId<T extends HTMLElement | SVGElement>(id: string): T {
 	return element as T;
 }
 
+function localRuntimePort(): 4174 | 4175 {
+	const value = new URLSearchParams(location.search).get("runtimePort");
+	if (value === null || value === "4174") return 4174;
+	if (value === "4175") return 4175;
+	throw new Error(`Unbekannter lokaler AppPlugin-Runtime-Port: ${value}`);
+}
+
 class AppPluginDesktop {
 	private activeNavigation = "map";
 	private tool: MapTool = "rooms";
@@ -33,11 +40,22 @@ class AppPluginDesktop {
 	private readonly log = byId<HTMLElement>("eventLog");
 	private readonly payload = byId<HTMLElement>("payloadPreview");
 	private readonly themeMode = byId<HTMLSelectElement>("themeMode");
+	private readonly runtimeProfile = byId<HTMLSelectElement>("runtimeProfile");
 
 	public async init(): Promise<void> {
+		const runtimePort = localRuntimePort();
+		this.runtimeProfile.value = String(runtimePort);
+		this.runtimeProfile.addEventListener("change", () => {
+			const url = new URL(location.href);
+			if (this.runtimeProfile.value === "4174") url.searchParams.delete("runtimePort");
+			else url.searchParams.set("runtimePort", this.runtimeProfile.value);
+			location.assign(url);
+		});
 		this.mapSurface = new LiveAppPluginMapSurface({
 			viewport: this.map,
 			frame: this.mapFrame,
+			apiBaseUrl: `http://127.0.0.1:${runtimePort}`,
+			initialView: runtimePort === 4175 ? "full" : "map",
 			onEvent: (label, data) => this.logEvent(label, data),
 			onChange: snapshot => {
 				this.mapSnapshot = snapshot;
@@ -238,6 +256,9 @@ class AppPluginDesktop {
 		}, "Reinigung noch nicht gesendet – AppPlugin-Aktionsadapter fehlt");
 	}
 	private updateMapSummary(snapshot: LiveAppPluginMapSnapshot): void {
+		const deviceFamily = snapshot.deviceModel.includes("ss09") ? "Q10" : "Q7";
+		byId<HTMLElement>("deviceFamilyBadge").textContent = deviceFamily;
+		byId<HTMLElement>("deviceName").textContent = snapshot.profileLabel;
 		const fullView = snapshot.view === "full";
 		byId<HTMLElement>("selectionSummary").textContent =
 			"Kartenansicht und Interaktion werden direkt vom Geräte-AppPlugin verwaltet";
@@ -248,11 +269,11 @@ class AppPluginDesktop {
 			? "Das vollständige AppPlugin inklusive seiner originalen Menüs. Alle Klicks laufen als APK-Touchereignisse durch dieselbe Hermes-Sitzung."
 			: "Geometrie, Farben, Raumnamen, Roboter, Station, Skalierung und Auswahlzustand werden von derselben laufenden Hermes-Sitzung erzeugt. Der Desktop hostet nur APK-Verträge, Eingabe und Ausgabe.";
 		byId<HTMLElement>("mapOriginLabel").textContent = fullView
-			? "Q7 L5 / SC01 · vollständiger AppPlugin-Root"
-			: "Q7 L5 / SC01 · AppPlugin-Kartenviewport";
+			? `${snapshot.profileLabel} · vollständiger AppPlugin-Root`
+			: `${snapshot.profileLabel} · AppPlugin-Kartenviewport`;
 		byId<HTMLElement>("mapNotice").textContent = fullView
 			? "Testmodus: Öffne hier direkt die originalen AppPlugin-Menüs, beispielsweise Bearbeiten → Zusammenführen. Veröffentlichte DPS erscheinen unten im Protokoll und werden nicht an ein Gerät gesendet."
-			: "Direkte native Kartenteilstruktur des laufenden Q7-AppPlugins. Pointer und Pinch werden als APK-Touchereignisse zurück in dieselbe Sitzung geleitet; Gerätebefehle werden nicht gesendet.";
+			: "Direkte native Kartenteilstruktur des laufenden Geräte-AppPlugins. Pointer und Pinch werden als APK-Touchereignisse zurück in dieselbe Sitzung geleitet; Gerätebefehle werden nicht gesendet.";
 		document.querySelectorAll<HTMLButtonElement>("[data-surface-view]").forEach(button => {
 			const active = button.dataset.surfaceView === snapshot.view;
 			button.classList.toggle("active", active);

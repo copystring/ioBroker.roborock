@@ -140,6 +140,168 @@ describe("APK-native UI snapshot renderer", () => {
 		expect(result.svg).toContain('fill="rgb(0 122 255)"');
 		expect(result.diagnostics).toMatchObject({ svgLines: 1, svgCircles: 1 });
 	});
+
+	it("preserves AppPlugin SVG rectangles and their rounded geometry", () => {
+		const rect = {
+			tag: 11,
+			viewName: "RNSVGRect",
+			rootTag: 1,
+			props: {
+				x: 1,
+				y: 2,
+				width: 8,
+				height: 6,
+				rx: 2,
+				fill: { type: 0, payload: -65536 },
+			},
+			children: [],
+		} satisfies ApkUiManagerNodeSnapshot;
+		const rectSvg = { ...svgShadow, children: [{ ...groupNode, children: [rect] }] };
+		const rectRoot = {
+			...shadowRoot,
+			children: [{ ...shadowRoot.children[0], children: [rectSvg] }],
+		};
+		const rectHierarchy: ApkNativeViewHierarchySnapshot = {
+			...nativeHierarchy,
+			root: {
+				...nativeHierarchy.root,
+				children: [{ ...nativeHierarchy.root.children[0], children: [{ ...rectSvg, children: [] }] }],
+			},
+			virtualTags: [4, 11],
+		};
+
+		const result = renderApkNativeUiSnapshotToSvg({
+			shadowRoot: rectRoot,
+			nativeHierarchy: rectHierarchy,
+			width: 20,
+			height: 20,
+		});
+
+		expect(result.svg).toContain('data-react-tag="11" x="1" y="2" width="8" height="6" rx="2"');
+		expect(result.diagnostics).toMatchObject({ svgRects: 1 });
+	});
+
+	it("preserves AppPlugin SVG definitions inside the virtual SVG tree", () => {
+		const linearGradient = {
+			tag: 10,
+			viewName: "RNSVGLinearGradient",
+			rootTag: 1,
+			props: {
+				name: "room-gradient",
+				x1: "0%",
+				y1: "0%",
+				x2: "100%",
+				y2: "0%",
+				gradient: [0, -65536, 1, -16776961],
+				gradientUnits: 0,
+			},
+			children: [],
+		} satisfies ApkUiManagerNodeSnapshot;
+		const definitions = {
+			tag: 8,
+			viewName: "RNSVGDefs",
+			rootTag: 1,
+			props: {},
+			children: [{ ...pathNode, tag: 9 }, linearGradient],
+		} satisfies ApkUiManagerNodeSnapshot;
+		const svgWithDefinitions = { ...svgShadow, children: [definitions, groupNode] };
+		const rootWithDefinitions = {
+			...shadowRoot,
+			children: [{ ...shadowRoot.children[0], children: [svgWithDefinitions] }],
+		};
+		const hierarchyWithDefinitions: ApkNativeViewHierarchySnapshot = {
+			...nativeHierarchy,
+			root: {
+				...nativeHierarchy.root,
+				children: [{ ...nativeHierarchy.root.children[0], children: [{ ...svgWithDefinitions, children: [] }] }],
+			},
+			virtualTags: [4, 5, 8, 9, 10],
+		};
+
+		const result = renderApkNativeUiSnapshotToSvg({
+			shadowRoot: rootWithDefinitions,
+			nativeHierarchy: hierarchyWithDefinitions,
+			width: 20,
+			height: 20,
+		});
+
+		expect(result.svg).toContain('<defs data-react-tag="8"><path');
+		expect(result.svg).toContain('id="room-gradient" x1="0%" y1="0%" x2="100%" y2="0%"');
+		expect(result.svg).toContain('<stop offset="0" stop-color="rgb(255 0 0)"/>');
+		expect(result.diagnostics).toMatchObject({ svgDefinitions: 1, svgLinearGradients: 1, svgPaths: 2 });
+	});
+
+	it("preserves AppPlugin radial gradients including elliptical scaling", () => {
+		const radialGradient = {
+			tag: 12,
+			viewName: "RNSVGRadialGradient",
+			rootTag: 1,
+			props: {
+				name: "robot-glow",
+				cx: 5,
+				cy: 4,
+				fx: 5,
+				fy: 4,
+				rx: 3,
+				ry: 1.5,
+				gradient: [0, -1, 1, 0x00ffffff],
+				gradientUnits: 1,
+			},
+			children: [],
+		} satisfies ApkUiManagerNodeSnapshot;
+		const radialSvg = { ...svgShadow, children: [{ ...groupNode, children: [radialGradient] }] };
+		const radialRoot = {
+			...shadowRoot,
+			children: [{ ...shadowRoot.children[0], children: [radialSvg] }],
+		};
+		const radialHierarchy: ApkNativeViewHierarchySnapshot = {
+			...nativeHierarchy,
+			root: {
+				...nativeHierarchy.root,
+				children: [{ ...nativeHierarchy.root.children[0], children: [{ ...radialSvg, children: [] }] }],
+			},
+			virtualTags: [4, 12],
+		};
+
+		const result = renderApkNativeUiSnapshotToSvg({
+			shadowRoot: radialRoot,
+			nativeHierarchy: radialHierarchy,
+			width: 20,
+			height: 20,
+		});
+
+		expect(result.svg).toContain('id="robot-glow" cx="5" cy="4" r="3" fx="5" fy="4"');
+		expect(result.svg).toContain('gradientTransform="translate(5 4) scale(1 0.5) translate(-5 -4)"');
+		expect(result.diagnostics).toMatchObject({ svgRadialGradients: 1 });
+	});
+
+	it("preserves AppPlugin references to named SVG brushes", () => {
+		const gradientPath = {
+			...pathNode,
+			props: { ...pathNode.props, fill: { type: 1, brushRef: "room-gradient" } },
+		};
+		const gradientSvg = { ...svgShadow, children: [{ ...groupNode, children: [gradientPath] }] };
+		const gradientRoot = {
+			...shadowRoot,
+			children: [{ ...shadowRoot.children[0], children: [gradientSvg] }],
+		};
+		const gradientHierarchy: ApkNativeViewHierarchySnapshot = {
+			...nativeHierarchy,
+			root: {
+				...nativeHierarchy.root,
+				children: [{ ...nativeHierarchy.root.children[0], children: [{ ...gradientSvg, children: [] }] }],
+			},
+		};
+
+		const result = renderApkNativeUiSnapshotToSvg({
+			shadowRoot: gradientRoot,
+			nativeHierarchy: gradientHierarchy,
+			width: 20,
+			height: 20,
+		});
+
+		expect(result.svg).toContain('fill="url(#room-gradient)"');
+	});
 	it("crops an unchanged AppPlugin native subtree without rebuilding its children", () => {
 		const hierarchyWithOffset: ApkNativeViewHierarchySnapshot = {
 			...nativeHierarchy,

@@ -78,6 +78,7 @@ interface ProbeOptions {
 	language: string;
 	localeIdentifier: string;
 	deviceModel: string;
+	profileLabel: string;
 	mobileModel: string;
 	androidRelease: string;
 	runApplication: boolean;
@@ -121,6 +122,7 @@ function parseArgs(args: string[]): ProbeOptions {
 		localeIdentifier: "de_DE",
 		mobileModel: "AppPlugin Hermes Runtime Probe",
 		androidRelease: "runtime-probe",
+		profileLabel: "Lokale AppPlugin-Aufzeichnung",
 		runApplication: false,
 		reactStateProbe: false,
 		serveFullRoot: false,
@@ -141,6 +143,7 @@ function parseArgs(args: string[]): ProbeOptions {
 		else if (option === "--language" && value) options.language = args[++index];
 		else if (option === "--locale" && value) options.localeIdentifier = args[++index];
 		else if (option === "--device-model" && value) options.deviceModel = args[++index];
+		else if (option === "--profile-label" && value) options.profileLabel = args[++index];
 		else if (option === "--mobile-model" && value) options.mobileModel = args[++index];
 		else if (option === "--android-release" && value) options.androidRelease = args[++index];
 		else if (option === "--run-application") options.runApplication = true;
@@ -452,6 +455,10 @@ interface PointerHttpRequest {
 	timeMs?: number;
 }
 
+interface PointerSequenceHttpRequest {
+	pointers: readonly PointerHttpRequest[];
+}
+
 interface ThemeHttpRequest {
 	mode: "dark" | "light" | "system";
 	systemColorScheme: "dark" | "light";
@@ -507,6 +514,20 @@ function parsePointerHttpRequest(record: Readonly<Record<string, unknown>>): Poi
 		timeMs: typeof record.timeMs === "number" && Number.isFinite(record.timeMs) ? record.timeMs : Date.now(),
 	};
 }
+function parsePointerSequenceHttpRequest(record: Readonly<Record<string, unknown>>): PointerSequenceHttpRequest {
+	if (!Array.isArray(record.pointers) || record.pointers.length === 0 || record.pointers.length > 64) {
+		throw new Error("Pointer-Sequenz benötigt 1 bis 64 Ereignisse");
+	}
+	return {
+		pointers: record.pointers.map((pointer, index) => {
+			if (!pointer || typeof pointer !== "object" || Array.isArray(pointer)) {
+				throw new Error(`Pointer-Sequenz enthält an Position ${index} kein JSON-Objekt`);
+			}
+			return parsePointerHttpRequest(pointer as Readonly<Record<string, unknown>>);
+		}),
+	};
+}
+
 function parseThemeHttpRequest(record: Readonly<Record<string, unknown>>): ThemeHttpRequest {
 	const mode = record.mode;
 	if (mode !== "dark" && mode !== "light" && mode !== "system") {
@@ -866,6 +887,11 @@ async function main(): Promise<void> {
 	const stabilizeUi = async (): Promise<void> => {
 		await session.waitForRuntimeBoundaryIdle();
 		uiExecutionSnapshots.push(await uiExecution.stabilize());
+	};
+	const stabilizeInteractiveUi = async (): Promise<void> => {
+		// Pointer-Eingaben dürfen zukünftige AppPlugin-Timer nicht künstlich abwarten.
+		// Android liefert Touches direkt und rendert anschließend den nächsten UI-Stand.
+		await stabilizeUi();
 	};
 	let imminentTimerCycles = 0;
 	const settleImminentOneShotTimers = async (
@@ -1258,6 +1284,42 @@ async function main(): Promise<void> {
 				});
 				return { currentSurface, viewport, artifact, view };
 			};
+			type ServedFrame = ReturnType<typeof currentFrame>;
+			const frameCache = new Map<ServedView, { frameRevision: number; frame: ServedFrame }>();
+			const cachedCurrentFrame = (view: ServedView = defaultServedView): ServedFrame => {
+				const cached = frameCache.get(view);
+				if (cached?.frameRevision === frameRevision) return cached.frame;
+				const frame = currentFrame(view);
+				frameCache.set(view, { frameRevision, frame });
+				return frame;
+			};
+			const dispatchPointer = async (pointer: PointerHttpRequest) => pointer.kind === "cancel"
+				? pointerInput.cancel(pointer.timeMs as number)
+				: pointer.kind === "down"
+					? pointerInput.pointerDown(pointer.pointerId as number, pointer.x as number, pointer.y as number, pointer.timeMs as number)
+					: pointer.kind === "move"
+						? pointerInput.pointerMove(pointer.pointerId as number, pointer.x as number, pointer.y as number, pointer.timeMs as number)
+						: pointerInput.pointerUp(pointer.pointerId as number, pointer.x as number, pointer.y as number, pointer.timeMs as number);
+			const dispatchInteractivePointers = async (pointers: readonly PointerHttpRequest[]) => {
+				const uiVisualRevisionBefore = uiManager.visualMutationRevision();
+				const pictureUpdatesBefore = skiaHost.getDiagnostics().pictureUpdates;
+				const dispatches = [];
+				for (const pointer of pointers) {
+					const dispatch = await dispatchPointer(pointer);
+					dispatches.push({
+						kind: pointer.kind,
+						targets: dispatch.touches.map(touch => touch.target),
+						changedIndices: dispatch.changedIndices,
+					});
+					await session.waitForRuntimeBoundaryIdle();
+				}
+				await stabilizeInteractiveUi();
+				revision += 1;
+				const frameChanged = uiManager.visualMutationRevision() !== uiVisualRevisionBefore
+					|| skiaHost.getDiagnostics().pictureUpdates !== pictureUpdatesBefore;
+				if (frameChanged) frameRevision += 1;
+				return { dispatches, frameChanged };
+			};
 			const server = createServer((request, response) => {
 				response.setHeader("Access-Control-Allow-Origin", "*");
 				response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
@@ -1274,6 +1336,8 @@ async function main(): Promise<void> {
 						const { currentSurface, viewport, view } = resolveCurrentSurface(requestedView(url));
 						sendJson(response, 200, {
 							status: "appplugin-session-ready",
+							deviceModel: options.deviceModel,
+							profileLabel: options.profileLabel,
 							revision,
 							frameRevision,
 							surface: currentSurface,
@@ -1454,7 +1518,7 @@ async function main(): Promise<void> {
 						return;
 					}
 					if (request.method === "GET" && url.pathname === "/frame.svg") {
-						const { artifact } = currentFrame(requestedView(url));
+						const { artifact } = cachedCurrentFrame(requestedView(url));
 						response.statusCode = 200;
 						response.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
 						response.setHeader("X-AppPlugin-Revision", String(revision));
@@ -1465,22 +1529,8 @@ async function main(): Promise<void> {
 					if (request.method === "POST" && url.pathname === "/pointer") {
 						const view = requestedView(url);
 						const pointer = parsePointerHttpRequest(await readJsonRequest(request));
-						const uiVisualRevisionBefore = uiManager.visualMutationRevision();
-						const pictureUpdatesBefore = skiaHost.getDiagnostics().pictureUpdates;
-						const dispatch = pointer.kind === "cancel"
-							? await pointerInput.cancel(pointer.timeMs as number)
-							: pointer.kind === "down"
-								? await pointerInput.pointerDown(pointer.pointerId as number, pointer.x as number, pointer.y as number, pointer.timeMs as number)
-								: pointer.kind === "move"
-									? await pointerInput.pointerMove(pointer.pointerId as number, pointer.x as number, pointer.y as number, pointer.timeMs as number)
-									: await pointerInput.pointerUp(pointer.pointerId as number, pointer.x as number, pointer.y as number, pointer.timeMs as number);
-						await session.waitForRuntimeBoundaryIdle();
-						imminentTimerCycles += await settleImminentOneShotTimers();
-						await stabilizeUi();
-						revision += 1;
-						const frameChanged = uiManager.visualMutationRevision() !== uiVisualRevisionBefore
-							|| skiaHost.getDiagnostics().pictureUpdates !== pictureUpdatesBefore;
-						if (frameChanged) frameRevision += 1;
+						const { dispatches, frameChanged } = await dispatchInteractivePointers([pointer]);
+						const [dispatch] = dispatches;
 						const { currentSurface, viewport } = resolveCurrentSurface(view);
 						sendJson(response, 200, {
 							revision,
@@ -1489,8 +1539,31 @@ async function main(): Promise<void> {
 							surface: currentSurface,
 							viewport,
 							view,
-							targets: dispatch.touches.map(touch => touch.target),
+							targets: dispatch.targets,
 							changedIndices: dispatch.changedIndices,
+							activePointerIds: pointerInput.activePointerIds(),
+							jsResponder: uiManager.jsResponder(),
+							pendingNativeMeasurementCount: uiManager.pendingNativeMeasurementCount(),
+							publishedDpsCount: publishedDps.length,
+						});
+						return;
+					}
+					if (request.method === "POST" && url.pathname === "/pointer-sequence") {
+						const view = requestedView(url);
+						const sequence = parsePointerSequenceHttpRequest(await readJsonRequest(request));
+						const { dispatches, frameChanged } = await dispatchInteractivePointers(sequence.pointers);
+						const lastDispatch = dispatches.at(-1);
+						const { currentSurface, viewport } = resolveCurrentSurface(view);
+						sendJson(response, 200, {
+							revision,
+							frameRevision,
+							frameChanged,
+							surface: currentSurface,
+							viewport,
+							view,
+							targets: lastDispatch?.targets ?? [],
+							changedIndices: lastDispatch?.changedIndices ?? [],
+							dispatches,
 							activePointerIds: pointerInput.activePointerIds(),
 							jsResponder: uiManager.jsResponder(),
 							pendingNativeMeasurementCount: uiManager.pendingNativeMeasurementCount(),
