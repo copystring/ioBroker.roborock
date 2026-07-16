@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 type JsonRecord = Record<string, unknown>;
+type ProofScenario = "rename-success" | "empty-room-name-blocked" | "appplugin-max-length-filtered";
 
 interface ProofOptions {
 	repositoryRoot: string;
@@ -16,7 +17,7 @@ interface ProofOptions {
 	localKeyFilePath: string;
 	outputPath: string;
 	timeoutMs: number;
-	expectBlocked: boolean;
+	scenario: ProofScenario;
 }
 
 function record(value: unknown, context: string): JsonRecord {
@@ -38,6 +39,7 @@ function sha256(filePath: string): string {
 function parseArgs(args: string[]): ProofOptions {
 	const repositoryRoot = process.cwd();
 	const runtimeDirectory = path.join(repositoryRoot, "artifacts", "appplugin-poc", "runtime-probes");
+	const fixtureDirectory = path.join(repositoryRoot, "test", "fixtures", "appplugin");
 	const options: ProofOptions = {
 		repositoryRoot,
 		probePath: path.join(repositoryRoot, "artifacts", "appplugin-poc", "appplugin_hermes_runtime_probe-v33.cjs"),
@@ -55,12 +57,12 @@ function parseArgs(args: string[]): ProofOptions {
 			"019a00a9af4b7b8e894080040a2793a5",
 			"index.android.bundle"
 		),
-		interactionManifestPath: path.join(runtimeDirectory, "q7-l5-room-rename-interaction.json"),
+		interactionManifestPath: path.join(fixtureDirectory, "q7-l5-room-rename-success.json"),
 		sourceReplayManifestPath: path.join(runtimeDirectory, "q7-l5-map-with-prop-response.json"),
 		localKeyFilePath: path.join(runtimeDirectory, ".q7-local.key"),
 		outputPath: path.join(runtimeDirectory, "q7-l5-room-rename-proof.json"),
 		timeoutMs: 180_000,
-		expectBlocked: false
+		scenario: "rename-success"
 	};
 	const pathOptions: Readonly<Record<string, keyof ProofOptions>> = {
 		"--probe": "probePath",
@@ -74,7 +76,17 @@ function parseArgs(args: string[]): ProofOptions {
 	for (let index = 0; index < args.length; index += 1) {
 		const option = args[index];
 		if (option === "--expect-blocked") {
-			options.expectBlocked = true;
+			options.scenario = "empty-room-name-blocked";
+			continue;
+		}
+		if (option === "--scenario") {
+			const scenario = args[++index];
+			if (scenario !== "rename-success"
+				&& scenario !== "empty-room-name-blocked"
+				&& scenario !== "appplugin-max-length-filtered") {
+				throw new Error(`Unbekanntes Q7-Rename-Szenario: ${scenario ?? "<fehlt>"}`);
+			}
+			options.scenario = scenario;
 			continue;
 		}
 		if (option === "--timeout-ms") {
@@ -291,7 +303,7 @@ function buildSanitizedProof(
 	interactionManifestPath: string,
 	bundleHashBefore: string,
 	bundleHashAfter: string,
-	expectBlocked: boolean
+	scenario: ProofScenario
 ): JsonRecord {
 	if (bundleHashBefore !== bundleHashAfter)
 		throw new Error("Das AppPlugin-Bundle wurde während des Beweislaufs verändert");
@@ -344,28 +356,38 @@ function buildSanitizedProof(
 		const payload = record(typeof rawPayload === "string" ? JSON.parse(rawPayload) : rawPayload, "DPS 10000");
 		return payload.method === "service.rename_room" ? [payload] : [];
 	});
+	const textInputManifestEvents = expectedEvents
+		.map(event => record(event, "Interaktionsmanifest-Ereignis"))
+		.filter(event => event.kind === "text-input");
+	const requestedInputText = textInputManifestEvents.at(-1)?.text;
+	if (typeof requestedInputText !== "string") {
+		throw new Error("Q7-Rename-Beweis benötigt ein TextInput-Ereignis");
+	}
+	const textInputReplayEvents = replayEvents
+		.map(event => record(event, "Interaktionsreplay-Ereignis"))
+		.filter(event => event.kind === "text-input");
+	const textInputDispatch = textInputReplayEvents.length > 0
+		? textInputReplayEvents.at(-1)
+		: undefined;
+	if (!textInputDispatch) throw new Error("Q7-Rename-Beweis enthält keinen TextInput-Dispatch");
 	let publishedIntent: JsonRecord | undefined;
 	let validation: JsonRecord | undefined;
-	if (expectBlocked) {
+	if (scenario === "empty-room-name-blocked") {
 		if (renameIntents.length !== 0) {
 			throw new Error(`Leerer Raumname erzeugte unerwartet ${renameIntents.length} Rename-Absichten`);
 		}
-		const textInputEvents = expectedEvents
-			.map(event => record(event, "Interaktionsmanifest-Ereignis"))
-			.filter(event => event.kind === "text-input");
-		const expectedInputText = textInputEvents.at(-1)?.text;
-		if (expectedInputText !== "") throw new Error("Blockierungsbeweis benötigt eine leere TextInput-Fixture");
+		if (requestedInputText !== "") throw new Error("Blockierungsbeweis benötigt eine leere TextInput-Fixture");
 		const activeTextInputs = array(interactionReplay.activeTextInputs, "interactionReplay.activeTextInputs");
 		const activeInput =
 			activeTextInputs.length === 1 ? record(activeTextInputs[0], "Aktiver TextInput") : undefined;
-		if (!activeInput || activeInput.text !== expectedInputText) {
+		if (!activeInput || activeInput.text !== requestedInputText) {
 			throw new Error("Das AppPlugin hielt den leeren Umbenennungsdialog nicht offen");
 		}
 		validation = {
-			inputText: expectedInputText,
+			inputText: requestedInputText,
 			renameIntentCount: 0,
 			activeTextInputCount: 1,
-			dialogRemainedOpen: true
+			dialogRemainedOpen: true,
 		};
 	} else {
 		if (renameIntents.length !== 1) {
@@ -377,14 +399,53 @@ function buildSanitizedProof(
 		if (JSON.stringify(parameterKeys) !== JSON.stringify(expectedParameterKeys)) {
 			throw new Error(`Unerwartetes Rename-Parameterschema: ${parameterKeys.join(",")}`);
 		}
-		if (params.room_name !== "Büro") throw new Error("Das AppPlugin übernahm den Test-Raumnamen nicht");
+		let expectedRoomName = requestedInputText;
+		if (scenario === "appplugin-max-length-filtered") {
+			const textInputManifestIndex = expectedEvents.findLastIndex(event =>
+				record(event, "Interaktionsmanifest-Ereignis").kind === "text-input"
+			);
+			const postInputAssertion = expectedEvents
+				.slice(textInputManifestIndex + 1)
+				.map(event => record(event, "Interaktionsmanifest-Ereignis"))
+				.find(event => event.kind === "assert" && Array.isArray(event.activeTextInputTextsInclude));
+			const expectedActiveTexts = postInputAssertion
+				? array(postInputAssertion.activeTextInputTextsInclude, "TextInput-Assertion")
+				: [];
+			if (expectedActiveTexts.length !== 1 || typeof expectedActiveTexts[0] !== "string") {
+				throw new Error("AppPlugin-Längenbeweis benötigt genau einen erwarteten Text nach onChangeText");
+			}
+			expectedRoomName = expectedActiveTexts[0];
+			if (expectedRoomName === requestedInputText
+				|| requestedInputText.slice(0, expectedRoomName.length) !== expectedRoomName) {
+				throw new Error("AppPlugin-Längenfixture weist keine Präfix-Kürzung nach");
+			}
+			if (textInputDispatch.maxLength !== undefined
+				|| textInputDispatch.truncated !== false
+				|| textInputDispatch.requestedTextLength !== requestedInputText.length
+				|| textInputDispatch.textLength !== requestedInputText.length) {
+				throw new Error("Der Text wurde entgegen dem Q7-Vertrag bereits im APK-Host gekürzt");
+			}
+			validation = {
+				requestedLength: requestedInputText.length,
+				effectiveLength: expectedRoomName.length,
+				nativeMaxLengthPresent: false,
+				truncatedByNativeHost: false,
+				truncatedByAppPlugin: true,
+				payloadMatchesFilteredText: params.room_name === expectedRoomName,
+			};
+		} else if (textInputDispatch.truncated !== false) {
+			throw new Error("Normaler Rename-Beweis wurde unerwartet durch maxLength gekürzt");
+		}
+		if (params.room_name !== expectedRoomName) {
+			throw new Error("Das AppPlugin übernahm nicht den vom APK-TextInput gelieferten Raumnamen");
+		}
 		publishedIntent = {
 			method: "service.rename_room",
 			parameterKeys,
 			roomName: params.room_name,
 			mapIdPresent: Object.prototype.hasOwnProperty.call(params, "map_id"),
 			roomIdPresent: Object.prototype.hasOwnProperty.call(params, "room_id"),
-			typeIdPresent: Object.prototype.hasOwnProperty.call(params, "type_id")
+			typeIdPresent: Object.prototype.hasOwnProperty.call(params, "type_id"),
 		};
 	}
 	const deviceReplay = record(result.deviceReplay, "deviceReplay");
@@ -401,7 +462,7 @@ function buildSanitizedProof(
 		version: 1,
 		status: "passed",
 		generatedAt: new Date().toISOString(),
-		scenario: expectBlocked ? "empty-room-name-blocked" : "rename-success",
+		scenario,
 		runtime: "unchanged Q7 L5 Hermes AppPlugin",
 		captureOnly: true,
 		bundle: {
@@ -422,7 +483,8 @@ function buildSanitizedProof(
 			assertionCount: replayEvents.filter(event => record(event, "Replay-Ereignis").kind === "assert").length,
 			activePointerCount: 0
 		},
-		...(expectBlocked ? { validation } : { publishedIntent }),
+		...(publishedIntent === undefined ? {} : { publishedIntent }),
+		...(validation === undefined ? {} : { validation }),
 		publishResponseMatchCount: uploadResponse.matchCount,
 		reportedExceptionCount: 0,
 		nativeContractFailureCount: 0,
@@ -453,7 +515,7 @@ async function main(): Promise<void> {
 			options.interactionManifestPath,
 			bundleHashBefore,
 			sha256(options.bundlePath),
-			options.expectBlocked
+			options.scenario
 		);
 		fs.mkdirSync(path.dirname(options.outputPath), { recursive: true });
 		fs.writeFileSync(options.outputPath, `${JSON.stringify(proof, null, 2)}\n`, "utf8");

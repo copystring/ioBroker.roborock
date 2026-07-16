@@ -502,16 +502,33 @@
 			"nextAction": "Die gleiche Gate-Struktur für weitere Namen- und Fehlerfälle wiederverwenden."
 		},
 		{
+			"id": "P0C-Q7-RENAME-MAX-LENGTH",
+			"phase": "0C",
+			"area": "Q7 L5 – Kartenbearbeitung",
+			"family": "scmap",
+			"title": "AppPlugin-eigene Kürzung überlanger Raumnamen und resultierenden Payload prüfen",
+			"status": "completed",
+			"priority": "P0",
+			"dependsOn": ["P0C-Q7-RENAME-HAPPY", "P0B-INPUT-LAYOUT"],
+			"evidence": [
+				"scripts/prove_q7_appplugin_rename.ts",
+				"test/fixtures/appplugin/q7-l5-room-rename-max-length.json",
+				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
+				"`npm run poc:appplugin-q7-rename-proof`"
+			],
+			"nextAction": "TEXTMAXLENGTH und die Kürzung weiterhin aus dem geladenen AppPlugin übernehmen; kein modellabhängiges Limit im Host pflegen."
+		},
+		{
 			"id": "P0C-Q7-RENAME-VALIDATION",
 			"phase": "0C",
 			"area": "Q7 L5 – Kartenbearbeitung",
 			"family": "scmap",
-			"title": "Vordefinierte, zu lange und doppelte Raumnamen prüfen",
+			"title": "Vordefinierte und doppelte Raumnamen prüfen",
 			"status": "pending",
 			"priority": "P0",
-			"dependsOn": ["P0C-Q7-RENAME-HAPPY", "P0C-Q7-RENAME-EMPTY"],
+			"dependsOn": ["P0C-Q7-RENAME-HAPPY", "P0C-Q7-RENAME-EMPTY", "P0C-Q7-RENAME-MAX-LENGTH"],
 			"evidence": [],
-			"nextAction": "Je Fall eine frische Sitzung und Assertions für Dialogzustand, lokalisierte Auswahl und erzeugte beziehungsweise unterdrückte Absicht ergänzen."
+			"nextAction": "Je Fall eine frische Sitzung und Assertions für lokalisierte Auswahl sowie erzeugte beziehungsweise unterdrückte Absicht ergänzen."
 		},
 		{
 			"id": "P0C-Q7-RENAME-FAILURE",

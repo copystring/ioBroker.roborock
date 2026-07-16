@@ -13,6 +13,7 @@ export type ApkInteractionReplayEvent = ApkPointerReplayEvent | {
 	rawTextIncludes: readonly string[];
 	activeTextInputCount?: number;
 	activeTextInputTextsInclude: readonly string[];
+	activeTextInputMaxLengthsInclude: readonly number[];
 	waitAfterMs: number;
 };
 
@@ -67,6 +68,14 @@ export function loadApkInteractionReplayManifest(filePath: string): ApkInteracti
 				|| activeTextInputTextsInclude.some(value => typeof value !== "string")) {
 				throw new Error(`event[${index}].activeTextInputTextsInclude muss ein Zeichenfolgen-Array sein`);
 			}
+			const activeTextInputMaxLengthsInclude = event.activeTextInputMaxLengthsInclude === undefined
+				? []
+				: event.activeTextInputMaxLengthsInclude;
+			if (!Array.isArray(activeTextInputMaxLengthsInclude)
+				|| activeTextInputMaxLengthsInclude.some(value =>
+					typeof value !== "number" || !Number.isSafeInteger(value) || value < 0)) {
+				throw new Error(`event[${index}].activeTextInputMaxLengthsInclude muss ein Array nichtnegativer Ganzzahlen sein`);
+			}
 			const activeTextInputCount = event.activeTextInputCount === undefined
 				? undefined
 				: nonNegativeNumber(event.activeTextInputCount, `event[${index}].activeTextInputCount`);
@@ -75,13 +84,15 @@ export function loadApkInteractionReplayManifest(filePath: string): ApkInteracti
 			}
 			if (rawTextIncludes.length === 0
 				&& activeTextInputCount === undefined
-				&& activeTextInputTextsInclude.length === 0) {
+				&& activeTextInputTextsInclude.length === 0
+				&& activeTextInputMaxLengthsInclude.length === 0) {
 				throw new Error(`event[${index}] benötigt mindestens eine Assertion`);
 			}
 			return Object.freeze({
 				kind: "assert",
 				rawTextIncludes: Object.freeze([...rawTextIncludes] as string[]),
 				activeTextInputTextsInclude: Object.freeze([...activeTextInputTextsInclude] as string[]),
+				activeTextInputMaxLengthsInclude: Object.freeze([...activeTextInputMaxLengthsInclude] as number[]),
 				...(activeTextInputCount === undefined ? {} : { activeTextInputCount }),
 				waitAfterMs: event.waitAfterMs === undefined
 					? 0

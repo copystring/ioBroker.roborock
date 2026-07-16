@@ -21,6 +21,7 @@ describe("APK interaction replay manifest", () => {
 					rawTextIncludes: ["Name"],
 					activeTextInputCount: 1,
 					activeTextInputTextsInclude: ["Raum1"],
+					activeTextInputMaxLengthsInclude: [20],
 				},
 				{ kind: "text-input", text: "Büro", waitAfterMs: 100 },
 			],
@@ -37,6 +38,7 @@ describe("APK interaction replay manifest", () => {
 				rawTextIncludes: ["Name"],
 				activeTextInputCount: 1,
 				activeTextInputTextsInclude: ["Raum1"],
+				activeTextInputMaxLengthsInclude: [20],
 				waitAfterMs: 0,
 			},
 			{ kind: "text-input", text: "Büro", waitAfterMs: 100 },
@@ -62,5 +64,12 @@ describe("APK interaction replay manifest", () => {
 			events: [{ kind: "assert" }],
 		}));
 		expect(() => loadApkInteractionReplayManifest(filePath)).toThrow(/mindestens eine Assertion/u);
+
+		fs.writeFileSync(filePath, JSON.stringify({
+			version: 1,
+			viewport: { width: 360, height: 800 },
+			events: [{ kind: "assert", activeTextInputMaxLengthsInclude: [-1] }],
+		}));
+		expect(() => loadApkInteractionReplayManifest(filePath)).toThrow(/nichtnegativer Ganzzahlen/u);
 	});
 });

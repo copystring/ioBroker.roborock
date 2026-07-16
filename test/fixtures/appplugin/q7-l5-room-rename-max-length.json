@@ -1,0 +1,148 @@
+{
+	"version": 1,
+	"viewport": {
+		"width": 360,
+		"height": 800
+	},
+	"events": [
+		{
+			"kind": "down",
+			"pointerId": 0,
+			"x": 180,
+			"y": 634,
+			"timeMs": 1000
+		},
+		{
+			"kind": "up",
+			"pointerId": 0,
+			"x": 180,
+			"y": 634,
+			"timeMs": 1040,
+			"waitAfterMs": 350
+		},
+		{
+			"kind": "down",
+			"pointerId": 0,
+			"x": 242,
+			"y": 309,
+			"timeMs": 1400
+		},
+		{
+			"kind": "up",
+			"pointerId": 0,
+			"x": 242,
+			"y": 309,
+			"timeMs": 1440,
+			"waitAfterMs": 350
+		},
+		{
+			"kind": "down",
+			"pointerId": 0,
+			"x": 256,
+			"y": 80,
+			"timeMs": 1800
+		},
+		{
+			"kind": "up",
+			"pointerId": 0,
+			"x": 256,
+			"y": 80,
+			"timeMs": 1840,
+			"waitAfterMs": 2500
+		},
+		{
+			"kind": "assert",
+			"rawTextIncludes": ["Unterteilen", "Name"]
+		},
+		{
+			"kind": "down",
+			"pointerId": 0,
+			"x": 214,
+			"y": 579,
+			"timeMs": 4400
+		},
+		{
+			"kind": "up",
+			"pointerId": 0,
+			"x": 214,
+			"y": 579,
+			"timeMs": 4440,
+			"waitAfterMs": 350
+		},
+		{
+			"kind": "down",
+			"pointerId": 0,
+			"x": 145,
+			"y": 103,
+			"timeMs": 4800
+		},
+		{
+			"kind": "up",
+			"pointerId": 0,
+			"x": 145,
+			"y": 103,
+			"timeMs": 4840,
+			"waitAfterMs": 350
+		},
+		{
+			"kind": "down",
+			"pointerId": 0,
+			"x": 145,
+			"y": 103,
+			"timeMs": 5200
+		},
+		{
+			"kind": "up",
+			"pointerId": 0,
+			"x": 145,
+			"y": 103,
+			"timeMs": 5240,
+			"waitAfterMs": 350
+		},
+		{
+			"kind": "assert",
+			"rawTextIncludes": ["OK"],
+			"activeTextInputCount": 1
+		},
+		{
+			"kind": "text-input",
+			"text": "ArbeitszimmerExtraLangName",
+			"waitAfterMs": 350
+		},
+		{
+			"kind": "assert",
+			"activeTextInputTextsInclude": ["ArbeitszimmerExtraLangNa"],
+			"activeTextInputCount": 1
+		},
+		{
+			"kind": "down",
+			"pointerId": 0,
+			"x": 315,
+			"y": 500,
+			"timeMs": 5700
+		},
+		{
+			"kind": "up",
+			"pointerId": 0,
+			"x": 315,
+			"y": 500,
+			"timeMs": 5740,
+			"waitAfterMs": 350
+		},
+		{
+			"kind": "down",
+			"pointerId": 0,
+			"x": 291,
+			"y": 679,
+			"timeMs": 6100
+		},
+		{
+			"kind": "up",
+			"pointerId": 0,
+			"x": 291,
+			"y": 679,
+			"timeMs": 6140,
+			"waitAfterMs": 500
+		}
+	]
+}

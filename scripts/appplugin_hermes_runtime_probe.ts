@@ -982,10 +982,16 @@ async function main(): Promise<void> {
 				const activeTextInputs = textInput.activeInputs();
 				const activeTextInputCount = activeTextInputs.length;
 				const activeTextInputTexts = activeTextInputs.map(input => input.text);
+				const activeTextInputMaxLengths = activeTextInputs.flatMap(input =>
+					input.maxLength === undefined ? [] : [input.maxLength]
+				);
 				const missingTextInputTexts = event.activeTextInputTextsInclude
 					.filter(expected => !activeTextInputTexts.includes(expected));
+				const missingTextInputMaxLengths = event.activeTextInputMaxLengthsInclude
+					.filter(expected => !activeTextInputMaxLengths.includes(expected));
 				if (missingText.length > 0
 					|| missingTextInputTexts.length > 0
+					|| missingTextInputMaxLengths.length > 0
 					|| (event.activeTextInputCount !== undefined && event.activeTextInputCount !== activeTextInputCount)) {
 					const recentTrace = interactionEvents.slice(-6).map(entry => ({
 						kind: entry.kind,
@@ -1011,7 +1017,9 @@ async function main(): Promise<void> {
 						`Interaktions-Replay event[${eventIndex}] Assertion fehlgeschlagen: `
 						+ `fehlende Texte=${JSON.stringify(missingText)}, `
 						+ `fehlende TextInput-Texte=${JSON.stringify(missingTextInputTexts)}, `
+						+ `fehlende maxLength-Werte=${JSON.stringify(missingTextInputMaxLengths)}, `
 						+ `TextInput-Texte=${JSON.stringify(activeTextInputTexts)}, `
+						+ `TextInput-maxLength=${JSON.stringify(activeTextInputMaxLengths)}, `
 						+ `aktive TextInputs=${activeTextInputCount}/${event.activeTextInputCount ?? "beliebig"}, `
 						+ `sichtbare Texte=${JSON.stringify(rawText.slice(-20))}, `
 						+ `letzte Ziele=${JSON.stringify(recentTrace)}, `
@@ -1026,6 +1034,7 @@ async function main(): Promise<void> {
 					rawTextIncludes: event.rawTextIncludes,
 					activeTextInputCount,
 					activeTextInputTexts,
+					activeTextInputMaxLengths,
 				});
 				await settleReplayEvent(event.waitAfterMs);
 				continue;
@@ -1042,7 +1051,10 @@ async function main(): Promise<void> {
 				tag: dispatch.tag,
 				eventCount: dispatch.eventCount,
 				previousTextLength: dispatch.previousText.length,
+				requestedTextLength: dispatch.requestedText.length,
 				textLength: dispatch.text.length,
+				maxLength: dispatch.maxLength,
+				truncated: dispatch.truncated,
 				replacementRange: dispatch.textInputPayload.range,
 			});
 			await settleReplayEvent(event.waitAfterMs);

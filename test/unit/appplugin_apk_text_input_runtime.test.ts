@@ -67,6 +67,51 @@ describe("APK AndroidTextInput runtime", () => {
 		]);
 	});
 
+	it("applies the APK Android LengthFilter before events reach the AppPlugin", async () => {
+		const input: ApkUiManagerNodeSnapshot = {
+			tag: 9,
+			viewName: "AndroidTextInput",
+			rootTag: 1,
+			props: { text: "Raum1", mostRecentEventCount: 3, maxLength: 5 },
+			children: [],
+		};
+		const callJsFunction = vi.fn().mockResolvedValue(undefined);
+		const synchronouslyUpdateViewOnUiThread = vi.fn();
+		const runtime = new ApkTextInputRuntime({
+			snapshot: () => rootWithInputs(input),
+			synchronouslyUpdateViewOnUiThread,
+		}, { callJsFunction });
+
+		expect(runtime.activeInputs()).toEqual([expect.objectContaining({ maxLength: 5 })]);
+		await expect(runtime.replaceText("abcd😀")).resolves.toEqual(expect.objectContaining({
+			requestedText: "abcd😀",
+			text: "abcd",
+			maxLength: 5,
+			truncated: true,
+			eventCount: 4,
+		}));
+		expect(synchronouslyUpdateViewOnUiThread).toHaveBeenCalledWith(9, { text: "abcd" });
+		expect(callJsFunction).toHaveBeenNthCalledWith(1, "RCTEventEmitter", "receiveEvent", [9, "topChange", {
+			text: "abcd",
+			eventCount: 4,
+			target: 9,
+		}]);
+	});
+
+	it("rejects invalid maxLength props instead of silently changing APK semantics", () => {
+		const runtime = new ApkTextInputRuntime({
+			snapshot: () => rootWithInputs({
+				tag: 9,
+				viewName: "AndroidTextInput",
+				rootTag: 1,
+				props: { maxLength: -1 },
+				children: [],
+			}),
+			synchronouslyUpdateViewOnUiThread: vi.fn(),
+		}, { callJsFunction: vi.fn() });
+
+		expect(() => runtime.activeInputs()).toThrow(/ungültige maxLength/u);
+	});
 	it("requires an unambiguous active APK text input unless a tag is supplied", async () => {
 		const input = (tag: number): ApkUiManagerNodeSnapshot => ({
 			tag,
