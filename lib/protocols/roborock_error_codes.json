@@ -1,0 +1,2155 @@
+{
+  "_meta": {
+    "description": "Roborock AppPlugin error definitions. Translation keys resolve through roborock_strings.json.",
+    "pluginFilter": "s7 maxv",
+    "sources": [
+      "S7 MaxV/8328da4abbd14f0f99d6c32e17af5a8b/index.android.bundle",
+      "S7 MaxV/8328da4abbd14f0f99d6c32e17af5a8b/metro_bundle_split/modules/module_1639.js",
+      "S7 MaxV/extracted/index.android.bundle",
+      "S7 MaxV/extracted/metro_bundle_split/modules/module_1639.js"
+    ]
+  },
+  "codes": {
+    "0": {
+      "types": [
+        "OK"
+      ],
+      "titleKeys": [],
+      "subtitleKeys": [],
+      "descriptionKeys": [],
+      "detailKeys": [],
+      "labelKeys": [],
+      "fallback": "No error"
+    },
+    "1": {
+      "types": [
+        "Laser"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_0"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_1"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_2"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Constants_0"
+      ],
+      "fallback": "LiDAR Sensor error"
+    },
+    "2": {
+      "types": [
+        "Bumper"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_3"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_4"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_5"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Constants_3"
+      ],
+      "fallback": "Bumper stuck"
+    },
+    "3": {
+      "types": [
+        "Drop"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_6"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_7"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_7"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Constants_6"
+      ],
+      "fallback": "Wheels suspended"
+    },
+    "4": {
+      "types": [
+        "Cliff"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_9"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_10"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_11"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Constants_9"
+      ],
+      "fallback": "Cliff sensor error"
+    },
+    "5": {
+      "types": [
+        "MainStall"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_12"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_13"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_14"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Constants_12"
+      ],
+      "fallback": "Main brush jammed."
+    },
+    "6": {
+      "types": [
+        "SideStall",
+        "Reminder"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_15"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_16"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_17",
+        "localization_strings_Main_Constants_16"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Constants_15"
+      ],
+      "fallback": "Side brush jammed."
+    },
+    "7": {
+      "types": [
+        "Wheel"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_18"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_19"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_20"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Constants_18"
+      ],
+      "fallback": "The robot is stuck, or main wheels are jammed."
+    },
+    "8": {
+      "types": [
+        "Stuck"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_21"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_22"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_23"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Constants_21"
+      ],
+      "fallback": "The robot is trapped or stuck."
+    },
+    "9": {
+      "types": [
+        "Dustbin"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_24"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_25"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_26"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Constants_24"
+      ],
+      "fallback": "Dustbin not installed"
+    },
+    "10": {
+      "types": [
+        "Strainer",
+        "Reminder"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_27",
+        "localization_strings_Main_Constants_91"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_28"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_29",
+        "localization_strings_Main_Constants_92"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Constants_91",
+        "localization_strings_Main_Constants_27"
+      ],
+      "fallback": "Filter is blocked."
+    },
+    "11": {
+      "types": [
+        "Compass"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_30"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_7"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_32"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Constants_30"
+      ],
+      "fallback": "Strong magnetic field detected."
+    },
+    "12": {
+      "types": [
+        "Power"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_33"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_34"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_34"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Constants_33"
+      ],
+      "fallback": "Low battery"
+    },
+    "13": {
+      "types": [
+        "Charge"
+      ],
+      "titleKeys": [
+        "localization_strings_Common_Constants_10"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_37"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_38"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Common_Constants_10"
+      ],
+      "fallback": "Charging Error"
+    },
+    "14": {
+      "types": [
+        "Battery"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_39"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_40"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_41"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Constants_39"
+      ],
+      "fallback": "Unit temperature protection"
+    },
+    "15": {
+      "types": [
+        "WallSensor"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_42"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_43"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_44"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Constants_42"
+      ],
+      "fallback": "The wall sensor is dirty."
+    },
+    "16": {
+      "types": [
+        "Acc"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_45"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_46"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_47"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Constants_45"
+      ],
+      "fallback": "Robot is tilted"
+    },
+    "17": {
+      "types": [
+        "SideBrush",
+        "Reminder"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_48"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_50",
+        "localization_strings_Main_Constants_49"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Constants_48"
+      ],
+      "fallback": "Side brush error"
+    },
+    "18": {
+      "types": [
+        "Fan"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_51"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_53"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Constants_51"
+      ],
+      "fallback": "Fan error"
+    },
+    "19": {
+      "types": [
+        "Dock"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_54"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_55"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_56"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Constants_54"
+      ],
+      "fallback": "Dock not connected to power"
+    },
+    "21": {
+      "types": [
+        "Lds"
+      ],
+      "titleKeys": [
+        "rubys_error_21_title"
+      ],
+      "subtitleKeys": [
+        "rubys_error_21_subtitle"
+      ],
+      "descriptionKeys": [
+        "rubys_error_21_description"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "rubys_error_21_title"
+      ],
+      "fallback": "Vertical Bumper Error"
+    },
+    "22": {
+      "types": [
+        "BackSensor"
+      ],
+      "titleKeys": [
+        "rubys_error_22_title"
+      ],
+      "subtitleKeys": [
+        "rubys_error_22_subtitle"
+      ],
+      "descriptionKeys": [
+        "rubys_error_22_description"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "rubys_error_22_title"
+      ],
+      "fallback": "Recharge Sensor Error"
+    },
+    "23": {
+      "types": [
+        "DockSensor"
+      ],
+      "titleKeys": [
+        "rubys_error_23_title"
+      ],
+      "subtitleKeys": [
+        "rubys_error_23_subtitle"
+      ],
+      "descriptionKeys": [
+        "rubys_error_23_description"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "rubys_error_23_title"
+      ],
+      "fallback": "Could not Reach Dock"
+    },
+    "24": {
+      "types": [
+        "Forbidden"
+      ],
+      "titleKeys": [
+        "error_robot_in_forbidden"
+      ],
+      "subtitleKeys": [
+        "please_take_robot_out_of_forbidden"
+      ],
+      "descriptionKeys": [
+        "map_edit_robot_in_forbidden"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_robot_in_forbidden"
+      ],
+      "fallback": "No-Go Zone or Invisible Wall detected"
+    },
+    "25": {
+      "types": [
+        "VisualSensor"
+      ],
+      "titleKeys": [
+        "error_visual_sensor_title"
+      ],
+      "subtitleKeys": [
+        "error_visual_sensor_subtitle"
+      ],
+      "descriptionKeys": [
+        "error_visual_sensor_detail"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_visual_sensor_title"
+      ],
+      "fallback": "Camera Error"
+    },
+    "26": {
+      "types": [
+        "LightTouch"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Error_Constants_23"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_43"
+      ],
+      "descriptionKeys": [
+        "light_touch_exception_detail"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_23"
+      ],
+      "fallback": "Wall sensor error"
+    },
+    "27": {
+      "types": [
+        "AudioError",
+        "Reminder"
+      ],
+      "titleKeys": [
+        "tanos_s_error_27_title"
+      ],
+      "subtitleKeys": [
+        "tanos_s_error_27_description"
+      ],
+      "descriptionKeys": [
+        "tanos_s_error_27_description"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "tanos_s_error_27_title"
+      ],
+      "fallback": "Jammed mop module"
+    },
+    "28": {
+      "types": [
+        "CarpetError"
+      ],
+      "titleKeys": [
+        "tanos_s_error_28_title"
+      ],
+      "subtitleKeys": [
+        "tanos_s_error_28_description"
+      ],
+      "descriptionKeys": [
+        "tanos_s_error_28_description"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "tanos_s_error_28_title"
+      ],
+      "fallback": "The robot may be on a carpet"
+    },
+    "29": {
+      "types": [
+        "FindAItem"
+      ],
+      "titleKeys": [
+        "tanos_s_error_29_title",
+        "error_find_a_special_item"
+      ],
+      "subtitleKeys": [
+        "tanos_s_error_29_description",
+        "error_find_a_special_item_detail"
+      ],
+      "descriptionKeys": [
+        "tanos_s_error_29_description",
+        "error_find_a_special_item_detail"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_find_a_special_item",
+        "tanos_s_error_29_title"
+      ],
+      "fallback": "Suspected pet waste found."
+    },
+    "30": {
+      "types": [
+        "ImageFPSError"
+      ],
+      "titleKeys": [],
+      "subtitleKeys": [],
+      "descriptionKeys": [],
+      "detailKeys": [],
+      "labelKeys": [],
+      "fallback": "ImageFPSError"
+    },
+    "32": {
+      "types": [
+        "CollectDustError1",
+        "Reminder"
+      ],
+      "titleKeys": [
+        "collecting_dusk_error32_title"
+      ],
+      "subtitleKeys": [
+        "collecting_dusk_error32_desc"
+      ],
+      "descriptionKeys": [
+        "collecting_dusk_error32_desc"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "collecting_dusk_error32_title"
+      ],
+      "fallback": "No dustbin or filter installed"
+    },
+    "33": {
+      "types": [
+        "Reminder"
+      ],
+      "titleKeys": [
+        "collecting_dusk_error33_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "collecting_dusk_error33_desc"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "collecting_dusk_error33_title"
+      ],
+      "fallback": "Auto-Empty Dock fan error"
+    },
+    "34": {
+      "types": [
+        "CollectDustError3",
+        "Reminder"
+      ],
+      "titleKeys": [
+        "collecting_dusk_error34_title"
+      ],
+      "subtitleKeys": [
+        "collecting_dusk_error34_desc"
+      ],
+      "descriptionKeys": [
+        "collecting_dusk_error34_desc"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "collecting_dusk_error34_title"
+      ],
+      "fallback": "Clean the Auto-Empty Dock bin"
+    },
+    "35": {
+      "types": [
+        "CollectDustError4",
+        "Reminder"
+      ],
+      "titleKeys": [
+        "collecting_dusk_error35_title"
+      ],
+      "subtitleKeys": [
+        "collecting_dusk_error35_desc"
+      ],
+      "descriptionKeys": [
+        "collecting_dusk_error35_desc"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "collecting_dusk_error35_title"
+      ],
+      "fallback": "Auto-Empty Dock voltage error"
+    },
+    "36": {
+      "types": [
+        "MoppingRoller1"
+      ],
+      "titleKeys": [
+        "error_mopping_roller1_title"
+      ],
+      "subtitleKeys": [
+        "error_mopping_roller1_desc"
+      ],
+      "descriptionKeys": [
+        "error_mopping_roller1_desc"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_mopping_roller1_title"
+      ],
+      "fallback": "Wash roller may be jammed."
+    },
+    "37": {
+      "types": [
+        "MoppingRollerError2"
+      ],
+      "titleKeys": [
+        "error_mopping_roller2_title"
+      ],
+      "subtitleKeys": [
+        "error_mopping_roller2_desc"
+      ],
+      "descriptionKeys": [
+        "error_mopping_roller2_desc"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_mopping_roller2_title"
+      ],
+      "fallback": "Wash roller not lowered properly."
+    },
+    "38": {
+      "types": [
+        "ClearWaterboxHoare"
+      ],
+      "titleKeys": [
+        "error_clear_waterbox_hoare_title"
+      ],
+      "subtitleKeys": [
+        "error_clear_waterbox_hoare_desc"
+      ],
+      "descriptionKeys": [
+        "error_clear_waterbox_hoare_desc"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_clear_waterbox_hoare_title"
+      ],
+      "fallback": "Check the clean water tank."
+    },
+    "39": {
+      "types": [
+        "DirtyWaterboxHoare"
+      ],
+      "titleKeys": [
+        "error_dirty_waterbox_hoare_title"
+      ],
+      "subtitleKeys": [
+        "error_dirty_waterbox_hoare_desc"
+      ],
+      "descriptionKeys": [
+        "error_dirty_waterbox_hoare_desc"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_dirty_waterbox_hoare_title"
+      ],
+      "fallback": "Check the dirty water tank."
+    },
+    "40": {
+      "types": [
+        "SinkStrainerHoare"
+      ],
+      "titleKeys": [
+        "error_sink_strainer_hoare_title"
+      ],
+      "subtitleKeys": [
+        "error_sink_strainer_hoare_desc"
+      ],
+      "descriptionKeys": [
+        "error_sink_strainer_hoare_desc"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_sink_strainer_hoare_title"
+      ],
+      "fallback": "Water filter not installed."
+    },
+    "41": {
+      "types": [
+        "ClearWaterBoxExcepiton"
+      ],
+      "titleKeys": [
+        "error_clear_waterbox_exception_title"
+      ],
+      "subtitleKeys": [
+        "error_clear_waterbox_exception_desc"
+      ],
+      "descriptionKeys": [
+        "error_clear_waterbox_exception_desc"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_clear_waterbox_exception_title"
+      ],
+      "fallback": "Clean water tank empty."
+    },
+    "42": {
+      "types": [
+        "ClearBrushExcepiton"
+      ],
+      "titleKeys": [
+        "error_clean_bruch_exception_title"
+      ],
+      "subtitleKeys": [
+        "error_clean_brush_exception_desc"
+      ],
+      "descriptionKeys": [
+        "error_clean_brush_exception_detail"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_clean_bruch_exception_title"
+      ],
+      "fallback": "Check that the water filter has been correctly installed."
+    },
+    "43": {
+      "types": [
+        "ClearBrushExcepiton"
+      ],
+      "titleKeys": [
+        "error_main_frame_exception_title"
+      ],
+      "subtitleKeys": [
+        "error_main_frame_exception_desc"
+      ],
+      "descriptionKeys": [
+        "error_main_frame_exception_detail"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_main_frame_exception_title"
+      ],
+      "fallback": "Positioning button Error"
+    },
+    "44": {
+      "types": [
+        "FilterScreenExcepiton"
+      ],
+      "titleKeys": [
+        "error_filter_screen_exception_title"
+      ],
+      "subtitleKeys": [
+        "error_filter_screen_exception_desc"
+      ],
+      "descriptionKeys": [
+        "error_filter_screen_exception_detail"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_filter_screen_exception_title"
+      ],
+      "fallback": "Check and secure the dirty water tank cover"
+    },
+    "45": {
+      "types": [
+        "MoppingRoller1"
+      ],
+      "titleKeys": [
+        "error_mopping_roller1_title"
+      ],
+      "subtitleKeys": [
+        "error_mopping_roller1_desc"
+      ],
+      "descriptionKeys": [
+        "error_mopping_roller1_desc"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_mopping_roller1_title"
+      ],
+      "fallback": "Wash roller may be jammed."
+    },
+    "48": {
+      "types": [
+        "UpWaterException"
+      ],
+      "titleKeys": [
+        "error_up_water_title"
+      ],
+      "subtitleKeys": [
+        "error_up_water_desc"
+      ],
+      "descriptionKeys": [
+        "error_up_water_detail"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_up_water_title"
+      ],
+      "fallback": "Refill error"
+    },
+    "49": {
+      "types": [
+        "DrainWaterException"
+      ],
+      "titleKeys": [
+        "error_drain_water_title"
+      ],
+      "subtitleKeys": [
+        "error_drain_water_desc"
+      ],
+      "descriptionKeys": [
+        "error_drain_water_detail"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_drain_water_title"
+      ],
+      "fallback": "Drain error"
+    },
+    "51": {
+      "types": [
+        "TemperatureProtection"
+      ],
+      "titleKeys": [
+        "error_temperature_protection_title"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_40"
+      ],
+      "descriptionKeys": [
+        "error_temperature_protection_desc"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_temperature_protection_title"
+      ],
+      "fallback": "Unit temperature protection"
+    },
+    "52": {
+      "types": [
+        "CleanCarouselException"
+      ],
+      "titleKeys": [
+        "error_clean_carousel_unsetuped_title"
+      ],
+      "subtitleKeys": [
+        "error_clean_carousel_unsetuped_desc"
+      ],
+      "descriptionKeys": [
+        "error_clean_carousel_unsetuped_detail"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_clean_carousel_unsetuped_title"
+      ],
+      "fallback": "Please check the cleaning tray."
+    },
+    "53": {
+      "types": [
+        "CleanCarouselWaterFull"
+      ],
+      "titleKeys": [
+        "error_clean_carousel_water_full_title"
+      ],
+      "subtitleKeys": [
+        "error_clean_carousel_water_full_desc"
+      ],
+      "descriptionKeys": [
+        "error_clean_carousel_water_full_detail"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_clean_carousel_water_full_title"
+      ],
+      "fallback": "Cleaning tray full."
+    },
+    "54": {
+      "types": [
+        "WaterCarriageDrop"
+      ],
+      "titleKeys": [
+        "error_water_carriage_drop_title"
+      ],
+      "subtitleKeys": [
+        "error_water_carriage_drop_desc"
+      ],
+      "descriptionKeys": [
+        "error_water_carriage_drop_detail"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_water_carriage_drop_title"
+      ],
+      "fallback": "The mop mount fell off. "
+    },
+    "100": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Setting_General_index_0"
+      ],
+      "labelKeys": [
+        "localization_strings_Setting_General_index_0"
+      ],
+      "fallback": "Unknown"
+    },
+    "101": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_3"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_3"
+      ],
+      "fallback": "Compass error"
+    },
+    "102": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_4"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_4"
+      ],
+      "fallback": "Right compass error"
+    },
+    "103": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_5"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_5"
+      ],
+      "fallback": "Main brush short circuit"
+    },
+    "104": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_6"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_6"
+      ],
+      "fallback": "Main brush open circuit"
+    },
+    "105": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_7"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_7"
+      ],
+      "fallback": "Left wheel short circuit"
+    },
+    "106": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_8"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_8"
+      ],
+      "fallback": "Left wheel open circuit"
+    },
+    "107": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_9"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_9"
+      ],
+      "fallback": "Right wheel short circuit"
+    },
+    "108": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_10"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_10"
+      ],
+      "fallback": "Right wheel open circuit."
+    },
+    "109": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_11"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_11"
+      ],
+      "fallback": "Fan open circuit"
+    },
+    "110": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_12"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_12"
+      ],
+      "fallback": "Motion tracking sensor init error"
+    },
+    "111": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_13"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_13"
+      ],
+      "fallback": "Gyroscope init error"
+    },
+    "112": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_14"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_14"
+      ],
+      "fallback": "Charging IC error"
+    },
+    "113": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_15"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_15"
+      ],
+      "fallback": "NVRAM error"
+    },
+    "114": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_16"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_16"
+      ],
+      "fallback": "WiFi module error 1"
+    },
+    "115": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_17"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_17"
+      ],
+      "fallback": "WiFi module error 2"
+    },
+    "116": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_18"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_18"
+      ],
+      "fallback": "ODO error"
+    },
+    "117": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_19"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_19"
+      ],
+      "fallback": "Left ODO error"
+    },
+    "118": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_20"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_20"
+      ],
+      "fallback": "Right ODO error"
+    },
+    "119": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_21"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_21"
+      ],
+      "fallback": "Audio init error"
+    },
+    "120": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_22"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_22"
+      ],
+      "fallback": "Wall sensor init error"
+    },
+    "121": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_23"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_23"
+      ],
+      "fallback": "Wall sensor error"
+    },
+    "122": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_23"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_23"
+      ],
+      "fallback": "Wall sensor error"
+    },
+    "123": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "inner_error_camera_exception"
+      ],
+      "labelKeys": [
+        "inner_error_camera_exception"
+      ],
+      "fallback": "Camera Exception"
+    },
+    "124": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "inner_error_camera_exception"
+      ],
+      "labelKeys": [
+        "inner_error_camera_exception"
+      ],
+      "fallback": "Camera Exception"
+    },
+    "125": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "inner_error_pump_exception"
+      ],
+      "labelKeys": [
+        "inner_error_pump_exception"
+      ],
+      "fallback": "Peristaltic pump abnormality"
+    },
+    "126": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "error_dock_error_title"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_127"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_126"
+      ],
+      "detailKeys": [
+        "inner_error_desc_126"
+      ],
+      "labelKeys": [
+        "inner_error_desc_126"
+      ],
+      "fallback": "Dock Fan Error"
+    },
+    "127": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "error_dock_error_title"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_127"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_126"
+      ],
+      "detailKeys": [
+        "inner_error_desc_127"
+      ],
+      "labelKeys": [
+        "inner_error_desc_127"
+      ],
+      "fallback": "Dock IIC Error"
+    },
+    "128": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "inner_error_desc_128"
+      ],
+      "labelKeys": [
+        "inner_error_desc_128"
+      ],
+      "fallback": "Mopping module short-circuited."
+    },
+    "129": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "inner_error_desc_129"
+      ],
+      "labelKeys": [
+        "inner_error_desc_129"
+      ],
+      "fallback": "Mopping module motor circuit breaker"
+    },
+    "130": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "error_dock_error_title"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_127"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_126"
+      ],
+      "detailKeys": [
+        "inner_error_desc_130"
+      ],
+      "labelKeys": [
+        "inner_error_desc_130"
+      ],
+      "fallback": "No data from clean water tank peristaltic pump ODO"
+    },
+    "131": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "error_dock_error_title"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_127"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_126"
+      ],
+      "detailKeys": [
+        "inner_error_desc_131"
+      ],
+      "labelKeys": [
+        "inner_error_desc_131"
+      ],
+      "fallback": "Over-current of clean water tank peristaltic pump"
+    },
+    "134": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "error_dock_error_title"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_127"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_126"
+      ],
+      "detailKeys": [
+        "inner_error_desc_134"
+      ],
+      "labelKeys": [
+        "inner_error_desc_134"
+      ],
+      "fallback": "Air pump switch error"
+    },
+    "135": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "error_mopping_roller1_title"
+      ],
+      "subtitleKeys": [
+        "error_mopping_roller1_desc"
+      ],
+      "descriptionKeys": [
+        "error_mopping_roller1_desc"
+      ],
+      "detailKeys": [
+        "inner_error_desc_135"
+      ],
+      "labelKeys": [
+        "inner_error_desc_135"
+      ],
+      "fallback": "Wash roller locked rotor"
+    },
+    "137": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "error_mopping_roller1_title"
+      ],
+      "subtitleKeys": [
+        "error_mopping_roller1_desc"
+      ],
+      "descriptionKeys": [
+        "error_mopping_roller1_desc"
+      ],
+      "detailKeys": [
+        "inner_error_desc_137"
+      ],
+      "labelKeys": [
+        "inner_error_desc_137"
+      ],
+      "fallback": "Wash roller motor temperature too high"
+    },
+    "138": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_13"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_14"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_14"
+      ],
+      "detailKeys": [
+        "inner_error_desc_138"
+      ],
+      "labelKeys": [
+        "inner_error_desc_138"
+      ],
+      "fallback": "Main brush locked rotor"
+    },
+    "140": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_13"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_14"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_14"
+      ],
+      "detailKeys": [
+        "inner_error_desc_140"
+      ],
+      "labelKeys": [
+        "inner_error_desc_140"
+      ],
+      "fallback": "Main brush motor temperature too high"
+    },
+    "141": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_18"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_19"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_19"
+      ],
+      "detailKeys": [
+        "inner_error_desc_141"
+      ],
+      "labelKeys": [
+        "inner_error_desc_141"
+      ],
+      "fallback": "Left wheel motor temperature too high"
+    },
+    "143": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_18"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_19"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_19"
+      ],
+      "detailKeys": [
+        "inner_error_desc_143"
+      ],
+      "labelKeys": [
+        "inner_error_desc_143"
+      ],
+      "fallback": "Right wheel motor temperature too high"
+    },
+    "145": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "error_dock_error_title"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_127"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_126"
+      ],
+      "detailKeys": [
+        "inner_error_desc_145"
+      ],
+      "labelKeys": [
+        "inner_error_desc_145"
+      ],
+      "fallback": "Dirty water pump error"
+    },
+    "147": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "error_dock_error_title"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_127"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_126"
+      ],
+      "detailKeys": [
+        "inner_error_desc_147"
+      ],
+      "labelKeys": [
+        "inner_error_desc_147"
+      ],
+      "fallback": "Maintenance brush positioning error - left"
+    },
+    "148": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "error_dock_error_title"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_127"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_126"
+      ],
+      "detailKeys": [
+        "inner_error_desc_148"
+      ],
+      "labelKeys": [
+        "inner_error_desc_148"
+      ],
+      "fallback": "Maintenance brush positioning error - middle"
+    },
+    "149": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "error_dock_error_title"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_127"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_126"
+      ],
+      "detailKeys": [
+        "inner_error_desc_149"
+      ],
+      "labelKeys": [
+        "inner_error_desc_149"
+      ],
+      "fallback": "Maintenance brush positioning error - right"
+    },
+    "150": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "error_dock_error_title"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_127"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_126"
+      ],
+      "detailKeys": [
+        "inner_error_desc_150"
+      ],
+      "labelKeys": [
+        "inner_error_desc_150"
+      ],
+      "fallback": "Solenoid valve error"
+    },
+    "151": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "error_dock_error_title"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_127"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_126"
+      ],
+      "detailKeys": [
+        "inner_error_desc_151"
+      ],
+      "labelKeys": [
+        "inner_error_desc_151"
+      ],
+      "fallback": "Drying fan error"
+    },
+    "152": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "error_dock_error_title"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_127"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_126"
+      ],
+      "detailKeys": [
+        "inner_error_desc_152"
+      ],
+      "labelKeys": [
+        "inner_error_desc_152"
+      ],
+      "fallback": "Fill&Drain-discharge pump error"
+    },
+    "153": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "error_dock_error_title"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_127"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_126"
+      ],
+      "detailKeys": [
+        "inner_error_desc_153"
+      ],
+      "labelKeys": [
+        "inner_error_desc_153"
+      ],
+      "fallback": "Fill&Drain-water inlet electronic valve/clean water level Hall sensor error"
+    },
+    "154": {
+      "types": [
+        "Inner",
+        "Reminder"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_48"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_50"
+      ],
+      "detailKeys": [
+        "inner_error_desc_154"
+      ],
+      "labelKeys": [
+        "inner_error_desc_154"
+      ],
+      "fallback": "Side brush error"
+    },
+    "155": {
+      "types": [
+        "Inner",
+        "Reminder"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_51"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_53"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Constants_51"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Constants_51"
+      ],
+      "fallback": "Fan error"
+    },
+    "156": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "error_dock_error_title"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_127"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_126"
+      ],
+      "detailKeys": [
+        "inner_error_desc_156"
+      ],
+      "labelKeys": [
+        "inner_error_desc_156"
+      ],
+      "fallback": "Dock ODD Error"
+    },
+    "157": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "error_dock_error_title"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_127"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_126"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_dock_error_title"
+      ],
+      "fallback": "Dock Error"
+    },
+    "158": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "error_dock_error_title"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_127"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_126"
+      ],
+      "detailKeys": [
+        "inner_error_desc_158"
+      ],
+      "labelKeys": [
+        "inner_error_desc_158"
+      ],
+      "fallback": "Fill&Drain- dirty water level Hall sensor error"
+    },
+    "159": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "error_dock_error_title"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_127"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_126"
+      ],
+      "detailKeys": [
+        "inner_error_desc_159"
+      ],
+      "labelKeys": [
+        "inner_error_desc_159"
+      ],
+      "fallback": "Fill&Drain-communication error"
+    },
+    "253": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_4"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_4"
+      ],
+      "fallback": "Right compass error"
+    },
+    "254": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [
+        "localization_strings_Main_Error_Constants_3"
+      ],
+      "labelKeys": [
+        "localization_strings_Main_Error_Constants_3"
+      ],
+      "fallback": "Compass error"
+    },
+    "255": {
+      "types": [
+        "Inner"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_49"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_62"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Constants_60"
+      ],
+      "fallback": "Internal error"
+    },
+    "644": {
+      "types": [
+        "Binfull"
+      ],
+      "titleKeys": [
+        "localization_strings_Main_Constants_63"
+      ],
+      "subtitleKeys": [
+        "localization_strings_Main_Constants_64"
+      ],
+      "descriptionKeys": [
+        "localization_strings_Main_Constants_65"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "localization_strings_Main_Constants_63"
+      ],
+      "fallback": "Empty the dustbin"
+    }
+  }
+}

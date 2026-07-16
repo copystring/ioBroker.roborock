@@ -4,6 +4,7 @@ import { Feature } from "../features.enum";
 import { StationService } from "./services/StationService";
 import { V1ConsumableService } from "./services/V1ConsumableService";
 import { V1MapService } from "./services/V1MapService";
+import { getLocalizedErrorStates } from "./adapterErrorMapping";
 import { VACUUM_CONSTANTS } from "./vacuumConstants";
 
 // --- Shared Constants ---
@@ -811,6 +812,7 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 
 	public async processStatus(status: any): Promise<void> {
     	const validStatus = status || {};
+		const localizedErrorStates = getLocalizedErrorStates(this.deps.adapter.translationManager);
 
 		if (validStatus.dss !== undefined) {
 			await this.updateDockingStationStatus(Number(validStatus.dss));
@@ -824,9 +826,13 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
     			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.state`, { val, ack: true });
     		},
     		error_code: async (val) => {
-    			await this.deps.ensureState(`Devices.${this.duid}.deviceStatus.error_code`, { type: "number", states: this.profile.mappings.error_code || VACUUM_CONSTANTS.errorCodes });
+				await this.deps.ensureState(`Devices.${this.duid}.deviceStatus.error_code`, { type: "number", states: this.profile.mappings.error_code || localizedErrorStates });
     			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.error_code`, { val, ack: true });
     		},
+			dock_error_status: async (val) => {
+				await this.deps.ensureState(`Devices.${this.duid}.deviceStatus.dock_error_status`, { type: "number", states: localizedErrorStates });
+				await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.dock_error_status`, { val, ack: true });
+			},
     		fan_power: async (val) => {
     			await this.deps.ensureState(`Devices.${this.duid}.deviceStatus.fan_power`, { type: "number", states: this.profile.mappings.fan_power });
     			await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.fan_power`, { val, ack: true });
