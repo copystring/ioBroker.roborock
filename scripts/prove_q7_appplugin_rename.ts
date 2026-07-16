@@ -10,6 +10,9 @@ type ProofScenario =
 	| "empty-room-name-blocked"
 	| "appplugin-max-length-filtered"
 	| "predefined-room-name"
+	| "rename-device-error"
+	| "rename-device-error-retry-success"
+	| "rename-device-timeout"
 	| "duplicate-room-name-blocked";
 
 interface ProofOptions {
@@ -90,6 +93,9 @@ function parseArgs(args: string[]): ProofOptions {
 				&& scenario !== "empty-room-name-blocked"
 				&& scenario !== "appplugin-max-length-filtered"
 				&& scenario !== "predefined-room-name"
+				&& scenario !== "rename-device-error"
+				&& scenario !== "rename-device-error-retry-success"
+				&& scenario !== "rename-device-timeout"
 				&& scenario !== "duplicate-room-name-blocked") {
 				throw new Error(`Unbekanntes Q7-Rename-Szenario: ${scenario ?? "<fehlt>"}`);
 			}
@@ -137,7 +143,20 @@ function resolveReplayEventPaths(rawEvent: unknown, sourceDirectory: string): Js
 	return event;
 }
 
-function prepareReplayManifest(sourcePath: string, targetPath: string): void {
+function mapChangeEvent(result: 3 | 6 | 1000): JsonRecord {
+	return {
+		kind: "dps",
+		dps: {
+			"10001": JSON.stringify({
+				method: "event.map_change.post",
+				params: { result },
+			}),
+		},
+		waitAfterMs: 100,
+	};
+}
+
+function prepareReplayManifest(sourcePath: string, targetPath: string, scenario: ProofScenario): void {
 	const sourceDirectory = path.dirname(sourcePath);
 	const manifest = record(JSON.parse(fs.readFileSync(sourcePath, "utf8")) as unknown, "Geräte-Replay");
 	const events = array(manifest.events, "Geräte-Replay events");
@@ -172,6 +191,40 @@ function prepareReplayManifest(sourcePath: string, targetPath: string): void {
 		);
 		return response;
 	});
+	const publishResponses = manifest.publishResponses as unknown[];
+	if (scenario === "rename-device-error-retry-success") {
+		publishResponses.push({
+			match: {
+				dpsKey: "10000",
+				payload: { method: "service.rename_room", params: { room_name: "Büro" } },
+			},
+			events: [mapChangeEvent(6)],
+			maximumMatches: 1,
+		}, {
+			match: {
+				dpsKey: "10000",
+				payload: { method: "service.rename_room", params: { room_name: "Studio" } },
+			},
+			events: [mapChangeEvent(3)],
+			maximumMatches: 1,
+		});
+	} else {
+		const mapChangeResult = scenario === "rename-device-error"
+			? 6
+			: scenario === "rename-device-timeout"
+				? 1000
+				: undefined;
+		if (mapChangeResult !== undefined) {
+			publishResponses.push({
+				match: {
+					dpsKey: "10000",
+					payload: { method: "service.rename_room" },
+				},
+				events: [mapChangeEvent(mapChangeResult)],
+				maximumMatches: 1,
+			});
+		}
+	}
 	fs.writeFileSync(targetPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 }
 
@@ -202,7 +255,10 @@ function sanitizeDiagnostic(value: string, secrets: readonly string[]): string {
 		.map(line => line.trim())
 		.filter(line => line.length > 0)
 		.filter(line => /error|exception|failed|replay|textinput|interaktion|pointer/iu.test(line));
-	return relevantLines.slice(-6).join(" | ").slice(-2_000) || "keine sanitisierten Fehlerzeilen";
+	const joined = relevantLines.slice(-6).join(" | ");
+	if (joined.length === 0) return "keine sanitisierten Fehlerzeilen";
+	if (joined.length <= 2_000) return joined;
+	return `${joined.slice(0, 1_000)} … ${joined.slice(-999)}`;
 }
 
 async function runProbe(
@@ -364,6 +420,11 @@ function buildSanitizedProof(
 		return payload.method === "service.rename_room" ? [payload] : [];
 	});
 	const manifestEvents = expectedEvents.map(event => record(event, "Interaktionsmanifest-Ereignis"));
+	const assertedRawText = manifestEvents.flatMap(event =>
+		event.kind === "assert" && Array.isArray(event.rawTextIncludes)
+			? event.rawTextIncludes.filter(value => typeof value === "string") as string[]
+			: []
+	);
 	const textInputManifestEvents = manifestEvents.filter(event => event.kind === "text-input");
 	const requestedInputText = textInputManifestEvents.at(-1)?.text;
 	const assertedInputTexts = manifestEvents.flatMap(event => {
@@ -413,10 +474,15 @@ function buildSanitizedProof(
 			...(scenario === "duplicate-room-name-blocked" ? { existingNameVisibleInOriginalUi: true } : {}),
 		};
 	} else {
-		if (renameIntents.length !== 1) {
-			throw new Error(`Erwartete genau eine Rename-Absicht, erhalten: ${renameIntents.length}`);
+		const expectedRenameIntentCount = scenario === "rename-device-error-retry-success"
+			? 2
+			: 1;
+		if (renameIntents.length !== expectedRenameIntentCount) {
+			throw new Error(`Erwartete ${expectedRenameIntentCount} Rename-Absichten, erhalten: ${renameIntents.length}`);
 		}
-		const params = record(renameIntents[0].params, "Rename-Parameter");
+		const effectiveRenameIntent = renameIntents.at(-1);
+		if (!effectiveRenameIntent) throw new Error("Rename-Absicht fehlt");
+		const params = record(effectiveRenameIntent.params, "Rename-Parameter");
 		const parameterKeys = Object.keys(params).sort();
 		const expectedParameterKeys = ["map_id", "room_id", "room_name", "type_id"];
 		if (JSON.stringify(parameterKeys) !== JSON.stringify(expectedParameterKeys)) {
@@ -498,6 +564,105 @@ function buildSanitizedProof(
 	if (!uploadResponse || typeof uploadResponse.matchCount !== "number" || uploadResponse.matchCount < 1) {
 		throw new Error("Der originale Karten-Reload nach dem Edit-Einstieg wurde nicht beantwortet");
 	}
+	const expectedMapChangeResult = scenario === "rename-device-error"
+		? 6
+		: scenario === "rename-device-timeout"
+			? 1000
+			: undefined;
+	let deviceLifecycle: JsonRecord | undefined;
+	if (expectedMapChangeResult !== undefined) {
+		const renameResponse = responseMatches
+			.map(match => record(match, "Publish-Response-Match"))
+			.find(match => record(match.payload, "Publish-Response-Payload").method === "service.rename_room");
+		if (!renameResponse || renameResponse.matchCount !== 1) {
+			throw new Error("Die Rename-Absicht löste nicht genau ein APK-konformes Geräteereignis aus");
+		}
+		const expectedMessage = expectedMapChangeResult === 6
+			? "Benennen fehlgeschlagen"
+			: "Zeitüberschreitung bei Vorgang";
+		if (!assertedRawText.includes(expectedMessage)) {
+			throw new Error(`Der AppPlugin-eigene Ergebnisdialog wurde nicht semantisch geprüft: ${expectedMessage}`);
+		}
+		const attemptedRoomName = publishedIntent?.roomName;
+		const outcomeAssertion = manifestEvents.find(event =>
+			event.kind === "assert"
+			&& Array.isArray(event.rawTextIncludes)
+			&& event.rawTextIncludes.includes(expectedMessage)
+		);
+		const retainedInputTexts = outcomeAssertion && Array.isArray(outcomeAssertion.activeTextInputTextsInclude)
+			? outcomeAssertion.activeTextInputTextsInclude
+			: [];
+		if (typeof attemptedRoomName !== "string" || !assertedRawText.includes(attemptedRoomName)
+			|| outcomeAssertion?.activeTextInputCount !== 1 || !retainedInputTexts.includes(attemptedRoomName)) {
+			throw new Error("Der Fehlerlauf belegt nicht den AppPlugin-eigenen optimistischen Kartennamen");
+		}
+		deviceLifecycle = {
+			transportAccepted: true,
+			appPluginEvent: "event.map_change.post",
+			result: expectedMapChangeResult,
+			messageFromAppPluginTranslation: expectedMessage,
+			optimisticRoomNameRetainedInUiTree: true,
+			renameDialogRemainedOpen: true,
+			hostRollbackPerformed: false,
+			resultHandledByAppPlugin: true,
+		};
+	}
+	if (scenario === "rename-device-error-retry-success") {
+		const retryRoomNames = renameIntents
+			.map(intent => record(intent.params, "Retry-Rename-Parameter").room_name)
+			.filter((value): value is string => typeof value === "string");
+		if (JSON.stringify(retryRoomNames) !== JSON.stringify(["Büro", "Studio"])) {
+			throw new Error(`Unerwartete Retry-Reihenfolge: ${retryRoomNames.join(" -> ")}`);
+		}
+		const renameResponses = responseMatches
+			.map(match => record(match, "Publish-Response-Match"))
+			.filter(match => record(match.payload, "Publish-Response-Payload").method === "service.rename_room");
+		const matchedRetryResponses = renameResponses
+			.map(response => ({
+				roomName: record(record(response.payload, "Retry-Payload").params, "Retry-Payload-Parameter").room_name,
+				matchCount: response.matchCount,
+			}));
+		const retryResponsesComplete = ["Büro", "Studio"].every(roomName =>
+			matchedRetryResponses.some(response => response.roomName === roomName && response.matchCount === 1)
+		);
+		if (!retryResponsesComplete) {
+			throw new Error("Fehler- und Erfolgsantwort wurden nicht eindeutig den beiden Rename-Absichten zugeordnet");
+		}
+		const failureAssertion = manifestEvents.find(event =>
+			event.kind === "assert"
+			&& Array.isArray(event.rawTextIncludes)
+			&& event.rawTextIncludes.includes("Benennen fehlgeschlagen")
+		);
+		const successAssertion = manifestEvents.find(event =>
+			event.kind === "assert"
+			&& Array.isArray(event.rawTextIncludes)
+			&& event.rawTextIncludes.includes("Erfolgreich benannt")
+		);
+		const failureInputTexts = failureAssertion && Array.isArray(failureAssertion.activeTextInputTextsInclude)
+			? failureAssertion.activeTextInputTextsInclude
+			: [];
+		if (failureAssertion?.activeTextInputCount !== 1 || !failureInputTexts.includes("Büro")
+			|| successAssertion?.activeTextInputCount !== 0
+			|| !assertedRawText.includes("Benennen fehlgeschlagen") || !assertedRawText.includes("Erfolgreich benannt")) {
+			throw new Error("Der Retry-Lauf belegt nicht den AppPlugin-eigenen Übergang von Fehler zu Erfolg");
+		}
+		if (typeof uploadResponse.matchCount !== "number" || uploadResponse.matchCount < 2) {
+			throw new Error("Das AppPlugin forderte nach erfolgreichem Retry keinen erneuten Kartenabruf an");
+		}
+		deviceLifecycle = {
+			transportAccepted: true,
+			appPluginEvent: "event.map_change.post",
+			results: [6, 3],
+			messagesFromAppPluginTranslations: ["Benennen fehlgeschlagen", "Erfolgreich benannt"],
+			firstAttemptRoomName: "Büro",
+			retryRoomName: "Studio",
+			renameDialogRemainedOpenAfterFailure: true,
+			hostRollbackPerformed: false,
+			mapReloadRequestedByAppPlugin: true,
+			mapReloadResponseMatchCount: uploadResponse.matchCount,
+			resultHandledByAppPlugin: true,
+		};
+	}
 	return {
 		version: 1,
 		status: "passed",
@@ -525,6 +690,7 @@ function buildSanitizedProof(
 		},
 		...(publishedIntent === undefined ? {} : { publishedIntent }),
 		...(validation === undefined ? {} : { validation }),
+		...(deviceLifecycle === undefined ? {} : { deviceLifecycle }),
 		publishResponseMatchCount: uploadResponse.matchCount,
 		reportedExceptionCount: 0,
 		nativeContractFailureCount: 0,
@@ -547,7 +713,7 @@ async function main(): Promise<void> {
 	const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "q7-appplugin-rename-proof-"));
 	try {
 		const replayManifestPath = path.join(temporaryDirectory, "device-replay.json");
-		prepareReplayManifest(options.sourceReplayManifestPath, replayManifestPath);
+		prepareReplayManifest(options.sourceReplayManifestPath, replayManifestPath, options.scenario);
 		const bundleHashBefore = sha256(options.bundlePath);
 		const result = await runProbe(options, replayManifestPath, options.interactionManifestPath, deviceContext);
 		const proof = buildSanitizedProof(

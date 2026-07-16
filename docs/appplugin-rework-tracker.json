@@ -3,7 +3,7 @@
 	"project": "ioBroker Roborock AppPlugin-first Rework",
 	"lastReviewed": "2026-07-16",
 	"currentPhase": "0C",
-	"currentFocus": ["P0C-Q7-RENAME-FAILURE", "P0C-Q7-FULL-SCENE", "P0C-Q7-SPLIT"],
+	"currentFocus": ["P0C-Q7-FULL-SCENE", "P0C-Q7-SPLIT"],
 	"nextUp": ["P0C-Q7-SPLIT", "P0C-Q7-MERGE", "P0C-Q7-THEME", "P0C-Q7-M5-CONTRACT", "P0C-Q10-FULL-SCENE"],
 	"phases": [
 		{
@@ -541,12 +541,19 @@
 			"phase": "0C",
 			"area": "Q7 L5 – Kartenbearbeitung",
 			"family": "scmap",
-			"title": "Gerätefehler, Timeout, Rollback und erneuten Kartenabruf beim Umbenennen prüfen",
-			"status": "pending",
+			"title": "Gerätefehler, Timeout, AppPlugin-eigenen Retry und erneuten Kartenabruf beim Umbenennen prüfen",
+			"status": "completed",
 			"priority": "P0",
 			"dependsOn": ["P0C-Q7-RENAME-HAPPY", "P0B-ERROR-CLASSIFICATION"],
-			"evidence": [],
-			"nextAction": "APK-konforme Antwort- und Timeoutereignisse einspielen und AppPlugin-Zustand sowie Wiederherstellung belegen."
+			"evidence": [
+				"scripts/prove_q7_appplugin_rename.ts",
+				"test/fixtures/appplugin/q7-l5-room-rename-device-error.json",
+				"test/fixtures/appplugin/q7-l5-room-rename-device-timeout.json",
+				"test/fixtures/appplugin/q7-l5-room-rename-device-error-retry-success.json",
+				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
+				"`npm run poc:appplugin-q7-rename-failure-proof`"
+			],
+			"nextAction": "Keinen Host-Rollback ergänzen: Fehlerzustand, offener Dialog, Retry, Erfolg und Karten-Reload bleiben Eigentum des geladenen AppPlugins."
 		},
 		{
 			"id": "P0C-Q7-SPLIT",
