@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -39,11 +40,20 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(html).not.toContain('id="desktopMapScene"');
 	});
 
+	it("versions the desktop bundle by its content so visible UI tests cannot load stale code", () => {
+		const html = fs.readFileSync(htmlPath, "utf8");
+		const bundle = fs.readFileSync(path.join(repositoryRoot, "www", "appplugin-desktop.js"));
+		const expectedVersion = createHash("sha256").update(bundle).digest("hex").slice(0, 12);
+
+		expect(html).toContain(`src="./appplugin-desktop.js?v=${expectedVersion}"`);
+	});
+
 	it("translates desktop pointers and zoom controls only into APK touch input", () => {
 		const html = fs.readFileSync(htmlPath, "utf8");
+		const source = fs.readFileSync(sourcePath, "utf8");
 		const surface = fs.readFileSync(surfacePath, "utf8");
 
-		for (const id of ["zoomOut", "zoomReset", "zoomIn", "zoomValue", "desktopMap", "selectionSummary"]) {
+		for (const id of ["zoomOut", "zoomIn", "zoomValue", "desktopMap", "selectionSummary"]) {
 			expect(html).toContain(`id="${id}"`);
 		}
 		for (const tool of ["view", "rooms", "zones", "noGo", "noMop", "virtualWall", "pin"]) {
@@ -53,6 +63,12 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(surface).toContain('addEventListener("pointermove"');
 		expect(surface).toContain('addEventListener("pointerup"');
 		expect(surface).toContain("APK-Pinch an AppPlugin gesendet");
+		expect(surface).toContain("const movementSteps = 2");
+		expect(source).not.toContain("AppPlugin r${snapshot.revision}");
+		expect(source).not.toContain("Revision ${snapshot.revision}");
+		expect(source).not.toContain("React-Tag ${snapshot.surface.tag}");
+		expect(source).not.toContain("revision: snapshot.revision");
+		expect(html).toContain('aria-label="Zoom wird vom AppPlugin verwaltet">Zoom</span>');
 		expect(surface).not.toContain('addEventListener("wheel"');
 		expect(html).toContain('data-tool="zones" disabled');
 		expect(sourcePath).toBeTruthy();

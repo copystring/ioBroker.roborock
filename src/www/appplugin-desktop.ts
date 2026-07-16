@@ -48,8 +48,6 @@ class AppPluginDesktop {
 					? "APK-Theme wird an das unveränderte AppPlugin gesendet"
 					: "Die laufende PoC-Sitzung muss mit dem neuen Theme-Host neu gestartet werden";
 				this.updateMapSummary(snapshot);
-				const zoomValue = document.getElementById("zoomValue");
-				if (zoomValue) zoomValue.textContent = `AppPlugin r${snapshot.revision}`;
 				this.updateControlStates();
 			},
 		});
@@ -200,9 +198,6 @@ class AppPluginDesktop {
 		});
 		byId<HTMLButtonElement>("zoomOut").addEventListener("click", () => void this.mapSurface.zoomBy(-1));
 		byId<HTMLButtonElement>("zoomIn").addEventListener("click", () => void this.mapSurface.zoomBy(1));
-		byId<HTMLButtonElement>("zoomReset").addEventListener("click", () => {
-			this.logEvent("AppPlugin-Ansicht zurücksetzen noch nicht über UI-Vertrag aufgelöst", { fallbackUsed: false });
-		});
 
 		byId<HTMLButtonElement>("clearLog").addEventListener("click", () => {
 			this.log.replaceChildren();
@@ -225,7 +220,6 @@ class AppPluginDesktop {
 				scope: this.scope,
 				selection: {
 					owner: "unchanged-appplugin-session",
-					revision: snapshot.revision,
 					status: "semantic-action-adapter-pending",
 				},
 				cleanMethod: this.method,
@@ -235,14 +229,18 @@ class AppPluginDesktop {
 					water: byId<HTMLSelectElement>("waterSetting").value,
 					route: byId<HTMLSelectElement>("routeSetting").value,
 				},
-				mapProvenance: snapshot,
+				mapProvenance: {
+					owner: "unchanged-model-appplugin",
+					bundleKind: snapshot.bundleKind,
+					view: snapshot.view,
+				},
 			},
 		}, "Reinigung noch nicht gesendet – AppPlugin-Aktionsadapter fehlt");
 	}
 	private updateMapSummary(snapshot: LiveAppPluginMapSnapshot): void {
 		const fullView = snapshot.view === "full";
 		byId<HTMLElement>("selectionSummary").textContent =
-			`Unveränderte ${snapshot.bundleKind}-Sitzung · Revision ${snapshot.revision} · React-Tag ${snapshot.surface.tag} · DPS ${snapshot.publishedDpsCount}`;
+			"Kartenansicht und Interaktion werden direkt vom Geräte-AppPlugin verwaltet";
 		byId<HTMLElement>("mapViewTitle").textContent = fullView
 			? "Originale AppPlugin-Testansicht"
 			: "Unveränderte AppPlugin-Karte";

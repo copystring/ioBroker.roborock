@@ -4,7 +4,7 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>Roborock Desktop · AppPlugin PoC</title>
-		<script type="module" src="./appplugin-desktop.js?v=dual-appplugin-surface-1"></script>
+		<script type="module" src="./appplugin-desktop.js?v=04634fa4ea52"></script>
 		<style>
 			:root {
 				color-scheme: light;
@@ -149,7 +149,7 @@
 			.map-zoom-controls button:last-child { border-right: 0; }
 			.map-zoom-controls button:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent-dark); }
 			.map-zoom-controls button:disabled { opacity: .35; cursor: default; }
-			#zoomReset { min-width: 62px; font-size: 10px; font-weight: 700; }
+			.map-zoom-status { min-width: 62px; height: 32px; display: grid; place-items: center; border-right: 1px solid var(--line); color: var(--muted); font-size: 10px; font-weight: 700; }
 			.desktop-pin { pointer-events: none; }
 			.desktop-pin path { fill: #0f9f86; stroke: white; stroke-width: 2; }
 			.desktop-pin circle { fill: white; }
@@ -333,7 +333,7 @@
 								<div id="mapOriginLabel" class="map-origin-label">Q7 L5 / SC01 · AppPlugin-Kartenviewport</div>
 								<div class="map-zoom-controls" aria-label="Kartenzoom">
 									<button id="zoomOut" type="button" title="Verkleinern" aria-label="Verkleinern">−</button>
-									<button id="zoomReset" type="button" title="Ansicht zurücksetzen"><span id="zoomValue">1,00×</span></button>
+									<span id="zoomValue" class="map-zoom-status" aria-label="Zoom wird vom AppPlugin verwaltet">Zoom</span>
 									<button id="zoomIn" type="button" title="Vergrößern" aria-label="Vergrößern">+</button>
 								</div>
 								<div id="desktopMap" role="application" aria-label="Direkt vom unveränderten Roborock-AppPlugin gerenderte Karte" data-tool="rooms"><img id="desktopMapFrame" alt="AppPlugin-Kartenframe" draggable="false" /></div>

@@ -196,11 +196,12 @@ export class LiveAppPluginMapSurface {
 		const rightId = 10_002;
 		await this.#sendPointer("down", leftId, startLeftX, centerY);
 		await this.#sendPointer("down", rightId, rightX, centerY);
-		// Android liefert eine fortlaufende MotionEvent-Folge. Das erste MOVE kann
-		// React Native lediglich zum Beanspruchen des Responders dienen; erst die
-		// folgenden MOVEs erreichen den bereits aktiven AppPlugin-PanResponder.
-		for (let step = 1; step <= 5; step += 1) {
-			const progress = step / 5;
+		// Das erste MOVE beansprucht den React-Native-Responder. Das zweite MOVE
+		// verändert den Zoom im bereits aktiven AppPlugin-PanResponder. Ein einzelnes
+		// MOVE wird beim Loslassen verworfen; weitere Zwischenstufen sind unnötig.
+		const movementSteps = 2;
+		for (let step = 1; step <= movementSteps; step += 1) {
+			const progress = step / movementSteps;
 			const leftX = startLeftX + (endLeftX - startLeftX) * progress;
 			await this.#sendPointer("move", leftId, leftX, centerY);
 		}

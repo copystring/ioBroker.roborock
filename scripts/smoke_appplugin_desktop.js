@@ -162,7 +162,7 @@ async function main() {
 		const zoomStartRevision = selectedState.revision;
 		await evaluate(`document.querySelector("#zoomIn").click()`);
 		await waitFor(
-			`fetch("${runtimeUrl}/state", { cache: "no-store" }).then(response => response.json()).then(state => state.revision >= ${zoomStartRevision + 9})`,
+			`fetch("${runtimeUrl}/state", { cache: "no-store" }).then(response => response.json()).then(state => state.revision >= ${zoomStartRevision + 6})`,
 			"Desktop zoom control did not send the complete APK pinch sequence",
 		);
 		const zoomedState = await fetch(`${runtimeUrl}/state`).then(response => response.json());
