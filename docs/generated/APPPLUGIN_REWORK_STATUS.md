@@ -11,8 +11,8 @@ Quelle: [`docs/appplugin-rework-tracker.json`](../appplugin-rework-tracker.json)
 Aktuelle Phase: **0C – Verhaltensnachweis**
 
 - ✅ 18 abgeschlossen
-- 🔄 14 in Arbeit
-- ⏳ 42 offen
+- 🔄 15 in Arbeit
+- ⏳ 41 offen
 - ⛔ 4 blockiert
 
 ## Aktueller Fokus
@@ -185,7 +185,7 @@ Aktuelle Phase: **0C – Verhaltensnachweis**
 | ID | Prio | Status | Aufgabe | Abhängigkeiten | Belege | Nächster Schritt / Blocker |
 | --- | --- | --- | --- | --- | --- | --- |
 | `P0C-Q7-THEME` | P0 | 🔄 in Arbeit | Hell, Dunkel und Systemmodus in derselben laufenden Kartenfixture nachweisen | `P0B-THEME-LOCALE-EVENTS`, `P0C-Q7-FULL-SCENE` | [`docs/APPPLUGIN_THEME_POC.md`](../../docs/APPPLUGIN_THEME_POC.md)<br>[`test/unit/appplugin_apk_environment_runtimes.test.ts`](../../test/unit/appplugin_apk_environment_runtimes.test.ts)<br>[`test/unit/appplugin_desktop.test.ts`](../../test/unit/appplugin_desktop.test.ts) | Themewechsel ohne Sitzungsneustart mit Kartenpixeln, Dialogen und AppPlugin-Zustand als Gate automatisieren. |
-| `P0C-Q7-LOCALE` | P0 | ⏳ offen | AppPlugin-Übersetzungen, Raumtypen und Raumnamen über den originalen Localeweg prüfen | `P0B-THEME-LOCALE-EVENTS`, `P0C-Q7-DIRECT-RUN` | — | Mindestens Deutsch, Englisch und eine Fallback-Locale in derselben Bundle-Sitzungsart testen. |
+| `P0C-Q7-LOCALE` | P0 | 🔄 in Arbeit | AppPlugin-Übersetzungen, Raumtypen und Raumnamen über den originalen Localeweg prüfen | `P0B-THEME-LOCALE-EVENTS`, `P0C-Q7-DIRECT-RUN` | [`docs/APPPLUGIN_LOCALE_POC.md`](../../docs/APPPLUGIN_LOCALE_POC.md)<br>[`src/apppluginHost/apkLocalizationRuntime.ts`](../../src/apppluginHost/apkLocalizationRuntime.ts)<br>[`test/unit/appplugin_apk_localization_runtime.test.ts`](../../test/unit/appplugin_apk_localization_runtime.test.ts)<br>[`test/unit/appplugin_desktop.test.ts`](../../test/unit/appplugin_desktop.test.ts) | Fallback- und RTL-Locale mit Text- und Bild-Goldens über den belegten APK-Sitzungsneustart automatisieren. |
 
 #### Q7 L5 – Kartenbearbeitung
 

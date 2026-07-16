@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -30,6 +30,7 @@ import {
 	ApkDeviceFirmwareRuntime,
 	ApkHermesHostSession,
 	ApkI18nManagerRuntime,
+	ApkLocalizationRuntime,
 	ApkNativeModuleDispatcher,
 	ApkNativeAnimatedRuntime,
 	ApkNetInfoRuntime,
@@ -85,6 +86,7 @@ interface ProbeOptions {
 	reactStateProbe: boolean;
 	servePort?: number;
 	serveFullRoot: boolean;
+	sessionStatePath?: string;
 	b01FramePath?: string;
 	b01LocalKey?: string;
 	b01LocalKeyFilePath?: string;
@@ -156,6 +158,7 @@ function parseArgs(args: string[]): ProbeOptions {
 		else if (option === "--interaction-replay" && value) options.interactionReplayManifestPath = path.resolve(args[++index]);
 		else if (option === "--serve-port" && value) options.servePort = parsePositiveNumber(args[++index], option);
 		else if (option === "--serve-full-root") options.serveFullRoot = true;
+		else if (option === "--session-state" && value) options.sessionStatePath = path.resolve(args[++index]);
 
 		else if (option === "--duid" && value) options.duid = args[++index];
 		else if (option === "--device-sn" && value) options.deviceSn = args[++index];
@@ -464,6 +467,17 @@ interface ThemeHttpRequest {
 	systemColorScheme: "dark" | "light";
 }
 
+interface LanguageHttpRequest {
+	language: string;
+}
+
+interface LocalizationSessionState {
+	version: 1;
+	language: string;
+	localeIdentifier: string;
+	restartRequested: true;
+}
+
 interface TextInputHttpRequest {
 	tag?: number;
 	text: string;
@@ -473,6 +487,11 @@ function sendJson(response: ServerResponse, statusCode: number, payload: unknown
 	response.statusCode = statusCode;
 	response.setHeader("Content-Type", "application/json; charset=utf-8");
 	response.end(JSON.stringify(payload));
+}
+
+function requestLocalizationSessionRestart(filePath: string, state: LocalizationSessionState): void {
+	fs.mkdirSync(path.dirname(filePath), { recursive: true });
+	fs.writeFileSync(filePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
 }
 
 async function readJsonRequest(request: IncomingMessage): Promise<Readonly<Record<string, unknown>>> {
@@ -539,6 +558,12 @@ function parseThemeHttpRequest(record: Readonly<Record<string, unknown>>): Theme
 	}
 	return { mode, systemColorScheme };
 }
+function parseLanguageHttpRequest(record: Readonly<Record<string, unknown>>): LanguageHttpRequest {
+	if (typeof record.language !== "string" || record.language.length === 0) {
+		throw new Error("Sprachwechsel benötigt einen Android-Sprachcode");
+	}
+	return { language: record.language };
+}
 function parseTextInputHttpRequest(record: Readonly<Record<string, unknown>>): TextInputHttpRequest {
 	if (typeof record.text !== "string") throw new Error("TextInput-Anfrage benötigt Text");
 	if (record.tag !== undefined && (!Number.isSafeInteger(record.tag) || Number(record.tag) < 1)) {
@@ -550,6 +575,7 @@ function parseTextInputHttpRequest(record: Readonly<Record<string, unknown>>): T
 }
 async function main(): Promise<void> {
 	const options = parseArgs(process.argv.slice(2));
+	const sessionId = randomUUID();
 	const contract = contractJson as ApkAppPluginHostContract;
 	const pointerReplay: ApkPointerReplayManifest | undefined = options.pointerReplayManifestPath
 		? loadApkPointerReplayManifest(options.pointerReplayManifestPath)
@@ -693,11 +719,23 @@ async function main(): Promise<void> {
 		},
 		onError: error => timingErrors.push(error.message),
 	});
+	let sessionForLocalization: ApkHermesHostSession | undefined;
+	const localizationEvents: Array<{ eventName: "langDidChange"; payload: string }> = [];
+	const localization = new ApkLocalizationRuntime({
+		language: options.language,
+		localeIdentifier: options.localeIdentifier,
+		emitDeviceEvent: async (eventName, payload) => {
+			if (!sessionForLocalization) throw new Error("Hermes-Session für ReactLocalization fehlt");
+			localizationEvents.push({ eventName, payload });
+			await sessionForLocalization.emitDeviceEvent(eventName, payload);
+		},
+	});
+	const initialLocalization = localization.snapshot();
 	const constants = mergeApkNativeModuleConstants(
 		createApkDeviceInfoConstants(metrics, metrics),
 		createApkLocalizationConstants({
-			language: options.language,
-			localeIdentifier: options.localeIdentifier,
+			language: initialLocalization.language,
+			localeIdentifier: initialLocalization.localeIdentifier,
 			isRTL: false,
 			doLeftAndRightSwapInRTL: true,
 		}),
@@ -824,12 +862,13 @@ async function main(): Promise<void> {
 		installedModule(contract, "Timing").javaClass,
 		timing as unknown as Record<string, unknown>,
 	);
-	let language = options.language;
 	registry.register(installedModule(contract, "ReactLocalization").javaClass, {
-		getLanguage: (callback: (...arguments_: unknown[]) => void) => callback(0, language),
-		setLanguage: (nextLanguage: string) => {
-			language = nextLanguage;
-			return true;
+		getLanguage: (callback: (...arguments_: unknown[]) => void) => localization.getLanguage(callback),
+		setLanguage: async (nextLanguage: string) => {
+			const previousLanguage = localization.snapshot().language;
+			const result = await localization.setLanguage(nextLanguage);
+			if (previousLanguage !== nextLanguage) revision += 1;
+			return result;
 		},
 	});
 	const reportedExceptions: Array<{ method: string; arguments: unknown[] }> = [];
@@ -866,6 +905,7 @@ async function main(): Promise<void> {
 		),
 	});
 	sessionForTimers = session;
+	sessionForLocalization = session;
 	const uiExecution = new ApkUiExecutionRuntime({
 		uiManager,
 		jsModuleCaller: session,
@@ -1251,6 +1291,10 @@ async function main(): Promise<void> {
 			}
 
 			type ServedView = "map" | "full";
+			const localizationHttpState = () => ({
+				...localization.snapshot(),
+				languageSwitching: true,
+			});
 			const defaultServedView: ServedView = options.serveFullRoot ? "full" : "map";
 			const requestedView = (url: URL): ServedView => {
 				const view = url.searchParams.get("view") ?? defaultServedView;
@@ -1320,6 +1364,7 @@ async function main(): Promise<void> {
 				if (frameChanged) frameRevision += 1;
 				return { dispatches, frameChanged };
 			};
+			let requestInteractiveServerStop: (() => void) | undefined;
 			const server = createServer((request, response) => {
 				response.setHeader("Access-Control-Allow-Origin", "*");
 				response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
@@ -1336,6 +1381,7 @@ async function main(): Promise<void> {
 						const { currentSurface, viewport, view } = resolveCurrentSurface(requestedView(url));
 						sendJson(response, 200, {
 							status: "appplugin-session-ready",
+							sessionId,
 							deviceModel: options.deviceModel,
 							profileLabel: options.profileLabel,
 							revision,
@@ -1351,6 +1397,7 @@ async function main(): Promise<void> {
 							colorModel: darkMode.getColorModel(),
 							cardStyle: darkMode.getCardStyle(),
 							themeSwitching: true,
+							...localizationHttpState(),
 							publishedDpsCount: publishedDps.length,
 						});
 						return;
@@ -1376,6 +1423,8 @@ async function main(): Promise<void> {
 							colorModel: darkMode.getColorModel(),
 							darkModeEvents,
 							appearanceEvents,
+							localization: localization.snapshot(),
+							localizationEvents,
 							activeTextInputs: textInput.activeInputs(),
 							appliedActivityStyles,
 							requestedColorModels,
@@ -1423,7 +1472,49 @@ async function main(): Promise<void> {
 							colorModel: darkMode.getColorModel(),
 							cardStyle: darkMode.getCardStyle(),
 							themeSwitching: true,
+							...localizationHttpState(),
 						});
+						return;
+					}
+					if (request.method === "POST" && url.pathname === "/locale") {
+						const view = requestedView(url);
+						const language = parseLanguageHttpRequest(await readJsonRequest(request));
+						const previousLanguage = localization.snapshot().language;
+						const uiVisualRevisionBefore = uiManager.visualMutationRevision();
+						const pictureUpdatesBefore = skiaHost.getDiagnostics().pictureUpdates;
+						await localization.setLanguage(language.language);
+						await session.waitForRuntimeBoundaryIdle();
+						imminentTimerCycles += await settleImminentOneShotTimers();
+						await stabilizeUi();
+						const frameChanged = uiManager.visualMutationRevision() !== uiVisualRevisionBefore
+							|| skiaHost.getDiagnostics().pictureUpdates !== pictureUpdatesBefore;
+						if (previousLanguage !== language.language) revision += 1;
+						if (frameChanged) frameRevision += 1;
+						const localizationState = localization.snapshot();
+						const sessionRestarting = previousLanguage !== language.language
+							&& options.sessionStatePath !== undefined;
+						if (sessionRestarting) {
+							requestLocalizationSessionRestart(options.sessionStatePath!, {
+								version: 1,
+								language: localizationState.language,
+								localeIdentifier: localizationState.localeIdentifier,
+								restartRequested: true,
+							});
+						}
+						const { currentSurface, viewport } = resolveCurrentSurface(view);
+						sendJson(response, 200, {
+							revision,
+							frameRevision,
+							frameChanged,
+							sessionId,
+							surface: currentSurface,
+							viewport,
+							view,
+							...localizationState,
+							languageSwitching: true,
+							sessionRestarting,
+						});
+						if (sessionRestarting) setImmediate(() => requestInteractiveServerStop?.());
 						return;
 					}
 					if (request.method === "GET" && url.pathname === "/ui-state") {
@@ -1545,6 +1636,7 @@ async function main(): Promise<void> {
 							jsResponder: uiManager.jsResponder(),
 							pendingNativeMeasurementCount: uiManager.pendingNativeMeasurementCount(),
 							publishedDpsCount: publishedDps.length,
+							...localizationHttpState(),
 						});
 						return;
 					}
@@ -1568,6 +1660,7 @@ async function main(): Promise<void> {
 							jsResponder: uiManager.jsResponder(),
 							pendingNativeMeasurementCount: uiManager.pendingNativeMeasurementCount(),
 							publishedDpsCount: publishedDps.length,
+							...localizationHttpState(),
 						});
 						return;
 					}
@@ -1586,6 +1679,7 @@ async function main(): Promise<void> {
 			});
 			process.stdout.write(`${JSON.stringify({
 				status: "interactive-server-ready",
+				sessionId,
 				url: `http://127.0.0.1:${options.servePort}`,
 				interactiveSurface,
 				viewport: interactiveViewport,
@@ -1594,9 +1688,11 @@ async function main(): Promise<void> {
 				productFallbackAllowed: false,
 			})}\n`);
 			await new Promise<void>(resolve => {
+				requestInteractiveServerStop = resolve;
 				process.once("SIGINT", resolve);
 				process.once("SIGTERM", resolve);
 			});
+			requestInteractiveServerStop = undefined;
 			await new Promise<void>((resolve, reject) => {
 				server.close(error => error ? reject(error) : resolve());
 			});
@@ -1672,6 +1768,8 @@ async function main(): Promise<void> {
 			activeTimerIds: timing.activeTimerIds(),
 			activeTimers: timing.activeTimers(),
 			i18nPreferences: i18nManager.snapshot(),
+			localization: localization.snapshot(),
+			localizationEvents,
 			appSysLogs,
 			touchSoundCount: soundManager.touchSoundCount(),
 			statusBar: statusBar.snapshot(),

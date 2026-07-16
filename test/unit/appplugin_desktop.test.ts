@@ -180,12 +180,25 @@ describe("AppPlugin desktop smart-home PoC", () => {
 	it("keeps the desktop shell separate while localization stays AppPlugin-owned", () => {
 		const html = fs.readFileSync(htmlPath, "utf8");
 		const source = fs.readFileSync(sourcePath, "utf8");
+		const surface = fs.readFileSync(surfacePath, "utf8");
+		const probe = fs.readFileSync(probePath, "utf8");
+		const launcher = fs.readFileSync(runtimeLauncherPath, "utf8");
 
 		for (const page of ["overview", "map", "schedules", "history", "settings"]) {
 			expect(html).toContain(`data-navigation="${page}"`);
 		}
 		expect(html).toContain("Lokale unveränderte AppPlugin-Sitzung");
-		expect(html).toContain("AppPlugin-Sprache: <strong>direkt aus laufendem Bundle</strong>");
+		expect(html).toContain('id="languageMode"');
+		expect(source).toContain("this.syncLanguageControl(snapshot)");
+		expect(source).toContain("this.mapSurface.setLanguage(this.languageMode.value)");
+		expect(surface).toContain("fetch(`${this.#apiBaseUrl}/locale?view=${this.#health.view}`");
+		expect(surface).toContain("this.#waitForRestart(payload.sessionId, language, payload.view)");
+		expect(probe).toContain('url.pathname === "/locale"');
+		expect(probe).toContain('sessionForLocalization.emitDeviceEvent(eventName, payload)');
+		expect(probe).toContain('eventName: "langDidChange"');
+		expect(probe).toContain("requestLocalizationSessionRestart");
+		expect(launcher).toContain('"--session-state", sessionStatePath');
+		expect(launcher).toContain("if (exitCode === 0 && nextState.restartRequested) continue");
 		expect(html).not.toContain("data-appplugin-key");
 		expect(source).not.toContain("translateAppPlugin");
 		expect(APPPLUGIN_LOCALIZATION_POLICY).toMatchObject({

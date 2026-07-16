@@ -7,10 +7,18 @@ import {
 	type LiveAppPluginThemeMode,
 	type LiveAppPluginMapSnapshot,
 	type LiveAppPluginMapTool,
+	type LiveAppPluginSurfaceView,
 } from "./apppluginLab/live-appplugin-map-surface";
 type MapTool = LiveAppPluginMapTool;
 type CleanScope = "full" | "rooms" | "zones";
 type CleanMethod = "smart" | "vacuum" | "mop" | "vacuumThenMop";
+
+const shellLanguageNames = new Intl.DisplayNames(["de"], { type: "language" });
+
+function shellLanguageName(language: string): string {
+	if (language === "es-LA") return "Spanisch (Lateinamerika)";
+	return shellLanguageNames.of(language) ?? language;
+}
 
 function byId<T extends HTMLElement | SVGElement>(id: string): T {
 	const element = document.getElementById(id);
@@ -40,6 +48,7 @@ class AppPluginDesktop {
 	private readonly log = byId<HTMLElement>("eventLog");
 	private readonly payload = byId<HTMLElement>("payloadPreview");
 	private readonly themeMode = byId<HTMLSelectElement>("themeMode");
+	private readonly languageMode = byId<HTMLSelectElement>("languageMode");
 	private readonly runtimeProfile = byId<HTMLSelectElement>("runtimeProfile");
 
 	public async init(): Promise<void> {
@@ -60,6 +69,7 @@ class AppPluginDesktop {
 			onChange: snapshot => {
 				this.mapSnapshot = snapshot;
 				document.documentElement.dataset.theme = snapshot.colorScheme;
+				this.syncLanguageControl(snapshot);
 				this.themeMode.value = snapshot.colorModel === "default" ? "system" : snapshot.colorModel;
 				this.themeMode.disabled = !snapshot.themeSwitching;
 				this.themeMode.title = snapshot.themeSwitching
@@ -106,6 +116,9 @@ class AppPluginDesktop {
 	}
 
 	private bindControls(): void {
+		this.languageMode.addEventListener("change", () => {
+			void this.mapSurface.setLanguage(this.languageMode.value);
+		});
 		this.themeMode.addEventListener("change", () => {
 			void this.mapSurface.setTheme(this.themeMode.value as LiveAppPluginThemeMode);
 		});
@@ -280,6 +293,22 @@ class AppPluginDesktop {
 			button.setAttribute("aria-pressed", String(active));
 			button.disabled = !snapshot.availableViews.includes(button.dataset.surfaceView as LiveAppPluginSurfaceView);
 		});
+	}
+	private syncLanguageControl(snapshot: LiveAppPluginMapSnapshot): void {
+		const currentLanguages = [...this.languageMode.options].map(option => option.value);
+		if (currentLanguages.join("\u0000") !== snapshot.availableLanguages.join("\u0000")) {
+			this.languageMode.replaceChildren(...snapshot.availableLanguages.map(language => {
+				const option = document.createElement("option");
+				option.value = language;
+				option.textContent = `${shellLanguageName(language)} · ${language}`;
+				return option;
+			}));
+		}
+		this.languageMode.value = snapshot.language;
+		this.languageMode.disabled = !snapshot.languageSwitching;
+		this.languageMode.title = snapshot.languageSwitching
+			? `Gemeinsamer APK/AppPlugin-Zustand: ${snapshot.language} (${snapshot.localeIdentifier})`
+			: "Die laufende AppPlugin-Sitzung unterstützt den APK-Sprachwechsel noch nicht";
 	}
 	private updateControlStates(): void {
 		document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach(button => {

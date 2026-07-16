@@ -23,6 +23,13 @@ interface Q7FixtureIdentity {
 	firmwareVersion: string;
 }
 
+interface DesktopSessionState {
+	version: 1;
+	language: string;
+	localeIdentifier: string;
+	restartRequested: boolean;
+}
+
 const Q7_MAP_ID = 1_766_745_097;
 
 function parseArgs(args: readonly string[]): LauncherOptions {
@@ -52,6 +59,24 @@ function requireFile(filePath: string, description: string): string {
 		throw new Error(`${description} fehlt: ${filePath}`);
 	}
 	return filePath;
+}
+
+function loadDesktopSessionState(filePath: string): DesktopSessionState {
+	if (!fs.existsSync(filePath)) {
+		return { version: 1, language: "de", localeIdentifier: "de_DE", restartRequested: false };
+	}
+	const state = JSON.parse(fs.readFileSync(filePath, "utf8")) as Partial<DesktopSessionState>;
+	if (state.version !== 1 || typeof state.language !== "string" || state.language.length === 0
+		|| typeof state.localeIdentifier !== "string" || state.localeIdentifier.length === 0
+		|| typeof state.restartRequested !== "boolean") {
+		throw new Error(`Ungültiger Desktop-AppPlugin-Sitzungszustand: ${filePath}`);
+	}
+	return state as DesktopSessionState;
+}
+
+function writeDesktopSessionState(filePath: string, state: DesktopSessionState): void {
+	fs.mkdirSync(path.dirname(filePath), { recursive: true });
+	fs.writeFileSync(filePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
 }
 
 function resolveToolchainBin(repositoryRoot: string): string | undefined {
@@ -175,29 +200,49 @@ async function main(): Promise<void> {
 			"--serve-full-root",
 		];
 	const bootstrapPath = path.join(repositoryRoot, "artifacts", "appplugin-poc", "runtime-probes", `desktop-${options.profile}-ipc-bridge.js`);
-	const args = [runtimeProbePath,
-		"--host", hostPath,
-		"--bootstrap-output", bootstrapPath,
-		"--width", "360", "--height", "800", "--scale", "1",
-		"--run-application", "--react-state-probe",
-		"--serve-port", String(options.port),
-		...profileArguments];
+	const sessionStatePath = path.join(
+		repositoryRoot,
+		"artifacts",
+		"appplugin-poc",
+		"runtime-probes",
+		`desktop-${options.profile}-session-state.json`,
+	);
 	const toolchainBin = resolveToolchainBin(repositoryRoot);
-	process.stdout.write(`Starte ${options.profile.toUpperCase()} mit echter lokaler Kartenaufnahme auf http://127.0.0.1:${options.port}\n`);
-	const child = spawn(process.execPath, args, {
-		cwd: repositoryRoot,
-		env: {
-			...process.env,
-			PATH: toolchainBin ? `${toolchainBin}${path.delimiter}${process.env.PATH ?? ""}` : process.env.PATH,
-		},
-		stdio: "inherit",
-		windowsHide: true,
-	});
-	const exitCode = await new Promise<number>((resolve, reject) => {
-		child.once("error", reject);
-		child.once("exit", code => resolve(code ?? 1));
-	});
-	process.exitCode = exitCode;
+	for (;;) {
+		const state = loadDesktopSessionState(sessionStatePath);
+		writeDesktopSessionState(sessionStatePath, { ...state, restartRequested: false });
+		const args = [runtimeProbePath,
+			"--host", hostPath,
+			"--bootstrap-output", bootstrapPath,
+			"--width", "360", "--height", "800", "--scale", "1",
+			"--language", state.language,
+			"--locale", state.localeIdentifier,
+			"--run-application", "--react-state-probe",
+			"--serve-port", String(options.port),
+			"--session-state", sessionStatePath,
+			...profileArguments];
+		process.stdout.write(
+			`Starte ${options.profile.toUpperCase()} (${state.language}) mit echter lokaler Kartenaufnahme `
+			+ `auf http://127.0.0.1:${options.port}\n`,
+		);
+		const child = spawn(process.execPath, args, {
+			cwd: repositoryRoot,
+			env: {
+				...process.env,
+				PATH: toolchainBin ? `${toolchainBin}${path.delimiter}${process.env.PATH ?? ""}` : process.env.PATH,
+			},
+			stdio: "inherit",
+			windowsHide: true,
+		});
+		const exitCode = await new Promise<number>((resolve, reject) => {
+			child.once("error", reject);
+			child.once("exit", code => resolve(code ?? 1));
+		});
+		const nextState = loadDesktopSessionState(sessionStatePath);
+		if (exitCode === 0 && nextState.restartRequested) continue;
+		process.exitCode = exitCode;
+		break;
+	}
 }
 
 void main().catch(error => {

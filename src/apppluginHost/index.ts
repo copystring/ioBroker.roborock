@@ -7,6 +7,7 @@ export * from "./apkAppToRobotMessage";
 export * from "./apkAndroidTextMeasureRuntime";
 export * from "./apkCanvasKitTextLayoutBackend";
 export * from "./apkLayoutEventRuntime";
+export * from "./apkLocalizationRuntime";
 export * from "./apkUiExecutionRuntime";
 export * from "./apkB01MqttFrameCodec";
 export * from "./apkAppearanceRuntime";

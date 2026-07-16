@@ -473,11 +473,16 @@
 			"area": "Q7 L5 – Theme und Locale",
 			"family": "scmap",
 			"title": "AppPlugin-Übersetzungen, Raumtypen und Raumnamen über den originalen Localeweg prüfen",
-			"status": "pending",
+			"status": "in_progress",
 			"priority": "P0",
 			"dependsOn": ["P0B-THEME-LOCALE-EVENTS", "P0C-Q7-DIRECT-RUN"],
-			"evidence": [],
-			"nextAction": "Mindestens Deutsch, Englisch und eine Fallback-Locale in derselben Bundle-Sitzungsart testen."
+			"evidence": [
+				"docs/APPPLUGIN_LOCALE_POC.md",
+				"src/apppluginHost/apkLocalizationRuntime.ts",
+				"test/unit/appplugin_apk_localization_runtime.test.ts",
+				"test/unit/appplugin_desktop.test.ts"
+			],
+			"nextAction": "Fallback- und RTL-Locale mit Text- und Bild-Goldens über den belegten APK-Sitzungsneustart automatisieren."
 		},
 		{
 			"id": "P0C-Q7-RENAME-HAPPY",

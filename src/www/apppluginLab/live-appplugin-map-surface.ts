@@ -19,8 +19,16 @@ interface LiveAppPluginViewport {
 	height: number;
 }
 
-interface LiveAppPluginHealth {
+interface LiveAppPluginLocalizationState {
+	language: string;
+	localeIdentifier: string;
+	availableLanguages: string[];
+	languageSwitching: boolean;
+}
+
+interface LiveAppPluginHealth extends LiveAppPluginLocalizationState {
 	status: "appplugin-session-ready";
+	sessionId: string;
 	deviceModel: string;
 	profileLabel: string;
 	revision: number;
@@ -38,7 +46,7 @@ interface LiveAppPluginHealth {
 	publishedDpsCount: number;
 }
 
-interface PointerResponse {
+interface PointerResponse extends LiveAppPluginLocalizationState {
 	revision: number;
 	frameRevision: number;
 	frameChanged: boolean;
@@ -51,7 +59,7 @@ interface PointerResponse {
 	view: LiveAppPluginSurfaceView;
 }
 
-interface ThemeResponse {
+interface ThemeResponse extends LiveAppPluginLocalizationState {
 	revision: number;
 	frameRevision: number;
 	surface: LiveAppPluginSurfaceDescriptor;
@@ -62,6 +70,17 @@ interface ThemeResponse {
 	view: LiveAppPluginSurfaceView;
 }
 
+interface LocalizationResponse extends LiveAppPluginLocalizationState {
+	sessionId: string;
+	revision: number;
+	frameRevision: number;
+	frameChanged: boolean;
+	sessionRestarting: boolean;
+	surface: LiveAppPluginSurfaceDescriptor;
+	viewport: LiveAppPluginViewport;
+	view: LiveAppPluginSurfaceView;
+}
+
 interface PublishedDpsResponse {
 	revision: number;
 	publishedDps: unknown[];
@@ -69,7 +88,8 @@ interface PublishedDpsResponse {
 	after: number;
 }
 
-export interface LiveAppPluginMapSnapshot {
+export interface LiveAppPluginMapSnapshot extends LiveAppPluginLocalizationState {
+	sessionId: string;
 	deviceModel: string;
 	profileLabel: string;
 	revision: number;
@@ -145,6 +165,7 @@ export class LiveAppPluginMapSurface {
 
 	public snapshot(): LiveAppPluginMapSnapshot {
 		return {
+			sessionId: this.#health.sessionId,
 			deviceModel: this.#health.deviceModel,
 			profileLabel: this.#health.profileLabel,
 			revision: this.#health.revision,
@@ -160,6 +181,10 @@ export class LiveAppPluginMapSurface {
 			view: this.#health.view,
 			availableViews: [...this.#health.availableViews],
 			publishedDpsCount: this.#publishedDpsCount,
+			language: this.#health.language,
+			localeIdentifier: this.#health.localeIdentifier,
+			availableLanguages: [...this.#health.availableLanguages],
+			languageSwitching: this.#health.languageSwitching,
 		};
 	}
 
@@ -184,6 +209,41 @@ export class LiveAppPluginMapSurface {
 			this.#refreshFrame();
 			this.#emitChange();
 			this.options.onEvent("APK-Konfigurationswechsel an AppPlugin gesendet", { mode, ...payload });
+		});
+	}
+
+	public setLanguage(language: string): Promise<void> {
+		if (!this.#health.languageSwitching) {
+			throw new Error("Die laufende AppPlugin-Sitzung unterstützt den APK-Sprachwechsel noch nicht");
+		}
+		if (!this.#health.availableLanguages.includes(language)) {
+			throw new Error(`Die APK bietet den Sprachcode ${language} nicht an`);
+		}
+		return this.#enqueue(async () => {
+			const response = await fetch(`${this.#apiBaseUrl}/locale?view=${this.#health.view}`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ language }),
+			});
+			const payload = await response.json() as LocalizationResponse | { error: string };
+			if (!response.ok || "error" in payload) {
+				throw new Error("error" in payload ? payload.error : `Sprach-Bridge antwortet mit HTTP ${response.status}`);
+			}
+			if (payload.sessionRestarting) {
+				this.options.onEvent("APK-Sprachwechsel startet AppPlugin-Sitzung neu", payload);
+				this.#health = await this.#waitForRestart(payload.sessionId, language, payload.view);
+				this.#publishedDpsCount = this.#health.publishedDpsCount;
+				this.#refreshFrame();
+			} else {
+				this.#health = { ...this.#health, ...payload };
+				if (payload.frameChanged) this.#refreshFrame();
+			}
+			this.#emitChange();
+			this.options.onEvent("APK-Sprachzustand und AppPlugin synchron", {
+				language: this.#health.language,
+				localeIdentifier: this.#health.localeIdentifier,
+				sessionId: this.#health.sessionId,
+			});
 		});
 	}
 
@@ -377,6 +437,10 @@ export class LiveAppPluginMapSurface {
 			viewport: response.viewport,
 			view: response.view,
 			publishedDpsCount: response.publishedDpsCount,
+			language: response.language,
+			localeIdentifier: response.localeIdentifier,
+			availableLanguages: response.availableLanguages,
+			languageSwitching: response.languageSwitching,
 		};
 		if (frameChanged) this.#refreshFrame();
 		this.#emitChange();
@@ -399,7 +463,32 @@ export class LiveAppPluginMapSurface {
 			view: health.view ?? view,
 			availableViews: health.availableViews ?? [health.view ?? view],
 			publishedDpsCount: health.publishedDpsCount ?? 0,
+			availableLanguages: [...health.availableLanguages],
+			languageSwitching: health.languageSwitching === true,
 		};
+	}
+
+	async #waitForRestart(
+		previousSessionId: string,
+		language: string,
+		view: LiveAppPluginSurfaceView,
+	): Promise<LiveAppPluginHealth> {
+		const deadline = performance.now() + 30_000;
+		let lastError: unknown;
+		while (performance.now() < deadline) {
+			try {
+				const health = await this.#fetchHealth(view);
+				if (health.sessionId !== previousSessionId && health.language === language) return health;
+			} catch (error) {
+				lastError = error;
+			}
+			await new Promise<void>(resolve => setTimeout(resolve, 75));
+		}
+		throw new Error(
+			`AppPlugin-Sitzung wurde nach dem Sprachwechsel nicht neu bereit: ${
+				lastError instanceof Error ? lastError.message : "Zeitüberschreitung"
+			}`,
+		);
 	}
 
 	async #syncPublishedDps(expectedCount: number): Promise<void> {
