@@ -3,8 +3,8 @@
 	"project": "ioBroker Roborock AppPlugin-first Rework",
 	"lastReviewed": "2026-07-16",
 	"currentPhase": "0C",
-	"currentFocus": ["P0C-Q7-FULL-SCENE", "P0C-Q7-SPLIT"],
-	"nextUp": ["P0C-Q7-SPLIT", "P0C-Q7-MERGE", "P0C-Q7-THEME", "P0C-Q7-M5-CONTRACT", "P0C-Q10-FULL-SCENE"],
+	"currentFocus": ["P0C-Q7-SPLIT", "P0C-Q7-MERGE"],
+	"nextUp": ["P0C-Q7-MERGE", "P0C-Q7-THEME", "P0C-Q7-M5-CONTRACT", "P0C-Q10-FULL-SCENE"],
 	"phases": [
 		{
 			"id": "0A",
@@ -432,14 +432,19 @@
 			"area": "Q7 L5 – Rendering",
 			"family": "scmap",
 			"title": "Vollständige Q7-L5-Szene mit korrekter Z-Reihenfolge und Golden absichern",
-			"status": "in_progress",
+			"status": "completed",
 			"priority": "P0",
 			"dependsOn": ["P0C-Q7-DIRECT-RUN", "P0B-SKIA-HOST"],
 			"evidence": [
-				"test/unit/appplugin_apk_native_ui_snapshot_renderer.test.ts",
-				"docs/APPPLUGIN_REWORK_PHASES.md"
+				"scripts/prove_q7_appplugin_full_scene.ts",
+				"scripts/lib/q7FullSceneFixture.ts",
+				"test/fixtures/appplugin/q7-l5-full-scene-golden.json",
+				"test/fixtures/appplugin/q7-l5-full-scene-golden.png",
+				"test/unit/appplugin_q7_full_scene_gate.test.ts",
+				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
+				"`npm run poc:appplugin-q7-full-scene-proof`"
 			],
-			"nextAction": "Alle vom Payload angebotenen Layer, Roboter, Dock, Labels, Pfad und Overlays mit Originalreferenz und semantischen Assertions vergleichen."
+			"nextAction": "Das unveränderte Vollszenen-Gate als Ausgangszustand für Split, Merge, Theme, Locale und weitere SCMap-Bundles wiederverwenden."
 		},
 		{
 			"id": "P0C-Q7-THEME",

@@ -10,19 +10,18 @@ Quelle: [`docs/appplugin-rework-tracker.json`](../appplugin-rework-tracker.json)
 
 Aktuelle Phase: **0C – Verhaltensnachweis**
 
-- ✅ 15 abgeschlossen
-- 🔄 14 in Arbeit
+- ✅ 16 abgeschlossen
+- 🔄 13 in Arbeit
 - ⏳ 44 offen
 - ⛔ 4 blockiert
 
 ## Aktueller Fokus
 
-- **P0C-Q7-FULL-SCENE** – Vollständige Q7-L5-Szene mit korrekter Z-Reihenfolge und Golden absichern: Alle vom Payload angebotenen Layer, Roboter, Dock, Labels, Pfad und Overlays mit Originalreferenz und semantischen Assertions vergleichen.
 - **P0C-Q7-SPLIT** – Raum teilen mit originaler Linie, Griffen, Grenzen und Befehlsabsicht prüfen: Originalen Menüeinstieg automatisieren und Erfolg, Ablehnung, Abbruch, Mindestgröße sowie Wandgrenzen erfassen.
+- **P0C-Q7-MERGE** – Räume zusammenführen mit originaler Auswahl und Nachbarschaftsgrenzen prüfen: Erfolg, nicht benachbarte Räume, Anzahlgrenze, Ablehnung und Abbruch durch die AppPlugin-Zustandsmaschine testen.
 
 ## Danach
 
-- **P0C-Q7-SPLIT** – Raum teilen mit originaler Linie, Griffen, Grenzen und Befehlsabsicht prüfen: Originalen Menüeinstieg automatisieren und Erfolg, Ablehnung, Abbruch, Mindestgröße sowie Wandgrenzen erfassen.
 - **P0C-Q7-MERGE** – Räume zusammenführen mit originaler Auswahl und Nachbarschaftsgrenzen prüfen: Erfolg, nicht benachbarte Räume, Anzahlgrenze, Ablehnung und Abbruch durch die AppPlugin-Zustandsmaschine testen.
 - **P0C-Q7-THEME** – Hell, Dunkel und Systemmodus in derselben laufenden Kartenfixture nachweisen: Themewechsel ohne Sitzungsneustart mit Kartenpixeln, Dialogen und AppPlugin-Zustand als Gate automatisieren.
 - **P0C-Q7-M5-CONTRACT** – Q7 M5 direkt starten und Hostvertragsdifferenz zu Q7 L5 bestimmen: Unverändertes M5-Bundle mit denselben Fixtures starten, Native-Aufrufe diffen und Abweichungen als zentrale Verträge schließen.
@@ -179,7 +178,7 @@ Aktuelle Phase: **0C – Verhaltensnachweis**
 
 | ID | Prio | Status | Aufgabe | Abhängigkeiten | Belege | Nächster Schritt / Blocker |
 | --- | --- | --- | --- | --- | --- | --- |
-| `P0C-Q7-FULL-SCENE` | P0 | 🔄 in Arbeit | Vollständige Q7-L5-Szene mit korrekter Z-Reihenfolge und Golden absichern | `P0C-Q7-DIRECT-RUN`, `P0B-SKIA-HOST` | [`test/unit/appplugin_apk_native_ui_snapshot_renderer.test.ts`](../../test/unit/appplugin_apk_native_ui_snapshot_renderer.test.ts)<br>[`docs/APPPLUGIN_REWORK_PHASES.md`](../../docs/APPPLUGIN_REWORK_PHASES.md) | Alle vom Payload angebotenen Layer, Roboter, Dock, Labels, Pfad und Overlays mit Originalreferenz und semantischen Assertions vergleichen. |
+| `P0C-Q7-FULL-SCENE` | P0 | ✅ abgeschlossen | Vollständige Q7-L5-Szene mit korrekter Z-Reihenfolge und Golden absichern | `P0C-Q7-DIRECT-RUN`, `P0B-SKIA-HOST` | [`scripts/prove_q7_appplugin_full_scene.ts`](../../scripts/prove_q7_appplugin_full_scene.ts)<br>[`scripts/lib/q7FullSceneFixture.ts`](../../scripts/lib/q7FullSceneFixture.ts)<br>[`test/fixtures/appplugin/q7-l5-full-scene-golden.json`](../../test/fixtures/appplugin/q7-l5-full-scene-golden.json)<br>[`test/fixtures/appplugin/q7-l5-full-scene-golden.png`](../../test/fixtures/appplugin/q7-l5-full-scene-golden.png)<br>[`test/unit/appplugin_q7_full_scene_gate.test.ts`](../../test/unit/appplugin_q7_full_scene_gate.test.ts)<br>[`docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md`](../../docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md)<br>`npm run poc:appplugin-q7-full-scene-proof` | Das unveränderte Vollszenen-Gate als Ausgangszustand für Split, Merge, Theme, Locale und weitere SCMap-Bundles wiederverwenden. |
 
 #### Q7 L5 – Theme und Locale
 

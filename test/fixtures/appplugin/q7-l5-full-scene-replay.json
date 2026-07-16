@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "deviceContext": {
+    "firmwareVersion": "02.24.90"
+  },
+  "shadowDps": {},
+  "events": [
+    {
+      "kind": "dps",
+      "dps": {
+        "10001": "{\"method\":\"prop.get\",\"data\":{\"status\":1,\"fault\":0,\"wind\":102,\"water\":102,\"mode\":0,\"quantity\":1,\"repeat_state\":1,\"tank_state\":1,\"sweep_type\":0,\"clean_path_preference\":0,\"cloth_state\":1,\"time_zone\":0,\"time_zone_info\":\"Europe/Berlin\",\"language\":4,\"cleaning_time\":0,\"real_clean_time\":0,\"cleaning_area\":0,\"custom_type\":0,\"work_mode\":0,\"charge_state\":0,\"current_map_id\":424242,\"map_num\":2,\"dust_action\":0,\"quiet_is_open\":0,\"clean_finish\":0,\"build_map\":0,\"dust_frequency\":1,\"multi_floor\":1,\"map_save\":1,\"green_laser\":0,\"dust_bag_used\":0,\"back_to_wash\":0,\"pv_cut_charge\":0,\"pv_charging\":0,\"recommend\":[],\"add_sweep_status\":0}}"
+      },
+      "waitAfterMs": 500
+    },
+    {
+      "kind": "dps",
+      "dps": {
+        "10001": "{\"method\":\"service.upload_by_maptype\",\"data\":{\"map_id\":424242,\"map_type\":0}}"
+      },
+      "waitAfterMs": 50
+    },
+    {
+      "kind": "blob",
+      "blobPath": "q7-l5-full-scene-synthetic.blob",
+      "waitAfterMs": 5000
+    }
+  ],
+  "publishResponses": [
+    {
+      "match": {
+        "dpsKey": "10000",
+        "payload": {
+          "method": "service.upload_by_maptype",
+          "params": {
+            "map_type": 0
+          }
+        }
+      },
+      "events": [
+        {
+          "kind": "blob",
+          "blobPath": "q7-l5-full-scene-synthetic.blob",
+          "waitAfterMs": 1500
+        }
+      ],
+      "maximumMatches": 10
+    }
+  ]
+}

@@ -3,4 +3,5 @@
 *.js text eol=lf
 *.json text eol=lf
 *.md text eol=lf
+*.blob -text
 build/** text eol=lf

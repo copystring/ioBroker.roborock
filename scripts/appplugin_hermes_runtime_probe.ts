@@ -248,6 +248,66 @@ function installLogProbe() {
     logProbeInstalled = true;
   } catch (_error) {}
 }
+function collectSceneInventory(allData) {
+  var allDataKeys = allData && typeof allData === "object"
+    ? Object.keys(allData).sort()
+    : [];
+  var arrayCounts = {};
+  var nestedArrayCounts = {};
+  var objectKeys = [];
+  for (var dataIndex = 0; dataIndex < allDataKeys.length; dataIndex += 1) {
+    var dataKey = allDataKeys[dataIndex];
+    var dataValue = allData[dataKey];
+    if (Array.isArray(dataValue)) arrayCounts[dataKey] = dataValue.length;
+    if (dataValue && typeof dataValue === "object" && !Array.isArray(dataValue)) {
+      objectKeys.push(dataKey);
+      var nestedKeys = Object.keys(dataValue).sort();
+      var nestedCounts = {};
+      for (var nestedIndex = 0; nestedIndex < nestedKeys.length; nestedIndex += 1) {
+        var nestedKey = nestedKeys[nestedIndex];
+        if (Array.isArray(dataValue[nestedKey])) nestedCounts[nestedKey] = dataValue[nestedKey].length;
+      }
+      if (Object.keys(nestedCounts).length > 0) nestedArrayCounts[dataKey] = nestedCounts;
+    }
+  }
+  function arrayLike(value) {
+    return Array.isArray(value) || (value && typeof value.length === "number");
+  }
+  function numericHistogram(value) {
+    if (!arrayLike(value)) return null;
+    var counts = {};
+    for (var valueIndex = 0; valueIndex < value.length; valueIndex += 1) {
+      var numericValue = Number(value[valueIndex]);
+      var histogramKey = String(numericValue);
+      counts[histogramKey] = (counts[histogramKey] || 0) + 1;
+    }
+    return counts;
+  }
+  var mapPixels = allData && allData.mapData && allData.mapData.mapData;
+  var roomChains = allData && Array.isArray(allData.roomChain)
+    ? allData.roomChain.map(function summarizeRoomChain(roomChain) {
+      var points = roomChain && Array.isArray(roomChain.points) ? roomChain.points : [];
+      return {
+        roomId: roomChain && roomChain.roomId,
+        pointCount: points.length,
+        valueHistogram: numericHistogram(points.map(function mapPointValue(point) {
+          return point && point.value;
+        }))
+      };
+    })
+    : [];
+  var roomMatrix = allData && allData.roomMatrix && allData.roomMatrix.matrix;
+  return {
+    allDataKeys: allDataKeys,
+    arrayCounts: arrayCounts,
+    objectKeys: objectKeys,
+    nestedArrayCounts: nestedArrayCounts,
+    mapPixelCount: arrayLike(mapPixels) ? mapPixels.length : -1,
+    mapPixelHistogram: numericHistogram(mapPixels),
+    roomChains: roomChains,
+    roomMatrixValues: arrayLike(roomMatrix) ? Array.prototype.slice.call(roomMatrix) : []
+  };
+}
 function report(root) {
   installLogProbe();
   var fiber = root && root.current;
@@ -290,6 +350,7 @@ function report(root) {
         diagnostic.routeMapIdMatchesMapModel = mapModel != null && instance.mapId === mapModel.mapId;
         diagnostic.mapTypeIsRealtime = allData == null || allData.mapType == null || allData.mapType === 0;
         diagnostic.globalRoomCount = Array.isArray(rooms) ? rooms.length : -1;
+        diagnostic.sceneInventory = collectSceneInventory(allData);
       } catch (_error) {
         diagnostic.moduleProbeError = true;
       }
@@ -314,6 +375,40 @@ hostGlobal.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
   onCommitFiberRoot: function onCommitFiberRoot(_id, root) { report(root); },
   onCommitFiberUnmount: function onCommitFiberUnmount() {}
 };
+var sceneProbeAttempt = 0;
+var sceneInventoryReported = false;
+function pollSceneInventory() {
+  if (sceneInventoryReported) return;
+  installLogProbe();
+  try {
+    var parser = typeof hostGlobal.__r === "function" ? hostGlobal.__r(446).default : null;
+    var allData = parser && typeof parser.getAllData === "function" ? parser.getAllData() : null;
+    if (allData != null) {
+      sceneInventoryReported = true;
+      hostGlobal.nativeModuleProxy.RRAppSysTurboModule.info(
+        "apk-map-scene-probe",
+        JSON.stringify(collectSceneInventory(allData))
+      );
+      return;
+    }
+  } catch (_error) {}
+  sceneProbeAttempt += 1;
+  if (sceneProbeAttempt < 40 && typeof hostGlobal.setTimeout === "function") {
+    hostGlobal.setTimeout(pollSceneInventory, 50);
+  }
+}
+if (typeof hostGlobal.setTimeout === "function") {
+  hostGlobal.setTimeout(pollSceneInventory, 0);
+}
+var sceneUiManager = hostGlobal.nativeModuleProxy.UIManager;
+if (sceneUiManager && typeof sceneUiManager.createView === "function") {
+  var originalCreateView = sceneUiManager.createView;
+  sceneUiManager.createView = function sceneProbeCreateView() {
+    var result = originalCreateView.apply(this, arguments);
+    pollSceneInventory();
+    return result;
+  };
+}
 })(globalThis);
 `;
 }

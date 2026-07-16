@@ -19,6 +19,7 @@ Das Vorhaben befindet sich weiterhin in **Phase 0**, genauer in **Phase 0C – V
 
 - Das unveränderte Q7-L5-Hermes-Bundle läuft im nachgebildeten APK-Host.
 - Die originale native Teilstruktur wird aus der laufenden Sitzung gerendert; es gibt keinen Kartenfallback.
+- Eine datenschutzsichere Q7-L5-SCMap-Fixture läuft vom direkten Blob durch innere AppPlugin-Entschlüsselung, Protobuf-Parser und unveränderten 96.000-Pixel-Worker bis zur vollständigen Kartenkomposition. Semantisches und visuelles Golden sichern Raumketten, Labels, Pfade, Roboter, Dock, Animation, Overlays und Z-Reihenfolge.
 - Raum-Tap, Auswahlzustand, AppPlugin-Farbwechsel und Pinch-Zoom laufen durch die APK-konforme Touchkette zurück in dieselbe Sitzung.
 - AppPlugin-Werte für Raumlabels, Roboter, Station, Transformationen und Z-Reihenfolge bleiben erhalten.
 - `UIManager.measure`, Layout, native Animationen sowie weitere vom Bundle tatsächlich aufgerufene APK-Module sind nachgebildet.
@@ -31,10 +32,10 @@ Das Vorhaben befindet sich weiterhin in **Phase 0**, genauer in **Phase 0C – V
 - Vier weitere automatisierte Fälle belegen die AppPlugin-eigenen Namensregeln: Leer und der bereits vorhandene Name „Raum2“ bleiben mit offenem Dialog ohne `service.rename_room`; 26 eingegebene Zeichen werden im originalen `onChangeText` über `TEXTMAXLENGTH = 24` gekürzt; der vordefinierte deutsche Chip „Badezimmer“ erzeugt ohne Host-TextInput den Namen samt AppPlugin-`type_id = 2003`.
 - `npm run poc:appplugin-q7-rename-proof` baut Probe und Beweisrunner neu, prüft den unveränderten Bundle-Hash und spielt alle fünf Szenarien über generische Geräte-, Pointer- und Android-TextInput-Verträge ein. Die versionierten, gerätefreien Interaktionsfixtures liegen unter `test/fixtures/appplugin/`; sanitisierte Capture-only-Ergebnisse und lokale Schlüssel bleiben in ignorierten `artifacts/`.
 - Der Gate-Runner stoppt bei nativen Async-/Sync-/Bridge-Vertragsfehlern und bei unerwarteten Promise-Ablehnungen. Die aus der APK belegte `getFirmwareUpdateState`-Ablehnung `data is null` der absichtlich leeren OTA-Fixture wird separat gezählt; sie ist ein an das AppPlugin geliefertes Promise-Ergebnis und keine erfundene Erfolgsmeldung.
-- B01-Entschlüsselung und schlüsselloser Blob-Replay münden zentral in dasselbe originale `RRDeviceBlobPayloadUpdateEvent`; ein v12-Direktlauf ohne lokalen Schlüssel belegt den Transportpfad, noch nicht das Kartenrendering aus einem entschlüsselten Blob.
+- B01-Entschlüsselung und schlüsselloser Blob-Replay münden zentral in dasselbe originale `RRDeviceBlobPayloadUpdateEvent`; die synthetische Full-Scene-Fixture belegt den vollständigen direkten Blob-Renderweg ohne B01-Frame und lokalen Schlüssel. Das zusätzliche B01-Ende-zu-Ende-Gate bleibt separat offen.
 - Die Pointer-Brücke räumt gestartete, beendete und abgebrochene Gesten auch dann deterministisch auf, wenn React den ursprünglichen Zielknoten während der Geste ersetzt.
 
-Nicht nachgewiesen sind damit automatisch andere Q7-Varianten, B01/Q10-Datenpfade, Tanos 2D/3D, die übrigen Editierabläufe, Rename-Gerätefehler, Timeout-, Rollback- und Kartenaktualisierungsfälle oder ein sicherer Gerätebetrieb.
+Nicht nachgewiesen sind damit automatisch andere Q7-Varianten, der vollständige B01- und Q10-Produktpfad, Tanos 2D/3D, die übrigen Editierabläufe oder ein sicherer Gerätebetrieb. Die Q7-L5-Vollszene und die Rename-Erfolgs-, Validierungs-, Gerätefehler-, Timeout- und Retry-Fälle sind dagegen reproduzierbar belegt.
 
 ## Architekturentscheidung aus Phase 0C
 
