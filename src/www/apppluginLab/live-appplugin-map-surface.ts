@@ -22,6 +22,7 @@ interface LiveAppPluginViewport {
 interface LiveAppPluginHealth {
 	status: "appplugin-session-ready";
 	revision: number;
+	frameRevision: number;
 	surface: LiveAppPluginSurfaceDescriptor;
 	viewport: LiveAppPluginViewport;
 	bundleKind: string;
@@ -37,6 +38,8 @@ interface LiveAppPluginHealth {
 
 interface PointerResponse {
 	revision: number;
+	frameRevision: number;
+	frameChanged: boolean;
 	surface: LiveAppPluginSurfaceDescriptor;
 	viewport: LiveAppPluginViewport;
 	targets: number[];
@@ -48,6 +51,7 @@ interface PointerResponse {
 
 interface ThemeResponse {
 	revision: number;
+	frameRevision: number;
 	surface: LiveAppPluginSurfaceDescriptor;
 	viewport: LiveAppPluginViewport;
 	colorScheme: LiveAppPluginColorScheme;
@@ -65,6 +69,7 @@ interface PublishedDpsResponse {
 
 export interface LiveAppPluginMapSnapshot {
 	revision: number;
+	frameRevision: number;
 	surface: LiveAppPluginSurfaceDescriptor;
 	viewport: LiveAppPluginViewport;
 	bundleKind: string;
@@ -94,7 +99,9 @@ function finite(value: number, name: string): number {
 export class LiveAppPluginMapSurface {
 	readonly #apiBaseUrl: string;
 	readonly #activePointers = new Set<number>();
+	readonly #pendingPointerMoves = new Map<number, { x: number; y: number }>();
 	#requestQueue: Promise<unknown> = Promise.resolve();
+	#pointerMoveFrame?: number;
 	#health!: LiveAppPluginHealth;
 	#publishedDpsCount = 0;
 
@@ -134,6 +141,7 @@ export class LiveAppPluginMapSurface {
 	public snapshot(): LiveAppPluginMapSnapshot {
 		return {
 			revision: this.#health.revision,
+			frameRevision: this.#health.frameRevision,
 			surface: { ...this.#health.surface },
 			viewport: { ...this.#health.viewport },
 			bundleKind: this.#health.bundleKind,
@@ -215,7 +223,7 @@ export class LiveAppPluginMapSurface {
 			const point = this.#toSurfacePoint(event.clientX, event.clientY);
 			if (!point) return;
 			event.preventDefault();
-			void this.#sendPointer("move", event.pointerId, point.x, point.y);
+			this.#queuePointerMove(event.pointerId, point.x, point.y);
 		});
 		const release = (kind: "up" | "cancel", event: PointerEvent): void => {
 			if (!this.#activePointers.delete(event.pointerId)) return;
@@ -225,10 +233,39 @@ export class LiveAppPluginMapSurface {
 				return;
 			}
 			event.preventDefault();
-			void this.#sendPointer("up", event.pointerId, point.x, point.y);
+			const pendingMove = this.#takePendingPointerMove(event.pointerId);
+			void this.#sendPointerSequence([
+				...(pendingMove ? [{ kind: "move" as const, pointerId: event.pointerId, ...pendingMove }] : []),
+				{ kind: "up" as const, pointerId: event.pointerId, x: point.x, y: point.y },
+			]);
 		};
 		this.options.viewport.addEventListener("pointerup", event => release("up", event));
 		this.options.viewport.addEventListener("pointercancel", event => release("cancel", event));
+	}
+
+	#queuePointerMove(pointerId: number, x: number, y: number): void {
+		this.#pendingPointerMoves.set(pointerId, { x, y });
+		if (this.#pointerMoveFrame !== undefined) return;
+		this.#pointerMoveFrame = requestAnimationFrame(() => {
+			this.#pointerMoveFrame = undefined;
+			const moves = [...this.#pendingPointerMoves].map(([pendingPointerId, point]) => ({
+				kind: "move" as const,
+				pointerId: pendingPointerId,
+				...point,
+			}));
+			this.#pendingPointerMoves.clear();
+			if (moves.length > 0) void this.#sendPointerSequence(moves);
+		});
+	}
+
+	#takePendingPointerMove(pointerId: number): { x: number; y: number } | undefined {
+		const move = this.#pendingPointerMoves.get(pointerId);
+		this.#pendingPointerMoves.delete(pointerId);
+		if (this.#pendingPointerMoves.size === 0 && this.#pointerMoveFrame !== undefined) {
+			cancelAnimationFrame(this.#pointerMoveFrame);
+			this.#pointerMoveFrame = undefined;
+		}
+		return move;
 	}
 
 	#toSurfacePoint(clientX: number, clientY: number): { x: number; y: number } | undefined {
@@ -249,23 +286,38 @@ export class LiveAppPluginMapSurface {
 	}
 
 	#sendPointer(kind: "down" | "move" | "up", pointerId: number, x: number, y: number): Promise<void> {
+		return this.#sendPointerSequence([{ kind, pointerId, x, y }]);
+	}
+
+	#sendPointerSequence(
+		pointers: readonly Readonly<{ kind: "down" | "move" | "up"; pointerId: number; x: number; y: number }>[],
+	): Promise<void> {
 		return this.#enqueue(async () => {
-			const response = await fetch(`${this.#apiBaseUrl}/pointer?view=${this.#health.view}`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ kind, pointerId, x, y, timeMs: performance.timeOrigin + performance.now() }),
-			});
-			const payload = await response.json() as PointerResponse | { error: string };
-			if (!response.ok || "error" in payload) {
-				throw new Error("error" in payload ? payload.error : `Pointer-Bridge antwortet mit HTTP ${response.status}`);
-			}
-			await this.#applyPointerResponse(payload);
-			this.options.onEvent(`AppPlugin-Pointer ${kind}`, payload);
+			for (const pointer of pointers) await this.#requestPointer(pointer);
 		});
+	}
+
+	async #requestPointer(
+		pointer: Readonly<{ kind: "down" | "move" | "up"; pointerId: number; x: number; y: number }>,
+	): Promise<void> {
+		const response = await fetch(`${this.#apiBaseUrl}/pointer?view=${this.#health.view}`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ ...pointer, timeMs: performance.timeOrigin + performance.now() }),
+		});
+		const payload = await response.json() as PointerResponse | { error: string };
+		if (!response.ok || "error" in payload) {
+			throw new Error("error" in payload ? payload.error : `Pointer-Bridge antwortet mit HTTP ${response.status}`);
+		}
+		await this.#applyPointerResponse(payload);
+		this.options.onEvent(`AppPlugin-Pointer ${pointer.kind}`, payload);
 	}
 
 	#sendCancel(): Promise<void> {
 		this.#activePointers.clear();
+		this.#pendingPointerMoves.clear();
+		if (this.#pointerMoveFrame !== undefined) cancelAnimationFrame(this.#pointerMoveFrame);
+		this.#pointerMoveFrame = undefined;
 		return this.#enqueue(async () => {
 			const response = await fetch(`${this.#apiBaseUrl}/pointer?view=${this.#health.view}`, {
 				method: "POST",
@@ -281,15 +333,17 @@ export class LiveAppPluginMapSurface {
 	}
 
 	async #applyPointerResponse(response: PointerResponse): Promise<void> {
+		const frameChanged = response.frameRevision !== this.#health.frameRevision;
 		this.#health = {
 			...this.#health,
 			revision: response.revision,
+			frameRevision: response.frameRevision,
 			surface: response.surface,
 			viewport: response.viewport,
 			view: response.view,
 			publishedDpsCount: response.publishedDpsCount,
 		};
-		this.#refreshFrame();
+		if (frameChanged) this.#refreshFrame();
 		this.#emitChange();
 		if (response.publishedDpsCount > this.#publishedDpsCount) await this.#syncPublishedDps(response.publishedDpsCount);
 	}
@@ -334,7 +388,7 @@ export class LiveAppPluginMapSurface {
 	}
 
 	#refreshFrame(): void {
-		this.options.frame.src = `${this.#apiBaseUrl}/frame.svg?view=${this.#health.view}&revision=${this.#health.revision}`;
+		this.options.frame.src = `${this.#apiBaseUrl}/frame.svg?view=${this.#health.view}&revision=${this.#health.frameRevision}`;
 	}
 
 	#emitChange(): void {

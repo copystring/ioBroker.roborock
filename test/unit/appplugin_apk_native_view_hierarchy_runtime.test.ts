@@ -156,6 +156,53 @@ describe("APK native view hierarchy runtime", () => {
 		expect(native.root).toMatchObject({ tag: 1, children: [] });
 	});
 
+	it("keeps nested React virtual text out of Yoga and the native hierarchy", () => {
+		const root: ApkUiManagerNodeSnapshot = {
+			tag: 1,
+			viewName: "Root",
+			rootTag: 1,
+			props: {},
+			children: [{
+				tag: 2,
+				viewName: "RCTText",
+				rootTag: 1,
+				props: {},
+				children: [{
+					tag: 3,
+					viewName: "RCTVirtualText",
+					rootTag: 1,
+					props: {},
+					children: [{
+						tag: 4,
+						viewName: "RCTRawText",
+						rootTag: 1,
+						props: { text: "Verschachtelter Text" },
+						children: [],
+					}],
+				}],
+			}],
+		};
+		const operations = [
+			{ method: "createView", arguments: [2, "RCTText", 1, {}] },
+			{ method: "createView", arguments: [3, "RCTVirtualText", 1, {}] },
+			{ method: "createView", arguments: [4, "RCTRawText", 1, { text: "Verschachtelter Text" }] },
+		];
+		const native = new ApkNativeViewHierarchyRuntime(1).rebuild(
+			root,
+			[
+				{ tag: 1, box: { x: 0, y: 0, width: 100, height: 100 } },
+				{ tag: 2, box: { x: 0, y: 0, width: 100, height: 20 } },
+			],
+			operations,
+		);
+
+		expect(native.virtualTags).toEqual([3]);
+		expect(native.root.children).toEqual([
+			expect.objectContaining({ tag: 2, children: [] }),
+		]);
+		expect(native.layouts.map(entry => entry.tag)).toEqual([2, 1]);
+	});
+
 	it("measures transformed native bounds with APK physical-pixel rounding", () => {
 		const ui = new ApkUiManagerRuntime(contract, 1);
 		ui.createView(2, "RCTView", 1, { backgroundColor: 0xff000000 });

@@ -712,11 +712,13 @@ async function main(): Promise<void> {
 	const rootTag = 1;
 	const uiManager = new ApkUiManagerRuntime(contract, rootTag);
 	let revision = 0;
+	let frameRevision = 0;
 	const nativeAnimated = new ApkNativeAnimatedRuntime({
 		updateView: (tag, props) => uiManager.synchronouslyUpdateViewOnUiThread(tag, props),
 		restoreDefaultViewProps: (tag, propNames) => uiManager.restoreDefaultViewProps(tag, propNames),
 		onViewUpdate: () => {
 			revision += 1;
+			frameRevision += 1;
 		},
 	});
 	registry.register(
@@ -1229,7 +1231,7 @@ async function main(): Promise<void> {
 				if (view !== "map" && view !== "full") throw new Error(`Unbekannte AppPlugin-Ansicht: ${view}`);
 				return view;
 			};
-			const currentFrame = (view: ServedView = defaultServedView) => {
+			const resolveCurrentSurface = (view: ServedView = defaultServedView) => {
 				const currentHierarchy = uiExecution.nativeHierarchyRuntime().snapshot();
 				const currentSurface = selectApkServedSurfaceRoot(currentHierarchy, {
 					...servedSurfaceOptions,
@@ -1241,6 +1243,10 @@ async function main(): Promise<void> {
 					width: currentSurface.width,
 					height: currentSurface.height,
 				} : interactiveViewport;
+				return { currentSurface, currentHierarchy, viewport, view };
+			};
+			const currentFrame = (view: ServedView = defaultServedView) => {
+				const { currentSurface, currentHierarchy, viewport } = resolveCurrentSurface(view);
 				const artifact = renderApkNativeUiSnapshotToSvg({
 					shadowRoot: uiManager.snapshot(),
 					nativeHierarchy: currentHierarchy,
@@ -1265,10 +1271,11 @@ async function main(): Promise<void> {
 				void enqueue(async () => {
 					const url = new URL(request.url ?? "/", "http://127.0.0.1");
 					if (request.method === "GET" && url.pathname === "/health") {
-						const { currentSurface, viewport, view } = currentFrame(requestedView(url));
+						const { currentSurface, viewport, view } = resolveCurrentSurface(requestedView(url));
 						sendJson(response, 200, {
 							status: "appplugin-session-ready",
 							revision,
+							frameRevision,
 							surface: currentSurface,
 							bundleKind: session.bundleKind,
 							viewport,
@@ -1339,10 +1346,12 @@ async function main(): Promise<void> {
 							imminentTimerCycles += await settleImminentOneShotTimers();
 							await stabilizeUi();
 							revision += 1;
+							frameRevision += 1;
 						}
-						const { currentSurface, viewport } = currentFrame(view);
+						const { currentSurface, viewport } = resolveCurrentSurface(view);
 						sendJson(response, 200, {
 							revision,
+							frameRevision,
 							surface: currentSurface,
 							viewport,
 							view,
@@ -1449,12 +1458,15 @@ async function main(): Promise<void> {
 						response.statusCode = 200;
 						response.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
 						response.setHeader("X-AppPlugin-Revision", String(revision));
+						response.setHeader("X-AppPlugin-Frame-Revision", String(frameRevision));
 						response.end(artifact.svg);
 						return;
 					}
 					if (request.method === "POST" && url.pathname === "/pointer") {
 						const view = requestedView(url);
 						const pointer = parsePointerHttpRequest(await readJsonRequest(request));
+						const uiVisualRevisionBefore = uiManager.visualMutationRevision();
+						const pictureUpdatesBefore = skiaHost.getDiagnostics().pictureUpdates;
 						const dispatch = pointer.kind === "cancel"
 							? await pointerInput.cancel(pointer.timeMs as number)
 							: pointer.kind === "down"
@@ -1466,9 +1478,14 @@ async function main(): Promise<void> {
 						imminentTimerCycles += await settleImminentOneShotTimers();
 						await stabilizeUi();
 						revision += 1;
-						const { currentSurface, viewport } = currentFrame(view);
+						const frameChanged = uiManager.visualMutationRevision() !== uiVisualRevisionBefore
+							|| skiaHost.getDiagnostics().pictureUpdates !== pictureUpdatesBefore;
+						if (frameChanged) frameRevision += 1;
+						const { currentSurface, viewport } = resolveCurrentSurface(view);
 						sendJson(response, 200, {
 							revision,
+							frameRevision,
+							frameChanged,
 							surface: currentSurface,
 							viewport,
 							view,

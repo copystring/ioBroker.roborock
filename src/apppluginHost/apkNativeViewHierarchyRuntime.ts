@@ -162,6 +162,7 @@ export function isApkLayoutOnlyAndCollapsable(
 
 function isCompoundVirtualNode(node: ApkUiManagerNodeSnapshot): boolean {
 	return node.viewName === "RCTRawText"
+		|| node.viewName === "RCTVirtualText"
 		|| node.viewName.startsWith("RNSVG") && node.viewName !== "RNSVGSvgViewAndroid";
 }
 

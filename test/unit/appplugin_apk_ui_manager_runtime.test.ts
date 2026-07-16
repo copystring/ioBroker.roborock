@@ -191,6 +191,20 @@ describe("APK UIManager runtime", () => {
 		]);
 	});
 
+	it("separates visual mutations from responder bookkeeping", () => {
+		const runtime = new ApkUiManagerRuntime(contract, 1);
+		runtime.createView(2, "RCTView", 1, { width: 20, height: 20 });
+		runtime.setChildren(1, [2]);
+		const visualRevision = runtime.visualMutationRevision();
+
+		runtime.setJSResponder(2, true);
+		runtime.clearJSResponder();
+		expect(runtime.visualMutationRevision()).toBe(visualRevision);
+
+		runtime.updateView(2, "RCTView", { opacity: 0.5 });
+		expect(runtime.visualMutationRevision()).toBe(visualRevision + 1);
+	});
+
 	it("queues APK native measurement callbacks until the UI operation phase", () => {
 		const runtime = new ApkUiManagerRuntime(contract, 1);
 		const measure = vi.fn();

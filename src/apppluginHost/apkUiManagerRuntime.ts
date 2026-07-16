@@ -43,6 +43,17 @@ interface MutableNode {
 	parentTag?: number;
 }
 
+const visualUiManagerOperations = new Set([
+	"createView",
+	"dispatchViewManagerCommand",
+	"manageChildren",
+	"removeRootView",
+	"removeSubviewsFromContainerWithID",
+	"replaceExistingNonRootView",
+	"setChildren",
+	"updateView",
+]);
+
 export class ApkUiLayoutUnavailableError extends Error {
 	public constructor(methodName: string) {
 		super(`UIManager.${methodName} benötigt die noch nicht nachgebildete APK-Layoutausführung.`);
@@ -159,6 +170,7 @@ export class ApkUiManagerRuntime {
 	readonly #operations: ApkUiManagerOperation[] = [];
 	readonly #pendingNativeMeasurements: PendingNativeMeasurement[] = [];
 	#jsResponder?: { tag: number; blockNativeResponder: boolean };
+	#visualMutationRevision = 0;
 
 	public constructor(
 		contract: ApkAppPluginHostContract,
@@ -424,6 +436,10 @@ export class ApkUiManagerRuntime {
 		}));
 	}
 
+	public visualMutationRevision(): number {
+		return this.#visualMutationRevision;
+	}
+
 	public pendingNativeMeasurementCount(): number {
 		return this.#pendingNativeMeasurements.length;
 	}
@@ -456,6 +472,7 @@ export class ApkUiManagerRuntime {
 
 	#record(method: string, arguments_: readonly unknown[]): void {
 		this.#operations.push({ method, arguments: arguments_ });
+		if (visualUiManagerOperations.has(method)) this.#visualMutationRevision += 1;
 	}
 
 	#assertTag(tag: number, name: string): void {

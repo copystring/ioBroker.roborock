@@ -3,8 +3,8 @@
 	"project": "ioBroker Roborock AppPlugin-first Rework",
 	"lastReviewed": "2026-07-16",
 	"currentPhase": "0C",
-	"currentFocus": ["P0C-Q7-THEME", "P0C-Q7-ROOM-PROPERTIES"],
-	"nextUp": ["P0C-Q7-THEME", "P0C-Q7-ROOM-PROPERTIES", "P0C-Q7-M5-CONTRACT", "P0C-Q10-FULL-SCENE"],
+	"currentFocus": ["P0C-Q7-ROOM-CLEANING-UI", "P0C-Q7-THEME"],
+	"nextUp": ["P0C-Q7-ROOM-CLEANING-UI", "P0C-Q7-THEME", "P0C-Q7-ROOM-PROPERTIES", "P0C-Q7-M5-CONTRACT"],
 	"phases": [
 		{
 			"id": "0A",
@@ -236,11 +236,16 @@
 			"dependsOn": ["P0B-REACT-NATIVE-BRIDGE"],
 			"evidence": [
 				"src/apppluginHost/apkPointerInputBridge.ts",
+				"src/apppluginHost/apkUiManagerRuntime.ts",
+				"src/apppluginHost/apkNativeViewHierarchyRuntime.ts",
+				"src/www/apppluginLab/live-appplugin-map-surface.ts",
 				"test/unit/appplugin_apk_pointer_input_bridge.test.ts",
+				"test/unit/appplugin_apk_ui_manager_runtime.test.ts",
+				"test/unit/appplugin_apk_native_view_hierarchy_runtime.test.ts",
 				"test/unit/appplugin_apk_text_input_runtime.test.ts",
 				"test/unit/appplugin_apk_native_animated_runtime.test.ts"
 			],
-			"nextAction": "Grenzfälle für Zielknotentausch, Abbruch, Fokus, Tastatur und Dichtetransformation gegen Familienläufe schließen."
+			"nextAction": "Pointerverlust, Abbruch, Fokus und Dichtetransformation gegen Familienläufe schließen; dabei Rohbewegungen takten und Frames nur nach visuellen AppPlugin-Mutationen übertragen."
 		},
 		{
 			"id": "P0B-SKIA-HOST",
@@ -626,14 +631,30 @@
 			"nextAction": "Erzeugen, auswählen, verschieben, skalieren, drehen, löschen, mehrere Objekte und Originalgrenzen als Gates erfassen."
 		},
 		{
+			"id": "P0C-Q7-ROOM-CLEANING-UI",
+			"phase": "0C",
+			"area": "Q7 L5 – Reinigung",
+			"family": "scmap",
+			"title": "Raumreinigung aus der eigenen UI semantisch durch das AppPlugin steuern",
+			"status": "in_progress",
+			"priority": "P0",
+			"dependsOn": ["P0C-Q7-ROOM-SELECTION", "P0B-INPUT-LAYOUT"],
+			"evidence": [
+				"src/www/appplugin-desktop.ts",
+				"src/www/apppluginLab/live-appplugin-map-surface.ts",
+				"test/unit/appplugin_desktop.test.ts"
+			],
+			"nextAction": "Einen stabilen semantischen AppPlugin-Einstieg für Auswahlmodus und Bestätigung belegen; keine versteckten Bildschirmkoordinaten oder nachgebauten Modellpayloads verwenden."
+		},
+		{
 			"id": "P0C-Q7-ZONES",
 			"phase": "0C",
 			"area": "Q7 L5 – Reinigung",
 			"family": "scmap",
-			"title": "Reinigungszonen und Raumreinigung aus der eigenen UI semantisch steuern",
+			"title": "Reinigungszonen aus der eigenen UI semantisch steuern",
 			"status": "pending",
 			"priority": "P1",
-			"dependsOn": ["P0C-Q7-BOUNDARIES", "P0C-Q7-ROOM-SELECTION"],
+			"dependsOn": ["P0C-Q7-BOUNDARIES", "P0C-Q7-ROOM-CLEANING-UI"],
 			"evidence": [],
 			"nextAction": "Desktop-Hülle nur Modus und Bestätigung senden lassen; Geometrie, Auswahl und Parameter verbleiben im AppPlugin."
 		},

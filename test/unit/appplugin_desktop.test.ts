@@ -58,6 +58,22 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(sourcePath).toBeTruthy();
 	});
 
+	it("coalesces raw mouse moves and reloads frames only for AppPlugin visual mutations", () => {
+		const surface = fs.readFileSync(surfacePath, "utf8");
+		const probe = fs.readFileSync(probePath, "utf8");
+		const pointerEndpoint = probe.slice(probe.indexOf('url.pathname === "/pointer"'));
+
+		expect(surface).toContain("#pendingPointerMoves");
+		expect(surface).toContain("requestAnimationFrame");
+		expect(surface).toContain("frameRevision");
+		expect(surface).toContain("if (frameChanged) this.#refreshFrame()");
+		expect(probe).toContain("const resolveCurrentSurface");
+		expect(probe).toContain("const frameChanged = uiManager.visualMutationRevision()");
+		expect(probe).toContain('response.setHeader("X-AppPlugin-Frame-Revision"');
+		expect(pointerEndpoint).toContain("resolveCurrentSurface(view)");
+		expect(pointerEndpoint).not.toContain("currentFrame(view)");
+	});
+
 	it("exposes the full unchanged AppPlugin root as a test view and logs its own DPS", () => {
 		const html = fs.readFileSync(htmlPath, "utf8");
 		const source = fs.readFileSync(sourcePath, "utf8");

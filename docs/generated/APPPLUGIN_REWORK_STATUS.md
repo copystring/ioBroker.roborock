@@ -11,21 +11,21 @@ Quelle: [`docs/appplugin-rework-tracker.json`](../appplugin-rework-tracker.json)
 Aktuelle Phase: **0C – Verhaltensnachweis**
 
 - ✅ 18 abgeschlossen
-- 🔄 13 in Arbeit
+- 🔄 14 in Arbeit
 - ⏳ 42 offen
 - ⛔ 4 blockiert
 
 ## Aktueller Fokus
 
+- **P0C-Q7-ROOM-CLEANING-UI** – Raumreinigung aus der eigenen UI semantisch durch das AppPlugin steuern: Einen stabilen semantischen AppPlugin-Einstieg für Auswahlmodus und Bestätigung belegen; keine versteckten Bildschirmkoordinaten oder nachgebauten Modellpayloads verwenden.
 - **P0C-Q7-THEME** – Hell, Dunkel und Systemmodus in derselben laufenden Kartenfixture nachweisen: Themewechsel ohne Sitzungsneustart mit Kartenpixeln, Dialogen und AppPlugin-Zustand als Gate automatisieren.
-- **P0C-Q7-ROOM-PROPERTIES** – Bodentyp, Raumtyp/-symbol und Reihenfolge über AppPlugin-Werkzeuge prüfen: Jedes tatsächlich angebotene Werkzeug bis zur semantischen Absicht und Kartenaktualisierung nachweisen.
 
 ## Danach
 
+- **P0C-Q7-ROOM-CLEANING-UI** – Raumreinigung aus der eigenen UI semantisch durch das AppPlugin steuern: Einen stabilen semantischen AppPlugin-Einstieg für Auswahlmodus und Bestätigung belegen; keine versteckten Bildschirmkoordinaten oder nachgebauten Modellpayloads verwenden.
 - **P0C-Q7-THEME** – Hell, Dunkel und Systemmodus in derselben laufenden Kartenfixture nachweisen: Themewechsel ohne Sitzungsneustart mit Kartenpixeln, Dialogen und AppPlugin-Zustand als Gate automatisieren.
 - **P0C-Q7-ROOM-PROPERTIES** – Bodentyp, Raumtyp/-symbol und Reihenfolge über AppPlugin-Werkzeuge prüfen: Jedes tatsächlich angebotene Werkzeug bis zur semantischen Absicht und Kartenaktualisierung nachweisen.
 - **P0C-Q7-M5-CONTRACT** – Q7 M5 direkt starten und Hostvertragsdifferenz zu Q7 L5 bestimmen: Unverändertes M5-Bundle mit denselben Fixtures starten, Native-Aufrufe diffen und Abweichungen als zentrale Verträge schließen.
-- **P0C-Q10-FULL-SCENE** – Vollständige Q10/YX-Szene aus den originalen Skia-Operationen komponieren: Alle angebotenen Ebenen in Originalreihenfolge rendern und Bild sowie Semantik gegen eine App-Referenz prüfen.
 
 ## Phasen
 
@@ -112,7 +112,7 @@ Aktuelle Phase: **0C – Verhaltensnachweis**
 | ID | Prio | Status | Aufgabe | Abhängigkeiten | Belege | Nächster Schritt / Blocker |
 | --- | --- | --- | --- | --- | --- | --- |
 | `P0B-REACT-NATIVE-BRIDGE` | P0 | 🔄 in Arbeit | React-Native-Modul-, UIManager- und Ereignisverträge APK-konform bereitstellen | `P0A-APK-CONTRACT-INVENTORY`, `P0B-HERMES-HOST`, `P0B-METRO-HOST` | [`src/apppluginHost`](../../src/apppluginHost)<br>[`test/unit/appplugin_apk_ui_manager_runtime.test.ts`](../../test/unit/appplugin_apk_ui_manager_runtime.test.ts)<br>[`test/unit/appplugin_apk_js_module_call_protocol.test.ts`](../../test/unit/appplugin_apk_js_module_call_protocol.test.ts) | Nur tatsächlich aufgerufene, aus der APK belegte Verträge zentral ergänzen und unbekannte Aufrufe hart sichtbar machen. |
-| `P0B-INPUT-LAYOUT` | P0 | 🔄 in Arbeit | Layout, Dichte, Touch, Pointer, TextInput und native Animationen zentral abbilden | `P0B-REACT-NATIVE-BRIDGE` | [`src/apppluginHost/apkPointerInputBridge.ts`](../../src/apppluginHost/apkPointerInputBridge.ts)<br>[`test/unit/appplugin_apk_pointer_input_bridge.test.ts`](../../test/unit/appplugin_apk_pointer_input_bridge.test.ts)<br>[`test/unit/appplugin_apk_text_input_runtime.test.ts`](../../test/unit/appplugin_apk_text_input_runtime.test.ts)<br>[`test/unit/appplugin_apk_native_animated_runtime.test.ts`](../../test/unit/appplugin_apk_native_animated_runtime.test.ts) | Grenzfälle für Zielknotentausch, Abbruch, Fokus, Tastatur und Dichtetransformation gegen Familienläufe schließen. |
+| `P0B-INPUT-LAYOUT` | P0 | 🔄 in Arbeit | Layout, Dichte, Touch, Pointer, TextInput und native Animationen zentral abbilden | `P0B-REACT-NATIVE-BRIDGE` | [`src/apppluginHost/apkPointerInputBridge.ts`](../../src/apppluginHost/apkPointerInputBridge.ts)<br>[`src/apppluginHost/apkUiManagerRuntime.ts`](../../src/apppluginHost/apkUiManagerRuntime.ts)<br>[`src/apppluginHost/apkNativeViewHierarchyRuntime.ts`](../../src/apppluginHost/apkNativeViewHierarchyRuntime.ts)<br>[`src/www/apppluginLab/live-appplugin-map-surface.ts`](../../src/www/apppluginLab/live-appplugin-map-surface.ts)<br>[`test/unit/appplugin_apk_pointer_input_bridge.test.ts`](../../test/unit/appplugin_apk_pointer_input_bridge.test.ts)<br>[`test/unit/appplugin_apk_ui_manager_runtime.test.ts`](../../test/unit/appplugin_apk_ui_manager_runtime.test.ts)<br>[`test/unit/appplugin_apk_native_view_hierarchy_runtime.test.ts`](../../test/unit/appplugin_apk_native_view_hierarchy_runtime.test.ts)<br>[`test/unit/appplugin_apk_text_input_runtime.test.ts`](../../test/unit/appplugin_apk_text_input_runtime.test.ts)<br>[`test/unit/appplugin_apk_native_animated_runtime.test.ts`](../../test/unit/appplugin_apk_native_animated_runtime.test.ts) | Pointerverlust, Abbruch, Fokus und Dichtetransformation gegen Familienläufe schließen; dabei Rohbewegungen takten und Frames nur nach visuellen AppPlugin-Mutationen übertragen. |
 | `P0B-THEME-LOCALE-EVENTS` | P0 | 🔄 in Arbeit | Dark-Mode-, Appearance-, Locale- und Layout-Ereignisse an laufende Sitzungen weiterreichen | `P0B-REACT-NATIVE-BRIDGE` | [`docs/APPPLUGIN_THEME_POC.md`](../../docs/APPPLUGIN_THEME_POC.md)<br>[`test/unit/appplugin_apk_environment_runtimes.test.ts`](../../test/unit/appplugin_apk_environment_runtimes.test.ts)<br>[`test/unit/appplugin_desktop.test.ts`](../../test/unit/appplugin_desktop.test.ts) | Theme und Locale in derselben echten Kartenfixture wechseln und Pixel sowie semantischen Zustand prüfen. |
 
 #### Rendering
@@ -205,7 +205,8 @@ Aktuelle Phase: **0C – Verhaltensnachweis**
 
 | ID | Prio | Status | Aufgabe | Abhängigkeiten | Belege | Nächster Schritt / Blocker |
 | --- | --- | --- | --- | --- | --- | --- |
-| `P0C-Q7-ZONES` | P1 | ⏳ offen | Reinigungszonen und Raumreinigung aus der eigenen UI semantisch steuern | `P0C-Q7-BOUNDARIES`, `P0C-Q7-ROOM-SELECTION` | — | Desktop-Hülle nur Modus und Bestätigung senden lassen; Geometrie, Auswahl und Parameter verbleiben im AppPlugin. |
+| `P0C-Q7-ROOM-CLEANING-UI` | P0 | 🔄 in Arbeit | Raumreinigung aus der eigenen UI semantisch durch das AppPlugin steuern | `P0C-Q7-ROOM-SELECTION`, `P0B-INPUT-LAYOUT` | [`src/www/appplugin-desktop.ts`](../../src/www/appplugin-desktop.ts)<br>[`src/www/apppluginLab/live-appplugin-map-surface.ts`](../../src/www/apppluginLab/live-appplugin-map-surface.ts)<br>[`test/unit/appplugin_desktop.test.ts`](../../test/unit/appplugin_desktop.test.ts) | Einen stabilen semantischen AppPlugin-Einstieg für Auswahlmodus und Bestätigung belegen; keine versteckten Bildschirmkoordinaten oder nachgebauten Modellpayloads verwenden. |
+| `P0C-Q7-ZONES` | P1 | ⏳ offen | Reinigungszonen aus der eigenen UI semantisch steuern | `P0C-Q7-BOUNDARIES`, `P0C-Q7-ROOM-CLEANING-UI` | — | Desktop-Hülle nur Modus und Bestätigung senden lassen; Geometrie, Auswahl und Parameter verbleiben im AppPlugin. |
 
 #### Q7 L5 – Kartenbestand
 
