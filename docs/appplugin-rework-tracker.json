@@ -3,8 +3,8 @@
 	"project": "ioBroker Roborock AppPlugin-first Rework",
 	"lastReviewed": "2026-07-16",
 	"currentPhase": "0C",
-	"currentFocus": ["P0C-Q7-MERGE", "P0C-Q7-THEME"],
-	"nextUp": ["P0C-Q7-MERGE", "P0C-Q7-THEME", "P0C-Q7-M5-CONTRACT", "P0C-Q10-FULL-SCENE"],
+	"currentFocus": ["P0C-Q7-THEME", "P0C-Q7-ROOM-PROPERTIES"],
+	"nextUp": ["P0C-Q7-THEME", "P0C-Q7-ROOM-PROPERTIES", "P0C-Q7-M5-CONTRACT", "P0C-Q10-FULL-SCENE"],
 	"phases": [
 		{
 			"id": "0A",
@@ -578,7 +578,7 @@
 				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
 				"`npm run poc:appplugin-q7-split-proof`"
 			],
-			"nextAction": "Geometrie, Validierung, Payload, Fehlerzustand, Abbruch und Reload weiterhin vollständig dem geladenen AppPlugin überlassen; dieselbe Gate-Struktur als Nächstes auf Zusammenführen anwenden."
+			"nextAction": "Geometrie, Validierung, Payload, Fehlerzustand, Abbruch und Reload weiterhin vollständig dem geladenen AppPlugin überlassen; dieselben Gates später gegen Q7 M5 ausführen."
 		},
 		{
 			"id": "P0C-Q7-MERGE",
@@ -586,11 +586,20 @@
 			"area": "Q7 L5 – Kartenbearbeitung",
 			"family": "scmap",
 			"title": "Räume zusammenführen mit originaler Auswahl und Nachbarschaftsgrenzen prüfen",
-			"status": "pending",
+			"status": "completed",
 			"priority": "P0",
 			"dependsOn": ["P0C-Q7-FULL-SCENE", "P0B-CAPTURE-ONLY"],
-			"evidence": [],
-			"nextAction": "Erfolg, nicht benachbarte Räume, Anzahlgrenze, Ablehnung und Abbruch durch die AppPlugin-Zustandsmaschine testen."
+			"evidence": [
+				"scripts/prove_q7_appplugin_merge.ts",
+				"test/unit/appplugin_q7_merge_gate.test.ts",
+				"test/fixtures/appplugin/q7-l5-room-merge-success.json",
+				"test/fixtures/appplugin/q7-l5-room-merge-multi-success.json",
+				"test/fixtures/appplugin/q7-l5-room-merge-non-adjacent.json",
+				"test/fixtures/appplugin/q7-l5-room-merge-cancel.json",
+				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
+				"`npm run poc:appplugin-q7-merge-proof`"
+			],
+			"nextAction": "Auswahl, zusammenhängende roomMatrix-Prüfung, Mehrraum-Payload, Geräteergebnis und Abbruch vollständig im geladenen AppPlugin belassen; dieselben Gates später gegen Q7 M5 ausführen."
 		},
 		{
 			"id": "P0C-Q7-ROOM-PROPERTIES",

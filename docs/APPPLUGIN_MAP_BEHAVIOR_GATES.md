@@ -94,6 +94,17 @@ Der vollständige Gate-Satz beweist folgende AppPlugin-Zustände:
 Für den Abbruchpfad musste der Host eine allgemeine APK-Invariante schließen: `RCTModalHostView` legt laut dekompilierter APK einen separaten Fullscreen-Dialog an und setzt dessen ersten React-Child auf die Fenstergröße. Der Yoga-Host bildet genau diese Grenze nun für alle AppPlugin-Modals ab. Die anschließend angeforderten `StatusBarManager`-Werte werden über einen generischen Desktop-Shell-Zustand erfasst; sie sind kein Q7-Sonderfall.
 
 Die versionierten Interaktionsfixtures enthalten ausschließlich Touches und sichtbare AppPlugin-Texte. Capture-only-Rohergebnisse bleiben unter `artifacts/` ignoriert. Der Runner prüft zusätzlich den unveränderten Bundle-Hash, originale SVG-Stile und Endpunkte, Pointer-Cleanup, keine AppPlugin-Ausnahmen, keine unerwarteten Native-Module-Ablehnungen, direkte Blob-Provenienz, lokalisierte Gerätereaktionen und den erneuten Kartenabruf nach Erfolg.
+
+### Q7-L5-Raumzusammenführung
+
+`npm run poc:appplugin-q7-merge-proof` startet acht frische, isolierte Sitzungen mit dem unveränderten Q7-L5-Hermes-Bundle. Die Replays enthalten ausschließlich APK-konforme Touchereignisse und sichtbare AppPlugin-Texte. Der Host implementiert weder Nachbarschaftsprüfung noch Mindestanzahl, Auswahlfarben, Raumlisten oder Befehlsparameter.
+
+Das Bundle validiert die vollständige Auswahl mit seiner eigenen `handleRoomMerge`-Zustandsmaschine gegen `roomMatrix` und die im Kartenblob enthaltenen Räume. Ein einzelner Raum hält die Bestätigung deaktiviert und fordert einen benachbarten Bereich an. Eine Auswahl aus Raum 10 und dem nicht benachbarten Raum 12 zeigt ebenfalls „Wähle einen benachbarten Bereich aus“ und erzeugt keine Geräteabsicht. Zwei benachbarte Räume 10 und 11 werden akzeptiert. Entgegen einer möglichen Zwei-Raum-Annahme erlaubt das Original auch größere zusammenhängende Mengen: Die verbundene Auswahl 10, 11 und 12 wird vollständig übertragen.
+
+Erst die AppPlugin-eigene Bestätigung erzeugt `service.arrange_room` mit genau `lang`, `map_id` und `room_ids`. Der Zwei-Raum-Fall liefert `[10, 11]`, der Mehrraum-Fall `[10, 11, 12]`; Sprache, Reihenfolge und Parameterform stammen ausschließlich aus dem Bundle. Der Host zeichnet die `publishDps`-Absicht auf und ordnet ihr ein simuliertes `event.map_change.post` zu.
+
+Ergebnis `3` führt zurück ins Bearbeitungsmenü und löst den AppPlugin-eigenen erneuten Kartenabruf aus. Ergebnis `6` zeigt „Zusammenführen fehlgeschlagen“, Ergebnis `1000` „Zeitüberschreitung bei Vorgang“. Der Abbruch öffnet „Änderungen verwerfen?“ mit „Abbrechen“ und „Verwerfen“; nach dem Verwerfen entsteht keine Merge-Absicht. Alle Grenzen, Texte, Reloads und Fehlerzustände bleiben damit Eigentum des AppPlugins.
+
 ### Transport- und Pointer-Invarianten
 
 Der Host kann einen bereits als AppPlugin-Blob vorliegenden Bytepuffer ohne lokalen Schlüssel direkt über `RRDeviceBlobPayloadUpdateEvent` in das unveränderte Q7-L5-Hermes-Bundle geben. B01-Frames durchlaufen davor ausschließlich Entschlüsselung und Segmentzusammenbau; beide Wege verwenden danach dieselbe Emissionsfunktion. Die versionierte synthetische Full-Scene-Fixture beweist inzwischen den vollständigen direkten Blob-Renderweg. Ein B01-Ende-zu-Ende-Gate bleibt davon getrennt, weil es zusätzlich den originalen äußeren Frame-, Schlüssel- und Segmentvertrag prüfen muss.
@@ -105,7 +116,7 @@ React darf einen gedrückten Knoten während einer Geste ersetzen. Die APK behä
 | Familie | Zugeordnete Bundles | Kartenvertrag | Vorhandene echte Eingaben | Aktueller Gate-Status |
 | --- | --- | --- | --- | --- |
 | YX/Skia | Q10 und Q10 X5+ | `YXHomeMapContentView`, YX-Modell, `.jx`-Worker, Skia, `MapCtrlOperation` | Repräsentativer verschlüsselter Q10-Rahmen in `test/unit/q10RepresentativeFixture.ts`; weitere Parserfälle sind teilweise synthetisch | Q10 X5+: Originalbundle und `.jx`-Worker erzeugen ein deterministisches 124 × 238-RGBA-Kartenraster und PNG; vollständige Skia-Komposition und Auswahlcallback offen |
-| SCMap/Skia | Q7 L5 und Q7 M5 | `SCMap.RobotMap`, Skia | Datenschutzsichere Full-Scene-Fixture; echte B01-Livekarte sowie nicht segmentierte und segmentierte Historienkarte lokal beziehungsweise in `test/unit/b01_research_maps_regression.fixtures.ts` | Q7 L5: direkter Hermes-Host, AppPlugin-Vollszene mit semantischem und visuellem Golden, Raum-Tap, Auswahlfarbe, Pinch-Zoom sowie gültiger, leerer, AppPlugin-gekürzter, vordefinierter und doppelter Raumname bis `service.rename_room` beziehungsweise zur AppPlugin-Blockierung nachgewiesen; restliche Theme-/Editier-Gates und Q7 M5 offen |
+| SCMap/Skia | Q7 L5 und Q7 M5 | `SCMap.RobotMap`, Skia | Datenschutzsichere Full-Scene-Fixture; echte B01-Livekarte sowie nicht segmentierte und segmentierte Historienkarte lokal beziehungsweise in `test/unit/b01_research_maps_regression.fixtures.ts` | Q7 L5: direkter Hermes-Host, AppPlugin-Vollszene mit semantischem und visuellem Golden, Raum-Tap, Auswahlfarbe, Pinch-Zoom, Raumteilung bis `service.split_room`, Raumzusammenführung bis `service.arrange_room` sowie gültiger, leerer, AppPlugin-gekürzter, vordefinierter und doppelter Raumname bis `service.rename_room` beziehungsweise zur AppPlugin-Blockierung nachgewiesen; restliche Theme-/Editier-Gates und Q7 M5 offen |
 | Tanos Native AR/3D | Qrevo Curv, Master, MaxV, S6 MaxV, S7 MaxV, S8 MaxV Ultra, S8 Pro Ultra und Saros 10 | `RRARMapViewManager` und `RR3DMapViewManager` | Kein eindeutig zugeordnetes echtes Tanos-Kartenpaket im Repository gefunden | Blockiert durch Echtdaten und nativen APK-Hostvertrag |
 | Tanos Native AR/3D + Skia | Saros 20 und Saros Z70 | Tanos Native plus Skia/CanvasKit | Kein eindeutig zugeordnetes echtes Saros-Kartenpaket im Repository gefunden | Blockiert durch Echtdaten und hybriden Native-/Skia-Hostvertrag |
 
@@ -148,7 +159,7 @@ Im Verzeichnis `.AppPlugins/Q10` stimmt das Bundle im ZIP nicht mit dem daneben 
 
 ## Nächste ausführbare Stufen
 
-1. Teilen, Zusammenführen, Bodentyp, Sperrzonen, Schwellen, Reihenfolge und weitere vom Q7-L5-AppPlugin angebotene Werkzeuge über ihre originalen Einstiegspunkte bis zur jeweiligen Befehlsabsicht prüfen.
+1. Bodentyp, Raumtyp, Sperrzonen, Schwellen, Reihenfolge und weitere vom Q7-L5-AppPlugin angebotene Werkzeuge über ihre originalen Einstiegspunkte bis zur jeweiligen Befehlsabsicht prüfen.
 2. Restliche Gesten- und Theme-Grenzen auf der bestandenen Q7-L5-Vollszene abschließen; danach denselben Hostvertrag gegen Q7 M5 prüfen.
 3. Die erfassten Q10-Skia-Operationen vollständig komponieren und den YX-Pfad durch dieselben Interaktions- und Editier-Gates führen.
 4. Eindeutig zugeordnete Tanos-/Saros-Payloads beschaffen und deren native 2D-/3D-Verträge in der isolierten Laufzeit schließen.
