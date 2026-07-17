@@ -3,8 +3,8 @@
 	"project": "ioBroker Roborock AppPlugin-first Rework",
 	"lastReviewed": "2026-07-17",
 	"currentPhase": "0C",
-	"currentFocus": ["P0C-Q7-ROOM-CLEANING-UI", "P0C-Q7-THEME"],
-	"nextUp": ["P0C-Q7-ROOM-CLEANING-UI", "P0C-Q7-THEME", "P0C-Q7-ROOM-PROPERTIES", "P0C-Q7-M5-CONTRACT"],
+	"currentFocus": ["P0C-Q7-ROOM-CLEANING-UI", "P0C-Q7-M5-CONTRACT"],
+	"nextUp": ["P0C-Q7-ROOM-CLEANING-UI", "P0C-Q7-M5-CONTRACT", "P0C-Q7-ROOM-PROPERTIES", "P0C-Q7-BOUNDARIES"],
 	"phases": [
 		{
 			"id": "0A",
@@ -454,22 +454,53 @@
 			"nextAction": "Das unveränderte Vollszenen-Gate als Ausgangszustand für Split, Merge, Theme, Locale und weitere SCMap-Bundles wiederverwenden."
 		},
 		{
+			"id": "P0C-Q7-ACTOR-SCALING",
+			"phase": "0C",
+			"area": "Q7 L5 – Rendering",
+			"family": "scmap",
+			"title": "Roboter und Station mit originalen AppPlugin-Faktoren, Z-Reihenfolge und Kartenzoom absichern",
+			"status": "completed",
+			"priority": "P0",
+			"dependsOn": ["P0B-DEVICE-INGRESS", "P0C-Q7-FULL-SCENE", "P0C-Q7-GESTURES"],
+			"evidence": [
+				"docs/APPPLUGIN_ACTOR_SCALING_POC.md",
+				"scripts/prove_q7_appplugin_actor_scaling.ts",
+				"test/fixtures/appplugin/q7-l5-actor-scaling-golden.json",
+				"test/fixtures/appplugin/q7-l5-actor-scaling-golden.png",
+				"test/unit/appplugin_q7_theme_actor_goldens.test.ts",
+				"test/unit/appplugin_desktop.test.ts",
+				"`npm run poc:appplugin-q7-actor-scaling`"
+			],
+			"nextAction": "Dasselbe Akteur-Gate ohne Hostgrößen oder Asset-Sonderfälle gegen Q7 M5, Q10 und weitere technisch unterschiedliche Kartenfamilien ausführen."
+		},
+		{
 			"id": "P0C-Q7-THEME",
 			"phase": "0C",
 			"area": "Q7 L5 – Theme und Locale",
 			"family": "scmap",
 			"title": "Hell, Dunkel und Systemmodus in derselben laufenden Kartenfixture nachweisen",
-			"status": "in_progress",
+			"status": "completed",
 			"priority": "P0",
 			"dependsOn": ["P0B-THEME-LOCALE-EVENTS", "P0C-Q7-FULL-SCENE"],
 			"evidence": [
 				"docs/APPPLUGIN_THEME_POC.md",
 				"scripts/lib/appPluginDesktopSessionState.ts",
+				"scripts/capture_q7_appplugin_theme_goldens.ts",
+				"scripts/lib/appPluginBrowserGolden.ts",
+				"test/fixtures/appplugin/q7-l5-theme-goldens.json",
+				"test/fixtures/appplugin/q7-l5-theme-home-light-golden.png",
+				"test/fixtures/appplugin/q7-l5-theme-home-dark-golden.png",
+				"test/fixtures/appplugin/q7-l5-theme-settings-light-golden.png",
+				"test/fixtures/appplugin/q7-l5-theme-settings-dark-golden.png",
+				"test/fixtures/appplugin/q7-l5-theme-settings-system-light-golden.png",
+				"test/fixtures/appplugin/q7-l5-theme-settings-system-dark-golden.png",
 				"test/unit/appplugin_apk_environment_runtimes.test.ts",
 				"test/unit/appplugin_desktop_session_state.test.ts",
-				"test/unit/appplugin_desktop.test.ts"
+				"test/unit/appplugin_desktop.test.ts",
+				"test/unit/appplugin_q7_theme_actor_goldens.test.ts",
+				"`npm run poc:appplugin-q7-theme-goldens`"
 			],
-			"nextAction": "Themewechsel ohne Sitzungsneustart mit Kartenpixeln, Dialogen und AppPlugin-Zustand als Gate automatisieren."
+			"nextAction": "Dasselbe Hell-/Dunkel-/System-Gate mit unveränderten Bundles auf Q7 M5, Q10 und weitere technisch unterschiedliche Familien übertragen."
 		},
 		{
 			"id": "P0C-Q7-LOCALE",

@@ -754,11 +754,13 @@ async function main(): Promise<void> {
 		workerRuntime,
 	});
 	let sessionForTimers: ApkHermesHostSession | undefined;
+	let onTimerJsCompleted: (() => Promise<void>) | undefined;
 	const timingErrors: string[] = [];
 	const timing = new ApkTimingRuntime({
 		emitTimers: timerIds => {
 			if (!sessionForTimers) throw new Error("Hermes-Session für JSTimers fehlt");
-			return sessionForTimers.callJsFunction("JSTimers", "callTimers", [timerIds]);
+			return sessionForTimers.callJsFunction("JSTimers", "callTimers", [timerIds])
+				.then(() => onTimerJsCompleted?.());
 		},
 		onError: error => timingErrors.push(error.message),
 	});
@@ -980,9 +982,13 @@ async function main(): Promise<void> {
 	);
 	const textInput = new ApkTextInputRuntime(uiManager, session);
 	const uiExecutionSnapshots: unknown[] = [];
+	let lastStabilizedVisualRevision = uiManager.visualMutationRevision();
+	let lastStabilizedPictureUpdates = skiaHost.getDiagnostics().pictureUpdates;
 	const stabilizeUi = async (): Promise<void> => {
 		await session.waitForRuntimeBoundaryIdle();
 		uiExecutionSnapshots.push(await uiExecution.stabilize());
+		lastStabilizedVisualRevision = uiManager.visualMutationRevision();
+		lastStabilizedPictureUpdates = skiaHost.getDiagnostics().pictureUpdates;
 	};
 	const stabilizeInteractiveUi = async (): Promise<void> => {
 		// Pointer-Eingaben dürfen zukünftige AppPlugin-Timer nicht künstlich abwarten.
@@ -1015,6 +1021,32 @@ async function main(): Promise<void> {
 		operationQueue = pending.then(() => undefined, () => undefined);
 		return pending;
 	};
+	let timerUiPump: Promise<void> | undefined;
+	let timerUiPumpRequested = false;
+	onTimerJsCompleted = () => {
+		timerUiPumpRequested = true;
+		if (timerUiPump) return timerUiPump;
+		timerUiPump = enqueue(async () => {
+			while (timerUiPumpRequested) {
+				timerUiPumpRequested = false;
+				await session.waitForRuntimeBoundaryIdle();
+				const visualChanged = uiManager.visualMutationRevision() !== lastStabilizedVisualRevision
+					|| skiaHost.getDiagnostics().pictureUpdates !== lastStabilizedPictureUpdates;
+				if (!visualChanged) continue;
+				await stabilizeUi();
+				revision += 1;
+				frameRevision += 1;
+			}
+		}).finally(() => {
+			timerUiPump = undefined;
+			if (timerUiPumpRequested) {
+				void onTimerJsCompleted?.().catch(error => {
+					timingErrors.push(error instanceof Error ? error.message : String(error));
+				});
+			}
+		});
+		return timerUiPump;
+	};
 	try {
 		await session.start();
 		let runtimeIdleRounds = 0;
@@ -1023,6 +1055,10 @@ async function main(): Promise<void> {
 		const replayEvents: Array<Readonly<Record<string, unknown>>> = [];
 		const publishReplayEvents: Array<Readonly<Record<string, unknown>>> = [];
 		const blobIngresses: Array<Readonly<Record<string, unknown>>> = [];
+		const publishResponseStates = deviceReplay.publishResponses.map(response => ({
+			response,
+			matchCount: 0,
+		}));
 		const blobAssembler = new ApkBlobTransferAssembler(options.duid, "unused-for-b01");
 		const emitBlobPayload = async (
 			payload: Buffer,
@@ -1122,30 +1158,9 @@ async function main(): Promise<void> {
 		if (!session.probe?.appKeys.includes("App")) {
 			throw new Error(`Das unveränderte Bundle registrierte App nicht: ${JSON.stringify(session.probe)}`);
 		}
-		if (options.runApplication) {
-			await session.runApplication("App", {
-				rootTag,
-				initialProps: {
-					colorMode: "light",
-					concurrentRoot: true,
-				},
-			});
-			runtimeIdleRounds = await session.waitForRuntimeBoundaryIdle();
-			await new Promise(resolve => setTimeout(resolve, 350));
-			timerRuntimeIdleRounds = await session.waitForRuntimeBoundaryIdle();
-			imminentTimerCycles += await settleImminentOneShotTimers();
-			await stabilizeUi();
-		}
-		for (const [eventIndex, event] of deviceReplay.events.entries()) {
-			replayEvents.push(await emitReplayEvent(event, {
-				source: "startup-replay",
-				eventIndex,
-			}));
-		}
-		const publishResponseStates = deviceReplay.publishResponses.map(response => ({
-			response,
-			matchCount: 0,
-		}));
+		// Die APK verbindet den Gerätetransport vor RunApplication. AppPlugin-Aufrufe,
+		// die bereits beim Mounten entstehen, dürfen deshalb nicht verloren gehen.
+		// Insbesondere fordert Q7 seine Karte während des ersten Renderdurchlaufs an.
 		handlePublishedDps = (dps, publishedIndex) => {
 			for (const [responseIndex, state] of publishResponseStates.entries()) {
 				if (state.matchCount >= state.response.maximumMatches) continue;
@@ -1167,6 +1182,26 @@ async function main(): Promise<void> {
 				});
 			}
 		};
+		if (options.runApplication) {
+			await session.runApplication("App", {
+				rootTag,
+				initialProps: {
+					colorMode: "light",
+					concurrentRoot: true,
+				},
+			});
+			runtimeIdleRounds = await session.waitForRuntimeBoundaryIdle();
+			await new Promise(resolve => setTimeout(resolve, 350));
+			timerRuntimeIdleRounds = await session.waitForRuntimeBoundaryIdle();
+			imminentTimerCycles += await settleImminentOneShotTimers();
+			await stabilizeUi();
+		}
+		for (const [eventIndex, event] of deviceReplay.events.entries()) {
+			replayEvents.push(await emitReplayEvent(event, {
+				source: "startup-replay",
+				eventIndex,
+			}));
+		}
 		const settleReplayEvent = async (waitAfterMs: number): Promise<void> => {
 			if (waitAfterMs > 0) await new Promise(resolve => setTimeout(resolve, waitAfterMs));
 			await session.waitForRuntimeBoundaryIdle();
@@ -1458,6 +1493,7 @@ async function main(): Promise<void> {
 							availableViews: ["map", "full"],
 							colorScheme: darkMode.getColorScheme(),
 							colorModel: darkMode.getColorModel(),
+							systemColorScheme: darkMode.snapshot().systemColorScheme,
 							cardStyle: darkMode.getCardStyle(),
 							themeSwitching: true,
 							...localizationHttpState(),
@@ -1484,6 +1520,7 @@ async function main(): Promise<void> {
 							activePointerIds: pointerInput.activePointerIds(),
 							colorScheme: darkMode.getColorScheme(),
 							colorModel: darkMode.getColorModel(),
+							systemColorScheme: darkMode.snapshot().systemColorScheme,
 							darkModeEvents,
 							appearanceEvents,
 							localization: localization.snapshot(),
@@ -1533,6 +1570,7 @@ async function main(): Promise<void> {
 							view,
 							colorScheme: darkMode.getColorScheme(),
 							colorModel: darkMode.getColorModel(),
+							systemColorScheme: darkMode.snapshot().systemColorScheme,
 							cardStyle: darkMode.getCardStyle(),
 							themeSwitching: true,
 							...localizationHttpState(),

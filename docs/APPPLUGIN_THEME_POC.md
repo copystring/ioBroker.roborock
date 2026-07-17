@@ -29,16 +29,18 @@ Color-Model, System-Farbschema und Card-Style liegen inzwischen zusammen mit Loc
 
 ## Reproduzierbarer Nachweis
 
-Der Test wurde mit dem unveränderten Q7-L5-Hermes-Bundle im expliziten Full-AppPlugin-Root-Diagnosemodus ausgeführt:
+`npm run poc:appplugin-q7-theme-goldens` prüft sechs Browserbilder in derselben unveränderten Q7-L5-Hermes-Sitzung:
 
-| Zustand | SHA-256 des SVG-Frames |
-| --- | --- |
-| Hell initial | `143FDA12B082E1C84D225F6CFC86C9485BB8F0EDE8E0A973FFB695274338BE59` |
-| Dunkel | `E0614B95B7E71DD08CECC31137B88096187252778796EBBF6F631500E8E71C55` |
-| Wieder Hell | `143FDA12B082E1C84D225F6CFC86C9485BB8F0EDE8E0A973FFB695274338BE59` |
+- Startansicht Hell und Dunkel,
+- AppPlugin-Einstellungsansicht Hell und Dunkel,
+- Systemmodus mit effektiv Dunkel und effektiv Hell.
 
-Der Dunkel-Frame unterscheidet sich, der erneute Hell-Frame ist bytegenau identisch zum Ausgangszustand. Systemmodus mit System-Dunkel entspricht dem Dunkel-Hash; Systemmodus mit System-Hell entspricht dem Hell-Hash. Vier Wechsel erzeugten je vier `themeDidChange`-/`appearanceChanged`-Ereignisse und vier Activity-Style-Aufrufe. `stderr` blieb leer.
+Das Gate verlangt `colorModel = default` für Systemmodus, das jeweils korrekte effektive `colorScheme`, unveränderte Session-ID und Bundle-Hash, deaktivierten Produktfallback sowie die beobachteten APK-Wege für `RRPluginDarkMode`, `Appearance` und Activity-Style. Explizites Hell und Dunkel müssen unterschiedliche Pixel liefern. System-Dunkel ist pixelgenau identisch zu explizit Dunkel; System-Hell ist pixelgenau identisch zu explizit Hell.
 
-## Offenes Gate
+Der erste AppPlugin-Einstellungsframe montiert einige Icons über verzögerte React-Native-Timer. Der Host gibt die Pointerantwort sofort zurück und stabilisiert fällige AppPlugin-UI anschließend über einen serialisierten Hintergrundpump. Das Golden-Harness wartet zusätzlich auf eine ruhige Frame-Revision, damit kein Zwischenframe versioniert wird.
 
-Dieser Nachweis gilt für den vollständigen AppPlugin-Root. Der bereits laufende Q7-Kartenprozess verwendet noch Host v9. Das kartenspezifische Gate bleibt deshalb offen, bis dieselbe echte Karte in einem neuen Hostprozess Hell, Dunkel und Systemmodus durchläuft und Raumfarben, Roboter, Station, Labels, Auswahlzustand und Editieroberflächen verglichen wurden.
+Manifest und sechs Chromium-PNGs liegen unter `test/fixtures/appplugin/q7-l5-theme-*`. `test/unit/appplugin_q7_theme_actor_goldens.test.ts` bindet Bilddateien, Hashes, Abmessungen, Bundle-Provenienz und Systemmodus-Gleichheit an das Manifest.
+
+## Nächstes Gate
+
+Q7 L5 ist für Hell, Dunkel und Systemmodus abgeschlossen. Derselbe Vertrag muss nun ohne Host-Paletten oder AppPlugin-Sonderfälle gegen Q7 M5, Q10 und weitere technisch unterschiedliche AppPlugin-Familien ausgeführt werden.

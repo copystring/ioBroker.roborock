@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "source": "unchanged-q7-l5-appplugin-session",
+  "profileLabel": "Q7 L5 / SC01 · echte lokale Kartenaufnahme",
+  "deviceModel": "roborock.vacuum.sc01",
+  "bundleKind": "hermes-bytecode",
+  "bundleSha256": "9dfd8cc4c3020fe8e2428b3be4ca237b65ba536a4730addcfc29300885361a35",
+  "productFallbackAllowed": false,
+  "renderer": "chromium-headless",
+  "apkTransportConnectedBeforeRunApplication": true,
+  "mapRequestMatchCount": 1,
+  "originalConstants": {
+    "mapChildScale": 0.32,
+    "robotOuterMultiplier": 0.5,
+    "robotImageDivisor": 0.18,
+    "robotZIndex": 490,
+    "stationZIndex": 400
+  },
+  "initial": {
+    "mapScaleX": 1.484536,
+    "mapScaleY": 1.484536,
+    "robotAboveStation": true,
+    "centerDistance": 0.237526,
+    "robot": {
+      "asset": "src_sc_components_resource_images_common_robot.png",
+      "imageTag": 293,
+      "layerTag": 297,
+      "layerZIndex": 490,
+      "layerScaleX": 0.16,
+      "layerScaleY": 0.16,
+      "imageScaleX": 1.777778,
+      "imageScaleY": 1.777778,
+      "bounds": {
+        "x": 54.594227,
+        "y": 462.315876,
+        "width": 13.512577,
+        "height": 13.512577
+      },
+      "center": {
+        "x": 61.350515,
+        "y": 469.072165
+      }
+    },
+    "station": {
+      "asset": "src_sc_components_resource_images_common_charge_android.png",
+      "imageTag": 299,
+      "layerTag": 305,
+      "layerZIndex": 400,
+      "layerScaleX": 0.32,
+      "layerScaleY": 0.32,
+      "imageScaleX": 1,
+      "imageScaleY": 1,
+      "bounds": {
+        "x": 56.370787,
+        "y": 462.259704,
+        "width": 10.434219,
+        "height": 13.641501
+      },
+      "center": {
+        "x": 61.587897,
+        "y": 469.080454
+      }
+    }
+  },
+  "zoomIn": {
+    "mapScaleX": 2.084536,
+    "mapScaleY": 2.084536,
+    "robotAboveStation": true,
+    "centerDistance": 0.333526,
+    "robot": {
+      "asset": "src_sc_components_resource_images_common_robot.png",
+      "imageTag": 293,
+      "layerTag": 297,
+      "layerZIndex": 490,
+      "layerScaleX": 0.16,
+      "layerScaleY": 0.16,
+      "imageScaleX": 1.777778,
+      "imageScaleY": 1.777778,
+      "bounds": {
+        "x": -4.13644,
+        "y": 488.58521,
+        "width": 18.973911,
+        "height": 18.973911
+      },
+      "center": {
+        "x": 5.350515,
+        "y": 498.072165
+      }
+    },
+    "station": {
+      "asset": "src_sc_components_resource_images_common_charge_android.png",
+      "imageTag": 299,
+      "layerTag": 305,
+      "layerZIndex": 400,
+      "layerScaleX": 0.32,
+      "layerScaleY": 0.32,
+      "imageScaleX": 1,
+      "imageScaleY": 1,
+      "bounds": {
+        "x": -1.641853,
+        "y": 488.506335,
+        "width": 14.651382,
+        "height": 19.154941
+      },
+      "center": {
+        "x": 5.683838,
+        "y": 498.083805
+      }
+    }
+  },
+  "zoomOut": {
+    "mapScaleX": 1.747536,
+    "mapScaleY": 1.747536,
+    "robotAboveStation": true,
+    "centerDistance": 0.279606,
+    "robot": {
+      "asset": "src_sc_components_resource_images_common_robot.png",
+      "imageTag": 293,
+      "layerTag": 297,
+      "layerZIndex": 490,
+      "layerScaleX": 0.16,
+      "layerScaleY": 0.16,
+      "imageScaleX": 1.777778,
+      "imageScaleY": 1.777778,
+      "bounds": {
+        "x": 23.932285,
+        "y": 473.898934,
+        "width": 15.906462,
+        "height": 15.906462
+      },
+      "center": {
+        "x": 31.885515,
+        "y": 481.852165
+      }
+    },
+    "station": {
+      "asset": "src_sc_components_resource_images_common_charge_android.png",
+      "imageTag": 299,
+      "layerTag": 305,
+      "layerZIndex": 400,
+      "layerScaleX": 0.32,
+      "layerScaleY": 0.32,
+      "imageScaleX": 1,
+      "imageScaleY": 1,
+      "bounds": {
+        "x": 26.02358,
+        "y": 473.83281,
+        "width": 12.282742,
+        "height": 16.058225
+      },
+      "center": {
+        "x": 32.164951,
+        "y": 481.861923
+      }
+    }
+  },
+  "pngSha256": "af02074c9d243381ec607eb0fb7745e767c2afb80d07270272a88d30fb8eda9c",
+  "pngFile": "test/fixtures/appplugin/q7-l5-actor-scaling-golden.png"
+}

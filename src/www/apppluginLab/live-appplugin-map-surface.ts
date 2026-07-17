@@ -43,6 +43,7 @@ interface LiveAppPluginHealth extends LiveAppPluginLocalizationState {
 	productFallbackAllowed: false;
 	colorScheme: LiveAppPluginColorScheme;
 	colorModel: "dark" | "default" | "light";
+	systemColorScheme: LiveAppPluginColorScheme;
 	cardStyle: number;
 	themeSwitching: boolean;
 	view: LiveAppPluginSurfaceView;
@@ -70,6 +71,7 @@ interface ThemeResponse extends LiveAppPluginLocalizationState {
 	viewport: LiveAppPluginViewport;
 	colorScheme: LiveAppPluginColorScheme;
 	colorModel: "dark" | "default" | "light";
+	systemColorScheme: LiveAppPluginColorScheme;
 	cardStyle: number;
 	view: LiveAppPluginSurfaceView;
 }
@@ -105,6 +107,7 @@ export interface LiveAppPluginMapSnapshot extends LiveAppPluginLocalizationState
 	productFallbackAllowed: false;
 	colorScheme: LiveAppPluginColorScheme;
 	colorModel: "dark" | "default" | "light";
+	systemColorScheme: LiveAppPluginColorScheme;
 	cardStyle: number;
 	themeSwitching: boolean;
 	view: LiveAppPluginSurfaceView;
@@ -124,6 +127,62 @@ export interface LiveAppPluginMapSurfaceOptions {
 function finite(value: number, name: string): number {
 	if (!Number.isFinite(value)) throw new Error(`${name} muss endlich sein`);
 	return value;
+}
+
+export interface LiveAppPluginPinchPointer {
+	kind: "down" | "move" | "up";
+	pointerId: number;
+	x: number;
+	y: number;
+}
+
+/**
+ * Produces the same signed two-pointer distance change that the Q7 AppPlugin
+ * receives from Android. The first touch must be the right-hand pointer:
+ * its original getDistance contract uses touch order, not an unsigned browser
+ * wheel delta.
+ */
+export function createAppPluginPinchZoomPointers(
+	width: number,
+	height: number,
+	delta: number,
+): readonly Readonly<LiveAppPluginPinchPointer>[] {
+	finite(width, "Pinch-Breite");
+	finite(height, "Pinch-Höhe");
+	finite(delta, "Pinch-Richtung");
+	if (width <= 0 || height <= 0) throw new Error("Pinch-Fläche muss positiv sein");
+	if (delta === 0) return [];
+	const centerX = width / 2;
+	const centerY = height / 2;
+	const startDistance = Math.min(width * 0.28, 100);
+	const endDistance = delta > 0
+		? Math.min(width * 0.72, startDistance * 1.8)
+		: Math.max(24, startDistance * 0.55);
+	const leftX = centerX - startDistance / 2;
+	const startRightX = leftX + startDistance;
+	const endRightX = leftX + endDistance;
+	const rightId = 10_001;
+	const leftId = 10_002;
+	// Das erste MOVE beansprucht den React-Native-Responder. Das zweite MOVE
+	// verändert den Zoom im bereits aktiven AppPlugin-PanResponder. Ein einzelnes
+	// MOVE wird beim Loslassen verworfen; weitere Zwischenstufen sind unnötig.
+	const movementSteps = 2;
+	const moves = Array.from({ length: movementSteps }, (_, index) => {
+		const progress = (index + 1) / movementSteps;
+		return {
+			kind: "move" as const,
+			pointerId: rightId,
+			x: startRightX + (endRightX - startRightX) * progress,
+			y: centerY,
+		};
+	});
+	return [
+		{ kind: "down", pointerId: rightId, x: startRightX, y: centerY },
+		{ kind: "down", pointerId: leftId, x: leftX, y: centerY },
+		...moves,
+		{ kind: "up", pointerId: leftId, x: leftX, y: centerY },
+		{ kind: "up", pointerId: rightId, x: endRightX, y: centerY },
+	];
 }
 
 export class LiveAppPluginMapSurface {
@@ -182,6 +241,7 @@ export class LiveAppPluginMapSurface {
 			productFallbackAllowed: false,
 			colorScheme: this.#health.colorScheme,
 			colorModel: this.#health.colorModel,
+			systemColorScheme: this.#health.systemColorScheme,
 			cardStyle: this.#health.cardStyle,
 			themeSwitching: this.#health.themeSwitching,
 			view: this.#health.view,
@@ -257,39 +317,10 @@ export class LiveAppPluginMapSurface {
 	}
 
 	public async zoomBy(delta: number): Promise<void> {
-		if (delta === 0) return;
 		const { width, height } = this.#health.surface;
-		const centerX = width / 2;
-		const centerY = height / 2;
-		const startDistance = Math.min(width * 0.28, 100);
-		const endDistance = delta > 0
-			? Math.min(width * 0.72, startDistance * 1.8)
-			: Math.max(24, startDistance * 0.55);
-		const rightX = centerX + startDistance / 2;
-		const startLeftX = rightX - startDistance;
-		const endLeftX = rightX - endDistance;
-		const leftId = 10_001;
-		const rightId = 10_002;
-		// Das erste MOVE beansprucht den React-Native-Responder. Das zweite MOVE
-		// verändert den Zoom im bereits aktiven AppPlugin-PanResponder. Ein einzelnes
-		// MOVE wird beim Loslassen verworfen; weitere Zwischenstufen sind unnötig.
-		const movementSteps = 2;
-		const moves = Array.from({ length: movementSteps }, (_, index) => {
-			const progress = (index + 1) / movementSteps;
-			return {
-				kind: "move" as const,
-				pointerId: leftId,
-				x: startLeftX + (endLeftX - startLeftX) * progress,
-				y: centerY,
-			};
-		});
-		await this.#sendPointerSequence([
-			{ kind: "down", pointerId: leftId, x: startLeftX, y: centerY },
-			{ kind: "down", pointerId: rightId, x: rightX, y: centerY },
-			...moves,
-			{ kind: "up", pointerId: rightId, x: rightX, y: centerY },
-			{ kind: "up", pointerId: leftId, x: endLeftX, y: centerY },
-		]);
+		const pointers = createAppPluginPinchZoomPointers(width, height, delta);
+		if (pointers.length === 0) return;
+		await this.#sendPointerSequence(pointers);
 		this.options.onEvent("APK-Pinch an AppPlugin gesendet", { delta, revision: this.#health.revision });
 	}
 
@@ -471,6 +502,7 @@ export class LiveAppPluginMapSurface {
 			systemLocaleIdentifier: health.systemLocaleIdentifier ?? health.localeIdentifier,
 			colorScheme: health.colorScheme ?? "light",
 			colorModel: health.colorModel ?? "default",
+			systemColorScheme: health.systemColorScheme ?? health.colorScheme ?? "light",
 			cardStyle: health.cardStyle ?? 0,
 			themeSwitching: health.themeSwitching === true,
 			view: health.view ?? view,

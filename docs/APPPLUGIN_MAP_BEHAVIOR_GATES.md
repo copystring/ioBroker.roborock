@@ -10,7 +10,7 @@ Diese Datei trennt fünf Aussagen, die nicht miteinander verwechselt werden dür
 4. Das AppPlugin erzeugt ein deterministisches Kartenraster aus den echten Daten.
 5. Der Host komponiert das vollständige Bild und liefert korrekte Interaktionscallbacks.
 
-Nur Punkt 5 beweist das vollständige Kartenverhalten. Phase 0 hat Punkt 1 für alle lokal vorhandenen Bundle-Dateien abgedeckt. Alle Metro-Bundles erreichen Punkt 2. Für das geprüfte Q10-X5+-Bundle sind zusätzlich Punkt 3 und Punkt 4 mit einer repräsentativen Karte und einem PNG-Golden nachgewiesen. Für Q7 L5 läuft das unveränderte Hermes-Bundle inzwischen im nativen Host; die vollständige statische AppPlugin-Szene besitzt ein semantisches und visuelles Golden. Raum-Tap, Auswahlfarbwechsel, Pinch-Zoom, der erfolgreiche Raumname-Happy-Path, die Leereingabe- und Duplikatvalidierung, die AppPlugin-eigene Kürzung überlanger Raumnamen sowie ein lokalisierter vordefinierter Name bis zur erzeugten Befehlsabsicht sind in derselben Sitzungsart nachgewiesen. Das ist ein großer Teil von Punkt 5, aber wegen der noch offenen Gesten-, Theme-, Editier- und Q7-M5-Gates keine vollständige Familienfreigabe.
+Nur Punkt 5 beweist das vollständige Kartenverhalten. Phase 0 hat Punkt 1 für alle lokal vorhandenen Bundle-Dateien abgedeckt. Alle Metro-Bundles erreichen Punkt 2. Für das geprüfte Q10-X5+-Bundle sind zusätzlich Punkt 3 und Punkt 4 mit einer repräsentativen Karte und einem PNG-Golden nachgewiesen. Für Q7 L5 läuft das unveränderte Hermes-Bundle inzwischen im nativen Host; die vollständige statische AppPlugin-Szene besitzt ein semantisches und visuelles Golden. Raum-Tap, Auswahlfarbwechsel, Pinch-Zoom, originale Roboter-/Stationsskalierung, Hell/Dunkel/System, der erfolgreiche Raumname-Happy-Path, die Leereingabe- und Duplikatvalidierung, die AppPlugin-eigene Kürzung überlanger Raumnamen sowie ein lokalisierter vordefinierter Name bis zur erzeugten Befehlsabsicht sind in derselben Sitzungsart nachgewiesen. Das ist ein großer Teil von Punkt 5, aber wegen der noch offenen Gesten-, restlichen Editier- und Q7-M5-Gates keine vollständige Familienfreigabe.
 
 ## Verbindliche Produktgrenze: eigene UI, originale Karten-Engine
 
@@ -57,6 +57,12 @@ Der originale AppPlugin-Worker `src_sc_components_sctool_scbeautify_executor.jx`
 Die synthetischen Raum-IDs beginnen bewusst bei 10. Der unveränderte Worker reserviert den Wert 1 als ungefüllte weiße Fläche; eine Raum-ID 1 würde dessen Flood-Fill ohne Fortschritt ausführen. Diese Worker-Invariante ist in Fixture und Test festgeschrieben, ohne den AppPlugin-Algorithmus im Host nachzubauen.
 
 Das semantische Golden liegt in `test/fixtures/appplugin/q7-l5-full-scene-golden.json`, das Bild in `test/fixtures/appplugin/q7-l5-full-scene-golden.png`. Der Runner bricht bei Bundleänderung, Workerfehler, Pipelinefehler, unerwartetem nativen Vertrag, fehlendem Layer, falscher Z-Reihenfolge oder Bildabweichung ab. Private Livekarten und lokale Schlüssel werden nicht versioniert.
+
+### Q7-L5-Roboter und Station
+
+`npm run poc:appplugin-q7-actor-scaling` beweist die sichtbaren Akteurgrößen über die vollständige native Transformationskette. Der Host enthält keine Roboter- oder Stationsgröße. Das unveränderte Bundle liefert Roboter-Layer `0,16`, Roboterbild `1,777777…`, Stations-Layer `0,32` und `zIndex 490 > 400`; die AppPlugin-Zoommatrix skaliert anschließend beide Akteure gemeinsam mit der Karte.
+
+Die zuvor zu große Station war kein Zeichenfehler. Der Host verband die simulierte Geräteantwort erst nach `RunApplication`, sodass die beim Mount veröffentlichte AppPlugin-Kartenanfrage nicht beantwortet wurde und das AppPlugin sein eigenes Stationsupdate nicht ausführte. Der APK-Gerätetransport ist jetzt vor dem App-Start aktiv. Das Gate prüft diesen Lifecycle, die Originalfaktoren, gedockte Mittelpunkte, Z-Reihenfolge, Plus-/Minus-Zoom, ein semantisches Golden und ein Chromium-PNG. Details stehen in `docs/APPPLUGIN_ACTOR_SCALING_POC.md`.
 
 ### Q7-L5-Teilnachweis
 
@@ -111,12 +117,14 @@ Der Host kann einen bereits als AppPlugin-Blob vorliegenden Bytepuffer ohne loka
 
 React darf einen gedrückten Knoten während einer Geste ersetzen. Die APK behält dafür das beim `ACTION_DOWN` ermittelte React-Ziel bei, berechnet bei `ACTION_MOVE` beziehungsweise dem letzten `ACTION_UP` nur den aktuellen lokalen Koordinatenrahmen neu und sendet `topTouchEnd` oder `topTouchCancel` weiterhin an das ursprüngliche Ziel. Die Pointer-Brücke bildet genau diese Invariante nach und räumt aktive Pointer anschließend deterministisch auf; der Regressionstest deckt `END` und `CANCEL` nach einem Knotentausch ab.
 
+Interaktive Touchantworten warten nicht künstlich auf zukünftige AppPlugin-Timer. Sobald ein fälliger React-Native-Timer seinen Hermes-Callback beendet hat, serialisiert der Host jedoch einen Hintergrundpump über dieselbe Operationswarteschlange, stabilisiert nur bei tatsächlicher visueller Mutation und erhöht die Frame-Revision. Dadurch bleibt die Bedienung direkt, während verzögert montierte Originalelemente – etwa die Icons der Q7-Einstellungsansicht – ohne einen zufälligen Themewechsel erscheinen.
+
 ## Familien und vorhandene Echtdaten
 
 | Familie | Zugeordnete Bundles | Kartenvertrag | Vorhandene echte Eingaben | Aktueller Gate-Status |
 | --- | --- | --- | --- | --- |
 | YX/Skia | Q10 und Q10 X5+ | `YXHomeMapContentView`, YX-Modell, `.jx`-Worker, Skia, `MapCtrlOperation` | Repräsentativer verschlüsselter Q10-Rahmen in `test/unit/q10RepresentativeFixture.ts`; weitere Parserfälle sind teilweise synthetisch | Q10 X5+: Originalbundle und `.jx`-Worker erzeugen ein deterministisches 124 × 238-RGBA-Kartenraster und PNG; vollständige Skia-Komposition und Auswahlcallback offen |
-| SCMap/Skia | Q7 L5 und Q7 M5 | `SCMap.RobotMap`, Skia | Datenschutzsichere Full-Scene-Fixture; echte B01-Livekarte sowie nicht segmentierte und segmentierte Historienkarte lokal beziehungsweise in `test/unit/b01_research_maps_regression.fixtures.ts` | Q7 L5: direkter Hermes-Host, AppPlugin-Vollszene mit semantischem und visuellem Golden, Raum-Tap, Auswahlfarbe, Pinch-Zoom, Raumteilung bis `service.split_room`, Raumzusammenführung bis `service.arrange_room` sowie gültiger, leerer, AppPlugin-gekürzter, vordefinierter und doppelter Raumname bis `service.rename_room` beziehungsweise zur AppPlugin-Blockierung nachgewiesen; restliche Theme-/Editier-Gates und Q7 M5 offen |
+| SCMap/Skia | Q7 L5 und Q7 M5 | `SCMap.RobotMap`, Skia | Datenschutzsichere Full-Scene-Fixture; echte B01-Livekarte sowie nicht segmentierte und segmentierte Historienkarte lokal beziehungsweise in `test/unit/b01_research_maps_regression.fixtures.ts` | Q7 L5: direkter Hermes-Host, AppPlugin-Vollszene mit semantischem und visuellem Golden, Raum-Tap, Auswahlfarbe, Pinch-Zoom, originale Roboter-/Stationsskalierung, Hell/Dunkel/System, Raumteilung bis `service.split_room`, Raumzusammenführung bis `service.arrange_room` sowie gültiger, leerer, AppPlugin-gekürzter, vordefinierter und doppelter Raumname bis `service.rename_room` beziehungsweise zur AppPlugin-Blockierung nachgewiesen; restliche Gesten-/Editier-Gates und Q7 M5 offen |
 | Tanos Native AR/3D | Qrevo Curv, Master, MaxV, S6 MaxV, S7 MaxV, S8 MaxV Ultra, S8 Pro Ultra und Saros 10 | `RRARMapViewManager` und `RR3DMapViewManager` | Kein eindeutig zugeordnetes echtes Tanos-Kartenpaket im Repository gefunden | Blockiert durch Echtdaten und nativen APK-Hostvertrag |
 | Tanos Native AR/3D + Skia | Saros 20 und Saros Z70 | Tanos Native plus Skia/CanvasKit | Kein eindeutig zugeordnetes echtes Saros-Kartenpaket im Repository gefunden | Blockiert durch Echtdaten und hybriden Native-/Skia-Hostvertrag |
 
@@ -160,7 +168,7 @@ Im Verzeichnis `.AppPlugins/Q10` stimmt das Bundle im ZIP nicht mit dem daneben 
 ## Nächste ausführbare Stufen
 
 1. Bodentyp, Raumtyp, Sperrzonen, Schwellen, Reihenfolge und weitere vom Q7-L5-AppPlugin angebotene Werkzeuge über ihre originalen Einstiegspunkte bis zur jeweiligen Befehlsabsicht prüfen.
-2. Restliche Gesten- und Theme-Grenzen auf der bestandenen Q7-L5-Vollszene abschließen; danach denselben Hostvertrag gegen Q7 M5 prüfen.
+2. Restliche Gestengrenzen auf der bestandenen Q7-L5-Vollszene abschließen; danach Theme-, Akteur- und Interaktionsvertrag gegen Q7 M5 prüfen.
 3. Die erfassten Q10-Skia-Operationen vollständig komponieren und den YX-Pfad durch dieselben Interaktions- und Editier-Gates führen.
 4. Eindeutig zugeordnete Tanos-/Saros-Payloads beschaffen und deren native 2D-/3D-Verträge in der isolierten Laufzeit schließen.
 Der bestandene Q10-Rasterpfad ist in `docs/APPPLUGIN_Q10_MAP_EVENT_POC.md` beschrieben. Er ist ein belastbarer Teilnachweis, aber keine Freigabe für andere Kartenfamilien.

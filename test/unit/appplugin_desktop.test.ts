@@ -4,6 +4,7 @@ import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { createOfflineAppPluginEnvelope } from "../../src/www/apppluginLab/desktop-intents";
+import { createAppPluginPinchZoomPointers } from "../../src/www/apppluginLab/live-appplugin-map-surface";
 import { APPPLUGIN_LOCALIZATION_POLICY } from "../../src/www/apppluginLab/translations";
 
 const repositoryRoot = path.resolve(__dirname, "..", "..");
@@ -74,7 +75,8 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(surface).toContain('addEventListener("pointerup"');
 		expect(surface).toContain("APK-Pinch an AppPlugin gesendet");
 		expect(surface).toContain("const movementSteps = 2");
-		expect(surface).toContain("await this.#sendPointerSequence([");
+		expect(surface).toContain("const pointers = createAppPluginPinchZoomPointers(width, height, delta)");
+		expect(surface).toContain("await this.#sendPointerSequence(pointers)");
 		expect(surface).not.toContain('await this.#sendPointer("down"');
 		expect(source).not.toContain("AppPlugin r${snapshot.revision}");
 		expect(source).not.toContain("Revision ${snapshot.revision}");
@@ -84,6 +86,23 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(surface).not.toContain('addEventListener("wheel"');
 		expect(html).toContain('data-tool="zones" disabled');
 		expect(sourcePath).toBeTruthy();
+	});
+
+	it("preserves the AppPlugin's signed touch order so plus enlarges and minus reduces", () => {
+		const zoomIn = createAppPluginPinchZoomPointers(360, 800, 1);
+		const zoomOut = createAppPluginPinchZoomPointers(360, 800, -1);
+		const signedDistance = (
+			pointers: typeof zoomIn,
+			leftIndex: number,
+			rightIndex: number,
+		): number => pointers[leftIndex].x - pointers[rightIndex].x;
+
+		expect(zoomIn.map(pointer => pointer.kind)).toEqual(["down", "down", "move", "move", "up", "up"]);
+		expect(zoomIn[0].x).toBeGreaterThan(zoomIn[1].x);
+		expect(signedDistance(zoomIn, 3, 1)).toBeGreaterThan(signedDistance(zoomIn, 0, 1));
+		expect(signedDistance(zoomOut, 3, 1)).toBeLessThan(signedDistance(zoomOut, 0, 1));
+		expect(zoomIn[2].pointerId).toBe(zoomIn[0].pointerId);
+		expect(zoomIn[3].pointerId).toBe(zoomIn[0].pointerId);
 	});
 
 	it("coalesces raw mouse moves and reloads frames only for AppPlugin visual mutations", () => {
@@ -102,12 +121,16 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(pointerEndpoint).not.toContain("currentFrame(view)");
 	});
 
-	it("does not await future AppPlugin timers for interactive touches and batches gestures", () => {
+	it("returns touches before future timers and finishes delayed AppPlugin UI in the background", () => {
 		const surface = fs.readFileSync(surfacePath, "utf8");
 		const probe = fs.readFileSync(probePath, "utf8");
 		const pointerEndpoint = probe.slice(probe.indexOf('url.pathname === "/pointer"'));
 
 		expect(probe).toContain("stabilizeInteractiveUi");
+		expect(probe).toContain("onTimerJsCompleted");
+		expect(probe).toContain("timerUiPump = enqueue");
+		expect(probe).toContain("timerUiPumpRequested");
+		expect(probe).toContain("lastStabilizedVisualRevision");
 		expect(probe).toContain('url.pathname === "/pointer-sequence"');
 		expect(probe).toContain("cachedCurrentFrame");
 		expect(pointerEndpoint).not.toContain("settleImminentOneShotTimers()");
