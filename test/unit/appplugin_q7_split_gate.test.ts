@@ -55,12 +55,26 @@ describe("Q7 AppPlugin room-split gate", () => {
 		]));
 	});
 
-	it("exposes one reproducible gate command for all seven fresh AppPlugin sessions", () => {
+	it("exposes one shared seven-scenario suite for the L5 and M5 AppPlugins", () => {
 		const scripts = (JSON.parse(fs.readFileSync(path.join(repositoryRoot, "package.json"), "utf8")) as {
 			scripts: Record<string, string>;
 		}).scripts;
-		const command = scripts["poc:appplugin-q7-split-proof"];
-		expect(command).toContain("scripts/prove_q7_appplugin_split.ts");
-		for (const scenario of scenarios) expect(command).toContain(`q7-l5-room-split-${scenario}.json`);
+		const suiteSource = fs.readFileSync(
+			path.join(repositoryRoot, "scripts", "run_q7_appplugin_split_suite.ts"),
+			"utf8",
+		);
+		const l5Command = scripts["poc:appplugin-q7-split-proof"];
+		const m5Command = scripts["poc:appplugin-q7-m5-split-proof"];
+		for (const command of [l5Command, m5Command]) {
+			expect(command).toContain("scripts/prove_q7_appplugin_split.ts");
+			expect(command).toContain("scripts/run_q7_appplugin_split_suite.ts");
+		}
+		expect(l5Command).toContain("--profile l5");
+		expect(m5Command).toContain("--profile m5");
+		expect(suiteSource).toContain("unchanged Q7 L5 Hermes AppPlugin");
+		expect(suiteSource).toContain("unchanged Q7 M5 Hermes AppPlugin");
+		for (const scenario of scenarios) {
+			expect(suiteSource).toContain(`fixtureSuffix: "${scenario}"`);
+		}
 	});
 });

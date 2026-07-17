@@ -634,22 +634,25 @@
 		{
 			"id": "P0C-Q7-SPLIT",
 			"phase": "0C",
-			"area": "Q7 L5 – Kartenbearbeitung",
+			"area": "Q7 L5/M5 – Kartenbearbeitung",
 			"family": "scmap",
 			"title": "Raum teilen mit originaler Linie, Griffen, Grenzen und Befehlsabsicht prüfen",
 			"status": "completed",
 			"priority": "P0",
 			"dependsOn": ["P0C-Q7-FULL-SCENE", "P0B-CAPTURE-ONLY"],
 			"evidence": [
+				"scripts/appplugin_hermes_runtime_probe.ts",
 				"scripts/prove_q7_appplugin_split.ts",
+				"scripts/run_q7_appplugin_split_suite.ts",
 				"test/unit/appplugin_q7_split_gate.test.ts",
 				"test/fixtures/appplugin/q7-l5-room-split-success.json",
 				"test/fixtures/appplugin/q7-l5-room-split-invalid-line.json",
 				"test/fixtures/appplugin/q7-l5-room-split-cancel.json",
 				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
-				"`npm run poc:appplugin-q7-split-proof`"
+				"`npm run poc:appplugin-q7-split-proof`",
+				"`npm run poc:appplugin-q7-m5-split-proof`"
 			],
-			"nextAction": "Geometrie, Validierung, Payload, Fehlerzustand, Abbruch und Reload weiterhin vollständig dem geladenen AppPlugin überlassen; dieselben Gates später gegen Q7 M5 ausführen."
+			"nextAction": "Geometrie, Validierung, Payload, Fehlerzustand, Abbruch und Reload für L5 und M5 weiterhin vollständig dem geladenen AppPlugin überlassen; weitere Kartenfamilien erst nach eigenem Vertragsnachweis freischalten."
 		},
 		{
 			"id": "P0C-Q7-MERGE",
@@ -789,15 +792,19 @@
 				"scripts/capture_q7_appplugin_theme_goldens.ts",
 				"scripts/prove_q7_appplugin_actor_scaling.ts",
 				"scripts/prove_q7_appplugin_semantic_actions.ts",
+				"scripts/prove_q7_appplugin_split.ts",
+				"scripts/run_q7_appplugin_split_suite.ts",
 				"test/fixtures/appplugin/q7-m5-full-scene-golden.json",
 				"test/fixtures/appplugin/q7-m5-theme-goldens.json",
 				"test/fixtures/appplugin/q7-m5-actor-scaling-golden.json",
 				"test/unit/appplugin_q7_m5_contract_gate.test.ts",
 				"test/unit/appplugin_q7_theme_actor_goldens.test.ts",
+				"test/unit/appplugin_q7_split_gate.test.ts",
 				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
-				"`npm run poc:appplugin-q7-m5-semantic-actions-proof`"
+				"`npm run poc:appplugin-q7-m5-semantic-actions-proof`",
+				"`npm run poc:appplugin-q7-m5-split-proof`"
 			],
-			"nextAction": "Die gemeinsamen Split-, Merge-, Rename- und verbleibenden Gesten-Gates gegen M5 ausführen; nur belegte Bundleabweichungen separat festhalten."
+			"nextAction": "Die gemeinsamen Merge-, Rename- und verbleibenden Gesten-Gates gegen M5 ausführen; nur belegte Bundleabweichungen separat festhalten."
 		},
 		{
 			"id": "P0C-B01-RAW-INGRESS",

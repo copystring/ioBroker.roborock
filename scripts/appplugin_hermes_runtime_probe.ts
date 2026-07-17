@@ -1240,9 +1240,17 @@ async function main(): Promise<void> {
 		await waitForOperationQueueIdle();
 		const settleReplayEvent = async (waitAfterMs: number): Promise<void> => {
 			if (waitAfterMs > 0) await new Promise(resolve => setTimeout(resolve, waitAfterMs));
+			// Pointer callbacks can synchronously enqueue APK transport responses or
+			// timer-driven UI work. A quiet Hermes boundary alone does not prove that
+			// this host-side queue has already handed the result back to the bundle.
+			// Finish the complete APK/host round-trip before the next replay touch,
+			// otherwise identical AppPlugins can observe different intermediate trees.
+			await waitForOperationQueueIdle();
 			await session.waitForRuntimeBoundaryIdle();
 			imminentTimerCycles += await settleImminentOneShotTimers();
+			await waitForOperationQueueIdle();
 			await stabilizeUi();
+			await waitForOperationQueueIdle();
 		};
 		const dispatchPointerReplayEvent = async (
 			event: ApkPointerReplayManifest["events"][number],
