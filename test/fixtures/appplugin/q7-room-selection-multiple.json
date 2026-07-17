@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "viewport": {
+    "width": 360,
+    "height": 800
+  },
+  "events": [
+    {
+      "kind": "down",
+      "pointerId": 0,
+      "x": 180,
+      "y": 634,
+      "timeMs": 1000
+    },
+    {
+      "kind": "up",
+      "pointerId": 0,
+      "x": 180,
+      "y": 634,
+      "timeMs": 1040,
+      "waitAfterMs": 500
+    },
+    {
+      "kind": "down",
+      "pointerId": 0,
+      "x": 108,
+      "y": 463,
+      "timeMs": 1600
+    },
+    {
+      "kind": "up",
+      "pointerId": 0,
+      "x": 108,
+      "y": 463,
+      "timeMs": 1640,
+      "waitAfterMs": 500
+    },
+    {
+      "kind": "down",
+      "pointerId": 0,
+      "x": 228,
+      "y": 463,
+      "timeMs": 2200
+    },
+    {
+      "kind": "up",
+      "pointerId": 0,
+      "x": 228,
+      "y": 463,
+      "timeMs": 2240,
+      "waitAfterMs": 2500
+    },
+    {
+      "kind": "assert",
+      "rawTextIncludes": [
+        "Raum1",
+        "Raum2",
+        "Raum3",
+        "Raum4"
+      ],
+      "waitAfterMs": 100
+    }
+  ]
+}

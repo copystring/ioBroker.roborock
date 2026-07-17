@@ -405,17 +405,22 @@
 		{
 			"id": "P0C-Q7-ROOM-SELECTION",
 			"phase": "0C",
-			"area": "Q7 L5 – Interaktion",
+			"area": "Q7 L5/M5 – Interaktion",
 			"family": "scmap",
 			"title": "Raum-Tap, Auswahl, Abwahl und AppPlugin-eigene Farbumschaltung nachweisen",
 			"status": "completed",
 			"priority": "P0",
 			"dependsOn": ["P0C-Q7-DIRECT-RUN", "P0B-INPUT-LAYOUT"],
 			"evidence": [
-				"test/unit/appplugin_apk_interaction_replay_manifest.test.ts",
+				"scripts/prove_q7_appplugin_room_selection.ts",
+				"scripts/lib/q7RoomSelectionEvidence.ts",
+				"test/unit/q7_room_selection_evidence.test.ts",
+				"test/unit/appplugin_q7_room_selection_gate.test.ts",
+				"test/fixtures/appplugin/q7-l5-room-selection-golden.json",
+				"test/fixtures/appplugin/q7-m5-room-selection-golden.json",
 				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md"
 			],
-			"nextAction": "Mehrfachauswahl, Grenzpixel und Auswahl nach Karten-/Moduswechsel in die Vollszenen-Gates aufnehmen."
+			"nextAction": "Grenzpixel sowie Auswahl nach Karten-/Moduswechsel prüfen; danach einen semantischen Desktop-Einstieg ohne versteckte Bildschirmkoordinaten belegen."
 		},
 		{
 			"id": "P0C-Q7-GESTURES",

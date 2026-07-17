@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 
-type JsonRecord = Record<string, unknown>;
+export type JsonRecord = Record<string, unknown>;
 
 interface TreeEntry {
 	node: JsonRecord;

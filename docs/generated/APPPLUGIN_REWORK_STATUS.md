@@ -167,11 +167,16 @@ Aktuelle Phase: **0C – Verhaltensnachweis**
 | --- | --- | --- | --- | --- | --- | --- |
 | `P0C-Q7-DIRECT-RUN` | P0 | ✅ abgeschlossen | Q7-L5-Hermes-Bundle unverändert in einer laufenden AppPlugin-Sitzung ausführen | `P0B-HERMES-HOST`, `P0B-DEVICE-INGRESS` | [`scripts/appplugin_hermes_runtime_probe.ts`](../../scripts/appplugin_hermes_runtime_probe.ts)<br>[`test/unit/appplugin_apk_hermes_host_session.test.ts`](../../test/unit/appplugin_apk_hermes_host_session.test.ts)<br>[`docs/APPPLUGIN_REWORK_PHASES.md`](../../docs/APPPLUGIN_REWORK_PHASES.md) | Bundle-Hash und Capture-only-Grenze bei jedem weiteren Q7-Gate erneut prüfen. |
 
+#### Q7 L5/M5 – Interaktion
+
+| ID | Prio | Status | Aufgabe | Abhängigkeiten | Belege | Nächster Schritt / Blocker |
+| --- | --- | --- | --- | --- | --- | --- |
+| `P0C-Q7-ROOM-SELECTION` | P0 | ✅ abgeschlossen | Raum-Tap, Auswahl, Abwahl und AppPlugin-eigene Farbumschaltung nachweisen | `P0C-Q7-DIRECT-RUN`, `P0B-INPUT-LAYOUT` | [`scripts/prove_q7_appplugin_room_selection.ts`](../../scripts/prove_q7_appplugin_room_selection.ts)<br>[`scripts/lib/q7RoomSelectionEvidence.ts`](../../scripts/lib/q7RoomSelectionEvidence.ts)<br>[`test/unit/q7_room_selection_evidence.test.ts`](../../test/unit/q7_room_selection_evidence.test.ts)<br>[`test/unit/appplugin_q7_room_selection_gate.test.ts`](../../test/unit/appplugin_q7_room_selection_gate.test.ts)<br>[`test/fixtures/appplugin/q7-l5-room-selection-golden.json`](../../test/fixtures/appplugin/q7-l5-room-selection-golden.json)<br>[`test/fixtures/appplugin/q7-m5-room-selection-golden.json`](../../test/fixtures/appplugin/q7-m5-room-selection-golden.json)<br>[`docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md`](../../docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md) | Grenzpixel sowie Auswahl nach Karten-/Moduswechsel prüfen; danach einen semantischen Desktop-Einstieg ohne versteckte Bildschirmkoordinaten belegen. |
+
 #### Q7 L5 – Interaktion
 
 | ID | Prio | Status | Aufgabe | Abhängigkeiten | Belege | Nächster Schritt / Blocker |
 | --- | --- | --- | --- | --- | --- | --- |
-| `P0C-Q7-ROOM-SELECTION` | P0 | ✅ abgeschlossen | Raum-Tap, Auswahl, Abwahl und AppPlugin-eigene Farbumschaltung nachweisen | `P0C-Q7-DIRECT-RUN`, `P0B-INPUT-LAYOUT` | [`test/unit/appplugin_apk_interaction_replay_manifest.test.ts`](../../test/unit/appplugin_apk_interaction_replay_manifest.test.ts)<br>[`docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md`](../../docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md) | Mehrfachauswahl, Grenzpixel und Auswahl nach Karten-/Moduswechsel in die Vollszenen-Gates aufnehmen. |
 | `P0C-Q7-GESTURES` | P0 | ✅ abgeschlossen | Pinch-Zoom-Grundpfad durch die originale Touchkette nachweisen | `P0C-Q7-DIRECT-RUN`, `P0B-INPUT-LAYOUT` | [`test/unit/appplugin_apk_pointer_replay_manifest.test.ts`](../../test/unit/appplugin_apk_pointer_replay_manifest.test.ts)<br>[`test/unit/appplugin_apk_pointer_input_bridge.test.ts`](../../test/unit/appplugin_apk_pointer_input_bridge.test.ts)<br>[`docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md`](../../docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md) | Drag, Fokuspunkt, minimale/maximale Skalierung, Pointerverlust und Abbruch gegen die Original-App prüfen. |
 
 #### Q7 L5/M5 – Rendering

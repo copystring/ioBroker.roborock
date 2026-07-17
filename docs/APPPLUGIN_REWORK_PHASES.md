@@ -20,7 +20,7 @@ Das Vorhaben befindet sich weiterhin in **Phase 0**, genauer in **Phase 0C – V
 - Das unveränderte Q7-L5-Hermes-Bundle läuft im nachgebildeten APK-Host.
 - Die originale native Teilstruktur wird aus der laufenden Sitzung gerendert; es gibt keinen Kartenfallback.
 - Eine datenschutzsichere Q7-L5-SCMap-Fixture läuft vom direkten Blob durch innere AppPlugin-Entschlüsselung, Protobuf-Parser und unveränderten 96.000-Pixel-Worker bis zur vollständigen Kartenkomposition. Semantisches und visuelles Golden sichern Raumketten, Labels, Pfade, Roboter, Dock, Animation, Overlays und Z-Reihenfolge.
-- Raum-Tap, Auswahlzustand, AppPlugin-Farbwechsel und Pinch-Zoom laufen durch die APK-konforme Touchkette zurück in dieselbe Sitzung.
+- Raum-Tap, Einzel- und Mehrfachauswahl, Abwahl sowie AppPlugin-Farbwechsel sind mit denselben synthetischen Räumen für die unveränderten Q7-L5- und Q7-M5-Bundles belegt; Pinch-Zoom ist bislang für L5 nachgewiesen.
 - AppPlugin-Werte für Raumlabels, Roboter, Station, Transformationen und Z-Reihenfolge bleiben erhalten.
 - `UIManager.measure`, Layout, native Animationen sowie weitere vom Bundle tatsächlich aufgerufene APK-Module sind nachgebildet.
 - Für den Q10/YX-Pfad existiert ein deterministischer Original-Rasternachweis; die vollständige interaktive Komposition ist noch offen.

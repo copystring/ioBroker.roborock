@@ -366,17 +366,22 @@ function report(root) {
     var current = stack.pop();
     var instance = current && current.stateNode;
     var state = instance && instance.state;
-    if (state && Object.prototype.hasOwnProperty.call(state, "showRenameCard")
-      && Object.prototype.hasOwnProperty.call(state, "mapLoading")) {
+    if (instance && Array.isArray(instance.allRooms) && Array.isArray(instance.selectRoomIDs)) {
+      var selectedRoomIdSignature = "";
+      for (var roomIdIndex = 0; roomIdIndex < instance.selectRoomIDs.length; roomIdIndex += 1) {
+        if (roomIdIndex > 0) selectedRoomIdSignature += ",";
+        selectedRoomIdSignature += String(instance.selectRoomIDs[roomIdIndex]);
+      }
       var diagnostic = {
-        isEmpty: state.isEmpty === true,
-        mapLoading: state.mapLoading === true,
-        loading: state.loading === true,
-        showRenameCard: state.showRenameCard === true,
+        isEmpty: state && state.isEmpty === true,
+        mapLoading: state && state.mapLoading === true,
+        loading: state && state.loading === true,
+        showRenameCard: state && state.showRenameCard === true,
         hasMapView: instance.mapView != null,
         isRenderMap: instance.isRenderMap === true,
-        allRoomsCount: Array.isArray(instance.allRooms) ? instance.allRooms.length : -1,
-        selectedRoomCount: Array.isArray(instance.selectRoomIDs) ? instance.selectRoomIDs.length : -1,
+        allRoomsCount: instance.allRooms.length,
+        selectedRoomCount: instance.selectRoomIDs.length,
+        selectedRoomIdSignature: selectedRoomIdSignature,
         handleMark: typeof instance.handleMark === "number" ? instance.handleMark : null,
         mapIdPresent: instance.mapId != null
       };
