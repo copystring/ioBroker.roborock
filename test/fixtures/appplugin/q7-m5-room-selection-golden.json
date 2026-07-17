@@ -1792,6 +1792,885 @@
           "textNodes": 12
         }
       }
+    },
+    "boundary": {
+      "selection": {
+        "roomCount": 4,
+        "selectedRoomCount": 1,
+        "selectedRoomIds": [
+          11
+        ],
+        "ownedByAppPlugin": true
+      },
+      "map": {
+        "paths": [
+          {
+            "fill": 16777215,
+            "stroke": null,
+            "strokeWidth": null,
+            "dataLength": 37,
+            "dataSha256": "e55fc5577d54c237ab75373093ca6e2d36dcc08d2d32ad9c3170783cc3c190b1"
+          },
+          {
+            "fill": -9735820,
+            "stroke": null,
+            "strokeWidth": null,
+            "dataLength": 2593,
+            "dataSha256": "300e3cae0b110125a842b0c6c3b623ecf774f4df97996ef580d5c6cd354c1281"
+          },
+          {
+            "fill": 1232333798,
+            "stroke": null,
+            "strokeWidth": null,
+            "dataLength": 83,
+            "dataSha256": "349ea040250831fd4d4414f42c82cc8ea0a1b3bf8b6900484b5676bc531cf7a1"
+          },
+          {
+            "fill": -6829569,
+            "stroke": null,
+            "strokeWidth": null,
+            "dataLength": 86,
+            "dataSha256": "58b999188f5f3320937bf32d0177a6a2e66af605f65428610fe944852eba20d7"
+          },
+          {
+            "fill": 1241171638,
+            "stroke": null,
+            "strokeWidth": null,
+            "dataLength": 43,
+            "dataSha256": "f386823b4c74404ecbef0d658b55651e4e6d819b5b99fd0b4edcd0c089f96aed"
+          },
+          {
+            "fill": -3876871,
+            "stroke": null,
+            "strokeWidth": null,
+            "dataLength": 33,
+            "dataSha256": "bfe7e80e6a0952451da563d3b7306cdcd2cfcae789ead903c00894318e8159c7"
+          },
+          {
+            "fill": 1241179550,
+            "stroke": null,
+            "strokeWidth": null,
+            "dataLength": 40,
+            "dataSha256": "e2521ff0c36eb495bd75545828fe476c16a3d7d4e00842b413a0a2bea8cdcc07"
+          },
+          {
+            "fill": 16777215,
+            "stroke": null,
+            "strokeWidth": null,
+            "dataLength": 2746,
+            "dataSha256": "1e736a782b2f5ff22ad1ad1a78c4bb757e4466aba11337b785df1ffe824210ed"
+          },
+          {
+            "fill": -6829569,
+            "stroke": null,
+            "strokeWidth": null,
+            "dataLength": 73,
+            "dataSha256": "8b873ebed70d28b97890c920a9cd9d92e754f6791a90b2c57eefb9d006b29f29"
+          }
+        ],
+        "coloredViews": [
+          {
+            "viewName": "RCTView",
+            "backgroundColor": -11322112,
+            "borderColor": -13819648,
+            "borderWidth": 0.5,
+            "borderRadius": 8,
+            "opacity": 1,
+            "layout": {
+              "x": 146,
+              "y": 4,
+              "width": 12,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 276,
+              "y": 513,
+              "width": 12,
+              "height": 12
+            }
+          },
+          {
+            "viewName": "RCTView",
+            "backgroundColor": -16429498,
+            "borderColor": null,
+            "borderWidth": 0,
+            "borderRadius": 8,
+            "opacity": 1,
+            "layout": {
+              "x": 146,
+              "y": 4,
+              "width": 12,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 76,
+              "y": 457,
+              "width": 12,
+              "height": 12
+            }
+          },
+          {
+            "viewName": "RCTView",
+            "backgroundColor": -6829569,
+            "borderColor": null,
+            "borderWidth": 0,
+            "borderRadius": 14,
+            "opacity": 1,
+            "layout": {
+              "x": 8,
+              "y": 3,
+              "width": 28,
+              "height": 28,
+              "transform": null
+            },
+            "measurement": {
+              "x": 207,
+              "y": 440,
+              "width": 28,
+              "height": 28
+            }
+          },
+          {
+            "viewName": "RCTView",
+            "backgroundColor": -8511959,
+            "borderColor": -10810347,
+            "borderWidth": 0.5,
+            "borderRadius": 8,
+            "opacity": 1,
+            "layout": {
+              "x": 146,
+              "y": 4,
+              "width": 12,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 276,
+              "y": 403,
+              "width": 12,
+              "height": 12
+            }
+          },
+          {
+            "viewName": "RCTView",
+            "backgroundColor": 872364848,
+            "borderColor": -50384,
+            "borderWidth": 2,
+            "borderRadius": null,
+            "opacity": 1,
+            "layout": {
+              "x": 144,
+              "y": 144,
+              "width": 80,
+              "height": 4,
+              "transform": null
+            },
+            "measurement": {
+              "x": 120,
+              "y": 493,
+              "width": 80,
+              "height": 4
+            }
+          },
+          {
+            "viewName": "RCTView",
+            "backgroundColor": null,
+            "borderColor": 0,
+            "borderWidth": 2,
+            "borderRadius": null,
+            "opacity": 1,
+            "layout": {
+              "x": 120,
+              "y": 120,
+              "width": 128,
+              "height": 8,
+              "transform": null
+            },
+            "measurement": {
+              "x": 96,
+              "y": 469,
+              "width": 128,
+              "height": 8
+            }
+          },
+          {
+            "viewName": "RNSVGSvgViewAndroid",
+            "backgroundColor": 0,
+            "borderColor": null,
+            "borderWidth": 0,
+            "borderRadius": null,
+            "opacity": 1,
+            "layout": {
+              "x": 0,
+              "y": 0,
+              "width": 180,
+              "height": 130,
+              "transform": null
+            },
+            "measurement": {
+              "x": 0,
+              "y": 233,
+              "width": 360,
+              "height": 260
+            }
+          },
+          {
+            "viewName": "RNSVGSvgViewAndroid",
+            "backgroundColor": 0,
+            "borderColor": null,
+            "borderWidth": 0,
+            "borderRadius": null,
+            "opacity": 1,
+            "layout": {
+              "x": 0,
+              "y": 0,
+              "width": 900,
+              "height": 650,
+              "transform": null
+            },
+            "measurement": {
+              "x": 0,
+              "y": 233,
+              "width": 360,
+              "height": 260
+            }
+          }
+        ],
+        "roomLabelLayouts": [
+          {
+            "text": "Raum1",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 92,
+              "y": 457,
+              "width": 32,
+              "height": 12
+            }
+          },
+          {
+            "text": "Raum1",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 92,
+              "y": 457,
+              "width": 32,
+              "height": 12
+            }
+          },
+          {
+            "text": "Raum1",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 92,
+              "y": 457,
+              "width": 32,
+              "height": 12
+            }
+          },
+          {
+            "text": "Raum2",
+            "layout": {
+              "x": 5,
+              "y": 39,
+              "width": 38,
+              "height": 14,
+              "transform": null
+            },
+            "measurement": {
+              "x": 204,
+              "y": 476,
+              "width": 38,
+              "height": 14
+            }
+          },
+          {
+            "text": "Raum2",
+            "layout": {
+              "x": 5,
+              "y": 39,
+              "width": 38,
+              "height": 14,
+              "transform": null
+            },
+            "measurement": {
+              "x": 204,
+              "y": 476,
+              "width": 38,
+              "height": 14
+            }
+          },
+          {
+            "text": "Raum2",
+            "layout": {
+              "x": 5,
+              "y": 39,
+              "width": 38,
+              "height": 14,
+              "transform": null
+            },
+            "measurement": {
+              "x": 204,
+              "y": 476,
+              "width": 38,
+              "height": 14
+            }
+          },
+          {
+            "text": "Raum3",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 292,
+              "y": 513,
+              "width": 32,
+              "height": 12
+            }
+          },
+          {
+            "text": "Raum3",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 292,
+              "y": 513,
+              "width": 32,
+              "height": 12
+            }
+          },
+          {
+            "text": "Raum3",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 292,
+              "y": 513,
+              "width": 32,
+              "height": 12
+            }
+          },
+          {
+            "text": "Raum4",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 292,
+              "y": 403,
+              "width": 32,
+              "height": 12
+            }
+          },
+          {
+            "text": "Raum4",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 292,
+              "y": 403,
+              "width": 32,
+              "height": 12
+            }
+          },
+          {
+            "text": "Raum4",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 292,
+              "y": 403,
+              "width": 32,
+              "height": 12
+            }
+          }
+        ],
+        "render": {
+          "width": 360,
+          "height": 800,
+          "contentBounds": {
+            "x": 6,
+            "y": 335,
+            "width": 354,
+            "height": 192
+          },
+          "renderedNativeViews": 59,
+          "svgViews": 2,
+          "svgGroups": 2,
+          "svgPaths": 9,
+          "embeddedImages": 7,
+          "textNodes": 12
+        }
+      }
+    },
+    "mode-cycle": {
+      "selection": {
+        "roomCount": 4,
+        "selectedRoomCount": 1,
+        "selectedRoomIds": [
+          10
+        ],
+        "ownedByAppPlugin": true
+      },
+      "map": {
+        "paths": [
+          {
+            "fill": 16777215,
+            "stroke": null,
+            "strokeWidth": null,
+            "dataLength": 37,
+            "dataSha256": "e55fc5577d54c237ab75373093ca6e2d36dcc08d2d32ad9c3170783cc3c190b1"
+          },
+          {
+            "fill": -9735820,
+            "stroke": null,
+            "strokeWidth": null,
+            "dataLength": 2593,
+            "dataSha256": "300e3cae0b110125a842b0c6c3b623ecf774f4df97996ef580d5c6cd354c1281"
+          },
+          {
+            "fill": -14686501,
+            "stroke": null,
+            "strokeWidth": null,
+            "dataLength": 83,
+            "dataSha256": "349ea040250831fd4d4414f42c82cc8ea0a1b3bf8b6900484b5676bc531cf7a1"
+          },
+          {
+            "fill": 1237113596,
+            "stroke": null,
+            "strokeWidth": null,
+            "dataLength": 86,
+            "dataSha256": "58b999188f5f3320937bf32d0177a6a2e66af605f65428610fe944852eba20d7"
+          },
+          {
+            "fill": 1241171638,
+            "stroke": null,
+            "strokeWidth": null,
+            "dataLength": 43,
+            "dataSha256": "f386823b4c74404ecbef0d658b55651e4e6d819b5b99fd0b4edcd0c089f96aed"
+          },
+          {
+            "fill": -3876871,
+            "stroke": null,
+            "strokeWidth": null,
+            "dataLength": 33,
+            "dataSha256": "bfe7e80e6a0952451da563d3b7306cdcd2cfcae789ead903c00894318e8159c7"
+          },
+          {
+            "fill": 1241179550,
+            "stroke": null,
+            "strokeWidth": null,
+            "dataLength": 40,
+            "dataSha256": "e2521ff0c36eb495bd75545828fe476c16a3d7d4e00842b413a0a2bea8cdcc07"
+          }
+        ],
+        "coloredViews": [
+          {
+            "viewName": "RCTView",
+            "backgroundColor": -11322112,
+            "borderColor": -13819648,
+            "borderWidth": 0.5,
+            "borderRadius": 8,
+            "opacity": 1,
+            "layout": {
+              "x": 146,
+              "y": 4,
+              "width": 12,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 276,
+              "y": 513,
+              "width": 12,
+              "height": 12
+            }
+          },
+          {
+            "viewName": "RCTView",
+            "backgroundColor": -15844243,
+            "borderColor": -16438960,
+            "borderWidth": 0.5,
+            "borderRadius": 8,
+            "opacity": 1,
+            "layout": {
+              "x": 146,
+              "y": 4,
+              "width": 12,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 196,
+              "y": 457,
+              "width": 12,
+              "height": 12
+            }
+          },
+          {
+            "viewName": "RCTView",
+            "backgroundColor": -16429498,
+            "borderColor": null,
+            "borderWidth": 0,
+            "borderRadius": 8,
+            "opacity": 1,
+            "layout": {
+              "x": 146,
+              "y": 4,
+              "width": 12,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 76,
+              "y": 457,
+              "width": 12,
+              "height": 12
+            }
+          },
+          {
+            "viewName": "RCTView",
+            "backgroundColor": -8511959,
+            "borderColor": -10810347,
+            "borderWidth": 0.5,
+            "borderRadius": 8,
+            "opacity": 1,
+            "layout": {
+              "x": 146,
+              "y": 4,
+              "width": 12,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 276,
+              "y": 403,
+              "width": 12,
+              "height": 12
+            }
+          },
+          {
+            "viewName": "RCTView",
+            "backgroundColor": 872364848,
+            "borderColor": -50384,
+            "borderWidth": 2,
+            "borderRadius": null,
+            "opacity": 1,
+            "layout": {
+              "x": 144,
+              "y": 144,
+              "width": 80,
+              "height": 4,
+              "transform": null
+            },
+            "measurement": {
+              "x": 120,
+              "y": 493,
+              "width": 80,
+              "height": 4
+            }
+          },
+          {
+            "viewName": "RCTView",
+            "backgroundColor": null,
+            "borderColor": 0,
+            "borderWidth": 2,
+            "borderRadius": null,
+            "opacity": 1,
+            "layout": {
+              "x": 120,
+              "y": 120,
+              "width": 128,
+              "height": 8,
+              "transform": null
+            },
+            "measurement": {
+              "x": 96,
+              "y": 469,
+              "width": 128,
+              "height": 8
+            }
+          },
+          {
+            "viewName": "RNSVGSvgViewAndroid",
+            "backgroundColor": 0,
+            "borderColor": null,
+            "borderWidth": 0,
+            "borderRadius": null,
+            "opacity": 1,
+            "layout": {
+              "x": 0,
+              "y": 0,
+              "width": 900,
+              "height": 650,
+              "transform": null
+            },
+            "measurement": {
+              "x": 0,
+              "y": 233,
+              "width": 360,
+              "height": 260
+            }
+          }
+        ],
+        "roomLabelLayouts": [
+          {
+            "text": "Raum1",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 92,
+              "y": 457,
+              "width": 32,
+              "height": 12
+            }
+          },
+          {
+            "text": "Raum1",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 92,
+              "y": 457,
+              "width": 32,
+              "height": 12
+            }
+          },
+          {
+            "text": "Raum1",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 92,
+              "y": 457,
+              "width": 32,
+              "height": 12
+            }
+          },
+          {
+            "text": "Raum2",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 212,
+              "y": 457,
+              "width": 32,
+              "height": 12
+            }
+          },
+          {
+            "text": "Raum2",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 212,
+              "y": 457,
+              "width": 32,
+              "height": 12
+            }
+          },
+          {
+            "text": "Raum2",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 212,
+              "y": 457,
+              "width": 32,
+              "height": 12
+            }
+          },
+          {
+            "text": "Raum3",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 292,
+              "y": 513,
+              "width": 32,
+              "height": 12
+            }
+          },
+          {
+            "text": "Raum3",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 292,
+              "y": 513,
+              "width": 32,
+              "height": 12
+            }
+          },
+          {
+            "text": "Raum3",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 292,
+              "y": 513,
+              "width": 32,
+              "height": 12
+            }
+          },
+          {
+            "text": "Raum4",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 292,
+              "y": 403,
+              "width": 32,
+              "height": 12
+            }
+          },
+          {
+            "text": "Raum4",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 292,
+              "y": 403,
+              "width": 32,
+              "height": 12
+            }
+          },
+          {
+            "text": "Raum4",
+            "layout": {
+              "x": 162,
+              "y": 4,
+              "width": 32,
+              "height": 12,
+              "transform": null
+            },
+            "measurement": {
+              "x": 292,
+              "y": 403,
+              "width": 32,
+              "height": 12
+            }
+          }
+        ],
+        "render": {
+          "width": 360,
+          "height": 800,
+          "contentBounds": {
+            "x": 6,
+            "y": 335,
+            "width": 354,
+            "height": 192
+          },
+          "renderedNativeViews": 54,
+          "svgViews": 1,
+          "svgGroups": 1,
+          "svgPaths": 7,
+          "embeddedImages": 6,
+          "textNodes": 12
+        }
+      }
     }
   }
 }

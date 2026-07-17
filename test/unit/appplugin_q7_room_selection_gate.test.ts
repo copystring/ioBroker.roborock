@@ -15,6 +15,8 @@ const profiles = [
 			one: "3f90a6903ecfa13c1007c740d78389e364a141c9becb66d0da815f6ab621d9e6",
 			deselected: "af81d2fe8d2302c0074eb403df70dcd8f8d64a86785d07e88a42f59c7e22e9cd",
 			multiple: "dd11cc9e41c4cca38aa9ce98f0749507b02ee306c9806f069f1a2cf35fc3ad18",
+			boundary: "99c05331bf40612505cdbd93dd6c2298c2fde67fe98523763243cbd69eca1b02",
+			"mode-cycle": "e4ee0a02e0624ec2ed88e8a6c811dd0d896d48dac9ec9323173e90e1d97bb08e",
 		},
 	},
 	{
@@ -25,6 +27,8 @@ const profiles = [
 			one: "61237e880834547e744eaefc2a4ce66ccc478d0b48574e61986fbc40398e1fc3",
 			deselected: "8d2bfc29435ca18f5651516c6d845d42e8c90e998fdadb7270699654ea241f19",
 			multiple: "306fe1a58e8fad0e8ff28a3f12711b01f9d53c75e59345431647c879e7008e35",
+			boundary: "51e22966103c3b40962c57874f095ddbc1b3582cccfffa16390479e0c3a51d7a",
+			"mode-cycle": "4c64602616446a912ecd8dc69ec793e3d2657fa39278b3dd5fb839aab6e29074",
 		},
 	},
 ] as const;
@@ -37,7 +41,7 @@ function readGolden(profile: string): JsonRecord {
 }
 
 describe("Q7 L5/M5 AppPlugin room-selection gate", () => {
-	it("locks the AppPlugin-owned IDs for none, selection, deselection and multiple selection", () => {
+	it("locks AppPlugin-owned IDs, boundary hit-testing and selection across a mode cycle", () => {
 		for (const profile of profiles) {
 			const golden = readGolden(profile.name);
 			const states = golden.states as JsonRecord;
@@ -67,12 +71,28 @@ describe("Q7 L5/M5 AppPlugin room-selection gate", () => {
 				selectedRoomIds: [10, 11],
 				ownedByAppPlugin: true,
 			});
+			expect((states.boundary as JsonRecord).selection).toEqual({
+				roomCount: 4,
+				selectedRoomCount: 1,
+				selectedRoomIds: [11],
+				ownedByAppPlugin: true,
+			});
+			expect((states["mode-cycle"] as JsonRecord).selection).toEqual({
+				roomCount: 4,
+				selectedRoomCount: 1,
+				selectedRoomIds: [10],
+				ownedByAppPlugin: true,
+			});
 			expect(((states.none as JsonRecord).map as JsonRecord).paths)
 				.toStrictEqual(((states.deselected as JsonRecord).map as JsonRecord).paths);
 			expect(((states.none as JsonRecord).map as JsonRecord).paths)
 				.not.toStrictEqual(((states.one as JsonRecord).map as JsonRecord).paths);
 			expect(((states.one as JsonRecord).map as JsonRecord).paths)
 				.not.toStrictEqual(((states.multiple as JsonRecord).map as JsonRecord).paths);
+			expect(((states.one as JsonRecord).map as JsonRecord).paths)
+				.not.toStrictEqual(((states.boundary as JsonRecord).map as JsonRecord).paths);
+			expect(((states.none as JsonRecord).map as JsonRecord).paths)
+				.not.toStrictEqual(((states["mode-cycle"] as JsonRecord).map as JsonRecord).paths);
 		}
 	});
 
@@ -87,8 +107,13 @@ describe("Q7 L5/M5 AppPlugin room-selection gate", () => {
 			expect(profile.pngSha256.none).toBe(profile.pngSha256.deselected);
 			expect(profile.pngSha256.one).not.toBe(profile.pngSha256.none);
 			expect(profile.pngSha256.multiple).not.toBe(profile.pngSha256.one);
+			expect(profile.pngSha256.boundary).not.toBe(profile.pngSha256.one);
+			expect(profile.pngSha256["mode-cycle"]).not.toBe(profile.pngSha256.none);
+			expect(profile.pngSha256["mode-cycle"]).not.toBe(profile.pngSha256.one);
 		}
 		expect(profiles[0].pngSha256.one).not.toBe(profiles[1].pngSha256.one);
 		expect(profiles[0].pngSha256.multiple).not.toBe(profiles[1].pngSha256.multiple);
+		expect(profiles[0].pngSha256.boundary).not.toBe(profiles[1].pngSha256.boundary);
+		expect(profiles[0].pngSha256["mode-cycle"]).not.toBe(profiles[1].pngSha256["mode-cycle"]);
 	});
 });

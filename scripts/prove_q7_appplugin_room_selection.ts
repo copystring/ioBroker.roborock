@@ -23,7 +23,7 @@ import {
 	Q7_FULL_SCENE_SERIAL,
 } from "./lib/q7FullSceneFixture";
 
-type SelectionScenarioName = "none" | "one" | "deselected" | "multiple";
+type SelectionScenarioName = "none" | "one" | "deselected" | "multiple" | "boundary" | "mode-cycle";
 
 interface SelectionScenario {
 	name: SelectionScenarioName;
@@ -61,6 +61,8 @@ const SCENARIOS: readonly SelectionScenario[] = [
 	{ name: "one", interactionFileName: "q7-room-selection-one.json", expectedRoomIds: [10] },
 	{ name: "deselected", interactionFileName: "q7-room-selection-deselected.json", expectedRoomIds: [] },
 	{ name: "multiple", interactionFileName: "q7-room-selection-multiple.json", expectedRoomIds: [10, 11] },
+	{ name: "boundary", interactionFileName: "q7-room-selection-boundary.json", expectedRoomIds: [11] },
+	{ name: "mode-cycle", interactionFileName: "q7-room-selection-mode-cycle.json", expectedRoomIds: [10] },
 ];
 
 function parseArgs(args: string[]): ProofOptions {
@@ -410,6 +412,8 @@ async function main(): Promise<void> {
 		const oneMap = jsonRecord(byName.one.semanticEvidence.map, "one.map");
 		const deselectedMap = jsonRecord(byName.deselected.semanticEvidence.map, "deselected.map");
 		const multipleMap = jsonRecord(byName.multiple.semanticEvidence.map, "multiple.map");
+		const boundaryMap = jsonRecord(byName.boundary.semanticEvidence.map, "boundary.map");
+		const modeCycleMap = jsonRecord(byName["mode-cycle"].semanticEvidence.map, "mode-cycle.map");
 		assertGeometrySubset(
 			noneMap,
 			oneMap,
@@ -421,9 +425,34 @@ async function main(): Promise<void> {
 			multipleMap,
 			"Mehrfachauswahl muss die vollständige AppPlugin-Basisgeometrie erhalten",
 		);
+		assertGeometrySubset(
+			noneMap,
+			boundaryMap,
+			"Grenzpunktauswahl muss die vollständige AppPlugin-Basisgeometrie erhalten",
+		);
+		assertGeometrySubset(
+			noneMap,
+			modeCycleMap,
+			"Der Moduszyklus muss die vollständige AppPlugin-Basisgeometrie erhalten",
+		);
+		assertGeometrySubset(
+			modeCycleMap,
+			oneMap,
+			"Der Moduszyklus darf keine Hostgeometrie außerhalb der AppPlugin-Einzelauswahl erfinden",
+		);
 		assert.notDeepStrictEqual(noneMap.paths, oneMap.paths, "Einzelauswahl muss AppPlugin-Pfadfarben ändern");
 		assert.deepStrictEqual(noneMap.paths, deselectedMap.paths, "Abwahl muss AppPlugin-Pfadfarben zurücksetzen");
 		assert.notDeepStrictEqual(oneMap.paths, multipleMap.paths, "Mehrfachauswahl muss weitere AppPlugin-Pfadfarben ändern");
+		assert.notDeepStrictEqual(
+			oneMap.paths,
+			boundaryMap.paths,
+			"Der AppPlugin-Grenzpunkt muss den benachbarten Raum sichtbar auswählen",
+		);
+		assert.notDeepStrictEqual(
+			noneMap.paths,
+			modeCycleMap.paths,
+			"Der AppPlugin-Moduszyklus muss die erhaltene Auswahl weiterhin sichtbar darstellen",
+		);
 		if (options.updateGolden) {
 			fs.mkdirSync(path.dirname(options.semanticGoldenPath), { recursive: true });
 			fs.writeFileSync(options.semanticGoldenPath, `${JSON.stringify(semanticGolden, null, 2)}\n`, "utf8");
@@ -451,6 +480,18 @@ async function main(): Promise<void> {
 		const deselectionComparison = await compareQ7FullScenePng(byName.none.pngPath, byName.deselected.pngPath);
 		const oneSelectionComparison = await compareQ7FullScenePng(byName.none.pngPath, byName.one.pngPath);
 		const multipleSelectionComparison = await compareQ7FullScenePng(byName.one.pngPath, byName.multiple.pngPath);
+		const boundarySelectionComparison = await compareQ7FullScenePng(
+			byName.one.pngPath,
+			byName.boundary.pngPath,
+		);
+		const modeCycleComparison = await compareQ7FullScenePng(
+			byName.one.pngPath,
+			byName["mode-cycle"].pngPath,
+		);
+		const modeCycleBaseComparison = await compareQ7FullScenePng(
+			byName.none.pngPath,
+			byName["mode-cycle"].pngPath,
+		);
 		assert.equal(
 			deselectionComparison.significantPixelCount,
 			0,
@@ -463,6 +504,18 @@ async function main(): Promise<void> {
 		assert.ok(
 			multipleSelectionComparison.significantPixelCount > 0,
 			"Mehrfachauswahl muss das AppPlugin-Kartenbild zusätzlich verändern",
+		);
+		assert.ok(
+			boundarySelectionComparison.significantPixelCount > 0,
+			"Der Grenzpunkt muss den AppPlugin-eigenen Nachbarraum sichtbar auswählen",
+		);
+		assert.ok(
+			modeCycleComparison.significantPixelCount > 0,
+			"Der Moduszyklus muss sein AppPlugin-eigenes Remount-Overlay reproduzierbar abbilden",
+		);
+		assert.ok(
+			modeCycleBaseComparison.significantPixelCount > 0,
+			"Der Moduszyklus darf die sichtbar erhaltene AppPlugin-Auswahl nicht verlieren",
 		);
 		const proof = {
 			version: 1,
@@ -493,6 +546,9 @@ async function main(): Promise<void> {
 				deselectionComparison,
 				oneSelectionComparison,
 				multipleSelectionComparison,
+				boundarySelectionComparison,
+				modeCycleComparison,
+				modeCycleBaseComparison,
 			},
 			semanticGoldenSha256: sha256File(options.semanticGoldenPath),
 			reportedExceptionCount: 0,
