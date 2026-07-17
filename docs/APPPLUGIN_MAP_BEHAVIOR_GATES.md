@@ -202,4 +202,4 @@ Der bestandene Q10-Rasterpfad ist in `docs/APPPLUGIN_Q10_MAP_EVENT_POC.md` besch
 
 
 
-Das isolierte Weblabor und seine klare Trennung zwischen Original-Fixture, Objektkatalog und offenen nativen Verträgen sind in `docs/APPPLUGIN_MAP_LAB_POC.md` beschrieben.
+Der einzige kanonische AppPlugin-Webeinstieg, seine Runtime-Auswahl und die AppPlugin-first-Eigentumsgrenze sind in `docs/APPPLUGIN_DESKTOP_POC.md` beschrieben.

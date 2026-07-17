@@ -97,8 +97,8 @@
   "scripts": {
     "clean": "shx rm -rf www/*.d.ts www/*.tsbuildinfo",
     "build": "npm run clean && npm run build:www && npm run lint && npm run typecheck && npm run docs",
-    "build:www": "esbuild src/www/map.ts --bundle --minify --sourcemap --outfile=www/app.js --format=esm && esbuild src/www/appplugin-lab.ts --bundle --minify --sourcemap --outfile=www/appplugin-lab.js --format=esm",
-    "precommit": "npm run build:www && git add www/app.js www/app.js.map && node scripts/updateCommitInfo.js --force-current-date && git add src/lib/commitInfo.ts",
+    "build:www": "esbuild src/www/map.ts --bundle --minify --sourcemap --outfile=www/app.js --format=esm && npm run poc:appplugin-desktop",
+    "precommit": "npm run build:www && git add www/app.js www/app.js.map www/appplugin-desktop.html www/appplugin-desktop.js www/appplugin-desktop.js.map && node scripts/updateCommitInfo.js --force-current-date && git add src/lib/commitInfo.ts",
     "watch": "npm run clean && npm run watch:www",
     "watch:www": "esbuild src/www/map.ts --bundle --sourcemap --outfile=www/app.js --format=esm --watch",
     "test:unit": "vitest run",
@@ -162,7 +162,7 @@
     "build:git": "npm run clean && npm run copy:protocols && tsc -b tsconfig.json && npm run build:www",
     "release": "release-script",
     "poc:appplugin-render-scene": "esbuild scripts/render_q10_original_scene.ts --bundle --platform=node --format=cjs --packages=external --outfile=artifacts/appplugin-poc/render_q10_original_scene.cjs && node artifacts/appplugin-poc/render_q10_original_scene.cjs && shx rm -f artifacts/appplugin-poc/render_q10_original_scene.cjs",
-    "poc:appplugin-lab:fixture": "npm run poc:appplugin-render-scene && esbuild scripts/generate_appplugin_lab_fixture.ts --bundle --platform=node --format=cjs --packages=external --outfile=artifacts/appplugin-poc/generate_appplugin_lab_fixture.cjs && node artifacts/appplugin-poc/generate_appplugin_lab_fixture.cjs && shx rm -f artifacts/appplugin-poc/generate_appplugin_lab_fixture.cjs"
+    "poc:appplugin-map-fixture": "npm run poc:appplugin-render-scene && esbuild scripts/generate_appplugin_lab_fixture.ts --bundle --platform=node --format=cjs --packages=external --outfile=artifacts/appplugin-poc/generate_appplugin_lab_fixture.cjs && node artifacts/appplugin-poc/generate_appplugin_lab_fixture.cjs && shx rm -f artifacts/appplugin-poc/generate_appplugin_lab_fixture.cjs"
   },
   "bugs": {
     "url": "https://github.com/copystring/ioBroker.roborock/issues"

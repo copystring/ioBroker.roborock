@@ -9,7 +9,8 @@ import {
 
 const repositoryRoot = path.resolve(__dirname, "..", "..");
 const scenePath = path.join(repositoryRoot, "src", "www", "apppluginLab", "q10-original-scene.json");
-const pagePath = path.join(repositoryRoot, "www", "appplugin-lab.html");
+const canonicalPagePath = path.join(repositoryRoot, "www", "appplugin-desktop.html");
+const legacyPagePath = path.join(repositoryRoot, "www", "appplugin-lab.html");
 const packagePath = path.join(repositoryRoot, "package.json");
 
 type LabSceneFixture = {
@@ -34,7 +35,7 @@ type LabSceneFixture = {
 	dock: unknown;
 };
 
-describe("AppPlugin map laboratory contract", () => {
+describe("AppPlugin map evidence contract", () => {
 	it("accounts for every Q10 layer once and preserves its original layer name", () => {
 		const ids = APPPLUGIN_MAP_LAYERS.map(layer => layer.id);
 		expect(ids).toEqual([...APPPLUGIN_MAP_LAYER_IDS]);
@@ -102,27 +103,26 @@ describe("AppPlugin map laboratory contract", () => {
 		expect(scene.dock).toBeTruthy();
 	});
 
-	it("keeps the original render separate from the interaction catalog and never exposes a send action", () => {
-		const html = fs.readFileSync(pagePath, "utf8");
-		for (const id of ["labMap", "labScene", "modeBar", "layerList", "fixtureInput", "eventLog"]) {
-			expect(html).toContain(`id="${id}"`);
-		}
-		expect(html).toContain("Original-AppPlugin");
-		expect(html).toContain("Interaktionskatalog");
-		expect(html).toContain("Interaktionskatalog bleibt ausdrücklich eigener");
-		expect(html).toContain("noch nicht pixelparitätischer Code");
-		expect(html).toContain("Befehlsabsichten werden nur protokolliert");
-		expect(html).toContain("Kein MQTT, HTTP, ioBroker-State oder Roboter wird beschrieben");
-		expect(html).not.toMatch(/id="(?:send|execute|startCleaning)"/);
-		expect(html).toContain("./appplugin-lab.js");
+	it("exposes one canonical AppPlugin page and redirects the retired laboratory alias", () => {
+		const canonicalHtml = fs.readFileSync(canonicalPagePath, "utf8");
+		const legacyHtml = fs.readFileSync(legacyPagePath, "utf8");
+
+		expect(canonicalHtml).toContain('<link rel="canonical" href="./appplugin-desktop.html"');
+		expect(canonicalHtml).toContain('id="runtimeProfile"');
+		expect(legacyHtml).toContain('new URL("./appplugin-desktop.html", window.location.href)');
+		expect(legacyHtml).toContain("target.search = window.location.search");
+		expect(legacyHtml).toContain("target.hash = window.location.hash");
+		expect(legacyHtml).toContain("window.location.replace(target)");
+		expect(legacyHtml).not.toContain("appplugin-lab.js");
 	});
 
-	it("builds both the existing UI and the isolated laboratory", () => {
+	it("builds the existing adapter UI and the single canonical AppPlugin UI", () => {
 		const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf8")) as {
 			scripts: Record<string, string>;
 		};
 		expect(packageJson.scripts["build:www"]).toContain("src/www/map.ts");
-		expect(packageJson.scripts["build:www"]).toContain("src/www/appplugin-lab.ts");
-		expect(packageJson.scripts["poc:appplugin-lab:fixture"]).toContain("scripts/generate_appplugin_lab_fixture.ts");
+		expect(packageJson.scripts["build:www"]).toContain("npm run poc:appplugin-desktop");
+		expect(packageJson.scripts["build:www"]).not.toContain("src/www/appplugin-lab.ts");
+		expect(packageJson.scripts["poc:appplugin-map-fixture"]).toContain("scripts/generate_appplugin_lab_fixture.ts");
 	});
 });
