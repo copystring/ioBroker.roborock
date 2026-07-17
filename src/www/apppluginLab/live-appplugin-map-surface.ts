@@ -48,6 +48,8 @@ interface LiveAppPluginLocalizationState {
 interface LiveAppPluginHealth extends LiveAppPluginLocalizationState {
 	status: "appplugin-session-ready";
 	sessionId: string;
+	profileId: string;
+	availableProfiles: string[];
 	deviceModel: string;
 	profileLabel: string;
 	revision: number;
@@ -120,6 +122,8 @@ interface PublishedDpsResponse {
 
 export interface LiveAppPluginMapSnapshot extends LiveAppPluginLocalizationState {
 	sessionId: string;
+	profileId: string;
+	availableProfiles: string[];
 	deviceModel: string;
 	profileLabel: string;
 	revision: number;
@@ -220,11 +224,11 @@ export class LiveAppPluginMapSurface {
 	#publishedDpsCount = 0;
 
 	public constructor(private readonly options: LiveAppPluginMapSurfaceOptions) {
-		this.#apiBaseUrl = (options.apiBaseUrl ?? "http://127.0.0.1:4174").replace(/\/$/u, "");
+		this.#apiBaseUrl = (options.apiBaseUrl ?? "").replace(/\/$/u, "");
 	}
 
 	public async init(): Promise<void> {
-		this.#health = await this.#fetchHealth(this.options.initialView ?? "map");
+		this.#health = await this.#fetchHealth(this.options.initialView);
 		this.#publishedDpsCount = this.#health.publishedDpsCount;
 		this.options.viewport.dataset.renderMode = "unchanged-appplugin-session";
 		this.options.viewport.dataset.bundleKind = this.#health.bundleKind;
@@ -255,6 +259,8 @@ export class LiveAppPluginMapSurface {
 	public snapshot(): LiveAppPluginMapSnapshot {
 		return {
 			sessionId: this.#health.sessionId,
+			profileId: this.#health.profileId,
+			availableProfiles: [...this.#health.availableProfiles],
 			deviceModel: this.#health.deviceModel,
 			profileLabel: this.#health.profileLabel,
 			revision: this.#health.revision,
@@ -551,23 +557,27 @@ export class LiveAppPluginMapSurface {
 		if (response.publishedDpsCount > this.#publishedDpsCount) await this.#syncPublishedDps(response.publishedDpsCount);
 	}
 
-	async #fetchHealth(view: LiveAppPluginSurfaceView): Promise<LiveAppPluginHealth> {
-		const response = await fetch(`${this.#apiBaseUrl}/health?view=${view}`, { cache: "no-store" });
+	async #fetchHealth(view?: LiveAppPluginSurfaceView): Promise<LiveAppPluginHealth> {
+		const endpoint = view === undefined ? "/health" : `/health?view=${view}`;
+		const response = await fetch(`${this.#apiBaseUrl}${endpoint}`, { cache: "no-store" });
 		if (!response.ok) throw new Error(`AppPlugin-Sitzung antwortet mit HTTP ${response.status}`);
 		const health = await response.json() as LiveAppPluginHealth;
 		if (health.status !== "appplugin-session-ready" || health.productFallbackAllowed !== false) {
 			throw new Error("Die Kartenquelle ist keine unveränderte laufende AppPlugin-Sitzung");
 		}
+		const resolvedView = health.view ?? view ?? "map";
 		return {
 			...health,
+			profileId: health.profileId ?? "unknown",
+			availableProfiles: [...(health.availableProfiles ?? [])],
 			systemLocaleIdentifier: health.systemLocaleIdentifier ?? health.localeIdentifier,
 			colorScheme: health.colorScheme ?? "light",
 			colorModel: health.colorModel ?? "default",
 			systemColorScheme: health.systemColorScheme ?? health.colorScheme ?? "light",
 			cardStyle: health.cardStyle ?? 0,
 			themeSwitching: health.themeSwitching === true,
-			view: health.view ?? view,
-			availableViews: health.availableViews ?? [health.view ?? view],
+			view: resolvedView,
+			availableViews: health.availableViews ?? [resolvedView],
 			publishedDpsCount: health.publishedDpsCount ?? 0,
 			semanticActions: (health.semanticActions ?? []).map(action => ({ ...action })),
 			availableLanguages: [...health.availableLanguages],

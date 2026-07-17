@@ -1,31 +1,33 @@
 # AppPlugin-Desktop-PoC
 
-Der AppPlugin-PoC besitzt genau eine kanonische Weboberfläche:
+Der AppPlugin-PoC besitzt genau einen HTTP-Server, einen Port und eine kanonische Weboberfläche:
 
-`http://127.0.0.1:4173/appplugin-desktop.html`
+`http://127.0.0.1:4173/`
 
-Die frühere Adresse `appplugin-lab.html` ist nur noch eine Weiterleitung auf diese Seite. Query-Parameter und URL-Fragment bleiben erhalten, damit alte Lesezeichen mit `runtimePort` weiterhin funktionieren.
+Die Wurzeladresse und die frühere Adresse `appplugin-lab.html` leiten auf
+`appplugin-desktop.html` weiter. Der veraltete Query-Parameter `runtimePort`
+wird dabei entfernt.
 
-## Portrollen
+## Ein-Server-Invariante
 
-| Port | Rolle |
-| ---: | --- |
-| 4173 | statische Weboberfläche |
-| 4174 | lokale Q7-/SC01-AppPlugin-Runtime |
-| 4175 | lokale Q10-/B01-AppPlugin-Runtime |
+Port 4173 liefert sowohl die Desktop-Dateien als auch alle AppPlugin-Endpunkte
+wie `/health`, `/frame.svg`, `/pointer` und `/profile` aus. Es gibt keinen
+statischen Zusatzserver und keinen gerätespezifischen Runtime-Port.
 
-4174 und 4175 sind keine eigenen Webseiten. Das Testgerät wird oben in derselben Oberfläche ausgewählt. Die Auswahl aktualisiert lediglich `runtimePort`.
-
-Fehlt `runtimePort` in der URL, prüft die Oberfläche die konfigurierten lokalen Runtimes parallel und verbindet die erste erreichbare. Eine ausdrücklich gewählte Runtime wird niemals still durch eine andere ersetzt. Ist sie nicht erreichbar, bleiben Desktop-Navigation und Geräteauswahl bedienbar; ausschließlich sitzungsabhängige AppPlugin-Aktionen werden deaktiviert und der Verbindungsfehler wird sichtbar angezeigt.
+Die Profilauswahl sendet `POST /profile` an denselben Server. Der Launcher
+beendet daraufhin die aktuelle AppPlugin-Sitzung, lädt das gewählte Bundle und
+stellt die neue Sitzung wieder auf Port 4173 bereit. Der interne
+Hermes-AppPlugin-Host bleibt ein Kindprozess ohne eigenen HTTP-Port.
 
 ## Build und Start
 
 ```powershell
-npm run poc:appplugin-desktop
-python -m http.server 4173 --directory www
+npm run poc:appplugin-desktop:runtime -- --profile q10
 ```
 
-Danach wird ausschließlich `appplugin-desktop.html` geöffnet. Mindestens eine passende lokale AppPlugin-Runtime muss bereits laufen.
+Der Startbefehl baut zuerst die Weboberfläche und startet anschließend den
+gemeinsamen Server. Danach wird ausschließlich `http://127.0.0.1:4173/`
+geöffnet. Weitere Server sind nicht erforderlich.
 
 ## Eigentumsgrenze
 

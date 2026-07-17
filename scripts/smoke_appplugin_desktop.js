@@ -7,8 +7,8 @@ const path = require("node:path");
 
 const repositoryRoot = path.resolve(__dirname, "..");
 const edgePath = "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe";
-const targetUrl = process.argv[2] || "http://127.0.0.1:4173/appplugin-desktop.html";
-const runtimeUrl = (process.argv[3] || "http://127.0.0.1:4174").replace(/\/$/u, "");
+const targetUrl = process.argv[2] || "http://127.0.0.1:4173/";
+const runtimeUrl = new URL(targetUrl).origin;
 const debuggingPort = 20_000 + (process.pid % 30_000);
 
 function delay(milliseconds) {

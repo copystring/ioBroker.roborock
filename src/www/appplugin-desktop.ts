@@ -10,10 +10,6 @@ import {
 	type LiveAppPluginSemanticActionId,
 	type LiveAppPluginSurfaceView,
 } from "./apppluginLab/live-appplugin-map-surface";
-import {
-	chooseAppPluginRuntimePort,
-	parseAppPluginRuntimePort,
-} from "./apppluginRuntime/runtime-selection";
 type MapTool = LiveAppPluginMapTool;
 type CleanScope = "full" | "rooms" | "zones";
 type CleanMethod = "smart" | "vacuum" | "mop" | "vacuumThenMop";
@@ -42,35 +38,6 @@ function byId<T extends HTMLElement | SVGElement>(id: string): T {
 	return element as T;
 }
 
-function requestedRuntimePort(): number | null {
-	return parseAppPluginRuntimePort(new URLSearchParams(location.search).get("runtimePort"));
-}
-
-function configuredRuntimePorts(select: HTMLSelectElement): number[] {
-	return [...select.options].map(option => {
-		const port = parseAppPluginRuntimePort(option.value);
-		if (port === null) throw new Error("Leeres AppPlugin-Runtime-Profil");
-		return port;
-	});
-}
-
-async function isAppPluginRuntimeReady(port: number): Promise<boolean> {
-	try {
-		const response = await fetch(`http://127.0.0.1:${port}/health`, {
-			cache: "no-store",
-			signal: AbortSignal.timeout(750),
-		});
-		if (!response.ok) return false;
-		const health = await response.json() as {
-			status?: string;
-			productFallbackAllowed?: boolean;
-		};
-		return health.status === "appplugin-session-ready" && health.productFallbackAllowed === false;
-	} catch {
-		return false;
-	}
-}
-
 class AppPluginDesktop {
 	private activeNavigation = "map";
 	private tool: MapTool = "rooms";
@@ -94,39 +61,21 @@ class AppPluginDesktop {
 		this.bindNavigation();
 		this.activateNavigation("map", false);
 		this.bindRuntimeProfile();
+		this.runtimeProfile.disabled = true;
 		this.setSessionControlsConnected(false);
-
-		const requestedPort = requestedRuntimePort();
-		if (requestedPort !== null && ![...this.runtimeProfile.options].some(option => option.value === String(requestedPort))) {
-			const isolatedProfile = document.createElement("option");
-			isolatedProfile.value = String(requestedPort);
-			isolatedProfile.textContent = `Isolierter Test · ${requestedPort}`;
-			this.runtimeProfile.append(isolatedProfile);
-		}
-		const runtimeSelection = await chooseAppPluginRuntimePort(
-			requestedPort,
-			configuredRuntimePorts(this.runtimeProfile),
-			isAppPluginRuntimeReady,
-		);
-		const runtimePort = runtimeSelection.port;
-		this.runtimeProfile.value = String(runtimePort);
-		if (runtimeSelection.source === "first-ready") {
-			const url = new URL(location.href);
-			url.searchParams.set("runtimePort", String(runtimePort));
-			history.replaceState(null, "", url);
-		}
-		this.runtimeStatus.textContent = `Verbinde Runtime ${runtimePort} …`;
+		this.runtimeStatus.textContent = "Verbinde gemeinsame AppPlugin-Sitzung …";
 		this.runtimeStatus.dataset.state = "connecting";
 		this.mapSurface = new LiveAppPluginMapSurface({
 			viewport: this.map,
 			frame: this.mapFrame,
-			apiBaseUrl: `http://127.0.0.1:${runtimePort}`,
-			initialView: runtimePort === 4175 ? "full" : "map",
+			apiBaseUrl: location.origin,
 			onEvent: (label, data) => this.logEvent(label, data),
 			onChange: snapshot => {
 				this.mapSnapshot = snapshot;
 				this.runtimeStatus.textContent = "Lokale unveränderte AppPlugin-Sitzung";
 				this.runtimeStatus.dataset.state = "connected";
+				this.syncRuntimeProfile(snapshot);
+				this.runtimeProfile.disabled = false;
 				document.documentElement.dataset.theme = snapshot.colorScheme;
 				this.map.dataset.apppluginDirection = snapshot.isRTL ? "rtl" : "ltr";
 				this.mapFrame.dir = snapshot.isRTL ? "rtl" : "ltr";
@@ -144,7 +93,7 @@ class AppPluginDesktop {
 		try {
 			await this.mapSurface.init();
 		} catch (error) {
-			this.showRuntimeConnectionError(runtimePort, error);
+			this.showRuntimeConnectionError(error);
 			return;
 		}
 		this.setSessionControlsConnected(true);
@@ -161,10 +110,99 @@ class AppPluginDesktop {
 
 	private bindRuntimeProfile(): void {
 		this.runtimeProfile.addEventListener("change", () => {
-			const url = new URL(location.href);
-			url.searchParams.set("runtimePort", this.runtimeProfile.value);
-			location.assign(url);
+			void this.switchRuntimeProfile(this.runtimeProfile.value);
 		});
+	}
+
+	private syncRuntimeProfile(snapshot: LiveAppPluginMapSnapshot): void {
+		for (const option of this.runtimeProfile.options) {
+			option.disabled = snapshot.availableProfiles.length > 0
+				&& !snapshot.availableProfiles.includes(option.value);
+		}
+		const currentOption = [...this.runtimeProfile.options].find(option => option.value === snapshot.profileId);
+		if (!currentOption && snapshot.profileId !== "unknown") {
+			const option = document.createElement("option");
+			option.value = snapshot.profileId;
+			option.textContent = snapshot.profileLabel;
+			this.runtimeProfile.append(option);
+		}
+		if (snapshot.profileId !== "unknown") this.runtimeProfile.value = snapshot.profileId;
+	}
+
+	private async switchRuntimeProfile(profile: string): Promise<void> {
+		const previousSnapshot = this.mapSnapshot;
+		if (!previousSnapshot || profile === previousSnapshot.profileId) return;
+		this.runtimeProfile.disabled = true;
+		this.setSessionControlsConnected(false);
+		this.runtimeStatus.textContent = `Wechsle AppPlugin-Profil zu ${profile.toUpperCase()} …`;
+		this.runtimeStatus.dataset.state = "connecting";
+		try {
+			const response = await fetch(`${location.origin}/profile`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ profile }),
+			});
+			const payload = await response.json() as {
+				error?: string;
+				profile?: string;
+				sessionId?: string;
+				sessionRestarting?: boolean;
+			};
+			if (!response.ok || payload.error) {
+				throw new Error(payload.error ?? `Profilwechsel antwortet mit HTTP ${response.status}`);
+			}
+			this.logEvent("AppPlugin-Profilwechsel angefordert", payload);
+			if (!payload.sessionRestarting) {
+				this.runtimeProfile.disabled = false;
+				this.setSessionControlsConnected(true);
+				return;
+			}
+			await this.waitForRuntimeProfile(profile, previousSnapshot.sessionId);
+			location.reload();
+		} catch (error) {
+			this.runtimeProfile.value = previousSnapshot.profileId;
+			this.runtimeProfile.disabled = false;
+			this.setSessionControlsConnected(true);
+			this.runtimeStatus.textContent = "AppPlugin-Profilwechsel fehlgeschlagen";
+			this.runtimeStatus.dataset.state = "error";
+			this.logEvent("AppPlugin-Profilwechsel fehlgeschlagen", {
+				profile,
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	}
+
+	private async waitForRuntimeProfile(profile: string, previousSessionId: string): Promise<void> {
+		const deadline = performance.now() + 30_000;
+		let lastError: unknown;
+		while (performance.now() < deadline) {
+			try {
+				const response = await fetch(`${location.origin}/health`, {
+					cache: "no-store",
+					signal: AbortSignal.timeout(1_000),
+				});
+				if (response.ok) {
+					const health = await response.json() as {
+						status?: string;
+						profileId?: string;
+						sessionId?: string;
+					};
+					if (health.status === "appplugin-session-ready"
+						&& health.profileId === profile
+						&& health.sessionId !== previousSessionId) {
+						return;
+					}
+				}
+			} catch (error) {
+				lastError = error;
+			}
+			await new Promise<void>(resolve => setTimeout(resolve, 100));
+		}
+		throw new Error(
+			`Profil ${profile} wurde auf dem gemeinsamen Server nicht bereit: ${
+				lastError instanceof Error ? lastError.message : "Zeitüberschreitung"
+			}`,
+		);
 	}
 
 	private setSessionControlsConnected(connected: boolean): void {
@@ -182,16 +220,16 @@ class AppPluginDesktop {
 		this.updateControlStates();
 	}
 
-	private showRuntimeConnectionError(runtimePort: number, error: unknown): void {
+	private showRuntimeConnectionError(error: unknown): void {
 		const message = error instanceof Error ? error.message : String(error);
 		this.setSessionControlsConnected(false);
-		this.runtimeStatus.textContent = `Runtime ${runtimePort} nicht erreichbar`;
+		this.runtimeStatus.textContent = "Gemeinsame AppPlugin-Sitzung nicht erreichbar";
 		this.runtimeStatus.dataset.state = "error";
 		byId<HTMLElement>("mapInstruction").textContent =
-			`AppPlugin-Runtime ${runtimePort} ist nicht erreichbar. Wähle oben ein laufendes Testgerät.`;
+			"Der gemeinsame AppPlugin-Server ist nicht bereit. Es gibt keinen zweiten Runtime-Port als Ausweichweg.";
 		byId<HTMLElement>("selectionSummary").textContent =
 			"Die Desktop-Navigation bleibt verfügbar; AppPlugin-Aktionen sind bis zur Verbindung deaktiviert.";
-		this.logEvent("AppPlugin-Runtime nicht erreichbar", { runtimePort, message });
+		this.logEvent("Gemeinsame AppPlugin-Sitzung nicht erreichbar", { message });
 	}
 
 	private bindNavigation(): void {

@@ -21,22 +21,27 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		const source = fs.readFileSync(sourcePath, "utf8");
 		const surface = fs.readFileSync(surfacePath, "utf8");
 		const probe = fs.readFileSync(probePath, "utf8");
+		const launcher = fs.readFileSync(runtimeLauncherPath, "utf8");
 
 		expect(source).toContain("new LiveAppPluginMapSurface");
-		expect(source).toContain("chooseAppPluginRuntimePort");
-		expect(source).toContain("isAppPluginRuntimeReady");
-		expect(source).toContain('history.replaceState(null, "", url)');
-		expect(source).toContain("Isolierter Test · ${requestedPort}");
-		expect(source).toContain("apiBaseUrl: `http://127.0.0.1:${runtimePort}`");
-		expect(source).toContain('initialView: runtimePort === 4175 ? "full" : "map"');
-		expect(surface).toContain('this.#fetchHealth(this.options.initialView ?? "map")');
-		expect(source).toContain('url.searchParams.set("runtimePort", this.runtimeProfile.value)');
+		expect(source).toContain("apiBaseUrl: location.origin");
+		expect(source).toContain('fetch(`${location.origin}/profile`');
+		expect(source).toContain("waitForRuntimeProfile(profile, previousSnapshot.sessionId)");
+		expect(source).not.toContain("runtimePort");
+		expect(source).not.toContain("chooseAppPluginRuntimePort");
+		expect(surface).toContain("this.#fetchHealth(this.options.initialView)");
+		expect(surface).toContain('const endpoint = view === undefined ? "/health" : `/health?view=${view}`');
 		expect(html).toContain('id="runtimeProfile"');
 		expect(html).toContain('id="runtimeStatus"');
-		expect(html).toContain('<option value="4174">Q7 · SC01</option>');
-		expect(html).toContain('<option value="4175">Q10 · B01</option>');
+		expect(html).toContain('<option value="q7">Q7 L5 · SC01</option>');
+		expect(html).toContain('<option value="q7-m5">Q7 M5 · SC01</option>');
+		expect(html).toContain('<option value="q10">Q10 X5+ · B01</option>');
+		expect(html).not.toContain("4174");
+		expect(html).not.toContain("4175");
+		expect(launcher).toContain("const APPPLUGIN_DESKTOP_PORT = 4_173");
+		expect(launcher).not.toContain("--port");
 		expect(source).not.toContain("OriginalMapSurface");
-		expect(surface).toContain("fetch(`${this.#apiBaseUrl}/health?view=${view}`");
+		expect(surface).toContain("fetch(`${this.#apiBaseUrl}${endpoint}`");
 		expect(surface).toContain("fetch(`${this.#apiBaseUrl}/pointer?view=${this.#health.view}`");
 		expect(surface).toContain("fetch(`${this.#apiBaseUrl}/pointer-sequence?view=${this.#health.view}`");
 		expect(surface).toContain("/frame.svg?view=${this.#health.view}&revision=");
@@ -45,9 +50,20 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(probe).toContain("selectApkServedSurfaceRoot");
 		expect(probe).toContain("renderApkNativeUiSnapshotToSvg");
 		expect(probe).toContain('status: "interactive-server-ready"');
+		expect(probe).toContain('url.pathname === "/profile"');
+		expect(probe).toContain("serveAppPluginDesktopStaticRequest");
+		expect(probe).toContain('const availableServedViews = (["map", "full"]');
+		expect(probe).toContain("resolveCurrentSurface(view)");
+		expect(probe).toContain("availableViews: availableServedViews");
 		expect(probe).toContain("pointerInput.pointerDown");
 		expect(probe).toContain("pointerInput.pointerMove");
 		expect(probe).toContain("pointerInput.pointerUp");
+		const gestureDispatch = probe.slice(
+			probe.indexOf("const dispatchInteractivePointers"),
+			probe.indexOf("let requestInteractiveServerStop"),
+		);
+		expect(gestureDispatch).not.toContain("await session.waitForRuntimeBoundaryIdle()");
+		expect(gestureDispatch).toContain("await stabilizeInteractiveUi()");
 		expect(html).toContain("Unveränderte AppPlugin-Karte");
 		expect(html).toContain("Live-AppPlugin · kein Kartenfallback");
 		expect(html).toContain('id="desktopMapFrame"');
@@ -64,8 +80,8 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(navigationBinding).toBeGreaterThanOrEqual(0);
 		expect(navigationBinding).toBeLessThan(sessionInitialization);
 		expect(source).toContain("this.setSessionControlsConnected(false)");
-		expect(source).toContain("this.showRuntimeConnectionError(runtimePort, error)");
-		expect(source).toContain("Wähle oben ein laufendes Testgerät");
+		expect(source).toContain("this.showRuntimeConnectionError(error)");
+		expect(source).toContain("Es gibt keinen zweiten Runtime-Port als Ausweichweg");
 		expect(source).toContain('this.runtimeStatus.dataset.state = "error"');
 		expect(html).toContain('.status-pill[data-state="error"]');
 	});
@@ -180,7 +196,7 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(surface).toContain("/pointer?view=${this.#health.view}");
 		expect(surface).toContain("/published-dps?after=${after}");
 		expect(surface).toContain("Originaler AppPlugin-Aufruf – nicht an Gerät gesendet");
-		expect(probe).toContain('availableViews: ["map", "full"]');
+		expect(probe).toContain("availableViews: availableServedViews");
 		expect(probe).toContain('publishedDps: publishedDps.slice(after)');
 		expect(probe).toContain('fullRootTag: view === "full" ? rootTag : undefined');
 		expect(surface).not.toMatch(/service\.arrange_room|service\.split_room|app_segment_clean/iu);
@@ -331,6 +347,11 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(launcher).not.toContain("q7-l5-full-scene-synthetic.blob");
 		expect(packageJson).toContain('"poc:appplugin-desktop:runtime"');
 		expect(probe).toContain("profileLabel: options.profileLabel");
+		expect(probe).toContain("profileId: options.profileId");
+		expect(probe).toContain("availableProfiles: options.availableProfiles");
+		expect(launcher).toContain('"--static-root", staticRootPath');
+		expect(launcher).toContain('"--profile-switch-file", profileSwitchPath');
+		expect(launcher).toContain("consumeAppPluginDesktopProfileSwitch(profileSwitchPath)");
 		expect(probe).toContain("deviceName: options.deviceName");
 		expect(launcher).toContain('"--device-name", "Roborock Q7"');
 		expect(surface).toContain("profileLabel: this.#health.profileLabel");

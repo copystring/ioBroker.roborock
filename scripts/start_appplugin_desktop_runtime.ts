@@ -9,12 +9,15 @@ import {
 	readAppPluginDesktopSessionState,
 	writeAppPluginDesktopSessionState,
 } from "./lib/appPluginDesktopSessionState";
-
-type DesktopFixtureProfile = "q7" | "q7-m5" | "q10";
+import {
+	APPPLUGIN_DESKTOP_PROFILES,
+	clearAppPluginDesktopProfileSwitch,
+	consumeAppPluginDesktopProfileSwitch,
+	type AppPluginDesktopProfile,
+} from "./lib/appPluginDesktopProfiles";
 
 interface LauncherOptions {
-	profile: DesktopFixtureProfile;
-	port: number;
+	profile: AppPluginDesktopProfile;
 }
 
 interface JsonRecord {
@@ -28,27 +31,21 @@ interface Q7FixtureIdentity {
 }
 
 const Q7_MAP_ID = 1_766_745_097;
+const APPPLUGIN_DESKTOP_PORT = 4_173;
 
 function parseArgs(args: readonly string[]): LauncherOptions {
-	let profile: DesktopFixtureProfile = "q7";
-	let port = 4_174;
+	let profile: AppPluginDesktopProfile = "q7";
 	for (let index = 0; index < args.length; index += 1) {
 		const option = args[index];
 		const value = args[index + 1];
 		if (option === "--profile" && (value === "q7" || value === "q7-m5" || value === "q10")) {
 			profile = value;
 			index += 1;
-		} else if (option === "--port" && value) {
-			port = Number(value);
-			index += 1;
 		} else {
 			throw new Error(`Unbekannte oder unvollständige Option: ${option}`);
 		}
 	}
-	if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
-		throw new Error("--port benötigt eine gültige TCP-Portnummer");
-	}
-	return { profile, port };
+	return { profile };
 }
 
 function requireFile(filePath: string, description: string): string {
@@ -145,28 +142,15 @@ function createQ10ReplayManifest(repositoryRoot: string): string {
 	return outputPath;
 }
 
-async function main(): Promise<void> {
-	const options = parseArgs(process.argv.slice(2));
-	const repositoryRoot = path.resolve(__dirname, "..", "..");
-	const runtimeProbePath = path.join(repositoryRoot, "artifacts", "appplugin-poc", "appplugin_hermes_runtime_probe-live.cjs");
-	await build({
-		entryPoints: [path.join(repositoryRoot, "scripts", "appplugin_hermes_runtime_probe.ts")],
-		bundle: true,
-		platform: "node",
-		format: "cjs",
-		packages: "external",
-		outfile: runtimeProbePath,
-	});
-
-	const hostPath = requireFile(
-		path.join(repositoryRoot, "tools", "hermes-appplugin-host", ".build-mingw-cmake3", "roborock-hermes-appplugin-host.exe"),
-		"Hermes-AppPlugin-Host",
-	);
-	const isQ7Profile = options.profile === "q7" || options.profile === "q7-m5";
-	const q7Identity = isQ7Profile ? loadQ7FixtureIdentity(repositoryRoot) : undefined;
-	const profileArguments = isQ7Profile
-		? [
-			"--bundle", options.profile === "q7-m5"
+function createProfileArguments(
+	repositoryRoot: string,
+	profile: AppPluginDesktopProfile,
+): string[] {
+	const isQ7Profile = profile === "q7" || profile === "q7-m5";
+	if (isQ7Profile) {
+		const identity = loadQ7FixtureIdentity(repositoryRoot);
+		return [
+			"--bundle", profile === "q7-m5"
 				? requireFile(
 					path.join(
 						repositoryRoot,
@@ -189,36 +173,82 @@ async function main(): Promise<void> {
 				),
 			"--device-model", "roborock.vacuum.sc01",
 			"--device-name", "Roborock Q7",
-			"--device-sn", q7Identity!.deviceSn,
-			"--firmware-version", q7Identity!.firmwareVersion,
-			"--duid", q7Identity!.duid,
-			"--replay-manifest", createQ7ReplayManifest(repositoryRoot, options.profile as "q7" | "q7-m5"),
-			"--profile-label", options.profile === "q7-m5"
+			"--device-sn", identity.deviceSn,
+			"--firmware-version", identity.firmwareVersion,
+			"--duid", identity.duid,
+			"--replay-manifest", createQ7ReplayManifest(repositoryRoot, profile),
+			"--profile-label", profile === "q7-m5"
 				? "Q7 M5 / SC01 · echte lokale Kartenaufnahme"
 				: "Q7 L5 / SC01 · echte lokale Kartenaufnahme",
-		]
-		: [
-			"--bundle", requireFile(path.join(repositoryRoot, ".AppPlugins", "Q10 X5+", "019bdf41f583723bb937ccc99bbd7541", "index.android.bundle"), "Q10-X5+-AppPlugin"),
-			"--device-model", Q10_FIXTURE_DEFAULTS.model,
-			"--device-name", "Roborock Q10",
-			"--device-sn", Q10_FIXTURE_DEFAULTS.sn,
-			"--firmware-version", "02.24.90",
-			"--duid", "q10-local-map-device",
-			"--replay-manifest", createQ10ReplayManifest(repositoryRoot),
-			"--b01-local-key", Q10_FIXTURE_DEFAULTS.localKey,
-			"--profile-label", "Q10 X5+ / B01 · echte lokale Kartenaufnahme",
-			"--serve-full-root",
 		];
-	const bootstrapPath = path.join(repositoryRoot, "artifacts", "appplugin-poc", "runtime-probes", `desktop-${options.profile}-ipc-bridge.js`);
-	const sessionStatePath = path.join(
+	}
+	return [
+		"--bundle", requireFile(
+			path.join(
+				repositoryRoot,
+				".AppPlugins",
+				"Q10 X5+",
+				"019bdf41f583723bb937ccc99bbd7541",
+				"index.android.bundle",
+			),
+			"Q10-X5+-AppPlugin",
+		),
+		"--device-model", Q10_FIXTURE_DEFAULTS.model,
+		"--device-name", "Roborock Q10",
+		"--device-sn", Q10_FIXTURE_DEFAULTS.sn,
+		"--firmware-version", "02.24.90",
+		"--duid", "q10-local-map-device",
+		"--replay-manifest", createQ10ReplayManifest(repositoryRoot),
+		"--b01-local-key", Q10_FIXTURE_DEFAULTS.localKey,
+		"--profile-label", "Q10 X5+ / B01 · echte lokale Kartenaufnahme",
+		"--serve-full-root",
+	];
+}
+
+async function main(): Promise<void> {
+	let options = parseArgs(process.argv.slice(2));
+	const repositoryRoot = path.resolve(__dirname, "..", "..");
+	const runtimeProbePath = path.join(repositoryRoot, "artifacts", "appplugin-poc", "appplugin_hermes_runtime_probe-live.cjs");
+	await build({
+		entryPoints: [path.join(repositoryRoot, "scripts", "appplugin_hermes_runtime_probe.ts")],
+		bundle: true,
+		platform: "node",
+		format: "cjs",
+		packages: "external",
+		outfile: runtimeProbePath,
+	});
+
+	const hostPath = requireFile(
+		path.join(repositoryRoot, "tools", "hermes-appplugin-host", ".build-mingw-cmake3", "roborock-hermes-appplugin-host.exe"),
+		"Hermes-AppPlugin-Host",
+	);
+	const staticRootPath = path.join(repositoryRoot, "www");
+	const profileSwitchPath = path.join(
 		repositoryRoot,
 		"artifacts",
 		"appplugin-poc",
 		"runtime-probes",
-		`desktop-${options.profile}-session-state.json`,
+		"desktop-profile-switch.json",
 	);
+	clearAppPluginDesktopProfileSwitch(profileSwitchPath);
 	const toolchainBin = resolveToolchainBin(repositoryRoot);
 	for (;;) {
+		const profile = options.profile;
+		const bootstrapPath = path.join(
+			repositoryRoot,
+			"artifacts",
+			"appplugin-poc",
+			"runtime-probes",
+			`desktop-${profile}-ipc-bridge.js`,
+		);
+		const sessionStatePath = path.join(
+			repositoryRoot,
+			"artifacts",
+			"appplugin-poc",
+			"runtime-probes",
+			`desktop-${profile}-session-state.json`,
+		);
+		const profileArguments = createProfileArguments(repositoryRoot, profile);
 		const state = readAppPluginDesktopSessionState(sessionStatePath);
 		writeAppPluginDesktopSessionState(sessionStatePath, { ...state, restartRequested: false });
 		const args = [runtimeProbePath,
@@ -236,12 +266,16 @@ async function main(): Promise<void> {
 			"--swap-left-right-in-rtl", String(state.doLeftAndRightSwapInRTL),
 			"--font-scale", String(state.fontScale),
 			"--run-application", "--react-state-probe",
-			"--serve-port", String(options.port),
+			"--serve-port", String(APPPLUGIN_DESKTOP_PORT),
+			"--static-root", staticRootPath,
+			"--profile-id", profile,
+			"--available-profiles", APPPLUGIN_DESKTOP_PROFILES.join(","),
+			"--profile-switch-file", profileSwitchPath,
 			"--session-state", sessionStatePath,
 			...profileArguments];
 		process.stdout.write(
-			`Starte ${options.profile.toUpperCase()} (${state.language}) mit echter lokaler Kartenaufnahme `
-			+ `auf http://127.0.0.1:${options.port}\n`,
+			`Starte ${profile.toUpperCase()} (${state.language}) mit echter lokaler Kartenaufnahme `
+			+ `auf der einzigen Adresse http://127.0.0.1:${APPPLUGIN_DESKTOP_PORT}/\n`,
 		);
 		const child = spawn(process.execPath, args, {
 			cwd: repositoryRoot,
@@ -256,6 +290,11 @@ async function main(): Promise<void> {
 			child.once("error", reject);
 			child.once("exit", code => resolve(code ?? 1));
 		});
+		const nextProfile = consumeAppPluginDesktopProfileSwitch(profileSwitchPath);
+		if (exitCode === 0 && nextProfile) {
+			options = { profile: nextProfile };
+			continue;
+		}
 		const nextState = readAppPluginDesktopSessionState(sessionStatePath);
 		if (exitCode === 0 && nextState.restartRequested) continue;
 		process.exitCode = exitCode;

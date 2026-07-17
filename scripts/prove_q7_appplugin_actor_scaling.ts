@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { createAppPluginPinchZoomPointers } from "../src/www/apppluginLab/live-appplugin-map-surface";
+import { ensureAppPluginDesktopProfile } from "./lib/appPluginDesktopClient";
 
 type JsonRecord = Record<string, unknown>;
 type GoldenProfile = "q7-l5" | "q7-m5";
@@ -91,7 +92,7 @@ function parseArgs(args: readonly string[]): {
 	goldenProfile: GoldenProfile;
 	updateGolden: boolean;
 } {
-	let baseUrl = "http://127.0.0.1:4174";
+	let baseUrl = "http://127.0.0.1:4173";
 	let goldenProfile: GoldenProfile = "q7-l5";
 	let updateGolden = false;
 	for (let index = 0; index < args.length; index += 1) {
@@ -393,6 +394,10 @@ async function pinch(baseUrl: string, delta: number, pointerOffset: number): Pro
 
 async function main(): Promise<void> {
 	const options = parseArgs(process.argv.slice(2));
+	await ensureAppPluginDesktopProfile(
+		options.baseUrl,
+		options.goldenProfile === "q7-m5" ? "q7-m5" : "q7",
+	);
 	const fixtureDirectory = path.join(process.cwd(), "test", "fixtures", "appplugin");
 	const manifestPath = path.join(fixtureDirectory, `${options.goldenProfile}-actor-scaling-golden.json`);
 	const initialHealth = await readJson<RuntimeHealth>(`${options.baseUrl}/health?view=map`);

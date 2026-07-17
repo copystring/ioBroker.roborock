@@ -27,6 +27,12 @@ import {
 	updateAppPluginDesktopSessionState,
 } from "./lib/appPluginDesktopSessionState";
 import {
+	parseAppPluginDesktopProfile,
+	writeAppPluginDesktopProfileSwitch,
+	type AppPluginDesktopProfile,
+} from "./lib/appPluginDesktopProfiles";
+import { resolveAppPluginDesktopStaticAsset } from "./lib/appPluginDesktopStaticAssets";
+import {
 	ApkAppearanceRuntime,
 	APK_SEMANTIC_UI_ACTION_IDS,
 	ApkAppStateRuntime,
@@ -105,6 +111,10 @@ interface ProbeOptions {
 	servePort?: number;
 	serveFullRoot: boolean;
 	sessionStatePath?: string;
+	staticRootPath?: string;
+	profileId?: AppPluginDesktopProfile;
+	availableProfiles: AppPluginDesktopProfile[];
+	profileSwitchPath?: string;
 	b01FramePath?: string;
 	b01LocalKey?: string;
 	b01LocalKeyFilePath?: string;
@@ -160,6 +170,7 @@ function parseArgs(args: string[]): ProbeOptions {
 		runApplication: false,
 		reactStateProbe: false,
 		serveFullRoot: false,
+		availableProfiles: [],
 		duid: "appplugin-runtime-probe-device",
 		activeTime: 0,
 	};
@@ -207,6 +218,20 @@ function parseArgs(args: string[]): ProbeOptions {
 		else if (option === "--serve-port" && value) options.servePort = parsePositiveNumber(args[++index], option);
 		else if (option === "--serve-full-root") options.serveFullRoot = true;
 		else if (option === "--session-state" && value) options.sessionStatePath = path.resolve(args[++index]);
+		else if (option === "--static-root" && value) options.staticRootPath = path.resolve(args[++index]);
+		else if (option === "--profile-id" && value) {
+			options.profileId = parseAppPluginDesktopProfile(args[++index]);
+			if (!options.profileId) throw new Error("--profile-id enthält ein unbekanntes AppPlugin-Profil");
+		}
+		else if (option === "--available-profiles" && value) {
+			options.availableProfiles = args[++index]
+				.split(",")
+				.map(profile => parseAppPluginDesktopProfile(profile))
+				.filter((profile): profile is AppPluginDesktopProfile => profile !== undefined);
+		}
+		else if (option === "--profile-switch-file" && value) {
+			options.profileSwitchPath = path.resolve(args[++index]);
+		}
 
 		else if (option === "--duid" && value) options.duid = args[++index];
 		else if (option === "--device-sn" && value) options.deviceSn = args[++index];
@@ -244,6 +269,21 @@ function parseArgs(args: string[]): ProbeOptions {
 	}
 	if (options.servePort !== undefined && !options.runApplication) {
 		throw new Error("Interaktiver Server benötigt --run-application" );
+	}
+	if (options.staticRootPath && options.servePort === undefined) {
+		throw new Error("Statische Desktop-Dateien benötigen --serve-port");
+	}
+	const profileRoutingConfigured = options.profileId !== undefined
+		|| options.availableProfiles.length > 0
+		|| options.profileSwitchPath !== undefined;
+	if (profileRoutingConfigured
+		&& (!options.profileId
+			|| options.availableProfiles.length === 0
+			|| !options.availableProfiles.includes(options.profileId)
+			|| !options.profileSwitchPath)) {
+		throw new Error(
+			"Profilrouting benötigt --profile-id, --available-profiles und --profile-switch-file",
+		);
 	}
 	if (options.pointerReplayManifestPath && !options.runApplication) {
 		throw new Error("Pointer-Replay benötigt --run-application");
@@ -537,6 +577,38 @@ function sendJson(response: ServerResponse, statusCode: number, payload: unknown
 	response.statusCode = statusCode;
 	response.setHeader("Content-Type", "application/json; charset=utf-8");
 	response.end(JSON.stringify(payload));
+}
+
+function serveAppPluginDesktopStaticRequest(
+	staticRootPath: string,
+	url: URL,
+	response: ServerResponse,
+): boolean {
+	if (url.pathname === "/" || url.pathname === "/appplugin-lab.html") {
+		const parameters = new URLSearchParams(url.search);
+		parameters.delete("runtimePort");
+		const search = parameters.size > 0 ? `?${parameters.toString()}` : "";
+		response.statusCode = 302;
+		response.setHeader("Location", `/appplugin-desktop.html${search}`);
+		response.end();
+		return true;
+	}
+	const asset = resolveAppPluginDesktopStaticAsset(staticRootPath, url.pathname);
+	if (!asset) return false;
+	void fs.promises.readFile(asset.filePath)
+		.then(content => {
+			response.statusCode = 200;
+			response.setHeader("Content-Type", asset.contentType);
+			response.end(content);
+		})
+		.catch(error => {
+			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+				sendJson(response, 503, { error: `Desktop-Datei fehlt: ${path.basename(asset.filePath)}` });
+				return;
+			}
+			response.destroy(error instanceof Error ? error : new Error(String(error)));
+		});
+	return true;
 }
 
 async function readJsonRequest(request: IncomingMessage): Promise<Readonly<Record<string, unknown>>> {
@@ -1481,11 +1553,6 @@ async function main(): Promise<void> {
 				languageSwitching: true,
 			});
 			const defaultServedView: ServedView = options.serveFullRoot ? "full" : "map";
-			const requestedView = (url: URL): ServedView => {
-				const view = url.searchParams.get("view") ?? defaultServedView;
-				if (view !== "map" && view !== "full") throw new Error(`Unbekannte AppPlugin-Ansicht: ${view}`);
-				return view;
-			};
 			const resolveCurrentSurface = (view: ServedView = defaultServedView) => {
 				const currentHierarchy = uiExecution.nativeHierarchyRuntime().snapshot();
 				const currentSurface = selectApkServedSurfaceRoot(currentHierarchy, {
@@ -1499,6 +1566,25 @@ async function main(): Promise<void> {
 					height: currentSurface.height,
 				} : interactiveViewport;
 				return { currentSurface, currentHierarchy, viewport, view };
+			};
+			const availableServedViews = (["map", "full"] as readonly ServedView[]).filter(view => {
+				try {
+					resolveCurrentSurface(view);
+					return true;
+				} catch {
+					return false;
+				}
+			});
+			if (!availableServedViews.includes(defaultServedView)) {
+				throw new Error(`Die Standardansicht ${defaultServedView} des AppPlugins ist nicht auflösbar`);
+			}
+			const requestedView = (url: URL): ServedView => {
+				const view = url.searchParams.get("view") ?? defaultServedView;
+				if (view !== "map" && view !== "full") throw new Error(`Unbekannte AppPlugin-Ansicht: ${view}`);
+				if (!availableServedViews.includes(view)) {
+					throw new Error(`Das geladene AppPlugin bietet die Ansicht ${view} nicht an`);
+				}
+				return view;
 			};
 			const resolvedSemanticActions = () => resolveApkSemanticUiActions(
 				uiManager.snapshot(),
@@ -1539,6 +1625,9 @@ async function main(): Promise<void> {
 				const uiVisualRevisionBefore = uiManager.visualMutationRevision();
 				const pictureUpdatesBefore = skiaHost.getDiagnostics().pictureUpdates;
 				const dispatches = [];
+				// Android liefert eine Mehrfinger-Geste als zusammenhängende Touchfolge.
+				// Eine Hermes-Leerlaufbarriere zwischen DOWN/MOVE/UP würde diese Geste
+				// künstlich auftrennen und kann den PanResponder mitten im Pinch blockieren.
 				for (const pointer of pointers) {
 					const dispatch = await dispatchPointer(pointer);
 					dispatches.push({
@@ -1546,7 +1635,6 @@ async function main(): Promise<void> {
 						targets: dispatch.touches.map(touch => touch.target),
 						changedIndices: dispatch.changedIndices,
 					});
-					await session.waitForRuntimeBoundaryIdle();
 				}
 				await stabilizeInteractiveUi();
 				revision += 1;
@@ -1566,13 +1654,20 @@ async function main(): Promise<void> {
 					response.end();
 					return;
 				}
+				const url = new URL(request.url ?? "/", "http://127.0.0.1");
+				if (request.method === "GET"
+					&& options.staticRootPath
+					&& serveAppPluginDesktopStaticRequest(options.staticRootPath, url, response)) {
+					return;
+				}
 				void enqueue(async () => {
-					const url = new URL(request.url ?? "/", "http://127.0.0.1");
 					if (request.method === "GET" && url.pathname === "/health") {
 						const { currentSurface, viewport, view } = resolveCurrentSurface(requestedView(url));
 						sendJson(response, 200, {
 							status: "appplugin-session-ready",
 							sessionId,
+							profileId: options.profileId,
+							availableProfiles: options.availableProfiles,
 							deviceModel: options.deviceModel,
 							profileLabel: options.profileLabel,
 							revision,
@@ -1584,7 +1679,7 @@ async function main(): Promise<void> {
 							productFallbackAllowed: false,
 							surfaceKind: view === "full" ? "full-appplugin-root" : "interactive-map",
 							view,
-							availableViews: ["map", "full"],
+							availableViews: availableServedViews,
 							colorScheme: darkMode.getColorScheme(),
 							colorModel: darkMode.getColorModel(),
 							systemColorScheme: darkMode.snapshot().systemColorScheme,
@@ -1594,6 +1689,27 @@ async function main(): Promise<void> {
 							...localizationHttpState(),
 							publishedDpsCount: publishedDps.length,
 						});
+						return;
+					}
+					if (request.method === "POST" && url.pathname === "/profile") {
+						if (!options.profileId || !options.profileSwitchPath) {
+							throw new Error("Diese AppPlugin-Sitzung unterstützt keinen Profilwechsel");
+						}
+						const body = await readJsonRequest(request);
+						const profile = parseAppPluginDesktopProfile(body.profile);
+						if (!profile || !options.availableProfiles.includes(profile)) {
+							throw new Error("Unbekanntes oder nicht verfügbares AppPlugin-Profil");
+						}
+						const sessionRestarting = profile !== options.profileId;
+						if (sessionRestarting) {
+							writeAppPluginDesktopProfileSwitch(options.profileSwitchPath, profile);
+						}
+						sendJson(response, 200, {
+							sessionId,
+							profile,
+							sessionRestarting,
+						});
+						if (sessionRestarting) setImmediate(() => requestInteractiveServerStop?.());
 						return;
 					}
 					if (request.method === "GET" && url.pathname === "/state") {

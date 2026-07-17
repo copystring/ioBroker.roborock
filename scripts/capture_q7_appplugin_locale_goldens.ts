@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { renderAppPluginSvgPng, sha256 } from "./lib/appPluginBrowserGolden";
+import { ensureAppPluginDesktopProfile } from "./lib/appPluginDesktopClient";
 
 interface RuntimeHealth {
 	status: "appplugin-session-ready";
@@ -46,7 +47,7 @@ const CASES: readonly LocaleCase[] = [
 ];
 
 function parseArgs(args: readonly string[]): { baseUrl: string; updateGolden: boolean } {
-	let baseUrl = "http://127.0.0.1:4174";
+	let baseUrl = "http://127.0.0.1:4173";
 	let updateGolden = false;
 	for (let index = 0; index < args.length; index += 1) {
 		if (args[index] === "--base-url" && args[index + 1]) baseUrl = args[++index];
@@ -192,6 +193,7 @@ async function captureCase(baseUrl: string, localeCase: LocaleCase, fixtureDirec
 
 async function main(): Promise<void> {
 	const options = parseArgs(process.argv.slice(2));
+	await ensureAppPluginDesktopProfile(options.baseUrl, "q7");
 	const fixtureDirectory = path.join(process.cwd(), "test", "fixtures", "appplugin");
 	const manifestPath = path.join(fixtureDirectory, "q7-l5-locale-goldens.json");
 	const initialHealth = await fetchHealth(options.baseUrl);
