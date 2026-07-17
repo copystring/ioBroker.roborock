@@ -19,6 +19,13 @@ interface RuntimeHandle {
 	stderr: () => string;
 }
 
+interface ProofOptions {
+	repositoryRoot: string;
+	bundlePath: string;
+	replayPath: string;
+	runtimeLabel: string;
+}
+
 interface SemanticAction {
 	id: string;
 	label: string;
@@ -29,6 +36,40 @@ interface SemanticAction {
 }
 
 type JsonRecord = Record<string, unknown>;
+
+function parseArgs(args: string[]): ProofOptions {
+	const repositoryRoot = process.cwd();
+	const options: ProofOptions = {
+		repositoryRoot,
+		bundlePath: path.join(
+			repositoryRoot,
+			".AppPlugins",
+			"Q7 L5",
+			"019a00a9af4b7b8e894080040a2793a5",
+			"index.android.bundle",
+		),
+		replayPath: path.join(
+			repositoryRoot,
+			"test",
+			"fixtures",
+			"appplugin",
+			"q7-l5-full-scene-replay.json",
+		),
+		runtimeLabel: "unchanged Q7 L5 Hermes AppPlugin",
+	};
+	for (let index = 0; index < args.length; index += 1) {
+		const option = args[index];
+		if (option !== "--bundle" && option !== "--replay" && option !== "--runtime-label") {
+			throw new Error(`Unbekannte Option: ${option}`);
+		}
+		const value = args[++index];
+		if (!value) throw new Error(`${option} benötigt einen Wert`);
+		if (option === "--bundle") options.bundlePath = path.resolve(repositoryRoot, value);
+		else if (option === "--replay") options.replayPath = path.resolve(repositoryRoot, value);
+		else options.runtimeLabel = value;
+	}
+	return options;
+}
 
 function jsonRecord(value: unknown, context: string): JsonRecord {
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -69,7 +110,8 @@ function resolveToolchainBin(repositoryRoot: string): string | undefined {
 		.at(-1);
 }
 
-async function startRuntime(repositoryRoot: string, port: number): Promise<RuntimeHandle> {
+async function startRuntime(options: ProofOptions, port: number): Promise<RuntimeHandle> {
+	const { repositoryRoot } = options;
 	const probePath = path.join(
 		repositoryRoot,
 		"artifacts",
@@ -83,20 +125,6 @@ async function startRuntime(repositoryRoot: string, port: number): Promise<Runti
 		".build-mingw-cmake3",
 		"roborock-hermes-appplugin-host.exe",
 	);
-	const bundlePath = path.join(
-		repositoryRoot,
-		".AppPlugins",
-		"Q7 L5",
-		"019a00a9af4b7b8e894080040a2793a5",
-		"index.android.bundle",
-	);
-	const replayPath = path.join(
-		repositoryRoot,
-		"test",
-		"fixtures",
-		"appplugin",
-		"q7-l5-full-scene-replay.json",
-	);
 	const bootstrapPath = path.join(
 		repositoryRoot,
 		"artifacts",
@@ -104,27 +132,32 @@ async function startRuntime(repositoryRoot: string, port: number): Promise<Runti
 		"runtime-probes",
 		"q7-semantic-actions-ipc-bridge.js",
 	);
-	for (const [label, filePath] of Object.entries({ probePath, hostPath, bundlePath, replayPath })) {
+	for (const [label, filePath] of Object.entries({
+		probePath,
+		hostPath,
+		bundlePath: options.bundlePath,
+		replayPath: options.replayPath,
+	})) {
 		if (!fs.existsSync(filePath)) throw new Error(`${label} fehlt: ${filePath}`);
 	}
 	const args = [
 		probePath,
-		"--bundle", bundlePath,
+		"--bundle", options.bundlePath,
 		"--host", hostPath,
 		"--bootstrap-output", bootstrapPath,
 		"--width", "360",
 		"--height", "800",
 		"--scale", "1",
 		"--device-model", Q7_FULL_SCENE_MODEL,
-		"--device-name", "Q7 Semantic Action Proof",
+		"--device-name", `${options.runtimeLabel} Semantic Action Proof`,
 		"--duid", "q7-semantic-actions-synthetic-device",
 		"--device-sn", Q7_FULL_SCENE_SERIAL,
 		"--firmware-version", Q7_FULL_SCENE_FIRMWARE,
 		"--run-application",
 		"--react-state-probe",
-		"--replay-manifest", replayPath,
+		"--replay-manifest", options.replayPath,
 		"--serve-port", String(port),
-		"--profile-label", "Q7 L5 · semantischer Capture-only-Nachweis",
+		"--profile-label", `${options.runtimeLabel} · semantischer Capture-only-Nachweis`,
 	];
 	const toolchainBin = resolveToolchainBin(repositoryRoot);
 	const child = spawn(process.execPath, args, {
@@ -246,16 +279,9 @@ async function invokeSemanticAction(
 }
 
 async function main(): Promise<void> {
-	const repositoryRoot = process.cwd();
-	const bundlePath = path.join(
-		repositoryRoot,
-		".AppPlugins",
-		"Q7 L5",
-		"019a00a9af4b7b8e894080040a2793a5",
-		"index.android.bundle",
-	);
-	const bundleSha256Before = sha256File(bundlePath);
-	const handle = await startRuntime(repositoryRoot, await freePort());
+	const options = parseArgs(process.argv.slice(2));
+	const bundleSha256Before = sha256File(options.bundlePath);
+	const handle = await startRuntime(options, await freePort());
 	try {
 		const initialHealth = await requestJson(handle.baseUrl, "/health?view=map");
 		const initialActions = semanticActions(initialHealth);
@@ -300,15 +326,17 @@ async function main(): Promise<void> {
 			methods.includes("service.set_room_clean"),
 			`Originales AppPlugin erzeugte nach dem Startklick kein service.set_room_clean: ${methods.join(", ")}`,
 		);
-		assert.equal(sha256File(bundlePath), bundleSha256Before);
+		assert.equal(sha256File(options.bundlePath), bundleSha256Before);
 
 		process.stdout.write(`${JSON.stringify({
 			version: 1,
 			status: "passed",
 			appPluginFirst: true,
 			captureOnly: true,
+			runtimeLabel: options.runtimeLabel,
 			bundle: {
 				kind: initialHealth.bundleKind,
+				path: path.relative(options.repositoryRoot, options.bundlePath).replaceAll(path.sep, "/"),
 				sha256: bundleSha256Before,
 				unchanged: true,
 			},

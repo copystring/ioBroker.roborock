@@ -699,7 +699,7 @@
 		{
 			"id": "P0C-Q7-ROOM-CLEANING-UI",
 			"phase": "0C",
-			"area": "Q7 L5 – Reinigung",
+			"area": "Q7 L5/M5 – Reinigung",
 			"family": "scmap",
 			"title": "Raumreinigung aus der eigenen UI semantisch durch das AppPlugin steuern",
 			"status": "completed",
@@ -713,9 +713,10 @@
 				"test/unit/appplugin_apk_semantic_ui_actions.test.ts",
 				"test/unit/appplugin_desktop.test.ts",
 				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
-				"`npm run poc:appplugin-q7-semantic-actions-proof`"
+				"`npm run poc:appplugin-q7-semantic-actions-proof`",
+				"`npm run poc:appplugin-q7-m5-semantic-actions-proof`"
 			],
-			"nextAction": "Den strukturellen SCMap-Vertrag gegen Q7 M5 ausführen; andere Kartenfamilien erst nach einem eigenen belegten AppPlugin-UI-Vertrag freischalten."
+			"nextAction": "Den strukturellen Vertrag für L5 und M5 beibehalten; andere Kartenfamilien erst nach einem eigenen belegten AppPlugin-UI-Vertrag freischalten."
 		},
 		{
 			"id": "P0C-Q7-ZONES",
@@ -787,14 +788,16 @@
 				"scripts/prove_q7_m5_contract.ts",
 				"scripts/capture_q7_appplugin_theme_goldens.ts",
 				"scripts/prove_q7_appplugin_actor_scaling.ts",
+				"scripts/prove_q7_appplugin_semantic_actions.ts",
 				"test/fixtures/appplugin/q7-m5-full-scene-golden.json",
 				"test/fixtures/appplugin/q7-m5-theme-goldens.json",
 				"test/fixtures/appplugin/q7-m5-actor-scaling-golden.json",
 				"test/unit/appplugin_q7_m5_contract_gate.test.ts",
 				"test/unit/appplugin_q7_theme_actor_goldens.test.ts",
-				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md"
+				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
+				"`npm run poc:appplugin-q7-m5-semantic-actions-proof`"
 			],
-			"nextAction": "Die gemeinsamen Raumwahl-, Split-, Merge-, Rename- und verbleibenden Gesten-Gates gegen M5 ausführen; nur belegte Bundleabweichungen separat festhalten."
+			"nextAction": "Die gemeinsamen Split-, Merge-, Rename- und verbleibenden Gesten-Gates gegen M5 ausführen; nur belegte Bundleabweichungen separat festhalten."
 		},
 		{
 			"id": "P0C-B01-RAW-INGRESS",
