@@ -16,6 +16,8 @@ Die frühere Adresse `appplugin-lab.html` ist nur noch eine Weiterleitung auf di
 
 4174 und 4175 sind keine eigenen Webseiten. Das Testgerät wird oben in derselben Oberfläche ausgewählt. Die Auswahl aktualisiert lediglich `runtimePort`.
 
+Fehlt `runtimePort` in der URL, prüft die Oberfläche die konfigurierten lokalen Runtimes parallel und verbindet die erste erreichbare. Eine ausdrücklich gewählte Runtime wird niemals still durch eine andere ersetzt. Ist sie nicht erreichbar, bleiben Desktop-Navigation und Geräteauswahl bedienbar; ausschließlich sitzungsabhängige AppPlugin-Aktionen werden deaktiviert und der Verbindungsfehler wird sichtbar angezeigt.
+
 ## Build und Start
 
 ```powershell

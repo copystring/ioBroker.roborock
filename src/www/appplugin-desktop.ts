@@ -10,6 +10,10 @@ import {
 	type LiveAppPluginSemanticActionId,
 	type LiveAppPluginSurfaceView,
 } from "./apppluginLab/live-appplugin-map-surface";
+import {
+	chooseAppPluginRuntimePort,
+	parseAppPluginRuntimePort,
+} from "./apppluginRuntime/runtime-selection";
 type MapTool = LiveAppPluginMapTool;
 type CleanScope = "full" | "rooms" | "zones";
 type CleanMethod = "smart" | "vacuum" | "mop" | "vacuumThenMop";
@@ -38,14 +42,33 @@ function byId<T extends HTMLElement | SVGElement>(id: string): T {
 	return element as T;
 }
 
-function localRuntimePort(): number {
-	const value = new URLSearchParams(location.search).get("runtimePort");
-	if (value === null) return 4174;
-	const port = Number(value);
-	if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
-		throw new Error(`Ungültiger lokaler AppPlugin-Runtime-Port: ${value}`);
+function requestedRuntimePort(): number | null {
+	return parseAppPluginRuntimePort(new URLSearchParams(location.search).get("runtimePort"));
+}
+
+function configuredRuntimePorts(select: HTMLSelectElement): number[] {
+	return [...select.options].map(option => {
+		const port = parseAppPluginRuntimePort(option.value);
+		if (port === null) throw new Error("Leeres AppPlugin-Runtime-Profil");
+		return port;
+	});
+}
+
+async function isAppPluginRuntimeReady(port: number): Promise<boolean> {
+	try {
+		const response = await fetch(`http://127.0.0.1:${port}/health`, {
+			cache: "no-store",
+			signal: AbortSignal.timeout(750),
+		});
+		if (!response.ok) return false;
+		const health = await response.json() as {
+			status?: string;
+			productFallbackAllowed?: boolean;
+		};
+		return health.status === "appplugin-session-ready" && health.productFallbackAllowed === false;
+	} catch {
+		return false;
 	}
-	return port;
 }
 
 class AppPluginDesktop {
@@ -65,22 +88,35 @@ class AppPluginDesktop {
 	private readonly themeMode = byId<HTMLSelectElement>("themeMode");
 	private readonly languageMode = byId<HTMLSelectElement>("languageMode");
 	private readonly runtimeProfile = byId<HTMLSelectElement>("runtimeProfile");
+	private readonly runtimeStatus = byId<HTMLElement>("runtimeStatus");
 
 	public async init(): Promise<void> {
-		const runtimePort = localRuntimePort();
-		if (![...this.runtimeProfile.options].some(option => option.value === String(runtimePort))) {
+		this.bindNavigation();
+		this.activateNavigation("map", false);
+		this.bindRuntimeProfile();
+		this.setSessionControlsConnected(false);
+
+		const requestedPort = requestedRuntimePort();
+		if (requestedPort !== null && ![...this.runtimeProfile.options].some(option => option.value === String(requestedPort))) {
 			const isolatedProfile = document.createElement("option");
-			isolatedProfile.value = String(runtimePort);
-			isolatedProfile.textContent = `Isolierter Test · ${runtimePort}`;
+			isolatedProfile.value = String(requestedPort);
+			isolatedProfile.textContent = `Isolierter Test · ${requestedPort}`;
 			this.runtimeProfile.append(isolatedProfile);
 		}
+		const runtimeSelection = await chooseAppPluginRuntimePort(
+			requestedPort,
+			configuredRuntimePorts(this.runtimeProfile),
+			isAppPluginRuntimeReady,
+		);
+		const runtimePort = runtimeSelection.port;
 		this.runtimeProfile.value = String(runtimePort);
-		this.runtimeProfile.addEventListener("change", () => {
+		if (runtimeSelection.source === "first-ready") {
 			const url = new URL(location.href);
-			if (this.runtimeProfile.value === "4174") url.searchParams.delete("runtimePort");
-			else url.searchParams.set("runtimePort", this.runtimeProfile.value);
-			location.assign(url);
-		});
+			url.searchParams.set("runtimePort", String(runtimePort));
+			history.replaceState(null, "", url);
+		}
+		this.runtimeStatus.textContent = `Verbinde Runtime ${runtimePort} …`;
+		this.runtimeStatus.dataset.state = "connecting";
 		this.mapSurface = new LiveAppPluginMapSurface({
 			viewport: this.map,
 			frame: this.mapFrame,
@@ -89,6 +125,8 @@ class AppPluginDesktop {
 			onEvent: (label, data) => this.logEvent(label, data),
 			onChange: snapshot => {
 				this.mapSnapshot = snapshot;
+				this.runtimeStatus.textContent = "Lokale unveränderte AppPlugin-Sitzung";
+				this.runtimeStatus.dataset.state = "connected";
 				document.documentElement.dataset.theme = snapshot.colorScheme;
 				this.map.dataset.apppluginDirection = snapshot.isRTL ? "rtl" : "ltr";
 				this.mapFrame.dir = snapshot.isRTL ? "rtl" : "ltr";
@@ -103,10 +141,14 @@ class AppPluginDesktop {
 				this.updateControlStates();
 			},
 		});
-		await this.mapSurface.init();
-		this.bindNavigation();
+		try {
+			await this.mapSurface.init();
+		} catch (error) {
+			this.showRuntimeConnectionError(runtimePort, error);
+			return;
+		}
+		this.setSessionControlsConnected(true);
 		this.bindControls();
-		this.activateNavigation("map", false);
 		this.emitIntent({
 			name: "navigation.open",
 			arguments: {
@@ -115,6 +157,41 @@ class AppPluginDesktop {
 				localization: { owner: "unchanged-model-appplugin", status: "live" },
 			},
 		}, "Direkte AppPlugin-Sitzung verbunden");
+	}
+
+	private bindRuntimeProfile(): void {
+		this.runtimeProfile.addEventListener("change", () => {
+			const url = new URL(location.href);
+			url.searchParams.set("runtimePort", this.runtimeProfile.value);
+			location.assign(url);
+		});
+	}
+
+	private setSessionControlsConnected(connected: boolean): void {
+		document.querySelectorAll<HTMLButtonElement | HTMLSelectElement | HTMLInputElement>(
+			".workbench button, .workbench select, .workbench input",
+		).forEach(control => {
+			control.disabled = !connected;
+		});
+		this.themeMode.disabled = !connected;
+		this.languageMode.disabled = !connected;
+		if (!connected || this.mapSnapshot === null) return;
+		this.themeMode.disabled = !this.mapSnapshot.themeSwitching;
+		this.languageMode.disabled = !this.mapSnapshot.languageSwitching;
+		this.updateMapSummary(this.mapSnapshot);
+		this.updateControlStates();
+	}
+
+	private showRuntimeConnectionError(runtimePort: number, error: unknown): void {
+		const message = error instanceof Error ? error.message : String(error);
+		this.setSessionControlsConnected(false);
+		this.runtimeStatus.textContent = `Runtime ${runtimePort} nicht erreichbar`;
+		this.runtimeStatus.dataset.state = "error";
+		byId<HTMLElement>("mapInstruction").textContent =
+			`AppPlugin-Runtime ${runtimePort} ist nicht erreichbar. Wähle oben ein laufendes Testgerät.`;
+		byId<HTMLElement>("selectionSummary").textContent =
+			"Die Desktop-Navigation bleibt verfügbar; AppPlugin-Aktionen sind bis zur Verbindung deaktiviert.";
+		this.logEvent("AppPlugin-Runtime nicht erreichbar", { runtimePort, message });
 	}
 
 	private bindNavigation(): void {

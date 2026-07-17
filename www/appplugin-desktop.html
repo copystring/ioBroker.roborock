@@ -5,7 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<link rel="canonical" href="./appplugin-desktop.html" />
 		<title>Roborock AppPlugin · ioBroker PoC</title>
-		<script type="module" src="./appplugin-desktop.js?v=4b985926ba4e"></script>
+		<script type="module" src="./appplugin-desktop.js?v=53cefa1c699c"></script>
 		<style>
 			:root {
 				color-scheme: light;
@@ -105,6 +105,8 @@
 			.breadcrumb strong { display: block; margin-top: 2px; font-size: 17px; }
 			.top-actions { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 9px; }
 			.status-pill { border: 1px solid var(--accent); color: var(--accent-dark); background: var(--accent-soft); padding: 7px 10px; font-size: 11px; }
+			.status-pill[data-state="connecting"] { border-color: var(--warning); color: var(--warning); }
+			.status-pill[data-state="error"] { border-color: var(--danger); color: var(--danger); background: var(--surface); }
 			.language-control, .theme-control, .profile-control { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
 			.language-control select, .theme-control select, .profile-control select { border: 1px solid var(--line); background: var(--surface); color: var(--text); padding: 7px 28px 7px 9px; }
 
@@ -302,7 +304,7 @@
 				<header class="topbar">
 					<div class="breadcrumb"><small>Roborock / AppPlugin Testgerät</small><strong id="currentSection">Karte & Reinigung</strong></div>
 					<div class="top-actions">
-						<span class="status-pill">Lokale unveränderte AppPlugin-Sitzung</span>
+						<span id="runtimeStatus" class="status-pill">Lokale AppPlugin-Runtime wird gesucht …</span>
 						<label class="profile-control" for="runtimeProfile" title="Q7 und Q10 verwenden dieselbe Oberfläche; nur die lokale AppPlugin-Runtime wird gewechselt">Testgerät <select id="runtimeProfile"><option value="4174">Q7 · SC01</option><option value="4175">Q10 · B01</option></select></label>
 						<label class="theme-control" for="themeMode">Darstellung <select id="themeMode"><option value="system">System</option><option value="light">Hell</option><option value="dark">Dunkel</option></select></label>
 						<label class="language-control" for="languageMode">AppPlugin-Sprache <select id="languageMode" aria-label="Sprache der gemeinsamen APK- und AppPlugin-Sitzung"></select></label>

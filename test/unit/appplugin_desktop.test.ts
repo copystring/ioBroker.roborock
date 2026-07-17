@@ -23,13 +23,16 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		const probe = fs.readFileSync(probePath, "utf8");
 
 		expect(source).toContain("new LiveAppPluginMapSurface");
-		expect(source).toContain("function localRuntimePort(): number");
-		expect(source).toContain("Isolierter Test · ${runtimePort}");
+		expect(source).toContain("chooseAppPluginRuntimePort");
+		expect(source).toContain("isAppPluginRuntimeReady");
+		expect(source).toContain('history.replaceState(null, "", url)');
+		expect(source).toContain("Isolierter Test · ${requestedPort}");
 		expect(source).toContain("apiBaseUrl: `http://127.0.0.1:${runtimePort}`");
 		expect(source).toContain('initialView: runtimePort === 4175 ? "full" : "map"');
 		expect(surface).toContain('this.#fetchHealth(this.options.initialView ?? "map")');
 		expect(source).toContain('url.searchParams.set("runtimePort", this.runtimeProfile.value)');
 		expect(html).toContain('id="runtimeProfile"');
+		expect(html).toContain('id="runtimeStatus"');
 		expect(html).toContain('<option value="4174">Q7 · SC01</option>');
 		expect(html).toContain('<option value="4175">Q10 · B01</option>');
 		expect(source).not.toContain("OriginalMapSurface");
@@ -50,6 +53,21 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(html).toContain('id="desktopMapFrame"');
 		expect(html).not.toContain('viewBox="0 0 970 1025"');
 		expect(html).not.toContain('id="desktopMapScene"');
+	});
+
+	it("keeps the desktop shell usable and disables session actions when a runtime is unavailable", () => {
+		const html = fs.readFileSync(htmlPath, "utf8");
+		const source = fs.readFileSync(sourcePath, "utf8");
+		const navigationBinding = source.indexOf("this.bindNavigation()");
+		const sessionInitialization = source.indexOf("await this.mapSurface.init()");
+
+		expect(navigationBinding).toBeGreaterThanOrEqual(0);
+		expect(navigationBinding).toBeLessThan(sessionInitialization);
+		expect(source).toContain("this.setSessionControlsConnected(false)");
+		expect(source).toContain("this.showRuntimeConnectionError(runtimePort, error)");
+		expect(source).toContain("Wähle oben ein laufendes Testgerät");
+		expect(source).toContain('this.runtimeStatus.dataset.state = "error"');
+		expect(html).toContain('.status-pill[data-state="error"]');
 	});
 
 	it("versions the desktop bundle by its content so visible UI tests cannot load stale code", () => {
@@ -219,7 +237,7 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		for (const page of ["overview", "map", "schedules", "history", "settings"]) {
 			expect(html).toContain(`data-navigation="${page}"`);
 		}
-		expect(html).toContain("Lokale unveränderte AppPlugin-Sitzung");
+		expect(source).toContain('this.runtimeStatus.textContent = "Lokale unveränderte AppPlugin-Sitzung"');
 		expect(html).toContain('id="languageMode"');
 		expect(source).toContain("this.syncLanguageControl(snapshot)");
 		expect(source).toContain("this.mapSurface.setLanguage(this.languageMode.value)");
