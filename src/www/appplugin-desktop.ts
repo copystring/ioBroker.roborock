@@ -69,6 +69,8 @@ class AppPluginDesktop {
 			onChange: snapshot => {
 				this.mapSnapshot = snapshot;
 				document.documentElement.dataset.theme = snapshot.colorScheme;
+				this.map.dataset.apppluginDirection = snapshot.isRTL ? "rtl" : "ltr";
+				this.mapFrame.dir = snapshot.isRTL ? "rtl" : "ltr";
 				this.syncLanguageControl(snapshot);
 				this.themeMode.value = snapshot.colorModel === "default" ? "system" : snapshot.colorModel;
 				this.themeMode.disabled = !snapshot.themeSwitching;

@@ -22,6 +22,7 @@ describe("APK ReactLocalization runtime", () => {
 		const runtime = new ApkLocalizationRuntime({
 			language: "de",
 			localeIdentifier: "de_DE",
+			systemLocaleIdentifier: "de_DE",
 			emitDeviceEvent,
 		});
 		const callback = vi.fn();
@@ -38,8 +39,9 @@ describe("APK ReactLocalization runtime", () => {
 
 	it("returns to the original system locale for the APK default language", async () => {
 		const runtime = new ApkLocalizationRuntime({
-			language: "de",
-			localeIdentifier: "de_DE",
+			language: "ar",
+			localeIdentifier: "ar",
+			systemLocaleIdentifier: "de_DE",
 			emitDeviceEvent: vi.fn(),
 		});
 

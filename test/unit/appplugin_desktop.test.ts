@@ -196,8 +196,12 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(probe).toContain('url.pathname === "/locale"');
 		expect(probe).toContain('sessionForLocalization.emitDeviceEvent(eventName, payload)');
 		expect(probe).toContain('eventName: "langDidChange"');
-		expect(probe).toContain("requestLocalizationSessionRestart");
+		expect(probe).toContain("updateAppPluginDesktopSessionState(options.sessionStatePath!");
+		expect(probe).toContain("onStateChange: state => persistSessionState");
+		expect(probe).toContain("isRTL: initialIsRTL");
 		expect(launcher).toContain('"--session-state", sessionStatePath');
+		expect(launcher).toContain('"--color-model", state.colorModel');
+		expect(launcher).toContain('"--allow-rtl", String(state.allowRTL)');
 		expect(launcher).toContain("if (exitCode === 0 && nextState.restartRequested) continue");
 		expect(html).not.toContain("data-appplugin-key");
 		expect(source).not.toContain("translateAppPlugin");
@@ -238,6 +242,8 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(launcher).not.toContain("q7-l5-full-scene-synthetic.blob");
 		expect(packageJson).toContain('"poc:appplugin-desktop:runtime"');
 		expect(probe).toContain("profileLabel: options.profileLabel");
+		expect(probe).toContain("deviceName: options.deviceName");
+		expect(launcher).toContain('"--device-name", "Roborock Q7"');
 		expect(surface).toContain("profileLabel: this.#health.profileLabel");
 		expect(source).toContain("snapshot.profileLabel");
 		expect(source).not.toContain("Q7 L5 / SC01 · AppPlugin-Kartenviewport");

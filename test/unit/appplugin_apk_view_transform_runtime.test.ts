@@ -38,6 +38,15 @@ describe("APK view transform runtime", () => {
 		expect(percentage?.c).toBeCloseTo(0, 12);
 	});
 
+	it("projects the AppPlugin RTL half-turn exactly while keeping arbitrary 3D angles gated", () => {
+		expect(createApkViewAffineTransform([{ rotateY: "180deg" }], 24, 12))
+			.toEqual({ a: -1, b: 0, c: 0, d: 1, tx: 24, ty: 0 });
+		expect(createApkViewAffineTransform([{ rotateX: "-180deg" }], 24, 12))
+			.toEqual({ a: 1, b: 0, c: 0, d: -1, tx: 0, ty: 12 });
+		expect(() => createApkViewAffineTransform([{ rotateY: "20deg" }], 10, 10))
+			.toThrow(/3D-Projektion/u);
+	});
+
 	it("accepts APK 2D matrices and rejects unimplemented decomposition or projection", () => {
 		const matrix = [
 			1, 0, 0, 0,

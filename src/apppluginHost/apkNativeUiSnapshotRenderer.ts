@@ -32,7 +32,11 @@ export interface ApkNativeUiSnapshotRenderOptions {
 	rootTag?: number;
 	/** Optional host viewport crop; rendering and geometry remain AppPlugin-owned. */
 	viewport?: Readonly<{ x: number; y: number; width: number; height: number }>;
+	/** Android's ordered system-font fallback chain used by CanvasKit and native text. */
+	fontPaths?: readonly string[];
+	/** @deprecated Use fontPaths. Kept for existing proof scripts. */
 	fontPath?: string;
+	direction?: "ltr" | "rtl";
 }
 
 export interface ApkNativeUiSvgArtifact {
@@ -167,6 +171,15 @@ function imageUri(props: Readonly<Record<string, unknown>>): string | undefined 
 function rawText(node: ApkUiManagerNodeSnapshot): string {
 	if (node.viewName === "RCTRawText") return typeof node.props.text === "string" ? node.props.text : "";
 	return node.children.map(rawText).join("");
+}
+
+/** Android TextDirectionHeuristics.FIRSTSTRONG_LTR used by ReactTextView. */
+function apkTextDirection(text: string, fallback: "ltr" | "rtl"): "ltr" | "rtl" {
+	for (const character of text) {
+		if (/[\u0590-\u05ff\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff]/u.test(character)) return "rtl";
+		if (/\p{L}|\p{N}/u.test(character)) return "ltr";
+	}
+	return fallback;
 }
 
 function nativeChildren(node: ApkUiManagerNodeSnapshot): ApkUiManagerNodeSnapshot[] {
@@ -386,10 +399,23 @@ class SnapshotSvgRenderer {
 	}
 
 	#fontDefinition(): string {
-		const fontPath = this.options.fontPath;
-		if (!fontPath) return "";
-		const encoded = fs.readFileSync(fontPath).toString("base64");
-		return `<style>@font-face{font-family:ApkRoboto;src:url(data:font/ttf;base64,${encoded}) format('truetype')}text{font-family:ApkRoboto,Roboto,sans-serif}</style>`;
+		const legacyFontPath = (this.options as { fontPath?: string }).fontPath;
+		const configuredPaths = this.options.fontPaths?.length
+			? this.options.fontPaths
+			: legacyFontPath ? [legacyFontPath] : [];
+		const text = rawText(this.options.shadowRoot);
+		const needsArabic = /[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff]/u.test(text);
+		const needsHebrew = /[\u0590-\u05ff]/u.test(text);
+		const paths = configuredPaths.filter((fontPath, index) => index === 0
+			|| needsArabic && /arabic|naskh|kufi/iu.test(path.basename(fontPath))
+			|| needsHebrew && /hebrew/iu.test(path.basename(fontPath)));
+		if (!paths.length) return "";
+		const definitions = paths.map((fontPath, index) => {
+			const encoded = fs.readFileSync(fontPath).toString("base64");
+			return `@font-face{font-family:ApkSystemFont${index};src:url(data:font/ttf;base64,${encoded}) format('truetype')}`;
+		}).join("");
+		const families = paths.map((_fontPath, index) => `ApkSystemFont${index}`).join(",");
+		return `<style>${definitions}text{font-family:${families},Roboto,sans-serif}</style>`;
 	}
 
 	#native(node: ApkUiManagerNodeSnapshot): string {
@@ -443,12 +469,20 @@ class SnapshotSvgRenderer {
 		this.#diagnostics.textNodes += 1;
 		const fontSize = Math.max(1, finite(node.props.fontSize, 14));
 		const color = apkArgbToCss(node.props.color) ?? "rgb(0 0 0)";
+		const layoutDirection = this.options.direction ?? "ltr";
+		const textDirection = apkTextDirection(text, layoutDirection);
 		const alignment = node.props.textAlign;
-		const x = alignment === "center" ? layout.width / 2 : alignment === "right" ? layout.width : 0;
-		const anchor = alignment === "center" ? "middle" : alignment === "right" ? "end" : "start";
+		const alignsRight = alignment === "right" || (alignment !== "left" && alignment !== "center" && layoutDirection === "rtl");
+		const x = alignment === "center" ? layout.width / 2 : alignsRight ? layout.width : 0;
+		const anchor = alignment === "center"
+			? "middle"
+			: alignsRight
+				? textDirection === "rtl" ? "start" : "end"
+				: textDirection === "rtl" ? "end" : "start";
 		const y = Math.min(layout.height, fontSize);
 		const filter = this.#textShadow(node);
-		return `<text x="${x}" y="${y}" fill="${color}" font-size="${fontSize}" font-weight="${escapeXml(node.props.fontWeight ?? "400")}" text-anchor="${anchor}"${filter ? ` filter="url(#${filter})"` : ""}>${escapeXml(text)}</text>`;
+		const fontWeight = String(node.props.fontWeight ?? "400");
+		return `<text x="${x}" y="${y}" fill="${color}" font-size="${fontSize}" font-weight="${escapeXml(fontWeight)}" text-anchor="${anchor}" direction="${textDirection}" unicode-bidi="plaintext"${filter ? ` filter="url(#${filter})"` : ""}>${escapeXml(text)}</text>`;
 	}
 
 	#textShadow(node: ApkUiManagerNodeSnapshot): string | undefined {

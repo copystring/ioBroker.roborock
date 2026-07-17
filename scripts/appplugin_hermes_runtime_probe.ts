@@ -22,6 +22,11 @@ import {
 	type ApkInteractionReplayManifest,
 } from "./lib/apkInteractionReplayManifest";
 import {
+	resolveAppPluginIsRtl,
+	selectedAppLanguageIsRtl,
+	updateAppPluginDesktopSessionState,
+} from "./lib/appPluginDesktopSessionState";
+import {
 	ApkAppearanceRuntime,
 	ApkAppStateRuntime,
 	ApkBlobTransferAssembler,
@@ -78,7 +83,15 @@ interface ProbeOptions {
 	fontScale: number;
 	language: string;
 	localeIdentifier: string;
+	systemLocaleIdentifier: string;
+	colorModel: "dark" | "default" | "light";
+	systemColorScheme: "dark" | "light";
+	cardStyle: number;
+	allowRTL: boolean;
+	forceRTL: boolean;
+	doLeftAndRightSwapInRTL: boolean;
 	deviceModel: string;
+	deviceName: string;
 	profileLabel: string;
 	mobileModel: string;
 	androidRelease: string;
@@ -111,6 +124,12 @@ function parseNonNegativeNumber(value: string | undefined, option: string): numb
 	return number;
 }
 
+function parseBoolean(value: string | undefined, option: string): boolean {
+	if (value === "true") return true;
+	if (value === "false") return false;
+	throw new Error(`${option} benötigt true oder false`);
+}
+
 function parseArgs(args: string[]): ProbeOptions {
 	const repositoryRoot = process.cwd();
 	const options: Partial<ProbeOptions> = {
@@ -122,6 +141,14 @@ function parseArgs(args: string[]): ProbeOptions {
 		fontScale: 1,
 		language: "de",
 		localeIdentifier: "de_DE",
+		systemLocaleIdentifier: "de_DE",
+		colorModel: "default",
+		systemColorScheme: "light",
+		cardStyle: 0,
+		allowRTL: true,
+		forceRTL: false,
+		doLeftAndRightSwapInRTL: true,
+		deviceName: "Roborock",
 		mobileModel: "AppPlugin Hermes Runtime Probe",
 		androidRelease: "runtime-probe",
 		profileLabel: "Lokale AppPlugin-Aufzeichnung",
@@ -144,7 +171,23 @@ function parseArgs(args: string[]): ProbeOptions {
 		else if (option === "--font-scale") options.fontScale = parsePositiveNumber(args[++index], option);
 		else if (option === "--language" && value) options.language = args[++index];
 		else if (option === "--locale" && value) options.localeIdentifier = args[++index];
+		else if (option === "--system-locale" && value) options.systemLocaleIdentifier = args[++index];
+		else if (option === "--color-model" && (value === "dark" || value === "default" || value === "light")) {
+			options.colorModel = value;
+			index += 1;
+		}
+		else if (option === "--system-color-scheme" && (value === "dark" || value === "light")) {
+			options.systemColorScheme = value;
+			index += 1;
+		}
+		else if (option === "--card-style") options.cardStyle = parseNonNegativeNumber(args[++index], option);
+		else if (option === "--allow-rtl") options.allowRTL = parseBoolean(args[++index], option);
+		else if (option === "--force-rtl") options.forceRTL = parseBoolean(args[++index], option);
+		else if (option === "--swap-left-right-in-rtl") {
+			options.doLeftAndRightSwapInRTL = parseBoolean(args[++index], option);
+		}
 		else if (option === "--device-model" && value) options.deviceModel = args[++index];
+		else if (option === "--device-name" && value) options.deviceName = args[++index];
 		else if (option === "--profile-label" && value) options.profileLabel = args[++index];
 		else if (option === "--mobile-model" && value) options.mobileModel = args[++index];
 		else if (option === "--android-release" && value) options.androidRelease = args[++index];
@@ -471,13 +514,6 @@ interface LanguageHttpRequest {
 	language: string;
 }
 
-interface LocalizationSessionState {
-	version: 1;
-	language: string;
-	localeIdentifier: string;
-	restartRequested: true;
-}
-
 interface TextInputHttpRequest {
 	tag?: number;
 	text: string;
@@ -487,11 +523,6 @@ function sendJson(response: ServerResponse, statusCode: number, payload: unknown
 	response.statusCode = statusCode;
 	response.setHeader("Content-Type", "application/json; charset=utf-8");
 	response.end(JSON.stringify(payload));
-}
-
-function requestLocalizationSessionRestart(filePath: string, state: LocalizationSessionState): void {
-	fs.mkdirSync(path.dirname(filePath), { recursive: true });
-	fs.writeFileSync(filePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
 }
 
 async function readJsonRequest(request: IncomingMessage): Promise<Readonly<Record<string, unknown>>> {
@@ -575,6 +606,7 @@ function parseTextInputHttpRequest(record: Readonly<Record<string, unknown>>): T
 }
 async function main(): Promise<void> {
 	const options = parseArgs(process.argv.slice(2));
+	const bundleSha256 = createHash("sha256").update(fs.readFileSync(options.bundlePath)).digest("hex");
 	const sessionId = randomUUID();
 	const contract = contractJson as ApkAppPluginHostContract;
 	const pointerReplay: ApkPointerReplayManifest | undefined = options.pointerReplayManifestPath
@@ -657,12 +689,23 @@ async function main(): Promise<void> {
 	const darkModeEvents: Array<{ eventName: string; payload: unknown }> = [];
 	const appliedActivityStyles: boolean[] = [];
 	const requestedColorModels: string[] = [];
+	const persistSessionState = (
+		patch: Parameters<typeof updateAppPluginDesktopSessionState>[1],
+	): void => {
+		if (options.sessionStatePath) updateAppPluginDesktopSessionState(options.sessionStatePath, patch);
+	};
 	const darkMode = new ApkDarkModeRuntime({
-		storedColorModel: "default",
-		systemColorScheme: "light",
+		storedColorModel: options.colorModel,
+		systemColorScheme: options.systemColorScheme,
+		initialCardStyle: options.cardStyle,
 		emitDeviceEvent: (eventName, payload) => darkModeEvents.push({ eventName, payload }),
 		applyActivityStyle: isDark => appliedActivityStyles.push(isDark),
 		requestColorModel: mode => requestedColorModels.push(mode),
+		onStateChange: state => persistSessionState({
+			colorModel: state.colorModel,
+			systemColorScheme: state.systemColorScheme,
+			cardStyle: state.cardStyle,
+		}),
 	});
 	const netInfo = new ApkNetInfoRuntime({
 		type: "wifi",
@@ -724,20 +767,31 @@ async function main(): Promise<void> {
 	const localization = new ApkLocalizationRuntime({
 		language: options.language,
 		localeIdentifier: options.localeIdentifier,
+		systemLocaleIdentifier: options.systemLocaleIdentifier,
 		emitDeviceEvent: async (eventName, payload) => {
 			if (!sessionForLocalization) throw new Error("Hermes-Session für ReactLocalization fehlt");
 			localizationEvents.push({ eventName, payload });
 			await sessionForLocalization.emitDeviceEvent(eventName, payload);
 		},
+		onStateChange: state => persistSessionState({
+			language: state.language,
+			localeIdentifier: state.localeIdentifier,
+		}),
 	});
 	const initialLocalization = localization.snapshot();
+	const initialIsRTL = resolveAppPluginIsRtl({
+		language: options.language,
+		systemLocaleIdentifier: options.systemLocaleIdentifier,
+		allowRTL: options.allowRTL,
+		forceRTL: options.forceRTL,
+	});
 	const constants = mergeApkNativeModuleConstants(
 		createApkDeviceInfoConstants(metrics, metrics),
 		createApkLocalizationConstants({
 			language: initialLocalization.language,
 			localeIdentifier: initialLocalization.localeIdentifier,
-			isRTL: false,
-			doLeftAndRightSwapInRTL: true,
+			isRTL: initialIsRTL,
+			doLeftAndRightSwapInRTL: options.doLeftAndRightSwapInRTL,
 		}),
 		createApkSourceCodeConstants(sourceCodeUrl),
 		{ AppState: appState.constants() },
@@ -752,7 +806,7 @@ async function main(): Promise<void> {
 			deviceModel: options.deviceModel,
 			mobileModel: options.mobileModel,
 			androidRelease: options.androidRelease,
-			deviceName: "AppPlugin Hermes Runtime Probe",
+			deviceName: options.deviceName,
 			storageBasePath,
 			activeTime: options.activeTime,
 			robotTimeZone: 0,
@@ -785,10 +839,10 @@ async function main(): Promise<void> {
 		nativeAnimated as unknown as Record<string, unknown>,
 	);
 	const i18nManager = new ApkI18nManagerRuntime({
-		allowRTL: true,
-		forceRTL: false,
-		doLeftAndRightSwapInRTL: true,
-	});
+		allowRTL: options.allowRTL,
+		forceRTL: options.forceRTL,
+		doLeftAndRightSwapInRTL: options.doLeftAndRightSwapInRTL,
+	}, preferences => persistSessionState(preferences));
 	registry.register(installedModule(contract, "I18nManager").javaClass, {
 		allowRTL: i18nManager.allowRTL,
 		forceRTL: i18nManager.forceRTL,
@@ -806,7 +860,7 @@ async function main(): Promise<void> {
 	const requestedColorSchemeModes: number[] = [];
 	const appearanceEvents: Array<{ eventName: string; payload: unknown }> = [];
 	const appearance = new ApkAppearanceRuntime({
-		initialColorScheme: "light",
+		initialColorScheme: darkMode.getColorScheme(),
 		requestColorScheme: mode => requestedColorSchemeModes.push(mode),
 		emitDeviceEvent: (eventName, payload) => appearanceEvents.push({ eventName, payload }),
 	});
@@ -914,6 +968,8 @@ async function main(): Promise<void> {
 		height: options.height / options.scale,
 		density: options.scale,
 		fontScale: options.fontScale,
+		direction: initialIsRTL ? "rtl" : "ltr",
+		doLeftAndRightSwapInRTL: options.doLeftAndRightSwapInRTL,
 		afterLayoutEvents: async () => {
 			await session.waitForRuntimeBoundaryIdle();
 		},
@@ -1180,7 +1236,8 @@ async function main(): Promise<void> {
 						rootTag,
 						width: Math.round(options.width / options.scale),
 						height: Math.round(options.height / options.scale),
-						fontPath: skiaHost.getDiagnostics().fontPaths[0],
+						fontPaths: skiaHost.getDiagnostics().fontPaths,
+						direction: initialIsRTL ? "rtl" : "ltr",
 					}, assertionSnapshotPath);
 					throw new Error(
 						`Interaktions-Replay event[${eventIndex}] Assertion fehlgeschlagen: `
@@ -1247,7 +1304,8 @@ async function main(): Promise<void> {
 				nativeHierarchy,
 				width: Math.round(options.width / options.scale),
 				height: Math.round(options.height / options.scale),
-				fontPath: skiaDiagnostics.fontPaths[0],
+				fontPaths: skiaDiagnostics.fontPaths,
+				direction: initialIsRTL ? "rtl" : "ltr",
 			}, path.join(
 				path.dirname(options.bootstrapPath),
 				"q7-hermes-original-appplugin-ui.png",
@@ -1268,7 +1326,8 @@ async function main(): Promise<void> {
 				rootTag: interactiveSurface.tag,
 				width: Math.round(options.width / options.scale),
 				height: Math.round(options.height / options.scale),
-				fontPath: skiaDiagnostics.fontPaths[0],
+				fontPaths: skiaDiagnostics.fontPaths,
+				direction: initialIsRTL ? "rtl" : "ltr",
 			}, path.join(
 				path.dirname(options.bootstrapPath),
 				"q7-hermes-original-appplugin-map.png",
@@ -1293,6 +1352,8 @@ async function main(): Promise<void> {
 			type ServedView = "map" | "full";
 			const localizationHttpState = () => ({
 				...localization.snapshot(),
+				isRTL: initialIsRTL,
+				doLeftAndRightSwapInRTL: options.doLeftAndRightSwapInRTL,
 				languageSwitching: true,
 			});
 			const defaultServedView: ServedView = options.serveFullRoot ? "full" : "map";
@@ -1324,7 +1385,8 @@ async function main(): Promise<void> {
 					viewport,
 					width: viewport.width,
 					height: viewport.height,
-					fontPath: skiaDiagnostics.fontPaths[0],
+					fontPaths: skiaDiagnostics.fontPaths,
+					direction: initialIsRTL ? "rtl" : "ltr",
 				});
 				return { currentSurface, viewport, artifact, view };
 			};
@@ -1388,6 +1450,7 @@ async function main(): Promise<void> {
 							frameRevision,
 							surface: currentSurface,
 							bundleKind: session.bundleKind,
+							bundleSha256,
 							viewport,
 							productFallbackAllowed: false,
 							surfaceKind: view === "full" ? "full-appplugin-root" : "interactive-map",
@@ -1494,10 +1557,13 @@ async function main(): Promise<void> {
 						const sessionRestarting = previousLanguage !== language.language
 							&& options.sessionStatePath !== undefined;
 						if (sessionRestarting) {
-							requestLocalizationSessionRestart(options.sessionStatePath!, {
-								version: 1,
+							updateAppPluginDesktopSessionState(options.sessionStatePath!, {
 								language: localizationState.language,
 								localeIdentifier: localizationState.localeIdentifier,
+								forceRTL: selectedAppLanguageIsRtl(
+									localizationState.language,
+									localizationState.systemLocaleIdentifier,
+								),
 								restartRequested: true,
 							});
 						}
@@ -1510,8 +1576,7 @@ async function main(): Promise<void> {
 							surface: currentSurface,
 							viewport,
 							view,
-							...localizationState,
-							languageSwitching: true,
+							...localizationHttpState(),
 							sessionRestarting,
 						});
 						if (sessionRestarting) setImmediate(() => requestInteractiveServerStop?.());
@@ -1684,6 +1749,7 @@ async function main(): Promise<void> {
 				interactiveSurface,
 				viewport: interactiveViewport,
 				bundleKind: session.bundleKind,
+				bundleSha256,
 				surfaceKind: options.serveFullRoot ? "full-appplugin-root" : "interactive-map",
 				productFallbackAllowed: false,
 			})}\n`);
@@ -1705,6 +1771,7 @@ async function main(): Promise<void> {
 			bundlePath: options.bundlePath,
 			bootstrapPath: options.bootstrapPath,
 			bundleKind: session.bundleKind,
+			bundleSha256,
 			applicationStarted: options.runApplication,
 			runtimeIdleRounds,
 			timerRuntimeIdleRounds,

@@ -37,10 +37,26 @@ Der direkte Wechsel `de` → `en` wurde mit beiden lokalen Originalaufnahmen gep
 
 Vor dem Sitzungsneustart blieb `frameChanged` bei beiden Bundles `false`. Das bestätigt, dass ein vom Desktop gesendetes `langDidChange` allein die bereits aufgebauten AppPlugin-Bäume nicht neu lokalisiert. Nach dem Supervisor-Neustart wechselte jeweils die `sessionId`, und der sichtbare Text kam auf Englisch direkt aus dem unveränderten Bundle.
 
-## Noch offene Gates
+Das automatisierte Q7-Gate erweitert diesen Nachweis um drei frische Originalbundle-Sitzungen:
 
-- eine dritte beziehungsweise Fallback-Locale automatisiert prüfen,
-- RTL mit Arabisch oder Hebräisch einschließlich Layout und Touchkoordinaten prüfen,
-- Text- und Bild-Goldens für den vollständigen Sprachwechsel erzeugen,
-- Theme- und weitere APK-Hostpräferenzen über einen Locale-Neustart erhalten,
-- den späteren Produkt-Supervisor globalen Appzustand und mehrere parallele Gerätesitzungen koordinieren lassen.
+| Fall | Beleg aus dem unveränderten Q7-Bundle |
+| --- | --- |
+| Arabisch / RTL | Verbundene arabische Glyphen, gespiegeltes APK-Layout, First-Strong-Richtung für `Roborock Q7` und `Raum1` bis `Raum4` |
+| `es-LA` | Regionale Locale `es_LA` mit AppPlugin-eigenen spanischen Texten |
+| `default` bei `de_DE` | Belegter System-Localeweg; das Q7-Bundle fällt für diesen Katalog auf seine englischen Texte zurück |
+
+Die PNGs werden mit einem lokalen Headless-Chromium aus demselben semantischen SVG erzeugt, das die Weboberfläche anzeigt. Der frühere Node-SVG-Rasterizer wird für diese Goldens bewusst nicht verwendet, weil er Mehrglyphen-Text und verschachtelte Datenbilder unvollständig rastert.
+
+RTL ist zusätzlich interaktiv geprüft: Der AppPlugin-eigene Räume-Modus reagiert, der anschließende Tap trifft den echten Karten-Responder, der Frame ändert sich und das Bundle ergänzt `تم تحديد 1 غرفة (غرف)`. Der Host erzeugt weder diesen Text noch die Auswahlpayload.
+
+Bei der Browserkontrolle wurde außerdem eine zentrale SVG-Textinvariante korrigiert: Eine gewünschte visuelle Rechts- oder Linksausrichtung muss abhängig von der First-Strong-Schreibrichtung auf `text-anchor` übersetzt werden. Dadurch bleiben arabischer Status, Akkustand und Prozentwert innerhalb ihrer nativen AppPlugin-Layouts, während lateinische Gerätenamen und Raumnamen in derselben RTL-Sitzung links-nach-rechts lesbar bleiben.
+
+`AppPluginDesktopSessionState` hält aktive und System-Locale getrennt und bewahrt Color-Model, System-Theme, Card-Style, RTL-Präferenzen und Font-Scale über den APK-nahen Sitzungsneustart. Derselbe Zustand wird auch aktualisiert, wenn das AppPlugin `ReactLocalization`, `RRPluginDarkMode` oder `I18nManager` über die Native Bridge aufruft.
+
+## Automatisiertes Gate
+
+- `npm run poc:appplugin-q7-locale-goldens:update` aktualisiert die drei Browser-Goldens explizit.
+- `npm run poc:appplugin-q7-locale-goldens` verifiziert Bundle-Hash, Rohtexte, pixelgenaue Browser-PNGs und den arabischen Touchweg ohne Golden-Schreibzugriff. Ein Hash der SVG-Serialisierung ist bewusst kein Gate, weil eingebettete, visuell identische Bilddaten sitzungsabhängig serialisiert werden können.
+- `test/unit/appplugin_q7_locale_goldens.test.ts` pinnt Manifest, Bilder und RTL-Interaktion.
+
+Offen bleibt die Wiederverwendung desselben Gates für Q10 und weitere AppPlugin-Familien sowie die spätere Koordination mehrerer paralleler Gerätesitzungen im Produkt-Supervisor.

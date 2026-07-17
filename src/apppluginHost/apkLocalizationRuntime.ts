@@ -34,13 +34,16 @@ export const APK_SUPPORTED_APP_LANGUAGES = Object.freeze([
 export interface ApkLocalizationSnapshot {
 	language: string;
 	localeIdentifier: string;
+	systemLocaleIdentifier: string;
 	availableLanguages: readonly string[];
 }
 
 export interface ApkLocalizationRuntimeOptions {
 	language: string;
 	localeIdentifier: string;
+	systemLocaleIdentifier?: string;
 	emitDeviceEvent: (eventName: "langDidChange", payload: string) => void | Promise<void>;
+	onStateChange?(state: ApkLocalizationSnapshot): void;
 }
 
 function assertLanguage(language: string): void {
@@ -72,7 +75,8 @@ export class ApkLocalizationRuntime {
 		if (options.localeIdentifier.length === 0) throw new Error("localeIdentifier darf nicht leer sein");
 		this.#language = options.language;
 		this.#localeIdentifier = options.localeIdentifier;
-		this.#systemLocaleIdentifier = options.localeIdentifier;
+		this.#systemLocaleIdentifier = options.systemLocaleIdentifier ?? options.localeIdentifier;
+		if (this.#systemLocaleIdentifier.length === 0) throw new Error("systemLocaleIdentifier darf nicht leer sein");
 	}
 
 	public getLanguage(callback: (...arguments_: unknown[]) => void): void {
@@ -83,6 +87,7 @@ export class ApkLocalizationRuntime {
 		assertLanguage(language);
 		this.#language = language;
 		this.#localeIdentifier = localeIdentifierForLanguage(language, this.#systemLocaleIdentifier);
+		this.options.onStateChange?.(this.snapshot());
 		await this.options.emitDeviceEvent("langDidChange", language);
 		return true;
 	}
@@ -91,6 +96,7 @@ export class ApkLocalizationRuntime {
 		return {
 			language: this.#language,
 			localeIdentifier: this.#localeIdentifier,
+			systemLocaleIdentifier: this.#systemLocaleIdentifier,
 			availableLanguages: APK_SUPPORTED_APP_LANGUAGES,
 		};
 	}

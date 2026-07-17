@@ -1,7 +1,7 @@
 {
 	"version": 1,
 	"project": "ioBroker Roborock AppPlugin-first Rework",
-	"lastReviewed": "2026-07-16",
+	"lastReviewed": "2026-07-17",
 	"currentPhase": "0C",
 	"currentFocus": ["P0C-Q7-ROOM-CLEANING-UI", "P0C-Q7-THEME"],
 	"nextUp": ["P0C-Q7-ROOM-CLEANING-UI", "P0C-Q7-THEME", "P0C-Q7-ROOM-PROPERTIES", "P0C-Q7-M5-CONTRACT"],
@@ -346,7 +346,9 @@
 			"dependsOn": ["P0B-REACT-NATIVE-BRIDGE"],
 			"evidence": [
 				"docs/APPPLUGIN_THEME_POC.md",
+				"scripts/lib/appPluginDesktopSessionState.ts",
 				"test/unit/appplugin_apk_environment_runtimes.test.ts",
+				"test/unit/appplugin_desktop_session_state.test.ts",
 				"test/unit/appplugin_desktop.test.ts"
 			],
 			"nextAction": "Theme und Locale in derselben echten Kartenfixture wechseln und Pixel sowie semantischen Zustand prüfen."
@@ -462,7 +464,9 @@
 			"dependsOn": ["P0B-THEME-LOCALE-EVENTS", "P0C-Q7-FULL-SCENE"],
 			"evidence": [
 				"docs/APPPLUGIN_THEME_POC.md",
+				"scripts/lib/appPluginDesktopSessionState.ts",
 				"test/unit/appplugin_apk_environment_runtimes.test.ts",
+				"test/unit/appplugin_desktop_session_state.test.ts",
 				"test/unit/appplugin_desktop.test.ts"
 			],
 			"nextAction": "Themewechsel ohne Sitzungsneustart mit Kartenpixeln, Dialogen und AppPlugin-Zustand als Gate automatisieren."
@@ -473,16 +477,26 @@
 			"area": "Q7 L5 – Theme und Locale",
 			"family": "scmap",
 			"title": "AppPlugin-Übersetzungen, Raumtypen und Raumnamen über den originalen Localeweg prüfen",
-			"status": "in_progress",
+			"status": "completed",
 			"priority": "P0",
 			"dependsOn": ["P0B-THEME-LOCALE-EVENTS", "P0C-Q7-DIRECT-RUN"],
 			"evidence": [
 				"docs/APPPLUGIN_LOCALE_POC.md",
 				"src/apppluginHost/apkLocalizationRuntime.ts",
+				"src/apppluginHost/apkYogaLayoutRuntime.ts",
+				"src/apppluginHost/apkNativeUiSnapshotRenderer.ts",
+				"scripts/capture_q7_appplugin_locale_goldens.ts",
+				"scripts/lib/appPluginDesktopSessionState.ts",
+				"test/fixtures/appplugin/q7-l5-locale-goldens.json",
+				"test/fixtures/appplugin/q7-l5-locale-ar-rtl-golden.png",
+				"test/fixtures/appplugin/q7-l5-locale-es-la-regional-fallback-golden.png",
+				"test/fixtures/appplugin/q7-l5-locale-system-fallback-golden.png",
 				"test/unit/appplugin_apk_localization_runtime.test.ts",
+				"test/unit/appplugin_q7_locale_goldens.test.ts",
+				"test/unit/appplugin_apk_yoga_layout_runtime.test.ts",
 				"test/unit/appplugin_desktop.test.ts"
 			],
-			"nextAction": "Fallback- und RTL-Locale mit Text- und Bild-Goldens über den belegten APK-Sitzungsneustart automatisieren."
+			"nextAction": "Dasselbe Bundle-, Text-, Browserbild- und RTL-Touchgate ohne Hostübersetzungen auf Q10 und weitere AppPlugin-Familien anwenden."
 		},
 		{
 			"id": "P0C-Q7-RENAME-HAPPY",
@@ -986,6 +1000,34 @@
 			"dependsOn": ["P1-SERVICE-API"],
 			"evidence": [],
 			"nextAction": "Keine Schlüssel, Gerätekennungen oder Kartendaten protokollieren; Hashes, Versions- und Gateinformationen strukturiert ausgeben."
+		},
+		{
+			"id": "P1-MQTT-CAPTURE-PLANE",
+			"phase": "1",
+			"area": "Diagnose und Forschung",
+			"title": "AppPlugin-Absicht, MQTT-Rohdaten, Codec und Antwort zeitlich korreliert erfassen",
+			"status": "pending",
+			"priority": "P1",
+			"dependsOn": ["P1-SERVICE-API", "P1-DIAGNOSTICS", "P0B-CODEC-RUNTIME"],
+			"evidence": [
+				"src/lib/mqttApi.ts",
+				"scripts/appplugin_hermes_runtime_probe.ts"
+			],
+			"nextAction": "Später eine standardmäßig sanitisiert arbeitende TypeScript-Capture-Plane mit Call-ID, Topic, Rohframe, Codec-Ergebnis, Antwort, Timeout, Ringpuffer und explizitem Export entwerfen."
+		},
+		{
+			"id": "P1-CUSTOM-MQTT-RESEARCH",
+			"phase": "1",
+			"area": "Diagnose und Forschung",
+			"title": "Transparenten Roboter-MQTT-Relay und die Machbarkeit eines eigenen Brokers untersuchen",
+			"status": "pending",
+			"priority": "P2",
+			"dependsOn": ["P1-MQTT-CAPTURE-PLANE"],
+			"evidence": [
+				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/internal/common/bean/APConfigBeanUDPCouple.java",
+				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/internal/common/network/api/IotApi2.java"
+			],
+			"nextAction": "Auf einem isolierten Testgerät zuerst Brokerauflösung, SNI, TLS-Validierung, Clientauthentifizierung und Reconnect passiv erfassen; erst danach Relay, Aktivierungsdienst oder Brokeremulation bewerten."
 		},
 		{
 			"id": "P2-ADAPTER-BRIDGE",

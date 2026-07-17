@@ -8,6 +8,13 @@ export interface ApkDarkModeRuntimeOptions {
 	emitDeviceEvent?(eventName: "themeDidChange", payload: { colorScheme: ApkPluginDarkColorScheme }): void;
 	applyActivityStyle?(isDark: boolean): void;
 	requestColorModel?(mode: ApkStoredColorModel): void;
+	onStateChange?(state: ApkDarkModeSnapshot): void;
+}
+
+export interface ApkDarkModeSnapshot {
+	colorModel: ApkStoredColorModel;
+	systemColorScheme: ApkPluginDarkColorScheme;
+	cardStyle: number;
 }
 
 /** Reproduces the observable RRPluginDarkMode state used by AppPlugins. */
@@ -43,12 +50,14 @@ export class ApkDarkModeRuntime {
 	public setCardStyle(style: number): void {
 		if (!Number.isFinite(style)) throw new Error("cardStyle muss endlich sein");
 		this.#cardStyle = Math.trunc(style);
+		this.options.onStateChange?.(this.snapshot());
 	}
 
 	public setColorModel(mode: string): void {
 		const normalized = mode === "light" ? "light" : mode === "dark" ? "dark" : "default";
 		this.#storedColorModel = normalized;
 		this.options.requestColorModel?.(normalized);
+		this.options.onStateChange?.(this.snapshot());
 	}
 
 	public setStyle(isDark: boolean): void {
@@ -58,11 +67,20 @@ export class ApkDarkModeRuntime {
 	public updateSystemColorScheme(colorScheme: ApkPluginDarkColorScheme): void {
 		if (colorScheme === this.#systemColorScheme) return;
 		this.#systemColorScheme = colorScheme;
+		this.options.onStateChange?.(this.snapshot());
 		this.setStyle(colorScheme === "dark");
 		this.options.emitDeviceEvent?.("themeDidChange", { colorScheme });
 	}
 
 	public constants(): { colorScheme: ApkPluginDarkColorScheme } {
 		return { colorScheme: this.getColorScheme() };
+	}
+
+	public snapshot(): ApkDarkModeSnapshot {
+		return {
+			colorModel: this.#storedColorModel,
+			systemColorScheme: this.#systemColorScheme,
+			cardStyle: this.#cardStyle,
+		};
 	}
 }

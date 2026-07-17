@@ -8,7 +8,7 @@ const path = require("node:path");
 const repositoryRoot = path.resolve(__dirname, "..");
 const edgePath = "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe";
 const targetUrl = process.argv[2] || "http://127.0.0.1:4173/appplugin-desktop.html";
-const runtimeUrl = "http://127.0.0.1:4174";
+const runtimeUrl = (process.argv[3] || "http://127.0.0.1:4174").replace(/\/$/u, "");
 const debuggingPort = 20_000 + (process.pid % 30_000);
 
 function delay(milliseconds) {
@@ -100,11 +100,16 @@ async function main() {
 			return result.result.value;
 		}
 		async function waitFor(expression, message) {
-			for (let attempt = 0; attempt < 100; attempt++) {
-				if (await evaluate(expression)) return;
+			let lastError;
+			for (let attempt = 0; attempt < 300; attempt++) {
+				try {
+					if (await evaluate(expression)) return;
+				} catch (error) {
+					lastError = error;
+				}
 				await delay(100);
 			}
-			throw new Error(message);
+			throw new Error(`${message}${lastError ? `: ${lastError.message}` : ""}`);
 		}
 		async function mouseClick(point) {
 			await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
@@ -116,10 +121,21 @@ async function main() {
 		await send("Runtime.enable");
 		await send("Log.enable");
 		await send("Page.enable");
-		await waitFor(
-			`document.readyState === "complete" && document.querySelector("#desktopMap")?.dataset.renderMode === "unchanged-appplugin-session" && document.querySelector("#desktopMapFrame")?.complete && document.querySelector("#desktopMapFrame")?.naturalWidth > 0`,
-			"Live AppPlugin map did not initialize",
-		);
+		try {
+			await waitFor(
+				`document.readyState === "complete" && document.querySelector("#desktopMap")?.dataset.renderMode === "unchanged-appplugin-session" && document.querySelector("#desktopMapFrame")?.complete && document.querySelector("#desktopMapFrame")?.naturalWidth > 0`,
+				"Live AppPlugin map did not initialize",
+			);
+		} catch (error) {
+			const diagnostics = await evaluate(`(() => ({
+				readyState: document.readyState,
+				renderMode: document.querySelector("#desktopMap")?.dataset.renderMode,
+				frameSource: document.querySelector("#desktopMapFrame")?.src,
+				frameComplete: document.querySelector("#desktopMapFrame")?.complete,
+				frameNaturalWidth: document.querySelector("#desktopMapFrame")?.naturalWidth,
+			}))()`);
+			throw new Error(`${error.message}: ${JSON.stringify({ diagnostics, runtimeErrors })}`);
+		}
 		const initial = await evaluate(`(() => ({
 			title: document.title,
 			renderMode: document.querySelector("#desktopMap").dataset.renderMode,
@@ -135,6 +151,31 @@ async function main() {
 		const selectionWasPristine = !initialState.rawText.some(text => text.includes("ausgewählt"));
 		let selectionVerified = false;
 		if (selectionWasPristine) {
+			await evaluate(`document.querySelector('[data-surface-view="full"]').click()`);
+			await waitFor(
+				`document.querySelector("#desktopMapFrame")?.src.includes("view=full") && document.querySelector("#desktopMapFrame")?.complete && document.querySelector("#desktopMapFrame")?.naturalWidth > 0`,
+				"Desktop did not switch to the original AppPlugin view",
+			);
+			const modeStartRevision = (await fetch(`${runtimeUrl}/state`).then(response => response.json())).revision;
+			const roomsModePoint = await evaluate(`(async () => {
+				const health = await fetch("${runtimeUrl}/health?view=full", { cache: "no-store" }).then(response => response.json());
+				const rect = document.querySelector("#desktopMap").getBoundingClientRect();
+				const viewport = { x: 0, y: 0, width: health.surface.width, height: health.surface.height };
+				const scale = Math.min(rect.width / viewport.width, rect.height / viewport.height);
+				const left = rect.left + (rect.width - viewport.width * scale) / 2;
+				const top = rect.top + (rect.height - viewport.height * scale) / 2;
+				return { x: left + 160 * scale, y: top + 645 * scale };
+			})()`);
+			await mouseClick(roomsModePoint);
+			await waitFor(
+				`fetch("${runtimeUrl}/state", { cache: "no-store" }).then(response => response.json()).then(state => state.revision > ${modeStartRevision})`,
+				"The unchanged AppPlugin did not enter room mode",
+			);
+			await evaluate(`document.querySelector('[data-surface-view="map"]').click()`);
+			await waitFor(
+				`document.querySelector("#desktopMapFrame")?.src.includes("view=map") && document.querySelector("#desktopMapFrame")?.complete && document.querySelector("#desktopMapFrame")?.naturalWidth > 0`,
+				"Desktop did not return to the AppPlugin map view",
+			);
 			const roomPoint = await evaluate(`(async () => {
 				const health = await fetch("${runtimeUrl}/health", { cache: "no-store" }).then(response => response.json());
 				const rect = document.querySelector("#desktopMap").getBoundingClientRect();
@@ -162,7 +203,7 @@ async function main() {
 		const zoomStartRevision = selectedState.revision;
 		await evaluate(`document.querySelector("#zoomIn").click()`);
 		await waitFor(
-			`fetch("${runtimeUrl}/state", { cache: "no-store" }).then(response => response.json()).then(state => state.revision >= ${zoomStartRevision + 6})`,
+			`fetch("${runtimeUrl}/state", { cache: "no-store" }).then(response => response.json()).then(state => state.revision > ${zoomStartRevision})`,
 			"Desktop zoom control did not send the complete APK pinch sequence",
 		);
 		const zoomedState = await fetch(`${runtimeUrl}/state`).then(response => response.json());

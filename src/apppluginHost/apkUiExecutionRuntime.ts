@@ -20,6 +20,7 @@ export interface ApkUiExecutionRuntimeOptions {
 	fontScale: number;
 	androidApiLevel?: number;
 	direction?: "ltr" | "rtl";
+	doLeftAndRightSwapInRTL?: boolean;
 	/** Lets Hermes flush React work caused by topLayout before the next convergence round. */
 	afterLayoutEvents?: () => Promise<void>;
 }
@@ -70,6 +71,7 @@ export class ApkUiExecutionRuntime {
 			height: positiveFinite(options.height, "UI-Höhe"),
 			density,
 			direction: options.direction,
+			doLeftAndRightSwapInRTL: options.doLeftAndRightSwapInRTL,
 			measureNode: text.measureNode,
 		});
 	}

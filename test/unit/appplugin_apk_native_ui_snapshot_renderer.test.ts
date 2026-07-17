@@ -369,6 +369,132 @@ describe("APK-native UI snapshot renderer", () => {
 		);
 	});
 
+	it("keeps complete native text semantic for the browser renderer", () => {
+		const text: ApkUiManagerNodeSnapshot = {
+			tag: 2,
+			viewName: "RCTText",
+			rootTag: 1,
+			props: { color: -16777216, fontSize: 20 },
+			children: [{ tag: 3, viewName: "RCTRawText", rootTag: 1, props: { text: "AppPlugin" }, children: [] }],
+		};
+		const textRoot: ApkUiManagerNodeSnapshot = {
+			tag: 1,
+			viewName: "Root",
+			rootTag: 1,
+			props: {},
+			children: [text],
+		};
+		const textHierarchy: ApkNativeViewHierarchySnapshot = {
+			root: { ...textRoot, children: [{ ...text, children: [] }] },
+			layouts: [
+				{ tag: 1, box: { x: 0, y: 0, width: 140, height: 30 } },
+				{ tag: 2, box: { x: 0, y: 0, width: 140, height: 30 } },
+			],
+			collapsedTags: [],
+			virtualTags: [3],
+		};
+		const result = renderApkNativeUiSnapshotToSvg(
+			{ shadowRoot: textRoot, nativeHierarchy: textHierarchy, width: 140, height: 30 },
+		);
+
+		expect(result.svg).toContain('>AppPlugin</text>');
+		expect(result.svg).not.toContain('visibility="hidden"');
+	});
+
+	it("uses Android start alignment on the right for RTL native text", () => {
+		const text: ApkUiManagerNodeSnapshot = {
+			tag: 2,
+			viewName: "RCTText",
+			rootTag: 1,
+			props: { color: -16777216, fontSize: 16 },
+			children: [{ tag: 3, viewName: "RCTRawText", rootTag: 1, props: { text: "مرحبا" }, children: [] }],
+		};
+		const textRoot = { ...shadowRoot, children: [text] };
+		const textHierarchy: ApkNativeViewHierarchySnapshot = {
+			root: { ...textRoot, children: [{ ...text, children: [] }] },
+			layouts: [
+				{ tag: 1, box: { x: 0, y: 0, width: 100, height: 24 } },
+				{ tag: 2, box: { x: 0, y: 0, width: 100, height: 24 } },
+			],
+			collapsedTags: [],
+			virtualTags: [3],
+		};
+
+		const result = renderApkNativeUiSnapshotToSvg({
+			shadowRoot: textRoot,
+			nativeHierarchy: textHierarchy,
+			width: 100,
+			height: 24,
+			direction: "rtl",
+		});
+
+		expect(result.svg).toContain('>مرحبا</text>');
+		expect(result.svg).toContain('x="100"');
+		expect(result.svg).toContain('text-anchor="start" direction="rtl" unicode-bidi="plaintext"');
+	});
+
+	it("keeps an explicitly left-aligned RTL text inside its native bounds", () => {
+		const text: ApkUiManagerNodeSnapshot = {
+			tag: 2,
+			viewName: "RCTText",
+			rootTag: 1,
+			props: { color: -16777216, fontSize: 16, textAlign: "left" },
+			children: [{ tag: 3, viewName: "RCTRawText", rootTag: 1, props: { text: "مرحبا" }, children: [] }],
+		};
+		const textRoot = { ...shadowRoot, children: [text] };
+		const textHierarchy: ApkNativeViewHierarchySnapshot = {
+			root: { ...textRoot, children: [{ ...text, children: [] }] },
+			layouts: [
+				{ tag: 1, box: { x: 0, y: 0, width: 100, height: 24 } },
+				{ tag: 2, box: { x: 0, y: 0, width: 100, height: 24 } },
+			],
+			collapsedTags: [],
+			virtualTags: [3],
+		};
+
+		const result = renderApkNativeUiSnapshotToSvg({
+			shadowRoot: textRoot,
+			nativeHierarchy: textHierarchy,
+			width: 100,
+			height: 24,
+			direction: "rtl",
+		});
+
+		expect(result.svg).toContain('x="0"');
+		expect(result.svg).toContain('text-anchor="end" direction="rtl" unicode-bidi="plaintext"');
+	});
+
+	it("uses Android first-strong text direction for Latin labels inside an RTL layout", () => {
+		const text: ApkUiManagerNodeSnapshot = {
+			tag: 2,
+			viewName: "RCTText",
+			rootTag: 1,
+			props: { color: -16777216, fontSize: 16 },
+			children: [{ tag: 3, viewName: "RCTRawText", rootTag: 1, props: { text: "Roborock Q7" }, children: [] }],
+		};
+		const textRoot = { ...shadowRoot, children: [text] };
+		const textHierarchy: ApkNativeViewHierarchySnapshot = {
+			root: { ...textRoot, children: [{ ...text, children: [] }] },
+			layouts: [
+				{ tag: 1, box: { x: 0, y: 0, width: 120, height: 24 } },
+				{ tag: 2, box: { x: 0, y: 0, width: 120, height: 24 } },
+			],
+			collapsedTags: [],
+			virtualTags: [3],
+		};
+
+		const result = renderApkNativeUiSnapshotToSvg({
+			shadowRoot: textRoot,
+			nativeHierarchy: textHierarchy,
+			width: 120,
+			height: 24,
+			direction: "rtl",
+		});
+
+		expect(result.svg).toContain('x="120"');
+		expect(result.svg).toContain('text-anchor="end" direction="ltr" unicode-bidi="plaintext"');
+	});
+
 	it("rasterizes the unchanged virtual SVG tree to PNG", async () => {
 		const directory = fs.mkdtempSync(path.join(os.tmpdir(), "apk-ui-snapshot-"));
 		const outputPath = path.join(directory, "snapshot.png");

@@ -12,20 +12,26 @@ export interface ApkI18nManagerPreferences {
 export class ApkI18nManagerRuntime {
 	#preferences: ApkI18nManagerPreferences;
 
-	public constructor(initial: ApkI18nManagerPreferences) {
+	public constructor(
+		initial: ApkI18nManagerPreferences,
+		private readonly onChange?: (preferences: Readonly<ApkI18nManagerPreferences>) => void,
+	) {
 		this.#preferences = { ...initial };
 	}
 
 	public readonly allowRTL = (allow: boolean): void => {
 		this.#preferences.allowRTL = allow;
+		this.onChange?.(this.snapshot());
 	};
 
 	public readonly forceRTL = (force: boolean): void => {
 		this.#preferences.forceRTL = force;
+		this.onChange?.(this.snapshot());
 	};
 
 	public readonly swapLeftAndRightInRTL = (swap: boolean): void => {
 		this.#preferences.doLeftAndRightSwapInRTL = swap;
+		this.onChange?.(this.snapshot());
 	};
 
 	public snapshot(): Readonly<ApkI18nManagerPreferences> {

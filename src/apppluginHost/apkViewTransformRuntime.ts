@@ -49,6 +49,23 @@ function scale(x: number, y: number): ApkUiAffineTransform {
 	return { a: x, b: 0, c: 0, d: y, tx: 0, ty: 0 };
 }
 
+function planarHalfTurnProjection(
+	radians: number,
+	axis: "X" | "Y",
+	context: string,
+): ApkUiAffineTransform {
+	const cosine = Math.cos(radians);
+	const sine = Math.sin(radians);
+	if (Math.abs(sine) > 1e-12 || Math.abs(Math.abs(cosine) - 1) > 1e-12) {
+		throw new Error(`${context} benötigt für diesen Winkel die noch nicht nachgebildete APK-3D-Projektion`);
+	}
+	// Androids 4x4-Transformation verliert bei ganzzahligen halben Drehungen
+	// keine Tiefeninformation: rotateY(180deg) ist exakt scaleX(-1),
+	// rotateX(180deg) entsprechend scaleY(-1). Das Q7-AppPlugin nutzt
+	// rotateY(180deg) für seine belegte RTL-Spiegelung.
+	return axis === "Y" ? scale(cosine, 1) : scale(1, cosine);
+}
+
 function angle(value: unknown, context: string): number {
 	if (typeof value === "number") return finiteNumber(value, context);
 	if (typeof value !== "string") throw new Error(`${context} muss eine Winkelangabe sein`);
@@ -113,9 +130,17 @@ function transformOperation(value: unknown, index: number): ApkUiAffineTransform
 		case "skewX":
 		case "skewY":
 			throw new Error(`${kind} benötigt die noch nicht vollständig nachgebildete APK-Matrixzerlegung`);
+		case "rotateX": return planarHalfTurnProjection(
+			angle(raw, `transform[${index}].rotateX`),
+			"X",
+			`rotateX in transform[${index}]`,
+		);
+		case "rotateY": return planarHalfTurnProjection(
+			angle(raw, `transform[${index}].rotateY`),
+			"Y",
+			`rotateY in transform[${index}]`,
+		);
 		case "perspective":
-		case "rotateX":
-		case "rotateY":
 			throw new Error(`${kind} benötigt die noch nicht nachgebildete APK-3D-Projektion`);
 		default:
 			throw new Error(`Unbekannte APK-Transform-Art: ${kind}`);

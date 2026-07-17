@@ -5,6 +5,10 @@ import * as path from "node:path";
 import { build } from "esbuild";
 
 import { Q10_FIXTURE_DEFAULTS } from "../test/unit/q10FixtureDefaults";
+import {
+	readAppPluginDesktopSessionState,
+	writeAppPluginDesktopSessionState,
+} from "./lib/appPluginDesktopSessionState";
 
 type DesktopFixtureProfile = "q7" | "q10";
 
@@ -21,13 +25,6 @@ interface Q7FixtureIdentity {
 	deviceSn: string;
 	duid: string;
 	firmwareVersion: string;
-}
-
-interface DesktopSessionState {
-	version: 1;
-	language: string;
-	localeIdentifier: string;
-	restartRequested: boolean;
 }
 
 const Q7_MAP_ID = 1_766_745_097;
@@ -59,24 +56,6 @@ function requireFile(filePath: string, description: string): string {
 		throw new Error(`${description} fehlt: ${filePath}`);
 	}
 	return filePath;
-}
-
-function loadDesktopSessionState(filePath: string): DesktopSessionState {
-	if (!fs.existsSync(filePath)) {
-		return { version: 1, language: "de", localeIdentifier: "de_DE", restartRequested: false };
-	}
-	const state = JSON.parse(fs.readFileSync(filePath, "utf8")) as Partial<DesktopSessionState>;
-	if (state.version !== 1 || typeof state.language !== "string" || state.language.length === 0
-		|| typeof state.localeIdentifier !== "string" || state.localeIdentifier.length === 0
-		|| typeof state.restartRequested !== "boolean") {
-		throw new Error(`Ungültiger Desktop-AppPlugin-Sitzungszustand: ${filePath}`);
-	}
-	return state as DesktopSessionState;
-}
-
-function writeDesktopSessionState(filePath: string, state: DesktopSessionState): void {
-	fs.mkdirSync(path.dirname(filePath), { recursive: true });
-	fs.writeFileSync(filePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
 }
 
 function resolveToolchainBin(repositoryRoot: string): string | undefined {
@@ -182,6 +161,7 @@ async function main(): Promise<void> {
 		? [
 			"--bundle", requireFile(path.join(repositoryRoot, ".AppPlugins", "Q7 L5", "019a00a9af4b7b8e894080040a2793a5", "index.android.bundle"), "Q7-L5-AppPlugin"),
 			"--device-model", "roborock.vacuum.sc01",
+			"--device-name", "Roborock Q7",
 			"--device-sn", q7Identity!.deviceSn,
 			"--firmware-version", q7Identity!.firmwareVersion,
 			"--duid", q7Identity!.duid,
@@ -191,6 +171,7 @@ async function main(): Promise<void> {
 		: [
 			"--bundle", requireFile(path.join(repositoryRoot, ".AppPlugins", "Q10 X5+", "019bdf41f583723bb937ccc99bbd7541", "index.android.bundle"), "Q10-X5+-AppPlugin"),
 			"--device-model", Q10_FIXTURE_DEFAULTS.model,
+			"--device-name", "Roborock Q10",
 			"--device-sn", Q10_FIXTURE_DEFAULTS.sn,
 			"--firmware-version", "02.24.90",
 			"--duid", "q10-local-map-device",
@@ -209,14 +190,22 @@ async function main(): Promise<void> {
 	);
 	const toolchainBin = resolveToolchainBin(repositoryRoot);
 	for (;;) {
-		const state = loadDesktopSessionState(sessionStatePath);
-		writeDesktopSessionState(sessionStatePath, { ...state, restartRequested: false });
+		const state = readAppPluginDesktopSessionState(sessionStatePath);
+		writeAppPluginDesktopSessionState(sessionStatePath, { ...state, restartRequested: false });
 		const args = [runtimeProbePath,
 			"--host", hostPath,
 			"--bootstrap-output", bootstrapPath,
 			"--width", "360", "--height", "800", "--scale", "1",
 			"--language", state.language,
 			"--locale", state.localeIdentifier,
+			"--system-locale", state.systemLocaleIdentifier,
+			"--color-model", state.colorModel,
+			"--system-color-scheme", state.systemColorScheme,
+			"--card-style", String(state.cardStyle),
+			"--allow-rtl", String(state.allowRTL),
+			"--force-rtl", String(state.forceRTL),
+			"--swap-left-right-in-rtl", String(state.doLeftAndRightSwapInRTL),
+			"--font-scale", String(state.fontScale),
 			"--run-application", "--react-state-probe",
 			"--serve-port", String(options.port),
 			"--session-state", sessionStatePath,
@@ -238,7 +227,7 @@ async function main(): Promise<void> {
 			child.once("error", reject);
 			child.once("exit", code => resolve(code ?? 1));
 		});
-		const nextState = loadDesktopSessionState(sessionStatePath);
+		const nextState = readAppPluginDesktopSessionState(sessionStatePath);
 		if (exitCode === 0 && nextState.restartRequested) continue;
 		process.exitCode = exitCode;
 		break;

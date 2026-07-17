@@ -22,6 +22,9 @@ interface LiveAppPluginViewport {
 interface LiveAppPluginLocalizationState {
 	language: string;
 	localeIdentifier: string;
+	systemLocaleIdentifier: string;
+	isRTL: boolean;
+	doLeftAndRightSwapInRTL: boolean;
 	availableLanguages: string[];
 	languageSwitching: boolean;
 }
@@ -36,6 +39,7 @@ interface LiveAppPluginHealth extends LiveAppPluginLocalizationState {
 	surface: LiveAppPluginSurfaceDescriptor;
 	viewport: LiveAppPluginViewport;
 	bundleKind: string;
+	bundleSha256: string;
 	productFallbackAllowed: false;
 	colorScheme: LiveAppPluginColorScheme;
 	colorModel: "dark" | "default" | "light";
@@ -97,6 +101,7 @@ export interface LiveAppPluginMapSnapshot extends LiveAppPluginLocalizationState
 	surface: LiveAppPluginSurfaceDescriptor;
 	viewport: LiveAppPluginViewport;
 	bundleKind: string;
+	bundleSha256: string;
 	productFallbackAllowed: false;
 	colorScheme: LiveAppPluginColorScheme;
 	colorModel: "dark" | "default" | "light";
@@ -173,6 +178,7 @@ export class LiveAppPluginMapSurface {
 			surface: { ...this.#health.surface },
 			viewport: { ...this.#health.viewport },
 			bundleKind: this.#health.bundleKind,
+			bundleSha256: this.#health.bundleSha256,
 			productFallbackAllowed: false,
 			colorScheme: this.#health.colorScheme,
 			colorModel: this.#health.colorModel,
@@ -183,6 +189,9 @@ export class LiveAppPluginMapSurface {
 			publishedDpsCount: this.#publishedDpsCount,
 			language: this.#health.language,
 			localeIdentifier: this.#health.localeIdentifier,
+			systemLocaleIdentifier: this.#health.systemLocaleIdentifier,
+			isRTL: this.#health.isRTL,
+			doLeftAndRightSwapInRTL: this.#health.doLeftAndRightSwapInRTL,
 			availableLanguages: [...this.#health.availableLanguages],
 			languageSwitching: this.#health.languageSwitching,
 		};
@@ -439,6 +448,9 @@ export class LiveAppPluginMapSurface {
 			publishedDpsCount: response.publishedDpsCount,
 			language: response.language,
 			localeIdentifier: response.localeIdentifier,
+			systemLocaleIdentifier: response.systemLocaleIdentifier,
+			isRTL: response.isRTL,
+			doLeftAndRightSwapInRTL: response.doLeftAndRightSwapInRTL,
 			availableLanguages: response.availableLanguages,
 			languageSwitching: response.languageSwitching,
 		};
@@ -456,6 +468,7 @@ export class LiveAppPluginMapSurface {
 		}
 		return {
 			...health,
+			systemLocaleIdentifier: health.systemLocaleIdentifier ?? health.localeIdentifier,
 			colorScheme: health.colorScheme ?? "light",
 			colorModel: health.colorModel ?? "default",
 			cardStyle: health.cardStyle ?? 0,
@@ -464,6 +477,8 @@ export class LiveAppPluginMapSurface {
 			availableViews: health.availableViews ?? [health.view ?? view],
 			publishedDpsCount: health.publishedDpsCount ?? 0,
 			availableLanguages: [...health.availableLanguages],
+			isRTL: health.isRTL === true,
+			doLeftAndRightSwapInRTL: health.doLeftAndRightSwapInRTL !== false,
 			languageSwitching: health.languageSwitching === true,
 		};
 	}

@@ -2,7 +2,7 @@
 
 > **Auto-Generated**: This document is generated from the source code/tests to ensure 1:1 accuracy with the implementation.
 
-Quelle: [`docs/appplugin-rework-tracker.json`](../appplugin-rework-tracker.json) · zuletzt fachlich geprüft: **2026-07-16**
+Quelle: [`docs/appplugin-rework-tracker.json`](../appplugin-rework-tracker.json) · zuletzt fachlich geprüft: **2026-07-17**
 
 > Die Zahlen sind Inventarpositionen, keine Prozentmessung. Neue Erkenntnisse dürfen neue Aufgaben erzeugen; abgeschlossen ist eine Aufgabe nur mit hinterlegtem Beleg.
 
@@ -10,9 +10,9 @@ Quelle: [`docs/appplugin-rework-tracker.json`](../appplugin-rework-tracker.json)
 
 Aktuelle Phase: **0C – Verhaltensnachweis**
 
-- ✅ 18 abgeschlossen
-- 🔄 15 in Arbeit
-- ⏳ 41 offen
+- ✅ 19 abgeschlossen
+- 🔄 14 in Arbeit
+- ⏳ 43 offen
 - ⛔ 4 blockiert
 
 ## Aktueller Fokus
@@ -113,7 +113,7 @@ Aktuelle Phase: **0C – Verhaltensnachweis**
 | --- | --- | --- | --- | --- | --- | --- |
 | `P0B-REACT-NATIVE-BRIDGE` | P0 | 🔄 in Arbeit | React-Native-Modul-, UIManager- und Ereignisverträge APK-konform bereitstellen | `P0A-APK-CONTRACT-INVENTORY`, `P0B-HERMES-HOST`, `P0B-METRO-HOST` | [`src/apppluginHost`](../../src/apppluginHost)<br>[`test/unit/appplugin_apk_ui_manager_runtime.test.ts`](../../test/unit/appplugin_apk_ui_manager_runtime.test.ts)<br>[`test/unit/appplugin_apk_js_module_call_protocol.test.ts`](../../test/unit/appplugin_apk_js_module_call_protocol.test.ts) | Nur tatsächlich aufgerufene, aus der APK belegte Verträge zentral ergänzen und unbekannte Aufrufe hart sichtbar machen. |
 | `P0B-INPUT-LAYOUT` | P0 | 🔄 in Arbeit | Layout, Dichte, Touch, Pointer, TextInput und native Animationen zentral abbilden | `P0B-REACT-NATIVE-BRIDGE` | [`src/apppluginHost/apkPointerInputBridge.ts`](../../src/apppluginHost/apkPointerInputBridge.ts)<br>[`src/apppluginHost/apkUiManagerRuntime.ts`](../../src/apppluginHost/apkUiManagerRuntime.ts)<br>[`src/apppluginHost/apkNativeViewHierarchyRuntime.ts`](../../src/apppluginHost/apkNativeViewHierarchyRuntime.ts)<br>[`src/www/apppluginLab/live-appplugin-map-surface.ts`](../../src/www/apppluginLab/live-appplugin-map-surface.ts)<br>[`test/unit/appplugin_apk_pointer_input_bridge.test.ts`](../../test/unit/appplugin_apk_pointer_input_bridge.test.ts)<br>[`test/unit/appplugin_apk_ui_manager_runtime.test.ts`](../../test/unit/appplugin_apk_ui_manager_runtime.test.ts)<br>[`test/unit/appplugin_apk_native_view_hierarchy_runtime.test.ts`](../../test/unit/appplugin_apk_native_view_hierarchy_runtime.test.ts)<br>[`test/unit/appplugin_apk_text_input_runtime.test.ts`](../../test/unit/appplugin_apk_text_input_runtime.test.ts)<br>[`test/unit/appplugin_apk_native_animated_runtime.test.ts`](../../test/unit/appplugin_apk_native_animated_runtime.test.ts) | Pointerverlust, Abbruch, Fokus und Dichtetransformation gegen Familienläufe schließen; dabei Rohbewegungen takten und Frames nur nach visuellen AppPlugin-Mutationen übertragen. |
-| `P0B-THEME-LOCALE-EVENTS` | P0 | 🔄 in Arbeit | Dark-Mode-, Appearance-, Locale- und Layout-Ereignisse an laufende Sitzungen weiterreichen | `P0B-REACT-NATIVE-BRIDGE` | [`docs/APPPLUGIN_THEME_POC.md`](../../docs/APPPLUGIN_THEME_POC.md)<br>[`test/unit/appplugin_apk_environment_runtimes.test.ts`](../../test/unit/appplugin_apk_environment_runtimes.test.ts)<br>[`test/unit/appplugin_desktop.test.ts`](../../test/unit/appplugin_desktop.test.ts) | Theme und Locale in derselben echten Kartenfixture wechseln und Pixel sowie semantischen Zustand prüfen. |
+| `P0B-THEME-LOCALE-EVENTS` | P0 | 🔄 in Arbeit | Dark-Mode-, Appearance-, Locale- und Layout-Ereignisse an laufende Sitzungen weiterreichen | `P0B-REACT-NATIVE-BRIDGE` | [`docs/APPPLUGIN_THEME_POC.md`](../../docs/APPPLUGIN_THEME_POC.md)<br>[`scripts/lib/appPluginDesktopSessionState.ts`](../../scripts/lib/appPluginDesktopSessionState.ts)<br>[`test/unit/appplugin_apk_environment_runtimes.test.ts`](../../test/unit/appplugin_apk_environment_runtimes.test.ts)<br>[`test/unit/appplugin_desktop_session_state.test.ts`](../../test/unit/appplugin_desktop_session_state.test.ts)<br>[`test/unit/appplugin_desktop.test.ts`](../../test/unit/appplugin_desktop.test.ts) | Theme und Locale in derselben echten Kartenfixture wechseln und Pixel sowie semantischen Zustand prüfen. |
 
 #### Rendering
 
@@ -184,8 +184,8 @@ Aktuelle Phase: **0C – Verhaltensnachweis**
 
 | ID | Prio | Status | Aufgabe | Abhängigkeiten | Belege | Nächster Schritt / Blocker |
 | --- | --- | --- | --- | --- | --- | --- |
-| `P0C-Q7-THEME` | P0 | 🔄 in Arbeit | Hell, Dunkel und Systemmodus in derselben laufenden Kartenfixture nachweisen | `P0B-THEME-LOCALE-EVENTS`, `P0C-Q7-FULL-SCENE` | [`docs/APPPLUGIN_THEME_POC.md`](../../docs/APPPLUGIN_THEME_POC.md)<br>[`test/unit/appplugin_apk_environment_runtimes.test.ts`](../../test/unit/appplugin_apk_environment_runtimes.test.ts)<br>[`test/unit/appplugin_desktop.test.ts`](../../test/unit/appplugin_desktop.test.ts) | Themewechsel ohne Sitzungsneustart mit Kartenpixeln, Dialogen und AppPlugin-Zustand als Gate automatisieren. |
-| `P0C-Q7-LOCALE` | P0 | 🔄 in Arbeit | AppPlugin-Übersetzungen, Raumtypen und Raumnamen über den originalen Localeweg prüfen | `P0B-THEME-LOCALE-EVENTS`, `P0C-Q7-DIRECT-RUN` | [`docs/APPPLUGIN_LOCALE_POC.md`](../../docs/APPPLUGIN_LOCALE_POC.md)<br>[`src/apppluginHost/apkLocalizationRuntime.ts`](../../src/apppluginHost/apkLocalizationRuntime.ts)<br>[`test/unit/appplugin_apk_localization_runtime.test.ts`](../../test/unit/appplugin_apk_localization_runtime.test.ts)<br>[`test/unit/appplugin_desktop.test.ts`](../../test/unit/appplugin_desktop.test.ts) | Fallback- und RTL-Locale mit Text- und Bild-Goldens über den belegten APK-Sitzungsneustart automatisieren. |
+| `P0C-Q7-THEME` | P0 | 🔄 in Arbeit | Hell, Dunkel und Systemmodus in derselben laufenden Kartenfixture nachweisen | `P0B-THEME-LOCALE-EVENTS`, `P0C-Q7-FULL-SCENE` | [`docs/APPPLUGIN_THEME_POC.md`](../../docs/APPPLUGIN_THEME_POC.md)<br>[`scripts/lib/appPluginDesktopSessionState.ts`](../../scripts/lib/appPluginDesktopSessionState.ts)<br>[`test/unit/appplugin_apk_environment_runtimes.test.ts`](../../test/unit/appplugin_apk_environment_runtimes.test.ts)<br>[`test/unit/appplugin_desktop_session_state.test.ts`](../../test/unit/appplugin_desktop_session_state.test.ts)<br>[`test/unit/appplugin_desktop.test.ts`](../../test/unit/appplugin_desktop.test.ts) | Themewechsel ohne Sitzungsneustart mit Kartenpixeln, Dialogen und AppPlugin-Zustand als Gate automatisieren. |
+| `P0C-Q7-LOCALE` | P0 | ✅ abgeschlossen | AppPlugin-Übersetzungen, Raumtypen und Raumnamen über den originalen Localeweg prüfen | `P0B-THEME-LOCALE-EVENTS`, `P0C-Q7-DIRECT-RUN` | [`docs/APPPLUGIN_LOCALE_POC.md`](../../docs/APPPLUGIN_LOCALE_POC.md)<br>[`src/apppluginHost/apkLocalizationRuntime.ts`](../../src/apppluginHost/apkLocalizationRuntime.ts)<br>[`src/apppluginHost/apkYogaLayoutRuntime.ts`](../../src/apppluginHost/apkYogaLayoutRuntime.ts)<br>[`src/apppluginHost/apkNativeUiSnapshotRenderer.ts`](../../src/apppluginHost/apkNativeUiSnapshotRenderer.ts)<br>[`scripts/capture_q7_appplugin_locale_goldens.ts`](../../scripts/capture_q7_appplugin_locale_goldens.ts)<br>[`scripts/lib/appPluginDesktopSessionState.ts`](../../scripts/lib/appPluginDesktopSessionState.ts)<br>[`test/fixtures/appplugin/q7-l5-locale-goldens.json`](../../test/fixtures/appplugin/q7-l5-locale-goldens.json)<br>[`test/fixtures/appplugin/q7-l5-locale-ar-rtl-golden.png`](../../test/fixtures/appplugin/q7-l5-locale-ar-rtl-golden.png)<br>[`test/fixtures/appplugin/q7-l5-locale-es-la-regional-fallback-golden.png`](../../test/fixtures/appplugin/q7-l5-locale-es-la-regional-fallback-golden.png)<br>[`test/fixtures/appplugin/q7-l5-locale-system-fallback-golden.png`](../../test/fixtures/appplugin/q7-l5-locale-system-fallback-golden.png)<br>[`test/unit/appplugin_apk_localization_runtime.test.ts`](../../test/unit/appplugin_apk_localization_runtime.test.ts)<br>[`test/unit/appplugin_q7_locale_goldens.test.ts`](../../test/unit/appplugin_q7_locale_goldens.test.ts)<br>[`test/unit/appplugin_apk_yoga_layout_runtime.test.ts`](../../test/unit/appplugin_apk_yoga_layout_runtime.test.ts)<br>[`test/unit/appplugin_desktop.test.ts`](../../test/unit/appplugin_desktop.test.ts) | Dasselbe Bundle-, Text-, Browserbild- und RTL-Touchgate ohne Hostübersetzungen auf Q10 und weitere AppPlugin-Familien anwenden. |
 
 #### Q7 L5 – Kartenbearbeitung
 
@@ -316,6 +316,13 @@ Aktuelle Phase: **0C – Verhaltensnachweis**
 | ID | Prio | Status | Aufgabe | Abhängigkeiten | Belege | Nächster Schritt / Blocker |
 | --- | --- | --- | --- | --- | --- | --- |
 | `P1-DIAGNOSTICS` | P1 | ⏳ offen | Sanitisierte Diagnosen, Vertragsdifferenzen und reproduzierbare Supportpakete erzeugen | `P1-SERVICE-API` | — | Keine Schlüssel, Gerätekennungen oder Kartendaten protokollieren; Hashes, Versions- und Gateinformationen strukturiert ausgeben. |
+
+#### Diagnose und Forschung
+
+| ID | Prio | Status | Aufgabe | Abhängigkeiten | Belege | Nächster Schritt / Blocker |
+| --- | --- | --- | --- | --- | --- | --- |
+| `P1-MQTT-CAPTURE-PLANE` | P1 | ⏳ offen | AppPlugin-Absicht, MQTT-Rohdaten, Codec und Antwort zeitlich korreliert erfassen | `P1-SERVICE-API`, `P1-DIAGNOSTICS`, `P0B-CODEC-RUNTIME` | [`src/lib/mqttApi.ts`](../../src/lib/mqttApi.ts)<br>[`scripts/appplugin_hermes_runtime_probe.ts`](../../scripts/appplugin_hermes_runtime_probe.ts) | Später eine standardmäßig sanitisiert arbeitende TypeScript-Capture-Plane mit Call-ID, Topic, Rohframe, Codec-Ergebnis, Antwort, Timeout, Ringpuffer und explizitem Export entwerfen. |
+| `P1-CUSTOM-MQTT-RESEARCH` | P2 | ⏳ offen | Transparenten Roboter-MQTT-Relay und die Machbarkeit eines eigenen Brokers untersuchen | `P1-MQTT-CAPTURE-PLANE` | [`.apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/internal/common/bean/APConfigBeanUDPCouple.java`](../../.apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/internal/common/bean/APConfigBeanUDPCouple.java)<br>[`.apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/internal/common/network/api/IotApi2.java`](../../.apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/internal/common/network/api/IotApi2.java) | Auf einem isolierten Testgerät zuerst Brokerauflösung, SNI, TLS-Validierung, Clientauthentifizierung und Reconnect passiv erfassen; erst danach Relay, Aktivierungsdienst oder Brokeremulation bewerten. |
 
 ### 2 – ioBroker- und Desktop-Integration
 

@@ -152,12 +152,26 @@ function enumByValue<T extends NumericEnumValue>(group: unknown, value: unknown,
 
 function defaultFontCandidates(): string[] {
 	const candidates: string[] = [];
-	if (process.env.WINDIR) candidates.push(nodePath.join(process.env.WINDIR, "Fonts", "Roboto-Regular.ttf"));
+	if (process.env.WINDIR) {
+		const windowsFonts = nodePath.join(process.env.WINDIR, "Fonts");
+		candidates.push(
+			nodePath.join(windowsFonts, "Roboto-Regular.ttf"),
+			nodePath.join(windowsFonts, "NotoSansArabic-Regular.ttf"),
+			nodePath.join(windowsFonts, "NotoSansHebrew-Regular.ttf"),
+		);
+	}
 	candidates.push(
 		"/usr/share/fonts/truetype/roboto/Roboto-Regular.ttf",
 		"/usr/share/fonts/truetype/roboto/unhinted/RobotoTTF/Roboto-Regular.ttf",
 		"/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+		"/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+		"/usr/share/fonts/truetype/noto/NotoSansHebrew-Regular.ttf",
+		"/usr/share/fonts/opentype/noto/NotoSans-Regular.ttf",
+		"/usr/share/fonts/opentype/noto/NotoSansArabic-Regular.ttf",
+		"/usr/share/fonts/opentype/noto/NotoSansHebrew-Regular.ttf",
 		"/Library/Fonts/Roboto-Regular.ttf",
+		"/Library/Fonts/NotoSansArabic-Regular.ttf",
+		"/Library/Fonts/NotoSansHebrew-Regular.ttf",
 		"/System/Library/Fonts/Supplemental/Arial.ttf",
 	);
 	return candidates;

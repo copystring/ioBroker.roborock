@@ -62,6 +62,30 @@ describe("APK Yoga layout runtime", () => {
 		expect(result.get(3)).toEqual({ x: 10, y: 5, width: 270, height: 30 });
 	});
 
+	it("maps physical left/right styles through the APK I18nUtil preference in RTL", () => {
+		const root = node(1, "Root", {}, [
+			node(2, "RCTView", { width: "100%", height: "100%" }, [
+				node(3, "RCTView", { position: "absolute", left: 10, top: 5, width: 40, height: 30 }),
+			]),
+		]);
+
+		const swapped = layouts(new ApkYogaLayoutRuntime({
+			width: 300,
+			height: 200,
+			direction: "rtl",
+			doLeftAndRightSwapInRTL: true,
+		}).calculate(root));
+		const physical = layouts(new ApkYogaLayoutRuntime({
+			width: 300,
+			height: 200,
+			direction: "rtl",
+			doLeftAndRightSwapInRTL: false,
+		}).calculate(root));
+
+		expect(swapped.get(3)).toEqual({ x: 250, y: 5, width: 40, height: 30 });
+		expect(physical.get(3)).toEqual({ x: 10, y: 5, width: 40, height: 30 });
+	});
+
 	it("sizes modal content to the Android dialog viewport outside the ordinary parent layout", () => {
 		const root = node(1, "Root", {}, [
 			node(2, "RCTView", { width: 40, height: 30 }, [

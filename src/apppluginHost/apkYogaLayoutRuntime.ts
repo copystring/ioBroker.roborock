@@ -53,6 +53,8 @@ export interface ApkYogaLayoutRuntimeOptions {
 	/** Android display density. Yoga itself runs in physical pixels like the APK. */
 	density?: number;
 	direction?: "ltr" | "rtl";
+	/** React Native I18nUtil preference that maps physical left/right styles to start/end in RTL. */
+	doLeftAndRightSwapInRTL?: boolean;
 	measureNode?: ApkYogaMeasureNode;
 }
 
@@ -241,7 +243,20 @@ function setPosition(node: YogaNode, edge: Edge, value: YogaLength): void {
 	node.setPosition(edge, value);
 }
 
-function applyYogaStyle(node: YogaNode, snapshot: ApkUiManagerNodeSnapshot, density: number): void {
+function apkEdge(edge: Edge, direction: Direction, doLeftAndRightSwapInRTL: boolean): Edge {
+	if (direction !== Direction.RTL || !doLeftAndRightSwapInRTL) return edge;
+	if (edge === Edge.Left) return Edge.Start;
+	if (edge === Edge.Right) return Edge.End;
+	return edge;
+}
+
+function applyYogaStyle(
+	node: YogaNode,
+	snapshot: ApkUiManagerNodeSnapshot,
+	density: number,
+	direction: Direction,
+	doLeftAndRightSwapInRTL: boolean,
+): void {
 	const props = snapshot.props;
 	for (const property of [
 		"width",
@@ -295,19 +310,19 @@ function applyYogaStyle(node: YogaNode, snapshot: ApkUiManagerNodeSnapshot, dens
 
 	for (const [property, edge] of edgeProps) {
 		const value = yogaLength(props[property], property, true);
-		if (value !== undefined) setMargin(node, edge, physicalYogaLength(value, density));
+		if (value !== undefined) setMargin(node, apkEdge(edge, direction, doLeftAndRightSwapInRTL), physicalYogaLength(value, density));
 	}
 	for (const [property, edge] of paddingProps) {
 		const value = yogaLength(props[property], property, false);
-		if (value !== undefined) setPadding(node, edge, physicalYogaLength(value, density));
+		if (value !== undefined) setPadding(node, apkEdge(edge, direction, doLeftAndRightSwapInRTL), physicalYogaLength(value, density));
 	}
 	for (const [property, edge] of positionProps) {
 		const value = yogaLength(props[property], property, false);
-		if (value !== undefined) setPosition(node, edge, physicalYogaLength(value, density));
+		if (value !== undefined) setPosition(node, apkEdge(edge, direction, doLeftAndRightSwapInRTL), physicalYogaLength(value, density));
 	}
 	for (const [property, edge] of borderProps) {
 		const value = finiteNumber(props[property], property);
-		if (value !== undefined) node.setBorder(edge, value * density);
+		if (value !== undefined) node.setBorder(apkEdge(edge, direction, doLeftAndRightSwapInRTL), value * density);
 	}
 
 	for (const [property, gutter] of [
@@ -330,6 +345,7 @@ export class ApkYogaLayoutRuntime {
 	readonly #height: number;
 	readonly #density: number;
 	readonly #direction: Direction;
+	readonly #doLeftAndRightSwapInRTL: boolean;
 
 	public constructor(private readonly options: Readonly<ApkYogaLayoutRuntimeOptions>) {
 		this.#width = finiteNumber(options.width, "width") as number;
@@ -338,6 +354,7 @@ export class ApkYogaLayoutRuntime {
 		if (this.#width <= 0 || this.#height <= 0) throw new Error("Yoga-Viewport muss positiv sein");
 		if (this.#density <= 0) throw new Error("Yoga-Dichte muss positiv sein");
 		this.#direction = direction(options.direction);
+		this.#doLeftAndRightSwapInRTL = options.doLeftAndRightSwapInRTL ?? true;
 	}
 
 	public calculate(root: ApkUiManagerNodeSnapshot): readonly Readonly<ApkYogaLayoutEntry>[] {
@@ -390,7 +407,7 @@ export class ApkYogaLayoutRuntime {
 	): YogaNode {
 		const node = Yoga.Node.createWithConfig(config);
 		nodes.set(snapshot.tag, node);
-		applyYogaStyle(node, snapshot, this.#density);
+		applyYogaStyle(node, snapshot, this.#density, this.#direction, this.#doLeftAndRightSwapInRTL);
 		if (snapshot.viewName === "RCTText") {
 			if (
 				!this.options.measureNode &&

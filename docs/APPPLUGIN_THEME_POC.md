@@ -25,6 +25,8 @@ Der Host bildet diese Verträge nach und besitzt einen lokalen `/theme`-Diagnose
 
 Die Desktop-Hülle verwendet für ihre eigene Oberfläche CSS-Themevariablen. Auf AppPlugin-Frames werden weder Filter noch Farbüberschreibungen angewendet.
 
+Color-Model, System-Farbschema und Card-Style liegen inzwischen zusammen mit Locale, RTL-Präferenzen und Font-Scale im versionierten `AppPluginDesktopSessionState`. Dadurch überlebt Theme den von der APK vorgeschriebenen Locale-Neustart. Umgekehrt werden auch AppPlugin-Aufrufe von `setColorModel` und `setCardStyle` über den echten Native-Bridge-Dispatcher in denselben Zustand zurückgeschrieben; PC-Hülle und AppPlugin-Sitzung lesen damit dieselbe Quelle.
+
 ## Reproduzierbarer Nachweis
 
 Der Test wurde mit dem unveränderten Q7-L5-Hermes-Bundle im expliziten Full-AppPlugin-Root-Diagnosemodus ausgeführt:
