@@ -29,7 +29,7 @@ Color-Model, System-Farbschema und Card-Style liegen inzwischen zusammen mit Loc
 
 ## Reproduzierbarer Nachweis
 
-`npm run poc:appplugin-q7-theme-goldens` prüft sechs Browserbilder in derselben unveränderten Q7-L5-Hermes-Sitzung:
+`npm run poc:appplugin-q7-theme-goldens` prüft sechs Browserbilder in derselben unveränderten Q7-L5-Hermes-Sitzung. `npm run poc:appplugin-q7-m5-theme-goldens` führt denselben Vertrag mit dem unveränderten M5-Bundle aus:
 
 - Startansicht Hell und Dunkel,
 - AppPlugin-Einstellungsansicht Hell und Dunkel,
@@ -39,8 +39,8 @@ Das Gate verlangt `colorModel = default` für Systemmodus, das jeweils korrekte 
 
 Der erste AppPlugin-Einstellungsframe montiert einige Icons über verzögerte React-Native-Timer. Der Host gibt die Pointerantwort sofort zurück und stabilisiert fällige AppPlugin-UI anschließend über einen serialisierten Hintergrundpump. Das Golden-Harness wartet zusätzlich auf eine ruhige Frame-Revision, damit kein Zwischenframe versioniert wird.
 
-Manifest und sechs Chromium-PNGs liegen unter `test/fixtures/appplugin/q7-l5-theme-*`. `test/unit/appplugin_q7_theme_actor_goldens.test.ts` bindet Bilddateien, Hashes, Abmessungen, Bundle-Provenienz und Systemmodus-Gleichheit an das Manifest.
+Manifest und je sechs Chromium-PNGs liegen unter `test/fixtures/appplugin/q7-l5-theme-*` und `test/fixtures/appplugin/q7-m5-theme-*`. `test/unit/appplugin_q7_theme_actor_goldens.test.ts` bindet Bilddateien, Hashes, Abmessungen, Bundle-Provenienz und Systemmodus-Gleichheit an das jeweilige Manifest. Das Browser-Harness stellt vor und nach jedem Lauf über den originalen Zurück-Pfad wieder die Startansicht her; das Gate ist dadurch auch bei wiederverwendeter Session reproduzierbar.
 
 ## Nächstes Gate
 
-Q7 L5 ist für Hell, Dunkel und Systemmodus abgeschlossen. Derselbe Vertrag muss nun ohne Host-Paletten oder AppPlugin-Sonderfälle gegen Q7 M5, Q10 und weitere technisch unterschiedliche AppPlugin-Familien ausgeführt werden.
+Q7 L5 und M5 sind für Hell, Dunkel und Systemmodus abgeschlossen. Derselbe Vertrag muss nun ohne Host-Paletten oder AppPlugin-Sonderfälle gegen Q10 und weitere technisch unterschiedliche AppPlugin-Familien ausgeführt werden.

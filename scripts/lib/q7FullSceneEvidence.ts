@@ -27,6 +27,15 @@ export interface Q7VisualComparison {
 	significantPixelRatio: number;
 	meanChannelDelta: number;
 	maximumChannelDelta: number;
+	differingBounds: Q7PixelBounds | null;
+	significantBounds: Q7PixelBounds | null;
+}
+
+export interface Q7PixelBounds {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
 }
 
 export function jsonRecord(value: unknown, context: string): JsonRecord {
@@ -100,7 +109,61 @@ function nearestZLayer(entry: TreeEntry): JsonRecord | undefined {
 	});
 }
 
-function actorEvidence(entries: TreeEntry[], asset: string): JsonRecord {
+function nativeLayoutMap(result: JsonRecord): ReadonlyMap<number, JsonRecord> {
+	const hierarchy = jsonRecord(result.nativeHierarchy, "nativeHierarchy");
+	const layouts = new Map<number, JsonRecord>();
+	for (const value of jsonArray(hierarchy.layouts, "nativeHierarchy.layouts")) {
+		const entry = jsonRecord(value, "Native Layout");
+		if (typeof entry.tag !== "number") throw new Error("Native Layout besitzt kein Tag");
+		layouts.set(entry.tag, jsonRecord(entry.box, `Native Layout ${entry.tag}`));
+	}
+	return layouts;
+}
+
+function nativeMeasurementMap(result: JsonRecord): ReadonlyMap<number, JsonRecord> {
+	const measurements = new Map<number, JsonRecord>();
+	for (const value of jsonArray(result.nativeMeasurements, "nativeMeasurements")) {
+		const entry = jsonRecord(value, "Native Messung");
+		if (typeof entry.tag !== "number") throw new Error("Native Messung besitzt kein Tag");
+		measurements.set(entry.tag, jsonRecord(entry.box, `Native Messung ${entry.tag}`));
+	}
+	return measurements;
+}
+
+function layoutEvidence(node: JsonRecord, layouts: ReadonlyMap<number, JsonRecord>): JsonRecord | null {
+	if (typeof node.tag !== "number") throw new Error("UI-Knoten besitzt kein numerisches Tag");
+	const layout = layouts.get(node.tag);
+	if (!layout) return null;
+	return {
+		x: layout.x,
+		y: layout.y,
+		width: layout.width,
+		height: layout.height,
+		transform: layout.transform ?? null,
+	};
+}
+
+function measurementEvidence(
+	node: JsonRecord,
+	measurements: ReadonlyMap<number, JsonRecord>,
+): JsonRecord | null {
+	if (typeof node.tag !== "number") throw new Error("UI-Knoten besitzt kein numerisches Tag");
+	const measurement = measurements.get(node.tag);
+	if (!measurement) return null;
+	return {
+		x: measurement.x,
+		y: measurement.y,
+		width: measurement.width,
+		height: measurement.height,
+	};
+}
+
+function actorEvidence(
+	entries: TreeEntry[],
+	asset: string,
+	layouts: ReadonlyMap<number, JsonRecord>,
+	measurements: ReadonlyMap<number, JsonRecord>,
+): JsonRecord {
 	const image = entries.find(entry => entry.node.viewName === "RCTImageView" && imageAsset(entry.node) === asset);
 	if (!image) throw new Error(`AppPlugin-Akteur ${asset} fehlt`);
 	const imageProps = jsonRecord(image.node.props, `${asset}-Bildprops`);
@@ -114,7 +177,34 @@ function actorEvidence(entries: TreeEntry[], asset: string): JsonRecord {
 		layerZIndex: layerProps.zIndex,
 		layerWidth: layerProps.width,
 		layerHeight: layerProps.height,
+		imageLayout: layoutEvidence(image.node, layouts),
+		layerLayout: layoutEvidence(layer, layouts),
+		imageMeasurement: measurementEvidence(image.node, measurements),
+		layerMeasurement: measurementEvidence(layer, measurements),
 	};
+}
+
+function coloredViewEvidence(
+	entries: TreeEntry[],
+	layouts: ReadonlyMap<number, JsonRecord>,
+	measurements: ReadonlyMap<number, JsonRecord>,
+): JsonRecord[] {
+	return entries.flatMap(({ node }) => {
+		const props = jsonRecord(node.props, "Farbige View-Props");
+		const hasBackground = typeof props.backgroundColor === "number";
+		const hasBorder = typeof props.borderColor === "number" && Number(props.borderWidth ?? 0) > 0;
+		if (!hasBackground && !hasBorder) return [];
+		return [{
+			viewName: node.viewName,
+			backgroundColor: hasBackground ? props.backgroundColor : null,
+			borderColor: hasBorder ? props.borderColor : null,
+			borderWidth: hasBorder ? props.borderWidth : 0,
+			borderRadius: props.borderRadius ?? null,
+			opacity: props.opacity ?? 1,
+			layout: layoutEvidence(node, layouts),
+			measurement: measurementEvidence(node, measurements),
+		}];
+	}).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
 }
 
 function summarizeSceneInventory(result: JsonRecord): JsonRecord {
@@ -155,9 +245,56 @@ function summarizeWorker(result: JsonRecord): JsonRecord {
 	};
 }
 
+function summarizeHostContract(result: JsonRecord): JsonRecord {
+	const nativeSignatures = new Map<string, Set<number>>();
+	for (const value of jsonArray(result.nativeInvocations, "nativeInvocations")) {
+		const invocation = jsonRecord(value, "Native Invocation");
+		if (typeof invocation.moduleName !== "string" || typeof invocation.methodName !== "string") {
+			throw new Error("Native Invocation besitzt keinen gültigen Modul-/Methodennamen");
+		}
+		if (typeof invocation.argumentCount !== "number") {
+			throw new Error(`Native Invocation ${invocation.moduleName}.${invocation.methodName} besitzt keine Argumentanzahl`);
+		}
+		const key = `${invocation.moduleName}\u0000${invocation.methodName}`;
+		const argumentCounts = nativeSignatures.get(key) ?? new Set<number>();
+		argumentCounts.add(invocation.argumentCount);
+		nativeSignatures.set(key, argumentCounts);
+	}
+
+	const uiMethods = new Set<string>();
+	const viewManagers = new Set<string>();
+	for (const value of jsonArray(result.uiOperations, "uiOperations")) {
+		const operation = jsonRecord(value, "UI-Operation");
+		if (typeof operation.method !== "string") throw new Error("UI-Operation besitzt keinen Methodennamen");
+		uiMethods.add(operation.method);
+		if (operation.method !== "createView") continue;
+		const arguments_ = jsonArray(operation.arguments, "createView-Argumente");
+		if (typeof arguments_[1] === "string") viewManagers.add(arguments_[1]);
+	}
+
+	return {
+		nativeMethods: [...nativeSignatures.entries()]
+			.map(([key, argumentCounts]) => {
+				const [moduleName, methodName] = key.split("\u0000");
+				return {
+					moduleName,
+					methodName,
+					argumentCounts: [...argumentCounts].sort((left, right) => left - right),
+				};
+			})
+			.sort((left, right) =>
+				left.moduleName.localeCompare(right.moduleName)
+				|| left.methodName.localeCompare(right.methodName)),
+		uiManagerMethods: [...uiMethods].sort((left, right) => left.localeCompare(right)),
+		viewManagers: [...viewManagers].sort((left, right) => left.localeCompare(right)),
+	};
+}
+
 function summarizeMapSurface(result: JsonRecord): JsonRecord {
 	const uiTree = jsonRecord(result.uiTree, "uiTree");
 	const surface = jsonRecord(result.interactiveSurface, "interactiveSurface");
+	const layouts = nativeLayoutMap(result);
+	const measurements = nativeMeasurementMap(result);
 	if (typeof surface.tag !== "number") throw new Error("Interaktive Kartenfläche besitzt kein Tag");
 	const root = findTreeNode(uiTree, surface.tag);
 	const entries = collectTree(root);
@@ -198,8 +335,30 @@ function summarizeMapSurface(result: JsonRecord): JsonRecord {
 	const pag = entries.find(entry => entry.node.viewName === "RRPAGAnimationView");
 	if (!pag) throw new Error("AppPlugin-Roboteranimation fehlt");
 	const pagProps = jsonRecord(pag.node.props, "PAG-Props");
-	const robot = actorEvidence(entries, "src_sc_components_resource_images_common_robot.png");
-	const dock = actorEvidence(entries, "src_sc_components_resource_images_common_charge_android.png");
+	const robot = actorEvidence(
+		entries,
+		"src_sc_components_resource_images_common_robot.png",
+		layouts,
+		measurements,
+	);
+	const dock = actorEvidence(
+		entries,
+		"src_sc_components_resource_images_common_charge_android.png",
+		layouts,
+		measurements,
+	);
+	const roomLabelLayouts = entries
+		.filter(entry => entry.node.viewName === "RCTText")
+		.map(entry => ({
+			text: rawText(entry.node).join(""),
+			layout: layoutEvidence(entry.node, layouts),
+			measurement: measurementEvidence(entry.node, measurements),
+		}))
+		.filter(entry => /^Raum\d+$/u.test(entry.text))
+		.sort((left, right) =>
+			left.text.localeCompare(right.text)
+			|| Number(left.layout?.x ?? 0) - Number(right.layout?.x ?? 0)
+			|| Number(left.layout?.y ?? 0) - Number(right.layout?.y ?? 0));
 	const artifact = jsonRecord(result.apkInteractiveSurfacePng, "Karten-PNG");
 	return {
 		viewCounts: sortedRecord(viewCounts),
@@ -211,12 +370,16 @@ function summarizeMapSurface(result: JsonRecord): JsonRecord {
 		robot,
 		dock,
 		robotAboveDock: Number(robot.layerZIndex) > Number(dock.layerZIndex),
+		coloredViews: coloredViewEvidence(entries, layouts, measurements),
+		roomLabelLayouts,
 		robotAnimation: {
 			asset: basenameFromAssetUri(pagProps.filePath),
 			width: pagProps.width,
 			height: pagProps.height,
 			autoPlay: pagProps.autoPlay,
 			loop: pagProps.loop,
+			layout: layoutEvidence(pag.node, layouts),
+			measurement: measurementEvidence(pag.node, measurements),
 		},
 		render: {
 			width: artifact.width,
@@ -238,13 +401,14 @@ export function buildQ7FullSceneEvidence(
 ): JsonRecord {
 	const result = jsonRecord(resultValue, "Probe-Ergebnis");
 	return {
-		version: 1,
+		version: 3,
 		runtime: {
 			bundleKind: result.bundleKind,
 			bundleSha256: options.bundleSha256,
 			fixtureSha256: options.fixtureSha256,
 			worker: summarizeWorker(result),
 		},
+		hostContract: summarizeHostContract(result),
 		scene: summarizeSceneInventory(result),
 		map: summarizeMapSurface(result),
 	};
@@ -273,6 +437,14 @@ export async function compareQ7FullScenePng(
 	let significantPixelCount = 0;
 	let totalChannelDelta = 0;
 	let maximumChannelDelta = 0;
+	let differingMinimumX = actualImage.width;
+	let differingMinimumY = actualImage.height;
+	let differingMaximumX = -1;
+	let differingMaximumY = -1;
+	let significantMinimumX = actualImage.width;
+	let significantMinimumY = actualImage.height;
+	let significantMaximumX = -1;
+	let significantMaximumY = -1;
 	for (let offset = 0; offset < actual.length; offset += 4) {
 		let pixelMaximum = 0;
 		for (let channel = 0; channel < 4; channel += 1) {
@@ -281,10 +453,38 @@ export async function compareQ7FullScenePng(
 			pixelMaximum = Math.max(pixelMaximum, delta);
 			maximumChannelDelta = Math.max(maximumChannelDelta, delta);
 		}
-		if (pixelMaximum > 0) differingPixelCount += 1;
-		if (pixelMaximum > 12) significantPixelCount += 1;
+		const pixelIndex = offset / 4;
+		const x = pixelIndex % actualImage.width;
+		const y = Math.floor(pixelIndex / actualImage.width);
+		if (pixelMaximum > 0) {
+			differingPixelCount += 1;
+			differingMinimumX = Math.min(differingMinimumX, x);
+			differingMinimumY = Math.min(differingMinimumY, y);
+			differingMaximumX = Math.max(differingMaximumX, x);
+			differingMaximumY = Math.max(differingMaximumY, y);
+		}
+		if (pixelMaximum > 12) {
+			significantPixelCount += 1;
+			significantMinimumX = Math.min(significantMinimumX, x);
+			significantMinimumY = Math.min(significantMinimumY, y);
+			significantMaximumX = Math.max(significantMaximumX, x);
+			significantMaximumY = Math.max(significantMaximumY, y);
+		}
 	}
 	const pixelCount = actualImage.width * actualImage.height;
+	const bounds = (
+		minimumX: number,
+		minimumY: number,
+		maximumX: number,
+		maximumY: number,
+	): Q7PixelBounds | null => maximumX < minimumX || maximumY < minimumY
+		? null
+		: {
+			x: minimumX,
+			y: minimumY,
+			width: maximumX - minimumX + 1,
+			height: maximumY - minimumY + 1,
+		};
 	return {
 		actualSha256: sha256File(actualPath),
 		expectedSha256: sha256File(expectedPath),
@@ -296,5 +496,17 @@ export async function compareQ7FullScenePng(
 		significantPixelRatio: significantPixelCount / pixelCount,
 		meanChannelDelta: totalChannelDelta / actual.length,
 		maximumChannelDelta,
+		differingBounds: bounds(
+			differingMinimumX,
+			differingMinimumY,
+			differingMaximumX,
+			differingMaximumY,
+		),
+		significantBounds: bounds(
+			significantMinimumX,
+			significantMinimumY,
+			significantMaximumX,
+			significantMaximumY,
+		),
 	};
 }

@@ -5,6 +5,7 @@ import { renderAppPluginSvgPng, sha256 } from "./lib/appPluginBrowserGolden";
 
 type ThemeMode = "dark" | "light" | "system";
 type ColorScheme = "dark" | "light";
+type GoldenProfile = "q7-l5" | "q7-m5";
 
 interface RuntimeHealth {
 	status: "appplugin-session-ready";
@@ -51,15 +52,24 @@ function writeDiagnostics(captures: readonly Capture[], reason: string): string 
 	return directory;
 }
 
-function parseArgs(args: readonly string[]): { baseUrl: string; updateGolden: boolean } {
+function parseArgs(args: readonly string[]): {
+	baseUrl: string;
+	goldenProfile: GoldenProfile;
+	updateGolden: boolean;
+} {
 	let baseUrl = "http://127.0.0.1:4174";
+	let goldenProfile: GoldenProfile = "q7-l5";
 	let updateGolden = false;
 	for (let index = 0; index < args.length; index += 1) {
 		if (args[index] === "--base-url" && args[index + 1]) baseUrl = args[++index];
+		else if (args[index] === "--golden-profile"
+			&& (args[index + 1] === "q7-l5" || args[index + 1] === "q7-m5")) {
+			goldenProfile = args[++index] as GoldenProfile;
+		}
 		else if (args[index] === "--update-golden") updateGolden = true;
 		else throw new Error(`Unbekannte oder unvollständige Option: ${args[index]}`);
 	}
-	return { baseUrl: baseUrl.replace(/\/$/u, ""), updateGolden };
+	return { baseUrl: baseUrl.replace(/\/$/u, ""), goldenProfile, updateGolden };
 }
 
 async function readJson<T>(url: string): Promise<T> {
@@ -133,7 +143,32 @@ async function tap(baseUrl: string, pointerId: number, x: number, y: number): Pr
 	}
 }
 
-async function capture(baseUrl: string, themeCase: ThemeCase, sessionId: string): Promise<Capture> {
+async function ensureHomeScene(baseUrl: string, pointerId: number): Promise<RuntimeState> {
+	const state = await readJson<RuntimeState>(`${baseUrl}/state`);
+	const rawText = state.rawText.map(String);
+	// Der Q7-Navigator lässt die 21 Textknoten der festen Home-Fixture gemountet
+	// und ergänzt in den Einstellungen weitere 24. Die Anzahl erkennt die Route
+	// ohne Hostübersetzungen oder sprachabhängige AppPlugin-Texte.
+	const settingsScenePresent = rawText.length > 30;
+	if (settingsScenePresent) {
+		await tap(baseUrl, pointerId, 25, 73);
+		await waitForStableFrame(baseUrl);
+	} else if (rawText.includes("Roborock Q7")) {
+		return state;
+	}
+	const homeState = await readJson<RuntimeState>(`${baseUrl}/state`);
+	if (!homeState.rawText.map(String).includes("Roborock Q7")) {
+		throw new Error("Theme-Golden konnte die originale Q7-Startansicht nicht wiederherstellen");
+	}
+	return homeState;
+}
+
+async function capture(
+	baseUrl: string,
+	themeCase: ThemeCase,
+	sessionId: string,
+	goldenProfile: GoldenProfile,
+): Promise<Capture> {
 	await setTheme(baseUrl, themeCase.mode, themeCase.systemColorScheme);
 	const currentHealth = await waitForStableFrame(baseUrl);
 	if (currentHealth.sessionId !== sessionId) throw new Error("Theme-Wechsel hat die laufende AppPlugin-Sitzung unerwartet ersetzt");
@@ -154,7 +189,7 @@ async function capture(baseUrl: string, themeCase: ThemeCase, sessionId: string)
 	const width = Math.round(currentHealth.viewport.width);
 	const height = Math.round(currentHealth.viewport.height);
 	const png = await renderAppPluginSvgPng(svg, width, height, `theme-${themeCase.id}`);
-	const fileName = `q7-l5-theme-${themeCase.id}-golden.png`;
+	const fileName = `${goldenProfile}-theme-${themeCase.id}-golden.png`;
 	return {
 		png,
 		fileName,
@@ -186,12 +221,9 @@ async function capture(baseUrl: string, themeCase: ThemeCase, sessionId: string)
 async function main(): Promise<void> {
 	const options = parseArgs(process.argv.slice(2));
 	const fixtureDirectory = path.join(process.cwd(), "test", "fixtures", "appplugin");
-	const manifestPath = path.join(fixtureDirectory, "q7-l5-theme-goldens.json");
+	const manifestPath = path.join(fixtureDirectory, `${options.goldenProfile}-theme-goldens.json`);
 	const initialHealth = await health(options.baseUrl);
-	const initialState = await readJson<RuntimeState>(`${options.baseUrl}/state`);
-	if (!initialState.rawText.map(String).includes("Roborock Q7")) {
-		throw new Error("Theme-Golden benötigt die frische originale Q7-Startansicht");
-	}
+	const initialState = await ensureHomeScene(options.baseUrl, 800);
 	const initialMode: ThemeMode = initialHealth.colorModel === "default" ? "system" : initialHealth.colorModel;
 	const initialSystemScheme = initialHealth.systemColorScheme;
 	const captures: Capture[] = [];
@@ -201,13 +233,13 @@ async function main(): Promise<void> {
 			mode: "light",
 			systemColorScheme: "light",
 			scene: "home",
-		}, initialHealth.sessionId));
+		}, initialHealth.sessionId, options.goldenProfile));
 		captures.push(await capture(options.baseUrl, {
 			id: "home-dark",
 			mode: "dark",
 			systemColorScheme: "light",
 			scene: "home",
-		}, initialHealth.sessionId));
+		}, initialHealth.sessionId, options.goldenProfile));
 		await setTheme(options.baseUrl, "light", "light");
 		await tap(options.baseUrl, 801, 319, 82);
 		captures.push(await capture(options.baseUrl, {
@@ -215,28 +247,29 @@ async function main(): Promise<void> {
 			mode: "light",
 			systemColorScheme: "light",
 			scene: "settings",
-		}, initialHealth.sessionId));
+		}, initialHealth.sessionId, options.goldenProfile));
 		captures.push(await capture(options.baseUrl, {
 			id: "settings-dark",
 			mode: "dark",
 			systemColorScheme: "light",
 			scene: "settings",
-		}, initialHealth.sessionId));
+		}, initialHealth.sessionId, options.goldenProfile));
 		captures.push(await capture(options.baseUrl, {
 			id: "settings-system-dark",
 			mode: "system",
 			systemColorScheme: "dark",
 			scene: "settings",
-		}, initialHealth.sessionId));
+		}, initialHealth.sessionId, options.goldenProfile));
 		await setTheme(options.baseUrl, "light", "light");
 		captures.push(await capture(options.baseUrl, {
 			id: "settings-system-light",
 			mode: "system",
 			systemColorScheme: "light",
 			scene: "settings",
-		}, initialHealth.sessionId));
+		}, initialHealth.sessionId, options.goldenProfile));
 	} finally {
 		await setTheme(options.baseUrl, initialMode, initialSystemScheme);
+		await ensureHomeScene(options.baseUrl, 802);
 	}
 
 	const byId = new Map(captures.map(item => [String(item.evidence.id), item]));
@@ -261,7 +294,7 @@ async function main(): Promise<void> {
 	}
 	const manifest = {
 		schemaVersion: 1,
-		source: "unchanged-q7-l5-appplugin-session",
+		source: `unchanged-${options.goldenProfile}-appplugin-session`,
 		sameSession: true,
 		cases: captures.map(item => item.evidence),
 	};

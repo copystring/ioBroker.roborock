@@ -101,6 +101,11 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(zoomIn[0].x).toBeGreaterThan(zoomIn[1].x);
 		expect(signedDistance(zoomIn, 3, 1)).toBeGreaterThan(signedDistance(zoomIn, 0, 1));
 		expect(signedDistance(zoomOut, 3, 1)).toBeLessThan(signedDistance(zoomOut, 0, 1));
+		expect(signedDistance(zoomIn, 3, 1) - signedDistance(zoomIn, 0, 1)).toBe(
+			-(signedDistance(zoomOut, 3, 1) - signedDistance(zoomOut, 0, 1)),
+		);
+		expect(zoomOut[0].x).toBe(zoomIn[3].x);
+		expect(zoomOut[3].x).toBe(zoomIn[0].x);
 		expect(zoomIn[2].pointerId).toBe(zoomIn[0].pointerId);
 		expect(zoomIn[3].pointerId).toBe(zoomIn[0].pointerId);
 	});

@@ -2,9 +2,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { createAppPluginPinchZoomPointers } from "../src/www/apppluginLab/live-appplugin-map-surface";
-import { renderAppPluginSvgPng, sha256 } from "./lib/appPluginBrowserGolden";
 
 type JsonRecord = Record<string, unknown>;
+type GoldenProfile = "q7-l5" | "q7-m5";
 
 interface LayoutBox {
 	x: number;
@@ -74,19 +74,36 @@ interface SceneGeometry {
 	station: ActorGeometry;
 }
 
+interface ActorConstants {
+	mapChildScale: number;
+	robotOuterMultiplier: number;
+	robotImageDivisor: number;
+	robotZIndex: number;
+	stationZIndex: number;
+}
+
 const ROBOT_ASSET = "src_sc_components_resource_images_common_robot.png";
 const STATION_ASSET = "src_sc_components_resource_images_common_charge_android.png";
 const identity: Affine = { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 };
 
-function parseArgs(args: readonly string[]): { baseUrl: string; updateGolden: boolean } {
+function parseArgs(args: readonly string[]): {
+	baseUrl: string;
+	goldenProfile: GoldenProfile;
+	updateGolden: boolean;
+} {
 	let baseUrl = "http://127.0.0.1:4174";
+	let goldenProfile: GoldenProfile = "q7-l5";
 	let updateGolden = false;
 	for (let index = 0; index < args.length; index += 1) {
 		if (args[index] === "--base-url" && args[index + 1]) baseUrl = args[++index];
+		else if (args[index] === "--golden-profile"
+			&& (args[index + 1] === "q7-l5" || args[index + 1] === "q7-m5")) {
+			goldenProfile = args[++index] as GoldenProfile;
+		}
 		else if (args[index] === "--update-golden") updateGolden = true;
 		else throw new Error(`Unbekannte oder unvollständige Option: ${args[index]}`);
 	}
-	return { baseUrl: baseUrl.replace(/\/$/u, ""), updateGolden };
+	return { baseUrl: baseUrl.replace(/\/$/u, ""), goldenProfile, updateGolden };
 }
 
 function record(value: unknown, context: string): JsonRecord {
@@ -212,18 +229,6 @@ function round(value: number): number {
 	return Number(value.toFixed(6));
 }
 
-function roundedActor(actor: ActorGeometry): ActorGeometry {
-	return {
-		...actor,
-		layerScaleX: round(actor.layerScaleX),
-		layerScaleY: round(actor.layerScaleY),
-		imageScaleX: round(actor.imageScaleX),
-		imageScaleY: round(actor.imageScaleY),
-		bounds: Object.fromEntries(Object.entries(actor.bounds).map(([key, value]) => [key, round(value)])) as ActorGeometry["bounds"],
-		center: { x: round(actor.center.x), y: round(actor.center.y) },
-	};
-}
-
 async function readJson<T>(url: string): Promise<T> {
 	const response = await fetch(url, { cache: "no-store" });
 	if (!response.ok) throw new Error(`${url} antwortet mit HTTP ${response.status}`);
@@ -270,18 +275,99 @@ function assertClose(value: number, expected: number, context: string, tolerance
 
 function assertActorInvariants(scene: SceneGeometry): void {
 	if (!scene.robotAboveStation) throw new Error("Roboter liegt nicht über der Station");
-	assertClose(scene.robot.layerScaleX, 0.16, "Roboter-Layerscale X");
-	assertClose(scene.robot.layerScaleY, 0.16, "Roboter-Layerscale Y");
-	assertClose(scene.robot.imageScaleX, 0.32 / 0.18, "Roboter-Bildscale X");
-	assertClose(scene.robot.imageScaleY, 0.32 / 0.18, "Roboter-Bildscale Y");
-	assertClose(scene.station.layerScaleX, 0.32, "Stationsscale X");
-	assertClose(scene.station.layerScaleY, 0.32, "Stationsscale Y");
+	for (const [name, value] of Object.entries({
+		robotLayerScaleX: scene.robot.layerScaleX,
+		robotLayerScaleY: scene.robot.layerScaleY,
+		robotImageScaleX: scene.robot.imageScaleX,
+		robotImageScaleY: scene.robot.imageScaleY,
+		stationLayerScaleX: scene.station.layerScaleX,
+		stationLayerScaleY: scene.station.layerScaleY,
+	})) {
+		if (!Number.isFinite(value) || value <= 0) throw new Error(`${name} ist kein positiver AppPlugin-Faktor`);
+	}
 	if (scene.centerDistance > 1) throw new Error(`Gedockter Roboter und Station liegen ${scene.centerDistance}px auseinander`);
 	const robotSize = Math.max(scene.robot.bounds.width, scene.robot.bounds.height);
 	const stationSize = Math.max(scene.station.bounds.width, scene.station.bounds.height);
 	const ratio = robotSize / stationSize;
 	if (robotSize < 8 || robotSize > 50 || stationSize < 8 || stationSize > 50 || ratio < 0.75 || ratio > 1.35) {
 		throw new Error(`AppPlugin-Akteurgrößen sind unplausibel: Roboter ${robotSize}px, Station ${stationSize}px`);
+	}
+}
+
+function actorConstants(scene: SceneGeometry): ActorConstants {
+	assertClose(scene.station.layerScaleY, scene.station.layerScaleX, "AppPlugin-Kartenscale Y");
+	const mapChildScale = scene.station.layerScaleX;
+	const robotOuterMultiplier = scene.robot.layerScaleX / mapChildScale;
+	assertClose(
+		scene.robot.layerScaleY / scene.station.layerScaleY,
+		robotOuterMultiplier,
+		"AppPlugin-Roboter-Außenfaktor Y",
+	);
+	const robotImageDivisor = mapChildScale / scene.robot.imageScaleX;
+	assertClose(
+		scene.station.layerScaleY / scene.robot.imageScaleY,
+		robotImageDivisor,
+		"AppPlugin-Roboter-Bilddivisor Y",
+	);
+	return {
+		mapChildScale: round(mapChildScale),
+		robotOuterMultiplier: round(robotOuterMultiplier),
+		robotImageDivisor: round(robotImageDivisor),
+		robotZIndex: scene.robot.layerZIndex,
+		stationZIndex: scene.station.layerZIndex,
+	};
+}
+
+function assertActorConstants(scene: SceneGeometry, expected: ActorConstants): void {
+	assertClose(scene.station.layerScaleX, expected.mapChildScale, "AppPlugin-Kartenscale");
+	assertClose(
+		scene.robot.layerScaleX / scene.station.layerScaleX,
+		expected.robotOuterMultiplier,
+		"AppPlugin-Roboter-Außenfaktor",
+	);
+	assertClose(
+		scene.station.layerScaleX / scene.robot.imageScaleX,
+		expected.robotImageDivisor,
+		"AppPlugin-Roboter-Bilddivisor",
+		1e-6,
+	);
+	if (scene.robot.layerZIndex !== expected.robotZIndex
+		|| scene.station.layerZIndex !== expected.stationZIndex) {
+		throw new Error("AppPlugin-Z-Reihenfolge hat sich während des Zooms verändert");
+	}
+}
+
+function normalizedActorGeometry(scene: SceneGeometry): Readonly<Record<string, number>> {
+	return {
+		mapScaleYPerX: round(scene.mapScaleY / scene.mapScaleX),
+		robotWidthPerMapScale: round(scene.robot.bounds.width / scene.mapScaleX),
+		robotHeightPerMapScale: round(scene.robot.bounds.height / scene.mapScaleY),
+		stationWidthPerMapScale: round(scene.station.bounds.width / scene.mapScaleX),
+		stationHeightPerMapScale: round(scene.station.bounds.height / scene.mapScaleY),
+		centerDistancePerMapScale: round(scene.centerDistance / scene.mapScaleX),
+	};
+}
+
+function assertNormalizedGeometry(
+	scene: SceneGeometry,
+	expected: Readonly<Record<string, number>>,
+): void {
+	const actual = normalizedActorGeometry(scene);
+	for (const [property, expectedValue] of Object.entries(expected)) {
+		assertClose(actual[property], expectedValue, `Normalisierte AppPlugin-Geometrie ${property}`, 1e-5);
+	}
+}
+
+function assertActorsTrackMap(before: SceneGeometry, after: SceneGeometry, context: string): void {
+	const scaleFactor = after.mapScaleX / before.mapScaleX;
+	for (const [property, actualFactor] of Object.entries({
+		robotWidth: after.robot.bounds.width / before.robot.bounds.width,
+		robotHeight: after.robot.bounds.height / before.robot.bounds.height,
+		stationWidth: after.station.bounds.width / before.station.bounds.width,
+		stationHeight: after.station.bounds.height / before.station.bounds.height,
+		centerDistance: after.centerDistance / before.centerDistance,
+	})) {
+		assertClose(actualFactor, scaleFactor, `${context}: ${property}`, 1e-5);
 	}
 }
 
@@ -308,8 +394,7 @@ async function pinch(baseUrl: string, delta: number, pointerOffset: number): Pro
 async function main(): Promise<void> {
 	const options = parseArgs(process.argv.slice(2));
 	const fixtureDirectory = path.join(process.cwd(), "test", "fixtures", "appplugin");
-	const manifestPath = path.join(fixtureDirectory, "q7-l5-actor-scaling-golden.json");
-	const pngPath = path.join(fixtureDirectory, "q7-l5-actor-scaling-golden.png");
+	const manifestPath = path.join(fixtureDirectory, `${options.goldenProfile}-actor-scaling-golden.json`);
 	const initialHealth = await readJson<RuntimeHealth>(`${options.baseUrl}/health?view=map`);
 	const initialState = await readJson<RuntimeState>(`${options.baseUrl}/state`);
 	if (initialHealth.status !== "appplugin-session-ready"
@@ -317,7 +402,7 @@ async function main(): Promise<void> {
 		|| initialHealth.bundleKind !== "hermes-bytecode"
 		|| initialHealth.deviceModel !== "roborock.vacuum.sc01"
 		|| !initialState.rawText.map(String).includes("Roborock Q7")) {
-		throw new Error("Akteur-Skalierung benötigt eine frische unveränderte Q7-L5-AppPlugin-Sitzung");
+		throw new Error("Akteur-Skalierung benötigt eine unveränderte Q7-AppPlugin-Sitzung");
 	}
 	const mapResponse = initialState.publishResponseMatches.find(match =>
 		match.payload.method === "service.upload_by_maptype");
@@ -330,25 +415,28 @@ async function main(): Promise<void> {
 	let initial: SceneGeometry;
 	let zoomIn: SceneGeometry;
 	let zoomOut: SceneGeometry;
-	let png: Buffer;
+	let originalConstants: ActorConstants;
+	let normalizedGeometry: Readonly<Record<string, number>>;
 	try {
 		await setTheme(options.baseUrl, "light", "light");
 		initial = await sceneGeometry(options.baseUrl);
 		assertActorInvariants(initial);
-		const frameResponse = await fetch(`${options.baseUrl}/frame.svg?view=map&scale=initial`, { cache: "no-store" });
-		if (!frameResponse.ok) throw new Error(`Initialer Kartenframe antwortet mit HTTP ${frameResponse.status}`);
-		png = await renderAppPluginSvgPng(
-			await frameResponse.text(),
-			Math.round(initialHealth.viewport.width),
-			Math.round(initialHealth.viewport.height),
-			"actor-scaling",
-		);
+		originalConstants = actorConstants(initial);
+		assertActorConstants(initial, originalConstants);
+		normalizedGeometry = normalizedActorGeometry(initial);
 		await pinch(options.baseUrl, 1, 1_000);
 		zoomIn = await sceneGeometry(options.baseUrl);
 		assertActorInvariants(zoomIn);
+		assertActorConstants(zoomIn, originalConstants);
+		assertNormalizedGeometry(zoomIn, normalizedGeometry);
+		assertActorsTrackMap(initial, zoomIn, "Desktop-Plus");
 		await pinch(options.baseUrl, -1, 2_000);
 		zoomOut = await sceneGeometry(options.baseUrl);
 		assertActorInvariants(zoomOut);
+		assertActorConstants(zoomOut, originalConstants);
+		assertNormalizedGeometry(zoomOut, normalizedGeometry);
+		assertActorsTrackMap(zoomIn, zoomOut, "Desktop-Minus");
+		assertClose(zoomOut.mapScaleX, initial.mapScaleX, "Inverses APK-Pinch-Paar stellt Kartenmaßstab wieder her", 1e-6);
 	} finally {
 		await setTheme(options.baseUrl, initialMode, initialHealth.systemColorScheme);
 	}
@@ -363,8 +451,8 @@ async function main(): Promise<void> {
 		throw new Error("Desktop-Minus verkleinert Karte, Roboter und Station nicht gemeinsam über das AppPlugin");
 	}
 	const evidence = {
-		schemaVersion: 1,
-		source: "unchanged-q7-l5-appplugin-session",
+		schemaVersion: 2,
+		source: `unchanged-${options.goldenProfile}-appplugin-session`,
 		profileLabel: initialHealth.profileLabel,
 		deviceModel: initialHealth.deviceModel,
 		bundleKind: initialHealth.bundleKind,
@@ -372,55 +460,32 @@ async function main(): Promise<void> {
 		productFallbackAllowed: initialHealth.productFallbackAllowed,
 		renderer: "chromium-headless",
 		apkTransportConnectedBeforeRunApplication: true,
-		mapRequestMatchCount: mapResponse.matchCount,
-		originalConstants: {
-			mapChildScale: 0.32,
-			robotOuterMultiplier: 0.5,
-			robotImageDivisor: 0.18,
-			robotZIndex: 490,
-			stationZIndex: 400,
+		mapRequestAnswered: true,
+		originalConstants: originalConstants!,
+		zoomContract: {
+			zoomInMapScaleDelta: round(zoomIn!.mapScaleX - initial!.mapScaleX),
+			zoomOutMapScaleDelta: round(zoomOut!.mapScaleX - zoomIn!.mapScaleX),
+			actorsTrackMapScale: true,
+			normalizedGeometry: normalizedGeometry!,
 		},
-		initial: {
-			...initial!,
-			mapScaleX: round(initial!.mapScaleX),
-			mapScaleY: round(initial!.mapScaleY),
-			centerDistance: round(initial!.centerDistance),
-			robot: roundedActor(initial!.robot),
-			station: roundedActor(initial!.station),
-		},
-		zoomIn: {
-			...zoomIn!,
-			mapScaleX: round(zoomIn!.mapScaleX),
-			mapScaleY: round(zoomIn!.mapScaleY),
-			centerDistance: round(zoomIn!.centerDistance),
-			robot: roundedActor(zoomIn!.robot),
-			station: roundedActor(zoomIn!.station),
-		},
-		zoomOut: {
-			...zoomOut!,
-			mapScaleX: round(zoomOut!.mapScaleX),
-			mapScaleY: round(zoomOut!.mapScaleY),
-			centerDistance: round(zoomOut!.centerDistance),
-			robot: roundedActor(zoomOut!.robot),
-			station: roundedActor(zoomOut!.station),
-		},
-		pngSha256: sha256(png!),
-		pngFile: path.posix.join("test", "fixtures", "appplugin", path.basename(pngPath)),
 	};
 	if (options.updateGolden) {
 		fs.mkdirSync(fixtureDirectory, { recursive: true });
-		fs.writeFileSync(pngPath, png!);
 		fs.writeFileSync(manifestPath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
-		process.stdout.write(`${JSON.stringify({ status: "actor-scaling-golden-updated", manifestPath, pngPath })}\n`);
+		process.stdout.write(`${JSON.stringify({ status: "actor-scaling-golden-updated", manifestPath })}\n`);
 		return;
 	}
 	const expected = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as typeof evidence;
-	if (JSON.stringify(expected) !== JSON.stringify(evidence) || !fs.readFileSync(pngPath).equals(png!)) {
-		const directory = path.join(process.cwd(), "artifacts", "appplugin-poc", "actor-scaling-golden-mismatch");
+	if (JSON.stringify(expected) !== JSON.stringify(evidence)) {
+		const directory = path.join(
+			process.cwd(),
+			"artifacts",
+			"appplugin-poc",
+			`${options.goldenProfile}-actor-scaling-golden-mismatch`,
+		);
 		fs.mkdirSync(directory, { recursive: true });
 		fs.writeFileSync(path.join(directory, "expected.json"), `${JSON.stringify(expected, null, 2)}\n`, "utf8");
 		fs.writeFileSync(path.join(directory, "actual.json"), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
-		fs.writeFileSync(path.join(directory, "actual.png"), png!);
 		throw new Error(`Akteur-Skalierungs-Golden weicht ab; Diagnose: ${directory}`);
 	}
 	process.stdout.write(`${JSON.stringify({ status: "actor-scaling-golden-match" })}\n`);

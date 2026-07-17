@@ -154,11 +154,11 @@ export function createAppPluginPinchZoomPointers(
 	if (delta === 0) return [];
 	const centerX = width / 2;
 	const centerY = height / 2;
-	const startDistance = Math.min(width * 0.28, 100);
-	const endDistance = delta > 0
-		? Math.min(width * 0.72, startDistance * 1.8)
-		: Math.max(24, startDistance * 0.55);
-	const leftX = centerX - startDistance / 2;
+	const contractedDistance = Math.min(width * 0.28, 100);
+	const expandedDistance = Math.min(width * 0.72, contractedDistance * 1.8);
+	const startDistance = delta > 0 ? contractedDistance : expandedDistance;
+	const endDistance = delta > 0 ? expandedDistance : contractedDistance;
+	const leftX = centerX - contractedDistance / 2;
 	const startRightX = leftX + startDistance;
 	const endRightX = leftX + endDistance;
 	const rightId = 10_001;

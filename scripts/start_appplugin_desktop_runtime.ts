@@ -10,7 +10,7 @@ import {
 	writeAppPluginDesktopSessionState,
 } from "./lib/appPluginDesktopSessionState";
 
-type DesktopFixtureProfile = "q7" | "q10";
+type DesktopFixtureProfile = "q7" | "q7-m5" | "q10";
 
 interface LauncherOptions {
 	profile: DesktopFixtureProfile;
@@ -35,7 +35,7 @@ function parseArgs(args: readonly string[]): LauncherOptions {
 	for (let index = 0; index < args.length; index += 1) {
 		const option = args[index];
 		const value = args[index + 1];
-		if (option === "--profile" && (value === "q7" || value === "q10")) {
+		if (option === "--profile" && (value === "q7" || value === "q7-m5" || value === "q10")) {
 			profile = value;
 			index += 1;
 		} else if (option === "--port" && value) {
@@ -90,7 +90,7 @@ function loadQ7FixtureIdentity(repositoryRoot: string): Q7FixtureIdentity {
 	return identity as Q7FixtureIdentity;
 }
 
-function createQ7ReplayManifest(repositoryRoot: string): string {
+function createQ7ReplayManifest(repositoryRoot: string, profile: "q7" | "q7-m5"): string {
 	const realMapPath = requireFile(
 		path.join(repositoryRoot, "artifacts", "appplugin-poc", "q7-l5-sc01-live-map.blob"),
 		"Echte lokale Q7-Kartenaufnahme",
@@ -121,7 +121,13 @@ function createQ7ReplayManifest(repositoryRoot: string): string {
 	for (const response of (manifest.publishResponses as JsonRecord[] | undefined) ?? []) {
 		for (const event of (response.events as JsonRecord[] | undefined) ?? []) rewriteEvent(event);
 	}
-	const outputPath = path.join(repositoryRoot, "artifacts", "appplugin-poc", "runtime-probes", "desktop-q7-live-replay.json");
+	const outputPath = path.join(
+		repositoryRoot,
+		"artifacts",
+		"appplugin-poc",
+		"runtime-probes",
+		`desktop-${profile}-live-replay.json`,
+	);
 	fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 	fs.writeFileSync(outputPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 	return outputPath;
@@ -156,17 +162,40 @@ async function main(): Promise<void> {
 		path.join(repositoryRoot, "tools", "hermes-appplugin-host", ".build-mingw-cmake3", "roborock-hermes-appplugin-host.exe"),
 		"Hermes-AppPlugin-Host",
 	);
-	const q7Identity = options.profile === "q7" ? loadQ7FixtureIdentity(repositoryRoot) : undefined;
-	const profileArguments = options.profile === "q7"
+	const isQ7Profile = options.profile === "q7" || options.profile === "q7-m5";
+	const q7Identity = isQ7Profile ? loadQ7FixtureIdentity(repositoryRoot) : undefined;
+	const profileArguments = isQ7Profile
 		? [
-			"--bundle", requireFile(path.join(repositoryRoot, ".AppPlugins", "Q7 L5", "019a00a9af4b7b8e894080040a2793a5", "index.android.bundle"), "Q7-L5-AppPlugin"),
+			"--bundle", options.profile === "q7-m5"
+				? requireFile(
+					path.join(
+						repositoryRoot,
+						".AppPlugins",
+						"Q7 M5",
+						"019b4e09d7ce7c6abedbb789d2be681d",
+						"index.android.bundle",
+					),
+					"Q7-M5-AppPlugin",
+				)
+				: requireFile(
+					path.join(
+						repositoryRoot,
+						".AppPlugins",
+						"Q7 L5",
+						"019a00a9af4b7b8e894080040a2793a5",
+						"index.android.bundle",
+					),
+					"Q7-L5-AppPlugin",
+				),
 			"--device-model", "roborock.vacuum.sc01",
 			"--device-name", "Roborock Q7",
 			"--device-sn", q7Identity!.deviceSn,
 			"--firmware-version", q7Identity!.firmwareVersion,
 			"--duid", q7Identity!.duid,
-			"--replay-manifest", createQ7ReplayManifest(repositoryRoot),
-			"--profile-label", "Q7 L5 / SC01 · echte lokale Kartenaufnahme",
+			"--replay-manifest", createQ7ReplayManifest(repositoryRoot, options.profile as "q7" | "q7-m5"),
+			"--profile-label", options.profile === "q7-m5"
+				? "Q7 M5 / SC01 · echte lokale Kartenaufnahme"
+				: "Q7 L5 / SC01 · echte lokale Kartenaufnahme",
 		]
 		: [
 			"--bundle", requireFile(path.join(repositoryRoot, ".AppPlugins", "Q10 X5+", "019bdf41f583723bb937ccc99bbd7541", "index.android.bundle"), "Q10-X5+-AppPlugin"),

@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
-  "source": "unchanged-q7-l5-appplugin-session",
-  "profileLabel": "Q7 L5 / SC01 · echte lokale Kartenaufnahme",
+  "source": "unchanged-q7-m5-appplugin-session",
+  "profileLabel": "Q7 M5 / SC01 · echte lokale Kartenaufnahme",
   "deviceModel": "roborock.vacuum.sc01",
   "bundleKind": "hermes-bytecode",
-  "bundleSha256": "9dfd8cc4c3020fe8e2428b3be4ca237b65ba536a4730addcfc29300885361a35",
+  "bundleSha256": "c4136ce753609838415d14264c39e661792c83949f3e9e86d9c463b9bbd19205",
   "productFallbackAllowed": false,
   "renderer": "chromium-headless",
   "apkTransportConnectedBeforeRunApplication": true,

@@ -3,8 +3,8 @@
 	"project": "ioBroker Roborock AppPlugin-first Rework",
 	"lastReviewed": "2026-07-17",
 	"currentPhase": "0C",
-	"currentFocus": ["P0C-Q7-ROOM-CLEANING-UI", "P0C-Q7-M5-CONTRACT"],
-	"nextUp": ["P0C-Q7-ROOM-CLEANING-UI", "P0C-Q7-M5-CONTRACT", "P0C-Q7-ROOM-PROPERTIES", "P0C-Q7-BOUNDARIES"],
+	"currentFocus": ["P0C-Q7-ROOM-CLEANING-UI", "P0C-Q7-M5-GATES"],
+	"nextUp": ["P0C-Q7-ROOM-CLEANING-UI", "P0C-Q7-M5-GATES", "P0C-Q7-ROOM-PROPERTIES", "P0C-Q7-BOUNDARIES"],
 	"phases": [
 		{
 			"id": "0A",
@@ -49,7 +49,7 @@
 			"title": "SCMap/Skia – Q7 L5, Q7 M5 und B01",
 			"contract": "Hermes HBC, SCMap.RobotMap, React Native und Skia",
 			"status": "in_progress",
-			"gate": "Q7 L5 vollständig schließen, danach Q7 M5 gegen denselben Hostvertrag und alle Abweichungen prüfen."
+			"gate": "Den für Q7 L5 und M5 gemeinsamen Host-, Vollszenen-, Theme- und Akteurvertrag um die noch offenen M5-Interaktions- und Editier-Gates erweitern."
 		},
 		{
 			"id": "yx",
@@ -436,7 +436,7 @@
 		{
 			"id": "P0C-Q7-FULL-SCENE",
 			"phase": "0C",
-			"area": "Q7 L5 – Rendering",
+			"area": "Q7 L5/M5 – Rendering",
 			"family": "scmap",
 			"title": "Vollständige Q7-L5-Szene mit korrekter Z-Reihenfolge und Golden absichern",
 			"status": "completed",
@@ -466,17 +466,18 @@
 				"docs/APPPLUGIN_ACTOR_SCALING_POC.md",
 				"scripts/prove_q7_appplugin_actor_scaling.ts",
 				"test/fixtures/appplugin/q7-l5-actor-scaling-golden.json",
-				"test/fixtures/appplugin/q7-l5-actor-scaling-golden.png",
+				"test/fixtures/appplugin/q7-m5-actor-scaling-golden.json",
 				"test/unit/appplugin_q7_theme_actor_goldens.test.ts",
 				"test/unit/appplugin_desktop.test.ts",
-				"`npm run poc:appplugin-q7-actor-scaling`"
+				"`npm run poc:appplugin-q7-actor-scaling`",
+				"`npm run poc:appplugin-q7-m5-actor-scaling`"
 			],
-			"nextAction": "Dasselbe Akteur-Gate ohne Hostgrößen oder Asset-Sonderfälle gegen Q7 M5, Q10 und weitere technisch unterschiedliche Kartenfamilien ausführen."
+			"nextAction": "Dasselbe zustandsunabhängige Akteur-Gate ohne Hostgrößen oder Asset-Sonderfälle gegen Q10 und weitere technisch unterschiedliche Kartenfamilien ausführen."
 		},
 		{
 			"id": "P0C-Q7-THEME",
 			"phase": "0C",
-			"area": "Q7 L5 – Theme und Locale",
+			"area": "Q7 L5/M5 – Theme und Locale",
 			"family": "scmap",
 			"title": "Hell, Dunkel und Systemmodus in derselben laufenden Kartenfixture nachweisen",
 			"status": "completed",
@@ -494,13 +495,21 @@
 				"test/fixtures/appplugin/q7-l5-theme-settings-dark-golden.png",
 				"test/fixtures/appplugin/q7-l5-theme-settings-system-light-golden.png",
 				"test/fixtures/appplugin/q7-l5-theme-settings-system-dark-golden.png",
+				"test/fixtures/appplugin/q7-m5-theme-goldens.json",
+				"test/fixtures/appplugin/q7-m5-theme-home-light-golden.png",
+				"test/fixtures/appplugin/q7-m5-theme-home-dark-golden.png",
+				"test/fixtures/appplugin/q7-m5-theme-settings-light-golden.png",
+				"test/fixtures/appplugin/q7-m5-theme-settings-dark-golden.png",
+				"test/fixtures/appplugin/q7-m5-theme-settings-system-light-golden.png",
+				"test/fixtures/appplugin/q7-m5-theme-settings-system-dark-golden.png",
 				"test/unit/appplugin_apk_environment_runtimes.test.ts",
 				"test/unit/appplugin_desktop_session_state.test.ts",
 				"test/unit/appplugin_desktop.test.ts",
 				"test/unit/appplugin_q7_theme_actor_goldens.test.ts",
-				"`npm run poc:appplugin-q7-theme-goldens`"
+				"`npm run poc:appplugin-q7-theme-goldens`",
+				"`npm run poc:appplugin-q7-m5-theme-goldens`"
 			],
-			"nextAction": "Dasselbe Hell-/Dunkel-/System-Gate mit unveränderten Bundles auf Q7 M5, Q10 und weitere technisch unterschiedliche Familien übertragen."
+			"nextAction": "Dasselbe Hell-/Dunkel-/System-Gate mit unveränderten Bundles auf Q10 und weitere technisch unterschiedliche Familien übertragen."
 		},
 		{
 			"id": "P0C-Q7-LOCALE",
@@ -738,11 +747,20 @@
 			"area": "Q7 M5",
 			"family": "scmap",
 			"title": "Q7 M5 direkt starten und Hostvertragsdifferenz zu Q7 L5 bestimmen",
-			"status": "pending",
+			"status": "completed",
 			"priority": "P0",
 			"dependsOn": ["P0C-Q7-DIRECT-RUN", "P0C-Q7-FULL-SCENE"],
-			"evidence": [],
-			"nextAction": "Unverändertes M5-Bundle mit denselben Fixtures starten, Native-Aufrufe diffen und Abweichungen als zentrale Verträge schließen."
+			"evidence": [
+				"scripts/prove_q7_m5_contract.ts",
+				"scripts/start_appplugin_desktop_runtime.ts",
+				"scripts/lib/q7FullSceneEvidence.ts",
+				"test/fixtures/appplugin/q7-m5-full-scene-golden.json",
+				"test/fixtures/appplugin/q7-m5-full-scene-golden.png",
+				"test/unit/appplugin_q7_m5_contract_gate.test.ts",
+				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
+				"`npm run poc:appplugin-q7-m5-contract-proof`"
+			],
+			"nextAction": "Den identischen APK-Hostvertrag beibehalten; die zwei belegten bundle-eigenen Layoutabweichungen nicht im Host normalisieren."
 		},
 		{
 			"id": "P0C-Q7-M5-GATES",
@@ -750,11 +768,21 @@
 			"area": "Q7 M5",
 			"family": "scmap",
 			"title": "Q7-M5-Familienabweichungen durch vollständige Verhaltens-Gates absichern",
-			"status": "pending",
+			"status": "in_progress",
 			"priority": "P1",
 			"dependsOn": ["P0C-Q7-M5-CONTRACT", "P0C-Q7-SPLIT", "P0C-Q7-MERGE", "P0C-Q7-THEME"],
-			"evidence": [],
-			"nextAction": "Gemeinsame Gates wiederverwenden und nur technisch belegte M5-Abweichungen separat testen."
+			"evidence": [
+				"scripts/prove_q7_m5_contract.ts",
+				"scripts/capture_q7_appplugin_theme_goldens.ts",
+				"scripts/prove_q7_appplugin_actor_scaling.ts",
+				"test/fixtures/appplugin/q7-m5-full-scene-golden.json",
+				"test/fixtures/appplugin/q7-m5-theme-goldens.json",
+				"test/fixtures/appplugin/q7-m5-actor-scaling-golden.json",
+				"test/unit/appplugin_q7_m5_contract_gate.test.ts",
+				"test/unit/appplugin_q7_theme_actor_goldens.test.ts",
+				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md"
+			],
+			"nextAction": "Die gemeinsamen Raumwahl-, Split-, Merge-, Rename- und verbleibenden Gesten-Gates gegen M5 ausführen; nur belegte Bundleabweichungen separat festhalten."
 		},
 		{
 			"id": "P0C-B01-RAW-INGRESS",

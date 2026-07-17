@@ -29,6 +29,7 @@ interface ProofOptions {
 	semanticGoldenPath: string;
 	visualGoldenPath: string;
 	outputPath: string;
+	runtimeLabel: string;
 	timeoutMs: number;
 	updateGolden: boolean;
 }
@@ -47,6 +48,7 @@ function parseArgs(args: string[]): ProofOptions {
 		semanticGoldenPath: path.join(fixtureDirectory, "q7-l5-full-scene-golden.json"),
 		visualGoldenPath: path.join(fixtureDirectory, "q7-l5-full-scene-golden.png"),
 		outputPath: path.join(runtimeDirectory, "q7-l5-full-scene-proof.json"),
+		runtimeLabel: "unchanged Q7 L5 Hermes AppPlugin",
 		timeoutMs: 180_000,
 		updateGolden: false,
 	};
@@ -58,6 +60,12 @@ function parseArgs(args: string[]): ProofOptions {
 	for (let index = 0; index < args.length; index += 1) {
 		const option = args[index];
 		if (option === "--update-golden") { options.updateGolden = true; continue; }
+		if (option === "--runtime-label") {
+			const runtimeLabel = args[++index];
+			if (!runtimeLabel) throw new Error("--runtime-label benötigt einen Wert");
+			options.runtimeLabel = runtimeLabel;
+			continue;
+		}
 		if (option === "--timeout-ms") {
 			const timeoutMs = Number(args[++index]);
 			if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) throw new Error("--timeout-ms benötigt eine positive Ganzzahl");
@@ -137,7 +145,15 @@ function verifyRuntime(result: JsonRecord, fixtureSha256: string): void {
 	assert.equal(blobIngresses[0].payloadSha256, fixtureSha256);
 	assert.deepEqual(blobIngresses[0].emittedEvents, ["RRDeviceBlobPayloadUpdateEvent"]);
 	const replay = jsonRecord(result.deviceReplay, "deviceReplay");
-	assert.deepEqual(jsonArray(replay.events, "deviceReplay.events").map(value => jsonRecord(value, "Replay-Ereignis").kind), ["dps", "dps", "blob"]);
+	assert.deepEqual(replay.shadowDpsKeys, ["10001"], "Initialer Gerätezustand muss vor dem AppPlugin-Mount verfügbar sein");
+	assert.deepEqual(jsonArray(replay.events, "deviceReplay.events").map(value => jsonRecord(value, "Replay-Ereignis").kind), ["dps", "dps"]);
+	const publishEvents = jsonArray(replay.publishReplayEvents, "publishReplayEvents")
+		.map(value => jsonRecord(value, "Publish-Replay-Ereignis"));
+	assert.deepEqual(publishEvents.map(event => [event.source, event.kind]), [["publish-response", "blob"]]);
+	const publishMatches = jsonArray(replay.publishResponseMatches, "publishResponseMatches")
+		.map(value => jsonRecord(value, "Publish-Response-Match"));
+	assert.equal(publishMatches.length, 1);
+	assert.equal(publishMatches[0].matchCount, 1, "Die Kartenanfrage darf genau eine Antwort erhalten");
 	assert.deepEqual(jsonArray(replay.publishReplayResponseErrors, "publishReplayResponseErrors"), []);
 	const pipelineErrors = jsonArray(result.appSysLogs, "appSysLogs").map(value => jsonRecord(value, "AppSys-Log")).filter(log => log.tag === "apk-map-pipeline-error");
 	assert.deepEqual(pipelineErrors, [], "AppPlugin-Kartenpipeline meldete einen Fehler");
@@ -175,9 +191,15 @@ async function main(): Promise<void> {
 		const runtimeEvidence = jsonRecord(evidence.runtime, "Evidence-Runtime");
 		const sceneEvidence = jsonRecord(evidence.scene, "Evidence-Szene");
 		const proof = { version: 1, status: "passed", generatedAt: new Date().toISOString(),
-			runtime: "unchanged Q7 L5 Hermes AppPlugin", appPluginFirst: true,
+			runtime: options.runtimeLabel, appPluginFirst: true,
 			bundle: { kind: "hermes-bytecode", sha256: bundleSha256Before, unchanged: true },
-			transport: { fixtureSha256, directBlobReplay: true, b01FrameUsed: false, localKeyUsed: false },
+			transport: {
+				fixtureSha256,
+				directBlobReplay: false,
+				requestResponseBlobReplay: true,
+				b01FrameUsed: false,
+				localKeyUsed: false,
+			},
 			worker: jsonRecord(runtimeEvidence.worker, "Evidence-Worker"),
 			scene: { roomCount: jsonArray(sceneEvidence.roomChains, "Raumketten").length, mapPixelCount: sceneEvidence.mapPixelCount, semanticGoldenSha256: sha256File(options.semanticGoldenPath) },
 			visual, reportedExceptionCount: 0, pipelineErrorCount: 0, unexpectedNativeRejectionCount: 0 };

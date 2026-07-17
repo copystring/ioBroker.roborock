@@ -40,7 +40,7 @@ Die Adapterimplementierung wird gegen Originalvektoren aus `librrcodec.so` gepr�
 ## Noch nicht freigegeben
 
 - Der HBC96-Hermes-Host ist noch nicht als produktionsfähiger Linux-/macOS-Host bewiesen.
-- SCMap/Skia ist für Q7 L5 bis zu Rendering, Raumauswahl, Pinch-Zoom und dem Rename-Happy-Path teilweise belegt; Q7 M5, die vollständige Szene und die übrigen Editierfälle sind offen.
+- SCMap/Skia besitzt für Q7 L5 und M5 denselben belegten Hostvertrag sowie Vollszenen-, Theme- und Akteurskalierungs-Goldens. Raumauswahl, Pinch-Zoom und mehrere Editierfälle sind für L5 belegt; die entsprechenden M5-Interaktionsgates und die übrigen Editierfälle sind offen.
 - Tanos- und Tanos/Skia-Verhalten ist nicht durch einen erfolgreichen Kartenlauf belegt.
 - Das Q10-PNG ist das originale Basisraster, noch keine vollständige Skia-Komposition und kein Interaktionsbeweis.
 - Ressourcenlimits, Prozessisolation, Neustart, Parallelität und Adapter-Lebenszyklus sind vor einer Produktintegration eigene Gates.

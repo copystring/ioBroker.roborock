@@ -238,6 +238,7 @@ export function buildQ7FullSceneFixture(): Q7FullSceneFixture {
 	const uploadEvent = {
 		kind: "blob",
 		blobPath: blobFile,
+		waitBeforeMs: 750,
 		waitAfterMs: 1_500,
 	};
 	return {
@@ -245,7 +246,9 @@ export function buildQ7FullSceneFixture(): Q7FullSceneFixture {
 		replayManifest: {
 			version: 1,
 			deviceContext: { firmwareVersion: Q7_FULL_SCENE_FIRMWARE },
-			shadowDps: {},
+			shadowDps: {
+				"10001": JSON.stringify({ method: "prop.get", data: propGetPayload() }),
+			},
 			events: [{
 				kind: "dps",
 				dps: {
@@ -261,10 +264,6 @@ export function buildQ7FullSceneFixture(): Q7FullSceneFixture {
 					}),
 				},
 				waitAfterMs: 50,
-			}, {
-				kind: "blob",
-				blobPath: blobFile,
-				waitAfterMs: 5_000,
 			}],
 			publishResponses: [{
 				match: {

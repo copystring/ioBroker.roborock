@@ -18,7 +18,7 @@ describe("APK device replay manifest", () => {
 			deviceContext: { firmwareVersion: "02.24.90" },
 			shadowDps: { 101: { 6: 0 } },
 			events: [
-				{ kind: "dps", dps: { 121: 8 }, waitAfterMs: 5 },
+				{ kind: "dps", dps: { 121: 8 }, waitBeforeMs: 3, waitAfterMs: 5 },
 				{ kind: "b01-frame", framePath: "frames/map.bin" },
 				{ kind: "blob", blobPath: "blobs/decrypted-map.bin", waitAfterMs: 9 },
 			],
@@ -27,7 +27,7 @@ describe("APK device replay manifest", () => {
 					dpsKey: "10000",
 					payload: { method: "service.upload_by_maptype", params: { map_type: 0 } },
 				},
-				events: [{ kind: "b01-frame", framePath: "frames/map.bin", waitAfterMs: 7 }],
+				events: [{ kind: "b01-frame", framePath: "frames/map.bin", waitBeforeMs: 6, waitAfterMs: 7 }],
 				maximumMatches: 4,
 			}],
 		}));
@@ -36,9 +36,9 @@ describe("APK device replay manifest", () => {
 		expect(manifest.deviceContext).toEqual({ firmwareVersion: "02.24.90" });
 		expect(manifest.shadowDps).toEqual({ 101: { 6: 0 } });
 		expect(manifest.events).toEqual([
-			{ kind: "dps", dps: { 121: 8 }, waitAfterMs: 5 },
-			{ kind: "b01-frame", framePath: path.join(root, "frames", "map.bin"), waitAfterMs: 0 },
-			{ kind: "blob", blobPath: path.join(root, "blobs", "decrypted-map.bin"), waitAfterMs: 9 },
+			{ kind: "dps", dps: { 121: 8 }, waitBeforeMs: 3, waitAfterMs: 5 },
+			{ kind: "b01-frame", framePath: path.join(root, "frames", "map.bin"), waitBeforeMs: 0, waitAfterMs: 0 },
+			{ kind: "blob", blobPath: path.join(root, "blobs", "decrypted-map.bin"), waitBeforeMs: 0, waitAfterMs: 9 },
 		]);
 		expect(manifest.publishResponses).toEqual([{
 			match: {
@@ -48,6 +48,7 @@ describe("APK device replay manifest", () => {
 			events: [{
 				kind: "b01-frame",
 				framePath: path.join(root, "frames", "map.bin"),
+				waitBeforeMs: 6,
 				waitAfterMs: 7,
 			}],
 			maximumMatches: 4,
@@ -97,6 +98,11 @@ describe("APK device replay manifest", () => {
 		writeFileSync(manifestPath, JSON.stringify({
 			version: 1,
 			events: [{ kind: "dps", dps: [], waitAfterMs: 20_000 }],
+		}));
+		expect(() => loadApkDeviceReplayManifest(manifestPath)).toThrow();
+		writeFileSync(manifestPath, JSON.stringify({
+			version: 1,
+			events: [{ kind: "dps", dps: {}, waitBeforeMs: 20_000 }],
 		}));
 		expect(() => loadApkDeviceReplayManifest(manifestPath)).toThrow();
 	});

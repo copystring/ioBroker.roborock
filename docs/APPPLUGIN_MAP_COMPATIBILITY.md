@@ -37,8 +37,8 @@ Die Familie ist ein belastbarer Kandidat aus Bundle-Signaturen, aber noch kein B
 | --- | --- | --- | --- | --- | --- | --- |
 | Q10 | metro | `46294ae7c632` | YX/Skia (Plugin-Renderer) | yxHomeMapContentView, yxMapModel, yxDrawMapImage, yxRgbaImage, roomPalette, skiaNativeModule, canvasKit, mapControlOperation | Initialisierung bestanden | **Noch nicht getestet** |
 | Q10, Q10 X5+, Roborock Q10 X5+ | metro | `a7239ce29a1e` | YX/Skia (Plugin-Renderer) | yxHomeMapContentView, yxMapModel, yxDrawMapImage, yxRgbaImage, roomPalette, skiaNativeModule, canvasKit, mapControlOperation | Initialisierung bestanden | **Noch nicht getestet** |
-| Q7 L5 | hermes HBC 96 | `9dfd8cc4c302` | SCMap-Protobuf/Skia | scMapProtobuf, roomPalette, skiaNativeModule, canvasKit | Hermes-Host erforderlich | **Noch nicht getestet** |
-| Q7 M5 | hermes HBC 96 | `c4136ce75360` | SCMap-Protobuf/Skia | scMapProtobuf, roomPalette, skiaNativeModule, canvasKit | Hermes-Host erforderlich | **Noch nicht getestet** |
+| Q7 L5 | hermes HBC 96 | `9dfd8cc4c302` | SCMap-Protobuf/Skia | scMapProtobuf, roomPalette, skiaNativeModule, canvasKit | Direkter Hermes-Host bestanden | **Vollszene, Theme, Akteurskalierung und mehrere Interaktionen belegt; Familienfreigabe offen** |
+| Q7 M5 | hermes HBC 96 | `c4136ce75360` | SCMap-Protobuf/Skia | scMapProtobuf, roomPalette, skiaNativeModule, canvasKit | Direkter Hermes-Host bestanden | **Vollszene, Hostvertrag, Theme und Akteurskalierung belegt; Interaktionsgates offen** |
 | Qrevo Curv | metro | `8e314c37d8a0` | Tanos Native AR/3D | tanos, rrArMapView, rr3dMapView | Initialisierung bestanden | **Noch nicht getestet** |
 | Qrevo Master | metro | `c64509fc29ff` | Tanos Native AR/3D | tanos, rrArMapView, rr3dMapView | Initialisierung bestanden | **Noch nicht getestet** |
 | Qrevo MaxV | metro | `bc7339c0c28d` | Tanos Native AR/3D | tanos, rrArMapView, rr3dMapView | Initialisierung bestanden | **Noch nicht getestet** |
@@ -78,7 +78,7 @@ Jede statisch erkannte Familie muss mindestens folgende Gates mit echten Daten b
 
 ## Offene Gates
 
-Die statische Klassifizierung ist vollständig für die lokal vorhandenen Pakete. Ein Kartenfamilien-Gate gilt jedoch erst als bestanden, wenn ein originales Bundle mit einer echten Karte den vorgesehenen Hostvertrag durchlaufen und ein überprüfbares Bild samt Interaktionscallback erzeugt hat. Bis dahin bleibt `Kartenverhalten` bewusst auf **Noch nicht getestet**.
+Die statische Klassifizierung ist vollständig für die lokal vorhandenen Pakete. Ein Kartenfamilien-Gate gilt jedoch erst als bestanden, wenn ein originales Bundle mit einer echten Karte den vorgesehenen Hostvertrag durchlaufen und ein überprüfbares Bild samt Interaktionscallback erzeugt hat. Die Tabelle benennt deshalb für jede Variante nur die tatsächlich belegte Stufe; ein Direktstart oder eine Vollszene ist noch keine vollständige Familienfreigabe.
 
 ## Vollständige Bundle-Quellen
 
@@ -89,9 +89,9 @@ Die statische Klassifizierung ist vollständig für die lokal vorhandenen Pakete
 | `Q10/019bdf41f583723bb937ccc99bbd7541.zip` | ZIP-Bundle | 0 hashgleiche entpackte Quelle(n) | `a7239ce29a1e` |
 | `Q10/019bdf41f583723bb937ccc99bbd7541/index.android.bundle` | entpacktes Bundle | Initialisierung bestanden | `46294ae7c632` |
 | `Q7 L5/019a00a9af4b7b8e894080040a2793a5.zip` | ZIP-Bundle | 1 hashgleiche entpackte Quelle(n) | `9dfd8cc4c302` |
-| `Q7 L5/019a00a9af4b7b8e894080040a2793a5/index.android.bundle` | entpacktes Bundle | Hermes-Host erforderlich | `9dfd8cc4c302` |
+| `Q7 L5/019a00a9af4b7b8e894080040a2793a5/index.android.bundle` | entpacktes Bundle | Direkter Hermes-Host bestanden | `9dfd8cc4c302` |
 | `Q7 M5/019b4e09d7ce7c6abedbb789d2be681d.zip` | ZIP-Bundle | 1 hashgleiche entpackte Quelle(n) | `c4136ce75360` |
-| `Q7 M5/019b4e09d7ce7c6abedbb789d2be681d/index.android.bundle` | entpacktes Bundle | Hermes-Host erforderlich | `c4136ce75360` |
+| `Q7 M5/019b4e09d7ce7c6abedbb789d2be681d/index.android.bundle` | entpacktes Bundle | Direkter Hermes-Host bestanden | `c4136ce75360` |
 | `Qrevo Curv/2e158bfb3b5d454d8d9b6d8fb6136308.zip` | ZIP-Bundle | 1 hashgleiche entpackte Quelle(n) | `8e314c37d8a0` |
 | `Qrevo Curv/2e158bfb3b5d454d8d9b6d8fb6136308/index.android.bundle` | entpacktes Bundle | Initialisierung bestanden | `8e314c37d8a0` |
 | `Qrevo Master/cb10d98a59c8436ebfaeacccbedb885d.zip` | ZIP-Bundle | 1 hashgleiche entpackte Quelle(n) | `c64509fc29ff` |

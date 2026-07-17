@@ -1021,6 +1021,13 @@ async function main(): Promise<void> {
 		operationQueue = pending.then(() => undefined, () => undefined);
 		return pending;
 	};
+	const waitForOperationQueueIdle = async (): Promise<void> => {
+		for (;;) {
+			const observedQueue = operationQueue;
+			await observedQueue;
+			if (operationQueue === observedQueue) return;
+		}
+	};
 	let timerUiPump: Promise<void> | undefined;
 	let timerUiPumpRequested = false;
 	onTimerJsCompleted = () => {
@@ -1083,6 +1090,9 @@ async function main(): Promise<void> {
 			event: ApkDeviceReplayEvent,
 			context: Readonly<Record<string, unknown>>,
 		): Promise<Readonly<Record<string, unknown>>> => {
+			if (event.waitBeforeMs > 0) {
+				await new Promise(resolve => setTimeout(resolve, event.waitBeforeMs));
+			}
 			let diagnostic: Readonly<Record<string, unknown>>;
 			if (event.kind === "dps") {
 				await session.emitDeviceEvent("RRDeviceDpsUpdateEvent", {
@@ -1152,6 +1162,7 @@ async function main(): Promise<void> {
 			return {
 				...context,
 				...diagnostic,
+				waitBeforeMs: event.waitBeforeMs,
 				waitAfterMs: event.waitAfterMs,
 			};
 		};
@@ -1202,6 +1213,10 @@ async function main(): Promise<void> {
 				eventIndex,
 			}));
 		}
+		// Publish-Antworten laufen wie im APK-Transport asynchron. Bevor Pointer-
+		// oder Interaktionsreplays beginnen, muss die beim Mount ausgelöste
+		// Antwort einschließlich ihrer AppPlugin-UI-Stabilisierung abgeschlossen sein.
+		await waitForOperationQueueIdle();
 		const settleReplayEvent = async (waitAfterMs: number): Promise<void> => {
 			if (waitAfterMs > 0) await new Promise(resolve => setTimeout(resolve, waitAfterMs));
 			await session.waitForRuntimeBoundaryIdle();
@@ -1332,6 +1347,10 @@ async function main(): Promise<void> {
 			operation.method === "createView" && operation.arguments[1] === "RNSVGSvgViewAndroid",
 		);
 		const nativeHierarchy = uiExecution.nativeHierarchyRuntime().snapshot();
+		const nativeMeasurements = nativeHierarchy.layouts.flatMap(({ tag }) => {
+			const box = uiExecution.nativeHierarchyRuntime().measure(tag);
+			return box ? [{ tag, box }] : [];
+		});
 		const shadowRoot = uiManager.snapshot();
 		const apkUiPng = options.runApplication && hasNativeSvgView
 			? await exportApkNativeUiSnapshotPng({
@@ -1881,6 +1900,8 @@ async function main(): Promise<void> {
 			nativeInvocations,
 			nativeInvocationRejections,
 			uiTree: options.runApplication ? uiManager.snapshot() : undefined,
+			nativeHierarchy: options.runApplication ? nativeHierarchy : undefined,
+			nativeMeasurements: options.runApplication ? nativeMeasurements : undefined,
 			uiOperations: options.runApplication ? uiManager.operations() : undefined,
 		})}\n`);
 		nativeAnimated.dispose();

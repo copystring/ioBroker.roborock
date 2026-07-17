@@ -4,18 +4,21 @@ import * as path from "node:path";
 export interface ApkDeviceReplayDpsEvent {
 	kind: "dps";
 	dps: Readonly<Record<string, unknown>>;
+	waitBeforeMs: number;
 	waitAfterMs: number;
 }
 
 export interface ApkDeviceReplayB01FrameEvent {
 	kind: "b01-frame";
 	framePath: string;
+	waitBeforeMs: number;
 	waitAfterMs: number;
 }
 
 export interface ApkDeviceReplayBlobEvent {
 	kind: "blob";
 	blobPath: string;
+	waitBeforeMs: number;
 	waitAfterMs: number;
 }
 
@@ -52,10 +55,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function waitAfterMs(value: unknown, eventIndex: number): number {
+function waitMs(value: unknown, eventIndex: number, property: "waitAfterMs" | "waitBeforeMs"): number {
 	if (value === undefined) return 0;
 	if (!Number.isSafeInteger(value) || (value as number) < 0 || (value as number) > 10_000) {
-		throw new Error(`Replay-Ereignis ${eventIndex}: waitAfterMs muss zwischen 0 und 10000 liegen`);
+		throw new Error(`Replay-Ereignis ${eventIndex}: ${property} muss zwischen 0 und 10000 liegen`);
 	}
 	return value as number;
 }
@@ -75,10 +78,11 @@ function parseReplayEvent(
 	context = "Replay-Ereignis",
 ): ApkDeviceReplayEvent {
 	if (!isRecord(value)) throw new Error(`${context} ${eventIndex} muss ein Objekt sein`);
-	const wait = waitAfterMs(value.waitAfterMs, eventIndex);
+	const waitBeforeMs = waitMs(value.waitBeforeMs, eventIndex, "waitBeforeMs");
+	const waitAfterMs = waitMs(value.waitAfterMs, eventIndex, "waitAfterMs");
 	if (value.kind === "dps") {
 		if (!isRecord(value.dps)) throw new Error(`${context} ${eventIndex}: dps muss ein Objekt sein`);
-		return { kind: "dps", dps: structuredClone(value.dps), waitAfterMs: wait };
+		return { kind: "dps", dps: structuredClone(value.dps), waitBeforeMs, waitAfterMs };
 	}
 	if (value.kind === "b01-frame") {
 		if (typeof value.framePath !== "string" || value.framePath.length === 0) {
@@ -87,7 +91,8 @@ function parseReplayEvent(
 		return {
 			kind: "b01-frame",
 			framePath: path.resolve(manifestDirectory, value.framePath),
-			waitAfterMs: wait,
+			waitBeforeMs,
+			waitAfterMs,
 		};
 	}
 	if (value.kind === "blob") {
@@ -97,7 +102,8 @@ function parseReplayEvent(
 		return {
 			kind: "blob",
 			blobPath: path.resolve(manifestDirectory, value.blobPath),
-			waitAfterMs: wait,
+			waitBeforeMs,
+			waitAfterMs,
 		};
 	}
 	throw new Error(`${context} ${eventIndex}: unbekannte Art ${String(value.kind)}`);
