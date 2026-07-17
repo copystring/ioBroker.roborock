@@ -28,6 +28,7 @@ import {
 } from "./lib/appPluginDesktopSessionState";
 import {
 	ApkAppearanceRuntime,
+	APK_SEMANTIC_UI_ACTION_IDS,
 	ApkAppStateRuntime,
 	ApkBlobTransferAssembler,
 	ApkAppSysRuntime,
@@ -52,7 +53,10 @@ import {
 	ApkUiExecutionRuntime,
 	ApkUiManagerRuntime,
 	exportApkNativeUiSnapshotPng,
+	findApkSemanticUiAction,
+	publicApkSemanticUiActions,
 	renderApkNativeUiSnapshotToSvg,
+	resolveApkSemanticUiActions,
 	selectApkServedSurfaceRoot,
 	ApkV8WorkerRuntime,
 	createApkBridgeBootstrap,
@@ -68,6 +72,7 @@ import {
 	resolveEffectiveApkNativeModules,
 	StrictApkNativeModuleRegistry,
 	type ApkAppPluginHostContract,
+	type ApkSemanticUiActionId,
 	type ApkUiManagerNodeSnapshot,
 	type ApkV8WorkerDiagnostic,
 } from "../src/apppluginHost";
@@ -524,6 +529,10 @@ interface TextInputHttpRequest {
 	text: string;
 }
 
+interface SemanticActionHttpRequest {
+	id: ApkSemanticUiActionId;
+}
+
 function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
 	response.statusCode = statusCode;
 	response.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -608,6 +617,13 @@ function parseTextInputHttpRequest(record: Readonly<Record<string, unknown>>): T
 	return record.tag === undefined
 		? { text: record.text }
 		: { text: record.text, tag: Number(record.tag) };
+}
+function parseSemanticActionHttpRequest(record: Readonly<Record<string, unknown>>): SemanticActionHttpRequest {
+	const id = record.id;
+	if (typeof id !== "string" || !APK_SEMANTIC_UI_ACTION_IDS.some(candidate => candidate === id)) {
+		throw new Error("Unbekannte semantische AppPlugin-Aktion");
+	}
+	return { id: id as ApkSemanticUiActionId };
 }
 async function main(): Promise<void> {
 	const options = parseArgs(process.argv.slice(2));
@@ -1435,6 +1451,11 @@ async function main(): Promise<void> {
 				} : interactiveViewport;
 				return { currentSurface, currentHierarchy, viewport, view };
 			};
+			const resolvedSemanticActions = () => resolveApkSemanticUiActions(
+				uiManager.snapshot(),
+				tag => uiExecution.nativeHierarchyRuntime().measure(tag),
+			);
+			const semanticActionsHttpState = () => publicApkSemanticUiActions(resolvedSemanticActions());
 			const currentFrame = (view: ServedView = defaultServedView) => {
 				const { currentSurface, currentHierarchy, viewport } = resolveCurrentSurface(view);
 				const artifact = renderApkNativeUiSnapshotToSvg({
@@ -1520,6 +1541,7 @@ async function main(): Promise<void> {
 							systemColorScheme: darkMode.snapshot().systemColorScheme,
 							cardStyle: darkMode.getCardStyle(),
 							themeSwitching: true,
+							semanticActions: semanticActionsHttpState(),
 							...localizationHttpState(),
 							publishedDpsCount: publishedDps.length,
 						});
@@ -1597,6 +1619,7 @@ async function main(): Promise<void> {
 							systemColorScheme: darkMode.snapshot().systemColorScheme,
 							cardStyle: darkMode.getCardStyle(),
 							themeSwitching: true,
+							semanticActions: semanticActionsHttpState(),
 							...localizationHttpState(),
 						});
 						return;
@@ -1638,6 +1661,7 @@ async function main(): Promise<void> {
 							surface: currentSurface,
 							viewport,
 							view,
+							semanticActions: semanticActionsHttpState(),
 							...localizationHttpState(),
 							sessionRestarting,
 						});
@@ -1677,6 +1701,59 @@ async function main(): Promise<void> {
 								dpsKey: response.match.dpsKey,
 								payload: response.match.payload,
 							})),
+						});
+						return;
+					}
+					if (request.method === "GET" && url.pathname === "/semantic-actions") {
+						sendJson(response, 200, {
+							revision,
+							semanticActions: semanticActionsHttpState(),
+						});
+						return;
+					}
+					if (request.method === "POST" && url.pathname === "/semantic-action") {
+						if (pointerInput.activePointerIds().length > 0) {
+							throw new Error("Semantische AppPlugin-Aktion benötigt eine ruhende Pointer-Sitzung");
+						}
+						const view = requestedView(url);
+						const requestedAction = parseSemanticActionHttpRequest(await readJsonRequest(request));
+						const action = findApkSemanticUiAction(resolvedSemanticActions(), requestedAction.id);
+						const timestamp = Date.now();
+						const { dispatches, frameChanged } = await dispatchInteractivePointers([
+							{
+								kind: "down",
+								pointerId: 2_147_000_000,
+								x: action.center.x,
+								y: action.center.y,
+								timeMs: timestamp,
+							},
+							{
+								kind: "up",
+								pointerId: 2_147_000_000,
+								x: action.center.x,
+								y: action.center.y,
+								timeMs: timestamp + 40,
+							},
+						]);
+						const lastDispatch = dispatches.at(-1);
+						const { currentSurface, viewport } = resolveCurrentSurface(view);
+						sendJson(response, 200, {
+							revision,
+							frameRevision,
+							frameChanged,
+							action: publicApkSemanticUiActions([action])[0],
+							semanticActions: semanticActionsHttpState(),
+							surface: currentSurface,
+							viewport,
+							view,
+							targets: lastDispatch?.targets ?? [],
+							changedIndices: lastDispatch?.changedIndices ?? [],
+							dispatches,
+							activePointerIds: pointerInput.activePointerIds(),
+							jsResponder: uiManager.jsResponder(),
+							pendingNativeMeasurementCount: uiManager.pendingNativeMeasurementCount(),
+							publishedDpsCount: publishedDps.length,
+							...localizationHttpState(),
 						});
 						return;
 					}
@@ -1763,6 +1840,7 @@ async function main(): Promise<void> {
 							jsResponder: uiManager.jsResponder(),
 							pendingNativeMeasurementCount: uiManager.pendingNativeMeasurementCount(),
 							publishedDpsCount: publishedDps.length,
+							semanticActions: semanticActionsHttpState(),
 							...localizationHttpState(),
 						});
 						return;
@@ -1787,6 +1865,7 @@ async function main(): Promise<void> {
 							jsResponder: uiManager.jsResponder(),
 							pendingNativeMeasurementCount: uiManager.pendingNativeMeasurementCount(),
 							publishedDpsCount: publishedDps.length,
+							semanticActions: semanticActionsHttpState(),
 							...localizationHttpState(),
 						});
 						return;

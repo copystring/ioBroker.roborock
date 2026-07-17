@@ -23,7 +23,8 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		const probe = fs.readFileSync(probePath, "utf8");
 
 		expect(source).toContain("new LiveAppPluginMapSurface");
-		expect(source).toContain("function localRuntimePort(): 4174 | 4175");
+		expect(source).toContain("function localRuntimePort(): number");
+		expect(source).toContain("Isolierter Test · ${runtimePort}");
 		expect(source).toContain("apiBaseUrl: `http://127.0.0.1:${runtimePort}`");
 		expect(source).toContain('initialView: runtimePort === 4175 ? "full" : "map"');
 		expect(surface).toContain('this.#fetchHealth(this.options.initialView ?? "map")');
@@ -254,6 +255,45 @@ describe("AppPlugin desktop smart-home PoC", () => {
 			sent: false
 		});
 		expect(JSON.stringify(envelope)).not.toMatch(/app_(?:start|segment|zoned)_clean/);
+	});
+
+	it("keeps PC mode and start controls synchronized through semantic AppPlugin UI actions", () => {
+		const html = fs.readFileSync(htmlPath, "utf8");
+		const source = fs.readFileSync(sourcePath, "utf8");
+		const surface = fs.readFileSync(surfacePath, "utf8");
+		const probe = fs.readFileSync(probePath, "utf8");
+		const resolver = fs.readFileSync(
+			path.join(repositoryRoot, "src", "apppluginHost", "apkSemanticUiActions.ts"),
+			"utf8",
+		);
+		const semanticClient = surface.slice(
+			surface.indexOf("public semanticAction("),
+			surface.indexOf("#bindPointers()"),
+		);
+
+		expect(source).toContain("this.syncMapModeFromAppPlugin(snapshot)");
+		expect(source).toContain("this.mapSurface.invokeSemanticAction(actionId)");
+		expect(source).toContain('this.mapSurface.invokeSemanticAction("clean.start")');
+		expect(source).toContain('action.id.startsWith("map.mode.") && action.selected');
+		expect(source).toContain('querySelectorAll<HTMLButtonElement>("button[data-tool]")');
+		expect(source).toContain('querySelector<HTMLButtonElement>(`button[data-tool="${tool}"]`)');
+		expect(source).not.toContain('querySelectorAll<HTMLButtonElement>("[data-tool]")');
+		expect(source).not.toContain("this.map.dataset.tool");
+		expect(html).not.toMatch(/id="desktopMap"[^>]*data-tool/u);
+		expect(source).not.toMatch(/map\.mode\.(?:full|rooms|zones).*(?:\bx\b|\by\b)\s*:/u);
+		expect(surface).toContain("/semantic-action?view=${this.#health.view}");
+		expect(surface).toContain("body: JSON.stringify({ id })");
+		expect(surface).toContain("Semantische PC-Aktion durch originale AppPlugin-UI ausgeführt");
+		expect(semanticClient).not.toMatch(/service\.|app_segment_clean|roomIds|reactTag|center/u);
+		expect(probe).toContain('url.pathname === "/semantic-action"');
+		expect(probe).toContain("findApkSemanticUiAction(resolvedSemanticActions(), requestedAction.id)");
+		expect(probe).toContain("publicApkSemanticUiActions([action])[0]");
+		expect(resolver).toContain('"scmap-bottom-control-panel-v2"');
+		expect(resolver).toContain("Labels, enabled state,");
+		expect(resolver).not.toMatch(/Voll|Räume|Zonen|Saugen|Dockingstation/u);
+		expect(html).toContain("Direkter AppPlugin-Zustand · bundle-lokalisiert");
+		expect(html).toContain('data-intent="clean.start" disabled');
+		expect(html).toContain("· über AppPlugin");
 	});
 
 	it("starts Q7 and Q10 from the real ignored local recordings instead of the synthetic map", () => {

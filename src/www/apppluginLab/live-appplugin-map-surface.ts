@@ -2,6 +2,22 @@ export type LiveAppPluginMapTool = "view" | "rooms" | "zones" | "noGo" | "noMop"
 export type LiveAppPluginThemeMode = "dark" | "light" | "system";
 export type LiveAppPluginColorScheme = "dark" | "light";
 export type LiveAppPluginSurfaceView = "map" | "full";
+export type LiveAppPluginSemanticActionId =
+	| "map.mode.full"
+	| "map.mode.rooms"
+	| "map.mode.zones"
+	| "clean.panel"
+	| "dock.panel"
+	| "clean.start";
+
+export interface LiveAppPluginSemanticAction {
+	id: LiveAppPluginSemanticActionId;
+	label: string;
+	enabled: boolean;
+	selected: boolean;
+	owner: "unchanged-appplugin-ui";
+	contract: "scmap-bottom-control-panel-v2";
+}
 
 interface LiveAppPluginSurfaceDescriptor {
 	tag: number;
@@ -49,6 +65,7 @@ interface LiveAppPluginHealth extends LiveAppPluginLocalizationState {
 	view: LiveAppPluginSurfaceView;
 	availableViews: LiveAppPluginSurfaceView[];
 	publishedDpsCount: number;
+	semanticActions: LiveAppPluginSemanticAction[];
 }
 
 interface PointerResponse extends LiveAppPluginLocalizationState {
@@ -62,6 +79,7 @@ interface PointerResponse extends LiveAppPluginLocalizationState {
 	activePointerIds: number[];
 	publishedDpsCount: number;
 	view: LiveAppPluginSurfaceView;
+	semanticActions: LiveAppPluginSemanticAction[];
 }
 
 interface ThemeResponse extends LiveAppPluginLocalizationState {
@@ -74,6 +92,7 @@ interface ThemeResponse extends LiveAppPluginLocalizationState {
 	systemColorScheme: LiveAppPluginColorScheme;
 	cardStyle: number;
 	view: LiveAppPluginSurfaceView;
+	semanticActions: LiveAppPluginSemanticAction[];
 }
 
 interface LocalizationResponse extends LiveAppPluginLocalizationState {
@@ -85,6 +104,11 @@ interface LocalizationResponse extends LiveAppPluginLocalizationState {
 	surface: LiveAppPluginSurfaceDescriptor;
 	viewport: LiveAppPluginViewport;
 	view: LiveAppPluginSurfaceView;
+	semanticActions: LiveAppPluginSemanticAction[];
+}
+
+interface SemanticActionResponse extends PointerResponse {
+	action: LiveAppPluginSemanticAction;
 }
 
 interface PublishedDpsResponse {
@@ -113,6 +137,7 @@ export interface LiveAppPluginMapSnapshot extends LiveAppPluginLocalizationState
 	view: LiveAppPluginSurfaceView;
 	availableViews: LiveAppPluginSurfaceView[];
 	publishedDpsCount: number;
+	semanticActions: LiveAppPluginSemanticAction[];
 }
 
 export interface LiveAppPluginMapSurfaceOptions {
@@ -247,6 +272,7 @@ export class LiveAppPluginMapSurface {
 			view: this.#health.view,
 			availableViews: [...this.#health.availableViews],
 			publishedDpsCount: this.#publishedDpsCount,
+			semanticActions: this.#health.semanticActions.map(action => ({ ...action })),
 			language: this.#health.language,
 			localeIdentifier: this.#health.localeIdentifier,
 			systemLocaleIdentifier: this.#health.systemLocaleIdentifier,
@@ -322,6 +348,40 @@ export class LiveAppPluginMapSurface {
 		if (pointers.length === 0) return;
 		await this.#sendPointerSequence(pointers);
 		this.options.onEvent("APK-Pinch an AppPlugin gesendet", { delta, revision: this.#health.revision });
+	}
+
+	public semanticAction(id: LiveAppPluginSemanticActionId): Readonly<LiveAppPluginSemanticAction> | undefined {
+		const action = this.#health.semanticActions.find(candidate => candidate.id === id);
+		return action ? { ...action } : undefined;
+	}
+
+	public invokeSemanticAction(id: LiveAppPluginSemanticActionId): Promise<void> {
+		const current = this.semanticAction(id);
+		if (!current) {
+			return Promise.reject(new Error(`Die laufende AppPlugin-Sitzung bietet ${id} nicht semantisch an`));
+		}
+		if (!current.enabled) {
+			return Promise.reject(new Error(`Die laufende AppPlugin-Sitzung hat ${id} deaktiviert`));
+		}
+		return this.#enqueue(async () => {
+			const response = await fetch(`${this.#apiBaseUrl}/semantic-action?view=${this.#health.view}`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ id }),
+			});
+			const payload = await response.json() as SemanticActionResponse | { error: string };
+			if (!response.ok || "error" in payload) {
+				throw new Error(
+					"error" in payload ? payload.error : `Semantische AppPlugin-Aktion antwortet mit HTTP ${response.status}`,
+				);
+			}
+			await this.#applyPointerResponse(payload);
+			this.options.onEvent("Semantische PC-Aktion durch originale AppPlugin-UI ausgeführt", {
+				action: payload.action,
+				revision: payload.revision,
+				frameChanged: payload.frameChanged,
+			});
+		});
 	}
 
 	#bindPointers(): void {
@@ -484,6 +544,7 @@ export class LiveAppPluginMapSurface {
 			doLeftAndRightSwapInRTL: response.doLeftAndRightSwapInRTL,
 			availableLanguages: response.availableLanguages,
 			languageSwitching: response.languageSwitching,
+			semanticActions: response.semanticActions.map(action => ({ ...action })),
 		};
 		if (frameChanged) this.#refreshFrame();
 		this.#emitChange();
@@ -508,6 +569,7 @@ export class LiveAppPluginMapSurface {
 			view: health.view ?? view,
 			availableViews: health.availableViews ?? [health.view ?? view],
 			publishedDpsCount: health.publishedDpsCount ?? 0,
+			semanticActions: (health.semanticActions ?? []).map(action => ({ ...action })),
 			availableLanguages: [...health.availableLanguages],
 			isRTL: health.isRTL === true,
 			doLeftAndRightSwapInRTL: health.doLeftAndRightSwapInRTL !== false,

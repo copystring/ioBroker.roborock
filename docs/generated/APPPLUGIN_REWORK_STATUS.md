@@ -10,22 +10,21 @@ Quelle: [`docs/appplugin-rework-tracker.json`](../appplugin-rework-tracker.json)
 
 Aktuelle Phase: **0C – Verhaltensnachweis**
 
-- ✅ 22 abgeschlossen
-- 🔄 14 in Arbeit
+- ✅ 23 abgeschlossen
+- 🔄 13 in Arbeit
 - ⏳ 41 offen
 - ⛔ 4 blockiert
 
 ## Aktueller Fokus
 
-- **P0C-Q7-ROOM-CLEANING-UI** – Raumreinigung aus der eigenen UI semantisch durch das AppPlugin steuern: Einen stabilen semantischen AppPlugin-Einstieg für Auswahlmodus und Bestätigung belegen; keine versteckten Bildschirmkoordinaten oder nachgebauten Modellpayloads verwenden.
 - **P0C-Q7-M5-GATES** – Q7-M5-Familienabweichungen durch vollständige Verhaltens-Gates absichern: Die gemeinsamen Raumwahl-, Split-, Merge-, Rename- und verbleibenden Gesten-Gates gegen M5 ausführen; nur belegte Bundleabweichungen separat festhalten.
 
 ## Danach
 
-- **P0C-Q7-ROOM-CLEANING-UI** – Raumreinigung aus der eigenen UI semantisch durch das AppPlugin steuern: Einen stabilen semantischen AppPlugin-Einstieg für Auswahlmodus und Bestätigung belegen; keine versteckten Bildschirmkoordinaten oder nachgebauten Modellpayloads verwenden.
 - **P0C-Q7-M5-GATES** – Q7-M5-Familienabweichungen durch vollständige Verhaltens-Gates absichern: Die gemeinsamen Raumwahl-, Split-, Merge-, Rename- und verbleibenden Gesten-Gates gegen M5 ausführen; nur belegte Bundleabweichungen separat festhalten.
 - **P0C-Q7-ROOM-PROPERTIES** – Bodentyp, Raumtyp/-symbol und Reihenfolge über AppPlugin-Werkzeuge prüfen: Jedes tatsächlich angebotene Werkzeug bis zur semantischen Absicht und Kartenaktualisierung nachweisen.
 - **P0C-Q7-BOUNDARIES** – Sperrzonen, wischfreie Zonen, virtuelle Wände und Schwellen vollständig bedienen: Erzeugen, auswählen, verschieben, skalieren, drehen, löschen, mehrere Objekte und Originalgrenzen als Gates erfassen.
+- **P0C-Q7-ZONES** – Reinigungszonen aus der eigenen UI semantisch steuern: Desktop-Hülle nur Modus und Bestätigung senden lassen; Geometrie, Auswahl und Parameter verbleiben im AppPlugin.
 
 ## Phasen
 
@@ -221,7 +220,7 @@ Aktuelle Phase: **0C – Verhaltensnachweis**
 
 | ID | Prio | Status | Aufgabe | Abhängigkeiten | Belege | Nächster Schritt / Blocker |
 | --- | --- | --- | --- | --- | --- | --- |
-| `P0C-Q7-ROOM-CLEANING-UI` | P0 | 🔄 in Arbeit | Raumreinigung aus der eigenen UI semantisch durch das AppPlugin steuern | `P0C-Q7-ROOM-SELECTION`, `P0B-INPUT-LAYOUT` | [`src/www/appplugin-desktop.ts`](../../src/www/appplugin-desktop.ts)<br>[`src/www/apppluginLab/live-appplugin-map-surface.ts`](../../src/www/apppluginLab/live-appplugin-map-surface.ts)<br>[`test/unit/appplugin_desktop.test.ts`](../../test/unit/appplugin_desktop.test.ts) | Einen stabilen semantischen AppPlugin-Einstieg für Auswahlmodus und Bestätigung belegen; keine versteckten Bildschirmkoordinaten oder nachgebauten Modellpayloads verwenden. |
+| `P0C-Q7-ROOM-CLEANING-UI` | P0 | ✅ abgeschlossen | Raumreinigung aus der eigenen UI semantisch durch das AppPlugin steuern | `P0C-Q7-ROOM-SELECTION`, `P0B-INPUT-LAYOUT` | [`src/apppluginHost/apkSemanticUiActions.ts`](../../src/apppluginHost/apkSemanticUiActions.ts)<br>[`scripts/prove_q7_appplugin_semantic_actions.ts`](../../scripts/prove_q7_appplugin_semantic_actions.ts)<br>[`src/www/appplugin-desktop.ts`](../../src/www/appplugin-desktop.ts)<br>[`src/www/apppluginLab/live-appplugin-map-surface.ts`](../../src/www/apppluginLab/live-appplugin-map-surface.ts)<br>[`test/unit/appplugin_apk_semantic_ui_actions.test.ts`](../../test/unit/appplugin_apk_semantic_ui_actions.test.ts)<br>[`test/unit/appplugin_desktop.test.ts`](../../test/unit/appplugin_desktop.test.ts)<br>[`docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md`](../../docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md)<br>`npm run poc:appplugin-q7-semantic-actions-proof` | Den strukturellen SCMap-Vertrag gegen Q7 M5 ausführen; andere Kartenfamilien erst nach einem eigenen belegten AppPlugin-UI-Vertrag freischalten. |
 | `P0C-Q7-ZONES` | P1 | ⏳ offen | Reinigungszonen aus der eigenen UI semantisch steuern | `P0C-Q7-BOUNDARIES`, `P0C-Q7-ROOM-CLEANING-UI` | — | Desktop-Hülle nur Modus und Bestätigung senden lassen; Geometrie, Auswahl und Parameter verbleiben im AppPlugin. |
 
 #### Q7 L5 – Kartenbestand

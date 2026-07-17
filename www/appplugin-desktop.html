@@ -4,7 +4,7 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>Roborock Desktop · AppPlugin PoC</title>
-		<script type="module" src="./appplugin-desktop.js?v=2bb77b8c6180"></script>
+		<script type="module" src="./appplugin-desktop.js?v=4b985926ba4e"></script>
 		<style>
 			:root {
 				color-scheme: light;
@@ -337,7 +337,7 @@
 									<span id="zoomValue" class="map-zoom-status" aria-label="Zoom wird vom AppPlugin verwaltet">Zoom</span>
 									<button id="zoomIn" type="button" title="Vergrößern" aria-label="Vergrößern">+</button>
 								</div>
-								<div id="desktopMap" role="application" aria-label="Direkt vom unveränderten Roborock-AppPlugin gerenderte Karte" data-tool="rooms"><img id="desktopMapFrame" alt="AppPlugin-Kartenframe" draggable="false" /></div>
+								<div id="desktopMap" role="application" aria-label="Direkt vom unveränderten Roborock-AppPlugin gerenderte Karte"><img id="desktopMapFrame" alt="AppPlugin-Kartenframe" draggable="false" /></div>
 								<div id="mapNotice" class="map-notice">Direkte native Kartenteilstruktur des laufenden Q7-AppPlugins. Pointer und Pinch werden als APK-Touchereignisse zurück in dieselbe Sitzung geleitet; Gerätebefehle werden nicht gesendet.</div>
 							</div>
 							<div class="map-footer"><span id="mapInstruction">Raum/Räume zum Reinigen auswählen</span><span id="selectionSummary">Direkte AppPlugin-Sitzung wird verbunden …</span></div>
@@ -347,7 +347,7 @@
 							<section class="context-page" data-context-page="map">
 								<div class="panel-heading"><h2>Reinigungsverwaltung</h2><small>Desktop-PoC</small></div>
 								<div class="section-card">
-									<div class="section-title"><strong>Bereich</strong><small>Host-Drahtmodell · AppPlugin-Lokalisierung offen</small></div>
+									<div class="section-title"><strong>Bereich</strong><small>Direkter AppPlugin-Zustand · bundle-lokalisiert</small></div>
 									<div class="segmented">
 										<button type="button" data-clean-scope="full" disabled><span>Alles</span></button>
 										<button class="active" type="button" data-clean-scope="rooms"><span>Raum</span></button>
@@ -355,7 +355,7 @@
 									</div>
 								</div>
 								<div class="section-card">
-									<div class="section-title"><strong>Reinigungsmethode</strong><small>Host-Drahtmodell · Live-AppPlugin offen</small></div>
+									<div class="section-title"><strong>Reinigungsmethode</strong><small>Noch nicht semantisch mit dem AppPlugin verbunden</small></div>
 									<div class="method-grid">
 										<button class="method-button active" type="button" data-clean-method="smart"><span>SmartPlan</span><small>Automatisch je Raum</small></button>
 										<button class="method-button" type="button" data-clean-method="vacuum"><span>Staubsaugen</span><small>Nur saugen</small></button>
@@ -374,7 +374,7 @@
 								</div>
 								<div class="section-card">
 									<div class="action-grid">
-										<button class="action-button primary" type="button" data-intent="clean.start"><span>Reinigen</span> · nur vorbereiten</button>
+										<button class="action-button primary" type="button" data-intent="clean.start" disabled><span>Reinigen</span> · über AppPlugin</button>
 										<button class="action-button" type="button" data-intent="clean.pause"><span>Pause</span></button>
 										<button class="action-button" type="button" data-intent="clean.dock"><span>Andocken</span></button>
 									</div>

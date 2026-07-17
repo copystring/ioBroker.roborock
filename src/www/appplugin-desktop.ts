@@ -7,11 +7,23 @@ import {
 	type LiveAppPluginThemeMode,
 	type LiveAppPluginMapSnapshot,
 	type LiveAppPluginMapTool,
+	type LiveAppPluginSemanticActionId,
 	type LiveAppPluginSurfaceView,
 } from "./apppluginLab/live-appplugin-map-surface";
 type MapTool = LiveAppPluginMapTool;
 type CleanScope = "full" | "rooms" | "zones";
 type CleanMethod = "smart" | "vacuum" | "mop" | "vacuumThenMop";
+
+function semanticActionForTool(tool: MapTool): LiveAppPluginSemanticActionId | undefined {
+	if (tool === "view") return "map.mode.full";
+	if (tool === "rooms") return "map.mode.rooms";
+	if (tool === "zones") return "map.mode.zones";
+	return undefined;
+}
+
+function semanticActionForScope(scope: CleanScope): LiveAppPluginSemanticActionId {
+	return scope === "full" ? "map.mode.full" : scope === "rooms" ? "map.mode.rooms" : "map.mode.zones";
+}
 
 const shellLanguageNames = new Intl.DisplayNames(["de"], { type: "language" });
 
@@ -26,11 +38,14 @@ function byId<T extends HTMLElement | SVGElement>(id: string): T {
 	return element as T;
 }
 
-function localRuntimePort(): 4174 | 4175 {
+function localRuntimePort(): number {
 	const value = new URLSearchParams(location.search).get("runtimePort");
-	if (value === null || value === "4174") return 4174;
-	if (value === "4175") return 4175;
-	throw new Error(`Unbekannter lokaler AppPlugin-Runtime-Port: ${value}`);
+	if (value === null) return 4174;
+	const port = Number(value);
+	if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
+		throw new Error(`Ungültiger lokaler AppPlugin-Runtime-Port: ${value}`);
+	}
+	return port;
 }
 
 class AppPluginDesktop {
@@ -53,6 +68,12 @@ class AppPluginDesktop {
 
 	public async init(): Promise<void> {
 		const runtimePort = localRuntimePort();
+		if (![...this.runtimeProfile.options].some(option => option.value === String(runtimePort))) {
+			const isolatedProfile = document.createElement("option");
+			isolatedProfile.value = String(runtimePort);
+			isolatedProfile.textContent = `Isolierter Test · ${runtimePort}`;
+			this.runtimeProfile.append(isolatedProfile);
+		}
 		this.runtimeProfile.value = String(runtimePort);
 		this.runtimeProfile.addEventListener("change", () => {
 			const url = new URL(location.href);
@@ -77,6 +98,7 @@ class AppPluginDesktop {
 				this.themeMode.title = snapshot.themeSwitching
 					? "APK-Theme wird an das unveränderte AppPlugin gesendet"
 					: "Die laufende PoC-Sitzung muss mit dem neuen Theme-Host neu gestartet werden";
+				this.syncMapModeFromAppPlugin(snapshot);
 				this.updateMapSummary(snapshot);
 				this.updateControlStates();
 			},
@@ -134,35 +156,25 @@ class AppPluginDesktop {
 			});
 		});
 
-		document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach(button => {
+		document.querySelectorAll<HTMLButtonElement>("button[data-tool]").forEach(button => {
 			button.addEventListener("click", () => {
 				const requestedTool = button.dataset.tool as MapTool;
-				if (requestedTool !== "rooms") {
+				const actionId = semanticActionForTool(requestedTool);
+				if (!actionId) {
 					this.logEvent("AppPlugin-Werkzeugadapter noch nicht verbunden", {
 						requestedTool,
 						fallbackUsed: false,
 					});
 					return;
 				}
-				this.tool = "rooms";
-				this.scope = "rooms";
-				this.applyMapMode();
+				void this.mapSurface.invokeSemanticAction(actionId);
 			});
 		});
 
 		document.querySelectorAll<HTMLButtonElement>("[data-clean-scope]").forEach(button => {
 			button.addEventListener("click", () => {
 				const requestedScope = button.dataset.cleanScope as CleanScope;
-				if (requestedScope !== "rooms") {
-					this.logEvent("AppPlugin-Bereichsadapter noch nicht verbunden", {
-						requestedScope,
-						fallbackUsed: false,
-					});
-					return;
-				}
-				this.scope = "rooms";
-				this.tool = "rooms";
-				this.applyMapMode();
+				void this.mapSurface.invokeSemanticAction(semanticActionForScope(requestedScope));
 			});
 		});
 
@@ -241,42 +253,28 @@ class AppPluginDesktop {
 		this.updateControlStates();
 	}
 
-	private applyMapMode(): void {
-		this.updateControlStates();
-	}
-
 	private startCleaning(): void {
-		const snapshot = this.mapSurface.snapshot();
-		this.emitIntent({
-			name: "clean.start",
-			arguments: {
-				scope: this.scope,
-				selection: {
-					owner: "unchanged-appplugin-session",
-					status: "semantic-action-adapter-pending",
-				},
-				cleanMethod: this.method,
-				passes: this.passes,
-				settings: {
-					suction: byId<HTMLSelectElement>("suctionSetting").value,
-					water: byId<HTMLSelectElement>("waterSetting").value,
-					route: byId<HTMLSelectElement>("routeSetting").value,
-				},
-				mapProvenance: {
-					owner: "unchanged-model-appplugin",
-					bundleKind: snapshot.bundleKind,
-					view: snapshot.view,
-				},
-			},
-		}, "Reinigung noch nicht gesendet – AppPlugin-Aktionsadapter fehlt");
+		const action = this.mapSurface.semanticAction("clean.start");
+		if (!action?.enabled) {
+			this.logEvent("Originale AppPlugin-Reinigungsaktion ist nicht verfügbar", {
+				actionId: "clean.start",
+				fallbackUsed: false,
+			});
+			return;
+		}
+		void this.mapSurface.invokeSemanticAction("clean.start");
 	}
 	private updateMapSummary(snapshot: LiveAppPluginMapSnapshot): void {
 		const deviceFamily = snapshot.deviceModel.includes("ss09") ? "Q10" : "Q7";
 		byId<HTMLElement>("deviceFamilyBadge").textContent = deviceFamily;
 		byId<HTMLElement>("deviceName").textContent = snapshot.profileLabel;
 		const fullView = snapshot.view === "full";
-		byId<HTMLElement>("selectionSummary").textContent =
-			"Kartenansicht und Interaktion werden direkt vom Geräte-AppPlugin verwaltet";
+		const selectedMode = snapshot.semanticActions.find(action =>
+			action.id.startsWith("map.mode.") && action.selected,
+		);
+		byId<HTMLElement>("selectionSummary").textContent = selectedMode
+			? `${selectedMode.label} · Zustand direkt aus dem Geräte-AppPlugin`
+			: "Kartenansicht und Interaktion werden direkt vom Geräte-AppPlugin verwaltet";
 		byId<HTMLElement>("mapViewTitle").textContent = fullView
 			? "Originale AppPlugin-Testansicht"
 			: "Unveränderte AppPlugin-Karte";
@@ -296,6 +294,49 @@ class AppPluginDesktop {
 			button.disabled = !snapshot.availableViews.includes(button.dataset.surfaceView as LiveAppPluginSurfaceView);
 		});
 	}
+	private syncMapModeFromAppPlugin(snapshot: LiveAppPluginMapSnapshot): void {
+		const selectedMode = snapshot.semanticActions.find(action =>
+			action.id.startsWith("map.mode.") && action.selected,
+		);
+		if (selectedMode?.id === "map.mode.full") {
+			this.tool = "view";
+			this.scope = "full";
+		} else if (selectedMode?.id === "map.mode.rooms") {
+			this.tool = "rooms";
+			this.scope = "rooms";
+		} else if (selectedMode?.id === "map.mode.zones") {
+			this.tool = "zones";
+			this.scope = "zones";
+		}
+		for (const action of snapshot.semanticActions) {
+			const tool = action.id === "map.mode.full"
+				? "view"
+				: action.id === "map.mode.rooms"
+					? "rooms"
+					: action.id === "map.mode.zones"
+						? "zones"
+						: undefined;
+			if (tool) {
+				const button = document.querySelector<HTMLButtonElement>(`button[data-tool="${tool}"]`);
+				if (button) button.textContent = action.label;
+			}
+			const scope = action.id === "map.mode.full"
+				? "full"
+				: action.id === "map.mode.rooms"
+					? "rooms"
+					: action.id === "map.mode.zones"
+						? "zones"
+						: undefined;
+			if (scope) {
+				const label = document.querySelector<HTMLElement>(`[data-clean-scope="${scope}"] span`);
+				if (label) label.textContent = action.label;
+			}
+			if (action.id === "clean.start") {
+				const label = document.querySelector<HTMLElement>('[data-intent="clean.start"] span');
+				if (label) label.textContent = action.label;
+			}
+		}
+	}
 	private syncLanguageControl(snapshot: LiveAppPluginMapSnapshot): void {
 		const currentLanguages = [...this.languageMode.options].map(option => option.value);
 		if (currentLanguages.join("\u0000") !== snapshot.availableLanguages.join("\u0000")) {
@@ -313,7 +354,7 @@ class AppPluginDesktop {
 			: "Die laufende AppPlugin-Sitzung unterstützt den APK-Sprachwechsel noch nicht";
 	}
 	private updateControlStates(): void {
-		document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach(button => {
+		document.querySelectorAll<HTMLButtonElement>("button[data-tool]").forEach(button => {
 			const active = button.dataset.tool === this.tool;
 			button.classList.toggle("active", active);
 			button.setAttribute("aria-pressed", String(active));
@@ -327,20 +368,45 @@ class AppPluginDesktop {
 			const active = button.dataset.cleanMethod === this.method;
 			button.classList.toggle("active", active);
 			button.setAttribute("aria-pressed", String(active));
+			button.disabled = true;
+			button.title = "Wird erst nach einem belegten semantischen AppPlugin-Einstieg freigeschaltet";
 		});
 		document.querySelectorAll<HTMLButtonElement>("[data-pass-count]").forEach(button => {
 			const active = Number(button.dataset.passCount) === this.passes;
 			button.classList.toggle("active", active);
 			button.setAttribute("aria-pressed", String(active));
+			button.disabled = true;
+			button.title = "Wird erst nach einem belegten semantischen AppPlugin-Einstieg freigeschaltet";
 		});
-		this.map.dataset.tool = this.tool;
+		document.querySelectorAll<HTMLSelectElement>("[data-setting]").forEach(select => {
+			select.disabled = true;
+			select.title = "Wird erst nach einem belegten semantischen AppPlugin-Einstieg freigeschaltet";
+		});
 		document.querySelectorAll<HTMLButtonElement>("[data-clean-scope]").forEach(button => {
-			button.disabled = button.dataset.cleanScope !== "rooms";
+			const scope = button.dataset.cleanScope as CleanScope;
+			const action = this.mapSnapshot
+				? this.mapSnapshot.semanticActions.find(candidate => candidate.id === semanticActionForScope(scope))
+				: undefined;
+			button.disabled = action?.enabled !== true;
 		});
-		document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach(button => {
-			button.disabled = button.dataset.tool !== "rooms";
+		document.querySelectorAll<HTMLButtonElement>("button[data-tool]").forEach(button => {
+			const actionId = semanticActionForTool(button.dataset.tool as MapTool);
+			const action = actionId && this.mapSnapshot
+				? this.mapSnapshot.semanticActions.find(candidate => candidate.id === actionId)
+				: undefined;
+			button.disabled = action?.enabled !== true;
 			if (button.disabled) button.title = "Wird erst nach einem belegten AppPlugin-UI-Vertrag freigeschaltet";
+			else button.title = "Löst die originale AppPlugin-Aktion ohne feste Bildschirmkoordinate aus";
 		});
+		const cleanStart = document.querySelector<HTMLButtonElement>('[data-intent="clean.start"]');
+		if (cleanStart) {
+			cleanStart.disabled = this.mapSnapshot?.semanticActions.some(action =>
+				action.id === "clean.start" && action.enabled,
+			) !== true;
+			cleanStart.title = cleanStart.disabled
+				? "Das laufende AppPlugin bietet noch keine semantische Reinigungsaktion an"
+				: "Löst die originale AppPlugin-Reinigungsaktion aus; Befehlsparameter bleiben im Bundle";
+		}
 		byId<HTMLElement>("mapInstruction").textContent = this.mapSnapshot
 			? this.mapSnapshot.view === "full"
 				? "Original-Testansicht · AppPlugin-Menüs direkt anklicken · DPS unten prüfen"

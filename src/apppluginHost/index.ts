@@ -1,6 +1,7 @@
 export * from "./apkPluginDeviceRuntime";
 export * from "./apkPointerInputBridge";
 export * from "./apkInteractiveSurfaceRoot";
+export * from "./apkSemanticUiActions";
 export * from "./apkAppStateRuntime";
 export * from "./apkAppSysRuntime";
 export * from "./apkAppToRobotMessage";
