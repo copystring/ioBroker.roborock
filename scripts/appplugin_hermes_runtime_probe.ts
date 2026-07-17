@@ -849,12 +849,14 @@ async function main(): Promise<void> {
 	const uiManager = new ApkUiManagerRuntime(contract, rootTag);
 	let revision = 0;
 	let frameRevision = 0;
+	let requestNativeAnimatedUiPump: (() => void) | undefined;
 	const nativeAnimated = new ApkNativeAnimatedRuntime({
 		updateView: (tag, props) => uiManager.synchronouslyUpdateViewOnUiThread(tag, props),
 		restoreDefaultViewProps: (tag, propNames) => uiManager.restoreDefaultViewProps(tag, propNames),
 		onViewUpdate: () => {
 			revision += 1;
 			frameRevision += 1;
+			requestNativeAnimatedUiPump?.();
 		},
 	});
 	registry.register(
@@ -1036,6 +1038,19 @@ async function main(): Promise<void> {
 		}
 		return cycles;
 	};
+	const settleActiveNativeAnimations = async (timeoutMs = 2_000): Promise<void> => {
+		const deadline = Date.now() + timeoutMs;
+		while (nativeAnimated.activeAnimationCount() > 0) {
+			if (Date.now() >= deadline) {
+				throw new Error(
+					`APK-NativeAnimated wurde innerhalb von ${timeoutMs} ms nicht ruhig `
+					+ `(${nativeAnimated.activeAnimationCount()} Animationen aktiv)`,
+				);
+			}
+			await new Promise(resolve => setTimeout(resolve, 20));
+			await session.waitForRuntimeBoundaryIdle();
+		}
+	};
 	let operationQueue: Promise<unknown> = Promise.resolve();
 	const enqueue = <T>(operation: () => Promise<T>): Promise<T> => {
 		const pending = operationQueue.then(operation, operation);
@@ -1048,6 +1063,25 @@ async function main(): Promise<void> {
 			await observedQueue;
 			if (operationQueue === observedQueue) return;
 		}
+	};
+	let nativeAnimatedUiPump: Promise<void> | undefined;
+	let nativeAnimatedUiPumpRequested = false;
+	requestNativeAnimatedUiPump = () => {
+		nativeAnimatedUiPumpRequested = true;
+		if (nativeAnimatedUiPump) return;
+		nativeAnimatedUiPump = enqueue(async () => {
+			while (nativeAnimatedUiPumpRequested) {
+				nativeAnimatedUiPumpRequested = false;
+				await session.waitForRuntimeBoundaryIdle();
+				await stabilizeUi();
+			}
+		}).finally(() => {
+			nativeAnimatedUiPump = undefined;
+			if (nativeAnimatedUiPumpRequested) requestNativeAnimatedUiPump?.();
+		});
+		void nativeAnimatedUiPump.catch(error => {
+			timingErrors.push(error instanceof Error ? error.message : String(error));
+		});
 	};
 	let timerUiPump: Promise<void> | undefined;
 	let timerUiPumpRequested = false;
@@ -1248,6 +1282,13 @@ async function main(): Promise<void> {
 			await waitForOperationQueueIdle();
 			await session.waitForRuntimeBoundaryIdle();
 			imminentTimerCycles += await settleImminentOneShotTimers();
+			await waitForOperationQueueIdle();
+			await stabilizeUi();
+			// React Native kann NativeAnimated erst während dieses ersten Layout-
+			// Durchlaufs starten. Deshalb wird danach auf die unveränderte
+			// AppPlugin-Animation gewartet und ihr finaler Frame erneut gelayoutet.
+			await settleActiveNativeAnimations();
+			await session.waitForRuntimeBoundaryIdle();
 			await waitForOperationQueueIdle();
 			await stabilizeUi();
 			await waitForOperationQueueIdle();

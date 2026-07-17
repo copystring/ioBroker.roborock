@@ -38,20 +38,25 @@ describe("ApkNativeAnimatedRuntime", () => {
 
 		expect(viewProps.get(39)).toEqual({ opacity: 1 });
 		const callback = vi.fn();
+		expect(runtime.activeAnimationCount()).toBe(0);
 		runtime.startAnimatingNode(7, 1, {
 			type: "frames",
 			frames: [0, 0.5, 1],
 			toValue: 0.5,
 			iterations: 1,
 		}, callback);
+		expect(runtime.activeAnimationCount()).toBe(1);
 		expect(scheduled.map(task => Math.round(task.delayMs))).toEqual([17, 33, 50]);
 
 		scheduled[0].callback();
 		expect(viewProps.get(39)).toEqual({ opacity: 1 });
+		expect(runtime.activeAnimationCount()).toBe(1);
 		scheduled[1].callback();
 		expect(viewProps.get(39)).toEqual({ opacity: 0.75 });
+		expect(runtime.activeAnimationCount()).toBe(1);
 		scheduled[2].callback();
 		expect(viewProps.get(39)).toEqual({ opacity: 0.5 });
+		expect(runtime.activeAnimationCount()).toBe(0);
 		expect(callback).toHaveBeenCalledOnce();
 		expect(callback).toHaveBeenCalledWith({ finished: true, value: 0.5 });
 

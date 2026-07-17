@@ -35,6 +35,7 @@ interface ProofOptions {
 	rawOutputPath: string;
 	timeoutMs: number;
 	scenario: MergeScenario;
+	runtimeLabel: string;
 }
 
 function record(value: unknown, context: string): JsonRecord {
@@ -69,6 +70,7 @@ function parseArgs(args: string[]): ProofOptions {
 		rawOutputPath: path.join(runtimeDirectory, "q7-l5-room-merge-success-raw.json"),
 		timeoutMs: 180_000,
 		scenario: "merge-success",
+		runtimeLabel: "unchanged Q7 L5 Hermes AppPlugin",
 	};
 	const pathOptions: Readonly<Record<string, keyof ProofOptions>> = {
 		"--probe": "probePath",
@@ -106,6 +108,12 @@ function parseArgs(args: string[]): ProofOptions {
 				throw new Error("--timeout-ms benötigt eine positive Ganzzahl");
 			}
 			options.timeoutMs = timeoutMs;
+			continue;
+		}
+		if (option === "--runtime-label") {
+			const runtimeLabel = args[++index];
+			if (!runtimeLabel) throw new Error("--runtime-label benötigt einen Wert");
+			options.runtimeLabel = runtimeLabel;
 			continue;
 		}
 		const property = pathOptions[option];
@@ -384,10 +392,15 @@ function buildProof(result: JsonRecord, options: ProofOptions, bundleSha256: str
 		status: "passed",
 		generatedAt: new Date().toISOString(),
 		scenario: options.scenario,
-		runtime: "unchanged Q7 L5 Hermes AppPlugin",
+		runtime: options.runtimeLabel,
 		appPluginFirst: true,
 		captureOnly: true,
-		bundle: { kind: result.bundleKind, sha256: bundleSha256, unchanged: true },
+		bundle: {
+			kind: result.bundleKind,
+			path: path.relative(options.repositoryRoot, options.bundlePath).replaceAll(path.sep, "/"),
+			sha256: bundleSha256,
+			unchanged: true,
+		},
 		transport: {
 			fixtureSha256,
 			directBlobReplay: true,

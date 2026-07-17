@@ -28,11 +28,27 @@ describe("Q7 AppPlugin room-merge gate", () => {
 		for (const scenario of scenarios) {
 			const fixture = loadFixture(scenario);
 			const serialized = JSON.stringify(fixture);
+			const events = fixture.events as Array<Record<string, unknown>>;
 			expect(fixture).toMatchObject({ version: 1, viewport: { width: 360, height: 800 } });
 			expect(serialized).not.toMatch(/service\.arrange_room|publishDps|room_ids|roomMatrix|localKey|b01/iu);
-			expect(fixture.events).toEqual(expect.arrayContaining([
+			expect(events).toEqual(expect.arrayContaining([
 				expect.objectContaining({ kind: "assert", rawTextIncludes: expect.arrayContaining(["Zusammenführen"]) }),
 			]));
+			const onboardingIndex = events.findIndex(event =>
+				event.kind === "assert"
+				&& (event.rawTextIncludes as string[] | undefined)?.includes(
+					"Du kannst mehrere benachbarte Räume zusammenführen",
+				));
+			const closeIndex = events.findIndex(event =>
+				event.kind === "down" && event.x === 331 && event.y === 411);
+			const firstRoomIndex = events.findIndex((event, index) =>
+				index > closeIndex
+				&& event.kind === "down"
+				&& [108, 228, 308].includes(event.x as number));
+			expect(onboardingIndex).toBeGreaterThan(-1);
+			expect(closeIndex).toBeGreaterThan(onboardingIndex);
+			expect(firstRoomIndex).toBeGreaterThan(closeIndex);
+			expect([407, 463]).toContain(events[firstRoomIndex].y);
 		}
 	});
 
@@ -53,12 +69,26 @@ describe("Q7 AppPlugin room-merge gate", () => {
 		]));
 	});
 
-	it("exposes one reproducible gate command for all eight fresh AppPlugin sessions", () => {
+	it("exposes one shared eight-scenario suite for the L5 and M5 AppPlugins", () => {
 		const scripts = (JSON.parse(fs.readFileSync(path.join(repositoryRoot, "package.json"), "utf8")) as {
 			scripts: Record<string, string>;
 		}).scripts;
-		const command = scripts["poc:appplugin-q7-merge-proof"];
-		expect(command).toContain("scripts/prove_q7_appplugin_merge.ts");
-		for (const scenario of scenarios) expect(command).toContain(`q7-l5-room-merge-${scenario}.json`);
+		const suiteSource = fs.readFileSync(
+			path.join(repositoryRoot, "scripts", "run_q7_appplugin_merge_suite.ts"),
+			"utf8",
+		);
+		const l5Command = scripts["poc:appplugin-q7-merge-proof"];
+		const m5Command = scripts["poc:appplugin-q7-m5-merge-proof"];
+		for (const command of [l5Command, m5Command]) {
+			expect(command).toContain("scripts/prove_q7_appplugin_merge.ts");
+			expect(command).toContain("scripts/run_q7_appplugin_merge_suite.ts");
+		}
+		expect(l5Command).toContain("--profile l5");
+		expect(m5Command).toContain("--profile m5");
+		expect(suiteSource).toContain("unchanged Q7 L5 Hermes AppPlugin");
+		expect(suiteSource).toContain("unchanged Q7 M5 Hermes AppPlugin");
+		for (const scenario of scenarios) {
+			expect(suiteSource).toContain(`fixtureSuffix: "${scenario}"`);
+		}
 	});
 });

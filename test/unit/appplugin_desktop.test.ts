@@ -127,7 +127,7 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(pointerEndpoint).not.toContain("currentFrame(view)");
 	});
 
-	it("returns touches before future timers and finishes delayed AppPlugin UI in the background", () => {
+	it("returns touches before future timers and pumps delayed AppPlugin UI and native animations", () => {
 		const surface = fs.readFileSync(surfacePath, "utf8");
 		const probe = fs.readFileSync(probePath, "utf8");
 		const pointerEndpoint = probe.slice(probe.indexOf('url.pathname === "/pointer"'));
@@ -136,6 +136,9 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(probe).toContain("onTimerJsCompleted");
 		expect(probe).toContain("timerUiPump = enqueue");
 		expect(probe).toContain("timerUiPumpRequested");
+		expect(probe).toContain("nativeAnimatedUiPump = enqueue");
+		expect(probe).toContain("nativeAnimatedUiPumpRequested");
+		expect(probe).toContain("settleActiveNativeAnimations");
 		expect(probe).toContain("lastStabilizedVisualRevision");
 		expect(probe).toContain('url.pathname === "/pointer-sequence"');
 		expect(probe).toContain("cachedCurrentFrame");

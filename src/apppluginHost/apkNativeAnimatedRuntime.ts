@@ -328,6 +328,10 @@ export class ApkNativeAnimatedRuntime {
 		throw new Error("Der binäre NativeAnimated-Batchpfad ist noch nicht aus der APK nachgebildet");
 	};
 
+	public activeAnimationCount(): number {
+		return this.#animations.size;
+	}
+
 	public dispose(): void {
 		for (const animationId of [...this.#animations.keys()]) this.#finishAnimation(animationId, false);
 	}

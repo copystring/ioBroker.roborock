@@ -80,17 +80,25 @@
       ]
     },
     {
+      "kind": "assert",
+      "rawTextIncludes": [
+        "Zusammenführen",
+        "Du kannst mehrere benachbarte Räume zusammenführen",
+        "*Bitte passe dies an die tatsächlichen Bedingungen des Raums an."
+      ]
+    },
+    {
       "kind": "down",
       "pointerId": 0,
-      "x": 108,
-      "y": 147,
+      "x": 331,
+      "y": 411,
       "timeMs": 5000
     },
     {
       "kind": "up",
       "pointerId": 0,
-      "x": 108,
-      "y": 147,
+      "x": 331,
+      "y": 411,
       "timeMs": 5040,
       "waitAfterMs": 500
     },
@@ -98,14 +106,14 @@
       "kind": "down",
       "pointerId": 0,
       "x": 108,
-      "y": 147,
+      "y": 407,
       "timeMs": 5600
     },
     {
       "kind": "up",
       "pointerId": 0,
       "x": 108,
-      "y": 147,
+      "y": 407,
       "timeMs": 5640,
       "waitAfterMs": 500
     },
@@ -113,14 +121,14 @@
       "kind": "down",
       "pointerId": 0,
       "x": 228,
-      "y": 147,
+      "y": 407,
       "timeMs": 6200
     },
     {
       "kind": "up",
       "pointerId": 0,
       "x": 228,
-      "y": 147,
+      "y": 407,
       "timeMs": 6240,
       "waitAfterMs": 500
     },
@@ -128,29 +136,29 @@
       "kind": "down",
       "pointerId": 0,
       "x": 308,
-      "y": 203,
+      "y": 463,
       "timeMs": 6800
     },
     {
       "kind": "up",
       "pointerId": 0,
       "x": 308,
-      "y": 203,
+      "y": 463,
       "timeMs": 6840,
       "waitAfterMs": 500
     },
     {
       "kind": "down",
       "pointerId": 0,
-      "x": 291,
-      "y": 679,
+      "x": 307,
+      "y": 683,
       "timeMs": 7400
     },
     {
       "kind": "up",
       "pointerId": 0,
-      "x": 291,
-      "y": 679,
+      "x": 307,
+      "y": 683,
       "timeMs": 7440,
       "waitAfterMs": 500
     },
