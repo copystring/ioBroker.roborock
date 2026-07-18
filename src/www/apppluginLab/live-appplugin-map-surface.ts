@@ -165,6 +165,51 @@ export interface LiveAppPluginPinchPointer {
 	y: number;
 }
 
+interface LocalMapDrag {
+	pointerId: number;
+	startX: number;
+	startY: number;
+	x: number;
+	y: number;
+}
+
+const LOCAL_MAP_DRAG_SLOP_DIP = 2;
+
+/**
+ * Android keeps rendering while a native map gesture is in progress and only
+ * exposes the resulting state back to React Native. Our host uses the same
+ * boundary: the browser presents the drag immediately, then these MOVE events
+ * let the unchanged AppPlugin claim its responder and calculate the canonical
+ * final map state before UP.
+ */
+export function createAppPluginDragCommitPointers(
+	pointerId: number,
+	startX: number,
+	startY: number,
+	endX: number,
+	endY: number,
+): readonly Readonly<LiveAppPluginPinchPointer>[] {
+	if (!Number.isSafeInteger(pointerId) || pointerId < 0) {
+		throw new Error("Zeigerkennung muss eine nichtnegative ganze Zahl sein");
+	}
+	finite(startX, "Drag-Start-x");
+	finite(startY, "Drag-Start-y");
+	finite(endX, "Drag-Ende-x");
+	finite(endY, "Drag-Ende-y");
+	const deltaX = endX - startX;
+	const deltaY = endY - startY;
+	if (Math.hypot(deltaX, deltaY) <= LOCAL_MAP_DRAG_SLOP_DIP) return [];
+	return [
+		{
+			kind: "move",
+			pointerId,
+			x: startX + deltaX / 2,
+			y: startY + deltaY / 2,
+		},
+		{ kind: "move", pointerId, x: endX, y: endY },
+	];
+}
+
 /**
  * Produces the same signed two-pointer distance change that the Q7 AppPlugin
  * receives from Android. The first touch must be the right-hand pointer:
@@ -222,6 +267,10 @@ export class LiveAppPluginMapSurface {
 	#requestQueue: Promise<unknown> = Promise.resolve();
 	#pointerMoveFrame?: number;
 	#pointerMoveRequestActive = false;
+	#localMapDrag?: LocalMapDrag;
+	#localMapDragFrame?: number;
+	#localMapCommitPending = false;
+	#localMapCommitFrameRevision?: number;
 	#wheelFrame?: number;
 	#wheelRequestActive = false;
 	#health!: LiveAppPluginHealth;
@@ -237,6 +286,14 @@ export class LiveAppPluginMapSurface {
 		this.options.viewport.dataset.renderMode = "unchanged-appplugin-session";
 		this.options.viewport.dataset.bundleKind = this.#health.bundleKind;
 		this.options.viewport.dataset.productFallbackAllowed = String(this.#health.productFallbackAllowed);
+		this.options.frame.addEventListener("load", () => this.#settleLocalMapPresentation());
+		this.options.frame.addEventListener("error", () => {
+			if (this.#localMapCommitFrameRevision === undefined) return;
+			this.#resetLocalMapPresentation();
+			this.options.onEvent("Autoritativer AppPlugin-Frame konnte nach Map-Drag nicht geladen werden", {
+				frameRevision: this.#health.frameRevision,
+			});
+		});
 		this.#refreshFrame();
 		this.#bindPointers();
 		this.#emitChange();
@@ -400,7 +457,33 @@ export class LiveAppPluginMapSurface {
 			if (!point) return;
 			event.preventDefault();
 			this.options.viewport.setPointerCapture(event.pointerId);
+			const previousLocalDrag = this.#localMapDrag;
 			this.#activePointers.add(event.pointerId);
+			if (previousLocalDrag) {
+				const commitMoves = createAppPluginDragCommitPointers(
+					previousLocalDrag.pointerId,
+					previousLocalDrag.startX,
+					previousLocalDrag.startY,
+					previousLocalDrag.x,
+					previousLocalDrag.y,
+				);
+				this.#localMapDrag = undefined;
+				this.#resetLocalMapPresentation();
+				void this.#sendPointerSequence([
+					...commitMoves,
+					{ kind: "down", pointerId: event.pointerId, x: point.x, y: point.y },
+				]);
+				return;
+			}
+			if (this.#canPresentLocalMapDrag()) {
+				this.#localMapDrag = {
+					pointerId: event.pointerId,
+					startX: point.x,
+					startY: point.y,
+					x: point.x,
+					y: point.y,
+				};
+			}
 			void this.#sendPointer("down", event.pointerId, point.x, point.y);
 		});
 		this.options.viewport.addEventListener("pointermove", event => {
@@ -408,6 +491,15 @@ export class LiveAppPluginMapSurface {
 			const point = this.#toSurfacePoint(event.clientX, event.clientY);
 			if (!point) return;
 			event.preventDefault();
+			if (
+				this.#localMapDrag?.pointerId === event.pointerId
+				&& this.#activePointers.size === 1
+			) {
+				this.#localMapDrag.x = point.x;
+				this.#localMapDrag.y = point.y;
+				this.#scheduleLocalMapPresentation();
+				return;
+			}
 			this.#queuePointerMove(event.pointerId, point.x, point.y);
 		});
 		const release = (kind: "up" | "cancel", event: PointerEvent): void => {
@@ -418,6 +510,29 @@ export class LiveAppPluginMapSurface {
 				return;
 			}
 			event.preventDefault();
+			const localDrag = this.#localMapDrag?.pointerId === event.pointerId
+				? this.#localMapDrag
+				: undefined;
+			if (localDrag) {
+				localDrag.x = point.x;
+				localDrag.y = point.y;
+				this.#flushLocalMapPresentation();
+				this.#localMapDrag = undefined;
+				const commitMoves = createAppPluginDragCommitPointers(
+					event.pointerId,
+					localDrag.startX,
+					localDrag.startY,
+					localDrag.x,
+					localDrag.y,
+				);
+				this.#localMapCommitPending = commitMoves.length > 0;
+				if (!this.#localMapCommitPending) this.#resetLocalMapPresentation();
+				void this.#sendPointerSequence([
+					...commitMoves,
+					{ kind: "up" as const, pointerId: event.pointerId, x: point.x, y: point.y },
+				]).catch(() => this.#resetLocalMapPresentation());
+				return;
+			}
 			const pendingMoves = this.#takePendingPointerMoves();
 			void this.#sendPointerSequence([
 				...pendingMoves,
@@ -444,6 +559,53 @@ export class LiveAppPluginMapSurface {
 				event.deltaY * deltaScale,
 			);
 		}, { passive: false });
+	}
+
+	#canPresentLocalMapDrag(): boolean {
+		return this.#health.view === "map"
+			&& !this.#localMapCommitPending
+			&& this.#health.semanticActions.some(action => action.id === "map.mode.full" && action.selected);
+	}
+
+	#scheduleLocalMapPresentation(): void {
+		if (this.#localMapDragFrame !== undefined) return;
+		this.#localMapDragFrame = requestAnimationFrame(() => {
+			this.#localMapDragFrame = undefined;
+			this.#applyLocalMapPresentation();
+		});
+	}
+
+	#flushLocalMapPresentation(): void {
+		if (this.#localMapDragFrame !== undefined) cancelAnimationFrame(this.#localMapDragFrame);
+		this.#localMapDragFrame = undefined;
+		this.#applyLocalMapPresentation();
+	}
+
+	#applyLocalMapPresentation(): void {
+		const drag = this.#localMapDrag;
+		if (!drag) return;
+		const scale = this.#surfaceScale();
+		const deltaX = (drag.x - drag.startX) * scale;
+		const deltaY = (drag.y - drag.startY) * scale;
+		this.options.frame.style.transform = `translate3d(${deltaX}px, ${deltaY}px, 0)`;
+		this.options.viewport.dataset.inputPresentation = "apk-native-map-drag";
+	}
+
+	#settleLocalMapPresentation(): void {
+		const expectedRevision = this.#localMapCommitFrameRevision;
+		if (expectedRevision === undefined) return;
+		const source = new URL(this.options.frame.currentSrc || this.options.frame.src, window.location.href);
+		if (Number(source.searchParams.get("revision")) !== expectedRevision) return;
+		this.#resetLocalMapPresentation();
+	}
+
+	#resetLocalMapPresentation(): void {
+		if (this.#localMapDragFrame !== undefined) cancelAnimationFrame(this.#localMapDragFrame);
+		this.#localMapDragFrame = undefined;
+		this.#localMapCommitPending = false;
+		this.#localMapCommitFrameRevision = undefined;
+		this.options.frame.style.transform = "";
+		delete this.options.viewport.dataset.inputPresentation;
 	}
 
 	#queuePointerMove(pointerId: number, x: number, y: number): void {
@@ -624,6 +786,8 @@ export class LiveAppPluginMapSurface {
 	#sendCancel(): Promise<void> {
 		this.#activePointers.clear();
 		this.#pendingPointerMoves.clear();
+		this.#localMapDrag = undefined;
+		this.#resetLocalMapPresentation();
 		if (this.#pointerMoveFrame !== undefined) cancelAnimationFrame(this.#pointerMoveFrame);
 		this.#pointerMoveFrame = undefined;
 		return this.#enqueue(async () => {
@@ -660,7 +824,14 @@ export class LiveAppPluginMapSurface {
 			languageSwitching: response.languageSwitching,
 			semanticActions: response.semanticActions.map(action => ({ ...action })),
 		};
-		if (frameChanged) this.#refreshFrame();
+		const completesLocalMapCommit = this.#localMapCommitPending
+			&& response.activePointerIds.length === 0;
+		if (frameChanged) {
+			if (completesLocalMapCommit) this.#localMapCommitFrameRevision = response.frameRevision;
+			this.#refreshFrame();
+		} else if (completesLocalMapCommit) {
+			this.#resetLocalMapPresentation();
+		}
 		if (publicStateBefore !== this.#interactivePublicState()) this.#emitChange();
 		if (response.publishedDpsCount > this.#publishedDpsCount) await this.#syncPublishedDps(response.publishedDpsCount);
 	}

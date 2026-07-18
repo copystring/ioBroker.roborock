@@ -45,6 +45,17 @@ Zwischenpositionen bilden keine wachsende Warteschlange. Reine
 Frame-Revisionen erzeugen außerdem weder einen vollständigen PC-UI-Abgleich
 noch einen großen Protokolleintrag je Bewegung.
 
+Ein normaler Einfinger-Drag im vom AppPlugin semantisch bestätigten
+Vollkartenmodus darf nicht auf `Hermes -> vollständiges SVG -> Bilddekodierung`
+pro Browserbewegung warten. Wie der native `RoborockMapView` der APK präsentiert
+der Host den unveränderten AppPlugin-Frame deshalb während des Drags unmittelbar
+mit der lokalen Bildwiederholrate. Beim Loslassen erhält das unveränderte Bundle
+eine geordnete Responder-Geste; genau ein neuer autoritativer AppPlugin-Frame
+ersetzt danach atomar die temporäre Präsentation. Der Host berechnet dabei
+weder Karteninhalte noch Räume, Farben, Grenzen oder die kanonische Endposition.
+Mehrfinger-, Zeichen- und noch nicht semantisch belegte Modi verbleiben auf der
+vollständigen AppPlugin-Touchkette.
+
 `RCTScrollView` und `AndroidHorizontalScrollView` werden als native
 React-Native-Verträge der APK gehostet. Dazu gehören begrenzte Scroll-Offsets,
 Content-Verschiebung, Clipping, aktualisiertes Hit-Testing sowie

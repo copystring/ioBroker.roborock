@@ -5,7 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<link rel="canonical" href="./appplugin-desktop.html" />
 		<title>Roborock AppPlugin · ioBroker PoC</title>
-		<script type="module" src="./appplugin-desktop.js?v=a1f8b29c4a03"></script>
+		<script type="module" src="./appplugin-desktop.js?v=cb8b730d8324"></script>
 		<style>
 			:root {
 				color-scheme: light;
@@ -130,8 +130,8 @@
 			.tool-button.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-dark); }
 			.map-card { min-width: 0; min-height: 0; position: relative; background: var(--map-surface); border: 1px solid var(--line); overflow: hidden; box-shadow: var(--shadow); }
 			.map-card::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(var(--map-grid) 1px, transparent 1px), linear-gradient(90deg, var(--map-grid) 1px, transparent 1px); background-size: 22px 22px; opacity: .45; }
-			#desktopMap { position: absolute; z-index: 1; inset: 0; display: flex; align-items: center; justify-content: center; touch-action: none; user-select: none; overflow: hidden; }
-			#desktopMapFrame { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
+			#desktopMap { position: absolute; z-index: 1; inset: 0; display: flex; align-items: center; justify-content: center; touch-action: none; user-select: none; overflow: hidden; background: var(--map-surface); }
+			#desktopMapFrame { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; will-change: transform; transform-origin: center; }
 			#desktopMap[data-render-mode="unchanged-appplugin-session"] { cursor: crosshair; }
 			#desktopMap[data-render-mode="unchanged-appplugin-session"]:active { cursor: grabbing; }
 			#originalMapViewport > path:not(.room-surface),

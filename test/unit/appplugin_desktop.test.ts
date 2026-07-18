@@ -4,7 +4,10 @@ import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { createOfflineAppPluginEnvelope } from "../../src/www/apppluginLab/desktop-intents";
-import { createAppPluginPinchZoomPointers } from "../../src/www/apppluginLab/live-appplugin-map-surface";
+import {
+	createAppPluginDragCommitPointers,
+	createAppPluginPinchZoomPointers,
+} from "../../src/www/apppluginLab/live-appplugin-map-surface";
 import { APPPLUGIN_LOCALIZATION_POLICY } from "../../src/www/apppluginLab/translations";
 
 const repositoryRoot = path.resolve(__dirname, "..", "..");
@@ -150,7 +153,31 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(zoomIn[3].pointerId).toBe(zoomIn[0].pointerId);
 	});
 
-	it("keeps at most one AppPlugin MOVE in flight and reloads frames only for visual mutations", () => {
+	it("presents ordinary map drags locally and commits only the canonical gesture to the AppPlugin", () => {
+		const tap = createAppPluginDragCommitPointers(7, 100, 200, 101, 201);
+		const drag = createAppPluginDragCommitPointers(7, 100, 200, 160, 230);
+		const surface = fs.readFileSync(surfacePath, "utf8");
+		const html = fs.readFileSync(htmlPath, "utf8");
+
+		expect(tap).toEqual([]);
+		expect(drag).toEqual([
+			{ kind: "move", pointerId: 7, x: 130, y: 215 },
+			{ kind: "move", pointerId: 7, x: 160, y: 230 },
+		]);
+		expect(surface).toContain("#canPresentLocalMapDrag");
+		expect(surface).toContain("&& !this.#localMapCommitPending");
+		expect(surface).toContain('action.id === "map.mode.full" && action.selected');
+		expect(surface).toContain("#scheduleLocalMapPresentation");
+		expect(surface).toContain("this.options.frame.style.transform = `translate3d(");
+		expect(surface).toContain('this.options.viewport.dataset.inputPresentation = "apk-native-map-drag"');
+		expect(surface).toContain("this.#localMapCommitPending = commitMoves.length > 0");
+		expect(surface).toContain("this.#localMapCommitFrameRevision = response.frameRevision");
+		expect(surface).toContain('this.options.frame.addEventListener("load"');
+		expect(html).toContain("will-change: transform");
+		expect(html).toContain("background: var(--map-surface)");
+	});
+
+	it("keeps at most one non-pan AppPlugin MOVE in flight and reloads frames only for visual mutations", () => {
 		const surface = fs.readFileSync(surfacePath, "utf8");
 		const probe = fs.readFileSync(probePath, "utf8");
 		const pointerEndpoint = probe.slice(probe.indexOf('url.pathname === "/pointer"'));
@@ -166,7 +193,8 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(surface).not.toContain("if (moves.length > 0) void this.#sendPointerSequence(moves)");
 		expect(surface).toContain("requestAnimationFrame");
 		expect(surface).toContain("frameRevision");
-		expect(surface).toContain("if (frameChanged) this.#refreshFrame()");
+		expect(surface).toContain("if (frameChanged) {");
+		expect(surface).toContain("this.#refreshFrame();");
 		expect(surface).toContain("if (publicStateBefore !== this.#interactivePublicState()) this.#emitChange()");
 		expect(surface).toContain("this.#pointerEventSummary");
 		expect(probe).toContain("const resolveCurrentSurface");
