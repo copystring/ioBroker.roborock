@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { createOfflineAppPluginEnvelope } from "../../src/www/apppluginLab/desktop-intents";
 import {
+	calculateAppPluginSubviewPlacement,
 	createAppPluginDragCommitPointers,
 	createAppPluginPinchZoomPointers,
 } from "../../src/www/apppluginLab/live-appplugin-map-surface";
@@ -165,16 +166,47 @@ describe("AppPlugin desktop smart-home PoC", () => {
 			{ kind: "move", pointerId: 7, x: 160, y: 230 },
 		]);
 		expect(surface).toContain("#canPresentLocalMapDrag");
-		expect(surface).toContain("&& !this.#localMapCommitPending");
+		expect(surface).toContain("this.#localMapCommitPending");
 		expect(surface).toContain('action.id === "map.mode.full" && action.selected');
 		expect(surface).toContain("#scheduleLocalMapPresentation");
-		expect(surface).toContain("this.options.frame.style.transform = `translate3d(");
+		expect(surface).toContain("this.#localPresentationFrame().style.transform = `translate3d(");
 		expect(surface).toContain('this.options.viewport.dataset.inputPresentation = "apk-native-map-drag"');
 		expect(surface).toContain("this.#localMapCommitPending = commitMoves.length > 0");
 		expect(surface).toContain("this.#localMapCommitFrameRevision = response.frameRevision");
 		expect(surface).toContain('this.options.frame.addEventListener("load"');
 		expect(html).toContain("will-change: transform");
 		expect(html).toContain("background: var(--map-surface)");
+	});
+
+	it("composes the unchanged map subview inside the full original AppPlugin root", () => {
+		const placement = calculateAppPluginSubviewPlacement(
+			1_100,
+			800,
+			{ x: 0, y: 0, width: 360, height: 800 },
+			{ x: 44, y: 221, width: 275, height: 287 },
+		);
+		const source = fs.readFileSync(sourcePath, "utf8");
+		const surface = fs.readFileSync(surfacePath, "utf8");
+		const html = fs.readFileSync(htmlPath, "utf8");
+
+		expect(placement).toEqual({
+			left: 414,
+			top: 221,
+			width: 275,
+			height: 287,
+			scale: 1,
+		});
+		for (const id of ["desktopMapNativeLayer", "desktopMapNativeFrame"]) {
+			expect(html).toContain(`id="${id}"`);
+			expect(source).toContain(`"${id}"`);
+		}
+		expect(surface).toContain("await this.#fetchHealth(\"map\")");
+		expect(surface).toContain("Vollansicht und Karten-Teilfläche stammen nicht aus derselben AppPlugin-Sitzung");
+		expect(surface).toContain('source.searchParams.get("view") !== "map"');
+		expect(surface).toContain("this.options.nativeMapFrame.src =");
+		expect(surface).toContain("calculateAppPluginSubviewPlacement(");
+		expect(surface).toContain('this.#health.view === "full" && !this.options.nativeMapLayer.hidden');
+		expect(html).toContain("#desktopMapNativeLayer[hidden]");
 	});
 
 	it("keeps at most one non-pan AppPlugin MOVE in flight and reloads frames only for visual mutations", () => {

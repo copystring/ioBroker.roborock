@@ -248,7 +248,7 @@
 				"test/unit/appplugin_apk_text_input_runtime.test.ts",
 				"test/unit/appplugin_apk_native_animated_runtime.test.ts"
 			],
-			"nextAction": "Pointerverlust, Abbruch, Fokus, Fling/Momentum und verschachtelte ScrollViews gegen Familienläufe schließen; lokale native Drag-Präsentation mit autoritativem AppPlugin-Abgleich, Latest-MOVE und ScrollView bleiben zentrale Host-Verträge. Auf Q10/YX erst nach belegter interaktiver Kartenfläche erweitern."
+			"nextAction": "Pointerverlust, Abbruch, Fokus, Fling/Momentum und verschachtelte ScrollViews gegen Familienläufe schließen; lokale native Drag-Präsentation, die native Karten-Unteransicht im vollständigen AppPlugin-Root, autoritativer AppPlugin-Abgleich, Latest-MOVE und ScrollView bleiben zentrale Host-Verträge. Auf Q10/YX erst nach belegter interaktiver Kartenfläche erweitern."
 		},
 		{
 			"id": "P0B-SKIA-HOST",

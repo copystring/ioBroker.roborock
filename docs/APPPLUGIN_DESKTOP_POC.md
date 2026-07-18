@@ -56,6 +56,16 @@ weder Karteninhalte noch Räume, Farben, Grenzen oder die kanonische Endposition
 Mehrfinger-, Zeichen- und noch nicht semantisch belegte Modi verbleiben auf der
 vollständigen AppPlugin-Touchkette.
 
+In der vollständigen Original-Testansicht bildet der Webhost außerdem die
+native APK-Komposition nach: Der unveränderte vollständige AppPlugin-Root bleibt
+stehen, während ein zweiter unveränderter Kartenframe derselben Sitzung und
+derselben Revision exakt in den vom AppPlugin gemeldeten `RoborockMapView`-
+Viewport gelegt wird. Nur diese native Karten-Unteransicht erhält während eines
+Drags die temporäre lokale Transformation. Nach `UP` wechseln Root und
+Karten-Unteransicht gemeinsam auf dieselbe neue autoritative Frame-Revision.
+Damit bleiben AppPlugin-Menüs, Kopfzeile und Bedienelemente unbewegt, ohne
+Kartenpixel oder Interaktionslogik im Webhost nachzubauen.
+
 `RCTScrollView` und `AndroidHorizontalScrollView` werden als native
 React-Native-Verträge der APK gehostet. Dazu gehören begrenzte Scroll-Offsets,
 Content-Verschiebung, Clipping, aktualisiertes Hit-Testing sowie
