@@ -24,7 +24,7 @@ export interface AppPluginOfflineEnvelope {
 	schemaVersion: 1;
 	source: "desktop-smarthome-shell";
 	delivery: "offline-preview";
-	target: "original-appplugin-action-handler";
+	target: "desktop-appplugin-host-adapter";
 	intent: AppPluginDesktopIntent;
 	bundleBoundary: {
 		methodAndParametersResolvedBy: "unchanged-appplugin-bundle";
@@ -38,7 +38,7 @@ export function createOfflineAppPluginEnvelope(intent: AppPluginDesktopIntent): 
 		schemaVersion: 1,
 		source: "desktop-smarthome-shell",
 		delivery: "offline-preview",
-		target: "original-appplugin-action-handler",
+		target: "desktop-appplugin-host-adapter",
 		intent,
 		bundleBoundary: {
 			methodAndParametersResolvedBy: "unchanged-appplugin-bundle",

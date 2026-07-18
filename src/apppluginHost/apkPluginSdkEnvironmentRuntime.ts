@@ -33,6 +33,7 @@ export interface ApkFirmwareUpdateState {
 
 export interface ApkPluginSdkEnvironmentRuntimeOptions {
 	hasActivity(): boolean;
+	closeCurrentPage?(): void;
 	isSharedDevice?(): boolean;
 	firmwareVersion: string;
 	storageBasePath: string;
@@ -127,6 +128,17 @@ export class ApkPluginSdkEnvironmentRuntime {
 
 	public async getPluginAgreementsV2(): Promise<unknown[]> {
 		return this.getPluginAgreements();
+	}
+
+	/**
+	 * Mirrors PluginSDKModule.closeCurrentPage(): the APK finishes the current
+	 * Android activity on the UI thread. The host owns that surrounding page
+	 * lifecycle, so it receives the close request without putting navigation
+	 * policy into the unchanged AppPlugin bundle.
+	 */
+	public closeCurrentPage(): void {
+		if (!this.options.hasActivity()) return;
+		this.options.closeCurrentPage?.();
 	}
 
 	public startBackgroundJsExecutor(jsFile: string, callback: ApkWorkerCallback): void {

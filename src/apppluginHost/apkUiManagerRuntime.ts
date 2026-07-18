@@ -11,12 +11,18 @@ export interface ApkUiManagerNodeSnapshot {
 	viewName: string;
 	rootTag: number;
 	props: Readonly<Record<string, unknown>>;
-	children: ApkUiManagerNodeSnapshot[];
+	children: readonly ApkUiManagerNodeSnapshot[];
 }
 
 export interface ApkUiManagerOperation {
 	method: string;
 	arguments: readonly unknown[];
+}
+
+export interface ApkUiManagerOperationJournal {
+	offset: number;
+	total: number;
+	operations: readonly ApkUiManagerOperation[];
 }
 
 export interface ApkNativeMeasuredBox {
@@ -171,6 +177,11 @@ export class ApkUiManagerRuntime {
 	readonly #pendingNativeMeasurements: PendingNativeMeasurement[] = [];
 	#jsResponder?: { tag: number; blockNativeResponder: boolean };
 	#visualMutationRevision = 0;
+	#operationOffset = 0;
+	#operationCount = 0;
+	#treeRevision = 0;
+	#snapshotRevision = -1;
+	#snapshotCache?: ApkUiManagerNodeSnapshot;
 
 	public constructor(
 		contract: ApkAppPluginHostContract,
@@ -266,7 +277,12 @@ export class ApkUiManagerRuntime {
 	public readonly setChildren = (parentTag: number, childTags: readonly number[]): void => {
 		const parent = this.#node(parentTag);
 		if (parent.children.length !== 0) throw new Error(`React-Tag ${parentTag} besitzt bereits Kinder`);
-		for (const childTag of childTags) this.#attach(parent, this.#node(childTag), parent.children.length);
+		if (new Set(childTags).size !== childTags.length) {
+			throw new Error(`UIManager.setChildren für React-Tag ${parentTag} enthält doppelte Kinder`);
+		}
+		const children = childTags.map(childTag => this.#node(childTag));
+		for (const child of children) this.#validateAttach(parent, child);
+		for (const child of children) this.#attach(parent, child, parent.children.length);
 		this.#record("setChildren", [parentTag, childTags]);
 	};
 
@@ -291,28 +307,57 @@ export class ApkUiManagerRuntime {
 			throw new Error("UIManager.manageChildren benötigt gleich viele addChildTags und addAtIndices");
 		}
 		const originalChildren = [...parent.children];
-		const moved = moveFromValues.map(index => {
-			const childTag = originalChildren[index];
-			if (childTag === undefined) throw new Error(`Ungültiger moveFrom-Index ${index}`);
-			return childTag;
-		});
-		const removals = [...new Set([...moveFromValues, ...removeIndices])].sort((left, right) => right - left);
-		for (const index of removals) {
-			if (index < 0 || index >= parent.children.length) {
-				throw new Error(`Ungültiger removeFrom-Index ${index}`);
+		const validateSourceIndex = (index: number, name: string): void => {
+			if (!Number.isSafeInteger(index) || index < 0 || index >= originalChildren.length) {
+				throw new Error(`Ungültiger ${name}-Index ${index}`);
 			}
-			const [childTag] = parent.children.splice(index, 1);
-			const child = this.#node(childTag);
-			child.parentTag = undefined;
-			if (removeIndices.includes(index)) this.#deleteSubtree(childTag);
+		};
+		for (const index of moveFromValues) validateSourceIndex(index, "moveFrom");
+		for (const index of removeIndices) validateSourceIndex(index, "removeFrom");
+		if (new Set(moveFromValues).size !== moveFromValues.length
+			|| new Set(removeIndices).size !== removeIndices.length) {
+			throw new Error("UIManager.manageChildren enthält doppelte Quellindizes");
 		}
+		if (moveFromValues.some(index => removeIndices.includes(index))) {
+			throw new Error("UIManager.manageChildren darf ein Kind nicht gleichzeitig verschieben und entfernen");
+		}
+		if (new Set(addTags).size !== addTags.length) {
+			throw new Error("UIManager.manageChildren enthält doppelte addChildTags");
+		}
+		const moved = moveFromValues.map(index => originalChildren[index]);
+		const addedNodes = addTags.map(tag => this.#node(tag));
+		for (const child of addedNodes) this.#validateAttach(parent, child);
+		const detachedIndices = new Set([...moveFromValues, ...removeIndices]);
+		const finalChildren = originalChildren.filter((_tag, index) => !detachedIndices.has(index));
 		const insertions = [
 			...moved.map((tag, index) => ({ tag, index: moveToValues[index] })),
 			...addTags.map((tag, index) => ({ tag, index: addIndices[index] })),
 		].sort((left, right) => left.index - right.index);
-		for (const insertion of insertions) {
-			this.#attach(parent, this.#node(insertion.tag), insertion.index);
+		const finalChildCount = finalChildren.length + insertions.length;
+		if (new Set(insertions.map(insertion => insertion.index)).size !== insertions.length) {
+			throw new Error("UIManager.manageChildren enthält doppelte Zielindizes");
 		}
+		for (const insertion of insertions) {
+			if (!Number.isSafeInteger(insertion.index) || insertion.index < 0 || insertion.index >= finalChildCount) {
+				throw new Error(`Ungültiger Zielindex ${insertion.index}`);
+			}
+			if (insertion.index > finalChildren.length) {
+				throw new Error(`Zielindex ${insertion.index} würde eine Lücke in der Kindliste erzeugen`);
+			}
+			finalChildren.splice(insertion.index, 0, insertion.tag);
+		}
+		if (new Set(finalChildren).size !== finalChildren.length) {
+			throw new Error("UIManager.manageChildren würde ein Kind mehrfach einfügen");
+		}
+
+		for (const index of moveFromValues) this.#node(originalChildren[index]).parentTag = undefined;
+		for (const index of removeIndices) {
+			const childTag = originalChildren[index];
+			this.#node(childTag).parentTag = undefined;
+			this.#deleteSubtree(childTag);
+		}
+		parent.children = finalChildren;
+		for (const childTag of finalChildren) this.#node(childTag).parentTag = parent.tag;
 		this.#record("manageChildren", [parentTag, moveFrom, moveTo, addChildTags, addAtIndices, removeFrom]);
 	};
 
@@ -337,10 +382,12 @@ export class ApkUiManagerRuntime {
 		const parent = this.#node(oldNode.parentTag);
 		const index = parent.children.indexOf(oldTag);
 		if (index < 0) throw new Error(`Parent von React-Tag ${oldTag} ist inkonsistent`);
+		const newNode = this.#node(newTag);
+		this.#validateAttach(parent, newNode);
 		parent.children.splice(index, 1);
 		oldNode.parentTag = undefined;
 		this.#deleteSubtree(oldTag);
-		this.#attach(parent, this.#node(newTag), index);
+		this.#attach(parent, newNode, index);
 		this.#record("replaceExistingNonRootView", [oldTag, newTag]);
 	};
 
@@ -422,7 +469,10 @@ export class ApkUiManagerRuntime {
 	};
 
 	public snapshot(): ApkUiManagerNodeSnapshot {
-		return this.#snapshot(this.#node(this.rootTag));
+		if (this.#snapshotCache && this.#snapshotRevision === this.#treeRevision) return this.#snapshotCache;
+		this.#snapshotCache = this.#snapshot(this.#node(this.rootTag));
+		this.#snapshotRevision = this.#treeRevision;
+		return this.#snapshotCache;
 	}
 
 	public jsResponder(): Readonly<{ tag: number; blockNativeResponder: boolean }> | undefined {
@@ -434,6 +484,18 @@ export class ApkUiManagerRuntime {
 			method: operation.method,
 			arguments: [...operation.arguments],
 		}));
+	}
+
+	public operationJournal(): Readonly<ApkUiManagerOperationJournal> {
+		return Object.freeze({
+			offset: this.#operationOffset,
+			total: this.#operationCount,
+			operations: this.operations(),
+		});
+	}
+
+	public operationCount(): number {
+		return this.#operationCount;
 	}
 
 	public visualMutationRevision(): number {
@@ -472,6 +534,14 @@ export class ApkUiManagerRuntime {
 
 	#record(method: string, arguments_: readonly unknown[]): void {
 		this.#operations.push({ method, arguments: arguments_ });
+		this.#operationCount += 1;
+		this.#treeRevision += 1;
+		const maximumRetainedOperations = 4_096;
+		if (this.#operations.length > maximumRetainedOperations) {
+			const removed = this.#operations.length - maximumRetainedOperations;
+			this.#operations.splice(0, removed);
+			this.#operationOffset += removed;
+		}
 		if (visualUiManagerOperations.has(method)) this.#visualMutationRevision += 1;
 	}
 
@@ -490,14 +560,26 @@ export class ApkUiManagerRuntime {
 		if (!Number.isSafeInteger(index) || index < 0 || index > parent.children.length) {
 			throw new Error(`Ungültiger Kindindex ${index} für React-Tag ${parent.tag}`);
 		}
+		this.#validateAttach(parent, child);
+		child.parentTag = parent.tag;
+		parent.children.splice(index, 0, child.tag);
+	}
+
+	#validateAttach(parent: MutableNode, child: MutableNode): void {
 		if (child.parentTag !== undefined) {
 			throw new Error(`React-Tag ${child.tag} gehört bereits zu Parent ${child.parentTag}`);
 		}
 		if (child.rootTag !== parent.rootTag) {
 			throw new Error(`React-Tag ${child.tag} gehört zu einem anderen Root`);
 		}
-		child.parentTag = parent.tag;
-		parent.children.splice(index, 0, child.tag);
+		if (child.tag === parent.tag || this.#subtreeContains(child, parent.tag)) {
+			throw new Error(`React-Tag ${child.tag} würde einen Zyklus unter Parent ${parent.tag} erzeugen`);
+		}
+	}
+
+	#subtreeContains(node: MutableNode, searchedTag: number): boolean {
+		if (node.tag === searchedTag) return true;
+		return node.children.some(childTag => this.#subtreeContains(this.#node(childTag), searchedTag));
 	}
 
 	#deleteSubtree(tag: number): void {
@@ -507,12 +589,12 @@ export class ApkUiManagerRuntime {
 	}
 
 	#snapshot(node: MutableNode): ApkUiManagerNodeSnapshot {
-		return {
+		return Object.freeze({
 			tag: node.tag,
 			viewName: node.viewName,
 			rootTag: node.rootTag,
-			props: { ...node.props },
-			children: node.children.map(childTag => this.#snapshot(this.#node(childTag))),
-		};
+			props: Object.freeze({ ...node.props }),
+			children: Object.freeze(node.children.map(childTag => this.#snapshot(this.#node(childTag)))),
+		});
 	}
 }

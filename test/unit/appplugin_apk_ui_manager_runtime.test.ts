@@ -219,4 +219,40 @@ describe("APK UIManager runtime", () => {
 		expect(measure).toHaveBeenCalledWith(0, 0, 30, 40, 10, 20);
 		expect(measureInWindow).toHaveBeenCalledWith();
 	});
+
+	it("rejects cycles and leaves failed child transactions completely unchanged", () => {
+		const runtime = new ApkUiManagerRuntime(contract, 1);
+		runtime.createView(2, "RCTView", 1, {});
+		runtime.createView(3, "RCTView", 1, {});
+		runtime.createView(4, "RCTView", 1, {});
+		runtime.createView(5, "RCTView", 1, {});
+		runtime.setChildren(2, [3]);
+		expect(() => runtime.setChildren(3, [2])).toThrow(/Zyklus/u);
+
+		runtime.setChildren(1, [2, 4]);
+		const before = runtime.snapshot();
+		const operationCount = runtime.operationCount();
+		expect(() => runtime.manageChildren(1, null, null, [5], [99], null)).toThrow(/Zielindex/u);
+		expect(runtime.snapshot()).toBe(before);
+		expect(runtime.operationCount()).toBe(operationCount);
+		expect(runtime.snapshot().children.map(child => child.tag)).toEqual([2, 4]);
+	});
+
+	it("keeps a bounded operation journal while preserving total revisions and snapshot caching", () => {
+		const runtime = new ApkUiManagerRuntime(contract, 1);
+		runtime.createView(2, "RCTView", 1, { opacity: 1 });
+		runtime.setChildren(1, [2]);
+		const firstSnapshot = runtime.snapshot();
+		expect(runtime.snapshot()).toBe(firstSnapshot);
+
+		for (let index = 0; index < 4_100; index += 1) {
+			runtime.updateView(2, "RCTView", { opacity: index % 2 });
+		}
+		const journal = runtime.operationJournal();
+		expect(journal.operations).toHaveLength(4_096);
+		expect(journal.total).toBe(4_102);
+		expect(journal.offset).toBe(6);
+		expect(runtime.snapshot()).not.toBe(firstSnapshot);
+		expect(runtime.snapshot()).toBe(runtime.snapshot());
+	});
 });

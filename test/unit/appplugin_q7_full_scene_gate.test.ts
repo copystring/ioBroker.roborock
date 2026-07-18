@@ -4,7 +4,6 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { compareQ7FullScenePng } from "../../scripts/lib/q7FullSceneEvidence";
 import { buildQ7FullSceneFixture, Q7_FULL_SCENE_MODEL, Q7_FULL_SCENE_SERIAL } from "../../scripts/lib/q7FullSceneFixture";
 
 const fixtureDirectory = path.join(process.cwd(), "test", "fixtures", "appplugin");
@@ -105,8 +104,11 @@ describe("Q7 AppPlugin full-scene gate", () => {
 		expect(golden.map.render).toMatchObject({ svgViews: 2, embeddedImages: 6, textNodes: 12 });
 	});
 
-	it("compares the visual golden pixel-for-pixel", async () => {
-		const comparison = await compareQ7FullScenePng(visualGoldenPath, visualGoldenPath);
-		expect(comparison).toMatchObject({ exactMatch: true, differingPixelCount: 0, significantPixelCount: 0 });
+	it("validates the committed host-regression PNG without comparing the file to itself", () => {
+		const png = fs.readFileSync(visualGoldenPath);
+		expect(png.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+		expect(png.readUInt32BE(16)).toBe(360);
+		expect(png.readUInt32BE(20)).toBe(800);
+		expect(png.byteLength).toBeGreaterThan(4_000);
 	});
 });

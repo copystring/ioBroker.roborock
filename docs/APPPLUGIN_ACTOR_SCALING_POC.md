@@ -4,7 +4,13 @@
 
 Roboter, Station, ihre Position, Z-Reihenfolge und Größenfaktoren bleiben Eigentum des unveränderten AppPlugins. Der ioBroker-Host setzt weder Pixelgrößen noch modellabhängige CSS- oder SVG-Sonderfälle. Er bildet nur die Android-/React-Native-Verträge nach, über die das AppPlugin seinen eigenen Kartenstand aktualisiert.
 
-## Originaler Q7-L5-/M5-Vertrag
+Der Nachweis liest Faktoren und Hierarchie aus dem unveränderten Bundle
+(Evidenzstufe 2) und prüft sie im nachgebauten Host (Stufen 3 bis 4). Die daraus
+erzeugten PNG-/SVG-Maße sind Hostregressionen. Sichtbare Gleichheit mit der
+Android-App ist erst nach dem offenen externen Differenzgate der Stufe 5 belegt.
+Siehe [`APPPLUGIN_EVIDENCE_LEVELS.md`](./APPPLUGIN_EVIDENCE_LEVELS.md).
+
+## Bundle-eigener Q7-L5-/M5-Vertrag
 
 Beide unveränderten Q7-Bundles rufen beim Aktualisieren ihrer Kartenkinder folgende AppPlugin-eigene Skalierung auf:
 
@@ -40,7 +46,13 @@ Zusätzlich verarbeitet der Host fällige React-Native-Timer nach einer Pointera
 
 Der Nachweis speichert keine absolute Zoomposition als Wahrheit. Das originale AppPlugin führt Plus und Minus relativ zu seinem aktuellen Kartenmaßstab aus; wiederholte Läufe derselben Sitzung dürfen deshalb mit einem anderen Ausgangsmaßstab beginnen. Die Desktop-Hülle erzeugt hierfür zwei exakt inverse Android-Pinch-Gesten mit derselben Distanzänderung. Das Gate sichert die beobachteten AppPlugin-Deltas `+0,6` und `-0,6`, die Rückkehr zum vorgefundenen Kartenmaßstab, die aus dem nativen Baum gelesenen Faktoren sowie die auf den jeweiligen Kartenmaßstab normalisierte Akteurgeometrie. Dadurch prüft es die Invariante unabhängig vom vorherigen Sitzungszustand und hinterlässt keinen Zoom-Drift für Folgetests.
 
-Die semantischen Referenzen liegen in `test/fixtures/appplugin/q7-l5-actor-scaling-golden.json` und `test/fixtures/appplugin/q7-m5-actor-scaling-golden.json`. Deterministische Pixel, absolute native Maße und Ebenenpositionen werden separat durch die Vollszenen-Goldens beider Bundles gesichert. Ein zustandsabhängiges Actor-PNG wird bewusst nicht als Golden verwendet.
+Die semantischen Hostreferenzen liegen in
+`test/fixtures/appplugin/q7-l5-actor-scaling-golden.json` und
+`test/fixtures/appplugin/q7-m5-actor-scaling-golden.json`. Deterministische
+Hostpixel, absolute nachgebildete Maße und Ebenenpositionen werden separat durch
+die Vollszenen-Regressionsgoldens beider Bundles gesichert. Ein
+zustandsabhängiges Actor-PNG wird bewusst nicht als Golden verwendet. Keine
+dieser Dateien ist eine unabhängig in Android aufgezeichnete Referenz.
 
 ## Reichweite
 

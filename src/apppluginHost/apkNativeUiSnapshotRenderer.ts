@@ -34,6 +34,10 @@ export interface ApkNativeUiSnapshotRenderOptions {
 	viewport?: Readonly<{ x: number; y: number; width: number; height: number }>;
 	/** Android's ordered system-font fallback chain used by CanvasKit and native text. */
 	fontPaths?: readonly string[];
+	/** Explicit roots from which diagnostic file: image assets may be embedded. */
+	allowedFileRoots?: readonly string[];
+	/** Upper bound for one embedded diagnostic image. Defaults to 16 MiB. */
+	maxEmbeddedFileBytes?: number;
 	/** @deprecated Use fontPaths. Kept for existing proof scripts. */
 	fontPath?: string;
 	direction?: "ltr" | "rtl";
@@ -72,6 +76,21 @@ interface NativeLayoutBox {
 }
 
 interface MutableDiagnostics extends RenderDiagnostics {}
+
+const encodedFontCache = new Map<string, Readonly<{ signature: string; encoded: string }>>();
+
+function encodedFont(fontPath: string): string {
+	const realPath = fs.realpathSync.native(fontPath);
+	const stats = fs.statSync(realPath);
+	if (!stats.isFile()) throw new Error(`APK-Snapshot-Schrift ist keine Datei: ${realPath}`);
+	if (stats.size > 32 * 1024 * 1024) throw new Error(`APK-Snapshot-Schrift ist zu groß: ${realPath}`);
+	const signature = `${stats.size}:${stats.mtimeMs}`;
+	const cached = encodedFontCache.get(realPath);
+	if (cached?.signature === signature) return cached.encoded;
+	const encoded = fs.readFileSync(realPath).toString("base64");
+	encodedFontCache.set(realPath, Object.freeze({ signature, encoded }));
+	return encoded;
+}
 
 function finitePositive(value: number, name: string): number {
 	if (!Number.isFinite(value) || value <= 0) throw new Error(`${name} muss positiv und endlich sein`);
@@ -138,13 +157,68 @@ function findNativeNode(
 	return undefined;
 }
 
-function dataUri(uri: unknown): string | undefined {
+function pathIsInsideRoot(filePath: string, rootPath: string): boolean {
+	const relative = path.relative(rootPath, filePath);
+	return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
+}
+
+function dataUri(
+	uri: unknown,
+	allowedFileRoots: readonly string[],
+	maxEmbeddedFileBytes: number,
+): string | undefined {
 	if (typeof uri !== "string" || uri.length === 0) return undefined;
-	if (uri.startsWith("data:")) return uri;
+	if (uri.startsWith("data:")) {
+		const separator = uri.indexOf(",");
+		if (separator < 5 || separator > 1_024) {
+			throw new Error("APK-Snapshot-Datenquelle besitzt keinen gültigen Data-URI-Header");
+		}
+		const header = uri.slice(5, separator);
+		if (!/^image\/(?:png|jpe?g|webp|gif|svg\+xml)(?:;[^,]*)?$/iu.test(header)) {
+			throw new Error("APK-Snapshot-Datenquelle ist kein unterstütztes Bild");
+		}
+		const encodedPayload = uri.slice(separator + 1);
+		let decodedBytes: number;
+		if (/;base64(?:;|$)/iu.test(header)) {
+			if (encodedPayload.length % 4 === 1 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(encodedPayload)) {
+				throw new Error("APK-Snapshot-Datenquelle enthält ungültiges Base64");
+			}
+			if (encodedPayload.length > Math.ceil(maxEmbeddedFileBytes / 3) * 4 + 4) {
+				throw new Error("APK-Snapshot-Datenquelle überschreitet das Einbettungslimit");
+			}
+			decodedBytes = Buffer.from(encodedPayload, "base64").byteLength;
+		} else {
+			if (encodedPayload.length > maxEmbeddedFileBytes * 3) {
+				throw new Error("APK-Snapshot-Datenquelle überschreitet das Einbettungslimit");
+			}
+			try {
+				decodedBytes = Buffer.byteLength(decodeURIComponent(encodedPayload), "utf8");
+			} catch {
+				throw new Error("APK-Snapshot-Datenquelle enthält ungültige URL-Kodierung");
+			}
+		}
+		if (decodedBytes > maxEmbeddedFileBytes) {
+			throw new Error("APK-Snapshot-Datenquelle überschreitet das Einbettungslimit");
+		}
+		return uri;
+	}
 	if (!uri.startsWith("file:")) {
 		throw new Error(`Der APK-Snapshot rendert keine nichtlokale Bildquelle: ${uri}`);
 	}
-	const filePath = fileURLToPath(uri);
+	if (allowedFileRoots.length === 0) {
+		throw new Error("APK-Snapshot-Dateiquellen benötigen eine explizite erlaubte Wurzel");
+	}
+	const filePath = fs.realpathSync.native(fileURLToPath(uri));
+	const realRoots = allowedFileRoots.map(root => {
+		const realRoot = fs.realpathSync.native(root);
+		if (!fs.statSync(realRoot).isDirectory()) {
+			throw new Error(`Erlaubte APK-Snapshot-Wurzel ist kein Verzeichnis: ${realRoot}`);
+		}
+		return realRoot;
+	});
+	if (!realRoots.some(root => pathIsInsideRoot(filePath, root))) {
+		throw new Error(`APK-Snapshot-Dateiquelle verlässt die erlaubten Wurzeln: ${filePath}`);
+	}
 	const extension = path.extname(filePath).toLowerCase();
 	const mime = new Map([
 		[".png", "image/png"],
@@ -155,15 +229,28 @@ function dataUri(uri: unknown): string | undefined {
 		[".svg", "image/svg+xml"],
 	]).get(extension);
 	if (!mime) throw new Error(`Unbekanntes APK-Bildformat: ${filePath}`);
+	const stats = fs.statSync(filePath);
+	if (!stats.isFile()) throw new Error(`APK-Snapshot-Dateiquelle ist keine Datei: ${filePath}`);
+	if (stats.size > maxEmbeddedFileBytes) {
+		throw new Error(`APK-Snapshot-Dateiquelle überschreitet ${maxEmbeddedFileBytes} Bytes: ${filePath}`);
+	}
 	return `data:${mime};base64,${fs.readFileSync(filePath).toString("base64")}`;
 }
 
-function imageUri(props: Readonly<Record<string, unknown>>): string | undefined {
+function imageUri(
+	props: Readonly<Record<string, unknown>>,
+	allowedFileRoots: readonly string[],
+	maxEmbeddedFileBytes: number,
+): string | undefined {
 	const sources = props.src;
 	if (!Array.isArray(sources)) return undefined;
 	for (const source of sources) {
 		if (source && typeof source === "object" && !Array.isArray(source)) {
-			const uri = dataUri((source as Readonly<Record<string, unknown>>).uri);
+			const uri = dataUri(
+				(source as Readonly<Record<string, unknown>>).uri,
+				allowedFileRoots,
+				maxEmbeddedFileBytes,
+			);
 			if (uri) return uri;
 		}
 	}
@@ -413,7 +500,7 @@ class SnapshotSvgRenderer {
 			|| needsHebrew && /hebrew/iu.test(path.basename(fontPath)));
 		if (!paths.length) return "";
 		const definitions = paths.map((fontPath, index) => {
-			const encoded = fs.readFileSync(fontPath).toString("base64");
+			const encoded = encodedFont(fontPath);
 			return `@font-face{font-family:ApkSystemFont${index};src:url(data:font/ttf;base64,${encoded}) format('truetype')}`;
 		}).join("");
 		const families = paths.map((_fontPath, index) => `ApkSystemFont${index}`).join(",");
@@ -461,14 +548,18 @@ class SnapshotSvgRenderer {
 	}
 
 	#image(node: ApkUiManagerNodeSnapshot, layout: Readonly<NativeLayoutBox>): string {
-		const uri = imageUri(node.props);
+		const uri = imageUri(
+			node.props,
+			this.options.allowedFileRoots ?? [],
+			this.options.maxEmbeddedFileBytes ?? 16 * 1024 * 1024,
+		);
 		if (!uri) return "";
 		this.#diagnostics.embeddedImages += 1;
 		const resizeMode = node.props.resizeMode;
 		const aspect = resizeMode === "stretch" ? "none"
 			: resizeMode === "cover" ? "xMidYMid slice"
 				: "xMidYMid meet";
-		return `<image width="${layout.width}" height="${layout.height}" href="${uri}" preserveAspectRatio="${aspect}"/>`;
+		return `<image width="${layout.width}" height="${layout.height}" href="${escapeXml(uri)}" preserveAspectRatio="${aspect}"/>`;
 	}
 
 	#text(node: ApkUiManagerNodeSnapshot, layout: Readonly<NativeLayoutBox>): string {
@@ -582,6 +673,10 @@ export function renderApkNativeUiSnapshotToSvg(
 ): ApkNativeUiSvgArtifact {
 	finitePositive(options.width, "Snapshot-Breite");
 	finitePositive(options.height, "Snapshot-Höhe");
+	if (options.maxEmbeddedFileBytes !== undefined
+		&& (!Number.isSafeInteger(options.maxEmbeddedFileBytes) || options.maxEmbeddedFileBytes <= 0)) {
+		throw new Error("maxEmbeddedFileBytes muss eine positive Ganzzahl sein");
+	}
 	return new SnapshotSvgRenderer(options).render();
 }
 

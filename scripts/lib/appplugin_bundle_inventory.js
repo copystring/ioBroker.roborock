@@ -58,8 +58,9 @@ function exceptionMessage(exception) {
 }
 
 function runMetroConformance(identity) {
+	let runtime;
 	try {
-		const runtime = new DirectMetroBundleRuntime({ bundlePath: identity.bundlePath });
+		runtime = new DirectMetroBundleRuntime({ bundlePath: identity.bundlePath });
 		const result = runtime.load();
 		const afterHash = sha256(fs.readFileSync(identity.bundlePath));
 		const errors = result.reportedExceptions.map(exceptionMessage);
@@ -79,7 +80,9 @@ function runMetroConformance(identity) {
 		return {
 			...identity,
 			status: "failed",
-			error: error instanceof Error ? error.message : String(error)
+			error: error instanceof Error ? error.message : String(error),
+			requestedNativeModules: runtime?.trace.uniqueCapabilities("module-request") ?? [],
+			fallbackCapabilities: runtime?.trace.uniqueCapabilities("fallback-access") ?? []
 		};
 	}
 }

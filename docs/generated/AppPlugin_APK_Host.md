@@ -72,7 +72,7 @@
 - `ReactLocalization` — `com.roborock.smart.react.module.ReactNativeLocalization`; installiert; 2 React-Methoden; 0 Events; 1 exportierte Konstanten
 - `RNCAsyncStorage` — `com.reactnativecommunity.asyncstorage.AsyncStorageModule`; installiert; 6 React-Methoden; 0 Events; 0 exportierte Konstanten
 - `RNCNetInfo` — `com.reactnativecommunity.netinfo.NetInfoModule`; installiert; 3 React-Methoden; 0 Events; 0 exportierte Konstanten
-- `RNCSafeAreaContext` — `com.th3rdwave.safeareacontext.SafeAreaContextModule`; installiert; 0 React-Methoden; 0 Events; 0 exportierte Konstanten
+- `RNCSafeAreaContext` — `com.th3rdwave.safeareacontext.SafeAreaContextModule`; installiert; 0 React-Methoden; 0 Events; 1 exportierte Konstanten
 - `RNCWebViewModule` — `com.reactnativecommunity.webview.RNCWebViewModule`; installiert; 2 React-Methoden; 0 Events; 0 exportierte Konstanten
 - `RNGestureHandlerModule` — `com.swmansion.gesturehandler.react.RNGestureHandlerModule`; installiert; 8 React-Methoden; 0 Events; 0 exportierte Konstanten
 - `RNGLContext` — `com.projectseptember.RNGL.RNGLContext`; installiert; 2 React-Methoden; 0 Events; 0 exportierte Konstanten
@@ -104,7 +104,7 @@
 - `RRPluginHttpTurboModule` — `com.roborock.smart.refactor.ui.plugins.modules.RRPluginHttpTurboModule`; installiert; 22 React-Methoden; 0 Events; 0 exportierte Konstanten
 - `RRPluginMultiDevice` — `com.roborock.smart.react.RRPluginMultiModule`; APK-Kandidat; 32 React-Methoden; 0 Events; 7 exportierte Konstanten
 - `RRPluginPermissions` — `com.roborock.smart.react.RRPermissionsModule`; installiert; 9 React-Methoden; 0 Events; 7 exportierte Konstanten
-- `RRPluginSDK` — `com.roborock.smart.react.PluginSDKModule`; installiert; 134 React-Methoden; 0 Events; 26 exportierte Konstanten
+- `RRPluginSDK` — `com.roborock.smart.react.PluginSDKModule`; installiert; 134 React-Methoden; 0 Events; 24 exportierte Konstanten
 - `RRPluginSmartAssistant` — `com.roborock.smart.refactor.ui.plugins.modules.IntelligentModule`; APK-Kandidat; 8 React-Methoden; 0 Events; 0 exportierte Konstanten
 - `RRPluginStateSyncTurboModule` — `com.roborock.smart.fbreact.NativeRRPluginStateSyncTurboModuleSpec`; APK-Kandidat; 12 React-Methoden; 0 Events; 0 exportierte Konstanten
 - `RRPluginStateSyncTurboModule` — `com.roborock.smart.refactor.ui.plugins.modules.RRPluginStateSyncTurboModule`; installiert; 14 React-Methoden; 0 Events; 0 exportierte Konstanten

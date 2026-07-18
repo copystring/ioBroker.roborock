@@ -4,6 +4,8 @@ import {
 } from "./apppluginLab/desktop-intents";
 import {
 	LiveAppPluginMapSurface,
+	hasInteractiveAppPluginMap,
+	readAppPluginSessionToken,
 	type LiveAppPluginThemeMode,
 	type LiveAppPluginMapSnapshot,
 	type LiveAppPluginMapTool,
@@ -47,6 +49,7 @@ class AppPluginDesktop {
 	private logCount = 0;
 	private mapSurface!: LiveAppPluginMapSurface;
 	private mapSnapshot: LiveAppPluginMapSnapshot | null = null;
+	private readonly sessionToken = readAppPluginSessionToken();
 
 	private readonly map = byId<HTMLElement>("desktopMap");
 	private readonly mapFrame = byId<HTMLImageElement>("desktopMapFrame");
@@ -76,7 +79,7 @@ class AppPluginDesktop {
 			onEvent: (label, data) => this.logEvent(label, data),
 			onChange: snapshot => {
 				this.mapSnapshot = snapshot;
-				this.runtimeStatus.textContent = "Lokale unveränderte AppPlugin-Sitzung";
+				this.runtimeStatus.textContent = "Bundle unverändert · Darstellung als Hostdiagnose";
 				this.runtimeStatus.dataset.state = "connected";
 				this.syncRuntimeProfile(snapshot);
 				this.runtimeProfile.disabled = false;
@@ -144,8 +147,12 @@ class AppPluginDesktop {
 		try {
 			const response = await fetch(`${location.origin}/profile`, {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
+				headers: {
+					"Content-Type": "application/json",
+					"X-AppPlugin-Session": this.sessionToken,
+				},
 				body: JSON.stringify({ profile }),
+				signal: AbortSignal.timeout(5_000),
 			});
 			const payload = await response.json() as {
 				error?: string;
@@ -184,6 +191,7 @@ class AppPluginDesktop {
 			try {
 				const response = await fetch(`${location.origin}/health`, {
 					cache: "no-store",
+					headers: { "X-AppPlugin-Session": this.sessionToken },
 					signal: AbortSignal.timeout(1_000),
 				});
 				if (response.ok) {
@@ -384,7 +392,7 @@ class AppPluginDesktop {
 	private startCleaning(): void {
 		const action = this.mapSurface.semanticAction("clean.start");
 		if (!action?.enabled) {
-			this.logEvent("Originale AppPlugin-Reinigungsaktion ist nicht verfügbar", {
+			this.logEvent("Hostadapter findet keine AppPlugin-Reinigungsaktion", {
 				actionId: "clean.start",
 				fallbackUsed: false,
 			});
@@ -393,8 +401,7 @@ class AppPluginDesktop {
 		void this.mapSurface.invokeSemanticAction("clean.start");
 	}
 	private updateMapSummary(snapshot: LiveAppPluginMapSnapshot): void {
-		const deviceFamily = snapshot.deviceModel.includes("ss09") ? "Q10" : "Q7";
-		byId<HTMLElement>("deviceFamilyBadge").textContent = deviceFamily;
+		byId<HTMLElement>("deviceFamilyBadge").textContent = snapshot.mapFamily.toUpperCase();
 		byId<HTMLElement>("deviceName").textContent = snapshot.profileLabel;
 		const fullView = snapshot.view === "full";
 		const selectedMode = snapshot.semanticActions.find(action =>
@@ -404,17 +411,17 @@ class AppPluginDesktop {
 			? `${selectedMode.label} · Zustand direkt aus dem Geräte-AppPlugin`
 			: "Kartenansicht und Interaktion werden direkt vom Geräte-AppPlugin verwaltet";
 		byId<HTMLElement>("mapViewTitle").textContent = fullView
-			? "Originale AppPlugin-Testansicht"
-			: "Unveränderte AppPlugin-Karte";
+			? "AppPlugin-Hostdiagnose"
+			: "AppPlugin-Karte als Hostdiagnose";
 		byId<HTMLElement>("mapViewDescription").textContent = fullView
-			? "Das vollständige AppPlugin inklusive seiner originalen Menüs. Alle Klicks laufen als APK-Touchereignisse durch dieselbe Hermes-Sitzung."
-			: "Geometrie, Farben, Raumnamen, Roboter, Station, Skalierung und Auswahlzustand werden von derselben laufenden Hermes-Sitzung erzeugt. Der Desktop hostet nur APK-Verträge, Eingabe und Ausgabe.";
+			? "Vom unveränderten Bundle erzeugter UI-Baum, diagnostisch durch den Host als SVG dargestellt. Klicks laufen durch die nachgebildete APK-Touchbrücke."
+			: "UI-Baum und Eigenschaften kommen aus derselben unveränderten AppPlugin-Sitzung. Die sichtbaren SVG-Pixel und die optimistische Drag-Darstellung erzeugt der Host diagnostisch.";
 		byId<HTMLElement>("mapOriginLabel").textContent = fullView
 			? `${snapshot.profileLabel} · vollständiger AppPlugin-Root`
 			: `${snapshot.profileLabel} · AppPlugin-Kartenviewport`;
 		byId<HTMLElement>("mapNotice").textContent = fullView
-			? "Testmodus: Öffne hier direkt die originalen AppPlugin-Menüs, beispielsweise Bearbeiten → Zusammenführen. Veröffentlichte DPS erscheinen unten im Protokoll und werden nicht an ein Gerät gesendet."
-			: "Direkte native Kartenteilstruktur des laufenden Geräte-AppPlugins. Pointer und Pinch werden als APK-Touchereignisse zurück in dieselbe Sitzung geleitet; Gerätebefehle werden nicht gesendet.";
+			? "Diagnosemodus: AppPlugin-Menüs und Bundle-Payloads testen. Die Darstellung stammt vom Host-SVG-Renderer und behauptet keine APK-Pixelparität."
+			: "PC-Kartenmodus mit optimistischer Browserdarstellung. Pointer gehen über die nachgebildete APK-Touchbrücke zurück in dieselbe Bundle-Sitzung; Gerätebefehle werden nicht gesendet.";
 		document.querySelectorAll<HTMLButtonElement>("[data-surface-view]").forEach(button => {
 			const active = button.dataset.surfaceView === snapshot.view;
 			button.classList.toggle("active", active);
@@ -486,6 +493,9 @@ class AppPluginDesktop {
 			: "Die laufende AppPlugin-Sitzung unterstützt den APK-Sprachwechsel noch nicht";
 	}
 	private updateControlStates(): void {
+		const interactiveMapAvailable = this.mapSnapshot !== null
+			&& hasInteractiveAppPluginMap(this.mapSnapshot);
+		const unavailableMapTitle = "Die laufende AppPlugin-Sitzung bietet keine belegte interaktive Kartenfläche an";
 		document.querySelectorAll<HTMLButtonElement>("button[data-tool]").forEach(button => {
 			const active = button.dataset.tool === this.tool;
 			button.classList.toggle("active", active);
@@ -519,25 +529,29 @@ class AppPluginDesktop {
 			const action = this.mapSnapshot
 				? this.mapSnapshot.semanticActions.find(candidate => candidate.id === semanticActionForScope(scope))
 				: undefined;
-			button.disabled = action?.enabled !== true;
+			button.disabled = !interactiveMapAvailable || action?.enabled !== true;
+			if (!interactiveMapAvailable) button.title = unavailableMapTitle;
 		});
 		document.querySelectorAll<HTMLButtonElement>("button[data-tool]").forEach(button => {
 			const actionId = semanticActionForTool(button.dataset.tool as MapTool);
 			const action = actionId && this.mapSnapshot
 				? this.mapSnapshot.semanticActions.find(candidate => candidate.id === actionId)
 				: undefined;
-			button.disabled = action?.enabled !== true;
-			if (button.disabled) button.title = "Wird erst nach einem belegten AppPlugin-UI-Vertrag freigeschaltet";
-			else button.title = "Löst die originale AppPlugin-Aktion ohne feste Bildschirmkoordinate aus";
+			button.disabled = !interactiveMapAvailable || action?.enabled !== true;
+			if (!interactiveMapAvailable) button.title = unavailableMapTitle;
+			else if (button.disabled) button.title = "Wird erst nach einem belegten AppPlugin-UI-Vertrag freigeschaltet";
+			else button.title = "Löst die hostseitig aus dem AppPlugin-Baum abgeleitete Aktion aus";
 		});
 		const cleanStart = document.querySelector<HTMLButtonElement>('[data-intent="clean.start"]');
 		if (cleanStart) {
-			cleanStart.disabled = this.mapSnapshot?.semanticActions.some(action =>
+			cleanStart.disabled = !interactiveMapAvailable || this.mapSnapshot?.semanticActions.some(action =>
 				action.id === "clean.start" && action.enabled,
 			) !== true;
 			cleanStart.title = cleanStart.disabled
-				? "Das laufende AppPlugin bietet noch keine semantische Reinigungsaktion an"
-				: "Löst die originale AppPlugin-Reinigungsaktion aus; Befehlsparameter bleiben im Bundle";
+				? interactiveMapAvailable
+					? "Das laufende AppPlugin bietet noch keine semantische Reinigungsaktion an"
+					: unavailableMapTitle
+				: "Löst die aus dem AppPlugin-Baum abgeleitete Reinigungsaktion aus; Befehlsparameter bleiben im Bundle";
 		}
 		document.querySelectorAll<HTMLButtonElement>("[data-semantic-action]").forEach(button => {
 			const action = this.mapSnapshot?.semanticActions.find(candidate =>
@@ -546,7 +560,7 @@ class AppPluginDesktop {
 			button.disabled = action?.enabled !== true;
 			button.title = button.disabled
 				? "Das laufende AppPlugin bietet diese semantische Aktion noch nicht an"
-				: "Löst die originale AppPlugin-Aktion ohne feste Bildschirmkoordinate aus";
+				: "Löst die hostseitig aus dem AppPlugin-Baum abgeleitete Aktion aus";
 		});
 		const clearSelection = byId<HTMLButtonElement>("clearSelection");
 		clearSelection.disabled = true;
@@ -565,13 +579,21 @@ class AppPluginDesktop {
 		});
 		byId<HTMLElement>("mapInstruction").textContent = this.mapSnapshot
 			? this.mapSnapshot.view === "full"
-				? "Original-Testansicht · AppPlugin-Menüs direkt anklicken · DPS unten prüfen"
+				? interactiveMapAvailable
+					? "Hostdiagnose · AppPlugin-Menüs testen · DPS unten prüfen"
+					: "Hostdiagnose · keine belegte interaktive Kartenfläche · DPS unten prüfen"
 				: "Direkter AppPlugin-Kartenmodus · Räume anklicken, ziehen oder per Zwei-Finger-Geste zoomen"
 			: "Direkte AppPlugin-Sitzung wird verbunden …";
 		const zoomOut = document.getElementById("zoomOut") as HTMLButtonElement | null;
 		const zoomIn = document.getElementById("zoomIn") as HTMLButtonElement | null;
-		if (zoomOut) zoomOut.disabled = this.mapSnapshot === null;
-		if (zoomIn) zoomIn.disabled = this.mapSnapshot === null;
+		if (zoomOut) {
+			zoomOut.disabled = !interactiveMapAvailable;
+			zoomOut.title = interactiveMapAvailable ? "Verkleinern" : unavailableMapTitle;
+		}
+		if (zoomIn) {
+			zoomIn.disabled = !interactiveMapAvailable;
+			zoomIn.title = interactiveMapAvailable ? "Vergrößern" : unavailableMapTitle;
+		}
 	}
 
 	private emitIntent(intent: AppPluginDesktopIntent, label = "Absicht erfasst – nicht gesendet"): void {
@@ -604,6 +626,6 @@ class AppPluginDesktop {
 void new AppPluginDesktop().init().catch(error => {
 	const message = error instanceof Error ? error.message : String(error);
 	const instruction = document.getElementById("mapInstruction");
-	if (instruction) instruction.textContent = `Originalkarte konnte nicht gestartet werden: ${message}`;
+	if (instruction) instruction.textContent = `AppPlugin-Hostdiagnose konnte nicht gestartet werden: ${message}`;
 	throw error;
 });

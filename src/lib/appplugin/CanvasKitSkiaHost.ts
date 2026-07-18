@@ -10,6 +10,7 @@ import CanvasKitInit, {
 	type FontMgr,
 	type Image,
 	type ImageFilter,
+	type InputColorMatrix,
 	type InputMatrix,
 	type InputRect,
 	type InputRRect,
@@ -74,6 +75,7 @@ export interface CanvasKitSkiaHostDiagnostics {
 	loadedAssets: string[];
 	unsupportedCapabilities: string[];
 	pictureUpdates: number;
+	redrawRequests: number;
 	viewIds: number[];
 	compositionOrder: number[];
 	pictureViews: Array<{
@@ -199,6 +201,7 @@ export async function createCanvasKitSkiaHost(options: CanvasKitSkiaHostOptions)
 	const viewPictures = new Map<number, PictureHost>();
 	let latestPicture: PictureHost | undefined;
 	let pictureUpdates = 0;
+	let redrawRequests = 0;
 	let compositionOrder: number[] = [];
 	const ownedPictures = new Set<PictureHost>();
 
@@ -246,6 +249,18 @@ export async function createCanvasKitSkiaHost(options: CanvasKitSkiaHostOptions)
 		return numbers.length === 16
 			? [numbers[0], numbers[1], numbers[3], numbers[4], numbers[5], numbers[7], numbers[12], numbers[13], numbers[15]]
 			: numbers;
+	}
+
+	function colorMatrix(value: unknown): InputColorMatrix {
+		const unwrapped = unwrap<unknown>(value);
+		if (!Array.isArray(unwrapped) && !ArrayBuffer.isView(unwrapped)) {
+			throw new Error("Ungültige Skia-Farbmatrix.");
+		}
+		const numbers = Array.from(unwrapped as ArrayLike<number>, Number);
+		if (numbers.length !== 20 || numbers.some(number => !Number.isFinite(number))) {
+			throw new Error("Eine Skia-Farbmatrix muss genau 20 endliche Zahlen enthalten.");
+		}
+		return numbers;
 	}
 
 	function flattenRects(values: unknown[]): number[] {
@@ -315,11 +330,14 @@ export async function createCanvasKitSkiaHost(options: CanvasKitSkiaHostOptions)
 	}
 
 	class DisposableHost<T extends { delete(): void }> implements RefHost<T> {
+		private disposed = false;
 		public constructor(
 			public readonly ref: T,
 			public readonly __typename__: string,
 		) {}
 		public dispose(): void {
+			if (this.disposed) return;
+			this.disposed = true;
 			this.ref.delete();
 		}
 	}
@@ -486,53 +504,69 @@ export async function createCanvasKitSkiaHost(options: CanvasKitSkiaHostOptions)
 	class PathHost implements RefHost<Path> {
 		public readonly __typename__ = "Path";
 		private builder: PathBuilder;
+		private cachedSnapshot?: Path;
 		public constructor(initial?: Path) {
 			this.builder = new canvasKit.PathBuilder();
 			if (initial) this.builder.addPath(initial);
 		}
 		public get ref(): Path {
-			return this.builder.snapshot();
+			this.cachedSnapshot ??= this.builder.snapshot();
+			return this.cachedSnapshot;
+		}
+		private invalidateSnapshot(): void {
+			this.cachedSnapshot?.delete();
+			this.cachedSnapshot = undefined;
 		}
 		public moveTo(x: number, y: number): this {
 			this.builder.moveTo(x, y);
+			this.invalidateSnapshot();
 			return this;
 		}
 		public lineTo(x: number, y: number): this {
 			this.builder.lineTo(x, y);
+			this.invalidateSnapshot();
 			return this;
 		}
 		public quadTo(x1: number, y1: number, x2: number, y2: number): this {
 			this.builder.quadTo(x1, y1, x2, y2);
+			this.invalidateSnapshot();
 			return this;
 		}
 		public cubicTo(x1: number, y1: number, x2: number, y2: number, x3: number, y3: number): this {
 			this.builder.cubicTo(x1, y1, x2, y2, x3, y3);
+			this.invalidateSnapshot();
 			return this;
 		}
 		public close(): this {
 			this.builder.close();
+			this.invalidateSnapshot();
 			return this;
 		}
 		public addCircle(x: number, y: number, radius: number): this {
 			this.builder.addCircle(x, y, radius);
+			this.invalidateSnapshot();
 			return this;
 		}
 		public addArc(value: unknown, start: number, sweep: number): this {
 			this.builder.addArc(rect(value), start, sweep);
+			this.invalidateSnapshot();
 			return this;
 		}
 		public addRect(value: unknown): this {
 			this.builder.addRect(rect(value));
+			this.invalidateSnapshot();
 			return this;
 		}
 		public addRRect(value: unknown): this {
 			this.builder.addRRect(rrect(value));
+			this.invalidateSnapshot();
 			return this;
 		}
 		public addPath(value: unknown, transform?: unknown): this {
 			const source = unwrap<Path>(value);
 			if (transform === undefined) this.builder.addPath(source);
 			else this.builder.addPath(source, matrix(transform));
+			this.invalidateSnapshot();
 			return this;
 		}
 		public countPoints(): number {
@@ -544,6 +578,7 @@ export async function createCanvasKitSkiaHost(options: CanvasKitSkiaHostOptions)
 		public trim(start: number, end: number, complement: boolean): boolean {
 			const trimmed = this.ref.makeTrimmed(start, end, complement);
 			if (!trimmed) return false;
+			this.invalidateSnapshot();
 			this.builder.delete();
 			this.builder = new canvasKit.PathBuilder();
 			this.builder.addPath(trimmed);
@@ -551,10 +586,12 @@ export async function createCanvasKitSkiaHost(options: CanvasKitSkiaHostOptions)
 			return true;
 		}
 		public reset(): void {
+			this.invalidateSnapshot();
 			this.builder.delete();
 			this.builder = new canvasKit.PathBuilder();
 		}
 		public dispose(): void {
+			this.invalidateSnapshot();
 			this.builder.delete();
 		}
 	}
@@ -837,6 +874,15 @@ export async function createCanvasKitSkiaHost(options: CanvasKitSkiaHostOptions)
 		PictureRecorder: () => new PictureRecorderHost(),
 		Path: {
 			Make: () => new PathHost(),
+			MakeFromSVGString: (svgPath: string) => {
+				const parsedPath = canvasKit.Path.MakeFromSVGString(svgPath);
+				if (!parsedPath) return null;
+				try {
+					return new PathHost(parsedPath);
+				} finally {
+					parsedPath.delete();
+				}
+			},
 		},
 		Data: {
 			fromBytes: (value: Uint8Array | ArrayBuffer) =>
@@ -897,8 +943,43 @@ export async function createCanvasKitSkiaHost(options: CanvasKitSkiaHostOptions)
 			),
 		},
 		ColorFilter: {
+			MakeBlend: (filterColor: unknown, mode: number) => new DisposableHost<ColorFilter>(
+				canvasKit.ColorFilter.MakeBlend(
+					color(filterColor),
+					enumByValue(canvasKit.BlendMode, mode),
+				),
+				"ColorFilter",
+			),
 			MakeCompose: (outer: unknown, inner: unknown) => new DisposableHost<ColorFilter>(
 				canvasKit.ColorFilter.MakeCompose(unwrap<ColorFilter>(outer), unwrap<ColorFilter>(inner)),
+				"ColorFilter",
+			),
+			MakeLerp: (t: number, destination: unknown, source: unknown) => new DisposableHost<ColorFilter>(
+				canvasKit.ColorFilter.MakeLerp(
+					t,
+					unwrap<ColorFilter>(destination),
+					unwrap<ColorFilter>(source),
+				),
+				"ColorFilter",
+			),
+			MakeLinearToSRGBGamma: () => new DisposableHost<ColorFilter>(
+				canvasKit.ColorFilter.MakeLinearToSRGBGamma(),
+				"ColorFilter",
+			),
+			MakeLuma: () => new DisposableHost<ColorFilter>(
+				canvasKit.ColorFilter.MakeLuma(),
+				"ColorFilter",
+			),
+			MakeLumaColorFilter: () => new DisposableHost<ColorFilter>(
+				canvasKit.ColorFilter.MakeLuma(),
+				"ColorFilter",
+			),
+			MakeMatrix: (filterMatrix: unknown) => new DisposableHost<ColorFilter>(
+				canvasKit.ColorFilter.MakeMatrix(colorMatrix(filterMatrix)),
+				"ColorFilter",
+			),
+			MakeSRGBToLinearGamma: () => new DisposableHost<ColorFilter>(
+				canvasKit.ColorFilter.MakeSRGBToLinearGamma(),
 				"ColorFilter",
 			),
 		},
@@ -989,6 +1070,22 @@ export async function createCanvasKitSkiaHost(options: CanvasKitSkiaHostOptions)
 		},
 	});
 
+	const makeViewImageSnapshot = (viewId: number): ImageHost | null => {
+		const picture = viewPictures.get(viewId);
+		if (!picture) return null;
+		const surface = canvasKit.MakeSurface(options.width, options.height);
+		if (!surface) throw new Error("CanvasKit konnte keine Snapshot-Fläche erzeugen.");
+		try {
+			const canvas = surface.getCanvas();
+			canvas.clear(canvasKit.TRANSPARENT);
+			canvas.drawPicture(picture.ref);
+			surface.flush();
+			return new ImageHost(surface.makeImageSnapshot());
+		} finally {
+			surface.delete();
+		}
+	};
+
 	const viewApi: Record<string, unknown> = {
 		setJsiProperty(viewId: number, property: string, value: unknown) {
 			if (property !== "picture" || value == null) return;
@@ -1002,9 +1099,12 @@ export async function createCanvasKitSkiaHost(options: CanvasKitSkiaHostOptions)
 			latestPicture = picture;
 			pictureUpdates++;
 		},
-		requestRedraw: (_viewId: number) => undefined,
-		makeImageSnapshot: (_viewId: number) => null,
-		makeImageSnapshotAsync: async (_viewId: number) => null,
+		requestRedraw: (viewId: number) => {
+			if (!viewPictures.has(viewId)) return;
+			redrawRequests += 1;
+		},
+		makeImageSnapshot: (viewId: number) => makeViewImageSnapshot(viewId),
+		makeImageSnapshotAsync: async (viewId: number) => makeViewImageSnapshot(viewId),
 	};
 
 	return {
@@ -1057,6 +1157,7 @@ export async function createCanvasKitSkiaHost(options: CanvasKitSkiaHostOptions)
 			loadedAssets: [...loadedAssets].sort(),
 			unsupportedCapabilities: [...unsupportedCapabilities].sort(),
 			pictureUpdates,
+			redrawRequests,
 			viewIds: [...viewPictures.keys()].sort((left, right) => left - right),
 			compositionOrder: [...compositionOrder],
 			pictureViews: [...viewPictures.entries()]

@@ -6,15 +6,28 @@ Diese Datei trennt fünf Aussagen, die nicht miteinander verwechselt werden dür
 
 1. Ein Bundle enthält Signaturen eines Kartenpfads.
 2. Das unveränderte Bundle lässt sich im vorgesehenen Laufzeithost initialisieren.
-3. Das originale Bundle verarbeitet echte Kartendaten und erreicht seinen nativen Render-Endpunkt.
+3. Das unveränderte Bundle verarbeitet echte Kartendaten und erreicht seinen nativen Render-Endpunkt.
 4. Das AppPlugin erzeugt ein deterministisches Kartenraster aus den echten Daten.
 5. Der Host komponiert das vollständige Bild und liefert korrekte Interaktionscallbacks.
 
-Nur Punkt 5 beweist das vollständige Kartenverhalten. Phase 0 hat Punkt 1 für alle lokal vorhandenen Bundle-Dateien abgedeckt. Alle Metro-Bundles erreichen Punkt 2. Für das geprüfte Q10-X5+-Bundle sind zusätzlich Punkt 3 und Punkt 4 mit einer repräsentativen Karte und einem PNG-Golden nachgewiesen. Für Q7 L5 und M5 laufen die unveränderten Hermes-Bundles inzwischen mit demselben nativen Hostvertrag; beide vollständigen statischen AppPlugin-Szenen besitzen semantische und visuelle Goldens. Roboter-/Stationsskalierung, Hell/Dunkel/System, Raum-Tap, Einzel- und Mehrfachauswahl, Abwahl, Auswahlfarbwechsel, Raumwahl und Reinigungsstart aus der eigenen Desktop-UI sowie die vollständigen Raumteilungs-, Raumzusammenführungs-, Raumumbenennungs- und Gesten-Gates sind für beide Varianten nachgewiesen. Das ist ein großer Teil von Punkt 5, aber wegen der noch offenen Raumdetail-, Begrenzungs-, Zonen- und Kartenbestands-Gates keine vollständige Familienfreigabe.
+Nur Punkt 5 beweist das vollständige Verhalten der Original-App. Phase 0 hat
+Punkt 1 für alle lokal vorhandenen Bundle-Dateien abgedeckt. Alle Metro-Bundles
+erreichen Punkt 2. Q10 erreicht mit der repräsentativen Fixture den
+bundle-eigenen Raster-/PNG-Pfad. Q7 L5 und M5 laufen mit demselben nachgebauten
+Hostvertrag und besitzen semantische sowie visuelle
+Host-Regressionsgoldens. Skalierung, Theme, Locale, Auswahl, Gesten, Split,
+Merge, Rename und Reinigungsabsichten sind damit im unveränderten Bundle und
+unserem Host reproduzierbar, aber noch nicht unabhängig gegen die Android-App
+abgenommen. Punkt 5 ist deshalb für keine Kartenfamilie vollständig bestanden.
 
-## Verbindliche Produktgrenze: eigene UI, originale Karten-Engine
+Die genaue Beweisgrenze steht in
+[`APPPLUGIN_EVIDENCE_LEVELS.md`](./APPPLUGIN_EVIDENCE_LEVELS.md). Insbesondere
+beweist ein Golden aus `ApkNativeUiSnapshotRenderer` nur die Stabilität unseres
+Hosts; es ist keine externe Android-Referenz.
 
-Das Ziel ist kein nachgezeichneter Screenshot der Roborock-App. Die ioBroker-Weboberfläche stellt Navigation, Moduswahl, Bestätigung und Adapterzustände bereit; das unveränderte AppPlugin bleibt Eigentümer der Kartenlogik. Es bestimmt Pixel, Geometrie, Ebenenreihenfolge, Transformationen, Hit-Testing, Auswahlregeln und Bearbeitungsgriffe. Die eigene UI darf nur semantische Eingaben an die Karten-Engine senden und semantische Ergebnisse empfangen.
+## Verbindliche Produktgrenze: eigene UI, AppPlugin-first Karten-Engine
+
+Das Ziel ist kein nachgezeichneter Screenshot der Roborock-App. Die ioBroker-Weboberfläche stellt Navigation, Moduswahl, Bestätigung und Adapterzustände bereit; das unveränderte AppPlugin bleibt Eigentümer der Kartenlogik. Im Zielsystem bestimmt es Pixel, Geometrie, Ebenenreihenfolge, Transformationen, Hit-Testing, Auswahlregeln und Bearbeitungsgriffe. Der aktuelle SVG-Snapshot ist dagegen noch ein Hostdiagnose-Renderer. Die eigene UI darf nur belegte semantische Eingaben an die Karten-Engine senden und semantische Ergebnisse empfangen; strukturelle Hostheuristiken gelten nicht als APK-Vertrag.
 
 Für den geprüften YX-Pfad sind im Originalmodul bereits die Ebenen für Basiskarte, Bodenmaterial, selbst erkannte und manuelle Teppiche, Sperrflächen, virtuelle Wände, Schwellen, Reinigungszonen, Fahrweg, Dock, Roboter, Hindernisse, übersprungene Bereiche, Verdachtsobjekte, Räume, Löschbereiche und Raumteilung vorhanden. Dasselbe Modul berechnet Raum-Hit-Testing, Auswahlfarben, Zonen-Griffe, Verschieben und Skalieren. Die Gestenschicht verwendet den React-Native-`PanResponder`: kurzer Einfingerkontakt für Tap, Einfingerbewegung für Drag und zwei Finger für Pinch-Zoom.
 
@@ -50,9 +63,26 @@ Statische Bundle-Texte wie `showRenameCard`, `showSplitCard`, `showMergeCard` un
 
 ### Q7-L5-/M5-Vollszene
 
-`npm run poc:appplugin-q7-full-scene-proof` startet eine frische, isolierte APK-Sandbox und lädt das unveränderte Q7-L5-Hermes-Bundle mit dem Hash `9dfd8cc4c3020fe8e2428b3be4ca237b65ba536a4730addcfc29300885361a35`. Die versionierte, datenschutzsichere SCMap-Fixture wird als bereits äußerlich entschlüsselter Blob direkt über `RRDeviceBlobPayloadUpdateEvent` übergeben. Der Lauf benötigt weder B01-Frame noch lokalen Geräteschlüssel; die innere Kartenentschlüsselung, Protobuf-Auswertung, Raumkettenbildung und Darstellung bleiben vollständig im AppPlugin.
+`npm run poc:appplugin-q7-full-scene-proof` startet einen frischen
+APK-Forschungshost und lädt das unveränderte Q7-L5-Hermes-Bundle mit dem Hash
+`9dfd8cc4c3020fe8e2428b3be4ca237b65ba536a4730addcfc29300885361a35`.
+Dieser Host ist trotz seiner Zeit-, Pfad- und Ressourcenprüfungen keine
+Betriebssystem-Sandbox. Die versionierte, datenschutzsichere SCMap-Fixture wird
+als bereits äußerlich entschlüsselter Blob direkt über
+`RRDeviceBlobPayloadUpdateEvent` übergeben. Der Lauf benötigt weder B01-Frame
+noch lokalen Geräteschlüssel; innere Kartenentschlüsselung,
+Protobuf-Auswertung, Raumkettenbildung und Darstellungsprops entstehen im
+Bundle.
 
-Der originale AppPlugin-Worker `src_sc_components_sctool_scbeautify_executor.jx` mit dem Hash `9262455581e6a04cbeb88bcff38325055da0f479820abbeb42da08e8813194ac` verarbeitet 96.000 Kartenwerte. Die semantische Referenz sichert vier gültige Raumketten, Raumlabels, gefüllte Kartenpfade, Fahrweg, AppPlugin-Assets, Roboteranimation, Roboter- und Dockgrößen sowie `zIndex 490 > 400`. Der visuelle Golden-Test vergleicht die vom APK-nativen Snapshotpfad komponierte 360 × 800-Kartenfläche pixelweise und zusätzlich mit einer begrenzten Toleranz für plattformabhängiges Font-Antialiasing.
+Der unveränderte AppPlugin-Worker
+`src_sc_components_sctool_scbeautify_executor.jx` mit dem Hash
+`9262455581e6a04cbeb88bcff38325055da0f479820abbeb42da08e8813194ac`
+verarbeitet 96.000 Kartenwerte. Die semantische Hostreferenz sichert vier
+gültige Raumketten, Raumlabels, gefüllte Kartenpfade, Fahrweg,
+AppPlugin-Assets, Roboteranimation, Roboter- und Dockfaktoren sowie
+`zIndex 490 > 400`. Der visuelle Test vergleicht die vom nachgebauten
+Snapshotpfad komponierte 360 × 800-Kartenfläche als Hostregression. Er ist kein
+Android-Pixel-Golden.
 
 Die synthetischen Raum-IDs beginnen bewusst bei 10. Der unveränderte Worker reserviert den Wert 1 als ungefüllte weiße Fläche; eine Raum-ID 1 würde dessen Flood-Fill ohne Fortschritt ausführen. Diese Worker-Invariante ist in Fixture und Test festgeschrieben, ohne den AppPlugin-Algorithmus im Host nachzubauen.
 
@@ -62,17 +92,46 @@ Das semantische Golden liegt in `test/fixtures/appplugin/q7-l5-full-scene-golden
 
 ### Q7-L5-/M5-Roboter und Station
 
-`npm run poc:appplugin-q7-actor-scaling` und `npm run poc:appplugin-q7-m5-actor-scaling` beweisen die sichtbaren Akteurgrößen über die vollständige native Transformationskette. Der Host enthält keine Roboter- oder Stationsgröße. Beide unveränderten Bundles liefern Roboter-Layer `0,16`, Roboterbild `1,777777…`, Stations-Layer `0,32` und `zIndex 490 > 400`; die AppPlugin-Zoommatrix skaliert anschließend beide Akteure gemeinsam mit der Karte.
+`npm run poc:appplugin-q7-actor-scaling` und
+`npm run poc:appplugin-q7-m5-actor-scaling` belegen die bundle-eigenen
+Akteurfaktoren und deren Wirkung in der nachgebauten Transformationskette. Der
+Host enthält keine Q7-spezifische Roboter- oder Stationsgröße. Beide
+unveränderten Bundles liefern Roboter-Layer `0,16`, Roboterbild
+`1,777777…`, Stations-Layer `0,32` und `zIndex 490 > 400`; die
+AppPlugin-Zoommatrix skaliert anschließend beide Akteure gemeinsam mit der
+Karte. Die sichtbare Android-Größe bleibt ein offenes Differenzgate.
 
-Die zuvor zu große Station war kein Zeichenfehler. Der Host verband die simulierte Geräteantwort erst nach `RunApplication`, sodass die beim Mount veröffentlichte AppPlugin-Kartenanfrage nicht beantwortet wurde und das AppPlugin sein eigenes Stationsupdate nicht ausführte. Der APK-Gerätetransport ist jetzt vor dem App-Start aktiv. Das Gate prüft diesen Lifecycle, aus dem laufenden AppPlugin-Baum gelesene Originalfaktoren, gedockte Mittelpunkte, Z-Reihenfolge sowie zustandsunabhängig normalisierten Plus-/Minus-Zoom. Deterministische Pixel und absolute Maße bleiben Teil der jeweiligen Vollszenen-Goldens; ein von der vorherigen Sitzungszoomlage abhängiges Actor-PNG wird nicht als Golden verwendet. Details stehen in `docs/APPPLUGIN_ACTOR_SCALING_POC.md`.
+Die zuvor zu große Station war kein Zeichenfehler. Der Host verband die
+simulierte Geräteantwort erst nach `RunApplication`, sodass die beim Mount
+veröffentlichte AppPlugin-Kartenanfrage nicht beantwortet wurde und das Bundle
+sein Stationsupdate nicht ausführte. Der APK-Gerätetransport ist jetzt vor dem
+App-Start aktiv. Das Gate prüft diesen Lifecycle, aus dem laufenden
+AppPlugin-Baum gelesene Faktoren, gedockte Mittelpunkte, Z-Reihenfolge sowie
+zustandsunabhängig normalisierten Plus-/Minus-Zoom. Deterministische Hostpixel
+und nachgebildete Maße bleiben Teil der jeweiligen
+Vollszenen-Regressionsgoldens; ein von der vorherigen Sitzungszoomlage
+abhängiges Actor-PNG wird nicht als Golden verwendet. Details stehen in
+`docs/APPPLUGIN_ACTOR_SCALING_POC.md`.
 
 ### Q7-L5-/M5-Gesten
 
 `npm run poc:appplugin-q7-gestures` und `npm run poc:appplugin-q7-m5-gestures` spielen echte APK-Pointerfolgen in je eine frische Sitzung des unveränderten L5- beziehungsweise M5-Hermes-Bundles. Der Host setzt keine Transformationsmatrix und besitzt keine Zoomgrenzen. Er liest ausschließlich die vom laufenden AppPlugin erzeugte native Hierarchie und vergleicht deren resultierende Matrix.
 
-Beide Bundles stellen einen zentrierten Pinch exakt durch die inverse Originalgeste wieder her, begrenzen ihre Skalierung deterministisch auf `1` bis `8`, verschieben die Karte beim Einfinger-Drag um die tatsächliche Pointerdifferenz und räumen nach `topTouchCancel` alle Pointer auf. Eine direkt anschließende neue Geste wird verarbeitet. Beim außermittigen Pinch schreibt das Gate keinen Web-Fokuspunkt vor: Es berechnet aus den zwei vom Original erzeugten affinen Matrizen den tatsächlichen AppPlugin-Zoomanker und beweist, dass dessen Kartenpunkt vor und nach dem Pinch identisch bleibt.
+Beide Bundles stellen einen zentrierten Pinch durch eine inverse,
+host-generierte APK-Pointerfolge wieder her, begrenzen ihre Skalierung
+deterministisch auf `1` bis `8`, verschieben die Karte beim Einfinger-Drag um
+die Pointerdifferenz und räumen nach `topTouchCancel` alle Pointer auf. Eine
+direkt anschließende neue Geste wird verarbeitet. Beim außermittigen Pinch
+schreibt das Gate keinen Web-Fokuspunkt vor: Es berechnet aus den zwei vom
+Bundle erzeugten affinen Matrizen den tatsächlichen AppPlugin-Zoomanker und
+belegt, dass dessen Kartenpunkt vor und nach dem Pinch identisch bleibt. Die
+Gleichheit der Pointerfolge mit Android ist noch extern zu vergleichen.
 
-Die Goldens `test/fixtures/appplugin/q7-l5-gesture-golden.json` und `test/fixtures/appplugin/q7-m5-gesture-golden.json` binden diese Semantik an die unveränderten Bundle-Hashes. Der Proof startet das Zielprofil vor jedem Lauf neu und stellt es auch auf jedem Fehlerpfad wieder als frische Sitzung her.
+Die Host-Regressionsgoldens
+`test/fixtures/appplugin/q7-l5-gesture-golden.json` und
+`test/fixtures/appplugin/q7-m5-gesture-golden.json` binden diese Semantik an die
+unveränderten Bundle-Hashes. Der Proof startet das Zielprofil vor jedem Lauf neu
+und stellt es auch auf jedem Fehlerpfad wieder als frische Sitzung her.
 
 ### Q7-L5-/M5-Raumumbenennung
 
@@ -98,7 +157,7 @@ Der Failure-Runner prüft getrennte Fehler- und Timeout-Sitzungen sowie Fehler �
 
 `npm run poc:appplugin-q7-split-proof` und `npm run poc:appplugin-q7-m5-split-proof` starten je sieben frische, isolierte Sitzungen mit dem unveränderten Q7-L5- beziehungsweise Q7-M5-Hermes-Bundle und derselben synthetischen Vollszene. Beide Profile verwenden denselben Runner, dieselben Interaktionsfixtures und denselben APK-Hostvertrag. Die Suite führt die Sitzungen bewusst seriell aus, weil parallele Hermes-Starts die zeitgebundenen UI-Replays unter Last nicht deterministisch machen. Mit `--scenario` lässt sich jeder Fall isoliert ausführen. Nach jedem Touch wartet der Replay-Host auf die vollständige APK/Host-Operationswarteschlange und die Hermes-Runtime; ein ruhiger JavaScript-Thread allein reicht nicht, solange eine bereits eingereihte Transportantwort oder Timer-UI noch zum Bundle zurücklaufen kann. Der Host wählt nur die sichtbaren AppPlugin-Werkzeuge und spielt Touchereignisse ein. Er erzeugt weder Teilungsgeometrie noch `service.split_room`-Parameter.
 
-Nach der originalen Raumauswahl montiert das Bundle drei `RNSVGLine`-Knoten und zwei `RNSVGCircle`-Griffe. Die Defaultlinie verläuft in AppPlugin-Kartenkoordinaten von `(65, 163)` bis `(155, 163)`; die beiden Wandsegmente besitzen `strokeWidth = 0.75` und `strokeDasharray = ["0.5", "0.5"]`, die solide Linie `strokeWidth = 1.5`. Die Griffe stammen mit Radius `4`, blauem Fill und weißem Rand direkt aus dem Bundle. Der Host ergänzt dafür nur generische, APK-abgeleitete SVG-Line-/Circle-Komposition. Er kennt keine Q7-Raumform, Wand oder Griffposition.
+Nach der bundle-eigenen Raumauswahl montiert das Bundle drei `RNSVGLine`-Knoten und zwei `RNSVGCircle`-Griffe. Die Defaultlinie verläuft in AppPlugin-Kartenkoordinaten von `(65, 163)` bis `(155, 163)`; die beiden Wandsegmente besitzen `strokeWidth = 0.75` und `strokeDasharray = ["0.5", "0.5"]`, die solide Linie `strokeWidth = 1.5`. Die Griffe stammen mit Radius `4`, blauem Fill und weißem Rand direkt aus dem Bundle. Der Host ergänzt dafür nur generische, APK-abgeleitete SVG-Line-/Circle-Komposition. Er kennt keine Q7-Raumform, Wand oder Griffposition. Deren Android-Pixel bleiben dennoch extern zu prüfen.
 
 Der vollständige Gate-Satz beweist folgende AppPlugin-Zustände:
 
@@ -129,6 +188,16 @@ Der Host kann einen bereits als AppPlugin-Blob vorliegenden Bytepuffer ohne loka
 
 React darf einen gedrückten Knoten während einer Geste ersetzen. Die APK behält dafür das beim `ACTION_DOWN` ermittelte React-Ziel bei, berechnet bei `ACTION_MOVE` beziehungsweise dem letzten `ACTION_UP` nur den aktuellen lokalen Koordinatenrahmen neu und sendet `topTouchEnd` oder `topTouchCancel` weiterhin an das ursprüngliche Ziel. Die Pointer-Brücke bildet genau diese Invariante nach und räumt aktive Pointer anschließend deterministisch auf; der Regressionstest deckt `END` und `CANCEL` nach einem Knotentausch ab.
 
+Eine über `/pointer-sequence` transportierte Mehrfingergeste ist keine einzelne
+APK-Eingabe. Der Host hält die Pointer-Sitzung über die Folge aktiv, beginnt
+aber zwischen `DOWN`, `POINTER_DOWN`, gemeinsamen `MOVE`-Frames und `UP` jeweils
+einen neuen Host-Ereignisturn und stabilisiert die dabei angeforderten
+Hermes-/Layout-Operationen. Damit entspricht der gebündelte Transport dem
+bereits korrekten Einzelrequest-Weg, ohne die AppPlugin-Zoomlogik oder deren
+Matrizen nachzubauen. Das Q7-M5-Gate belegt für den Pinch sechs Dispatches,
+einen veränderten AppPlugin-Frame, vollständigen Pointer-Cleanup und keine
+offene native Messung; die unabhängige Android-Differenz bleibt trotzdem offen.
+
 Interaktive Touchantworten warten nicht künstlich auf zukünftige AppPlugin-Timer. Sobald ein fälliger React-Native-Timer seinen Hermes-Callback beendet hat, serialisiert der Host jedoch einen Hintergrundpump über dieselbe Operationswarteschlange, stabilisiert nur bei tatsächlicher visueller Mutation und erhöht die Frame-Revision. Dadurch bleibt die Bedienung direkt, während verzögert montierte Originalelemente – etwa die Icons der Q7-Einstellungsansicht – ohne einen zufälligen Themewechsel erscheinen.
 
 Native `Animated`-Frames besitzen dieselbe APK-Grenze. Der Host kennt weder Zielwerte noch Kurven; er übernimmt beides unverändert aus dem AppPlugin. Für deterministische Replays veröffentlicht `ApkNativeAnimatedRuntime` lediglich die Anzahl laufender Animationen. Der Probe wartet mit einem festen Timeout auf deren Ende, pumpt währenddessen die nativen View-Updates und stabilisiert anschließend den finalen AppPlugin-Baum. Dadurch kann der nächste Touch weder einen Voranimationsbaum noch eine zufällige Zwischenhierarchie treffen.
@@ -137,28 +206,69 @@ Native `Animated`-Frames besitzen dieselbe APK-Grenze. Der Host kennt weder Ziel
 
 `npm run poc:appplugin-q7-room-selection-proof` und `npm run poc:appplugin-q7-m5-room-selection-proof` starten für jedes Bundle sechs frische Capture-only-Sitzungen mit derselben synthetischen Vollszene: Raumansicht ohne Auswahl, Raum `10` ausgewählt, derselbe Raum wieder abgewählt, die Räume `10` und `11` gemeinsam ausgewählt, ein exakter Grenzpunkt zwischen Raum `10` und `11` sowie Raum `10` nach dem Zyklus „Räume → Gesamt → Räume“. Die regulären Touchpunkte stammen aus den vom laufenden AppPlugin gemessenen Raumlabel-Positionen. Der Host führt keine eigene Raum-Hitbox, ID-Zuordnung oder Farbregel aus.
 
-Der Diagnose-Hook beobachtet ausschließlich die AppPlugin-Instanz, die `allRooms` und `selectRoomIDs` besitzt. Dadurch werden die Bundle-eigenen IDs neben dem gerenderten Ergebnis abgesichert. Die semantischen Goldens enthalten SVG-Pfade, Füllungen, farbige Views, Raumlabel-Layouts und Rendermaße; sechs PNG-Goldens je Bundle sichern die resultierenden Pixel. Bei L5 und M5 ist der abgewählte Zustand pixelgenau identisch zum Ausgangszustand. Die Einzelauswahl verändert jeweils rund 18,9 Prozent der Kartenpixel signifikant, die zweite Auswahl zusätzlich rund 4,3 Prozent. Der unveränderte AppPlugin-Hit-Test ordnet den Bildschirmgrenzpunkt `(188, 463)` in beiden Bundles eindeutig Raum `11` zu.
+Der Diagnose-Hook beobachtet ausschließlich die AppPlugin-Instanz, die
+`allRooms` und `selectRoomIDs` besitzt. Dadurch werden die Bundle-eigenen IDs
+neben dem Host-Renderergebnis abgesichert. Die semantischen
+Host-Regressionsgoldens enthalten SVG-Pfade, Füllungen, farbige Views,
+Raumlabel-Layouts und Rendermaße; sechs PNG-Hostgoldens je Bundle sichern die
+resultierenden Diagnosepixel. Bei L5 und M5 ist der abgewählte Hostzustand
+pixelgenau identisch zum Ausgangszustand. Die Einzelauswahl verändert jeweils
+rund 18,9 Prozent der Diagnosepixel signifikant, die zweite Auswahl zusätzlich
+rund 4,3 Prozent. Der unveränderte AppPlugin-Hit-Test ordnet den vom Host
+gesendeten Bildschirmgrenzpunkt `(188, 463)` in beiden Bundles Raum `11` zu.
+Der entsprechende Android-Punkt ist noch nicht unabhängig verglichen.
 
-Nach „Räume → Gesamt → Räume“ bleibt Raum `10` in beiden AppPlugin-Zuständen ausgewählt und seine Auswahlfarbe sichtbar. Das erneute Montieren erzeugt gegenüber der direkten Einzelauswahl ein kleines, reproduzierbares AppPlugin-Overlay mit 317 signifikant abweichenden Pixeln im Bereich des Raumlabels. Der Host normalisiert diese Differenz nicht und fordert deshalb keine Pixelidentität zwischen direkter Auswahl und Moduszyklus. Verbindlich sind die erhaltene Raum-ID, die sichtbare Auswahl, die vollständige Basisgeometrie und das jeweilige bundle-spezifische Golden. Die AppPlugins behalten ihre versionsspezifischen Farben; es gibt kein gemeinsames Host-Farbschema.
+Nach „Räume → Gesamt → Räume“ bleibt Raum `10` in beiden AppPlugin-Zuständen
+ausgewählt und seine Auswahlfarbe im Host sichtbar. Das erneute Montieren
+erzeugt gegenüber der direkten Einzelauswahl ein kleines, reproduzierbares
+Overlay mit 317 signifikant abweichenden Diagnosepixeln im Bereich des
+Raumlabels. Der Host normalisiert diese Differenz nicht und fordert deshalb
+keine Pixelidentität zwischen direkter Auswahl und Moduszyklus. Verbindlich sind
+die erhaltene Raum-ID, die sichtbare Hostauswahl, die vollständige
+Basisgeometrie und das jeweilige bundle-spezifische Hostgolden. Die Bundles
+behalten ihre versionsspezifischen Farben; es gibt kein gemeinsames
+Host-Farbschema.
 
 Der Gate-Runner prüft außerdem den unveränderten Bundle-Hash, vollständigen Pointer-Cleanup, keine Kartenpipeline-Ausnahme und keine Reinigungsabsicht während der reinen Auswahl. Auswahl-Overlays dürfen zusätzliche AppPlugin-Pfade montieren, müssen aber die komplette Basisgeometrie erhalten; nach Abwahl müssen Pfade und Pixel exakt zum Ausgangszustand zurückkehren.
 
 ### Q7-L5/M5-Raumreinigung aus der eigenen UI
 
-`npm run poc:appplugin-q7-semantic-actions-proof` und `npm run poc:appplugin-q7-m5-semantic-actions-proof` starten jeweils eine frische Capture-only-Sitzung mit dem unveränderten Q7-L5- beziehungsweise Q7-M5-Hermes-Bundle. Derselbe modellneutral parametrisierte Runner und derselbe Hostvertrag werden für beide Bundles verwendet. Der Host sucht keine lokalisierten Texte und kennt keine Bildschirmkoordinaten. Er erkennt den unteren `SCMap`-Vertrag strukturell: eine Gruppe aus drei Kartenmodi, darunter zwei beschriftete Nebenaktionen und genau einen zusätzlichen iconbasierten Primär-Pressable im nächsten gemeinsamen AppPlugin-Panel. Bezeichnungen, Aktivzustand, Auswahlzustand, React-Tags und aktuelle Messungen stammen bei jedem Aufruf aus dem laufenden AppPlugin. Die öffentliche semantische API gibt weder React-Tags noch Koordinaten aus.
+`npm run poc:appplugin-q7-semantic-actions-proof` und
+`npm run poc:appplugin-q7-m5-semantic-actions-proof` starten jeweils eine
+frische Capture-only-Sitzung mit dem unveränderten Q7-L5- beziehungsweise
+Q7-M5-Hermes-Bundle. Derselbe modellneutral parametrisierte Runner wird für
+beide Bundles verwendet. Der Host sucht keine lokalisierten Texte und kennt
+keine festen Bildschirmkoordinaten. Er leitet das untere `SCMap`-Panel jedoch
+derzeit heuristisch aus der Baumstruktur ab: eine Gruppe aus drei Kartenmodi,
+darunter zwei beschriftete Nebenaktionen und genau einen zusätzlichen
+iconbasierten Primär-Pressable. Bezeichnungen, Aktivzustand, Auswahlzustand,
+React-Tags und aktuelle Messungen stammen bei jedem Aufruf aus dem laufenden
+Bundle. Die öffentliche semantische API gibt weder React-Tags noch Koordinaten
+aus. Diese Ableitung ist ein Hostadapter der Evidenzstufe 4 und kein belegter
+APK-Vertrag.
 
 Der Runner schaltet über `map.mode.rooms` in die Raumansicht, lässt das unveränderte AppPlugin Raum `10` auswählen und ruft anschließend `clean.start` auf. Erst der getrennte zentrale AppPlugin-Pressable erzeugt eine neue `service.set_room_clean`-Veröffentlichung; der beschriftete Nebenbutton „Saugen“ allein erzeugt sie nicht. Der Beweis betrachtet ausschließlich Veröffentlichungen nach dem Startklick, prüft den unveränderten Bundle-Hash und führt keinen Geräte-Write aus. Raum-ID, Methode und Parameter werden nicht im Host gebaut.
 
 Die sichtbare Desktop-Prüfung deckt beide Richtungen ab: Ein PC-Modusbutton wird erst nach dem vom AppPlugin zurückgemeldeten Auswahlzustand in Werkzeug- und Bereichsleiste aktiv. Umgekehrt aktualisiert ein direkter Touch auf den originalen AppPlugin-Modus beide PC-Bereiche. Dabei gilt die zentrale Pointer-Invariante, dass nur `button[data-tool]` eine semantische PC-Aktion auslösen darf; die Kartenfläche trägt bewusst kein `data-tool` und bleibt ausschließlich APK-Pointerfläche. Damit erzeugt ein AppPlugin-Touch keine zweite, zurücksetzende PC-Aktion.
 
-Dieser Vertrag ist für Q7 L5 und Q7 M5 bestanden. Beide AppPlugins wählen Raum `10` selbst aus und erzeugen anschließend selbst `service.set_room_clean`; der Host implementiert weder Raum-ID noch Methode oder Parameter. Die unveränderten Bundle-Hashes sind `9dfd8cc4c3020fe8e2428b3be4ca237b65ba536a4730addcfc29300885361a35` für L5 und `c4136ce753609838415d14264c39e661792c83949f3e9e86d9c463b9bbd19205` für M5. Für YX-, Tanos- und weitere Kartenfamilien darf der SCMap-Vertrag nicht erraten oder automatisch übernommen werden.
+Der Bundle-Ausgabepfad ist für Q7 L5 und Q7 M5 belegt: Beide Bundles wählen
+Raum `10` selbst aus und erzeugen anschließend selbst
+`service.set_room_clean`; der Host implementiert weder Raum-ID noch Methode
+oder Parameter. Der PC-Einstieg bleibt dagegen eine ausdrücklich markierte
+Hostheuristik und ist noch nicht APK-paritätisch freigegeben. Die unveränderten
+Bundle-Hashes sind
+`9dfd8cc4c3020fe8e2428b3be4ca237b65ba536a4730addcfc29300885361a35`
+für L5 und
+`c4136ce753609838415d14264c39e661792c83949f3e9e86d9c463b9bbd19205`
+für M5. Für YX-, Tanos- und weitere Kartenfamilien darf die SCMap-Heuristik
+nicht übernommen werden.
 
 ## Familien und vorhandene Echtdaten
 
 | Familie | Zugeordnete Bundles | Kartenvertrag | Vorhandene echte Eingaben | Aktueller Gate-Status |
 | --- | --- | --- | --- | --- |
-| YX/Skia | Q10 und Q10 X5+ | `YXHomeMapContentView`, YX-Modell, `.jx`-Worker, Skia, `MapCtrlOperation` | Repräsentativer verschlüsselter Q10-Rahmen in `test/unit/q10RepresentativeFixture.ts`; weitere Parserfälle sind teilweise synthetisch | Q10 X5+: Originalbundle und `.jx`-Worker erzeugen ein deterministisches 124 × 238-RGBA-Kartenraster und PNG; vollständige Skia-Komposition und Auswahlcallback offen |
-| SCMap/Skia | Q7 L5 und Q7 M5 | `SCMap.RobotMap`, Skia | Datenschutzsichere Full-Scene-Fixture; echte B01-Livekarte sowie nicht segmentierte und segmentierte Historienkarte lokal beziehungsweise in `test/unit/b01_research_maps_regression.fixtures.ts` | Q7 L5 und M5: direkter Hermes-Host mit identischem Hostvertrag, AppPlugin-Vollszenen mit semantischen und visuellen Goldens, originale Roboter-/Stationsskalierung, Hell/Dunkel/System, Einzel-, Ab- und Mehrfachauswahl, semantische Raumreinigung aus der eigenen UI bis `service.set_room_clean`, Raumteilung, Raumzusammenführung, Raumumbenennung einschließlich Validierung/Fehler/Retry sowie Drag, Pinch, originale Zoomgrenzen, Zoomanker und Abbruch nachgewiesen; Raumdetails, Begrenzungen, Zonen und Kartenbestand offen |
+| YX/Skia | Q10 und Q10 X5+ | `YXHomeMapContentView`, YX-Modell, `.jx`-Worker, Skia, `MapCtrlOperation` | Repräsentativer verschlüsselter Q10-Historienrahmen vom Typ 3 in `test/unit/q10RepresentativeFixture.ts`; keine echte Typ-1-Liveaufnahme | Q10 X5+: unverändertes Bundle und `.jx`-Worker erzeugen aus Typ 3 ein Historien-Kartenmodell mit 124 × 238 Rasterpunkten; Live-Raster, PNG, Skia-Komposition, Auswahlcallback und Android-Differenz sind nicht belegt |
+| SCMap/Skia | Q7 L5 und Q7 M5 | `SCMap.RobotMap`, Skia | Datenschutzsichere Full-Scene-Fixture; echte B01-Livekarte sowie nicht segmentierte und segmentierte Historienkarte lokal beziehungsweise in `test/unit/b01_research_maps_regression.fixtures.ts` | Q7 L5 und M5: direkter Hermes-Host mit identischem Hostvertrag; Bundle-Zustände, Payloads und Host-Regressionsgoldens für Skalierung, Theme, Locale, Auswahl, Reinigung, Split, Merge, Rename und Gesten vorhanden; externe Android-Differenz, Raumdetails, Begrenzungen, Zonen und Kartenbestand offen |
 | Tanos Native AR/3D | Qrevo Curv, Master, MaxV, S6 MaxV, S7 MaxV, S8 MaxV Ultra, S8 Pro Ultra und Saros 10 | `RRARMapViewManager` und `RR3DMapViewManager` | Kein eindeutig zugeordnetes echtes Tanos-Kartenpaket im Repository gefunden | Blockiert durch Echtdaten und nativen APK-Hostvertrag |
 | Tanos Native AR/3D + Skia | Saros 20 und Saros Z70 | Tanos Native plus Skia/CanvasKit | Kein eindeutig zugeordnetes echtes Saros-Kartenpaket im Repository gefunden | Blockiert durch Echtdaten und hybriden Native-/Skia-Hostvertrag |
 
@@ -203,9 +313,9 @@ Im Verzeichnis `.AppPlugins/Q10` stimmt das Bundle im ZIP nicht mit dem daneben 
 
 1. Bodentyp, Raumtyp/-symbol und Reihenfolge für Q7 L5 und M5 über ihre originalen AppPlugin-Einstiegspunkte bis zur jeweiligen Befehlsabsicht prüfen.
 2. Sperrzonen, wischfreie Zonen, virtuelle Wände, Schwellen und Reinigungszonen mit originalen Griffen, Grenzen, Validierungen und Rückwegen absichern.
-3. Die erfassten Q10-Skia-Operationen vollständig komponieren und den YX-Pfad durch dieselben Interaktions- und Editier-Gates führen.
+3. Eine echte Q10/YX-Typ-1-Liveaufnahme mit passender DPS-Sequenz und Android-Referenz beschaffen; erst danach Skia-Komposition, Interaktion und Editier-Gates prüfen.
 4. Eindeutig zugeordnete Tanos-/Saros-Payloads beschaffen und deren native 2D-/3D-Verträge in der isolierten Laufzeit schließen.
-Der bestandene Q10-Rasterpfad ist in `docs/APPPLUGIN_Q10_MAP_EVENT_POC.md` beschrieben. Er ist ein belastbarer Teilnachweis, aber keine Freigabe für andere Kartenfamilien.
+Die belegte Q10-Historiengrenze ist in `docs/APPPLUGIN_Q10_MAP_EVENT_POC.md` beschrieben. Sie ist kein Raster-, Livekarten- oder Interaktionsnachweis.
 
 
 

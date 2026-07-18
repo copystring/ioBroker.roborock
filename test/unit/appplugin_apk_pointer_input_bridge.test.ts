@@ -71,15 +71,45 @@ describe("APK pointer input bridge", () => {
 	});
 
 	it("keeps every pointer on the first APK touch target for pinch gestures", async () => {
-		const { bridge } = createBridge();
+		const { bridge, callJsFunction } = createBridge();
 
 		await bridge.pointerDown(7, 70, 50, 100);
 		const secondDown = await bridge.pointerDown(8, 250, 150, 110);
+		const move = await bridge.pointerMoves([
+			{ identifier: 7, pageX: 60, pageY: 50 },
+			{ identifier: 8, pageX: 260, pageY: 150 },
+		], 120);
 
 		expect(secondDown.touches.map(touch => touch.target)).toEqual([3, 3]);
 		expect(secondDown.changedIndices).toEqual([1]);
-		await bridge.cancel(120);
+		expect(move.changedIndices).toEqual([0, 1]);
+		expect(move.touches).toMatchObject([
+			{ identifier: 7, pageX: 60, pageY: 50 },
+			{ identifier: 8, pageX: 260, pageY: 150 },
+		]);
+		expect(callJsFunction).toHaveBeenNthCalledWith(3, "RCTEventEmitter", "receiveTouches", [
+			"topTouchMove",
+			expect.any(Array),
+			[0, 1],
+		]);
+		await bridge.cancel(130);
 		expect(bridge.activePointerIds()).toEqual([]);
+	});
+
+	it("rejects malformed MOVE frames before changing active coordinates", async () => {
+		const { bridge } = createBridge();
+		await bridge.pointerDown(7, 70, 50, 100);
+		await bridge.pointerDown(8, 250, 150, 110);
+
+		await expect(bridge.pointerMoves([
+			{ identifier: 7, pageX: 60, pageY: 50 },
+			{ identifier: 7, pageX: 260, pageY: 150 },
+		], 120)).rejects.toThrow("doppelte Zeigerkennung");
+		const cancel = await bridge.cancel(130);
+		expect(cancel.touches).toMatchObject([
+			{ identifier: 7, pageX: 70, pageY: 50 },
+			{ identifier: 8, pageX: 250, pageY: 150 },
+		]);
 	});
 
 	it("preserves the APK gesture target when React replaces its native view", async () => {

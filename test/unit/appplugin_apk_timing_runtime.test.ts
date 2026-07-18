@@ -57,6 +57,43 @@ describe("APK Timing runtime", () => {
 		expect(runtime.activeTimerIds()).toEqual([]);
 	});
 
+	it("clamps zero-delay repeating timers to one display frame", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(40_000);
+		const emitTimers = vi.fn();
+		const runtime = new ApkTimingRuntime({ emitTimers });
+
+		runtime.createTimer(4, 0, 40_000, true);
+		expect(runtime.activeTimers()).toEqual([{
+			id: 4,
+			delayMs: 16,
+			remainingMs: 16,
+			repeats: true,
+		}]);
+		await vi.advanceTimersByTimeAsync(15);
+		expect(emitTimers).not.toHaveBeenCalled();
+		await vi.advanceTimersByTimeAsync(1);
+		expect(emitTimers).toHaveBeenCalledOnce();
+		runtime.dispose();
+	});
+
+	it("chunks delays beyond Node's signed 32-bit timer boundary without firing early", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(50_000);
+		const emitTimers = vi.fn();
+		const runtime = new ApkTimingRuntime({ emitTimers });
+		const maximumNodeDelay = 0x7fff_ffff;
+
+		runtime.createTimer(5, maximumNodeDelay + 1_000, 50_000, false);
+		await vi.advanceTimersByTimeAsync(maximumNodeDelay);
+		expect(emitTimers).not.toHaveBeenCalled();
+		expect(runtime.activeTimers()[0]?.remainingMs).toBe(1_000);
+		await vi.advanceTimersByTimeAsync(999);
+		expect(emitTimers).not.toHaveBeenCalled();
+		await vi.advanceTimersByTimeAsync(1);
+		expect(emitTimers).toHaveBeenCalledWith([5]);
+	});
+
 	it("rejects invalid one-shot settling bounds", () => {
 		const runtime = new ApkTimingRuntime({ emitTimers: vi.fn() });
 

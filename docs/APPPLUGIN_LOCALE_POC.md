@@ -4,6 +4,12 @@
 
 Sprache und Locale werden wie in der Roborock-APK als Hostzustand geführt. Übersetzungstabellen, Funktionsnamen und Kartenbeschriftungen bleiben Eigentum des unveränderten AppPlugins; der Host enthält keinen kopierten AppPlugin-Textkatalog.
 
+Die Rohtexte und Bundle-Zustände sind bundle-eigene Ergebnisse. Die sichtbaren
+PNG-Pixel werden dagegen vom nachgebauten Snapshot-Host komponiert und sind
+Host-Regressionsgoldens der Evidenzstufe 4. Eine Original-App-Parität benötigt
+noch den unabhängigen Android-Differenznachweis aus
+[`APPPLUGIN_EVIDENCE_LEVELS.md`](./APPPLUGIN_EVIDENCE_LEVELS.md).
+
 ## APK-Vertrag
 
 Die dekompilierte APK stellt `ReactLocalization` bereit:
@@ -28,7 +34,8 @@ Der Desktop-Launcher bildet zusätzlich den APK-Lebenszyklus nach:
 
 ## Live-Nachweis
 
-Der direkte Wechsel `de` → `en` wurde mit beiden lokalen Originalaufnahmen geprüft:
+Der direkte Wechsel `de` → `en` wurde mit beiden lokalen, unveränderten
+Bundle-Aufnahmen im Phase-0-Host geprüft:
 
 | Profil | Bundle-Art | Ergebnis nach neuer Sitzung |
 | --- | --- | --- |
@@ -37,7 +44,8 @@ Der direkte Wechsel `de` → `en` wurde mit beiden lokalen Originalaufnahmen gep
 
 Vor dem Sitzungsneustart blieb `frameChanged` bei beiden Bundles `false`. Das bestätigt, dass ein vom Desktop gesendetes `langDidChange` allein die bereits aufgebauten AppPlugin-Bäume nicht neu lokalisiert. Nach dem Supervisor-Neustart wechselte jeweils die `sessionId`, und der sichtbare Text kam auf Englisch direkt aus dem unveränderten Bundle.
 
-Das automatisierte Q7-Gate erweitert diesen Nachweis um drei frische Originalbundle-Sitzungen:
+Das automatisierte Q7-Gate erweitert diesen Nachweis um drei frische Sitzungen
+des unveränderten Bundles:
 
 | Fall | Beleg aus dem unveränderten Q7-Bundle |
 | --- | --- |
@@ -45,7 +53,10 @@ Das automatisierte Q7-Gate erweitert diesen Nachweis um drei frische Originalbun
 | `es-LA` | Regionale Locale `es_LA` mit AppPlugin-eigenen spanischen Texten |
 | `default` bei `de_DE` | Belegter System-Localeweg; das Q7-Bundle fällt für diesen Katalog auf seine englischen Texte zurück |
 
-Die PNGs werden mit einem lokalen Headless-Chromium aus demselben semantischen SVG erzeugt, das die Weboberfläche anzeigt. Der frühere Node-SVG-Rasterizer wird für diese Goldens bewusst nicht verwendet, weil er Mehrglyphen-Text und verschachtelte Datenbilder unvollständig rastert.
+Die Host-Regressions-PNGs werden mit einem lokalen Headless-Chromium aus
+demselben semantischen Host-SVG erzeugt, das die Weboberfläche anzeigt. Der
+frühere Node-SVG-Rasterizer wird dafür bewusst nicht verwendet, weil er
+Mehrglyphen-Text und verschachtelte Datenbilder unvollständig rastert.
 
 RTL ist zusätzlich interaktiv geprüft: Der AppPlugin-eigene Räume-Modus reagiert, der anschließende Tap trifft den echten Karten-Responder, der Frame ändert sich und das Bundle ergänzt `تم تحديد 1 غرفة (غرف)`. Der Host erzeugt weder diesen Text noch die Auswahlpayload.
 
@@ -56,7 +67,13 @@ Bei der Browserkontrolle wurde außerdem eine zentrale SVG-Textinvariante korrig
 ## Automatisiertes Gate
 
 - `npm run poc:appplugin-q7-locale-goldens:update` aktualisiert die drei Browser-Goldens explizit.
-- `npm run poc:appplugin-q7-locale-goldens` verifiziert Bundle-Hash, Rohtexte, pixelgenaue Browser-PNGs und den arabischen Touchweg ohne Golden-Schreibzugriff. Ein Hash der SVG-Serialisierung ist bewusst kein Gate, weil eingebettete, visuell identische Bilddaten sitzungsabhängig serialisiert werden können.
+- `npm run poc:appplugin-q7-locale-goldens` verifiziert Bundle-Hash, Rohtexte,
+  pixelgenaue Host-Regressions-PNGs und den arabischen Touchweg ohne
+  Golden-Schreibzugriff. Ein Hash der SVG-Serialisierung ist bewusst kein Gate,
+  weil eingebettete, visuell identische Bilddaten sitzungsabhängig serialisiert
+  werden können.
 - `test/unit/appplugin_q7_locale_goldens.test.ts` pinnt Manifest, Bilder und RTL-Interaktion.
 
-Offen bleibt die Wiederverwendung desselben Gates für Q10 und weitere AppPlugin-Familien sowie die spätere Koordination mehrerer paralleler Gerätesitzungen im Produkt-Supervisor.
+Offen bleiben die unabhängige Android-Abnahme, die Wiederverwendung desselben
+Gates für Q10 und weitere AppPlugin-Familien sowie die spätere Koordination
+mehrerer paralleler Gerätesitzungen im Produkt-Supervisor.

@@ -8,6 +8,8 @@ import {
 	calculateAppPluginSubviewPlacement,
 	createAppPluginDragCommitPointers,
 	createAppPluginPinchZoomPointers,
+	hasInteractiveAppPluginMap,
+	shouldShowAppPluginNativeMapSubview,
 } from "../../src/www/apppluginLab/live-appplugin-map-surface";
 import { APPPLUGIN_LOCALIZATION_POLICY } from "../../src/www/apppluginLab/translations";
 
@@ -20,7 +22,7 @@ const buildScriptPath = path.join(repositoryRoot, "scripts", "build_appplugin_de
 const runtimeLauncherPath = path.join(repositoryRoot, "scripts", "start_appplugin_desktop_runtime.ts");
 
 describe("AppPlugin desktop smart-home PoC", () => {
-	it("renders and updates the unchanged AppPlugin session instead of rebuilding a map", () => {
+	it("labels the unchanged AppPlugin session and host-rendered SVG with separate provenance", () => {
 		const html = fs.readFileSync(htmlPath, "utf8");
 		const source = fs.readFileSync(sourcePath, "utf8");
 		const surface = fs.readFileSync(surfacePath, "utf8");
@@ -35,6 +37,7 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(source).not.toContain("chooseAppPluginRuntimePort");
 		expect(surface).toContain("this.#fetchHealth(this.options.initialView)");
 		expect(surface).toContain('const endpoint = view === undefined ? "/health" : `/health?view=${view}`');
+		expect(surface).toContain("throw await responseError(response");
 		expect(html).toContain('id="runtimeProfile"');
 		expect(html).toContain('id="runtimeStatus"');
 		expect(html).toContain('<option value="q7">Q7 L5 · SC01</option>');
@@ -49,30 +52,69 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(surface).toContain("fetch(`${this.#apiBaseUrl}/pointer?view=${this.#health.view}`");
 		expect(surface).toContain("fetch(`${this.#apiBaseUrl}/pointer-sequence?view=${this.#health.view}`");
 		expect(surface).toContain("/frame.svg?view=${this.#health.view}&revision=");
-		expect(surface).toContain('dataset.renderMode = "unchanged-appplugin-session"');
+		expect(surface).toContain('headers.set("X-AppPlugin-Session", this.#sessionToken)');
+		expect(surface).toContain("&session=${session}");
+		expect(source).toContain('"X-AppPlugin-Session": this.sessionToken');
+		expect(probe).toContain("requestHasAppPluginSessionToken(request, url, httpSessionToken)");
+		expect(probe).toContain("setAppPluginDesktopSecurityHeaders(response)");
+		expect(probe).not.toMatch(/Set-Cookie|requestHasSessionCookie|sessionCookie/u);
+		expect(launcher).toContain('"--http-session-token-file", httpSessionTokenFilePath');
+		expect(launcher).toContain("randomBytes(32).toString(\"base64url\")");
+		expect(surface).toContain("dataset.renderMode = this.#health.renderProvenance");
+		expect(surface).toContain('renderProvenance: "host-svg-diagnostic"');
 		expect(surface).not.toMatch(/roomIds|roomDisplayColor|RNSVGPath|station.*zIndex/iu);
 		expect(probe).toContain("selectApkServedSurfaceRoot");
 		expect(probe).toContain("renderApkNativeUiSnapshotToSvg");
 		expect(probe).toContain('status: "interactive-server-ready"');
+		expect(probe).toContain("session.waitForExit().then(() => undefined)");
 		expect(probe).toContain('url.pathname === "/profile"');
 		expect(probe).toContain("serveAppPluginDesktopStaticRequest");
 		expect(probe).toContain('const availableServedViews = (["map", "full"]');
 		expect(probe).toContain("resolveCurrentSurface(view)");
 		expect(probe).toContain("availableViews: availableServedViews");
+		expect(probe).toContain("assertInteractiveRuntimeHealthy()");
+		expect(probe).toContain("AppPluginRuntimeUnavailableError");
+		expect(probe).toContain("pageCloseRequestCount");
+		expect(surface).toContain("#scheduleRuntimeReconciliation()");
+		expect(surface).toContain("for (const delayMs of [50, 200, 500, 750, 1_500])");
+		expect(surface).toContain("await this.#adoptRestartedRuntime(health, sessionId)");
+		expect(surface).toContain("AppPlugin-Sitzung automatisch wieder verbunden");
+		expect(surface).toContain("recoverRuntime && shouldRecoverRuntime(error)");
+		expect(surface).toContain("pageCloseRequestCount: this.#health.pageCloseRequestCount");
+		expect(surface).toContain("APK-Seite geschlossen; Desktop kehrt zur AppPlugin-Karte zurück");
 		expect(probe).toContain("pointerInput.pointerDown");
 		expect(probe).toContain("pointerInput.pointerMove");
 		expect(probe).toContain("pointerInput.pointerUp");
 		const gestureDispatch = probe.slice(
 			probe.indexOf("const dispatchInteractivePointers"),
-			probe.indexOf("let requestInteractiveServerStop"),
+			probe.indexOf("const httpSessionToken"),
 		);
 		expect(gestureDispatch).not.toContain("await session.waitForRuntimeBoundaryIdle()");
 		expect(gestureDispatch).toContain("await stabilizeInteractiveUi()");
-		expect(html).toContain("Unveränderte AppPlugin-Karte");
-		expect(html).toContain("Live-AppPlugin · kein Kartenfallback");
+		const interactiveStabilization = probe.slice(
+			probe.indexOf("const stabilizeInteractiveUi"),
+			probe.indexOf("let imminentTimerCycles"),
+		);
+		expect(interactiveStabilization).toContain("await session.flushRuntimeBoundary()");
+		expect(interactiveStabilization).not.toContain("await session.waitForRuntimeBoundaryIdle()");
+		expect(probe).toContain("if (interactiveLayoutBoundary)");
+		expect(probe).toContain("interactiveLayoutBoundary = true");
+		expect(probe).toContain("interactiveLayoutBoundary = false");
+		expect(html).toContain("AppPlugin-Karte als Hostdiagnose");
+		expect(html).toContain("Bundle unverändert · Host-SVG · kein Kartenfallback");
+		expect(html).toContain("eine Originaldarstellung oder Pixelgleichheit ist damit nicht belegt");
 		expect(html).toContain('id="desktopMapFrame"');
 		expect(html).not.toContain('viewBox="0 0 970 1025"');
 		expect(html).not.toContain('id="desktopMapScene"');
+	});
+
+	it("snapshots the UI tree before deriving native render capabilities", () => {
+		const probe = fs.readFileSync(probePath, "utf8");
+		const snapshotDeclaration = probe.indexOf("const shadowRoot = uiManager.snapshot()");
+		const svgCapabilityRead = probe.indexOf("const hasNativeSvgView = containsViewName(shadowRoot");
+
+		expect(snapshotDeclaration).toBeGreaterThan(0);
+		expect(svgCapabilityRead).toBeGreaterThan(snapshotDeclaration);
 	});
 
 	it("keeps the desktop shell usable and disables session actions when a runtime is unavailable", () => {
@@ -98,7 +140,7 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(html).toContain(`src="./appplugin-desktop.js?v=${expectedVersion}"`);
 	});
 
-	it("translates desktop pointers and zoom controls only into APK touch input", () => {
+	it("translates desktop pointers and zoom controls through the host's APK touch emulation", () => {
 		const html = fs.readFileSync(htmlPath, "utf8");
 		const source = fs.readFileSync(sourcePath, "utf8");
 		const surface = fs.readFileSync(surfacePath, "utf8");
@@ -113,8 +155,8 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(surface).toContain('addEventListener("pointerdown"');
 		expect(surface).toContain('addEventListener("pointermove"');
 		expect(surface).toContain('addEventListener("pointerup"');
-		expect(surface).toContain("APK-Pinch an AppPlugin gesendet");
-		expect(surface).toContain("const movementSteps = 2");
+		expect(surface).toContain("Desktop-Pinch über emulierten APK-Touchvertrag gesendet");
+		expect(surface).toContain("const movementSteps = Math.max(2");
 		expect(surface).toContain("const pointers = createAppPluginPinchZoomPointers(width, height, delta)");
 		expect(surface).toContain("await this.#sendPointerSequence(pointers)");
 		expect(surface).not.toContain('await this.#sendPointer("down"');
@@ -132,29 +174,44 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(sourcePath).toBeTruthy();
 	});
 
-	it("preserves the AppPlugin's signed touch order so plus enlarges and minus reduces", () => {
+	it("builds internally consistent host pinch gestures for zoom controls", () => {
 		const zoomIn = createAppPluginPinchZoomPointers(360, 800, 1);
 		const zoomOut = createAppPluginPinchZoomPointers(360, 800, -1);
-		const signedDistance = (
-			pointers: typeof zoomIn,
-			leftIndex: number,
-			rightIndex: number,
-		): number => pointers[leftIndex].x - pointers[rightIndex].x;
+		const endpointDistance = (pointers: typeof zoomIn): Readonly<{ start: number; end: number }> => {
+			const [first, second] = pointers;
+			const finalPosition = (pointer: typeof first): number =>
+				[...pointers].reverse().find(
+					candidate => candidate.kind === "move" && candidate.pointerId === pointer.pointerId,
+				)?.x ?? pointer.x;
+			return {
+				start: Math.abs(first.x - second.x),
+				end: Math.abs(finalPosition(first) - finalPosition(second)),
+			};
+		};
 
-		expect(zoomIn.map(pointer => pointer.kind)).toEqual(["down", "down", "move", "move", "up", "up"]);
-		expect(zoomIn[0].x).toBeGreaterThan(zoomIn[1].x);
-		expect(signedDistance(zoomIn, 3, 1)).toBeGreaterThan(signedDistance(zoomIn, 0, 1));
-		expect(signedDistance(zoomOut, 3, 1)).toBeLessThan(signedDistance(zoomOut, 0, 1));
-		expect(signedDistance(zoomIn, 3, 1) - signedDistance(zoomIn, 0, 1)).toBe(
-			-(signedDistance(zoomOut, 3, 1) - signedDistance(zoomOut, 0, 1)),
+		expect(zoomIn.slice(0, 2).map(pointer => pointer.kind)).toEqual(["down", "down"]);
+		expect(zoomIn.slice(-2).map(pointer => pointer.kind)).toEqual(["up", "up"]);
+		expect(zoomIn.filter(pointer => pointer.kind === "move")).toHaveLength(2);
+		expect(new Set(zoomIn.filter(pointer => pointer.kind === "move").map(pointer => pointer.pointerId))).toEqual(
+			new Set([zoomIn[0].pointerId]),
 		);
-		expect(zoomOut[0].x).toBe(zoomIn[3].x);
-		expect(zoomOut[3].x).toBe(zoomIn[0].x);
-		expect(zoomIn[2].pointerId).toBe(zoomIn[0].pointerId);
-		expect(zoomIn[3].pointerId).toBe(zoomIn[0].pointerId);
+		expect(zoomIn[0].x).toBeGreaterThan(zoomIn[1].x);
+		expect(endpointDistance(zoomIn).end).toBeGreaterThan(endpointDistance(zoomIn).start);
+		expect(endpointDistance(zoomOut).end).toBeLessThan(endpointDistance(zoomOut).start);
 	});
 
-	it("presents ordinary map drags locally and commits only the canonical gesture to the AppPlugin", () => {
+	it("only exposes map interactions when the runtime has a dedicated interactive map view", () => {
+		expect(hasInteractiveAppPluginMap({ availableViews: ["map", "full"] })).toBe(true);
+		expect(hasInteractiveAppPluginMap({ availableViews: ["full"] })).toBe(false);
+
+		const source = fs.readFileSync(sourcePath, "utf8");
+		const surface = fs.readFileSync(surfacePath, "utf8");
+		expect(source).toContain("const interactiveMapAvailable");
+		expect(source).toContain("button.disabled = !interactiveMapAvailable");
+		expect(surface).toContain("if (!hasInteractiveAppPluginMap(this.#health))");
+	});
+
+	it("presents ordinary map drags locally and commits a bounded host gesture to the AppPlugin", () => {
 		const tap = createAppPluginDragCommitPointers(7, 100, 200, 101, 201);
 		const drag = createAppPluginDragCommitPointers(7, 100, 200, 160, 230);
 		const surface = fs.readFileSync(surfacePath, "utf8");
@@ -162,7 +219,8 @@ describe("AppPlugin desktop smart-home PoC", () => {
 
 		expect(tap).toEqual([]);
 		expect(drag).toEqual([
-			{ kind: "move", pointerId: 7, x: 130, y: 215 },
+			{ kind: "move", pointerId: 7, x: 120, y: 210 },
+			{ kind: "move", pointerId: 7, x: 140, y: 220 },
 			{ kind: "move", pointerId: 7, x: 160, y: 230 },
 		]);
 		expect(surface).toContain("#canPresentLocalMapDrag");
@@ -170,7 +228,7 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(surface).toContain('action.id === "map.mode.full" && action.selected');
 		expect(surface).toContain("#scheduleLocalMapPresentation");
 		expect(surface).toContain("this.#localPresentationFrame().style.transform = `translate3d(");
-		expect(surface).toContain('this.options.viewport.dataset.inputPresentation = "apk-native-map-drag"');
+		expect(surface).toContain('this.options.viewport.dataset.inputPresentation = "desktop-optimistic-map-pan"');
 		expect(surface).toContain("this.#localMapCommitPending = commitMoves.length > 0");
 		expect(surface).toContain("this.#localMapCommitFrameRevision = response.frameRevision");
 		expect(surface).toContain('this.options.frame.addEventListener("load"');
@@ -178,7 +236,7 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(html).toContain("background: var(--map-surface)");
 	});
 
-	it("composes the unchanged map subview inside the full original AppPlugin root", () => {
+	it("composes the unchanged map subview inside the full host-rendered AppPlugin root", () => {
 		const placement = calculateAppPluginSubviewPlacement(
 			1_100,
 			800,
@@ -207,6 +265,19 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(surface).toContain("calculateAppPluginSubviewPlacement(");
 		expect(surface).toContain('this.#health.view === "full" && !this.options.nativeMapLayer.hidden');
 		expect(html).toContain("#desktopMapNativeLayer[hidden]");
+		const mapAction = {
+			id: "map.mode.rooms" as const,
+			label: "Räume",
+			enabled: true,
+			selected: true,
+			owner: "desktop-host-adapter" as const,
+			provenance: "host-heuristic-from-appplugin-tree" as const,
+			contract: "host-map-bottom-control-panel-v3" as const,
+		};
+		expect(shouldShowAppPluginNativeMapSubview("full", true, [mapAction])).toBe(true);
+		expect(shouldShowAppPluginNativeMapSubview("full", true, [])).toBe(false);
+		expect(shouldShowAppPluginNativeMapSubview("map", true, [mapAction])).toBe(false);
+		expect(shouldShowAppPluginNativeMapSubview("full", false, [mapAction])).toBe(false);
 	});
 
 	it("keeps at most one non-pan AppPlugin MOVE in flight and reloads frames only for visual mutations", () => {
@@ -256,7 +327,7 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(surface).toContain("AppPlugin-Pointersequenz");
 	});
 
-	it("exposes the full unchanged AppPlugin root as a test view and logs its own DPS", () => {
+	it("exposes the AppPlugin root through the host diagnostic renderer and logs bundle-built DPS", () => {
 		const html = fs.readFileSync(htmlPath, "utf8");
 		const source = fs.readFileSync(sourcePath, "utf8");
 		const surface = fs.readFileSync(surfacePath, "utf8");
@@ -264,15 +335,16 @@ describe("AppPlugin desktop smart-home PoC", () => {
 
 		expect(html).toContain('data-surface-view="map"');
 		expect(html).toContain('data-surface-view="full"');
-		expect(html).toContain("Original testen");
+		expect(html).toContain("Hostdiagnose");
 		expect(source).toContain("this.mapSurface.setView");
 		expect(surface).toContain("/health?view=${view}");
 		expect(surface).toContain("/frame.svg?view=${this.#health.view}");
 		expect(surface).toContain("/pointer?view=${this.#health.view}");
 		expect(surface).toContain("/published-dps?after=${after}");
-		expect(surface).toContain("Originaler AppPlugin-Aufruf – nicht an Gerät gesendet");
+		expect(surface).toContain("Vom Bundle gebildeter AppPlugin-Aufruf – nicht an Gerät gesendet");
 		expect(probe).toContain("availableViews: availableServedViews");
-		expect(probe).toContain('publishedDps: publishedDps.slice(after)');
+		expect(probe).toContain("publishedDps.slice(retainedStart - publishedDpsRetainedFrom)");
+		expect(probe).toContain("truncated: after < publishedDpsRetainedFrom");
 		expect(probe).toContain('fullRootTag: view === "full" ? rootTag : undefined');
 		expect(surface).not.toMatch(/service\.arrange_room|service\.split_room|app_segment_clean/iu);
 	});
@@ -328,7 +400,7 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		for (const page of ["overview", "map", "schedules", "history", "settings"]) {
 			expect(html).toContain(`data-navigation="${page}"`);
 		}
-		expect(source).toContain('this.runtimeStatus.textContent = "Lokale unveränderte AppPlugin-Sitzung"');
+		expect(source).toContain('this.runtimeStatus.textContent = "Bundle unverändert · Darstellung als Hostdiagnose"');
 		expect(html).toContain('id="languageMode"');
 		expect(source).toContain("this.syncLanguageControl(snapshot)");
 		expect(source).toContain("this.mapSurface.setLanguage(this.languageMode.value)");
@@ -340,10 +412,17 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(probe).toContain("updateAppPluginDesktopSessionState(options.sessionStatePath!");
 		expect(probe).toContain("onStateChange: state => persistSessionState");
 		expect(probe).toContain("isRTL: initialIsRTL");
+		expect(probe).toContain("const i18nPreferences = i18nManager.snapshot()");
+		expect(probe).toContain("allowRTL: i18nPreferences.allowRTL");
+		expect(probe).toContain("forceRTL: i18nPreferences.forceRTL");
+		expect(probe).toContain("doLeftAndRightSwapInRTL: i18nPreferences.doLeftAndRightSwapInRTL");
+		expect(launcher).toContain('"desktop-apk-session-state.json"');
+		expect(launcher).toContain("readAppPluginDesktopSessionState(legacyProfileStatePath)");
 		expect(launcher).toContain('"--session-state", sessionStatePath');
 		expect(launcher).toContain('"--color-model", state.colorModel');
 		expect(launcher).toContain('"--allow-rtl", String(state.allowRTL)');
-		expect(launcher).toContain("if (exitCode === 0 && nextState.restartRequested) continue");
+		expect(launcher).toContain("restartRequested: nextState.restartRequested");
+		expect(launcher).toContain('decision.action === "restart"');
 		expect(html).not.toContain("data-appplugin-key");
 		expect(source).not.toContain("translateAppPlugin");
 		expect(APPPLUGIN_LOCALIZATION_POLICY).toMatchObject({
@@ -361,7 +440,7 @@ describe("AppPlugin desktop smart-home PoC", () => {
 
 		expect(envelope).toMatchObject({
 			delivery: "offline-preview",
-			target: "original-appplugin-action-handler",
+			target: "desktop-appplugin-host-adapter",
 			intent: { name: "clean.start" },
 			bundleBoundary: { methodAndParametersResolvedBy: "unchanged-appplugin-bundle" },
 			sent: false
@@ -395,12 +474,12 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(source).not.toMatch(/map\.mode\.(?:full|rooms|zones).*(?:\bx\b|\by\b)\s*:/u);
 		expect(surface).toContain("/semantic-action?view=${this.#health.view}");
 		expect(surface).toContain("body: JSON.stringify({ id })");
-		expect(surface).toContain("Semantische PC-Aktion durch originale AppPlugin-UI ausgeführt");
+		expect(surface).toContain("Host-abgeleitete PC-Aktion am AppPlugin-Baum ausgeführt");
 		expect(semanticClient).not.toMatch(/service\.|app_segment_clean|roomIds|reactTag|center/u);
 		expect(probe).toContain('url.pathname === "/semantic-action"');
 		expect(probe).toContain("findApkSemanticUiAction(resolvedSemanticActions(), requestedAction.id)");
 		expect(probe).toContain("publicApkSemanticUiActions([action])[0]");
-		expect(resolver).toContain('"scmap-bottom-control-panel-v2"');
+		expect(resolver).toContain('"host-map-bottom-control-panel-v3"');
 		expect(resolver).toContain("Labels, enabled state,");
 		expect(resolver).not.toMatch(/Voll|Räume|Zonen|Saugen|Dockingstation/u);
 		expect(html).toContain("Direkter AppPlugin-Zustand · bundle-lokalisiert");
@@ -448,6 +527,7 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(launcher).toContain('"--static-root", staticRootPath');
 		expect(launcher).toContain('"--profile-switch-file", profileSwitchPath');
 		expect(launcher).toContain("consumeAppPluginDesktopProfileSwitch(profileSwitchPath)");
+		expect(launcher).toContain("decideAppPluginDesktopSupervisorAction");
 		expect(probe).toContain("deviceName: options.deviceName");
 		expect(launcher).toContain('"--device-name", "Roborock Q7"');
 		expect(surface).toContain("profileLabel: this.#health.profileLabel");

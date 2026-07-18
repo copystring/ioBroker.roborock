@@ -5,12 +5,53 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
 import { ApkDarkModeRuntime } from "../../src/apppluginHost/apkDarkModeRuntime";
+import { createApkGestureHandlerConstants } from "../../src/apppluginHost/apkCoreRuntimeConstants";
+import { ApkGestureHandlerRuntime } from "../../src/apppluginHost/apkGestureHandlerRuntime";
 import { ApkNetInfoRuntime } from "../../src/apppluginHost/apkNetInfoRuntime";
 import { ApkPluginSdkEnvironmentRuntime } from "../../src/apppluginHost/apkPluginSdkEnvironmentRuntime";
 import { ApkStatusBarRuntime } from "../../src/apppluginHost/apkStatusBarRuntime";
 import { ApkV8WorkerRuntime } from "../../src/apppluginHost/apkV8WorkerRuntime";
 
 describe("APK AppPlugin environment runtimes", () => {
+	it("reproduces the APK gesture constants and handler lifecycle", () => {
+		expect(createApkGestureHandlerConstants()).toEqual({
+			RNGestureHandlerModule: {
+				State: {
+					UNDETERMINED: 0,
+					FAILED: 1,
+					BEGAN: 2,
+					CANCELLED: 3,
+					ACTIVE: 4,
+					END: 5,
+				},
+				Direction: {
+					RIGHT: 1,
+					LEFT: 2,
+					UP: 4,
+					DOWN: 8,
+				},
+			},
+		});
+
+		const runtime = new ApkGestureHandlerRuntime();
+		runtime.createGestureHandler("PanGestureHandler", 7, { minDist: 10 });
+		runtime.attachGestureHandler(7, 42, 2);
+		runtime.updateGestureHandler(7, { minDist: 12 });
+		expect(runtime.snapshot()).toEqual([{
+			tag: 7,
+			handlerName: "PanGestureHandler",
+			config: { minDist: 12 },
+			viewTag: 42,
+			actionType: 2,
+		}]);
+		expect(runtime.install()).toBe(true);
+		expect(() => runtime.createGestureHandler("PanGestureHandler", 7, {})).toThrow(/existiert bereits/u);
+		expect(() => runtime.createGestureHandler("ErfundenerHandler", 8, {})).toThrow(/Ungültiger/u);
+		expect(() => runtime.attachGestureHandler(99, 1, 1)).toThrow(/existiert nicht/u);
+		runtime.dropGestureHandler(7);
+		expect(runtime.snapshot()).toEqual([]);
+	});
+
 	it("uses explicit agreement state and matches the APK empty-array failure behavior", async () => {
 		const root = mkdtempSync(path.join(tmpdir(), "apk-environment-"));
 		const agreementAndPolicy = {
@@ -30,6 +71,28 @@ describe("APK AppPlugin environment runtimes", () => {
 
 		expect(await runtime.agreementAndPolicy()).toEqual(agreementAndPolicy);
 		expect(await runtime.getPluginAgreements()).toEqual([]);
+	});
+
+	it("forwards the APK closeCurrentPage activity boundary without a missing-method rejection", () => {
+		const root = mkdtempSync(path.join(tmpdir(), "apk-environment-"));
+		const closeCurrentPage = vi.fn();
+		const runtime = new ApkPluginSdkEnvironmentRuntime({
+			hasActivity: () => true,
+			closeCurrentPage,
+			firmwareVersion: "02.24.90",
+			storageBasePath: root,
+			loadDeviceExtraInfo: async () => ({}),
+			loadOtaInfo: async () => null,
+			loadAgreementAndPolicy: async () => ({
+				privacyProtocol: { version: null, langUrl: null },
+				userAgreement: { version: null, langUrl: null },
+			}),
+			loadPluginAgreements: async () => [],
+			workerRuntime: new ApkV8WorkerRuntime({ pluginRootPath: root }),
+		});
+
+		expect(runtime.closeCurrentPage()).toBeUndefined();
+		expect(closeCurrentPage).toHaveBeenCalledOnce();
 	});
 
 	it("matches APK firmware lookup, fallback, and rejection behavior", async () => {
@@ -229,6 +292,8 @@ describe("APK AppPlugin environment runtimes", () => {
 			details: { isConnectionExpensive: false, ssid: "Probe" },
 		});
 		netInfo.addListener("netInfo.networkStatusDidChange");
+		netInfo.addListener("netInfo.networkStatusDidChange");
+		netInfo.removeListeners(1);
 		expect(netInfo.listenerCount()).toBe(1);
 		expect(netInfo.getCurrentState(null)).toEqual({
 			isWifiEnabled: true,
@@ -237,5 +302,8 @@ describe("APK AppPlugin environment runtimes", () => {
 			isInternetReachable: true,
 			details: { isConnectionExpensive: false, ssid: "Probe" },
 		});
+		netInfo.removeListeners(99);
+		expect(netInfo.listenerCount()).toBe(0);
+		expect(() => netInfo.removeListeners(-1)).toThrow(/nichtnegative ganze Zahl/u);
 	});
 });

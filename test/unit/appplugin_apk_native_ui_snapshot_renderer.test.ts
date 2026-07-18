@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { describe, expect, it } from "vitest";
@@ -513,6 +514,64 @@ describe("APK-native UI snapshot renderer", () => {
 		const context = canvas.getContext("2d");
 		context.drawImage(image, 0, 0);
 		expect([...context.getImageData(10, 10, 1, 1).data]).toEqual([255, 0, 0, 255]);
+	});
+
+	it("confines local image assets to explicit real roots and enforces decoded size limits", () => {
+		const allowedRoot = fs.mkdtempSync(path.join(os.tmpdir(), "apk-ui-assets-"));
+		const outsideRoot = fs.mkdtempSync(path.join(os.tmpdir(), "apk-ui-outside-"));
+		const allowedImage = path.join(allowedRoot, "inside.png");
+		const outsideImage = path.join(outsideRoot, "outside.png");
+		fs.writeFileSync(allowedImage, Buffer.from([1, 2, 3]));
+		fs.writeFileSync(outsideImage, Buffer.from([4, 5, 6]));
+		const imageRoot = (uri: string): ApkUiManagerNodeSnapshot => ({
+			tag: 1,
+			viewName: "Root",
+			rootTag: 1,
+			props: {},
+			children: [{
+				tag: 2,
+				viewName: "RCTImageView",
+				rootTag: 1,
+				props: { src: [{ uri }] },
+				children: [],
+			}],
+		});
+		const imageHierarchy = (root: ApkUiManagerNodeSnapshot): ApkNativeViewHierarchySnapshot => ({
+			root,
+			layouts: [
+				{ tag: 1, box: { x: 0, y: 0, width: 10, height: 10 } },
+				{ tag: 2, box: { x: 0, y: 0, width: 10, height: 10 } },
+			],
+			collapsedTags: [],
+			virtualTags: [],
+		});
+		const render = (uri: string, maxEmbeddedFileBytes = 16): string => {
+			const root = imageRoot(uri);
+			return renderApkNativeUiSnapshotToSvg({
+				shadowRoot: root,
+				nativeHierarchy: imageHierarchy(root),
+				width: 10,
+				height: 10,
+				allowedFileRoots: [allowedRoot],
+				maxEmbeddedFileBytes,
+			}).svg;
+		};
+
+		expect(render(pathToFileURL(allowedImage).href)).toContain("data:image/png;base64,AQID");
+		expect(() => render(pathToFileURL(outsideImage).href)).toThrow(/verlässt die erlaubten Wurzeln/u);
+		expect(() => render(pathToFileURL(allowedImage).href, 2)).toThrow(/überschreitet 2 Bytes/u);
+		expect(() => render("data:text/plain;base64,AQID")).toThrow(/kein unterstütztes Bild/u);
+		expect(() => render("data:image/png;base64,AQID", 2)).toThrow(/Einbettungslimit/u);
+		expect(() => render("data:image/png;base64,A")).toThrow(/ungültiges Base64/u);
+		expect(render('data:image/svg+xml,<svg data-name="test"></svg>', 128))
+			.toContain("data:image/svg+xml,&lt;svg data-name=&quot;test&quot;&gt;&lt;/svg&gt;");
+		expect(() => renderApkNativeUiSnapshotToSvg({
+			shadowRoot,
+			nativeHierarchy,
+			width: 20,
+			height: 20,
+			maxEmbeddedFileBytes: 0,
+		})).toThrow(/positive Ganzzahl/u);
 	});
 
 	it("converts signed Android ARGB without discarding alpha", () => {

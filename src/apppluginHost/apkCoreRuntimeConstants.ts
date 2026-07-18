@@ -1,5 +1,9 @@
 import type { ApkNativeModuleConstants } from "./apkBridgeBootstrap";
 import type { ApkAppPluginHostContract, ApkNativeModuleContract } from "./apkContract";
+import {
+	APK_GESTURE_HANDLER_DIRECTIONS,
+	APK_GESTURE_HANDLER_STATES,
+} from "./apkGestureHandlerRuntime";
 
 export interface ApkDisplayMetrics {
 	width: number;
@@ -69,6 +73,16 @@ export function createApkLocalizationConstants(
 			localeIdentifier: state.localeIdentifier,
 		},
 		ReactLocalization: { language: state.language },
+	};
+}
+
+/** Reproduces RNGestureHandlerModule.getConstants() from the APK. */
+export function createApkGestureHandlerConstants(): ApkNativeModuleConstants {
+	return {
+		RNGestureHandlerModule: {
+			State: APK_GESTURE_HANDLER_STATES,
+			Direction: APK_GESTURE_HANDLER_DIRECTIONS,
+		},
 	};
 }
 

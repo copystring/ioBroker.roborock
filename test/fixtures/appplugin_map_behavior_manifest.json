@@ -3,19 +3,21 @@
   "families": [
     {
       "id": "yx-skia",
-      "fixtureStatus": "available",
+      "fixtureStatus": "history-only",
       "directBundleMapDataFlowVerified": true,
-      "nativeRenderEndpointReached": true,
-      "originalMapRasterVerified": true,
-      "pngGoldenVerified": true,
+      "nativeRenderEndpointReached": false,
+      "originalMapRasterVerified": false,
+      "pngGoldenVerified": false,
       "directBundleRenderingVerified": false,
       "evidence": [
         "test/unit/q10RepresentativeFixture.ts",
         "test/unit/appplugin_q10_map_event_poc.test.ts",
-        "artifacts/appplugin-poc/q10-original-map.png",
         "docs/APPPLUGIN_Q10_MAP_EVENT_POC.md"
       ],
       "missing": [
+        "real-type-1-live-map-payload",
+        "matching-device-dps-sequence",
+        "matching-original-android-reference",
         "direct-original-bundle-render",
         "full-skia-picture-composition",
         "room-selection-callback",

@@ -31,8 +31,8 @@ interface LocaleGoldenCase {
 
 const manifestPath = path.join(process.cwd(), "test", "fixtures", "appplugin", "q7-l5-locale-goldens.json");
 
-describe("Q7 AppPlugin Locale-Bild-Goldens", () => {
-	it("sichert Arabisch/RTL sowie regionale und System-Fallbacks aus demselben Originalbundle", () => {
+describe("Q7 AppPlugin Locale-Hostregressionsgoldens", () => {
+	it("sichert Arabisch/RTL sowie regionale und System-Fallbacks aus demselben unveränderten Bundle", () => {
 		const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as {
 			schemaVersion: number;
 			source: string;

@@ -54,7 +54,7 @@ function sha256(value: Uint8Array): string {
 	return createHash("sha256").update(value).digest("hex");
 }
 
-describe("Q7 AppPlugin Theme- und Akteur-Goldens", () => {
+describe("Q7 AppPlugin Theme- und Akteur-Hostregressionsgoldens", () => {
 	it("beweist Hell, Dunkel und beide Systemmodi in derselben unveränderten AppPlugin-Sitzung", () => {
 		for (const expectedManifest of themeManifests) {
 			const manifest = JSON.parse(fs.readFileSync(expectedManifest.path, "utf8")) as {
@@ -111,7 +111,7 @@ describe("Q7 AppPlugin Theme- und Akteur-Goldens", () => {
 		}
 	});
 
-	it("bewahrt die originalen Roboter- und Stationsfaktoren bei gemeinsamer Karten-Skalierung", () => {
+	it("bewahrt die bundle-eigenen Roboter- und Stationsfaktoren bei gemeinsamer Karten-Skalierung", () => {
 		const contracts: unknown[] = [];
 		for (const expectedManifest of actorManifests) {
 			const manifest = JSON.parse(fs.readFileSync(expectedManifest.path, "utf8")) as {

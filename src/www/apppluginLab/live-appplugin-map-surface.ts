@@ -2,6 +2,7 @@ export type LiveAppPluginMapTool = "view" | "rooms" | "zones" | "noGo" | "noMop"
 export type LiveAppPluginThemeMode = "dark" | "light" | "system";
 export type LiveAppPluginColorScheme = "dark" | "light";
 export type LiveAppPluginSurfaceView = "map" | "full";
+export type LiveAppPluginMapFamily = "scmap" | "yx" | "v1" | "tanos" | "tanos-hybrid" | "unknown";
 export type LiveAppPluginSemanticActionId =
 	| "map.mode.full"
 	| "map.mode.rooms"
@@ -10,13 +11,20 @@ export type LiveAppPluginSemanticActionId =
 	| "dock.panel"
 	| "clean.start";
 
+export function hasInteractiveAppPluginMap(
+	state: Readonly<{ availableViews: readonly LiveAppPluginSurfaceView[] }>,
+): boolean {
+	return state.availableViews.includes("map");
+}
+
 export interface LiveAppPluginSemanticAction {
 	id: LiveAppPluginSemanticActionId;
 	label: string;
 	enabled: boolean;
 	selected: boolean;
-	owner: "unchanged-appplugin-ui";
-	contract: "scmap-bottom-control-panel-v2";
+	owner: "desktop-host-adapter";
+	provenance: "host-heuristic-from-appplugin-tree";
+	contract: "host-map-bottom-control-panel-v3";
 }
 
 interface LiveAppPluginSurfaceDescriptor {
@@ -57,6 +65,7 @@ interface LiveAppPluginHealth extends LiveAppPluginLocalizationState {
 	status: "appplugin-session-ready";
 	sessionId: string;
 	profileId: string;
+	mapFamily: LiveAppPluginMapFamily;
 	availableProfiles: string[];
 	deviceModel: string;
 	profileLabel: string;
@@ -66,6 +75,10 @@ interface LiveAppPluginHealth extends LiveAppPluginLocalizationState {
 	viewport: LiveAppPluginViewport;
 	bundleKind: string;
 	bundleSha256: string;
+	bundleProvenance: "unchanged-appplugin-bundle";
+	renderProvenance: "host-svg-diagnostic";
+	inputProvenance: "host-apk-contract-emulation";
+	semanticActionProvenance: "host-heuristic-from-appplugin-tree";
 	productFallbackAllowed: false;
 	colorScheme: LiveAppPluginColorScheme;
 	colorModel: "dark" | "default" | "light";
@@ -75,6 +88,7 @@ interface LiveAppPluginHealth extends LiveAppPluginLocalizationState {
 	view: LiveAppPluginSurfaceView;
 	availableViews: LiveAppPluginSurfaceView[];
 	publishedDpsCount: number;
+	pageCloseRequestCount: number;
 	semanticActions: LiveAppPluginSemanticAction[];
 }
 
@@ -88,6 +102,7 @@ interface PointerResponse extends LiveAppPluginLocalizationState {
 	changedIndices: number[];
 	activePointerIds: number[];
 	publishedDpsCount: number;
+	pageCloseRequestCount: number;
 	view: LiveAppPluginSurfaceView;
 	semanticActions: LiveAppPluginSemanticAction[];
 }
@@ -126,11 +141,14 @@ interface PublishedDpsResponse {
 	publishedDps: unknown[];
 	publishedDpsCount: number;
 	after: number;
+	retainedFrom?: number;
+	truncated?: boolean;
 }
 
 export interface LiveAppPluginMapSnapshot extends LiveAppPluginLocalizationState {
 	sessionId: string;
 	profileId: string;
+	mapFamily: LiveAppPluginMapFamily;
 	availableProfiles: string[];
 	deviceModel: string;
 	profileLabel: string;
@@ -140,6 +158,10 @@ export interface LiveAppPluginMapSnapshot extends LiveAppPluginLocalizationState
 	viewport: LiveAppPluginViewport;
 	bundleKind: string;
 	bundleSha256: string;
+	bundleProvenance: "unchanged-appplugin-bundle";
+	renderProvenance: "host-svg-diagnostic";
+	inputProvenance: "host-apk-contract-emulation";
+	semanticActionProvenance: "host-heuristic-from-appplugin-tree";
 	productFallbackAllowed: false;
 	colorScheme: LiveAppPluginColorScheme;
 	colorModel: "dark" | "default" | "light";
@@ -149,6 +171,7 @@ export interface LiveAppPluginMapSnapshot extends LiveAppPluginLocalizationState
 	view: LiveAppPluginSurfaceView;
 	availableViews: LiveAppPluginSurfaceView[];
 	publishedDpsCount: number;
+	pageCloseRequestCount: number;
 	semanticActions: LiveAppPluginSemanticAction[];
 }
 
@@ -161,6 +184,54 @@ export interface LiveAppPluginMapSurfaceOptions {
 	onChange: (snapshot: LiveAppPluginMapSnapshot) => void;
 	apiBaseUrl?: string;
 	initialView?: LiveAppPluginSurfaceView;
+}
+
+export function shouldShowAppPluginNativeMapSubview(
+	view: LiveAppPluginSurfaceView,
+	hasMapHealth: boolean,
+	semanticActions: readonly Readonly<LiveAppPluginSemanticAction>[],
+): boolean {
+	return view === "full"
+		&& hasMapHealth
+		&& semanticActions.some(action => action.id.startsWith("map.mode."));
+}
+
+export function readAppPluginSessionToken(documentRoot: Document = document): string {
+	const token = documentRoot.querySelector<HTMLMetaElement>(
+		'meta[name="appplugin-session-token"]',
+	)?.content;
+	if (!token || !/^[A-Za-z0-9_-]{43,128}$/u.test(token)) {
+		throw new Error("Das AppPlugin-Runtime-Sitzungstoken fehlt oder ist ungültig");
+	}
+	return token;
+}
+
+class AppPluginHttpError extends Error {
+	public constructor(
+		message: string,
+		public readonly status: number,
+	) {
+		super(message);
+		this.name = "AppPluginHttpError";
+	}
+}
+
+async function responseError(response: Response, fallback: string): Promise<AppPluginHttpError> {
+	try {
+		const payload = await response.json() as { error?: unknown };
+		if (typeof payload.error === "string" && payload.error.length > 0) {
+			return new AppPluginHttpError(payload.error, response.status);
+		}
+	} catch {
+		// Nicht-JSON-Antworten behalten die statusbasierte Fehlermeldung.
+	}
+	return new AppPluginHttpError(fallback, response.status);
+}
+
+function shouldRecoverRuntime(error: unknown): boolean {
+	if (error instanceof AppPluginHttpError) return [408, 425, 429, 502, 503, 504].includes(error.status);
+	return error instanceof TypeError
+		|| error instanceof DOMException && ["AbortError", "TimeoutError", "NetworkError"].includes(error.name);
 }
 
 function finite(value: number, name: string): number {
@@ -224,11 +295,9 @@ export function calculateAppPluginSubviewPlacement(
 }
 
 /**
- * Android keeps rendering while a native map gesture is in progress and only
- * exposes the resulting state back to React Native. Our host uses the same
- * boundary: the browser presents the drag immediately, then these MOVE events
- * let the unchanged AppPlugin claim its responder and calculate the canonical
- * final map state before UP.
+ * Desktop-only optimistic presentation. The browser moves the diagnostic frame
+ * immediately and commits a bounded, distance-dependent MOVE sequence through
+ * the host's APK touch emulation before UP.
  */
 export function createAppPluginDragCommitPointers(
 	pointerId: number,
@@ -246,23 +315,24 @@ export function createAppPluginDragCommitPointers(
 	finite(endY, "Drag-Ende-y");
 	const deltaX = endX - startX;
 	const deltaY = endY - startY;
-	if (Math.hypot(deltaX, deltaY) <= LOCAL_MAP_DRAG_SLOP_DIP) return [];
-	return [
-		{
+	const distance = Math.hypot(deltaX, deltaY);
+	if (distance <= LOCAL_MAP_DRAG_SLOP_DIP) return [];
+	const movementSteps = Math.max(2, Math.min(8, Math.ceil(distance / 24)));
+	return Array.from({ length: movementSteps }, (_unused, index) => {
+		const progress = (index + 1) / movementSteps;
+		return {
 			kind: "move",
 			pointerId,
-			x: startX + deltaX / 2,
-			y: startY + deltaY / 2,
-		},
-		{ kind: "move", pointerId, x: endX, y: endY },
-	];
+			x: startX + deltaX * progress,
+			y: startY + deltaY * progress,
+		};
+	});
 }
 
 /**
- * Produces the same signed two-pointer distance change that the Q7 AppPlugin
- * receives from Android. The first touch must be the right-hand pointer:
- * its original getDistance contract uses touch order, not an unsigned browser
- * wheel delta.
+ * Desktop zoom-button adapter. It creates an ordinary two-pointer gesture for
+ * the host's APK touch emulation; geometry and MOVE interpolation are host-owned
+ * and are deliberately not labelled as original APK behavior.
  */
 export function createAppPluginPinchZoomPointers(
 	width: number,
@@ -283,11 +353,12 @@ export function createAppPluginPinchZoomPointers(
 	const leftX = centerX - contractedDistance / 2;
 	const startRightX = leftX + startDistance;
 	const endRightX = leftX + endDistance;
-	const rightId = 10_001;
-	const leftId = 10_002;
-	// Das erste MOVE beansprucht den React-Native-Responder. Das zweite MOVE
-	// verändert den Zoom im bereits aktiven AppPlugin-PanResponder. Ein einzelnes
-	// MOVE wird beim Loslassen verworfen; weitere Zwischenstufen sind unnötig.
+	const rightId = 1;
+	const leftId = 2;
+	// Die unveränderte Q7-Karte beansprucht beim ersten MOVE ihren
+	// PanResponder; das zweite MOVE erreicht den bereits aktiven Responder.
+	// Ein Finger bleibt dabei wie bei einer normalen Android-Pinch-Geste
+	// stationär. Diese Folge ist durch die Q7-L5/M5-Live-Goldens belegt.
 	const movementSteps = 2;
 	const moves = Array.from({ length: movementSteps }, (_, index) => {
 		const progress = (index + 1) / movementSteps;
@@ -309,6 +380,7 @@ export function createAppPluginPinchZoomPointers(
 
 export class LiveAppPluginMapSurface {
 	readonly #apiBaseUrl: string;
+	readonly #sessionToken: string;
 	readonly #activePointers = new Set<number>();
 	readonly #pendingPointerMoves = new Map<number, { x: number; y: number }>();
 	#pendingWheel?: { x: number; y: number; deltaX: number; deltaY: number };
@@ -324,16 +396,28 @@ export class LiveAppPluginMapSurface {
 	#health!: LiveAppPluginHealth;
 	#mapHealth?: LiveAppPluginHealth;
 	#publishedDpsCount = 0;
+	#interactionReconciliationGeneration = 0;
 
 	public constructor(private readonly options: LiveAppPluginMapSurfaceOptions) {
 		this.#apiBaseUrl = (options.apiBaseUrl ?? "").replace(/\/$/u, "");
+		this.#sessionToken = readAppPluginSessionToken();
+	}
+
+	#fetch(resource: string, init: RequestInit = {}, timeoutMs = 10_000): Promise<Response> {
+		const headers = new Headers(init.headers);
+		headers.set("X-AppPlugin-Session", this.#sessionToken);
+		return fetch(resource, {
+			...init,
+			headers,
+			signal: init.signal ?? AbortSignal.timeout(timeoutMs),
+		});
 	}
 
 	public async init(): Promise<void> {
 		this.#health = await this.#fetchHealth(this.options.initialView);
 		await this.#resolveMapHealth();
 		this.#publishedDpsCount = this.#health.publishedDpsCount;
-		this.options.viewport.dataset.renderMode = "unchanged-appplugin-session";
+		this.options.viewport.dataset.renderMode = this.#health.renderProvenance;
 		this.options.viewport.dataset.bundleKind = this.#health.bundleKind;
 		this.options.viewport.dataset.productFallbackAllowed = String(this.#health.productFallbackAllowed);
 		this.options.frame.addEventListener("load", () => {
@@ -387,6 +471,7 @@ export class LiveAppPluginMapSurface {
 		return {
 			sessionId: this.#health.sessionId,
 			profileId: this.#health.profileId,
+			mapFamily: this.#health.mapFamily,
 			availableProfiles: [...this.#health.availableProfiles],
 			deviceModel: this.#health.deviceModel,
 			profileLabel: this.#health.profileLabel,
@@ -396,6 +481,10 @@ export class LiveAppPluginMapSurface {
 			viewport: { ...this.#health.viewport },
 			bundleKind: this.#health.bundleKind,
 			bundleSha256: this.#health.bundleSha256,
+			bundleProvenance: this.#health.bundleProvenance,
+			renderProvenance: this.#health.renderProvenance,
+			inputProvenance: this.#health.inputProvenance,
+			semanticActionProvenance: this.#health.semanticActionProvenance,
 			productFallbackAllowed: false,
 			colorScheme: this.#health.colorScheme,
 			colorModel: this.#health.colorModel,
@@ -405,6 +494,7 @@ export class LiveAppPluginMapSurface {
 			view: this.#health.view,
 			availableViews: [...this.#health.availableViews],
 			publishedDpsCount: this.#publishedDpsCount,
+			pageCloseRequestCount: this.#health.pageCloseRequestCount,
 			semanticActions: this.#health.semanticActions.map(action => ({ ...action })),
 			language: this.#health.language,
 			localeIdentifier: this.#health.localeIdentifier,
@@ -424,14 +514,17 @@ export class LiveAppPluginMapSurface {
 			? "dark"
 			: "light";
 		return this.#enqueue(async () => {
-			const response = await fetch(`${this.#apiBaseUrl}/theme?view=${this.#health.view}`, {
+			const response = await this.#fetch(`${this.#apiBaseUrl}/theme?view=${this.#health.view}`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ mode, systemColorScheme }),
 			});
 			const payload = await response.json() as ThemeResponse | { error: string };
 			if (!response.ok || "error" in payload) {
-				throw new Error("error" in payload ? payload.error : `Theme-Bridge antwortet mit HTTP ${response.status}`);
+				throw new AppPluginHttpError(
+					"error" in payload ? payload.error : `Theme-Bridge antwortet mit HTTP ${response.status}`,
+					response.status,
+				);
 			}
 			this.#health = { ...this.#health, ...payload };
 			this.#refreshFrame();
@@ -448,14 +541,17 @@ export class LiveAppPluginMapSurface {
 			throw new Error(`Die APK bietet den Sprachcode ${language} nicht an`);
 		}
 		return this.#enqueue(async () => {
-			const response = await fetch(`${this.#apiBaseUrl}/locale?view=${this.#health.view}`, {
+			const response = await this.#fetch(`${this.#apiBaseUrl}/locale?view=${this.#health.view}`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ language }),
 			});
 			const payload = await response.json() as LocalizationResponse | { error: string };
 			if (!response.ok || "error" in payload) {
-				throw new Error("error" in payload ? payload.error : `Sprach-Bridge antwortet mit HTTP ${response.status}`);
+				throw new AppPluginHttpError(
+					"error" in payload ? payload.error : `Sprach-Bridge antwortet mit HTTP ${response.status}`,
+					response.status,
+				);
 			}
 			if (payload.sessionRestarting) {
 				this.options.onEvent("APK-Sprachwechsel startet AppPlugin-Sitzung neu", payload);
@@ -478,11 +574,17 @@ export class LiveAppPluginMapSurface {
 	}
 
 	public async zoomBy(delta: number): Promise<void> {
+		if (!hasInteractiveAppPluginMap(this.#health)) {
+			throw new Error("Die laufende AppPlugin-Sitzung bietet keine belegte interaktive Kartenfläche an");
+		}
 		const { width, height } = this.#health.surface;
 		const pointers = createAppPluginPinchZoomPointers(width, height, delta);
 		if (pointers.length === 0) return;
 		await this.#sendPointerSequence(pointers);
-		this.options.onEvent("APK-Pinch an AppPlugin gesendet", { delta, revision: this.#health.revision });
+		this.options.onEvent("Desktop-Pinch über emulierten APK-Touchvertrag gesendet", {
+			delta,
+			revision: this.#health.revision,
+		});
 	}
 
 	public semanticAction(id: LiveAppPluginSemanticActionId): Readonly<LiveAppPluginSemanticAction> | undefined {
@@ -499,19 +601,20 @@ export class LiveAppPluginMapSurface {
 			return Promise.reject(new Error(`Die laufende AppPlugin-Sitzung hat ${id} deaktiviert`));
 		}
 		return this.#enqueue(async () => {
-			const response = await fetch(`${this.#apiBaseUrl}/semantic-action?view=${this.#health.view}`, {
+			const response = await this.#fetch(`${this.#apiBaseUrl}/semantic-action?view=${this.#health.view}`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ id }),
 			});
 			const payload = await response.json() as SemanticActionResponse | { error: string };
 			if (!response.ok || "error" in payload) {
-				throw new Error(
+				throw new AppPluginHttpError(
 					"error" in payload ? payload.error : `Semantische AppPlugin-Aktion antwortet mit HTTP ${response.status}`,
+					response.status,
 				);
 			}
 			await this.#applyPointerResponse(payload);
-			this.options.onEvent("Semantische PC-Aktion durch originale AppPlugin-UI ausgeführt", {
+			this.options.onEvent("Host-abgeleitete PC-Aktion am AppPlugin-Baum ausgeführt", {
 				action: payload.action,
 				revision: payload.revision,
 				frameChanged: payload.frameChanged,
@@ -667,7 +770,7 @@ export class LiveAppPluginMapSurface {
 		const deltaX = (drag.x - drag.startX) * scale;
 		const deltaY = (drag.y - drag.startY) * scale;
 		this.#localPresentationFrame().style.transform = `translate3d(${deltaX}px, ${deltaY}px, 0)`;
-		this.options.viewport.dataset.inputPresentation = "apk-native-map-drag";
+		this.options.viewport.dataset.inputPresentation = "desktop-optimistic-map-pan";
 	}
 
 	#localPresentationFrame(): HTMLImageElement {
@@ -771,7 +874,7 @@ export class LiveAppPluginMapSurface {
 			const wheel = this.#pendingWheel;
 			this.#pendingWheel = undefined;
 			if (!wheel) return;
-			const response = await fetch(`${this.#apiBaseUrl}/wheel?view=${this.#health.view}`, {
+			const response = await this.#fetch(`${this.#apiBaseUrl}/wheel?view=${this.#health.view}`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
@@ -781,7 +884,10 @@ export class LiveAppPluginMapSurface {
 			});
 			const payload = await response.json() as PointerResponse | { error: string };
 			if (!response.ok || "error" in payload) {
-				throw new Error("error" in payload ? payload.error : `Scrollrad-Bridge antwortet mit HTTP ${response.status}`);
+				throw new AppPluginHttpError(
+					"error" in payload ? payload.error : `Scrollrad-Bridge antwortet mit HTTP ${response.status}`,
+					response.status,
+				);
 			}
 			await this.#applyPointerResponse(payload);
 		}).finally(() => {
@@ -832,7 +938,7 @@ export class LiveAppPluginMapSurface {
 			return;
 		}
 		const startedAt = performance.timeOrigin + performance.now();
-		const response = await fetch(`${this.#apiBaseUrl}/pointer-sequence?view=${this.#health.view}`, {
+		const response = await this.#fetch(`${this.#apiBaseUrl}/pointer-sequence?view=${this.#health.view}`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({
@@ -841,7 +947,10 @@ export class LiveAppPluginMapSurface {
 		});
 		const payload = await response.json() as PointerResponse | { error: string };
 		if (!response.ok || "error" in payload) {
-			throw new Error("error" in payload ? payload.error : `Pointer-Sequenz antwortet mit HTTP ${response.status}`);
+			throw new AppPluginHttpError(
+				"error" in payload ? payload.error : `Pointer-Sequenz antwortet mit HTTP ${response.status}`,
+				response.status,
+			);
 		}
 		await this.#applyPointerResponse(payload);
 		if (report) {
@@ -856,14 +965,17 @@ export class LiveAppPluginMapSurface {
 		pointer: Readonly<{ kind: "down" | "move" | "up"; pointerId: number; x: number; y: number }>,
 		report: boolean,
 	): Promise<void> {
-		const response = await fetch(`${this.#apiBaseUrl}/pointer?view=${this.#health.view}`, {
+		const response = await this.#fetch(`${this.#apiBaseUrl}/pointer?view=${this.#health.view}`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ ...pointer, timeMs: performance.timeOrigin + performance.now() }),
 		});
 		const payload = await response.json() as PointerResponse | { error: string };
 		if (!response.ok || "error" in payload) {
-			throw new Error("error" in payload ? payload.error : `Pointer-Bridge antwortet mit HTTP ${response.status}`);
+			throw new AppPluginHttpError(
+				"error" in payload ? payload.error : `Pointer-Bridge antwortet mit HTTP ${response.status}`,
+				response.status,
+			);
 		}
 		await this.#applyPointerResponse(payload);
 		if (report) {
@@ -882,14 +994,17 @@ export class LiveAppPluginMapSurface {
 		if (this.#pointerMoveFrame !== undefined) cancelAnimationFrame(this.#pointerMoveFrame);
 		this.#pointerMoveFrame = undefined;
 		return this.#enqueue(async () => {
-			const response = await fetch(`${this.#apiBaseUrl}/pointer?view=${this.#health.view}`, {
+			const response = await this.#fetch(`${this.#apiBaseUrl}/pointer?view=${this.#health.view}`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ kind: "cancel", timeMs: performance.timeOrigin + performance.now() }),
 			});
 			const payload = await response.json() as PointerResponse | { error: string };
 			if (!response.ok || "error" in payload) {
-				throw new Error("error" in payload ? payload.error : `Pointer-Abbruch antwortet mit HTTP ${response.status}`);
+				throw new AppPluginHttpError(
+					"error" in payload ? payload.error : `Pointer-Abbruch antwortet mit HTTP ${response.status}`,
+					response.status,
+				);
 			}
 			await this.#applyPointerResponse(payload);
 		});
@@ -898,6 +1013,7 @@ export class LiveAppPluginMapSurface {
 	async #applyPointerResponse(response: PointerResponse): Promise<void> {
 		const frameChanged = response.frameRevision !== this.#health.frameRevision;
 		const publicStateBefore = this.#interactivePublicState();
+		const pageCloseRequested = response.pageCloseRequestCount > this.#health.pageCloseRequestCount;
 		this.#health = {
 			...this.#health,
 			revision: response.revision,
@@ -906,6 +1022,7 @@ export class LiveAppPluginMapSurface {
 			viewport: response.viewport,
 			view: response.view,
 			publishedDpsCount: response.publishedDpsCount,
+			pageCloseRequestCount: response.pageCloseRequestCount,
 			language: response.language,
 			localeIdentifier: response.localeIdentifier,
 			systemLocaleIdentifier: response.systemLocaleIdentifier,
@@ -916,6 +1033,15 @@ export class LiveAppPluginMapSurface {
 			semanticActions: response.semanticActions.map(action => ({ ...action })),
 		};
 		this.#synchronizeMapHealth();
+		if (pageCloseRequested && this.#health.view === "full" && this.#mapHealth) {
+			this.#health = {
+				...this.#mapHealth,
+				pageCloseRequestCount: response.pageCloseRequestCount,
+			};
+			this.options.onEvent("APK-Seite geschlossen; Desktop kehrt zur AppPlugin-Karte zurück", {
+				pageCloseRequestCount: response.pageCloseRequestCount,
+			});
+		}
 		const completesLocalMapCommit = this.#localMapCommitPending
 			&& response.activePointerIds.length === 0;
 		if (frameChanged) {
@@ -926,6 +1052,7 @@ export class LiveAppPluginMapSurface {
 		}
 		if (publicStateBefore !== this.#interactivePublicState()) this.#emitChange();
 		if (response.publishedDpsCount > this.#publishedDpsCount) await this.#syncPublishedDps(response.publishedDpsCount);
+		if (response.activePointerIds.length === 0) this.#scheduleRuntimeReconciliation();
 	}
 
 	#interactivePublicState(): string {
@@ -934,6 +1061,7 @@ export class LiveAppPluginMapSurface {
 			viewport: this.#health.viewport,
 			view: this.#health.view,
 			publishedDpsCount: this.#health.publishedDpsCount,
+			pageCloseRequestCount: this.#health.pageCloseRequestCount,
 			language: this.#health.language,
 			localeIdentifier: this.#health.localeIdentifier,
 			systemLocaleIdentifier: this.#health.systemLocaleIdentifier,
@@ -963,11 +1091,24 @@ export class LiveAppPluginMapSurface {
 
 	async #fetchHealth(view?: LiveAppPluginSurfaceView): Promise<LiveAppPluginHealth> {
 		const endpoint = view === undefined ? "/health" : `/health?view=${view}`;
-		const response = await fetch(`${this.#apiBaseUrl}${endpoint}`, { cache: "no-store" });
-		if (!response.ok) throw new Error(`AppPlugin-Sitzung antwortet mit HTTP ${response.status}`);
+		const response = await this.#fetch(`${this.#apiBaseUrl}${endpoint}`, { cache: "no-store" }, 3_000);
+		if (!response.ok) {
+			throw await responseError(response, `AppPlugin-Sitzung antwortet mit HTTP ${response.status}`);
+		}
 		const health = await response.json() as LiveAppPluginHealth;
 		if (health.status !== "appplugin-session-ready" || health.productFallbackAllowed !== false) {
-			throw new Error("Die Kartenquelle ist keine unveränderte laufende AppPlugin-Sitzung");
+			throw new Error("Die Kartenquelle ist keine laufende AppPlugin-Host-Sitzung");
+		}
+		if (
+			health.bundleProvenance !== "unchanged-appplugin-bundle"
+			|| health.renderProvenance !== "host-svg-diagnostic"
+			|| health.inputProvenance !== "host-apk-contract-emulation"
+			|| health.semanticActionProvenance !== "host-heuristic-from-appplugin-tree"
+		) {
+			throw new Error("Die AppPlugin-Host-Sitzung meldet einen unbekannten Provenienzvertrag");
+		}
+		if (!["scmap", "yx", "v1", "tanos", "tanos-hybrid", "unknown"].includes(health.mapFamily)) {
+			throw new Error("Die AppPlugin-Host-Sitzung meldet eine unbekannte Kartenfamilie");
 		}
 		const resolvedView = health.view ?? view ?? "map";
 		return {
@@ -983,12 +1124,126 @@ export class LiveAppPluginMapSurface {
 			view: resolvedView,
 			availableViews: health.availableViews ?? [resolvedView],
 			publishedDpsCount: health.publishedDpsCount ?? 0,
+			pageCloseRequestCount: health.pageCloseRequestCount ?? 0,
 			semanticActions: (health.semanticActions ?? []).map(action => ({ ...action })),
 			availableLanguages: [...health.availableLanguages],
 			isRTL: health.isRTL === true,
 			doLeftAndRightSwapInRTL: health.doLeftAndRightSwapInRTL !== false,
 			languageSwitching: health.languageSwitching === true,
 		};
+	}
+
+	#scheduleRuntimeReconciliation(): void {
+		const generation = ++this.#interactionReconciliationGeneration;
+		const sessionId = this.#health.sessionId;
+		const view = this.#health.view;
+		void this.#runRuntimeReconciliation(generation, sessionId, view);
+	}
+
+	async #runRuntimeReconciliation(
+		generation: number,
+		sessionId: string,
+		view: LiveAppPluginSurfaceView,
+	): Promise<void> {
+		let lastError: unknown;
+		for (const delayMs of [50, 200, 500, 750, 1_500]) {
+			await new Promise<void>(resolve => setTimeout(resolve, delayMs));
+			if (
+				generation !== this.#interactionReconciliationGeneration
+				|| this.#health.sessionId !== sessionId
+				|| this.#health.view !== view
+			) {
+				return;
+			}
+			try {
+				const health = await this.#fetchHealth(view);
+				const adopted = await this.#enqueue(async () => {
+					if (
+						generation !== this.#interactionReconciliationGeneration
+						|| this.#health.sessionId !== sessionId
+						|| this.#health.view !== view
+					) {
+						return false;
+					}
+					if (health.sessionId !== sessionId) {
+						await this.#adoptRestartedRuntime(health, sessionId);
+						return true;
+					}
+					const previousState = this.#interactivePublicState();
+					const previousFrameRevision = this.#health.frameRevision;
+					const previousPageCloseRequestCount = this.#health.pageCloseRequestCount;
+					this.#health = health;
+					this.#synchronizeMapHealth();
+					if (
+						health.pageCloseRequestCount > previousPageCloseRequestCount
+						&& health.view === "full"
+						&& this.#mapHealth
+					) {
+						this.#health = {
+							...this.#mapHealth,
+							pageCloseRequestCount: health.pageCloseRequestCount,
+						};
+					}
+					if (
+						previousFrameRevision !== this.#health.frameRevision
+						|| previousState !== this.#interactivePublicState()
+					) {
+						this.#refreshFrame();
+						this.#emitChange();
+					}
+					if (health.publishedDpsCount > this.#publishedDpsCount) {
+						await this.#syncPublishedDps(health.publishedDpsCount);
+					}
+					return false;
+				}, false);
+				if (adopted) return;
+				lastError = undefined;
+			} catch (error) {
+				lastError = error;
+				if (error instanceof AppPluginHttpError && error.status === 401) {
+					location.reload();
+					return;
+				}
+			}
+		}
+		if (lastError !== undefined && generation === this.#interactionReconciliationGeneration) {
+			this.options.onEvent("AppPlugin-Sitzung konnte nicht automatisch wieder verbunden werden", {
+				message: lastError instanceof Error ? lastError.message : String(lastError),
+			});
+		}
+	}
+
+	async #adoptRestartedRuntime(health: LiveAppPluginHealth, previousSessionId: string): Promise<void> {
+		const previousHealth = this.#health;
+		const previousMapHealth = this.#mapHealth;
+		this.#health = health;
+		try {
+			await this.#resolveMapHealth();
+		} catch (error) {
+			this.#health = previousHealth;
+			this.#mapHealth = previousMapHealth;
+			throw error;
+		}
+		this.#activePointers.clear();
+		this.#pendingPointerMoves.clear();
+		this.#pendingWheel = undefined;
+		if (this.#pointerMoveFrame !== undefined) cancelAnimationFrame(this.#pointerMoveFrame);
+		if (this.#wheelFrame !== undefined) cancelAnimationFrame(this.#wheelFrame);
+		this.#pointerMoveFrame = undefined;
+		this.#wheelFrame = undefined;
+		this.#pointerMoveRequestActive = false;
+		this.#wheelRequestActive = false;
+		this.#localMapDrag = undefined;
+		this.#resetLocalMapPresentation();
+		this.#publishedDpsCount = health.publishedDpsCount;
+		this.#refreshFrame();
+		this.#emitChange();
+		this.options.onEvent("AppPlugin-Sitzung automatisch wieder verbunden", {
+			previousSessionId,
+			sessionId: health.sessionId,
+			profileId: health.profileId,
+			view: health.view,
+		});
 	}
 
 	async #resolveMapHealth(): Promise<void> {
@@ -1040,15 +1295,28 @@ export class LiveAppPluginMapSurface {
 
 	async #syncPublishedDps(expectedCount: number): Promise<void> {
 		const after = this.#publishedDpsCount;
-		const response = await fetch(`${this.#apiBaseUrl}/published-dps?after=${after}`, { cache: "no-store" });
-		if (!response.ok) throw new Error(`AppPlugin-DPS-Protokoll antwortet mit HTTP ${response.status}`);
+		const response = await this.#fetch(
+			`${this.#apiBaseUrl}/published-dps?after=${after}`,
+			{ cache: "no-store" },
+			5_000,
+		);
+		if (!response.ok) {
+			throw await responseError(response, `AppPlugin-DPS-Protokoll antwortet mit HTTP ${response.status}`);
+		}
 		const payload = await response.json() as PublishedDpsResponse;
 		if (payload.after !== after || payload.publishedDpsCount < expectedCount) {
 			throw new Error("AppPlugin-DPS-Protokoll ist nicht konsistent mit der Pointer-Antwort");
 		}
+		const firstSequence = payload.truncated ? (payload.retainedFrom ?? after) : after;
+		if (payload.truncated) {
+			this.options.onEvent("Ältere AppPlugin-Aufrufe wurden durch das Diagnose-Limit verworfen", {
+				requestedAfter: after,
+				retainedFrom: payload.retainedFrom,
+			});
+		}
 		payload.publishedDps.forEach((publication, index) => {
-			this.options.onEvent("Originaler AppPlugin-Aufruf – nicht an Gerät gesendet", {
-				sequence: after + index + 1,
+			this.options.onEvent("Vom Bundle gebildeter AppPlugin-Aufruf – nicht an Gerät gesendet", {
+				sequence: firstSequence + index + 1,
 				source: "RRDevice.deviceIOT.publishDps",
 				publication,
 			});
@@ -1059,16 +1327,26 @@ export class LiveAppPluginMapSurface {
 	}
 
 	#refreshFrame(): void {
-		this.options.frame.src = `${this.#apiBaseUrl}/frame.svg?view=${this.#health.view}&revision=${this.#health.frameRevision}`;
+		const session = encodeURIComponent(this.#sessionToken);
+		this.options.frame.src =
+			`${this.#apiBaseUrl}/frame.svg?view=${this.#health.view}&revision=${this.#health.frameRevision}&session=${session}`;
 		this.#syncNativeMapLayerLayout();
-		if (this.#health.view === "full" && this.#mapHealth) {
+		if (this.#nativeMapLayerActive()) {
 			this.options.nativeMapFrame.src =
-				`${this.#apiBaseUrl}/frame.svg?view=map&revision=${this.#health.frameRevision}`;
+				`${this.#apiBaseUrl}/frame.svg?view=map&revision=${this.#health.frameRevision}&session=${session}`;
 		}
 	}
 
+	#nativeMapLayerActive(): boolean {
+		return shouldShowAppPluginNativeMapSubview(
+			this.#health.view,
+			this.#mapHealth !== undefined,
+			this.#health.semanticActions,
+		);
+	}
+
 	#syncNativeMapLayerLayout(): void {
-		const active = this.#health.view === "full" && this.#mapHealth !== undefined;
+		const active = this.#nativeMapLayerActive();
 		this.options.nativeMapLayer.hidden = !active;
 		if (!active || !this.#mapHealth) return;
 		const rect = this.options.viewport.getBoundingClientRect();
@@ -1088,12 +1366,17 @@ export class LiveAppPluginMapSurface {
 		this.options.onChange(this.snapshot());
 	}
 
-	#enqueue<T>(operation: () => Promise<T>): Promise<T> {
+	#enqueue<T>(operation: () => Promise<T>, recoverRuntime = true): Promise<T> {
 		const pending = this.#requestQueue.then(operation, operation);
 		this.#requestQueue = pending.catch(error => {
 			this.options.onEvent("AppPlugin-Sitzungsfehler", {
 				message: error instanceof Error ? error.message : String(error),
 			});
+			if (error instanceof AppPluginHttpError && error.status === 401) {
+				location.reload();
+			} else if (recoverRuntime && shouldRecoverRuntime(error)) {
+				this.#scheduleRuntimeReconciliation();
+			}
 		});
 		return pending;
 	}

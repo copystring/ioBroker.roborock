@@ -92,4 +92,58 @@ describe("CanvasKit AppPlugin Skia host", () => {
 		context.drawImage(renderedImage, 0, 0);
 		expect([...context.getImageData(8, 8, 1, 1).data]).toEqual([255, 0, 0, 255]);
 	});
+
+	it("implements the complete RNSkia ColorFilter factory contract used by unchanged AppPlugins", async () => {
+		host = await createCanvasKitSkiaHost({
+			bundleRoot: path.resolve(__dirname, "..", ".."),
+			width: 16,
+			height: 16,
+		});
+		const api = host.api as Record<string, any>;
+		const identityColorMatrix = [
+			1, 0, 0, 0, 0,
+			0, 1, 0, 0, 0,
+			0, 0, 1, 0, 0,
+			0, 0, 0, 1, 0,
+		];
+		const linear = api.ColorFilter.MakeLinearToSRGBGamma();
+		const srgb = api.ColorFilter.MakeSRGBToLinearGamma();
+		const luma = api.ColorFilter.MakeLumaColorFilter();
+		const lumaAlias = api.ColorFilter.MakeLuma();
+		const matrix = api.ColorFilter.MakeMatrix(identityColorMatrix);
+		const blend = api.ColorFilter.MakeBlend("#ffffff", api.BlendMode.SrcOver);
+		const lerp = api.ColorFilter.MakeLerp(0.5, linear, srgb);
+		const composed = api.ColorFilter.MakeCompose(luma, matrix);
+
+		for (const filter of [linear, srgb, luma, lumaAlias, matrix, blend, lerp, composed]) {
+			expect(filter).toMatchObject({ __typename__: "ColorFilter" });
+		}
+		const paint = api.Paint();
+		paint.setColorFilter(composed);
+		expect(host.getDiagnostics().unsupportedCapabilities).toEqual([]);
+		expect(() => composed.dispose()).not.toThrow();
+		expect(() => composed.dispose()).not.toThrow();
+		for (const filter of [lerp, blend, matrix, lumaAlias, luma, srgb, linear]) filter.dispose();
+		paint.dispose();
+
+		expect(() => api.ColorFilter.MakeMatrix([1, 0, 0])).toThrow(
+			"Eine Skia-Farbmatrix muss genau 20 endliche Zahlen enthalten.",
+		);
+	});
+
+	it("parses SVG paths through the static Skia Path contract used by every local map AppPlugin family", async () => {
+		host = await createCanvasKitSkiaHost({
+			bundleRoot: path.resolve(__dirname, "..", ".."),
+			width: 16,
+			height: 16,
+		});
+		const api = host.api as Record<string, any>;
+		const pathFromSvg = api.Path.MakeFromSVGString("M 1 1 L 15 1 L 15 15 Z");
+
+		expect(pathFromSvg).toMatchObject({ __typename__: "Path" });
+		expect(pathFromSvg.countPoints()).toBeGreaterThan(0);
+		expect(api.Path.MakeFromSVGString("kein SVG-Pfad")).toBeNull();
+		pathFromSvg.dispose();
+		expect(host.getDiagnostics().unsupportedCapabilities).toEqual([]);
+	});
 });

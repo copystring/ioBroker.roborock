@@ -17,15 +17,21 @@ Der UI-PoC rekonstruiert nur die nativen Verträge, die das originale AppPlugin 
 
 Alle synthetischen Layout-Ereignisse werden nur einmal pro erstelltem React-Tag ausgelöst. Der Eventtyp wird wie in React Native als Direct Event registriert; Views ohne Listener ignorieren ihn. Dadurch muss der Host keine privaten React-Fiber-Details erraten.
 
-## Q10-Rasterbeleg
+## Q10-Historienbeleg
 
-Für den geprüften Q10-X5+-Hash erzeugt der originale Pfad drei RGBA-Bilder. Das Hauptbild hat 124 × 238 Pixel bei 496 Bytes Zeilenbreite. Sein Pixelhash und der daraus erzeugte PNG-Hash sind als Goldens im Test festgeschrieben. Das sichtbare Ergebnis enthält fünf getrennte Räume mit der vom AppPlugin gewählten Farbfolge.
-
-Die PNG-Kodierung ist bewusst eine Hostfunktion: `@napi-rs/canvas` schreibt die bereits fertigen RGBA-Pixel in ein plattformneutrales PNG. Es berechnet weder Raumgeometrien noch Farben.
+Für den geprüften Q10-X5+-Hash verarbeitet der originale Pfad die vorhandene
+Typ-3-Historienaufnahme. Der `.jx`-Worker liefert ein Kartenmodell mit 124 × 238
+Rasterpunkten und fünf Räumen. Das Bundle verwendet dieses Ergebnis nicht als
+Live-Home-Karte und erzeugt dabei weder ein erfasstes Skia-Raster noch ein PNG.
+Ein Q10-Rasterbeleg setzt deshalb eine echte Typ-1-Liveaufnahme voraus.
 
 ## Offene native Verträge
 
-Der Discovery-Proxy protokolliert viele weitere Skia-Aufrufe wie `PictureRecorder`, `Path`, `Paint`, `drawPath`, `drawImageRect`, Fonts und Paragraphen. Diese Operationen werden noch nicht vollständig offscreen komponiert. Deshalb fehlen im Referenz-PNG unter anderem der endgültige Roboter-/Dock-/Pfad-/Text-Layer und die vollständige Z-Reihenfolge.
+Der Discovery-Proxy kann Skia-Aufrufe wie `PictureRecorder`, `Path`, `Paint`,
+`drawPath`, `drawImageRect`, Fonts und Paragraphen protokollieren. Für Q10
+fehlt jedoch zunächst ein echter Live-Blob, der den dazugehörigen
+Home-Kartenpfad überhaupt auslöst. Erst dann können Komposition,
+Roboter-/Dock-/Pfad-/Text-Layer und Z-Reihenfolge geprüft werden.
 
 Ebenfalls offen sind:
 

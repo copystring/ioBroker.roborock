@@ -72,7 +72,7 @@ describe("Q7 M5 AppPlugin host-contract gate", () => {
 		expect(virtualWall(m5).measurement).toEqual({ x: 120, y: 493, width: 80, height: 4 });
 	});
 
-	it("locks the original bundle-specific virtual-wall render instead of hiding it behind a tolerance", async () => {
+	it("locks the bundle-specific host render of the virtual wall instead of hiding it behind a tolerance", async () => {
 		const comparison = await compareQ7FullScenePng(m5VisualPath, l5VisualPath);
 
 		expect(comparison.differingPixelCount).toBe(984);

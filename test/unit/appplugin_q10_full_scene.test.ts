@@ -21,8 +21,8 @@ const bundleRoot = path.join(
 const bundlePath = path.join(bundleRoot, "index.android.bundle");
 const q10It = fs.existsSync(bundlePath) ? it : it.skip;
 
-describe("original Q10 AppPlugin full-scene renderer", () => {
-	q10It("renders the unmodified original Skia picture without SVG reconstruction", async () => {
+describe("original Q10 AppPlugin history-scene boundary", () => {
+	q10It("keeps the type-3 history capture out of the live Home-map state", async () => {
 		const decrypted = MapDecryptor.decrypt(
 			Buffer.from(Q10_PRIMARY_SAMPLE),
 			Q10_FIXTURE_DEFAULTS.sn,
@@ -37,7 +37,8 @@ describe("original Q10 AppPlugin full-scene renderer", () => {
 		const outputPath = path.join(temporaryDirectory, "scene.png");
 		const host = await createCanvasKitSkiaHost({ bundleRoot, width: 360, height: 640 });
 		try {
-			const blob = Buffer.concat([Buffer.from([1]), decrypted!.subarray(1)]).toString("base64");
+			expect(decrypted![0]).toBe(3);
+			const blob = decrypted!.toString("base64");
 			const result = await probeMetroBundleUiContract(bundlePath, {
 				deviceModel: Q10_FIXTURE_DEFAULTS.model,
 				durationMs: 2_500,
@@ -68,13 +69,12 @@ describe("original Q10 AppPlugin full-scene renderer", () => {
 			expect(result.layoutEventErrors).toEqual([]);
 			expect(result.backgroundWorkerErrors).toEqual([]);
 			expect(result.skiaHostDiagnostics.unsupportedCapabilities).toEqual([]);
-			expect(result.skiaHostDiagnostics.pictureUpdates).toBeGreaterThan(2);
 			expect(result.skiaHostDiagnostics.pictureViews.some(
 				(view: { drawImageRects: Array<{ imageWidth: number; imageHeight: number; destination: number[] }> }) =>
 					view.drawImageRects.some(draw => draw.imageWidth === 124
 						&& draw.imageHeight === 238
 						&& draw.destination.every(Number.isFinite)),
-			)).toBe(true);
+			)).toBe(false);
 			expect(result.pngArtifact).toMatchObject({ outputPath, width: 360, height: 640 });
 
 			const renderedImage = await loadImage(outputPath);
@@ -86,7 +86,7 @@ describe("original Q10 AppPlugin full-scene renderer", () => {
 			for (let offset = 3; offset < pixels.length; offset += 4) {
 				if (pixels[offset] > 0) nonTransparentPixels++;
 			}
-			expect(nonTransparentPixels).toBeGreaterThan(15_000);
+			expect(nonTransparentPixels).toBe(0);
 		} finally {
 			host.dispose();
 			fs.rmSync(temporaryDirectory, { recursive: true, force: true });

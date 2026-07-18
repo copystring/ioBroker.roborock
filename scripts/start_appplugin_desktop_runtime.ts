@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 
 import { build } from "esbuild";
@@ -10,9 +12,11 @@ import {
 	writeAppPluginDesktopSessionState,
 } from "./lib/appPluginDesktopSessionState";
 import {
+	APPPLUGIN_DESKTOP_PROFILE_DEFINITIONS,
 	APPPLUGIN_DESKTOP_PROFILES,
 	clearAppPluginDesktopProfileSwitch,
 	consumeAppPluginDesktopProfileSwitch,
+	decideAppPluginDesktopSupervisorAction,
 	type AppPluginDesktopProfile,
 } from "./lib/appPluginDesktopProfiles";
 
@@ -133,11 +137,17 @@ function createQ7ReplayManifest(repositoryRoot: string, profile: "q7" | "q7-m5")
 function createQ10ReplayManifest(repositoryRoot: string): string {
 	const sourcePath = requireFile(
 		path.join(repositoryRoot, "artifacts", "appplugin-poc", "runtime-probes", "q10-history-replay.json"),
-		"Q10-Replayvertrag",
+		"Q10-Historien-Replayvertrag",
 	);
 	const manifest = JSON.parse(fs.readFileSync(sourcePath, "utf8")) as JsonRecord;
 	manifest.deviceContext = { firmwareVersion: "02.24.90" };
-	const outputPath = path.join(repositoryRoot, "artifacts", "appplugin-poc", "runtime-probes", "desktop-q10-live-replay.json");
+	const outputPath = path.join(
+		repositoryRoot,
+		"artifacts",
+		"appplugin-poc",
+		"runtime-probes",
+		"desktop-q10-history-replay.json",
+	);
 	fs.writeFileSync(outputPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 	return outputPath;
 }
@@ -145,6 +155,7 @@ function createQ10ReplayManifest(repositoryRoot: string): string {
 function createProfileArguments(
 	repositoryRoot: string,
 	profile: AppPluginDesktopProfile,
+	q10LocalKeyFilePath: string,
 ): string[] {
 	const isQ7Profile = profile === "q7" || profile === "q7-m5";
 	if (isQ7Profile) {
@@ -197,10 +208,10 @@ function createProfileArguments(
 		"--device-name", "Roborock Q10",
 		"--device-sn", Q10_FIXTURE_DEFAULTS.sn,
 		"--firmware-version", "02.24.90",
-		"--duid", "q10-local-map-device",
+		"--duid", "q10-local-history-device",
 		"--replay-manifest", createQ10ReplayManifest(repositoryRoot),
-		"--b01-local-key", Q10_FIXTURE_DEFAULTS.localKey,
-		"--profile-label", "Q10 X5+ / B01 · echte lokale Kartenaufnahme",
+		"--b01-local-key-file", q10LocalKeyFilePath,
+		"--profile-label", "Q10 X5+ / B01 · echte lokale Historienaufnahme (Blob 3)",
 		"--serve-full-root",
 	];
 }
@@ -230,8 +241,41 @@ async function main(): Promise<void> {
 		"runtime-probes",
 		"desktop-profile-switch.json",
 	);
+	const sessionStatePath = path.join(
+		repositoryRoot,
+		"artifacts",
+		"appplugin-poc",
+		"runtime-probes",
+		"desktop-apk-session-state.json",
+	);
+	if (!fs.existsSync(sessionStatePath)) {
+		const legacyProfileStatePath = path.join(
+			repositoryRoot,
+			"artifacts",
+			"appplugin-poc",
+			"runtime-probes",
+			`desktop-${options.profile}-session-state.json`,
+		);
+		writeAppPluginDesktopSessionState(
+			sessionStatePath,
+			readAppPluginDesktopSessionState(legacyProfileStatePath),
+		);
+	}
 	clearAppPluginDesktopProfileSwitch(profileSwitchPath);
 	const toolchainBin = resolveToolchainBin(repositoryRoot);
+	const secretDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "roborock-appplugin-"));
+	const q10LocalKeyFilePath = path.join(secretDirectory, "b01-local-key");
+	const httpSessionTokenFilePath = path.join(secretDirectory, "http-session-token");
+	fs.writeFileSync(q10LocalKeyFilePath, Q10_FIXTURE_DEFAULTS.localKey, {
+		encoding: "utf8",
+		mode: 0o600,
+	});
+	fs.writeFileSync(httpSessionTokenFilePath, randomBytes(32).toString("base64url"), {
+		encoding: "utf8",
+		mode: 0o600,
+	});
+	let consecutiveUnexpectedFailures = 0;
+	try {
 	for (;;) {
 		const profile = options.profile;
 		const bootstrapPath = path.join(
@@ -241,14 +285,7 @@ async function main(): Promise<void> {
 			"runtime-probes",
 			`desktop-${profile}-ipc-bridge.js`,
 		);
-		const sessionStatePath = path.join(
-			repositoryRoot,
-			"artifacts",
-			"appplugin-poc",
-			"runtime-probes",
-			`desktop-${profile}-session-state.json`,
-		);
-		const profileArguments = createProfileArguments(repositoryRoot, profile);
+		const profileArguments = createProfileArguments(repositoryRoot, profile, q10LocalKeyFilePath);
 		const state = readAppPluginDesktopSessionState(sessionStatePath);
 		writeAppPluginDesktopSessionState(sessionStatePath, { ...state, restartRequested: false });
 		const args = [runtimeProbePath,
@@ -268,7 +305,9 @@ async function main(): Promise<void> {
 			"--run-application", "--react-state-probe",
 			"--serve-port", String(APPPLUGIN_DESKTOP_PORT),
 			"--static-root", staticRootPath,
+			"--http-session-token-file", httpSessionTokenFilePath,
 			"--profile-id", profile,
+			"--map-family", APPPLUGIN_DESKTOP_PROFILE_DEFINITIONS[profile].mapFamily,
 			"--available-profiles", APPPLUGIN_DESKTOP_PROFILES.join(","),
 			"--profile-switch-file", profileSwitchPath,
 			"--session-state", sessionStatePath,
@@ -277,6 +316,7 @@ async function main(): Promise<void> {
 			`Starte ${profile.toUpperCase()} (${state.language}) mit echter lokaler Kartenaufnahme `
 			+ `auf der einzigen Adresse http://127.0.0.1:${APPPLUGIN_DESKTOP_PORT}/\n`,
 		);
+		const childStartedAt = Date.now();
 		const child = spawn(process.execPath, args, {
 			cwd: repositoryRoot,
 			env: {
@@ -291,14 +331,35 @@ async function main(): Promise<void> {
 			child.once("exit", code => resolve(code ?? 1));
 		});
 		const nextProfile = consumeAppPluginDesktopProfileSwitch(profileSwitchPath);
-		if (exitCode === 0 && nextProfile) {
-			options = { profile: nextProfile };
+		const nextState = readAppPluginDesktopSessionState(sessionStatePath);
+		const decision = decideAppPluginDesktopSupervisorAction({
+			exitCode,
+			nextProfile,
+			restartRequested: nextState.restartRequested,
+			runDurationMs: Date.now() - childStartedAt,
+			consecutiveUnexpectedFailures,
+		});
+		if (decision.action === "switch") {
+			options = { profile: decision.profile };
+			consecutiveUnexpectedFailures = 0;
 			continue;
 		}
-		const nextState = readAppPluginDesktopSessionState(sessionStatePath);
-		if (exitCode === 0 && nextState.restartRequested) continue;
-		process.exitCode = exitCode;
+		if (decision.action === "restart") {
+			consecutiveUnexpectedFailures = decision.consecutiveUnexpectedFailures;
+			if (decision.delayMs > 0) {
+				process.stderr.write(
+					`AppPlugin-Sitzung endete unerwartet (${exitCode}); `
+					+ `Neustart ${consecutiveUnexpectedFailures}/3 nach ${decision.delayMs} ms.\n`,
+				);
+				await new Promise(resolve => setTimeout(resolve, decision.delayMs));
+			}
+			continue;
+		}
+		process.exitCode = decision.exitCode;
 		break;
+	}
+	} finally {
+		fs.rmSync(secretDirectory, { force: true, recursive: true });
 	}
 }
 

@@ -37,9 +37,18 @@ function unrefTimer(timerFactory) {
 	};
 }
 
-function createFallbackFunction(capability, trace) {
+function invokeNativeCallback(callback, ...args) {
+	if (typeof callback !== "function") return;
+	const handle = setImmediate(() => callback(...args));
+	handle.unref?.();
+}
+
+function createFallbackFunction(capability, trace, allowUnknownNativeMethods) {
 	return (...args) => {
 		trace.record("fallback-call", capability, args);
+		if (!allowUnknownNativeMethods) {
+			throw new Error(`Unimplemented native AppPlugin capability: ${capability}`);
+		}
 		if (capability.endsWith(".addListener")) {
 			return { remove() {} };
 		}
@@ -48,7 +57,7 @@ function createFallbackFunction(capability, trace) {
 	};
 }
 
-function createNativeModule(name, implementation, trace) {
+function createNativeModule(name, implementation, trace, allowUnknownNativeMethods = false) {
 	const fallbackFunctions = new Map();
 	return new Proxy(implementation ?? {}, {
 		get(target, property, receiver) {
@@ -61,7 +70,7 @@ function createNativeModule(name, implementation, trace) {
 			const capability = `${name}.${property}`;
 			trace.record("fallback-access", capability);
 			if (!fallbackFunctions.has(property)) {
-				fallbackFunctions.set(property, createFallbackFunction(capability, trace));
+				fallbackFunctions.set(property, createFallbackFunction(capability, trace, allowUnknownNativeMethods));
 			}
 			return fallbackFunctions.get(property);
 		}
@@ -92,6 +101,11 @@ function createDefaultPluginSdk(bundlePath) {
 		safeAreaInsets: { top: 0, right: 0, bottom: 0, left: 0 },
 		productAgreements: [],
 		pluginAgreements: [],
+		eventCommonV2WithEventIDDict: () => {},
+		eventCommonWithEventIDDict: () => {},
+		eventRecordView: () => {},
+		eventStatusWithParamDic: () => {},
+		getCurrentCountryInfoCallback: callback => invokeNativeCallback(callback, false),
 		readFileListAtPath: () => Promise.resolve([]),
 		startBackgroundJsExecutor: () => null,
 		addListener: () => {},
@@ -111,11 +125,19 @@ function createDefaultDeviceModule(capturedDps, trace) {
 	};
 }
 
-function defaultNativeModules(bundlePath, trace, reportedExceptions, capturedDps, overrides = {}) {
+function defaultNativeModules(
+	bundlePath,
+	trace,
+	reportedExceptions,
+	capturedDps,
+	overrides = {},
+	allowUnknownNativeMethods = false,
+) {
 	const pluginSdk = createDefaultPluginSdk(bundlePath);
 	const pluginDevice = createDefaultDeviceModule(capturedDps, trace);
 	const modules = {
 		PlatformConstants: {
+			reactNativeVersion: { major: 0, minor: 73, patch: 0 },
 			getConstants: () => ({
 				Version: 35,
 				Release: "15",
@@ -139,10 +161,20 @@ function defaultNativeModules(bundlePath, trace, reportedExceptions, capturedDps
 			})
 		},
 		I18nManager: {
+			localeIdentifier: "de_DE",
 			getConstants: () => ({ isRTL: false, doLeftAndRightSwapInRTL: true, localeIdentifier: "de_DE" }),
 			allowRTL: () => {},
 			forceRTL: () => {},
 			swapLeftAndRightInRTL: () => {}
+		},
+		IntentAndroid: {
+			addListener: () => {},
+			canOpenURL: () => Promise.resolve(false),
+			getInitialURL: () => Promise.resolve(null),
+			openSettings: () => Promise.resolve(true),
+			openURL: () => Promise.reject(new Error("Capture-only-Host öffnet keine externen URLs")),
+			removeListeners: () => {},
+			sendIntent: () => Promise.reject(new Error("Capture-only-Host sendet keine Android-Intents"))
 		},
 		UIManager: {
 			getConstants: () => ({
@@ -179,10 +211,91 @@ function defaultNativeModules(bundlePath, trace, reportedExceptions, capturedDps
 		},
 		AppState: {
 			getConstants: () => ({ initialAppState: "active" }),
-			getCurrentAppState: success => success?.({ app_state: "active" })
+			getCurrentAppState: success => invokeNativeCallback(success, { app_state: "active" })
 		},
 		AccessibilityInfo: {
 			getConstants: () => ({})
+		},
+		StatusBarManager: {
+			getConstants: () => ({ HEIGHT: 0, DEFAULT_BACKGROUND_COLOR: "black" }),
+			setColor: () => {},
+			setHidden: () => {},
+			setStyle: () => {},
+			setTranslucent: () => {}
+		},
+		NativePerformanceObserverCxx: {
+			setIsBuffered: () => {},
+			startReporting: () => {},
+			stopReporting: () => {}
+		},
+		NativeAnimatedModule: {
+			addAnimatedEventToView: () => {},
+			addListener: () => {},
+			connectAnimatedNodeToView: () => {},
+			connectAnimatedNodes: () => {},
+			createAnimatedNode: () => {},
+			disconnectAnimatedNodeFromView: () => {},
+			disconnectAnimatedNodes: () => {},
+			dropAnimatedNode: () => {},
+			extractAnimatedNodeOffset: () => {},
+			finishOperationBatch: () => {},
+			flattenAnimatedNodeOffset: () => {},
+			getValue: (_nodeTag, callback) => invokeNativeCallback(callback, 0),
+			queueAndExecuteBatchedOperations: () => {},
+			removeAnimatedEventFromView: () => {},
+			removeListeners: () => {},
+			restoreDefaultValues: () => {},
+			setAnimatedNodeOffset: () => {},
+			setAnimatedNodeValue: () => {},
+			startAnimatingNode: () => {},
+			startListeningToAnimatedNodeValue: () => {},
+			startOperationBatch: () => {},
+			stopAnimation: () => {},
+			stopListeningToAnimatedNodeValue: () => {},
+			updateAnimatedNodeConfig: () => {}
+		},
+		LottieAnimationView: {
+			VERSION: 1
+		},
+		LottieAnimationViewManager: {
+			VERSION: 1
+		},
+		RRPAGanimationViewManager: {
+			VERSION: 1
+		},
+		RRPAGImageViewModule: {
+			VERSION: 1
+		},
+		AsyncSQLiteDBStorage: {
+			multiGet: () => {},
+			multiMerge: () => {},
+			multiSet: () => {}
+		},
+		Orientation: {
+			addListener: () => {},
+			getAutoRotateState: callback => invokeNativeCallback(callback, false),
+			getConstants: () => ({ initialOrientation: "PORTRAIT" }),
+			getDeviceOrientation: callback => invokeNativeCallback(callback, "PORTRAIT"),
+			getOrientation: callback => invokeNativeCallback(callback, "PORTRAIT"),
+			lockToLandscape: () => {},
+			lockToLandscapeLeft: () => {},
+			lockToLandscapeRight: () => {},
+			lockToPortrait: () => {},
+			lockToPortraitUpsideDown: () => {},
+			removeListeners: () => {},
+			unlockAllOrientations: () => {}
+		},
+		RNCSafeAreaContext: {
+			getConstants: () => ({
+				initialWindowMetrics: {
+					insets: { top: 0, right: 0, bottom: 0, left: 0 },
+					frame: { x: 0, y: 0, width: 360, height: 640 }
+				}
+			})
+		},
+		RNCWebViewModule: {
+			isFileUploadSupported: () => Promise.resolve(false),
+			shouldStartLoadWithLockIdentifier: () => {}
 		},
 		RNCNetInfo: {
 			getCurrentState: () => Promise.resolve({
@@ -198,7 +311,13 @@ function defaultNativeModules(bundlePath, trace, reportedExceptions, capturedDps
 		RRPluginSDKTurboModule: pluginSdk,
 		RRPluginDevice: pluginDevice,
 		RRPluginDeviceTurboModule: pluginDevice,
+		RRPluginDeviceFirmware: {
+			addListener: () => {},
+			checkProgress: () => {},
+			removeListeners: () => {}
+		},
 		RRPluginDarkMode: {
+			colorScheme: "light",
 			getColorScheme: () => "light",
 			addListener: () => {},
 			removeListeners: () => {}
@@ -211,22 +330,46 @@ function defaultNativeModules(bundlePath, trace, reportedExceptions, capturedDps
 		},
 		ReactLocalization: {
 			language: "de",
-			getLanguage: callback => callback?.("de")
+			getLanguage: callback => invokeNativeCallback(callback, "de")
 		},
 		...overrides
 	};
 
-	return new Map(Object.entries(modules).map(([name, implementation]) => [name, createNativeModule(name, implementation, trace)]));
+	return new Map(Object.entries(modules).map(([name, implementation]) => [
+		name,
+		createNativeModule(name, implementation, trace, allowUnknownNativeMethods),
+	]));
 }
 
-function createAppRegistryFacade(context) {
+function createAppRegistryFacade(context, timeoutMs = 10_000) {
+	const invokeInContext = (expression, arguments_) => {
+		if (!vm.isContext(context)) return undefined;
+		if (Object.hasOwn(context, "__appPluginHostInvocationArguments")) {
+			throw new Error("AppPlugin-AppRegistry-Aufruf ist bereits aktiv");
+		}
+		context.__appPluginHostInvocationArguments = arguments_;
+		try {
+			return new vm.Script(expression, { filename: "appplugin-app-registry-host.js" }).runInContext(context, {
+				timeout: timeoutMs
+			});
+		} finally {
+			delete context.__appPluginHostInvocationArguments;
+		}
+	};
 	const directRegistry = context.RN$AppRegistry;
 	if (directRegistry && typeof directRegistry.getAppKeys === "function") {
 		return {
 			kind: "direct",
-			getAppKeys: () => directRegistry.getAppKeys(),
+			getAppKeys: () => vm.isContext(context)
+				? invokeInContext("RN$AppRegistry.getAppKeys()", [])
+				: directRegistry.getAppKeys(),
 			runApplication: (appKey, appParameters, displayMode) =>
-				directRegistry.runApplication(appKey, appParameters, displayMode)
+				vm.isContext(context)
+					? invokeInContext(
+						"RN$AppRegistry.runApplication(...global.__appPluginHostInvocationArguments)",
+						[appKey, appParameters, displayMode]
+					)
+					: directRegistry.runApplication(appKey, appParameters, displayMode)
 		};
 	}
 
@@ -234,7 +377,13 @@ function createAppRegistryFacade(context) {
 	if (!bridge || typeof bridge.callFunctionReturnResultAndFlushedQueue !== "function") return undefined;
 
 	const call = (method, args) => {
-		const result = bridge.callFunctionReturnResultAndFlushedQueue("AppRegistry", method, args);
+		const result = vm.isContext(context)
+			? invokeInContext(
+				"__fbBatchedBridge.callFunctionReturnResultAndFlushedQueue("
+					+ "\"AppRegistry\", ...global.__appPluginHostInvocationArguments)",
+				[method, args]
+			)
+			: bridge.callFunctionReturnResultAndFlushedQueue("AppRegistry", method, args);
 		return Array.isArray(result) ? result[0] : undefined;
 	};
 
@@ -261,12 +410,14 @@ class DirectMetroBundleRuntime {
 		this.logs = [];
 		this.reportedExceptions = [];
 		this.capturedDps = [];
+		this.allowUnknownNativeMethods = options.allowUnknownNativeMethods === true;
 		this.nativeModules = defaultNativeModules(
 			this.bundlePath,
 			this.trace,
 			this.reportedExceptions,
 			this.capturedDps,
-			options.nativeModules
+			options.nativeModules,
+			this.allowUnknownNativeMethods,
 		);
 		this.context = vm.createContext(this.#createSandbox(options.globals ?? {}), {
 			name: `direct-appplugin:${path.basename(path.dirname(this.bundlePath))}`
@@ -277,7 +428,10 @@ class DirectMetroBundleRuntime {
 		const getNativeModule = name => {
 			this.trace.record("module-request", String(name));
 			if (!this.nativeModules.has(name)) {
-				this.nativeModules.set(name, createNativeModule(String(name), {}, this.trace));
+				this.nativeModules.set(
+					name,
+					createNativeModule(String(name), {}, this.trace, this.allowUnknownNativeMethods),
+				);
 			}
 			return this.nativeModules.get(name);
 		};
@@ -313,7 +467,9 @@ class DirectMetroBundleRuntime {
 			clearInterval,
 			clearTimeout,
 			console: consoleBridge,
-			fetch,
+			fetch: (..._args) => Promise.reject(new Error(
+				"Direct-Metro-PoC blockiert Netzwerkzugriff; stelle fetch nur als expliziten Test-Override bereit",
+			)),
 			nativeModuleProxy: new Proxy({}, { get: (_target, name) => getNativeModule(name) }),
 			navigator: { product: "ReactNative" },
 			performance,
@@ -342,7 +498,7 @@ class DirectMetroBundleRuntime {
 		const afterSha256 = crypto.createHash("sha256").update(after).digest("hex");
 		if (sha256 !== afterSha256) throw new Error("Bundle changed while it was being executed");
 
-		const appRegistry = createAppRegistryFacade(this.context);
+		const appRegistry = createAppRegistryFacade(this.context, this.timeoutMs);
 		return {
 			bundlePath: this.bundlePath,
 			sha256,

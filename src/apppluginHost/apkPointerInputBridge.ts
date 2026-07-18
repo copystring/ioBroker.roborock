@@ -24,6 +24,12 @@ export interface ApkNativePointerObserver {
 	cancel(): void;
 }
 
+export interface ApkPointerMove {
+	identifier: number;
+	pageX: number;
+	pageY: number;
+}
+
 /**
  * Converts pointer input from the PC shell into the same touch stream that the
  * APK sends to RCTEventEmitter. It does not interpret map gestures or rooms.
@@ -95,15 +101,60 @@ export class ApkPointerInputBridge {
 		pageY: number,
 		timestamp: number
 	): Promise<Readonly<ApkTouchDispatch>> {
-		const pointer = this.#active(identifier);
-		pointer.pageX = pageX;
-		pointer.pageY = pageY;
-		await this.nativeObserver?.pointerMove(identifier, pageX, pageY, timestamp);
-		this.#refreshCoordinatesFromCurrentHitTarget();
-		return this.dispatcher.dispatch({
-			eventName: "topTouchMove",
-			touches: this.#touches(timestamp)
+		return this.pointerMoves([{ identifier, pageX, pageY }], timestamp);
+	}
+
+	/**
+	 * Applies every pointer coordinate from one Android ACTION_MOVE before
+	 * emitting the single React Native topTouchMove belonging to that frame.
+	 */
+	public async pointerMoves(
+		moves: readonly Readonly<ApkPointerMove>[],
+		timestamp: number,
+	): Promise<Readonly<ApkTouchDispatch>> {
+		if (moves.length === 0) throw new Error("Touch-MOVE benötigt mindestens einen Zeiger");
+		this.#validateTimestamp(timestamp);
+		const identifiers = new Set<number>();
+		const resolved = moves.map(move => {
+			if (identifiers.has(move.identifier)) {
+				throw new Error(`Touch-MOVE enthält doppelte Zeigerkennung ${move.identifier}`);
+			}
+			identifiers.add(move.identifier);
+			if (!Number.isFinite(move.pageX) || !Number.isFinite(move.pageY)) {
+				throw new Error("Touch-MOVE-Koordinaten müssen endliche Zahlen sein");
+			}
+			return { move, pointer: this.#active(move.identifier) };
 		});
+		const previousCoordinates = resolved.map(({ pointer }) => ({
+			pointer,
+			pageX: pointer.pageX,
+			pageY: pointer.pageY,
+		}));
+		for (const { move, pointer } of resolved) {
+			pointer.pageX = move.pageX;
+			pointer.pageY = move.pageY;
+		}
+		try {
+			for (const { move } of resolved) {
+				await this.nativeObserver?.pointerMove(
+					move.identifier,
+					move.pageX,
+					move.pageY,
+					timestamp,
+				);
+			}
+			this.#refreshCoordinatesFromCurrentHitTarget();
+			return await this.dispatcher.dispatch({
+				eventName: "topTouchMove",
+				touches: this.#touches(timestamp)
+			});
+		} catch (error) {
+			for (const previous of previousCoordinates) {
+				previous.pointer.pageX = previous.pageX;
+				previous.pointer.pageY = previous.pageY;
+			}
+			throw error;
+		}
 	}
 
 	public async pointerUp(
@@ -154,9 +205,7 @@ export class ApkPointerInputBridge {
 	}
 
 	#touches(timestamp: number): readonly ApkTouchPoint[] {
-		if (!Number.isFinite(timestamp) || timestamp < 0) {
-			throw new Error("Touch-Zeitstempel muss eine nichtnegative endliche Zahl sein");
-		}
+		this.#validateTimestamp(timestamp);
 		return this.#activePointers.map(pointer => ({
 			identifier: pointer.identifier,
 			targetSurface: pointer.targetSurface,
@@ -179,6 +228,12 @@ export class ApkPointerInputBridge {
 	#validateIdentifier(identifier: number): void {
 		if (!Number.isSafeInteger(identifier) || identifier < 0) {
 			throw new Error("Zeigerkennung muss eine nichtnegative ganze Zahl sein");
+		}
+	}
+
+	#validateTimestamp(timestamp: number): void {
+		if (!Number.isFinite(timestamp) || timestamp < 0) {
+			throw new Error("Touch-Zeitstempel muss eine nichtnegative endliche Zahl sein");
 		}
 	}
 }

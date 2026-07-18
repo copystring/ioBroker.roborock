@@ -16,8 +16,9 @@ export interface ApkSemanticUiAction {
 	label: string;
 	enabled: boolean;
 	selected: boolean;
-	owner: "unchanged-appplugin-ui";
-	contract: "scmap-bottom-control-panel-v2";
+	owner: "desktop-host-adapter";
+	provenance: "host-heuristic-from-appplugin-tree";
+	contract: "host-map-bottom-control-panel-v3";
 }
 
 export interface ApkResolvedSemanticUiAction extends ApkSemanticUiAction {
@@ -86,7 +87,7 @@ function collectGroups(root: ApkUiManagerNodeSnapshot, buttonCount: number): Pre
 		node: ApkUiManagerNodeSnapshot,
 		path: readonly ApkUiManagerNodeSnapshot[],
 	): void => {
-		const buttons = node.children.filter(child => isPressable(child) && rawText(child).length > 0);
+		const buttons = collectPressables(node).filter(button => rawText(button).length > 0);
 		if (buttons.length === buttonCount) result.push({ node, path: [...path, node], buttons });
 		for (const child of node.children) visit(child, [...path, node]);
 	};
@@ -113,7 +114,7 @@ function measuredGroupCenterY(
 	return boxes.reduce((sum, box) => sum + box!.y + box!.height / 2, 0) / boxes.length;
 }
 
-function selectScMapControlGroups(
+function selectMapControlGroups(
 	root: ApkUiManagerNodeSnapshot,
 	measure: (tag: number) => Readonly<ApkNativeMeasuredBox> | undefined,
 ): Readonly<{
@@ -161,8 +162,9 @@ function resolveGroup(
 			label,
 			enabled: !isDisabled(button),
 			selected: ids[index].startsWith("map.mode.") && selectedByAppPlugin(button),
-			owner: "unchanged-appplugin-ui",
-			contract: "scmap-bottom-control-panel-v2",
+			owner: "desktop-host-adapter",
+			provenance: "host-heuristic-from-appplugin-tree",
+			contract: "host-map-bottom-control-panel-v3",
 			reactTag: button.tag,
 			center: Object.freeze({
 				x: box.x + box.width / 2,
@@ -180,6 +182,22 @@ function collectPressables(root: ApkUiManagerNodeSnapshot): ApkUiManagerNodeSnap
 	};
 	visit(root);
 	return result;
+}
+
+function containsTag(root: ApkUiManagerNodeSnapshot, tag: number): boolean {
+	if (root.tag === tag) return true;
+	return root.children.some(child => containsTag(child, tag));
+}
+
+function actionOwnsCurrentHitTarget(
+	root: ApkUiManagerNodeSnapshot,
+	action: Readonly<ApkResolvedSemanticUiAction>,
+	hitTargetAt: (x: number, y: number) => number | undefined,
+): boolean {
+	const pressable = collectPressables(root).find(node => node.tag === action.reactTag);
+	if (!pressable) return false;
+	const hitTarget = hitTargetAt(action.center.x, action.center.y);
+	return hitTarget !== undefined && containsTag(pressable, hitTarget);
 }
 
 function resolvePrimaryExecutionAction(
@@ -203,14 +221,15 @@ function resolvePrimaryExecutionAction(
 	const button = candidates[0];
 	const box = measure(button.tag)!;
 	const label = rawText(groups.primary.buttons[0]);
-	if (!label) throw new Error("SCMap-AppPlugin besitzt keinen Bundle-Text für die primäre Reinigungsaktion");
+	if (!label) throw new Error("AppPlugin besitzt keinen Bundle-Text für die primäre Reinigungsaktion");
 	return {
 		id: "clean.start",
 		label,
 		enabled: !isDisabled(button),
 		selected: false,
-		owner: "unchanged-appplugin-ui",
-		contract: "scmap-bottom-control-panel-v2",
+		owner: "desktop-host-adapter",
+		provenance: "host-heuristic-from-appplugin-tree",
+		contract: "host-map-bottom-control-panel-v3",
 		reactTag: button.tag,
 		center: Object.freeze({
 			x: box.x + box.width / 2,
@@ -220,21 +239,26 @@ function resolvePrimaryExecutionAction(
 }
 
 /**
- * Resolves the SCMap control panel rendered by the unchanged AppPlugin.
+ * Derives a temporary desktop action adapter from a map control panel.
  *
- * The APK/AppPlugin contract is structural: a three-slot map-mode group sits
- * directly above two labelled side actions. The icon-only primary execution
- * action is the sole additional pressable in their nearest common panel. Its
- * user-facing label is inherited from the AppPlugin's cleaning side action.
- * Labels, enabled state, selected state, React tags and coordinates all come
- * from the current native AppPlugin tree. No localized label or model-specific
- * screen coordinate is part of the host contract.
+ * The observed AppPlugin contract is structural: a three-slot map-mode group
+ * sits above two labelled side actions. Individual buttons may be wrapped by
+ * bundle-owned layout views. The icon-only primary execution action is the sole
+ * additional pressable in their nearest common panel. Its user-facing label is
+ * inherited from the AppPlugin's cleaning side action. Labels, enabled state,
+ * selected state, React tags and coordinates are observed in the current
+ * AppPlugin tree. Every action also has to own the current native APK hit
+ * target at its measured center. This makes the adapter fail closed while a
+ * bundle-owned modal or foreground page occludes a structurally retained map
+ * panel. The action IDs, group sizes and selection heuristic remain host-owned
+ * and must not be presented as an APK contract.
  */
 export function resolveApkSemanticUiActions(
 	root: ApkUiManagerNodeSnapshot,
 	measure: (tag: number) => Readonly<ApkNativeMeasuredBox> | undefined,
+	hitTargetAt: (x: number, y: number) => number | undefined,
 ): readonly Readonly<ApkResolvedSemanticUiAction>[] {
-	const groups = selectScMapControlGroups(root, measure);
+	const groups = selectMapControlGroups(root, measure);
 	if (!groups) return Object.freeze([]);
 	const primaryExecution = resolvePrimaryExecutionAction(groups.panel, groups, measure);
 	if (!primaryExecution) return Object.freeze([]);
@@ -243,11 +267,14 @@ export function resolveApkSemanticUiActions(
 		...resolveGroup(groups.primary, panelActionIds, measure),
 		primaryExecution,
 	];
+	if (actions.some(action => !actionOwnsCurrentHitTarget(root, action, hitTargetAt))) {
+		return Object.freeze([]);
+	}
 	const selectedModeCount = actions.filter(action =>
 		action.id.startsWith("map.mode.") && action.selected,
 	).length;
 	if (selectedModeCount !== 1) {
-		throw new Error(`SCMap-AppPlugin muss genau einen Kartenmodus markieren, gefunden: ${selectedModeCount}`);
+		throw new Error(`AppPlugin muss genau einen Kartenmodus markieren, gefunden: ${selectedModeCount}`);
 	}
 	return Object.freeze(actions.map(action => Object.freeze(action)));
 }

@@ -3,8 +3,8 @@
 	"project": "ioBroker Roborock AppPlugin-first Rework",
 	"lastReviewed": "2026-07-18",
 	"currentPhase": "0C",
-	"currentFocus": ["P0C-Q7-ROOM-PROPERTIES"],
-	"nextUp": ["P0C-Q7-ROOM-PROPERTIES", "P0C-Q7-BOUNDARIES", "P0C-Q7-ZONES", "P0C-Q7-MAP-STOCK"],
+	"currentFocus": ["P0C-ANDROID-DIFFERENTIAL", "P0C-Q7-ROOM-PROPERTIES"],
+	"nextUp": ["P0C-ANDROID-DIFFERENTIAL", "P0C-Q7-ROOM-PROPERTIES", "P0C-Q7-BOUNDARIES", "P0C-Q7-ZONES", "P0C-Q7-MAP-STOCK"],
 	"phases": [
 		{
 			"id": "0A",
@@ -23,6 +23,12 @@
 			"title": "Verhaltensnachweis",
 			"status": "in_progress",
 			"exitCriterion": "Jede unterschiedliche Kartenfamilie besteht mit echten Daten ihre Render-, Interaktions-, Editier-, Fehler-, Theme-, Locale- und Wiederanlauf-Gates."
+		},
+		{
+			"id": "0D",
+			"title": "Härtung und externe APK-Abnahme",
+			"status": "pending",
+			"exitCriterion": "Android-Differenznachweise, Prozessisolation, Default-deny-Ressourcen, lokale API-Sicherheit und plattformübergreifende Betriebsgrenzen sind vor der Produkt-Runtime bestanden."
 		},
 		{
 			"id": "1",
@@ -56,7 +62,7 @@
 			"title": "YX/Skia – Q10 und Q10 X5+",
 			"contract": "Metro, YXHomeMapContentView, .jx-Worker und Skia",
 			"status": "in_progress",
-			"gate": "Vom belegten Originalraster zur vollständigen Szene, Interaktion und Editierung gelangen."
+			"gate": "Eine echte Typ-1-Liveaufnahme mit passender DPS-Sequenz und Android-Referenz beschaffen; die vorhandene Typ-3-Historienaufnahme belegt nur den Worker-Datenfluss."
 		},
 		{
 			"id": "v1",
@@ -239,6 +245,7 @@
 				"src/apppluginHost/apkScrollViewRuntime.ts",
 				"src/apppluginHost/apkUiManagerRuntime.ts",
 				"src/apppluginHost/apkNativeViewHierarchyRuntime.ts",
+				"scripts/appplugin_hermes_runtime_probe.ts",
 				"src/www/apppluginLab/live-appplugin-map-surface.ts",
 				"test/unit/appplugin_apk_pointer_input_bridge.test.ts",
 				"test/unit/appplugin_desktop.test.ts",
@@ -248,7 +255,7 @@
 				"test/unit/appplugin_apk_text_input_runtime.test.ts",
 				"test/unit/appplugin_apk_native_animated_runtime.test.ts"
 			],
-			"nextAction": "Pointerverlust, Abbruch, Fokus, Fling/Momentum und verschachtelte ScrollViews gegen Familienläufe schließen; lokale native Drag-Präsentation, die native Karten-Unteransicht im vollständigen AppPlugin-Root, autoritativer AppPlugin-Abgleich, Latest-MOVE und ScrollView bleiben zentrale Host-Verträge. Auf Q10/YX erst nach belegter interaktiver Kartenfläche erweitern."
+			"nextAction": "Die für Q7 L5/M5 belegte Trennung gebündelter MotionEvents gegen einen unabhängigen Android-Capture prüfen; Pointerverlust, Fokus, Fling/Momentum und verschachtelte ScrollViews gegen Familienläufe schließen. Lokale native Drag-Präsentation, native Karten-Unteransicht, Latest-MOVE und ScrollView bleiben zentrale Host-Verträge. Auf Q10/YX erst nach belegter interaktiver Kartenfläche erweitern."
 		},
 		{
 			"id": "P0B-SKIA-HOST",
@@ -411,7 +418,7 @@
 			"area": "Q7 L5/M5 – Interaktion",
 			"family": "scmap",
 			"title": "Raum-Tap, Auswahl, Abwahl, Grenzpunkt und Auswahl über Moduswechsel nachweisen",
-			"status": "completed",
+			"status": "in_progress",
 			"priority": "P0",
 			"dependsOn": ["P0C-Q7-DIRECT-RUN", "P0B-INPUT-LAYOUT"],
 			"evidence": [
@@ -425,18 +432,19 @@
 				"test/fixtures/appplugin/q7-room-selection-mode-cycle.json",
 				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md"
 			],
-			"nextAction": "Auswahlzustand nach echtem Kartenwechsel und Historienkarte prüfen; danach einen semantischen Desktop-Einstieg ohne versteckte Bildschirmkoordinaten belegen."
+			"nextAction": "Bundle-Zustände und Host-Regressionsbilder gegen eine unabhängig in der originalen Android-App aufgezeichnete Referenz prüfen; danach Kartenwechsel und Historienkarte ergänzen."
 		},
 		{
 			"id": "P0C-Q7-GESTURES",
 			"phase": "0C",
 			"area": "Q7 L5/M5 – Interaktion",
 			"family": "scmap",
-			"title": "Drag, Pinch, Zoomgrenzen, Originalanker, Abbruch und Wiederaufnahme durch die originale Touchkette nachweisen",
-			"status": "completed",
+			"title": "Drag, Pinch, Zoomgrenzen, Anker, Abbruch und Wiederaufnahme durch die nachgebaute APK-Touchkette prüfen",
+			"status": "in_progress",
 			"priority": "P0",
 			"dependsOn": ["P0C-Q7-DIRECT-RUN", "P0B-INPUT-LAYOUT"],
 			"evidence": [
+				"scripts/appplugin_hermes_runtime_probe.ts",
 				"scripts/prove_q7_appplugin_gestures.ts",
 				"test/unit/appplugin_apk_pointer_replay_manifest.test.ts",
 				"test/unit/appplugin_apk_pointer_input_bridge.test.ts",
@@ -447,15 +455,15 @@
 				"`npm run poc:appplugin-q7-gestures`",
 				"`npm run poc:appplugin-q7-m5-gestures`"
 			],
-			"nextAction": "Dieselbe matrixbasierte Originalsemantik auf weitere Kartenfamilien übertragen; keine Web-Zoomgrenze oder eigenen Fokuspunkt erzwingen."
+			"nextAction": "Pointerfolge, Matrizen, Zoomgrenzen und Anker gegen einen unabhängigen Android-Capture differenziell prüfen; erst danach auf weitere Kartenfamilien übertragen."
 		},
 		{
 			"id": "P0C-Q7-FULL-SCENE",
 			"phase": "0C",
 			"area": "Q7 L5/M5 – Rendering",
 			"family": "scmap",
-			"title": "Vollständige Q7-L5-Szene mit korrekter Z-Reihenfolge und Golden absichern",
-			"status": "completed",
+			"title": "Q7-L5-Szene und Z-Reihenfolge im nachgebauten Host erfassen und gegen Android absichern",
+			"status": "in_progress",
 			"priority": "P0",
 			"dependsOn": ["P0C-Q7-DIRECT-RUN", "P0B-SKIA-HOST"],
 			"evidence": [
@@ -467,15 +475,15 @@
 				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
 				"`npm run poc:appplugin-q7-full-scene-proof`"
 			],
-			"nextAction": "Das unveränderte Vollszenen-Gate als Ausgangszustand für Split, Merge, Theme, Locale und weitere SCMap-Bundles wiederverwenden."
+			"nextAction": "Die vorhandenen Host-Regressionsgoldens nicht als Originalpixel behandeln, sondern mit identischem Bundle, Fixture, Viewport, Theme und Locale gegen einen externen Android-Capture vergleichen."
 		},
 		{
 			"id": "P0C-Q7-ACTOR-SCALING",
 			"phase": "0C",
 			"area": "Q7 L5 – Rendering",
 			"family": "scmap",
-			"title": "Roboter und Station mit originalen AppPlugin-Faktoren, Z-Reihenfolge und Kartenzoom absichern",
-			"status": "completed",
+			"title": "Roboter und Station mit bundle-eigenen Faktoren, Z-Reihenfolge und Kartenzoom absichern",
+			"status": "in_progress",
 			"priority": "P0",
 			"dependsOn": ["P0B-DEVICE-INGRESS", "P0C-Q7-FULL-SCENE", "P0C-Q7-GESTURES"],
 			"evidence": [
@@ -488,7 +496,7 @@
 				"`npm run poc:appplugin-q7-actor-scaling`",
 				"`npm run poc:appplugin-q7-m5-actor-scaling`"
 			],
-			"nextAction": "Dasselbe zustandsunabhängige Akteur-Gate ohne Hostgrößen oder Asset-Sonderfälle gegen Q10 und weitere technisch unterschiedliche Kartenfamilien ausführen."
+			"nextAction": "Sichtbare Größe, Mittelpunkt, Überdeckung und Zoomverhalten zusätzlich gegen die originale Android-App vergleichen; danach Q10 und weitere Kartenfamilien prüfen."
 		},
 		{
 			"id": "P0C-Q7-THEME",
@@ -496,7 +504,7 @@
 			"area": "Q7 L5/M5 – Theme und Locale",
 			"family": "scmap",
 			"title": "Hell, Dunkel und Systemmodus in derselben laufenden Kartenfixture nachweisen",
-			"status": "completed",
+			"status": "in_progress",
 			"priority": "P0",
 			"dependsOn": ["P0B-THEME-LOCALE-EVENTS", "P0C-Q7-FULL-SCENE"],
 			"evidence": [
@@ -525,15 +533,15 @@
 				"`npm run poc:appplugin-q7-theme-goldens`",
 				"`npm run poc:appplugin-q7-m5-theme-goldens`"
 			],
-			"nextAction": "Dasselbe Hell-/Dunkel-/System-Gate mit unveränderten Bundles auf Q10 und weitere technisch unterschiedliche Familien übertragen."
+			"nextAction": "Bundle-Zustand und Host-Regressionsbilder für Hell, Dunkel und System gegen unabhängige Android-Referenzen vergleichen; danach weitere Familien ergänzen."
 		},
 		{
 			"id": "P0C-Q7-LOCALE",
 			"phase": "0C",
 			"area": "Q7 L5 – Theme und Locale",
 			"family": "scmap",
-			"title": "AppPlugin-Übersetzungen, Raumtypen und Raumnamen über den originalen Localeweg prüfen",
-			"status": "completed",
+			"title": "AppPlugin-Übersetzungen, Raumtypen und Raumnamen über den nachgebauten APK-Localeweg prüfen",
+			"status": "in_progress",
 			"priority": "P0",
 			"dependsOn": ["P0B-THEME-LOCALE-EVENTS", "P0C-Q7-DIRECT-RUN"],
 			"evidence": [
@@ -552,7 +560,7 @@
 				"test/unit/appplugin_apk_yoga_layout_runtime.test.ts",
 				"test/unit/appplugin_desktop.test.ts"
 			],
-			"nextAction": "Dasselbe Bundle-, Text-, Browserbild- und RTL-Touchgate ohne Hostübersetzungen auf Q10 und weitere AppPlugin-Familien anwenden."
+			"nextAction": "Arabisch/RTL, Region- und Systemfallback mit denselben Einstellungen in der originalen Android-App aufzeichnen und differenziell vergleichen; weitere Familien danach ergänzen."
 		},
 		{
 			"id": "P0C-Q7-RENAME-HAPPY",
@@ -655,8 +663,8 @@
 			"phase": "0C",
 			"area": "Q7 L5/M5 – Kartenbearbeitung",
 			"family": "scmap",
-			"title": "Raum teilen mit originaler Linie, Griffen, Grenzen und Befehlsabsicht prüfen",
-			"status": "completed",
+			"title": "Raum teilen mit bundle-eigener Linie, Griffen, Grenzen und Befehlsabsicht prüfen",
+			"status": "in_progress",
 			"priority": "P0",
 			"dependsOn": ["P0C-Q7-FULL-SCENE", "P0B-CAPTURE-ONLY"],
 			"evidence": [
@@ -671,15 +679,15 @@
 				"`npm run poc:appplugin-q7-split-proof`",
 				"`npm run poc:appplugin-q7-m5-split-proof`"
 			],
-			"nextAction": "Geometrie, Validierung, Payload, Fehlerzustand, Abbruch und Reload für L5 und M5 weiterhin vollständig dem geladenen AppPlugin überlassen; weitere Kartenfamilien erst nach eigenem Vertragsnachweis freischalten."
+			"nextAction": "Die genuine Bundle-Absicht beibehalten, aber Geometrie, Griffe, Validierung, Abbruch und Reload gegen eine externe Android-Aufzeichnung vergleichen."
 		},
 		{
 			"id": "P0C-Q7-MERGE",
 			"phase": "0C",
 			"area": "Q7 L5/M5 – Kartenbearbeitung",
 			"family": "scmap",
-			"title": "Räume zusammenführen mit originaler Auswahl und Nachbarschaftsgrenzen prüfen",
-			"status": "completed",
+			"title": "Räume zusammenführen mit bundle-eigener Auswahl und Nachbarschaftsgrenzen prüfen",
+			"status": "in_progress",
 			"priority": "P0",
 			"dependsOn": ["P0C-Q7-FULL-SCENE", "P0B-CAPTURE-ONLY"],
 			"evidence": [
@@ -697,7 +705,7 @@
 				"`npm run poc:appplugin-q7-merge-proof`",
 				"`npm run poc:appplugin-q7-m5-merge-proof`"
 			],
-			"nextAction": "Auswahl, zusammenhängende roomMatrix-Prüfung, Mehrraum-Payload, Geräteergebnis, Einführung und Abbruch für L5 und M5 vollständig im geladenen AppPlugin belassen; weitere Kartenfamilien erst nach eigenem Vertragsnachweis freischalten."
+			"nextAction": "Die genuine Bundle-Absicht beibehalten, aber Auswahl, Hinweise, Fehler, Timeout, Abbruch und Reload gegen eine externe Android-Aufzeichnung vergleichen."
 		},
 		{
 			"id": "P0C-Q7-ROOM-PROPERTIES",
@@ -729,7 +737,7 @@
 			"area": "Q7 L5/M5 – Reinigung",
 			"family": "scmap",
 			"title": "Raumreinigung aus der eigenen UI semantisch durch das AppPlugin steuern",
-			"status": "completed",
+			"status": "in_progress",
 			"priority": "P0",
 			"dependsOn": ["P0C-Q7-ROOM-SELECTION", "P0B-INPUT-LAYOUT"],
 			"evidence": [
@@ -743,7 +751,7 @@
 				"`npm run poc:appplugin-q7-semantic-actions-proof`",
 				"`npm run poc:appplugin-q7-m5-semantic-actions-proof`"
 			],
-			"nextAction": "Den strukturellen Vertrag für L5 und M5 beibehalten; andere Kartenfamilien erst nach einem eigenen belegten AppPlugin-UI-Vertrag freischalten."
+			"nextAction": "Die derzeitige strukturelle Hostheuristik durch einen APK-belegten semantischen Einstieg ersetzen oder differenziell absichern; die vom Bundle gebildete service.set_room_clean-Absicht bleibt die verbindliche Ausgabe."
 		},
 		{
 			"id": "P0C-Q7-ZONES",
@@ -801,6 +809,20 @@
 				"`npm run poc:appplugin-q7-m5-contract-proof`"
 			],
 			"nextAction": "Den identischen APK-Hostvertrag beibehalten; die zwei belegten bundle-eigenen Layoutabweichungen nicht im Host normalisieren."
+		},
+		{
+			"id": "P0C-ANDROID-DIFFERENTIAL",
+			"phase": "0C",
+			"area": "Externe APK-Abnahme",
+			"family": "scmap",
+			"title": "Q7-L5-/M5-Hostausgabe unabhängig gegen die originale Android-App vergleichen",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0C-Q7-DIRECT-RUN", "P0B-INPUT-LAYOUT", "P0B-THEME-LOCALE-EVENTS"],
+			"evidence": [
+				"docs/APPPLUGIN_EVIDENCE_LEVELS.md"
+			],
+			"nextAction": "Einen reproduzierbaren APK-Instrumentierungs- oder Captureweg bauen, der identisches Bundle, Fixture, Viewport, Pixeldichte, Locale, Theme und Pointerfolge unabhängig vom Desktop-Host aufzeichnet und Pixel, Zustand, Ereignisse sowie Payloads differenziell vergleicht."
 		},
 		{
 			"id": "P0C-Q7-M5-GATES",
@@ -886,16 +908,18 @@
 			"phase": "0C",
 			"area": "Q10/YX – Rendering",
 			"family": "yx",
-			"title": "Originalbundle und .jx-Worker erzeugen deterministisches YX-Raster und PNG",
-			"status": "completed",
+			"title": "Echte Typ-1-Livekarte bis zum originalen YX-Raster nachweisen",
+			"status": "blocked",
 			"priority": "P0",
 			"dependsOn": ["P0B-METRO-HOST", "P0B-SKIA-HOST"],
 			"evidence": [
 				"docs/APPPLUGIN_Q10_MAP_EVENT_POC.md",
+				"test/unit/appplugin_q10_map_event_poc.test.ts",
 				"test/unit/appplugin_q10_full_scene.test.ts",
-				"`npm run poc:appplugin-render-scene`"
+				"`npm run poc:appplugin-q10-history-boundary`"
 			],
-			"nextAction": "Rasterbeweis als Teilnachweis behalten; keine Vollszenen- oder Interaktionsfreigabe daraus ableiten."
+			"blocker": "Im Repository liegt nur eine echte Q10/YX-Historienaufnahme vom Blob-Typ 3 vor. Eine zusammengehörige Typ-1-Liveaufnahme, DPS-Sequenz und Android-Referenz fehlen.",
+			"nextAction": "Typ-1-Liveblob, Gerätezustand und Android-Referenz derselben Karte erfassen und unverändert durch Bundle und .jx-Worker spielen."
 		},
 		{
 			"id": "P0C-Q10-FULL-SCENE",
@@ -907,7 +931,7 @@
 			"priority": "P0",
 			"dependsOn": ["P0C-Q10-RASTER", "P0B-SKIA-HOST"],
 			"evidence": [],
-			"nextAction": "Alle angebotenen Ebenen in Originalreihenfolge rendern und Bild sowie Semantik gegen eine App-Referenz prüfen."
+			"nextAction": "Nach Verfügbarkeit einer echten Typ-1-Aufnahme alle vom Bundle erzeugten Skia-Ebenen in Originalreihenfolge hosten und gegen dieselbe Android-Referenz prüfen."
 		},
 		{
 			"id": "P0C-Q10-INTERACTION",
@@ -942,8 +966,11 @@
 			"status": "pending",
 			"priority": "P1",
 			"dependsOn": ["P0C-Q10-FULL-SCENE", "P0B-DEVICE-INGRESS"],
-			"evidence": [],
-			"nextAction": "Echte YX-Datensätze mit konsistenten Karten-IDs und Updatefolgen durch die laufende Sitzung spielen."
+			"evidence": [
+				"docs/APPPLUGIN_Q10_MAP_EVENT_POC.md",
+				"test/unit/appplugin_q10_map_event_poc.test.ts"
+			],
+			"nextAction": "Die belegte Typ-3-Historie getrennt halten und echte Typ-1-, Typ-2- und Typ-4-Datensätze mit konsistenten Karten-IDs und Updatefolgen erfassen."
 		},
 		{
 			"id": "P0C-V1-PROVENANCE",
@@ -1042,13 +1069,68 @@
 			"nextAction": "Identische Betriebs-Gates gegen mindestens einen Vertreter jeder technisch unterschiedlichen Runtimefamilie ausführen."
 		},
 		{
+			"id": "P0D-EVIDENCE-BOUNDARY",
+			"phase": "0D",
+			"area": "Abnahme",
+			"title": "Unveränderte Quelle, Bundle-Ergebnis, APK-Host, Hostdiagnose und Android-Parität strikt trennen",
+			"status": "completed",
+			"priority": "P0",
+			"dependsOn": ["P0A-TRACKER"],
+			"evidence": [
+				"docs/APPPLUGIN_EVIDENCE_LEVELS.md",
+				"docs/appplugin-rework-tracker.json",
+				"www/appplugin-desktop.html"
+			],
+			"nextAction": "Jedes neue Golden und jede Freigabeaussage weiterhin mit der höchsten tatsächlich belegten Evidenzstufe kennzeichnen."
+		},
+		{
+			"id": "P0D-LOCAL-HTTP",
+			"phase": "0D",
+			"area": "Sicherheit",
+			"title": "Lokale Desktop-API mit Sitzungstoken, Same-Origin-Änderungen und Browser-Sicherheitsheadern schützen",
+			"status": "completed",
+			"priority": "P0",
+			"dependsOn": ["P0B-SESSION-LIFECYCLE"],
+			"evidence": [
+				"scripts/lib/appPluginDesktopHttpSession.ts",
+				"scripts/start_appplugin_desktop_runtime.ts",
+				"scripts/appplugin_hermes_runtime_probe.ts",
+				"test/unit/appplugin_desktop_http_session.test.ts"
+			],
+			"nextAction": "Die Loopback-API bleibt eine lokale PoC-Grenze; keine Freigabe auf externe Interfaces und keine Wiederverwendung eines Host-weiten Cookies."
+		},
+		{
+			"id": "P0D-RUNTIME-ISOLATION",
+			"phase": "0D",
+			"area": "Sicherheit",
+			"title": "AppPlugin-Ausführung durch eine echte Default-deny-Prozessgrenze isolieren",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0B-RESOURCE-LIMITS", "P0C-RESILIENCE"],
+			"evidence": [
+				"docs/APPPLUGIN_EVIDENCE_LEVELS.md"
+			],
+			"nextAction": "Dateisystem, Netzwerk, Kindprozesse, CPU, RAM, Laufzeit und Kill/Restart je Plattform außerhalb des Node-Prozesses erzwingen; Metro-/Hermes-Prüfungen allein sind keine Sandbox."
+		},
+		{
+			"id": "P0D-RELEASE-GATE",
+			"phase": "0D",
+			"area": "Abnahme",
+			"title": "Phase 1 erst nach Familienmatrix, Android-Differenz, Isolation und Plattformgrenzen freigeben",
+			"status": "pending",
+			"priority": "P0",
+			"dependsOn": ["P0C-CROSS-FAMILY-MATRIX", "P0C-ANDROID-DIFFERENTIAL", "P0D-RUNTIME-ISOLATION", "P0B-CROSS-PLATFORM"],
+			"evidence": [],
+			"nextAction": "Automatisches Fail-closed-Gate aus Tracker, Tests, Android-Referenzmanifesten, Ressourcenbudgets und Paketnachweisen erzeugen."
+		},
+		{
 			"id": "P1-SERVICE-API",
 			"phase": "1",
 			"area": "Produkt-Runtime",
 			"title": "Versionierten isolierten AppPlugin-Dienst mit stabiler API bauen",
 			"status": "pending",
 			"priority": "P0",
-			"dependsOn": ["P0C-CROSS-FAMILY-MATRIX", "P0C-RESILIENCE"],
+			"dependsOn": ["P0D-RELEASE-GATE"],
 			"evidence": [],
 			"nextAction": "Prozessgrenze und API aus den tatsächlich bewiesenen Phase-0-Ein-/Ausgaben ableiten."
 		},

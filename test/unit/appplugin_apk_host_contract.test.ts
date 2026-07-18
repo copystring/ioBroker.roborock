@@ -183,8 +183,6 @@ describe("APK-derived AppPlugin host contract", () => {
 			"appVersion",
 			"userScope",
 			"deviceCategory",
-			"userScope",
-			"deviceCategory",
 			"memory",
 			"iotOriginDevId",
 			"clientID",
@@ -198,6 +196,41 @@ describe("APK-derived AppPlugin host contract", () => {
 			name: "appVersion",
 			valueExpression: '"4.54.02"',
 		}));
+		const safeArea = contract.nativeModules.find(module =>
+			module.moduleName === "RNCSafeAreaContext" && module.installedByHost,
+		);
+		expect(safeArea?.exportedConstants).toEqual([
+			expect.objectContaining({
+				name: "initialWindowMetrics",
+				methodName: "getTypedExportedConstants",
+				valueExpression: "this.getInitialWindowMetrics()",
+			}),
+		]);
+		expect(new Set(pluginSdk?.exportedConstants.map(constant => constant.name)).size)
+			.toBe(pluginSdk?.exportedConstants.length);
+	});
+
+	it("rejects incomplete evidence, duplicate constants and inconsistent view metadata", () => {
+		const invalidEvidence = structuredClone(contract) as ApkAppPluginHostContract;
+		invalidEvidence.host.evidence.sha256 = "not-a-sha256";
+		expect(() => assertApkAppPluginHostContract(invalidEvidence)).toThrow("sichere APK-Evidenz");
+
+		const duplicateConstant = structuredClone(contract) as ApkAppPluginHostContract;
+		const sdk = duplicateConstant.nativeModules.find(module => module.moduleName === "RRPluginSDK")!;
+		sdk.exportedConstants.push(structuredClone(sdk.exportedConstants[0]));
+		expect(() => assertApkAppPluginHostContract(duplicateConstant)).toThrow(
+			"exportedConstants enthält Duplikate",
+		);
+
+		const inconsistentProps = structuredClone(contract) as ApkAppPluginHostContract;
+		inconsistentProps.viewManagers.find(view => view.nativeProps.length > 0)!.props = [];
+		expect(() => assertApkAppPluginHostContract(inconsistentProps)).toThrow("widerspricht nativeProps");
+
+		const installedWithoutPackage = structuredClone(contract) as ApkAppPluginHostContract;
+		installedWithoutPackage.nativeModules.find(module => module.installedByHost)!.hostPackageIndices = [];
+		expect(() => assertApkAppPluginHostContract(installedWithoutPackage)).toThrow(
+			"ungültige Host-Paketindizes",
+		);
 	});
 
 	it("reproduces the APK module override order instead of accepting arbitrary fallbacks", () => {
@@ -230,8 +263,12 @@ describe("APK-derived AppPlugin host contract", () => {
 			...contract.viewManagers.flatMap(item => item.commands.map(command => command.evidence)),
 			...contract.viewManagers.flatMap(item => item.viewConstants.map(constant => constant.evidence)),
 		];
+		const hashByFile = new Map<string, string>();
 		for (const item of evidence) {
-			expect(hashFile(path.join(repositoryRoot, item.file)), item.file).toBe(item.sha256);
+			const actualHash = hashByFile.get(item.file)
+				?? hashFile(path.join(repositoryRoot, item.file));
+			hashByFile.set(item.file, actualHash);
+			expect(actualHash, item.file).toBe(item.sha256);
 		}
 	});
 

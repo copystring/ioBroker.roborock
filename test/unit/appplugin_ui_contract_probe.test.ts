@@ -94,7 +94,7 @@ describe("AppPlugin UI contract discovery host", () => {
 
 		await expect(device.module.loadDps()).resolves.toEqual({ 121: 8 });
 		await expect(device.module.publishDps({ 101: { 16: 1 } }, callback)).resolves.toBe(true);
-		expect(callback).toHaveBeenCalledWith(true);
+		await vi.waitFor(() => expect(callback).toHaveBeenCalledWith(true));
 		expect(device.calls).toContainEqual({ method: "publishDps", args: [{ 101: { 16: 1 } }] });
 	});
 });
@@ -104,20 +104,35 @@ const pluginRoot = path.join(repositoryRoot, ".AppPlugins");
 const metroBundles = fs.existsSync(pluginRoot)
 	? findBundleFiles(pluginRoot).filter((bundlePath: string) => inspectBundle(bundlePath).format === "metro")
 	: [];
-const originalMetroIt = metroBundles.length > 0 ? it : it.skip;
+const requestedBundleFragment = process.env.APPPLUGIN_TEST_BUNDLE_FILTER;
+const selectedMetroBundles = requestedBundleFragment
+	? metroBundles.filter((bundlePath: string) => bundlePath.includes(requestedBundleFragment))
+	: metroBundles;
+const originalMetroIt = selectedMetroBundles.length > 0 ? it : it.skip;
 
 describe("all local Metro AppPlugin UI contracts", () => {
 	originalMetroIt("starts every original Metro app tree through the capture-only host", async () => {
 		const results = [];
-		for (const bundlePath of metroBundles) {
+		for (const bundlePath of selectedMetroBundles) {
 			results.push(await probeMetroBundleUiContract(bundlePath, { durationMs: 350 }));
 		}
 
 		expect(results.length).toBeGreaterThan(0);
 		expect(results.every((result: { unchanged: boolean }) => result.unchanged)).toBe(true);
 		expect(results.every((result: { appKeys: string[] }) => result.appKeys.includes("App"))).toBe(true);
-		expect(results.every((result: { runError?: string }) => !result.runError)).toBe(true);
-		expect(results.every((result: { reportedExceptions: string[] }) => result.reportedExceptions.length === 0)).toBe(true);
+		const failedRuns = results.filter((result: { runError?: string }) => result.runError);
+		const summarizeFailures = (failures: typeof results): unknown => failures.map(result => ({
+			bundlePath: result.bundlePath,
+			runError: result.runError,
+			reportedExceptions: result.reportedExceptions,
+			fallbackCapabilities: result.fallbackCapabilities,
+			uiOperationCount: result.uiOperationCount,
+		}));
+		expect(summarizeFailures(failedRuns)).toEqual([]);
+		const reportedFailures = results.filter(
+			(result: { reportedExceptions: string[] }) => result.reportedExceptions.length > 0,
+		);
+		expect(summarizeFailures(reportedFailures)).toEqual([]);
 		expect(results.every((result: { uiOperationCount: number }) => result.uiOperationCount > 0)).toBe(true);
 	}, 120_000);
 });

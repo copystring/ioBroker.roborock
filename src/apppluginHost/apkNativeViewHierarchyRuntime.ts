@@ -3,6 +3,7 @@ import type {
 	ApkNativeMeasuredBox,
 	ApkUiManagerNodeSnapshot,
 	ApkUiManagerOperation,
+	ApkUiManagerOperationJournal,
 } from "./apkUiManagerRuntime";
 import { createApkViewAffineTransform } from "./apkViewTransformRuntime";
 import type { ApkYogaLayoutEntry } from "./apkYogaLayoutRuntime";
@@ -227,24 +228,49 @@ export class ApkNativeViewHierarchyRuntime {
 		if (this.#density <= 0) throw new Error("Display-Dichte muss positiv sein");
 	}
 
-	public synchronize(operations: readonly ApkUiManagerOperation[]): void {
-		if (operations.length < this.#operationCursor) {
+	public synchronize(
+		input: readonly ApkUiManagerOperation[] | Readonly<ApkUiManagerOperationJournal>,
+	): void {
+		const journal = Array.isArray(input)
+			? { offset: 0, total: input.length, operations: input }
+			: input as Readonly<ApkUiManagerOperationJournal>;
+		if (journal.offset > this.#operationCursor) {
+			throw new Error(
+				`Der UIManager-Operationsstrom verlor Einträge ${this.#operationCursor}..${journal.offset - 1}`,
+			);
+		}
+		if (journal.total < this.#operationCursor) {
 			throw new Error("Der UIManager-Operationsstrom darf nicht rückwärts laufen");
 		}
-		for (let index = this.#operationCursor; index < operations.length; index += 1) {
-			this.#observe(operations[index]);
+		const firstUnreadIndex = Math.max(0, this.#operationCursor - journal.offset);
+		for (let index = firstUnreadIndex; index < journal.operations.length; index += 1) {
+			this.#observe(journal.operations[index]);
 		}
-		this.#operationCursor = operations.length;
+		this.#operationCursor = journal.total;
 	}
 
 	public rebuild(
 		shadowRoot: ApkUiManagerNodeSnapshot,
 		yogaLayouts: readonly Readonly<ApkYogaLayoutEntry>[],
-		operations: readonly ApkUiManagerOperation[],
+		operations: readonly ApkUiManagerOperation[] | Readonly<ApkUiManagerOperationJournal>,
 	): Readonly<ApkNativeViewHierarchySnapshot> {
 		this.synchronize(operations);
 		if (shadowRoot.tag !== this.rootTag || shadowRoot.rootTag !== this.rootTag) {
 			throw new Error(`Shadow Tree gehört nicht zu Root-Tag ${this.rootTag}`);
+		}
+		const liveTags = new Set<number>();
+		const collectLiveTags = (node: ApkUiManagerNodeSnapshot): void => {
+			liveTags.add(node.tag);
+			for (const child of node.children) collectLiveTags(child);
+		};
+		collectLiveTags(shadowRoot);
+		for (const collection of [this.#dispositions, this.#viewNames, this.#scrollOffsets]) {
+			for (const tag of collection.keys()) {
+				if (!liveTags.has(tag)) collection.delete(tag);
+			}
+		}
+		for (const tag of this.#appliedHitTestTags) {
+			if (!liveTags.has(tag)) this.#appliedHitTestTags.delete(tag);
 		}
 		const yoga = yogaLayoutMap(yogaLayouts);
 		const metrics = new Map<number, ShadowPixelMetrics>();

@@ -2,7 +2,12 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { createAppPluginPinchZoomPointers } from "../src/www/apppluginLab/live-appplugin-map-surface";
-import { ensureAppPluginDesktopProfile } from "./lib/appPluginDesktopClient";
+import {
+	ensureAppPluginDesktopProfile,
+	fetchAppPluginDesktop,
+	readAppPluginDesktopSessionToken,
+	setAppPluginDesktopLanguage,
+} from "./lib/appPluginDesktopClient";
 
 type JsonRecord = Record<string, unknown>;
 type GoldenProfile = "q7-l5" | "q7-m5";
@@ -196,9 +201,15 @@ function matrixDistance(left: Affine, right: Affine): number {
 	);
 }
 
-async function readJson<T>(url: string): Promise<T> {
-	const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(10_000) });
-	if (!response.ok) throw new Error(`${url} antwortet mit HTTP ${response.status}`);
+let sessionToken = "";
+let activeBaseUrl = "";
+
+async function readJson<T>(pathname: string): Promise<T> {
+	const response = await fetchAppPluginDesktop(activeBaseUrl, pathname, {
+		cache: "no-store",
+		signal: AbortSignal.timeout(10_000),
+	}, sessionToken);
+	if (!response.ok) throw new Error(`${pathname} antwortet mit HTTP ${response.status}`);
 	return response.json() as Promise<T>;
 }
 
@@ -210,7 +221,7 @@ async function restartProfile(baseUrl: string, profile: GoldenProfile): Promise<
 }
 
 async function mapTransform(baseUrl: string): Promise<Affine> {
-	const ui = await readJson<UiState>(`${baseUrl}/ui-state?view=map`);
+	const ui = await readJson<UiState>("/ui-state?view=map");
 	const layouts = new Map(ui.nativeHierarchy.layouts.map(entry => [entry.tag, entry.box]));
 	const robotPath = findAssetPath(ui.nativeHierarchy.root, ROBOT_ASSET);
 	const mapLayerIndex = robotPath.findIndex(node => numericProp(node, "zIndex") === 100);
@@ -230,9 +241,12 @@ async function sendPointers(
 	pointerOffset: number,
 ): Promise<PointerResponse> {
 	const timeMs = Date.now();
-	const response = await fetch(`${baseUrl}/pointer-sequence?view=map`, {
+	const response = await fetchAppPluginDesktop(baseUrl, "/pointer-sequence?view=map", {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
+		headers: {
+			"Content-Type": "application/json",
+			Origin: baseUrl,
+		},
 		signal: AbortSignal.timeout(10_000),
 		body: JSON.stringify({
 			pointers: pointers.map((pointer, index) => ({
@@ -241,7 +255,7 @@ async function sendPointers(
 				timeMs: timeMs + index,
 			})),
 		}),
-	});
+	}, sessionToken);
 	const payload = await response.json() as PointerResponse;
 	if (!response.ok || payload.error) throw new Error(payload.error ?? `Pointerfolge antwortet mit HTTP ${response.status}`);
 	if (payload.activePointerIds.length !== 0) throw new Error("APK-Pointerfolge hinterließ aktive Pointer");
@@ -301,7 +315,10 @@ async function reachScaleBoundary(
 }
 
 async function runProof(options: ReturnType<typeof parseArgs>): Promise<void> {
-	const health = await readJson<RuntimeHealth>(`${options.baseUrl}/health?view=map`);
+	activeBaseUrl = options.baseUrl;
+	sessionToken = await readAppPluginDesktopSessionToken(options.baseUrl);
+	await setAppPluginDesktopLanguage(options.baseUrl, "de");
+	const health = await readJson<RuntimeHealth>("/health?view=map");
 	if (health.status !== "appplugin-session-ready"
 		|| health.productFallbackAllowed !== false
 		|| health.bundleKind !== "hermes-bytecode"
@@ -315,7 +332,13 @@ async function runProof(options: ReturnType<typeof parseArgs>): Promise<void> {
 	await sendPointers(options.baseUrl, centeredPinch(viewport.width, viewport.height, -1), 2_000);
 	const inverse = await mapTransform(options.baseUrl);
 	if (scale(zoomedIn) <= scale(initial) || matrixDistance(initial, inverse) > 1e-5) {
-		throw new Error("Inverse AppPlugin-Pinch-Gesten stellen den Ausgangszustand nicht wieder her");
+		throw new Error(
+			"Inverse AppPlugin-Pinch-Gesten stellen den Ausgangszustand nicht wieder her: "
+			+ `initial=${JSON.stringify(roundedMatrix(initial))}, `
+			+ `zoomedIn=${JSON.stringify(roundedMatrix(zoomedIn))}, `
+			+ `inverse=${JSON.stringify(roundedMatrix(inverse))}, `
+			+ `inverseDelta=${round(matrixDistance(initial, inverse))}`,
+		);
 	}
 
 	const minimum = await reachScaleBoundary(options.baseUrl, viewport, -1, 10_000);

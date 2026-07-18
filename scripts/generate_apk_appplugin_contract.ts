@@ -188,25 +188,59 @@ function methodBody(source: string, methodName: string): string | undefined {
 	return undefined;
 }
 
-function extractExportedConstants(filePath: string, source: string): ExportedConstantContract[] {
-	const constants: ExportedConstantContract[] = [];
+function extractExportedConstantsFromMethod(
+	filePath: string,
+	source: string,
+	methodName: string,
+): ExportedConstantContract[] {
+	const signature = new RegExp(`\\b${methodName}\\s*\\([^)]*\\)\\s*\\{`, "u").exec(source);
+	if (!signature) return [];
+	const body = methodBody(source, methodName);
+	if (body === undefined) return [];
+	const bodyIndex = source.indexOf(body, signature.index);
+	const constants = new Map<string, ExportedConstantContract>();
+	for (const match of body.matchAll(/\.put\(\s*"([^"]+)"\s*,\s*(.+)\);\s*$/gmu)) {
+		const index = bodyIndex + (match.index ?? 0);
+		constants.set(match[1], {
+			name: match[1],
+			valueExpression: match[2].trim(),
+			methodName,
+			evidence: evidence(filePath, source, index),
+		});
+	}
+	for (const match of body.matchAll(
+		/\breturn\s+[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+\(\s*"([^"]+)"\s*,\s*(.+)\);\s*$/gmu,
+	)) {
+		const index = bodyIndex + (match.index ?? 0);
+		constants.set(match[1], {
+			name: match[1],
+			valueExpression: match[2].trim(),
+			methodName,
+			evidence: evidence(filePath, source, index),
+		});
+	}
+	return [...constants.values()];
+}
+
+function effectiveExportedConstants(
+	filePath: string,
+	source: string,
+	inherited: Array<{ filePath: string; source: string }>,
+): ExportedConstantContract[] {
+	const chain = [{ filePath, source }, ...inherited];
+	const effective = new Map<string, ExportedConstantContract>();
 	for (const methodName of ["getConstants", "getTypedExportedConstants"]) {
-		const signature = new RegExp(`\\b${methodName}\\s*\\([^)]*\\)\\s*\\{`, "u").exec(source);
-		if (!signature) continue;
-		const body = methodBody(source, methodName);
-		if (body === undefined) continue;
-		const bodyIndex = source.indexOf(body, signature.index);
-		for (const match of body.matchAll(/\.put\(\s*"([^"]+)"\s*,\s*(.+)\);\s*$/gmu)) {
-			const index = bodyIndex + (match.index ?? 0);
-			constants.push({
-				name: match[1],
-				valueExpression: match[2].trim(),
-				methodName,
-				evidence: evidence(filePath, source, index),
-			});
+		const implementation = chain.find(candidate => methodBody(candidate.source, methodName) !== undefined);
+		if (!implementation) continue;
+		for (const constant of extractExportedConstantsFromMethod(
+			implementation.filePath,
+			implementation.source,
+			methodName,
+		)) {
+			effective.set(constant.name, constant);
 		}
 	}
-	return constants;
+	return [...effective.values()];
 }
 
 function switchCase(source: string, variant: number | null): string {
@@ -1006,7 +1040,7 @@ for (const filePath of walkJavaFiles(decompiledRoot)) {
 				...extractEvents(source),
 				...relatedSources.flatMap(related => extractEvents(related.source)),
 			])].sort(),
-			exportedConstants: extractExportedConstants(filePath, source),
+			exportedConstants: effectiveExportedConstants(filePath, source, inherited),
 			evidence: evidence(filePath, source, moduleName.index),
 		});
 	}
@@ -1087,7 +1121,7 @@ for (const javaClass of installedNativeModuleClasses) {
 			...extractEvents(source),
 			...relatedSources.flatMap(related => extractEvents(related.source)),
 		])].sort(),
-		exportedConstants: extractExportedConstants(filePath, source),
+		exportedConstants: effectiveExportedConstants(filePath, source, inherited),
 		evidence: evidence(filePath, source),
 	});
 }

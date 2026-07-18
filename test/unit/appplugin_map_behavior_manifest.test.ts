@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 type FamilyGate = {
 	id: string;
-	fixtureStatus: "available" | "missing";
+	fixtureStatus: "available" | "history-only" | "missing";
 	directBundleMapDataFlowVerified: boolean;
 	nativeRenderEndpointReached: boolean;
 	originalMapRasterVerified: boolean;
@@ -33,7 +33,7 @@ function loadManifest(): BehaviorManifest {
 }
 
 describe("AppPlugin map behavior gates", () => {
-	it("keeps full-family rendering closed while recording the narrower Q10 raster proof", () => {
+	it("keeps full-family rendering closed while recording only the Q10 history proof", () => {
 		const manifest = loadManifest();
 		expect(manifest.schemaVersion).toBe(2);
 		expect(manifest.families.map(family => family.id)).toEqual([
@@ -61,11 +61,11 @@ describe("AppPlugin map behavior gates", () => {
 
 		const yx = manifest.families.find(family => family.id === "yx-skia");
 		expect(yx).toMatchObject({
-			fixtureStatus: "available",
+			fixtureStatus: "history-only",
 			directBundleMapDataFlowVerified: true,
-			nativeRenderEndpointReached: true,
-			originalMapRasterVerified: true,
-			pngGoldenVerified: true,
+			nativeRenderEndpointReached: false,
+			originalMapRasterVerified: false,
+			pngGoldenVerified: false,
 			directBundleRenderingVerified: false,
 			fullSceneParityVerified: false,
 			roomSelectionParityVerified: false,
@@ -75,6 +75,9 @@ describe("AppPlugin map behavior gates", () => {
 		});
 		expect(yx?.missing).toContain("full-skia-picture-composition");
 		expect(yx?.missing).toContain("room-selection-callback");
+		expect(yx?.missing).toContain("real-type-1-live-map-payload");
+		expect(yx?.missing).toContain("matching-device-dps-sequence");
+		expect(yx?.missing).toContain("matching-original-android-reference");
 	});
 
 	it("points every declared evidence entry at a local file", () => {

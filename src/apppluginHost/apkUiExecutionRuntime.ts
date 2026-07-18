@@ -102,13 +102,13 @@ export class ApkUiExecutionRuntime {
 		let latestLayouts: readonly Readonly<ApkYogaLayoutEntry>[] = [];
 		let latestNative: Readonly<ApkNativeViewHierarchySnapshot> | undefined;
 		for (let round = 1; round <= maxRounds; round += 1) {
-			const operationCountBefore = this.options.uiManager.operations().length;
+			const operationCountBefore = this.options.uiManager.operationCount();
 			const shadowRoot = this.options.uiManager.snapshot();
 			latestLayouts = this.#yoga.calculate(shadowRoot);
 			latestNative = this.#nativeHierarchy.rebuild(
 				shadowRoot,
 				latestLayouts,
-				this.options.uiManager.operations(),
+				this.options.uiManager.operationJournal(),
 			);
 			const measurementCallbacks = this.options.uiManager.flushNativeMeasurements(
 				tag => this.#nativeHierarchy.measure(tag),
@@ -119,7 +119,7 @@ export class ApkUiExecutionRuntime {
 			latestNative = this.#nativeHierarchy.snapshot();
 			const layoutEvents = await this.#layoutEvents.dispatchChanged(shadowRoot, latestLayouts);
 			if (layoutEvents.length > 0) await this.options.afterLayoutEvents?.();
-			const operationCountAfter = this.options.uiManager.operations().length;
+			const operationCountAfter = this.options.uiManager.operationCount();
 			rounds.push({ round, operationCountBefore, operationCountAfter, layoutEvents });
 			if (
 				layoutEvents.length === 0

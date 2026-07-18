@@ -55,7 +55,7 @@ function loadGolden(profile: string): GestureGolden {
 	return JSON.parse(fs.readFileSync(filePath, "utf8")) as GestureGolden;
 }
 
-describe("Q7 AppPlugin gesture goldens", () => {
+describe("Q7 AppPlugin gesture host-regression goldens", () => {
 	it.each(profiles)("binds $id gesture behavior to its unchanged Hermes bundle", profile => {
 		const golden = loadGolden(profile.id);
 

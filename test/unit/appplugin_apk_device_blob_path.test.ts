@@ -62,7 +62,7 @@ describe("APK-derived device blob path", () => {
 		expect(assembler.accept(segment({ duid: "other" }))).toBeUndefined();
 		expect(assembler.accept(segment({ sequenceId: 2, isFirst: false, isLast: true, data: Buffer.from("second") })))
 			.toBeUndefined();
-		expect(assembler.accept(segment({ sequenceId: 2, isFirst: false, isLast: true, data: Buffer.from("duplicate") })))
+		expect(assembler.accept(segment({ sequenceId: 2, isFirst: false, isLast: true, data: Buffer.from("second") })))
 			.toBeUndefined();
 
 		const result = assembler.accept(segment());
@@ -71,6 +71,70 @@ describe("APK-derived device blob path", () => {
 			duid,
 			payload: Buffer.from("firstsecond"),
 		});
+	});
+
+	it("fails closed on mixed protocols, conflicting duplicates and impossible last segments", () => {
+		const assembler = new ApkBlobTransferAssembler(duid, endpoint);
+		assembler.accept(segment({
+			sequenceId: 2,
+			isFirst: false,
+			isLast: true,
+			data: Buffer.from("second"),
+		}));
+		expect(() => assembler.accept(segment({ pv: "1.0" }))).toThrow(/mischt Protokolle/u);
+		expect(() => assembler.accept(segment({
+			sequenceId: 2,
+			isFirst: false,
+			isLast: true,
+			data: Buffer.from("conflict"),
+		}))).toThrow(/widersprüchliche Sequenz/u);
+		expect(assembler.accept(segment())).toEqual({
+			kind: "b01-payload",
+			duid,
+			payload: Buffer.from("firstsecond"),
+		});
+
+		const impossibleLast = new ApkBlobTransferAssembler(duid, endpoint);
+		impossibleLast.accept(segment({
+			sequenceId: 3,
+			isFirst: false,
+			isLast: false,
+			data: Buffer.from("third"),
+		}));
+		expect(() => impossibleLast.accept(segment({
+			sequenceId: 2,
+			isFirst: false,
+			isLast: true,
+			data: Buffer.from("second"),
+		}))).toThrow(/hinter dem letzten Segment/u);
+	});
+
+	it("expires stale groups, evicts the least recently used nonce and bounds segment resources", () => {
+		let now = 0;
+		const assembler = new ApkBlobTransferAssembler(duid, endpoint, 2, 10, () => now);
+		const pendingLast = (nonce: number): ApkBlobTransferSegment => segment({
+			nonce,
+			sequenceId: 2,
+			isFirst: false,
+			isLast: true,
+			data: Buffer.from("second"),
+		});
+		assembler.accept(pendingLast(1));
+		now = 1;
+		assembler.accept(pendingLast(2));
+		now = 2;
+		assembler.accept(pendingLast(3));
+		expect(assembler.accept(segment({ nonce: 1 }))).toBeUndefined();
+
+		now = 20;
+		expect(assembler.accept(segment({ nonce: 2 }))).toBeUndefined();
+		expect(() => assembler.accept(segment({ sequenceId: 8_193, isFirst: false }))).toThrow(
+			/zwischen 1 und 8192/u,
+		);
+		expect(() => assembler.accept(segment({ data: new Uint8Array(8 * 1024 * 1024 + 1) }))).toThrow(
+			/überschreitet/u,
+		);
+		expect(() => new ApkBlobTransferAssembler(duid, endpoint, 0)).toThrow(/Gruppenanzahl/u);
 	});
 
 	it("reproduces the APK version-0 header stripping and GZIP path", () => {

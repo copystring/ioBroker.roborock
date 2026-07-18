@@ -167,6 +167,10 @@ export class ApkHermesHostSession {
 		return this.#bundleKind;
 	}
 
+	public waitForExit(): Promise<Readonly<{ code: number | null; signal: NodeJS.Signals | null }>> {
+		return this.#exit.promise;
+	}
+
 	public async start(): Promise<void> {
 		if (this.#state !== "idle") throw new Error(`Hermes-Host kann aus Zustand ${this.#state} nicht starten`);
 		accessSync(this.#options.hostExecutablePath, fsConstants.X_OK);
@@ -222,13 +226,18 @@ export class ApkHermesHostSession {
 			throw new Error("AppRegistry.rootTag muss eine endliche Zahl sein");
 		}
 		this.#applicationRequested = true;
-		await this.#write({
-			protocol: "roborock-appplugin-host",
-			version: 1,
-			type: "runApplication",
-			appKey,
-			parameters: toApkHermesWireValue(parameters),
-		});
+		try {
+			await this.#write({
+				protocol: "roborock-appplugin-host",
+				version: 1,
+				type: "runApplication",
+				appKey,
+				parameters: toApkHermesWireValue(parameters),
+			});
+		} catch (error) {
+			this.#applicationRequested = false;
+			throw error;
+		}
 		let timeout: NodeJS.Timeout | undefined;
 		try {
 			const started = await Promise.race([
@@ -245,6 +254,9 @@ export class ApkHermesHostSession {
 			if (started.appKey !== appKey || started.rootTag !== rootTag) {
 				throw new Error("Hermes-Host bestätigte abweichende AppRegistry-Parameter");
 			}
+		} catch (error) {
+			this.#fail(error);
+			throw this.#failure ?? new Error("AppRegistry.runApplication ist fehlgeschlagen");
 		} finally {
 			if (timeout) clearTimeout(timeout);
 		}
@@ -327,6 +339,20 @@ export class ApkHermesHostSession {
 		}
 		throw new Error(`Hermes-Appplugin-Bridge wurde nach ${maxRounds} Barrieren nicht ruhig`);
 	}
+
+	/**
+	 * Crosses exactly one Hermes/native boundary after all previously submitted
+	 * commands. Android input delivery needs this single turn before the host can
+	 * observe synchronous React work, but it does not wait for unrelated ongoing
+	 * animations or future timer activity to make the whole bridge quiet.
+	 */
+	public async flushRuntimeBoundary(): Promise<void> {
+		if (this.#state !== "running" || !this.#controller) {
+			throw new Error("Laufzeitsynchronisierung benötigt einen laufenden Hermes-Appplugin-Host");
+		}
+		await this.#crossRuntimeBarrier();
+	}
+
 	async #waitForPendingNativeCallbacks(controller: ApkHermesHostProtocolController): Promise<void> {
 		let timeout: NodeJS.Timeout | undefined;
 		try {
@@ -342,6 +368,9 @@ export class ApkHermesHostSession {
 					timeout.unref();
 				}),
 			]);
+		} catch (error) {
+			this.#fail(error);
+			throw this.#failure ?? new Error("Native APK-Callbacks sind fehlgeschlagen");
 		} finally {
 			if (timeout) clearTimeout(timeout);
 		}
@@ -350,28 +379,14 @@ export class ApkHermesHostSession {
 	public async stop(): Promise<void> {
 		if (this.#state === "idle" || this.#state === "stopped") return;
 		if (this.#state === "failed") {
-			await this.#exit.promise;
+			await this.#waitForExitOrTerminate();
 			throw this.#failure ?? new Error("Hermes-Appplugin-Host ist fehlgeschlagen");
 		}
 		this.#state = "stopping";
 		this.#clearStartupTimer();
 		if (!this.#controller) throw new Error("Hermes-Hostcontroller fehlt");
 		await this.#controller.shutdown();
-		let timeout: NodeJS.Timeout | undefined;
-		try {
-			await Promise.race([
-				this.#exit.promise,
-				new Promise<never>((_resolve, reject) => {
-					timeout = setTimeout(() => {
-						this.#child?.kill();
-						reject(new Error(`Hermes-Appplugin-Host stoppte nicht innerhalb von ${this.#options.shutdownTimeoutMs} ms`));
-					}, this.#options.shutdownTimeoutMs);
-					timeout.unref();
-				}),
-			]);
-		} finally {
-			if (timeout) clearTimeout(timeout);
-		}
+		await this.#waitForExitOrTerminate();
 		if (this.state === "failed") throw this.#failure;
 	}
 
@@ -449,6 +464,9 @@ export class ApkHermesHostSession {
 					timeout.unref();
 				}),
 			]);
+		} catch (error) {
+			this.#fail(error);
+			throw this.#failure ?? new Error("Hermes-Laufzeitbarriere ist fehlgeschlagen");
 		} finally {
 			if (timeout) clearTimeout(timeout);
 			this.#runtimeBarriers.delete(barrierId);
@@ -460,9 +478,47 @@ export class ApkHermesHostSession {
 		if (!child || child.stdin.destroyed || !child.stdin.writable) {
 			throw new Error("Hermes-Appplugin-Host nimmt keine Nachrichten mehr an");
 		}
-		await new Promise<void>((resolve, reject) => {
-			child.stdin.write(`${JSON.stringify(message)}\n`, error => error ? reject(error) : resolve());
-		});
+		let timeout: NodeJS.Timeout | undefined;
+		try {
+			await Promise.race([
+				new Promise<void>((resolve, reject) => {
+					child.stdin.write(`${JSON.stringify(message)}\n`, error => error ? reject(error) : resolve());
+				}),
+				new Promise<never>((_resolve, reject) => {
+					timeout = setTimeout(() => {
+						reject(new Error(
+							`Hermes-Appplugin-Host nahm eine Nachricht nach ${this.#options.startupTimeoutMs} ms nicht an`,
+						));
+					}, this.#options.startupTimeoutMs);
+					timeout.unref();
+				}),
+			]);
+		} catch (error) {
+			this.#fail(error);
+			throw this.#failure ?? new Error("Schreiben zum Hermes-Appplugin-Host ist fehlgeschlagen");
+		} finally {
+			if (timeout) clearTimeout(timeout);
+		}
+	}
+
+	async #waitForExitOrTerminate(): Promise<void> {
+		let timeout: NodeJS.Timeout | undefined;
+		try {
+			await Promise.race([
+				this.#exit.promise,
+				new Promise<never>((_resolve, reject) => {
+					timeout = setTimeout(() => {
+						this.#child?.kill();
+						reject(new Error(
+							`Hermes-Appplugin-Host stoppte nicht innerhalb von ${this.#options.shutdownTimeoutMs} ms`,
+						));
+					}, this.#options.shutdownTimeoutMs);
+					timeout.unref();
+				}),
+			]);
+		} finally {
+			if (timeout) clearTimeout(timeout);
+		}
 	}
 
 	#appendStderr(chunk: Buffer): void {

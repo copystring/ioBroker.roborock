@@ -2,7 +2,11 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { renderAppPluginSvgPng, sha256 } from "./lib/appPluginBrowserGolden";
-import { ensureAppPluginDesktopProfile } from "./lib/appPluginDesktopClient";
+import {
+	createAppPluginDesktopClient,
+	ensureAppPluginDesktopProfile,
+	type AppPluginDesktopClient,
+} from "./lib/appPluginDesktopClient";
 
 type ThemeMode = "dark" | "light" | "system";
 type ColorScheme = "dark" | "light";
@@ -73,14 +77,12 @@ function parseArgs(args: readonly string[]): {
 	return { baseUrl: baseUrl.replace(/\/$/u, ""), goldenProfile, updateGolden };
 }
 
-async function readJson<T>(url: string): Promise<T> {
-	const response = await fetch(url, { cache: "no-store" });
-	if (!response.ok) throw new Error(`${url} antwortet mit HTTP ${response.status}`);
-	return response.json() as Promise<T>;
+async function readJson<T>(client: AppPluginDesktopClient, pathname: string): Promise<T> {
+	return client.readJson<T>(pathname, { cache: "no-store" });
 }
 
-async function health(baseUrl: string): Promise<RuntimeHealth> {
-	const value = await readJson<RuntimeHealth>(`${baseUrl}/health?view=full`);
+async function health(client: AppPluginDesktopClient): Promise<RuntimeHealth> {
+	const value = await readJson<RuntimeHealth>(client, "/health?view=full");
 	if (value.status !== "appplugin-session-ready"
 		|| value.productFallbackAllowed !== false
 		|| value.bundleKind !== "hermes-bytecode"
@@ -90,15 +92,15 @@ async function health(baseUrl: string): Promise<RuntimeHealth> {
 	return value;
 }
 
-async function waitForStableFrame(baseUrl: string): Promise<RuntimeHealth> {
+async function waitForStableFrame(client: AppPluginDesktopClient): Promise<RuntimeHealth> {
 	const deadline = Date.now() + 3_000;
 	const observationStartedAt = Date.now();
-	let current = await health(baseUrl);
+	let current = await health(client);
 	let lastRevision = current.frameRevision;
 	let unchangedSince = Date.now();
 	while (Date.now() < deadline) {
 		await new Promise<void>(resolve => setTimeout(resolve, 25));
-		current = await health(baseUrl);
+		current = await health(client);
 		if (current.frameRevision !== lastRevision) {
 			lastRevision = current.frameRevision;
 			unchangedSince = Date.now();
@@ -112,25 +114,25 @@ async function waitForStableFrame(baseUrl: string): Promise<RuntimeHealth> {
 }
 
 async function setTheme(
-	baseUrl: string,
+	client: AppPluginDesktopClient,
 	mode: ThemeMode,
 	systemColorScheme: ColorScheme,
 ): Promise<RuntimeHealth> {
-	const response = await fetch(`${baseUrl}/theme?view=full`, {
+	const response = await client.fetch("/theme?view=full", {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
+		headers: { "Content-Type": "application/json", Origin: client.baseUrl },
 		body: JSON.stringify({ mode, systemColorScheme }),
 	});
 	const payload = await response.json() as { error?: string };
 	if (!response.ok || payload.error) throw new Error(payload.error ?? `Theme-Bridge antwortet mit HTTP ${response.status}`);
-	return health(baseUrl);
+	return health(client);
 }
 
-async function tap(baseUrl: string, pointerId: number, x: number, y: number): Promise<void> {
+async function tap(client: AppPluginDesktopClient, pointerId: number, x: number, y: number): Promise<void> {
 	const timeMs = Date.now();
-	const response = await fetch(`${baseUrl}/pointer-sequence?view=full`, {
+	const response = await client.fetch("/pointer-sequence?view=full", {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
+		headers: { "Content-Type": "application/json", Origin: client.baseUrl },
 		body: JSON.stringify({
 			pointers: [
 				{ kind: "down", pointerId, x, y, timeMs },
@@ -144,20 +146,20 @@ async function tap(baseUrl: string, pointerId: number, x: number, y: number): Pr
 	}
 }
 
-async function ensureHomeScene(baseUrl: string, pointerId: number): Promise<RuntimeState> {
-	const state = await readJson<RuntimeState>(`${baseUrl}/state`);
+async function ensureHomeScene(client: AppPluginDesktopClient, pointerId: number): Promise<RuntimeState> {
+	const state = await readJson<RuntimeState>(client, "/state");
 	const rawText = state.rawText.map(String);
 	// Der Q7-Navigator lässt die 21 Textknoten der festen Home-Fixture gemountet
 	// und ergänzt in den Einstellungen weitere 24. Die Anzahl erkennt die Route
 	// ohne Hostübersetzungen oder sprachabhängige AppPlugin-Texte.
 	const settingsScenePresent = rawText.length > 30;
 	if (settingsScenePresent) {
-		await tap(baseUrl, pointerId, 25, 73);
-		await waitForStableFrame(baseUrl);
+		await tap(client, pointerId, 25, 73);
+		await waitForStableFrame(client);
 	} else if (rawText.includes("Roborock Q7")) {
 		return state;
 	}
-	const homeState = await readJson<RuntimeState>(`${baseUrl}/state`);
+	const homeState = await readJson<RuntimeState>(client, "/state");
 	if (!homeState.rawText.map(String).includes("Roborock Q7")) {
 		throw new Error("Theme-Golden konnte die originale Q7-Startansicht nicht wiederherstellen");
 	}
@@ -165,13 +167,13 @@ async function ensureHomeScene(baseUrl: string, pointerId: number): Promise<Runt
 }
 
 async function capture(
-	baseUrl: string,
+	client: AppPluginDesktopClient,
 	themeCase: ThemeCase,
 	sessionId: string,
 	goldenProfile: GoldenProfile,
 ): Promise<Capture> {
-	await setTheme(baseUrl, themeCase.mode, themeCase.systemColorScheme);
-	const currentHealth = await waitForStableFrame(baseUrl);
+	await setTheme(client, themeCase.mode, themeCase.systemColorScheme);
+	const currentHealth = await waitForStableFrame(client);
 	if (currentHealth.sessionId !== sessionId) throw new Error("Theme-Wechsel hat die laufende AppPlugin-Sitzung unerwartet ersetzt");
 	const expectedModel = themeCase.mode === "system" ? "default" : themeCase.mode;
 	const expectedScheme = themeCase.mode === "system" ? themeCase.systemColorScheme : themeCase.mode;
@@ -182,8 +184,8 @@ async function capture(
 		);
 	}
 	const [frameResponse, state] = await Promise.all([
-		fetch(`${baseUrl}/frame.svg?view=full&theme=${themeCase.id}`, { cache: "no-store" }),
-		readJson<RuntimeState>(`${baseUrl}/state`),
+		client.fetch(`/frame.svg?view=full&theme=${themeCase.id}`, { cache: "no-store" }),
+		readJson<RuntimeState>(client, "/state"),
 	]);
 	if (!frameResponse.ok) throw new Error(`Theme-Frame ${themeCase.id} antwortet mit HTTP ${frameResponse.status}`);
 	const svg = await frameResponse.text();
@@ -225,56 +227,57 @@ async function main(): Promise<void> {
 		options.baseUrl,
 		options.goldenProfile === "q7-m5" ? "q7-m5" : "q7",
 	);
+	const client = await createAppPluginDesktopClient(options.baseUrl);
 	const fixtureDirectory = path.join(process.cwd(), "test", "fixtures", "appplugin");
 	const manifestPath = path.join(fixtureDirectory, `${options.goldenProfile}-theme-goldens.json`);
-	const initialHealth = await health(options.baseUrl);
-	const initialState = await ensureHomeScene(options.baseUrl, 800);
+	const initialHealth = await health(client);
+	const initialState = await ensureHomeScene(client, 800);
 	const initialMode: ThemeMode = initialHealth.colorModel === "default" ? "system" : initialHealth.colorModel;
 	const initialSystemScheme = initialHealth.systemColorScheme;
 	const captures: Capture[] = [];
 	try {
-		captures.push(await capture(options.baseUrl, {
+		captures.push(await capture(client, {
 			id: "home-light",
 			mode: "light",
 			systemColorScheme: "light",
 			scene: "home",
 		}, initialHealth.sessionId, options.goldenProfile));
-		captures.push(await capture(options.baseUrl, {
+		captures.push(await capture(client, {
 			id: "home-dark",
 			mode: "dark",
 			systemColorScheme: "light",
 			scene: "home",
 		}, initialHealth.sessionId, options.goldenProfile));
-		await setTheme(options.baseUrl, "light", "light");
-		await tap(options.baseUrl, 801, 319, 82);
-		captures.push(await capture(options.baseUrl, {
+		await setTheme(client, "light", "light");
+		await tap(client, 801, 319, 82);
+		captures.push(await capture(client, {
 			id: "settings-light",
 			mode: "light",
 			systemColorScheme: "light",
 			scene: "settings",
 		}, initialHealth.sessionId, options.goldenProfile));
-		captures.push(await capture(options.baseUrl, {
+		captures.push(await capture(client, {
 			id: "settings-dark",
 			mode: "dark",
 			systemColorScheme: "light",
 			scene: "settings",
 		}, initialHealth.sessionId, options.goldenProfile));
-		captures.push(await capture(options.baseUrl, {
+		captures.push(await capture(client, {
 			id: "settings-system-dark",
 			mode: "system",
 			systemColorScheme: "dark",
 			scene: "settings",
 		}, initialHealth.sessionId, options.goldenProfile));
-		await setTheme(options.baseUrl, "light", "light");
-		captures.push(await capture(options.baseUrl, {
+		await setTheme(client, "light", "light");
+		captures.push(await capture(client, {
 			id: "settings-system-light",
 			mode: "system",
 			systemColorScheme: "light",
 			scene: "settings",
 		}, initialHealth.sessionId, options.goldenProfile));
 	} finally {
-		await setTheme(options.baseUrl, initialMode, initialSystemScheme);
-		await ensureHomeScene(options.baseUrl, 802);
+		await setTheme(client, initialMode, initialSystemScheme);
+		await ensureHomeScene(client, 802);
 	}
 
 	const byId = new Map(captures.map(item => [String(item.evidence.id), item]));
@@ -291,7 +294,7 @@ async function main(): Promise<void> {
 		const directory = writeDiagnostics(captures, "system-light");
 		throw new Error(`System-Hell entspricht nicht pixelgenau dem originalen AppPlugin-Hellmodus; Diagnose: ${directory}`);
 	}
-	const finalState = await readJson<RuntimeState>(`${options.baseUrl}/state`);
+	const finalState = await readJson<RuntimeState>(client, "/state");
 	if (finalState.darkModeEvents.length <= initialState.darkModeEvents.length
 		|| finalState.appearanceEvents.length <= initialState.appearanceEvents.length
 		|| finalState.appliedActivityStyles.length <= initialState.appliedActivityStyles.length) {

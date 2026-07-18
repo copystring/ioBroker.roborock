@@ -5,7 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<link rel="canonical" href="./appplugin-desktop.html" />
 		<title>Roborock AppPlugin · ioBroker PoC</title>
-		<script type="module" src="./appplugin-desktop.js?v=5718bed1de6d"></script>
+		<script type="module" src="./appplugin-desktop.js?v=073e451880b5"></script>
 		<style>
 			:root {
 				color-scheme: light;
@@ -297,7 +297,7 @@
 				<div class="device-mini">
 					<div class="device-mini-row">
 						<div class="robot-dot" id="deviceFamilyBadge">…</div>
-						<div><strong id="deviceName">AppPlugin Testgerät</strong><small>Lokale Originalaufnahme</small></div>
+						<div><strong id="deviceName">AppPlugin Testgerät</strong><small>Lokale Aufnahme · Hostdiagnose</small></div>
 						<span class="online-dot" title="PoC aktiv"></span>
 					</div>
 				</div>
@@ -318,13 +318,13 @@
 					<div class="content-grid">
 						<section class="map-workspace" aria-label="AppPlugin-Karte">
 							<div class="workspace-heading">
-								<div><h1 id="mapViewTitle">Unveränderte AppPlugin-Karte</h1><p id="mapViewDescription">Geometrie, Farben, Raumnamen, Roboter, Station, Skalierung und Auswahlzustand werden von derselben laufenden Hermes-Sitzung erzeugt. Der Desktop hostet nur APK-Verträge, Eingabe und Ausgabe.</p></div>
-								<span class="source-badge">Live-AppPlugin · kein Kartenfallback</span>
+								<div><h1 id="mapViewTitle">AppPlugin-Karte als Hostdiagnose</h1><p id="mapViewDescription">UI-Baum und Eigenschaften stammen aus der unveränderten AppPlugin-Sitzung. Die sichtbaren SVG-Pixel erzeugt der Host diagnostisch; eine Originaldarstellung oder Pixelgleichheit ist damit nicht belegt.</p></div>
+								<span class="source-badge">Bundle unverändert · Host-SVG · kein Kartenfallback</span>
 							</div>
 							<div class="tool-row" aria-label="Kartenwerkzeuge und Testansicht">
 								<div class="surface-switch" role="group" aria-label="AppPlugin-Ansicht">
 									<button class="tool-button active" type="button" data-surface-view="map">Karte</button>
-									<button class="tool-button" type="button" data-surface-view="full">Original testen</button>
+									<button class="tool-button" type="button" data-surface-view="full">Hostdiagnose</button>
 								</div>
 								<span class="tool-separator" aria-hidden="true"></span>
 								<button class="tool-button" type="button" data-tool="view" disabled>Ansehen</button>
@@ -343,11 +343,11 @@
 									<span id="zoomValue" class="map-zoom-status" aria-label="Zoom wird vom AppPlugin verwaltet">Zoom</span>
 									<button id="zoomIn" type="button" title="Vergrößern" aria-label="Vergrößern">+</button>
 								</div>
-								<div id="desktopMap" role="application" aria-label="Direkt vom unveränderten Roborock-AppPlugin gerenderte Karte">
+								<div id="desktopMap" role="application" aria-label="Diagnostische Hostdarstellung des unveränderten Roborock-AppPlugin-Baums">
 									<img id="desktopMapFrame" alt="AppPlugin-Kartenframe" draggable="false" />
 									<div id="desktopMapNativeLayer" hidden aria-hidden="true"><img id="desktopMapNativeFrame" alt="" draggable="false" /></div>
 								</div>
-								<div id="mapNotice" class="map-notice">Direkte native Kartenteilstruktur des laufenden Q7-AppPlugins. Pointer und Pinch werden als APK-Touchereignisse zurück in dieselbe Sitzung geleitet; Gerätebefehle werden nicht gesendet.</div>
+								<div id="mapNotice" class="map-notice">PC-Kartenmodus aus derselben Bundle-Sitzung. Die sichtbare SVG-Darstellung ist eine Hostdiagnose; Gerätebefehle werden nicht gesendet.</div>
 							</div>
 							<div class="map-footer"><span id="mapInstruction">Raum/Räume zum Reinigen auswählen</span><span id="selectionSummary">Direkte AppPlugin-Sitzung wird verbunden …</span></div>
 						</section>
@@ -387,7 +387,7 @@
 										<button class="action-button" type="button" data-intent="clean.pause" disabled><span>Pause</span></button>
 										<button class="action-button" type="button" data-semantic-action="dock.panel" disabled><span>Dockingstation</span></button>
 									</div>
-									<div class="offline-note" style="margin-top:8px"><strong>Jetzt testbar:</strong> Wechsle oberhalb der Karte auf „Original testen“. Dort kannst du die originalen AppPlugin-Menüs bedienen, Räume auswählen sowie Bearbeiten → Unterteilen oder Zusammenführen öffnen. Entstehende DPS werden unten angezeigt, aber nicht an ein Gerät gesendet.</div>
+									<div class="offline-note" style="margin-top:8px"><strong>Jetzt testbar:</strong> Wechsle oberhalb der Karte auf „Hostdiagnose“. Dort kannst du den vom unveränderten Bundle erzeugten UI-Baum bedienen. Die SVG-Pixel und semantischen PC-Aktionsnamen sind Hostableitungen; entstehende DPS kommen aus dem Bundle und werden nicht an ein Gerät gesendet.</div>
 								</div>
 							</section>
 

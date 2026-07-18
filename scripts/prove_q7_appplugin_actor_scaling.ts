@@ -2,7 +2,11 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { createAppPluginPinchZoomPointers } from "../src/www/apppluginLab/live-appplugin-map-surface";
-import { ensureAppPluginDesktopProfile } from "./lib/appPluginDesktopClient";
+import {
+	createAppPluginDesktopClient,
+	ensureAppPluginDesktopProfile,
+	type AppPluginDesktopClient,
+} from "./lib/appPluginDesktopClient";
 
 type JsonRecord = Record<string, unknown>;
 type GoldenProfile = "q7-l5" | "q7-m5";
@@ -230,27 +234,25 @@ function round(value: number): number {
 	return Number(value.toFixed(6));
 }
 
-async function readJson<T>(url: string): Promise<T> {
-	const response = await fetch(url, { cache: "no-store" });
-	if (!response.ok) throw new Error(`${url} antwortet mit HTTP ${response.status}`);
-	return response.json() as Promise<T>;
+async function readJson<T>(client: AppPluginDesktopClient, pathname: string): Promise<T> {
+	return client.readJson<T>(pathname, { cache: "no-store" });
 }
 
 async function setTheme(
-	baseUrl: string,
+	client: AppPluginDesktopClient,
 	mode: "dark" | "light" | "system",
 	systemColorScheme: "dark" | "light",
 ): Promise<void> {
-	const response = await fetch(`${baseUrl}/theme?view=map`, {
+	const response = await client.fetch("/theme?view=map", {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
+		headers: { "Content-Type": "application/json", Origin: client.baseUrl },
 		body: JSON.stringify({ mode, systemColorScheme }),
 	});
 	if (!response.ok) throw new Error(`Theme-Bridge antwortet mit HTTP ${response.status}`);
 }
 
-async function sceneGeometry(baseUrl: string): Promise<SceneGeometry> {
-	const ui = await readJson<UiState>(`${baseUrl}/ui-state`);
+async function sceneGeometry(client: AppPluginDesktopClient): Promise<SceneGeometry> {
+	const ui = await readJson<UiState>(client, "/ui-state");
 	const layouts = new Map(ui.nativeHierarchy.layouts.map(entry => [entry.tag, entry.box]));
 	const robotPath = findAssetPath(ui.nativeHierarchy.root, ROBOT_ASSET);
 	const mapLayer = [...robotPath].reverse().find(node => numericProp(node, "zIndex") === 100);
@@ -372,12 +374,12 @@ function assertActorsTrackMap(before: SceneGeometry, after: SceneGeometry, conte
 	}
 }
 
-async function pinch(baseUrl: string, delta: number, pointerOffset: number): Promise<void> {
+async function pinch(client: AppPluginDesktopClient, delta: number, pointerOffset: number): Promise<void> {
 	const pointers = createAppPluginPinchZoomPointers(360, 800, delta);
 	const timeMs = Date.now();
-	const response = await fetch(`${baseUrl}/pointer-sequence?view=map`, {
+	const response = await client.fetch("/pointer-sequence?view=map", {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
+		headers: { "Content-Type": "application/json", Origin: client.baseUrl },
 		body: JSON.stringify({
 			pointers: pointers.map((pointer, index) => ({
 				...pointer,
@@ -398,10 +400,11 @@ async function main(): Promise<void> {
 		options.baseUrl,
 		options.goldenProfile === "q7-m5" ? "q7-m5" : "q7",
 	);
+	const client = await createAppPluginDesktopClient(options.baseUrl);
 	const fixtureDirectory = path.join(process.cwd(), "test", "fixtures", "appplugin");
 	const manifestPath = path.join(fixtureDirectory, `${options.goldenProfile}-actor-scaling-golden.json`);
-	const initialHealth = await readJson<RuntimeHealth>(`${options.baseUrl}/health?view=map`);
-	const initialState = await readJson<RuntimeState>(`${options.baseUrl}/state`);
+	const initialHealth = await readJson<RuntimeHealth>(client, "/health?view=map");
+	const initialState = await readJson<RuntimeState>(client, "/state");
 	if (initialHealth.status !== "appplugin-session-ready"
 		|| initialHealth.productFallbackAllowed !== false
 		|| initialHealth.bundleKind !== "hermes-bytecode"
@@ -423,27 +426,27 @@ async function main(): Promise<void> {
 	let originalConstants: ActorConstants;
 	let normalizedGeometry: Readonly<Record<string, number>>;
 	try {
-		await setTheme(options.baseUrl, "light", "light");
-		initial = await sceneGeometry(options.baseUrl);
+		await setTheme(client, "light", "light");
+		initial = await sceneGeometry(client);
 		assertActorInvariants(initial);
 		originalConstants = actorConstants(initial);
 		assertActorConstants(initial, originalConstants);
 		normalizedGeometry = normalizedActorGeometry(initial);
-		await pinch(options.baseUrl, 1, 1_000);
-		zoomIn = await sceneGeometry(options.baseUrl);
+		await pinch(client, 1, 1_000);
+		zoomIn = await sceneGeometry(client);
 		assertActorInvariants(zoomIn);
 		assertActorConstants(zoomIn, originalConstants);
 		assertNormalizedGeometry(zoomIn, normalizedGeometry);
 		assertActorsTrackMap(initial, zoomIn, "Desktop-Plus");
-		await pinch(options.baseUrl, -1, 2_000);
-		zoomOut = await sceneGeometry(options.baseUrl);
+		await pinch(client, -1, 2_000);
+		zoomOut = await sceneGeometry(client);
 		assertActorInvariants(zoomOut);
 		assertActorConstants(zoomOut, originalConstants);
 		assertNormalizedGeometry(zoomOut, normalizedGeometry);
 		assertActorsTrackMap(zoomIn, zoomOut, "Desktop-Minus");
 		assertClose(zoomOut.mapScaleX, initial.mapScaleX, "Inverses APK-Pinch-Paar stellt Kartenmaßstab wieder her", 1e-6);
 	} finally {
-		await setTheme(options.baseUrl, initialMode, initialHealth.systemColorScheme);
+		await setTheme(client, initialMode, initialHealth.systemColorScheme);
 	}
 	if (zoomIn!.mapScaleX <= initial!.mapScaleX
 		|| zoomIn!.robot.bounds.width <= initial!.robot.bounds.width

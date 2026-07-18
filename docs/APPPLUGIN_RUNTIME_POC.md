@@ -25,7 +25,7 @@ Die aktuelle Matrix wird mit `node scripts/appplugin_map_matrix.js` erzeugt und 
 
 `scripts/lib/direct_jx_worker_host.js` bildet die APK-Verträge `startBackgroundJsExecutor`, `callJsExecutorWithArray` und `stopBackground` ab. Der Worker wird als ganze `.jx`-Datei ausgeführt. Er erhält kein `require`, `process`, Netzwerk oder freien Dateisystemzugriff und darf nur innerhalb seines AppPlugin-Verzeichnisses geladen werden.
 
-Der Q10-X5+-PoC führt damit die originale Funktion `packageMap` aus. Dieser Pfad ist durch ein echtes Kartenmodell und ein PNG-Golden abgesichert.
+Der Q10-X5+-PoC führt damit für die vorhandene echte Typ-3-Historienaufnahme die originale Funktion `packageMap` aus. Belegt ist das Historien-Kartenmodell; ein Live-Home-Raster oder PNG entsteht in diesem Pfad ausdrücklich nicht.
 
 ### Capture-only Gerätebridge
 
@@ -40,9 +40,9 @@ Die Adapterimplementierung wird gegen Originalvektoren aus `librrcodec.so` gepr�
 ## Noch nicht freigegeben
 
 - Der HBC96-Hermes-Host ist noch nicht als produktionsfähiger Linux-/macOS-Host bewiesen.
-- SCMap/Skia besitzt für Q7 L5 und M5 denselben belegten Hostvertrag sowie Vollszenen-, Theme- und Akteurskalierungs-Goldens. Einzel- und Mehrfachauswahl, Abwahl, Grenzpunkt-Hit-Testing, Auswahl nach einem Moduszyklus und die AppPlugin-eigenen Farbzustände sind für beide Bundles belegt; Pinch-Zoom und mehrere Editierfälle sind bislang nur für L5 nachgewiesen. Die übrigen M5-Interaktions- und Editiergates bleiben offen.
+- SCMap/Skia besitzt für Q7 L5 und M5 denselben belegten Hostvertrag sowie Vollszenen-, Theme-, Akteurskalierungs- und Gesten-Goldens. Einzel- und Mehrfachauswahl, Abwahl, Grenzpunkt-Hit-Testing, Auswahl nach einem Moduszyklus, AppPlugin-eigene Farbzustände sowie Drag, Pinch-Zoom, Zoomgrenzen, Anker, Abbruch und Wiederaufnahme sind für beide Bundles im Host belegt. Die unabhängige Android-Differenz sowie weitere M5-Interaktions- und Editiergates bleiben offen.
 - Tanos- und Tanos/Skia-Verhalten ist nicht durch einen erfolgreichen Kartenlauf belegt.
-- Das Q10-PNG ist das originale Basisraster, noch keine vollständige Skia-Komposition und kein Interaktionsbeweis.
+- Für Q10/YX fehlt eine echte Typ-1-Liveaufnahme mit passender DPS-Sequenz und Android-Referenz. Die vorhandene Typ-3-Historienaufnahme darf weder als Live-Raster noch als Interaktionsbeweis verwendet werden.
 - Ressourcenlimits, Prozessisolation, Neustart, Parallelität und Adapter-Lebenszyklus sind vor einer Produktintegration eigene Gates.
 
 Der frühere Split-Bundle-PoC bleibt nur als Forschungswerkzeug erhalten. Er ist kein Kandidat für den späteren Produktpfad.

@@ -6,6 +6,12 @@ Das unveränderte, zum Gerät gehörende AppPlugin besitzt die Roborock-Fachlogi
 
 Der ioBroker-Adapter bildet die APK-Hostverträge nach. Er ersetzt keine AppPlugin-Fachlogik, solange nicht technisch belegt ist, dass der entsprechende APK-Vertrag außerhalb Androids nicht bereitgestellt werden kann.
 
+„Unverändertes Bundle“ belegt dabei zunächst nur die Quellintegrität. Ein vom
+Desktop-Host erzeugtes SVG oder PNG ist eine Hostdiagnose und noch keine
+Original-App-Darstellung. Die verbindliche Trennung von Bundle-, Host- und
+Android-Belegen steht in
+[`APPPLUGIN_EVIDENCE_LEVELS.md`](./APPPLUGIN_EVIDENCE_LEVELS.md).
+
 ## Erlaubte Verantwortung des Hosts
 
 - AppPlugin-ZIP herunterladen und entpacken; `index.android.bundle` unverändert laden.
@@ -59,7 +65,12 @@ B01, Q10 und V1 sind Daten-/Protokollpfade. Sie dürfen nicht als alleinige Rend
 
 ## Aus Phase 0C bestätigte Prozessgrenze
 
-Der Q7-L5-Nachweis bestätigt den bidirektionalen Produktpfad über eine unveränderte Hermes-Bundle-Datei: APK-konforme Geräte- und Eingabeereignisse gehen in die langlebige Sitzung; Darstellung, deutsche Texte, Raumzustand und Editierlogik bleiben im AppPlugin; eine Raumumbenennung verlässt die Sitzung als vom Bundle selbst gebildete `publishDps`-Absicht `service.rename_room`.
+Der Q7-L5-Nachweis bestätigt einen bidirektionalen Forschungspfad über eine
+unveränderte Hermes-Bundle-Datei: APK-abgeleitete Geräte- und Eingabeereignisse
+gehen in die langlebige Sitzung; das Bundle erzeugt Texte, Raumzustand,
+Editierzustand und eine `publishDps`-Absicht `service.rename_room`. Die derzeit
+sichtbaren SVG-/PNG-Pixel entstehen jedoch im nachgebauten Host und sind bis zum
+externen Android-Differenznachweis keine bestätigte Originaldarstellung.
 
 Daraus folgt die Prozessgrenze für Phase 1:
 
@@ -69,7 +80,10 @@ Daraus folgt die Prozessgrenze für Phase 1:
 - Antworten und Geräteereignisse laufen wieder über die originalen APK-Ereignisverträge in dieselbe Sitzung zurück.
 - Die Desktop-Hülle darf AppPlugin-Modi semantisch anstoßen und Ergebnisse darstellen, aber keine modellabhängigen Befehle oder Kartenregeln duplizieren.
 
-Dieser Nachweis entscheidet die Architektur, aber noch nicht die Produktfreigabe: Weitere Editierfälle und alle unterschiedlichen Renderer-/Hostfamilien müssen dieselbe Grenze erst bestehen.
+Dieser Nachweis entscheidet die Architektur, aber noch nicht die
+Produktfreigabe: Weitere Editierfälle, alle unterschiedlichen
+Renderer-/Hostfamilien, externe Android-Differenztests und eine echte
+Default-deny-Prozessisolation müssen dieselbe Grenze erst bestehen.
 
 ## Sprache und Raumnamen
 
@@ -85,3 +99,8 @@ Der Host übergibt Sprache und Locale über dieselben APK-Module wie die Origina
 Snapshot-, SVG- und Offline-Nachbildungen dürfen nur als ausdrücklich gekennzeichnete Diagnosewerkzeuge existieren. Sie dürfen keine Produktparität behaupten und nicht stillschweigend zum Fallback des Adapters werden.
 
 Ein Familien-Gate gilt erst als bestanden, wenn das originale Bundle mit echten Daten rendert, Pointer-Ereignisse verarbeitet und dieselben semantischen Ergebnisse wie die Original-App liefert.
+
+Die direkte Metro-/Hermes-Ausführung ist keine Sicherheits-Sandbox. Für die
+Produkt-Runtime ist vor Phase 1 eine separate Prozessgrenze mit gesperrtem
+Netzwerk, begrenztem Dateisystem, CPU-/RAM-Limits und hartem Kill/Restart
+verbindlich.

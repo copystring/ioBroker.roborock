@@ -28,10 +28,18 @@ import {
 } from "./lib/appPluginDesktopSessionState";
 import {
 	parseAppPluginDesktopProfile,
+	parseAppPluginMapFamily,
 	writeAppPluginDesktopProfileSwitch,
 	type AppPluginDesktopProfile,
+	type AppPluginMapFamily,
 } from "./lib/appPluginDesktopProfiles";
 import { resolveAppPluginDesktopStaticAsset } from "./lib/appPluginDesktopStaticAssets";
+import {
+	injectAppPluginSessionToken,
+	isValidAppPluginSessionToken,
+	requestHasAppPluginSessionToken,
+	setAppPluginDesktopSecurityHeaders,
+} from "./lib/appPluginDesktopHttpSession";
 import {
 	ApkAppearanceRuntime,
 	APK_SEMANTIC_UI_ACTION_IDS,
@@ -40,6 +48,7 @@ import {
 	ApkAppSysRuntime,
 	ApkDarkModeRuntime,
 	ApkDeviceFirmwareRuntime,
+	ApkGestureHandlerRuntime,
 	ApkHermesHostSession,
 	ApkI18nManagerRuntime,
 	ApkLocalizationRuntime,
@@ -69,6 +78,7 @@ import {
 	createApkCanvasKitTextLayoutBackend,
 	decodeApkB01MqttFrameToSegment,
 	createApkDeviceInfoConstants,
+	createApkGestureHandlerConstants,
 	createApkLocalizationConstants,
 	createApkPluginSdkConstants,
 	createApkRemoteModuleDefinitions,
@@ -112,7 +122,10 @@ interface ProbeOptions {
 	serveFullRoot: boolean;
 	sessionStatePath?: string;
 	staticRootPath?: string;
+	httpSessionTokenFilePath?: string;
+	httpSessionToken?: string;
 	profileId?: AppPluginDesktopProfile;
+	mapFamily: AppPluginMapFamily;
 	availableProfiles: AppPluginDesktopProfile[];
 	profileSwitchPath?: string;
 	b01FramePath?: string;
@@ -145,6 +158,16 @@ function parseBoolean(value: string | undefined, option: string): boolean {
 	throw new Error(`${option} benötigt true oder false`);
 }
 
+function readSmallSecretFile(filePath: string, maximumBytes: number, label: string): string {
+	const realPath = fs.realpathSync.native(filePath);
+	const stats = fs.statSync(realPath);
+	if (!stats.isFile()) throw new Error(`${label} ist keine Datei`);
+	if (stats.size <= 0 || stats.size > maximumBytes) {
+		throw new Error(`${label} muss zwischen 1 und ${maximumBytes} Bytes groß sein`);
+	}
+	return fs.readFileSync(realPath, "utf8").trim();
+}
+
 function parseArgs(args: string[]): ProbeOptions {
 	const repositoryRoot = process.cwd();
 	const options: Partial<ProbeOptions> = {
@@ -170,6 +193,7 @@ function parseArgs(args: string[]): ProbeOptions {
 		runApplication: false,
 		reactStateProbe: false,
 		serveFullRoot: false,
+		mapFamily: "unknown",
 		availableProfiles: [],
 		duid: "appplugin-runtime-probe-device",
 		activeTime: 0,
@@ -210,7 +234,9 @@ function parseArgs(args: string[]): ProbeOptions {
 		else if (option === "--run-application") options.runApplication = true;
 		else if (option === "--react-state-probe") options.reactStateProbe = true;
 		else if (option === "--b01-frame" && value) options.b01FramePath = path.resolve(args[++index]);
-		else if (option === "--b01-local-key" && value) options.b01LocalKey = args[++index];
+		else if (option === "--b01-local-key" && value) {
+			throw new Error("--b01-local-key ist aus Sicherheitsgründen deaktiviert; verwende --b01-local-key-file");
+		}
 		else if (option === "--b01-local-key-file" && value) options.b01LocalKeyFilePath = path.resolve(args[++index]);
 		else if (option === "--replay-manifest" && value) options.replayManifestPath = path.resolve(args[++index]);
 		else if (option === "--pointer-replay" && value) options.pointerReplayManifestPath = path.resolve(args[++index]);
@@ -219,9 +245,17 @@ function parseArgs(args: string[]): ProbeOptions {
 		else if (option === "--serve-full-root") options.serveFullRoot = true;
 		else if (option === "--session-state" && value) options.sessionStatePath = path.resolve(args[++index]);
 		else if (option === "--static-root" && value) options.staticRootPath = path.resolve(args[++index]);
+		else if (option === "--http-session-token-file" && value) {
+			options.httpSessionTokenFilePath = path.resolve(args[++index]);
+		}
 		else if (option === "--profile-id" && value) {
 			options.profileId = parseAppPluginDesktopProfile(args[++index]);
 			if (!options.profileId) throw new Error("--profile-id enthält ein unbekanntes AppPlugin-Profil");
+		}
+		else if (option === "--map-family" && value) {
+			const mapFamily = parseAppPluginMapFamily(args[++index]);
+			if (!mapFamily) throw new Error("--map-family enthält eine unbekannte Kartenfamilie");
+			options.mapFamily = mapFamily;
 		}
 		else if (option === "--available-profiles" && value) {
 			options.availableProfiles = args[++index]
@@ -249,17 +283,18 @@ function parseArgs(args: string[]): ProbeOptions {
 	if (options.replayManifestPath && options.b01FramePath) {
 		throw new Error("--replay-manifest und --b01-frame dürfen nicht gemeinsam verwendet werden");
 	}
-	if (options.b01LocalKey && options.b01LocalKeyFilePath) {
-		throw new Error("--b01-local-key und --b01-local-key-file dürfen nicht gemeinsam verwendet werden");
-	}
 	if (options.b01LocalKeyFilePath) {
-		options.b01LocalKey = fs.readFileSync(options.b01LocalKeyFilePath, "utf8").trim();
+		options.b01LocalKey = readSmallSecretFile(
+			options.b01LocalKeyFilePath,
+			64,
+			"--b01-local-key-file",
+		);
 		if (options.b01LocalKey.length !== 16) {
 			throw new Error("--b01-local-key-file muss genau einen 16-stelligen Schlüssel enthalten");
 		}
 	}
 	if (!options.replayManifestPath && Boolean(options.b01FramePath) !== Boolean(options.b01LocalKey)) {
-		throw new Error("--b01-frame und --b01-local-key müssen gemeinsam angegeben werden");
+		throw new Error("--b01-frame und --b01-local-key-file müssen gemeinsam angegeben werden");
 	}
 	if ((options.replayManifestPath || options.b01FramePath) && !options.runApplication) {
 		throw new Error("Geräte-Replay benötigt --run-application");
@@ -272,6 +307,19 @@ function parseArgs(args: string[]): ProbeOptions {
 	}
 	if (options.staticRootPath && options.servePort === undefined) {
 		throw new Error("Statische Desktop-Dateien benötigen --serve-port");
+	}
+	if (options.servePort !== undefined) {
+		if (!options.httpSessionTokenFilePath) {
+			throw new Error("Interaktiver Server benötigt --http-session-token-file");
+		}
+		options.httpSessionToken = readSmallSecretFile(
+			options.httpSessionTokenFilePath,
+			256,
+			"--http-session-token-file",
+		);
+		if (!isValidAppPluginSessionToken(options.httpSessionToken)) {
+			throw new Error("--http-session-token-file enthält kein gültiges Sitzungstoken");
+		}
 	}
 	const profileRoutingConfigured = options.profileId !== undefined
 		|| options.availableProfiles.length > 0
@@ -619,6 +667,24 @@ interface SemanticActionHttpRequest {
 	id: ApkSemanticUiActionId;
 }
 
+const MAX_RUNTIME_DIAGNOSTIC_ENTRIES = 2_000;
+const MAX_PUBLISHED_DPS_ENTRIES = 10_000;
+const HTTP_REQUEST_BODY_TIMEOUT_MS = 5_000;
+
+class AppPluginRuntimeUnavailableError extends Error {
+	public readonly statusCode = 503;
+
+	public constructor(message: string) {
+		super(message);
+		this.name = "AppPluginRuntimeUnavailableError";
+	}
+}
+
+function appendBounded<T>(entries: T[], entry: T, maximum = MAX_RUNTIME_DIAGNOSTIC_ENTRIES): void {
+	entries.push(entry);
+	if (entries.length > maximum) entries.splice(0, entries.length - maximum);
+}
+
 function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
 	response.statusCode = statusCode;
 	response.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -629,6 +695,7 @@ function serveAppPluginDesktopStaticRequest(
 	staticRootPath: string,
 	url: URL,
 	response: ServerResponse,
+	sessionToken: string,
 ): boolean {
 	if (url.pathname === "/" || url.pathname === "/appplugin-lab.html") {
 		const parameters = new URLSearchParams(url.search);
@@ -643,9 +710,15 @@ function serveAppPluginDesktopStaticRequest(
 	if (!asset) return false;
 	void fs.promises.readFile(asset.filePath)
 		.then(content => {
+			const responseContent = asset.contentType.startsWith("text/html")
+				? Buffer.from(
+					injectAppPluginSessionToken(content.toString("utf8"), sessionToken),
+					"utf8",
+				)
+				: content;
 			response.statusCode = 200;
 			response.setHeader("Content-Type", asset.contentType);
-			response.end(content);
+			response.end(responseContent);
 		})
 		.catch(error => {
 			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
@@ -658,13 +731,29 @@ function serveAppPluginDesktopStaticRequest(
 }
 
 async function readJsonRequest(request: IncomingMessage): Promise<Readonly<Record<string, unknown>>> {
+	const contentType = request.headers["content-type"]?.split(";", 1)[0]?.trim().toLowerCase();
+	if (contentType !== "application/json") {
+		throw new Error("Runtime-Anfragen müssen Content-Type application/json verwenden");
+	}
+	const declaredLength = Number(request.headers["content-length"] ?? "0");
+	if (Number.isFinite(declaredLength) && declaredLength > 64 * 1024) {
+		throw new Error("Runtime-Anfrage ist größer als 64 KiB");
+	}
 	const chunks: Buffer[] = [];
 	let byteLength = 0;
-	for await (const chunk of request) {
-		const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-		byteLength += buffer.byteLength;
-		if (byteLength > 64 * 1024) throw new Error("Pointer-Anfrage ist größer als 64 KiB");
-		chunks.push(buffer);
+	const timeout = setTimeout(() => {
+		request.destroy(new Error(`Runtime-Anfrage überschritt ${HTTP_REQUEST_BODY_TIMEOUT_MS} ms`));
+	}, HTTP_REQUEST_BODY_TIMEOUT_MS);
+	timeout.unref();
+	try {
+		for await (const chunk of request) {
+			const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+			byteLength += buffer.byteLength;
+			if (byteLength > 64 * 1024) throw new Error("Runtime-Anfrage ist größer als 64 KiB");
+			chunks.push(buffer);
+		}
+	} finally {
+		clearTimeout(timeout);
 	}
 	const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
 	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -846,7 +935,7 @@ async function main(): Promise<void> {
 	const appStateEvents: Array<{ eventName: string; payload: unknown }> = [];
 	const appState = new ApkAppStateRuntime({
 		initialState: "active",
-		emitDeviceEvent: (eventName, payload) => appStateEvents.push({ eventName, payload }),
+		emitDeviceEvent: (eventName, payload) => appendBounded(appStateEvents, { eventName, payload }),
 	});
 	const darkModeEvents: Array<{ eventName: string; payload: unknown }> = [];
 	const appliedActivityStyles: boolean[] = [];
@@ -860,9 +949,9 @@ async function main(): Promise<void> {
 		storedColorModel: options.colorModel,
 		systemColorScheme: options.systemColorScheme,
 		initialCardStyle: options.cardStyle,
-		emitDeviceEvent: (eventName, payload) => darkModeEvents.push({ eventName, payload }),
-		applyActivityStyle: isDark => appliedActivityStyles.push(isDark),
-		requestColorModel: mode => requestedColorModels.push(mode),
+		emitDeviceEvent: (eventName, payload) => appendBounded(darkModeEvents, { eventName, payload }),
+		applyActivityStyle: isDark => appendBounded(appliedActivityStyles, isDark),
+		requestColorModel: mode => appendBounded(requestedColorModels, mode),
 		onStateChange: state => persistSessionState({
 			colorModel: state.colorModel,
 			systemColorScheme: state.systemColorScheme,
@@ -881,7 +970,7 @@ async function main(): Promise<void> {
 	const workerDiagnostics: ApkV8WorkerDiagnostic[] = [];
 	const workerRuntime = new ApkV8WorkerRuntime({
 		pluginRootPath: bundleDirectory,
-		onDiagnostic: diagnostic => workerDiagnostics.push(diagnostic),
+		onDiagnostic: diagnostic => appendBounded(workerDiagnostics, diagnostic),
 	});
 	const agreementAndPolicy = {
 		privacyProtocol: { version: "1", langUrl: "https://probe.invalid/privacy" },
@@ -892,6 +981,9 @@ async function main(): Promise<void> {
 		{ type: "PRIVACY_POLICY", version: 1 },
 	];
 	const publishedDps: Array<Readonly<Record<string, unknown>>> = [];
+	let publishedDpsRetainedFrom = 0;
+	let publishedDpsCount = 0;
+	let pageCloseRequestCount = 0;
 	const publishReplayResponseErrors: string[] = [];
 	let handlePublishedDps: ((dps: Readonly<Record<string, unknown>>, publishedIndex: number) => void) | undefined;
 	const pluginDevice = new ApkPluginDeviceRuntime({
@@ -899,13 +991,23 @@ async function main(): Promise<void> {
 		transport: {
 			loadShadowDps: async () => shadowDpsJson,
 			publishDps: async dps => {
+				const publishedIndex = publishedDpsCount;
+				publishedDpsCount += 1;
 				publishedDps.push(dps);
-				handlePublishedDps?.(dps, publishedDps.length - 1);
+				if (publishedDps.length > MAX_PUBLISHED_DPS_ENTRIES) {
+					const removed = publishedDps.length - MAX_PUBLISHED_DPS_ENTRIES;
+					publishedDps.splice(0, removed);
+					publishedDpsRetainedFrom += removed;
+				}
+				handlePublishedDps?.(dps, publishedIndex);
 			},
 		},
 	});
 	const pluginSdkEnvironment = new ApkPluginSdkEnvironmentRuntime({
 		hasActivity: () => true,
+		closeCurrentPage: () => {
+			pageCloseRequestCount += 1;
+		},
 		firmwareVersion,
 		storageBasePath,
 		loadOtaInfo: async () => null,
@@ -924,7 +1026,7 @@ async function main(): Promise<void> {
 			return sessionForTimers.callJsFunction("JSTimers", "callTimers", [timerIds])
 				.then(() => onTimerJsCompleted?.());
 		},
-		onError: error => timingErrors.push(error.message),
+		onError: error => appendBounded(timingErrors, error.message),
 	});
 	let sessionForLocalization: ApkHermesHostSession | undefined;
 	const localizationEvents: Array<{ eventName: "langDidChange"; payload: string }> = [];
@@ -934,7 +1036,7 @@ async function main(): Promise<void> {
 		systemLocaleIdentifier: options.systemLocaleIdentifier,
 		emitDeviceEvent: async (eventName, payload) => {
 			if (!sessionForLocalization) throw new Error("Hermes-Session für ReactLocalization fehlt");
-			localizationEvents.push({ eventName, payload });
+			appendBounded(localizationEvents, { eventName, payload });
 			await sessionForLocalization.emitDeviceEvent(eventName, payload);
 		},
 		onStateChange: state => persistSessionState({
@@ -957,6 +1059,7 @@ async function main(): Promise<void> {
 			isRTL: initialIsRTL,
 			doLeftAndRightSwapInRTL: options.doLeftAndRightSwapInRTL,
 		}),
+		createApkGestureHandlerConstants(),
 		createApkSourceCodeConstants(sourceCodeUrl),
 		{ AppState: appState.constants() },
 		{ RRPluginDarkMode: darkMode.constants() },
@@ -1017,7 +1120,7 @@ async function main(): Promise<void> {
 	const appSysLogs: unknown[] = [];
 	const appSys = new ApkAppSysRuntime({
 		networkReachable: () => true,
-		writeLog: entry => appSysLogs.push(entry),
+		writeLog: entry => appendBounded(appSysLogs, entry),
 	});
 	registry.register(
 		installedModule(contract, "RRAppSysTurboModule").javaClass,
@@ -1027,8 +1130,8 @@ async function main(): Promise<void> {
 	const appearanceEvents: Array<{ eventName: string; payload: unknown }> = [];
 	const appearance = new ApkAppearanceRuntime({
 		initialColorScheme: darkMode.getColorScheme(),
-		requestColorScheme: mode => requestedColorSchemeModes.push(mode),
-		emitDeviceEvent: (eventName, payload) => appearanceEvents.push({ eventName, payload }),
+		requestColorScheme: mode => appendBounded(requestedColorSchemeModes, mode),
+		emitDeviceEvent: (eventName, payload) => appendBounded(appearanceEvents, { eventName, payload }),
 	});
 	registry.register(installedModule(contract, "Appearance").javaClass, {
 		addListener: appearance.addListener,
@@ -1039,6 +1142,11 @@ async function main(): Promise<void> {
 	registry.register(installedModule(contract, "RNSkiaModule").javaClass, {
 		install: () => true,
 	});
+	const gestureHandler = new ApkGestureHandlerRuntime();
+	registry.register(
+		installedModule(contract, "RNGestureHandlerModule").javaClass,
+		gestureHandler as unknown as Record<string, unknown>,
+	);
 	registry.register(
 		installedModule(contract, "UIManager").javaClass,
 		uiManager as unknown as Record<string, unknown>,
@@ -1094,13 +1202,14 @@ async function main(): Promise<void> {
 	const reportedExceptions: Array<{ method: string; arguments: unknown[] }> = [];
 	registry.register(installedModule(contract, "ExceptionsManager").javaClass, {
 		dismissRedbox: () => undefined,
-		reportException: (...arguments_: unknown[]) => reportedExceptions.push({ method: "reportException", arguments: arguments_ }),
+		reportException: (...arguments_: unknown[]) =>
+			appendBounded(reportedExceptions, { method: "reportException", arguments: arguments_ }),
 		reportFatalException: (...arguments_: unknown[]) =>
-			reportedExceptions.push({ method: "reportFatalException", arguments: arguments_ }),
+			appendBounded(reportedExceptions, { method: "reportFatalException", arguments: arguments_ }),
 		reportSoftException: (...arguments_: unknown[]) =>
-			reportedExceptions.push({ method: "reportSoftException", arguments: arguments_ }),
+			appendBounded(reportedExceptions, { method: "reportSoftException", arguments: arguments_ }),
 		updateExceptionMessage: (...arguments_: unknown[]) =>
-			reportedExceptions.push({ method: "updateExceptionMessage", arguments: arguments_ }),
+			appendBounded(reportedExceptions, { method: "updateExceptionMessage", arguments: arguments_ }),
 	});
 
 	const definitions = createApkRemoteModuleDefinitions(contract, constants);
@@ -1112,11 +1221,11 @@ async function main(): Promise<void> {
 		bootstrapPath: options.bootstrapPath,
 		definitions,
 		skiaRuntime,
-		onInvocationRejection: rejection => nativeInvocationRejections.push(rejection),
+		onInvocationRejection: rejection => appendBounded(nativeInvocationRejections, rejection),
 		dispatcher: new ApkNativeModuleDispatcher(
 			contract,
 			registry,
-			(moduleName, methodName, arguments_) => nativeInvocations.push({
+			(moduleName, methodName, arguments_) => appendBounded(nativeInvocations, {
 				moduleName,
 				methodName,
 				argumentCount: arguments_.length,
@@ -1126,6 +1235,7 @@ async function main(): Promise<void> {
 	});
 	sessionForTimers = session;
 	sessionForLocalization = session;
+	let interactiveLayoutBoundary = false;
 	const uiExecution = new ApkUiExecutionRuntime({
 		uiManager,
 		jsModuleCaller: session,
@@ -1137,6 +1247,10 @@ async function main(): Promise<void> {
 		direction: initialIsRTL ? "rtl" : "ltr",
 		doLeftAndRightSwapInRTL: options.doLeftAndRightSwapInRTL,
 		afterLayoutEvents: async () => {
+			if (interactiveLayoutBoundary) {
+				await session.flushRuntimeBoundary();
+				return;
+			}
 			await session.waitForRuntimeBoundaryIdle();
 		},
 	});
@@ -1147,18 +1261,40 @@ async function main(): Promise<void> {
 	);
 	const textInput = new ApkTextInputRuntime(uiManager, session);
 	const uiExecutionSnapshots: unknown[] = [];
+	const skiaVisualRevision = (): number => {
+		const diagnostics = skiaHost.getDiagnostics();
+		return diagnostics.pictureUpdates + diagnostics.redrawRequests;
+	};
+	let lastStabilizedOperationCount = uiManager.operationCount();
 	let lastStabilizedVisualRevision = uiManager.visualMutationRevision();
-	let lastStabilizedPictureUpdates = skiaHost.getDiagnostics().pictureUpdates;
+	let lastStabilizedSkiaRevision = skiaVisualRevision();
+	const applyUiLayout = async (): Promise<void> => {
+		appendBounded(uiExecutionSnapshots, await uiExecution.stabilize());
+		lastStabilizedOperationCount = uiManager.operationCount();
+		lastStabilizedVisualRevision = uiManager.visualMutationRevision();
+		lastStabilizedSkiaRevision = skiaVisualRevision();
+	};
 	const stabilizeUi = async (): Promise<void> => {
 		await session.waitForRuntimeBoundaryIdle();
-		uiExecutionSnapshots.push(await uiExecution.stabilize());
-		lastStabilizedVisualRevision = uiManager.visualMutationRevision();
-		lastStabilizedPictureUpdates = skiaHost.getDiagnostics().pictureUpdates;
+		await applyUiLayout();
 	};
 	const stabilizeInteractiveUi = async (): Promise<void> => {
 		// Pointer-Eingaben dürfen zukünftige AppPlugin-Timer nicht künstlich abwarten.
-		// Android liefert Touches direkt und rendert anschließend den nächsten UI-Stand.
-		await stabilizeUi();
+		// Android liefert den Touch in einem nativen UI-Turn aus und wartet nicht,
+		// bis eine davon unabhängige Animation die gesamte Bridge ruhig werden lässt.
+		await session.flushRuntimeBoundary();
+		if (
+			uiManager.operationCount() === lastStabilizedOperationCount
+			&& uiManager.pendingNativeMeasurementCount() === 0
+		) {
+			return;
+		}
+		interactiveLayoutBoundary = true;
+		try {
+			await applyUiLayout();
+		} finally {
+			interactiveLayoutBoundary = false;
+		}
 	};
 	let imminentTimerCycles = 0;
 	const settleImminentOneShotTimers = async (
@@ -1222,7 +1358,7 @@ async function main(): Promise<void> {
 			if (nativeAnimatedUiPumpRequested) requestNativeAnimatedUiPump?.();
 		});
 		void nativeAnimatedUiPump.catch(error => {
-			timingErrors.push(error instanceof Error ? error.message : String(error));
+			appendBounded(timingErrors, error instanceof Error ? error.message : String(error));
 		});
 	};
 	let timerUiPump: Promise<void> | undefined;
@@ -1235,7 +1371,7 @@ async function main(): Promise<void> {
 				timerUiPumpRequested = false;
 				await session.waitForRuntimeBoundaryIdle();
 				const visualChanged = uiManager.visualMutationRevision() !== lastStabilizedVisualRevision
-					|| skiaHost.getDiagnostics().pictureUpdates !== lastStabilizedPictureUpdates;
+					|| skiaVisualRevision() !== lastStabilizedSkiaRevision;
 				if (!visualChanged) continue;
 				await stabilizeUi();
 				revision += 1;
@@ -1245,7 +1381,7 @@ async function main(): Promise<void> {
 			timerUiPump = undefined;
 			if (timerUiPumpRequested) {
 				void onTimerJsCompleted?.().catch(error => {
-					timingErrors.push(error instanceof Error ? error.message : String(error));
+					appendBounded(timingErrors, error instanceof Error ? error.message : String(error));
 				});
 			}
 		});
@@ -1394,7 +1530,7 @@ async function main(): Promise<void> {
 			await session.runApplication("App", {
 				rootTag,
 				initialProps: {
-					colorMode: "light",
+					colorMode: darkMode.getColorScheme(),
 					concurrentRoot: true,
 				},
 			});
@@ -1536,6 +1672,7 @@ async function main(): Promise<void> {
 						width: Math.round(options.width / options.scale),
 						height: Math.round(options.height / options.scale),
 						fontPaths: skiaHost.getDiagnostics().fontPaths,
+						allowedFileRoots: [bundleDirectory, storageBasePath],
 						direction: initialIsRTL ? "rtl" : "ltr",
 					}, assertionSnapshotPath);
 					throw new Error(
@@ -1591,18 +1728,18 @@ async function main(): Promise<void> {
 		if (skiaDiagnostics.viewIds.length > 0) {
 			skiaPng = skiaHost.exportLatestPng(path.join(
 				path.dirname(options.bootstrapPath),
-				"q10-hermes-original-skia.png",
+				"q10-hermes-bundle-skia-host-raster.png",
 			));
 		}
-		const hasNativeSvgView = uiManager.operations().some(operation =>
-			operation.method === "createView" && operation.arguments[1] === "RNSVGSvgViewAndroid",
-		);
+		const containsViewName = (node: ApkUiManagerNodeSnapshot, viewName: string): boolean =>
+			node.viewName === viewName || node.children.some(child => containsViewName(child, viewName));
+		const shadowRoot = uiManager.snapshot();
+		const hasNativeSvgView = containsViewName(shadowRoot, "RNSVGSvgViewAndroid");
 		const nativeHierarchy = uiExecution.nativeHierarchyRuntime().snapshot();
 		const nativeMeasurements = nativeHierarchy.layouts.flatMap(({ tag }) => {
 			const box = uiExecution.nativeHierarchyRuntime().measure(tag);
 			return box ? [{ tag, box }] : [];
 		});
-		const shadowRoot = uiManager.snapshot();
 		const apkUiPng = options.runApplication && hasNativeSvgView
 			? await exportApkNativeUiSnapshotPng({
 				shadowRoot,
@@ -1610,10 +1747,11 @@ async function main(): Promise<void> {
 				width: Math.round(options.width / options.scale),
 				height: Math.round(options.height / options.scale),
 				fontPaths: skiaDiagnostics.fontPaths,
+				allowedFileRoots: [bundleDirectory, storageBasePath],
 				direction: initialIsRTL ? "rtl" : "ltr",
 			}, path.join(
 				path.dirname(options.bootstrapPath),
-				"q7-hermes-original-appplugin-ui.png",
+				"q7-hermes-host-svg-diagnostic-ui.png",
 			))
 			: undefined;
 		const servedSurfaceOptions = {
@@ -1632,10 +1770,11 @@ async function main(): Promise<void> {
 				width: Math.round(options.width / options.scale),
 				height: Math.round(options.height / options.scale),
 				fontPaths: skiaDiagnostics.fontPaths,
+				allowedFileRoots: [bundleDirectory, storageBasePath],
 				direction: initialIsRTL ? "rtl" : "ltr",
 			}, path.join(
 				path.dirname(options.bootstrapPath),
-				"q7-hermes-original-appplugin-map.png",
+				"q7-hermes-host-svg-diagnostic-map.png",
 			))
 			: undefined;
 		const interactiveViewport = options.serveFullRoot && interactiveSurface ? {
@@ -1655,14 +1794,46 @@ async function main(): Promise<void> {
 			}
 
 			type ServedView = "map" | "full";
-			const localizationHttpState = () => ({
-				...localization.snapshot(),
-				isRTL: initialIsRTL,
-				doLeftAndRightSwapInRTL: options.doLeftAndRightSwapInRTL,
-				languageSwitching: true,
-			});
+			const localizationHttpState = () => {
+				const state = localization.snapshot();
+				const i18nPreferences = i18nManager.snapshot();
+				return {
+					...state,
+					isRTL: resolveAppPluginIsRtl({
+						language: state.language,
+						systemLocaleIdentifier: state.systemLocaleIdentifier,
+						allowRTL: i18nPreferences.allowRTL,
+						forceRTL: i18nPreferences.forceRTL,
+					}),
+					doLeftAndRightSwapInRTL: i18nPreferences.doLeftAndRightSwapInRTL,
+					languageSwitching: true,
+				};
+			};
 			const defaultServedView: ServedView = options.serveFullRoot ? "full" : "map";
+			let requestInteractiveServerStop: (() => void) | undefined;
+			let runtimeStopScheduled = false;
+			const fatalRuntimeException = () => reportedExceptions.find(entry => {
+				if (entry.method === "reportFatalException") return true;
+				const details = entry.arguments[0];
+				return details !== null
+					&& typeof details === "object"
+					&& (details as Readonly<Record<string, unknown>>).isFatal === true;
+			});
+			const assertInteractiveRuntimeHealthy = (): void => {
+				const fatal = fatalRuntimeException();
+				const rootMounted = uiManager.snapshot().children.length > 0;
+				if (!fatal && rootMounted) return;
+				if (!runtimeStopScheduled) {
+					runtimeStopScheduled = true;
+					setImmediate(() => requestInteractiveServerStop?.());
+				}
+				const reason = fatal
+					? "Die unveränderte AppPlugin-Sitzung meldete eine fatale React-Native-Ausnahme"
+					: "Die unveränderte AppPlugin-Sitzung hat ihre interaktive Hauptfläche ausgehängt";
+				throw new AppPluginRuntimeUnavailableError(reason);
+			};
 			const resolveCurrentSurface = (view: ServedView = defaultServedView) => {
+				assertInteractiveRuntimeHealthy();
 				const currentHierarchy = uiExecution.nativeHierarchyRuntime().snapshot();
 				const currentSurface = selectApkServedSurfaceRoot(currentHierarchy, {
 					...servedSurfaceOptions,
@@ -1698,6 +1869,7 @@ async function main(): Promise<void> {
 			const resolvedSemanticActions = () => resolveApkSemanticUiActions(
 				uiManager.snapshot(),
 				tag => uiExecution.nativeHierarchyRuntime().measure(tag),
+				(x, y) => uiExecution.hitTestRuntime().findTouchTarget(x, y).target,
 			);
 			const semanticActionsHttpState = () => publicApkSemanticUiActions(resolvedSemanticActions());
 			const currentFrame = (view: ServedView = defaultServedView) => {
@@ -1710,7 +1882,8 @@ async function main(): Promise<void> {
 					width: viewport.width,
 					height: viewport.height,
 					fontPaths: skiaDiagnostics.fontPaths,
-					direction: initialIsRTL ? "rtl" : "ltr",
+					allowedFileRoots: [bundleDirectory, storageBasePath],
+					direction: localizationHttpState().isRTL ? "rtl" : "ltr",
 				});
 				return { currentSurface, viewport, artifact, view };
 			};
@@ -1733,31 +1906,76 @@ async function main(): Promise<void> {
 			const dispatchInteractivePointers = async (pointers: readonly PointerHttpRequest[]) => {
 				const uiVisualRevisionBefore = uiManager.visualMutationRevision();
 				const nativeVisualRevisionBefore = uiExecution.nativeHierarchyRuntime().visualMutationRevision();
-				const pictureUpdatesBefore = skiaHost.getDiagnostics().pictureUpdates;
+				const skiaRevisionBefore = skiaVisualRevision();
 				const dispatches = [];
-				// Android liefert eine Mehrfinger-Geste als zusammenhängende Touchfolge.
-				// Eine Hermes-Leerlaufbarriere zwischen DOWN/MOVE/UP würde diese Geste
-				// künstlich auftrennen und kann den PanResponder mitten im Pinch blockieren.
-				for (const pointer of pointers) {
+				// Android hält die Pointer-Sitzung über mehrere MotionEvents aktiv,
+				// verarbeitet DOWN, POINTER_DOWN, MOVE und UP aber als getrennte
+				// native Eingabeframes. Der Host muss deshalb zwischen zwei Frames
+				// den JS-Turn und die dabei angeforderten nativen Messungen/Layout-
+				// Operationen abschließen. Ohne diese Grenze sieht das Bundle
+				// mehrere Zustandsübergänge im selben JS-Turn beziehungsweise wartet
+				// auf ein Layout, das erst nach der gesamten Sequenz käme. Die
+				// Pointer-Sitzung bleibt dabei aktiv; gleichzeitige MOVE-Koordinaten
+				// bleiben ein gemeinsamer RCTEventEmitter-Frame.
+				const flushBeforeNextTouchFrame = async (lastConsumedIndex: number): Promise<void> => {
+					if (lastConsumedIndex + 1 >= pointers.length) return;
+					// Einzelne HTTP-Pointerereignisse waren bereits korrekt, weil
+					// Node zwischen zwei Requests automatisch einen neuen Host-Turn
+					// beginnt. Eine transportseitig gebündelte Pointerfolge muss
+					// dieselbe Grenze ausdrücklich herstellen; eine reine Hermes-
+					// Barriere innerhalb der aktuellen Microtask reicht dafür nicht.
+					await new Promise<void>(resolve => setImmediate(resolve));
+					await stabilizeInteractiveUi();
+				};
+				for (let index = 0; index < pointers.length; index += 1) {
+					const pointer = pointers[index];
+					if (pointer.kind === "move") {
+						const activePointerCount = pointerInput.activePointerIds().length;
+						const moveFrame = [pointer];
+						const identifiers = new Set([pointer.pointerId]);
+						while (moveFrame.length < activePointerCount) {
+							const next = pointers[index + 1];
+							if (next?.kind !== "move" || identifiers.has(next.pointerId)) break;
+							moveFrame.push(next);
+							identifiers.add(next.pointerId);
+							index += 1;
+						}
+						const dispatch = await pointerInput.pointerMoves(
+							moveFrame.map(move => ({
+								identifier: move.pointerId as number,
+								pageX: move.x as number,
+								pageY: move.y as number,
+							})),
+							Math.max(...moveFrame.map(move => move.timeMs as number)),
+						);
+						dispatches.push({
+							kind: pointer.kind,
+							targets: dispatch.touches.map(touch => touch.target),
+							changedIndices: dispatch.changedIndices,
+						});
+						await flushBeforeNextTouchFrame(index);
+						continue;
+					}
 					const dispatch = await dispatchPointer(pointer);
 					dispatches.push({
 						kind: pointer.kind,
 						targets: dispatch.touches.map(touch => touch.target),
 						changedIndices: dispatch.changedIndices,
 					});
+					await flushBeforeNextTouchFrame(index);
 				}
 				await stabilizeInteractiveUi();
 				revision += 1;
 				const frameChanged = uiManager.visualMutationRevision() !== uiVisualRevisionBefore
 					|| uiExecution.nativeHierarchyRuntime().visualMutationRevision() !== nativeVisualRevisionBefore
-					|| skiaHost.getDiagnostics().pictureUpdates !== pictureUpdatesBefore;
+					|| skiaVisualRevision() !== skiaRevisionBefore;
 				if (frameChanged) frameRevision += 1;
 				return { dispatches, frameChanged };
 			};
 			const dispatchInteractiveWheel = async (wheel: WheelHttpRequest) => {
 				const uiVisualRevisionBefore = uiManager.visualMutationRevision();
 				const nativeVisualRevisionBefore = uiExecution.nativeHierarchyRuntime().visualMutationRevision();
-				const pictureUpdatesBefore = skiaHost.getDiagnostics().pictureUpdates;
+				const skiaRevisionBefore = skiaVisualRevision();
 				const dispatch = await uiExecution.scrollViewRuntime().wheel(
 					wheel.x,
 					wheel.y,
@@ -1769,34 +1987,40 @@ async function main(): Promise<void> {
 				revision += 1;
 				const frameChanged = uiManager.visualMutationRevision() !== uiVisualRevisionBefore
 					|| uiExecution.nativeHierarchyRuntime().visualMutationRevision() !== nativeVisualRevisionBefore
-					|| skiaHost.getDiagnostics().pictureUpdates !== pictureUpdatesBefore;
+					|| skiaVisualRevision() !== skiaRevisionBefore;
 				if (frameChanged) frameRevision += 1;
 				return { dispatch, frameChanged };
 			};
-			let requestInteractiveServerStop: (() => void) | undefined;
+			const httpSessionToken = options.httpSessionToken!;
+			const expectedOrigin = `http://127.0.0.1:${options.servePort}`;
 			const server = createServer((request, response) => {
-				response.setHeader("Access-Control-Allow-Origin", "*");
-				response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-				response.setHeader("Access-Control-Allow-Headers", "Content-Type");
 				response.setHeader("Cache-Control", "no-store");
-				if (request.method === "OPTIONS") {
-					response.statusCode = 204;
-					response.end();
-					return;
-				}
+				setAppPluginDesktopSecurityHeaders(response);
 				const url = new URL(request.url ?? "/", "http://127.0.0.1");
 				if (request.method === "GET"
 					&& options.staticRootPath
-					&& serveAppPluginDesktopStaticRequest(options.staticRootPath, url, response)) {
+					&& serveAppPluginDesktopStaticRequest(options.staticRootPath, url, response, httpSessionToken)) {
 					return;
 				}
-				void enqueue(async () => {
+				if (!requestHasAppPluginSessionToken(request, url, httpSessionToken)) {
+					sendJson(response, 401, { error: "AppPlugin-Runtime-Sitzung fehlt oder ist abgelaufen" });
+					return;
+				}
+				if (request.method === "POST" && request.headers.origin !== expectedOrigin) {
+					sendJson(response, 403, { error: "AppPlugin-Runtime akzeptiert nur gleichursprüngliche Änderungen" });
+					return;
+				}
+				const requestBodyPromise = request.method === "POST"
+					? readJsonRequest(request)
+					: Promise.resolve(undefined);
+				void requestBodyPromise.then(requestBody => enqueue(async () => {
 					if (request.method === "GET" && url.pathname === "/health") {
 						const { currentSurface, viewport, view } = resolveCurrentSurface(requestedView(url));
 						sendJson(response, 200, {
 							status: "appplugin-session-ready",
 							sessionId,
 							profileId: options.profileId,
+							mapFamily: options.mapFamily,
 							availableProfiles: options.availableProfiles,
 							deviceModel: options.deviceModel,
 							profileLabel: options.profileLabel,
@@ -1805,9 +2029,13 @@ async function main(): Promise<void> {
 							surface: currentSurface,
 							bundleKind: session.bundleKind,
 							bundleSha256,
+							bundleProvenance: "unchanged-appplugin-bundle",
+							renderProvenance: "host-svg-diagnostic",
+							inputProvenance: "host-apk-contract-emulation",
+							semanticActionProvenance: "host-heuristic-from-appplugin-tree",
 							viewport,
 							productFallbackAllowed: false,
-							surfaceKind: view === "full" ? "full-appplugin-root" : "interactive-map",
+							surfaceKind: view === "full" ? "host-diagnostic-full-tree" : "host-diagnostic-map-viewport",
 							view,
 							availableViews: availableServedViews,
 							colorScheme: darkMode.getColorScheme(),
@@ -1817,7 +2045,8 @@ async function main(): Promise<void> {
 							themeSwitching: true,
 							semanticActions: semanticActionsHttpState(),
 							...localizationHttpState(),
-							publishedDpsCount: publishedDps.length,
+							publishedDpsCount,
+							pageCloseRequestCount,
 						});
 						return;
 					}
@@ -1825,8 +2054,7 @@ async function main(): Promise<void> {
 						if (!options.profileId || !options.profileSwitchPath) {
 							throw new Error("Diese AppPlugin-Sitzung unterstützt keinen Profilwechsel");
 						}
-						const body = await readJsonRequest(request);
-						const profile = parseAppPluginDesktopProfile(body.profile);
+						const profile = parseAppPluginDesktopProfile(requestBody?.profile);
 						if (!profile || !options.availableProfiles.includes(profile)) {
 							throw new Error("Unbekanntes oder nicht verfügbares AppPlugin-Profil");
 						}
@@ -1846,7 +2074,8 @@ async function main(): Promise<void> {
 						sendJson(response, 200, {
 							revision,
 							rawText: collectAppPluginRawText(uiManager.snapshot()),
-							publishedDpsCount: publishedDps.length,
+							publishedDpsCount,
+							pageCloseRequestCount,
 							startupReplayEvents: replayEvents,
 							blobIngresses,
 							publishReplayEvents,
@@ -1859,6 +2088,9 @@ async function main(): Promise<void> {
 								payload: response.match.payload,
 							})),
 							activePointerIds: pointerInput.activePointerIds(),
+							gestureHandlers: gestureHandler.snapshot(),
+							jsResponder: uiManager.jsResponder(),
+							uiManagerOperations: uiManager.operationJournal(),
 							colorScheme: darkMode.getColorScheme(),
 							colorModel: darkMode.getColorModel(),
 							systemColorScheme: darkMode.snapshot().systemColorScheme,
@@ -1887,7 +2119,7 @@ async function main(): Promise<void> {
 					}
 					if (request.method === "POST" && url.pathname === "/theme") {
 						const view = requestedView(url);
-						const theme = parseThemeHttpRequest(await readJsonRequest(request));
+						const theme = parseThemeHttpRequest(requestBody!);
 						const previousScheme = darkMode.getColorScheme();
 						darkMode.setColorModel(theme.mode === "system" ? "default" : theme.mode);
 						const nextScheme = theme.mode === "system" ? theme.systemColorScheme : theme.mode;
@@ -1921,16 +2153,16 @@ async function main(): Promise<void> {
 					}
 					if (request.method === "POST" && url.pathname === "/locale") {
 						const view = requestedView(url);
-						const language = parseLanguageHttpRequest(await readJsonRequest(request));
+						const language = parseLanguageHttpRequest(requestBody!);
 						const previousLanguage = localization.snapshot().language;
 						const uiVisualRevisionBefore = uiManager.visualMutationRevision();
-						const pictureUpdatesBefore = skiaHost.getDiagnostics().pictureUpdates;
+						const skiaRevisionBefore = skiaVisualRevision();
 						await localization.setLanguage(language.language);
 						await session.waitForRuntimeBoundaryIdle();
 						imminentTimerCycles += await settleImminentOneShotTimers();
 						await stabilizeUi();
 						const frameChanged = uiManager.visualMutationRevision() !== uiVisualRevisionBefore
-							|| skiaHost.getDiagnostics().pictureUpdates !== pictureUpdatesBefore;
+							|| skiaVisualRevision() !== skiaRevisionBefore;
 						if (previousLanguage !== language.language) revision += 1;
 						if (frameChanged) frameRevision += 1;
 						const localizationState = localization.snapshot();
@@ -1980,14 +2212,17 @@ async function main(): Promise<void> {
 					}
 					if (request.method === "GET" && url.pathname === "/published-dps") {
 						const after = Number(url.searchParams.get("after") ?? "0");
-						if (!Number.isSafeInteger(after) || after < 0 || after > publishedDps.length) {
+						if (!Number.isSafeInteger(after) || after < 0 || after > publishedDpsCount) {
 							throw new Error("after muss zwischen 0 und der Anzahl veröffentlichter DPS liegen");
 						}
+						const retainedStart = Math.max(after, publishedDpsRetainedFrom);
 						sendJson(response, 200, {
 							revision,
-							publishedDps: publishedDps.slice(after),
-							publishedDpsCount: publishedDps.length,
+							publishedDps: publishedDps.slice(retainedStart - publishedDpsRetainedFrom),
+							publishedDpsCount,
 							after,
+							retainedFrom: publishedDpsRetainedFrom,
+							truncated: after < publishedDpsRetainedFrom,
 							publishReplayEvents,
 							publishReplayResponseErrors,
 							publishResponseMatches: publishResponseStates.map(({ response, matchCount }) => ({
@@ -2011,7 +2246,7 @@ async function main(): Promise<void> {
 							throw new Error("Semantische AppPlugin-Aktion benötigt eine ruhende Pointer-Sitzung");
 						}
 						const view = requestedView(url);
-						const requestedAction = parseSemanticActionHttpRequest(await readJsonRequest(request));
+						const requestedAction = parseSemanticActionHttpRequest(requestBody!);
 						const action = findApkSemanticUiAction(resolvedSemanticActions(), requestedAction.id);
 						const timestamp = Date.now();
 						const { dispatches, frameChanged } = await dispatchInteractivePointers([
@@ -2047,7 +2282,8 @@ async function main(): Promise<void> {
 							activePointerIds: pointerInput.activePointerIds(),
 							jsResponder: uiManager.jsResponder(),
 							pendingNativeMeasurementCount: uiManager.pendingNativeMeasurementCount(),
-							publishedDpsCount: publishedDps.length,
+							publishedDpsCount,
+							pageCloseRequestCount,
 							...localizationHttpState(),
 						});
 						return;
@@ -2088,14 +2324,23 @@ async function main(): Promise<void> {
 						return;
 					}
 					if (request.method === "POST" && url.pathname === "/text-input") {
-						const input = parseTextInputHttpRequest(await readJsonRequest(request));
+						const input = parseTextInputHttpRequest(requestBody!);
+						const uiVisualRevisionBefore = uiManager.visualMutationRevision();
+						const nativeVisualRevisionBefore = uiExecution.nativeHierarchyRuntime().visualMutationRevision();
+						const skiaRevisionBefore = skiaVisualRevision();
 						const dispatch = await textInput.replaceText(input.text, input.tag);
 						await session.waitForRuntimeBoundaryIdle();
 						imminentTimerCycles += await settleImminentOneShotTimers();
 						await stabilizeUi();
 						revision += 1;
+						const frameChanged = uiManager.visualMutationRevision() !== uiVisualRevisionBefore
+							|| uiExecution.nativeHierarchyRuntime().visualMutationRevision() !== nativeVisualRevisionBefore
+							|| skiaVisualRevision() !== skiaRevisionBefore;
+						if (frameChanged) frameRevision += 1;
 						sendJson(response, 200, {
 							revision,
+							frameRevision,
+							frameChanged,
 							dispatch,
 							activeTextInputs: textInput.activeInputs(),
 						});
@@ -2113,6 +2358,7 @@ async function main(): Promise<void> {
 						response.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
 						response.setHeader("X-AppPlugin-Revision", String(revision));
 						response.setHeader("X-AppPlugin-Frame-Revision", String(frameRevision));
+						response.setHeader("X-AppPlugin-Render-Provenance", "host-svg-diagnostic");
 						response.end(artifact.svg);
 						return;
 					}
@@ -2121,7 +2367,7 @@ async function main(): Promise<void> {
 							throw new Error("Scrollrad-Eingabe benötigt eine ruhende Pointer-Sitzung");
 						}
 						const view = requestedView(url);
-						const wheel = parseWheelHttpRequest(await readJsonRequest(request));
+						const wheel = parseWheelHttpRequest(requestBody!);
 						const { dispatch, frameChanged } = await dispatchInteractiveWheel(wheel);
 						const { currentSurface, viewport } = resolveCurrentSurface(view);
 						sendJson(response, 200, {
@@ -2136,7 +2382,8 @@ async function main(): Promise<void> {
 							activePointerIds: pointerInput.activePointerIds(),
 							jsResponder: uiManager.jsResponder(),
 							pendingNativeMeasurementCount: uiManager.pendingNativeMeasurementCount(),
-							publishedDpsCount: publishedDps.length,
+							publishedDpsCount,
+							pageCloseRequestCount,
 							semanticActions: semanticActionsHttpState(),
 							scrollDispatch: dispatch,
 							...localizationHttpState(),
@@ -2145,7 +2392,7 @@ async function main(): Promise<void> {
 					}
 					if (request.method === "POST" && url.pathname === "/pointer") {
 						const view = requestedView(url);
-						const pointer = parsePointerHttpRequest(await readJsonRequest(request));
+						const pointer = parsePointerHttpRequest(requestBody!);
 						const { dispatches, frameChanged } = await dispatchInteractivePointers([pointer]);
 						const [dispatch] = dispatches;
 						const { currentSurface, viewport } = resolveCurrentSurface(view);
@@ -2161,7 +2408,8 @@ async function main(): Promise<void> {
 							activePointerIds: pointerInput.activePointerIds(),
 							jsResponder: uiManager.jsResponder(),
 							pendingNativeMeasurementCount: uiManager.pendingNativeMeasurementCount(),
-							publishedDpsCount: publishedDps.length,
+							publishedDpsCount,
+							pageCloseRequestCount,
 							semanticActions: semanticActionsHttpState(),
 							...localizationHttpState(),
 						});
@@ -2169,7 +2417,7 @@ async function main(): Promise<void> {
 					}
 					if (request.method === "POST" && url.pathname === "/pointer-sequence") {
 						const view = requestedView(url);
-						const sequence = parsePointerSequenceHttpRequest(await readJsonRequest(request));
+						const sequence = parsePointerSequenceHttpRequest(requestBody!);
 						const { dispatches, frameChanged } = await dispatchInteractivePointers(sequence.pointers);
 						const lastDispatch = dispatches.at(-1);
 						const { currentSurface, viewport } = resolveCurrentSurface(view);
@@ -2186,21 +2434,30 @@ async function main(): Promise<void> {
 							activePointerIds: pointerInput.activePointerIds(),
 							jsResponder: uiManager.jsResponder(),
 							pendingNativeMeasurementCount: uiManager.pendingNativeMeasurementCount(),
-							publishedDpsCount: publishedDps.length,
+							publishedDpsCount,
+							pageCloseRequestCount,
 							semanticActions: semanticActionsHttpState(),
 							...localizationHttpState(),
 						});
 						return;
 					}
 					sendJson(response, 404, { error: "Unbekannter AppPlugin-Runtime-Endpunkt" });
-				}).catch(error => {
+				})).catch(error => {
 					if (!response.headersSent) {
-						sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) });
+						sendJson(
+							response,
+							error instanceof AppPluginRuntimeUnavailableError ? error.statusCode : 400,
+							{ error: error instanceof Error ? error.message : String(error) },
+						);
 					} else {
 						response.destroy(error instanceof Error ? error : new Error(String(error)));
 					}
 				});
 			});
+			server.headersTimeout = 5_000;
+			server.requestTimeout = 10_000;
+			server.keepAliveTimeout = 5_000;
+			server.maxRequestsPerSocket = 100;
 			await new Promise<void>((resolve, reject) => {
 				server.once("error", reject);
 				server.listen(options.servePort, "127.0.0.1", resolve);
@@ -2213,14 +2470,22 @@ async function main(): Promise<void> {
 				viewport: interactiveViewport,
 				bundleKind: session.bundleKind,
 				bundleSha256,
-				surfaceKind: options.serveFullRoot ? "full-appplugin-root" : "interactive-map",
+				mapFamily: options.mapFamily,
+				bundleProvenance: "unchanged-appplugin-bundle",
+				renderProvenance: "host-svg-diagnostic",
+				inputProvenance: "host-apk-contract-emulation",
+				surfaceKind: options.serveFullRoot ? "host-diagnostic-full-tree" : "host-diagnostic-map-viewport",
 				productFallbackAllowed: false,
 			})}\n`);
-			await new Promise<void>(resolve => {
+			const stopRequested = new Promise<void>(resolve => {
 				requestInteractiveServerStop = resolve;
 				process.once("SIGINT", resolve);
 				process.once("SIGTERM", resolve);
 			});
+			await Promise.race([
+				stopRequested,
+				session.waitForExit().then(() => undefined),
+			]);
 			requestInteractiveServerStop = undefined;
 			await new Promise<void>((resolve, reject) => {
 				server.close(error => error ? reject(error) : resolve());

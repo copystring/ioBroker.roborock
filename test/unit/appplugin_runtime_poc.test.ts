@@ -48,6 +48,32 @@ describe("MetroSplitRuntime", () => {
 		expect(() => runtime.require(11)).toThrow(MissingMetroModuleError);
 		expect(() => runtime.require(11)).toThrow(/not listed in modules\.json.*Load stack: 11/u);
 	});
+
+	it("rejects duplicate, traversing and oversized manifest modules", () => {
+		const duplicateDir = createSplit([
+			{ id: 10, deps: [], source: "(function(){})" },
+		]);
+		fs.writeFileSync(path.join(duplicateDir, "modules.json"), JSON.stringify([
+			{ moduleId: 10, deps: [], file: "module_10.js" },
+			{ moduleId: 10, deps: [], file: "module_10.js" },
+		]));
+		expect(() => new MetroSplitRuntime({ splitDir: duplicateDir })).toThrow(/duplicate module id 10/u);
+
+		const traversalDir = createSplit([
+			{ id: 11, deps: [], source: "(function(){})" },
+		]);
+		fs.writeFileSync(path.join(traversalDir, "modules.json"), JSON.stringify([
+			{ moduleId: 11, deps: [], file: "../outside.js" },
+		]));
+		const traversalRuntime = new MetroSplitRuntime({ splitDir: traversalDir });
+		expect(() => traversalRuntime.require(11)).toThrow(/leaves the module directory/u);
+
+		const oversizedDir = createSplit([
+			{ id: 12, deps: [], source: "(function(){})" },
+		]);
+		const oversizedRuntime = new MetroSplitRuntime({ splitDir: oversizedDir, maxModuleSourceBytes: 4 });
+		expect(() => oversizedRuntime.require(12)).toThrow(/exceeds 4 bytes/u);
+	});
 });
 
 const repoRoot = path.resolve(__dirname, "..", "..");

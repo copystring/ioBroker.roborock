@@ -168,8 +168,7 @@
     "copy:protocols": "shx mkdir -p build/lib/protocols && shx cp lib/protocols/*.json build/lib/protocols/",
     "build:git": "npm run clean && npm run copy:protocols && tsc -b tsconfig.json && npm run build:www",
     "release": "release-script",
-    "poc:appplugin-render-scene": "esbuild scripts/render_q10_original_scene.ts --bundle --platform=node --format=cjs --packages=external --outfile=artifacts/appplugin-poc/render_q10_original_scene.cjs && node artifacts/appplugin-poc/render_q10_original_scene.cjs && shx rm -f artifacts/appplugin-poc/render_q10_original_scene.cjs",
-    "poc:appplugin-map-fixture": "npm run poc:appplugin-render-scene && esbuild scripts/generate_appplugin_lab_fixture.ts --bundle --platform=node --format=cjs --packages=external --outfile=artifacts/appplugin-poc/generate_appplugin_lab_fixture.cjs && node artifacts/appplugin-poc/generate_appplugin_lab_fixture.cjs && shx rm -f artifacts/appplugin-poc/generate_appplugin_lab_fixture.cjs"
+    "poc:appplugin-q10-history-boundary": "esbuild scripts/prove_q10_history_boundary.ts --bundle --platform=node --format=cjs --packages=external --outfile=artifacts/appplugin-poc/prove_q10_history_boundary.cjs && node artifacts/appplugin-poc/prove_q10_history_boundary.cjs && shx rm -f artifacts/appplugin-poc/prove_q10_history_boundary.cjs"
   },
   "bugs": {
     "url": "https://github.com/copystring/ioBroker.roborock/issues"

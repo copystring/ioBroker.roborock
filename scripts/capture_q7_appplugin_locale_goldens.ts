@@ -2,7 +2,12 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { renderAppPluginSvgPng, sha256 } from "./lib/appPluginBrowserGolden";
-import { ensureAppPluginDesktopProfile } from "./lib/appPluginDesktopClient";
+import {
+	createAppPluginDesktopClient,
+	ensureAppPluginDesktopProfile,
+	setAppPluginDesktopLanguage,
+	type AppPluginDesktopClient,
+} from "./lib/appPluginDesktopClient";
 
 interface RuntimeHealth {
 	status: "appplugin-session-ready";
@@ -57,59 +62,26 @@ function parseArgs(args: readonly string[]): { baseUrl: string; updateGolden: bo
 	return { baseUrl: baseUrl.replace(/\/$/u, ""), updateGolden };
 }
 
-async function fetchHealth(baseUrl: string): Promise<RuntimeHealth> {
-	const response = await fetch(`${baseUrl}/health?view=full`, { cache: "no-store" });
-	if (!response.ok) throw new Error(`AppPlugin-Health antwortet mit HTTP ${response.status}`);
-	const health = await response.json() as RuntimeHealth;
+async function fetchHealth(client: AppPluginDesktopClient): Promise<RuntimeHealth> {
+	const health = await client.readJson<RuntimeHealth>("/health?view=full", { cache: "no-store" });
 	if (health.status !== "appplugin-session-ready" || health.productFallbackAllowed !== false) {
 		throw new Error("Locale-Golden stammt nicht aus einer unveränderten AppPlugin-Sitzung");
 	}
 	return health;
 }
 
-async function waitForSession(
-	baseUrl: string,
-	previousSessionId: string,
-	language: string,
-): Promise<RuntimeHealth> {
-	const deadline = Date.now() + 60_000;
-	let lastError: unknown;
-	while (Date.now() < deadline) {
-		try {
-			const health = await fetchHealth(baseUrl);
-			if (health.sessionId !== previousSessionId && health.language === language) return health;
-		} catch (error) {
-			lastError = error;
-		}
-		await new Promise<void>(resolve => setTimeout(resolve, 100));
-	}
-	throw new Error(
-		`AppPlugin-Sitzung für ${language} wurde nicht bereit: ${lastError instanceof Error ? lastError.message : "Zeitüberschreitung"}`,
-	);
-}
-
-async function switchLanguage(baseUrl: string, language: string): Promise<RuntimeHealth> {
-	const before = await fetchHealth(baseUrl);
+async function switchLanguage(client: AppPluginDesktopClient, language: string): Promise<RuntimeHealth> {
+	const before = await fetchHealth(client);
 	if (before.language === language) return before;
-	const response = await fetch(`${baseUrl}/locale?view=full`, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ language }),
-	});
-	const payload = await response.json() as { error?: string; sessionRestarting?: boolean };
-	if (!response.ok || payload.error) {
-		throw new Error(payload.error ?? `Sprach-Bridge antwortet mit HTTP ${response.status}`);
-	}
-	return payload.sessionRestarting
-		? waitForSession(baseUrl, before.sessionId, language)
-		: fetchHealth(baseUrl);
+	await setAppPluginDesktopLanguage(client.baseUrl, language);
+	return fetchHealth(client);
 }
 
-async function tap(baseUrl: string, pointerId: number, x: number, y: number): Promise<PointerResponse> {
+async function tap(client: AppPluginDesktopClient, pointerId: number, x: number, y: number): Promise<PointerResponse> {
 	const timeMs = Date.now();
-	const response = await fetch(`${baseUrl}/pointer-sequence?view=full`, {
+	const response = await client.fetch("/pointer-sequence?view=full", {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
+		headers: { "Content-Type": "application/json", Origin: client.baseUrl },
 		body: JSON.stringify({
 			pointers: [
 				{ kind: "down", pointerId, x, y, timeMs },
@@ -122,12 +94,12 @@ async function tap(baseUrl: string, pointerId: number, x: number, y: number): Pr
 	return payload;
 }
 
-async function verifyRtlInteraction(baseUrl: string, before: RuntimeState) {
+async function verifyRtlInteraction(client: AppPluginDesktopClient, before: RuntimeState) {
 	const modePoint = { x: 160, y: 645 } as const;
 	const roomPoint = { x: 260, y: 260 } as const;
-	const mode = await tap(baseUrl, 701, modePoint.x, modePoint.y);
-	const room = await tap(baseUrl, 702, roomPoint.x, roomPoint.y);
-	const afterResponse = await fetch(`${baseUrl}/state`, { cache: "no-store" });
+	const mode = await tap(client, 701, modePoint.x, modePoint.y);
+	const room = await tap(client, 702, roomPoint.x, roomPoint.y);
+	const afterResponse = await client.fetch("/state", { cache: "no-store" });
 	if (!afterResponse.ok) throw new Error(`RTL-Zustand antwortet mit HTTP ${afterResponse.status}`);
 	const after = await afterResponse.json() as RuntimeState;
 	const beforeText = new Set(before.rawText.map(String));
@@ -143,14 +115,14 @@ async function verifyRtlInteraction(baseUrl: string, before: RuntimeState) {
 	};
 }
 
-async function captureCase(baseUrl: string, localeCase: LocaleCase, fixtureDirectory: string) {
-	const health = await switchLanguage(baseUrl, localeCase.language);
+async function captureCase(client: AppPluginDesktopClient, localeCase: LocaleCase, fixtureDirectory: string) {
+	const health = await switchLanguage(client, localeCase.language);
 	if (health.isRTL !== localeCase.expectedRTL) {
 		throw new Error(`${localeCase.language} meldet isRTL=${health.isRTL} statt ${localeCase.expectedRTL}`);
 	}
 	const [frameResponse, stateResponse] = await Promise.all([
-		fetch(`${baseUrl}/frame.svg?view=full&locale=${encodeURIComponent(localeCase.language)}`, { cache: "no-store" }),
-		fetch(`${baseUrl}/state`, { cache: "no-store" }),
+		client.fetch(`/frame.svg?view=full&locale=${encodeURIComponent(localeCase.language)}`, { cache: "no-store" }),
+		client.fetch("/state", { cache: "no-store" }),
 	]);
 	if (!frameResponse.ok || !stateResponse.ok) throw new Error(`Locale-Capture ${localeCase.id} konnte nicht gelesen werden`);
 	const svg = await frameResponse.text();
@@ -158,7 +130,7 @@ async function captureCase(baseUrl: string, localeCase: LocaleCase, fixtureDirec
 	const width = Math.round(health.viewport.width);
 	const height = Math.round(health.viewport.height);
 	const png = await renderAppPluginSvgPng(svg, width, height, `locale-${localeCase.id}`);
-	const rtlInteraction = localeCase.expectedRTL ? await verifyRtlInteraction(baseUrl, state) : undefined;
+	const rtlInteraction = localeCase.expectedRTL ? await verifyRtlInteraction(client, state) : undefined;
 	return {
 		png,
 		pngFile: `q7-l5-locale-${localeCase.id}-golden.png`,
@@ -194,15 +166,16 @@ async function captureCase(baseUrl: string, localeCase: LocaleCase, fixtureDirec
 async function main(): Promise<void> {
 	const options = parseArgs(process.argv.slice(2));
 	await ensureAppPluginDesktopProfile(options.baseUrl, "q7");
+	const client = await createAppPluginDesktopClient(options.baseUrl);
 	const fixtureDirectory = path.join(process.cwd(), "test", "fixtures", "appplugin");
 	const manifestPath = path.join(fixtureDirectory, "q7-l5-locale-goldens.json");
-	const initialHealth = await fetchHealth(options.baseUrl);
+	const initialHealth = await fetchHealth(client);
 	const captures = [];
 	try {
-		if (initialHealth.language === CASES[0].language) await switchLanguage(options.baseUrl, "en");
-		for (const localeCase of CASES) captures.push(await captureCase(options.baseUrl, localeCase, fixtureDirectory));
+		if (initialHealth.language === CASES[0].language) await switchLanguage(client, "en");
+		for (const localeCase of CASES) captures.push(await captureCase(client, localeCase, fixtureDirectory));
 	} finally {
-		await switchLanguage(options.baseUrl, initialHealth.language);
+		await switchLanguage(client, initialHealth.language);
 	}
 	const manifest = {
 		schemaVersion: 2,

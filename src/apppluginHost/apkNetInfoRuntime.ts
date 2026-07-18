@@ -26,7 +26,10 @@ export class ApkNetInfoRuntime {
 	}
 
 	public removeListeners(count: number): void {
-		this.#numberOfListeners -= count;
+		if (!Number.isSafeInteger(count) || count < 0) {
+			throw new Error("NetInfo.removeListeners benötigt eine nichtnegative ganze Zahl");
+		}
+		this.#numberOfListeners = Math.max(0, this.#numberOfListeners - count);
 	}
 
 	public getCurrentState(requestedType: string | null): ApkNetInfoSnapshot {

@@ -65,7 +65,8 @@ describe("all locally available original AppPlugins", () => {
 		const hermes = matrix.results.filter((result: { format: string }) => result.format === "hermes");
 
 		expect(metro.length).toBeGreaterThan(0);
-		expect(metro.every((result: { status: string }) => result.status === "passed")).toBe(true);
+		const failedMetro = metro.filter((result: { status: string }) => result.status !== "passed");
+		expect(failedMetro, JSON.stringify(failedMetro, null, 2)).toEqual([]);
 		expect(metro.every((result: { unchanged: boolean }) => result.unchanged)).toBe(true);
 		expect(metro.every((result: { appKeys: string[] }) => result.appKeys.includes("App"))).toBe(true);
 		expect(metro.every((result: { reportedExceptions: unknown[] }) => result.reportedExceptions.length === 0)).toBe(true);

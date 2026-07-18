@@ -4,10 +4,14 @@ import * as path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ensureAppPluginDesktopProfile } from "../../scripts/lib/appPluginDesktopClient";
+import {
+	createAppPluginDesktopClient,
+	ensureAppPluginDesktopProfile,
+} from "../../scripts/lib/appPluginDesktopClient";
 import {
 	APPPLUGIN_DESKTOP_PROFILES,
 	consumeAppPluginDesktopProfileSwitch,
+	decideAppPluginDesktopSupervisorAction,
 	parseAppPluginDesktopProfile,
 	writeAppPluginDesktopProfileSwitch,
 } from "../../scripts/lib/appPluginDesktopProfiles";
@@ -16,6 +20,26 @@ import { resolveAppPluginDesktopStaticAsset } from "../../scripts/lib/appPluginD
 describe("gemeinsamer AppPlugin-Desktop-Server", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
+	});
+
+	it("verwendet das einmal gelesene Sitzungstoken für alle Client-Anfragen", async () => {
+		const token = "B".repeat(43);
+		const fetchMock = vi.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(new Response(
+				`<meta name="appplugin-session-token" content="${token}">`,
+				{ status: 200, headers: { "Content-Type": "text/html" } },
+			))
+			.mockResolvedValueOnce(new Response(
+				JSON.stringify({ revision: 7 }),
+				{ status: 200, headers: { "Content-Type": "application/json" } },
+			));
+
+		const client = await createAppPluginDesktopClient("http://127.0.0.1:4173/");
+		await expect(client.readJson<{ revision: number }>("/state")).resolves.toEqual({ revision: 7 });
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(String(fetchMock.mock.calls[1][0])).toBe("http://127.0.0.1:4173/state");
+		expect(new Headers(fetchMock.mock.calls[1][1]?.headers).get("x-appplugin-session")).toBe(token);
 	});
 
 	it("akzeptiert ausschließlich registrierte Profile", () => {
@@ -36,6 +60,47 @@ describe("gemeinsamer AppPlugin-Desktop-Server", () => {
 		expect(fs.existsSync(requestPath)).toBe(false);
 	});
 
+	it("priorisiert einen expliziten Profilwechsel auch nach einem fatalen Ende der alten Sitzung", () => {
+		expect(decideAppPluginDesktopSupervisorAction({
+			exitCode: 1,
+			nextProfile: "q10",
+			restartRequested: false,
+			runDurationMs: 60_000,
+			consecutiveUnexpectedFailures: 2,
+		})).toEqual({ action: "switch", profile: "q10" });
+	});
+
+	it("begrenzt unerwartete Sitzungsneustarts und setzt das Budget nach stabiler Laufzeit zurück", () => {
+		expect(decideAppPluginDesktopSupervisorAction({
+			exitCode: 1,
+			restartRequested: false,
+			runDurationMs: 500,
+			consecutiveUnexpectedFailures: 1,
+		})).toEqual({
+			action: "restart",
+			consecutiveUnexpectedFailures: 2,
+			delayMs: 200,
+			reason: "unexpected-failure",
+		});
+		expect(decideAppPluginDesktopSupervisorAction({
+			exitCode: 1,
+			restartRequested: false,
+			runDurationMs: 30_000,
+			consecutiveUnexpectedFailures: 3,
+		})).toEqual({
+			action: "restart",
+			consecutiveUnexpectedFailures: 1,
+			delayMs: 100,
+			reason: "unexpected-failure",
+		});
+		expect(decideAppPluginDesktopSupervisorAction({
+			exitCode: 1,
+			restartRequested: false,
+			runDurationMs: 500,
+			consecutiveUnexpectedFailures: 3,
+		})).toEqual({ action: "exit", exitCode: 1 });
+	});
+
 	it("liefert nur die explizit erlaubten Desktop-Dateien aus", () => {
 		const root = path.resolve("www");
 		expect(resolveAppPluginDesktopStaticAsset(root, "/appplugin-desktop.html")).toEqual({
@@ -48,6 +113,7 @@ describe("gemeinsamer AppPlugin-Desktop-Server", () => {
 
 	it("wechselt Nachweiswerkzeuge über denselben Server statt über einen Geräteport", async () => {
 		const responses = [
+			`<html><head><meta name="appplugin-session-token" content="${"A".repeat(43)}"></head></html>`,
 			{
 				status: "appplugin-session-ready",
 				sessionId: "q10-session",
@@ -62,22 +128,32 @@ describe("gemeinsamer AppPlugin-Desktop-Server", () => {
 				availableProfiles: ["q7", "q7-m5", "q10"],
 			},
 		];
-		const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(
-			JSON.stringify(responses.shift()),
-			{ status: 200, headers: { "Content-Type": "application/json" } },
-		));
+		const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+			const payload = responses.shift();
+			return new Response(
+				typeof payload === "string" ? payload : JSON.stringify(payload),
+				{ status: 200, headers: { "Content-Type": typeof payload === "string" ? "text/html" : "application/json" } },
+			);
+		});
 
 		await ensureAppPluginDesktopProfile("http://127.0.0.1:4173", "q7", 1_000);
 
-		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(fetchMock).toHaveBeenCalledTimes(4);
 		expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+			"http://127.0.0.1:4173/appplugin-desktop.html",
 			"http://127.0.0.1:4173/health",
 			"http://127.0.0.1:4173/profile",
 			"http://127.0.0.1:4173/health",
 		]);
-		expect(fetchMock.mock.calls[1][1]).toMatchObject({
+		const healthHeaders = new Headers(fetchMock.mock.calls[1][1]?.headers);
+		expect(healthHeaders.get("x-appplugin-session")).toBe("A".repeat(43));
+		expect(fetchMock.mock.calls[2][1]).toMatchObject({
 			method: "POST",
 			body: JSON.stringify({ profile: "q7" }),
 		});
+		const profileHeaders = new Headers(fetchMock.mock.calls[2][1]?.headers);
+		expect(profileHeaders.get("Content-Type")).toBe("application/json");
+		expect(profileHeaders.get("Origin")).toBe("http://127.0.0.1:4173");
+		expect(profileHeaders.get("x-appplugin-session")).toBe("A".repeat(43));
 	});
 });

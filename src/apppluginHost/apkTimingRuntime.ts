@@ -24,6 +24,9 @@ function javaInt(value: number, name: string): number {
 	return Math.trunc(value);
 }
 
+const MAX_NODE_TIMER_DELAY_MS = 0x7fff_ffff;
+const MIN_REPEATING_TIMER_DELAY_MS = 16;
+
 /**
  * Reproduces TimingModule's observable create/delete timer boundary. Timer
  * callbacks return through JSTimers.callTimers, just as in the Android host.
@@ -46,7 +49,10 @@ export class ApkTimingRuntime {
 		const timerId = javaInt(timerIdValue, "timerId");
 		const durationMs = javaInt(durationValue, "duration");
 		const jsSchedulingTimeMs = javaInt(jsSchedulingTimeValue, "jsSchedulingTime");
-		const delayMs = Math.max(0, jsSchedulingTimeMs - this.#nowWallClockMs() + durationMs);
+		const delayMs = Math.max(
+			repeats ? MIN_REPEATING_TIMER_DELAY_MS : 0,
+			jsSchedulingTimeMs - this.#nowWallClockMs() + durationMs,
+		);
 		this.deleteTimer(timerId);
 		if (durationMs === 0 && !repeats) {
 			this.#emit([timerId]);
@@ -102,19 +108,30 @@ export class ApkTimingRuntime {
 		this.#timers.clear();
 	}
 
-	#schedule(timerId: number, delayMs: number, repeats: boolean): void {
+	#schedule(
+		timerId: number,
+		delayMs: number,
+		repeats: boolean,
+		dueAtWallClockMs = this.#nowWallClockMs() + delayMs,
+	): void {
+		const remainingMs = Math.max(0, dueAtWallClockMs - this.#nowWallClockMs());
+		const armedDelayMs = Math.min(remainingMs, MAX_NODE_TIMER_DELAY_MS);
 		const handle = setTimeout(() => {
 			const timer = this.#timers.get(timerId);
 			if (!timer || timer.handle !== handle) return;
+			if (this.#nowWallClockMs() < dueAtWallClockMs) {
+				this.#schedule(timerId, delayMs, repeats, dueAtWallClockMs);
+				return;
+			}
 			if (repeats) this.#schedule(timerId, delayMs, true);
 			else this.#timers.delete(timerId);
 			this.#emit([timerId]);
-		}, delayMs);
+		}, armedDelayMs);
 		handle.unref();
 		this.#timers.set(timerId, {
 			id: timerId,
 			delayMs,
-			dueAtWallClockMs: this.#nowWallClockMs() + delayMs,
+			dueAtWallClockMs,
 			repeats,
 			handle,
 		});

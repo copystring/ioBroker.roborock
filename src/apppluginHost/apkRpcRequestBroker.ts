@@ -66,6 +66,7 @@ export class ApkRpcRequestBroker {
 	readonly #setTimer: NonNullable<ApkRpcBrokerOptions["setTimer"]>;
 	readonly #clearTimer: NonNullable<ApkRpcBrokerOptions["clearTimer"]>;
 	#nextMessageId: number;
+	#closed = false;
 
 	public constructor(
 		private readonly transport: ApkRpcTransport,
@@ -74,7 +75,13 @@ export class ApkRpcRequestBroker {
 		options: ApkRpcBrokerOptions = {},
 	) {
 		this.#timeoutMilliseconds = options.timeoutMilliseconds ?? 10_000;
-		this.#nextMessageId = options.initialMessageId ?? Math.trunc(Math.random() * 2_147_483_647) % 0x7cf;
+		if (!Number.isSafeInteger(this.#timeoutMilliseconds) || this.#timeoutMilliseconds <= 0) {
+			throw new Error("RPC-Timeout muss eine positive ganze Millisekundenzahl sein");
+		}
+		this.#nextMessageId = options.initialMessageId ?? 1 + Math.trunc(Math.random() * 0x7ce);
+		if (!Number.isSafeInteger(this.#nextMessageId) || this.#nextMessageId < 1 || this.#nextMessageId > 0x7fff_ffff) {
+			throw new Error("Initiale RPC-Nachrichten-ID muss zwischen 1 und 2147483647 liegen");
+		}
 		this.#setTimer = options.setTimer ?? setTimeout;
 		this.#clearTimer = options.clearTimer ?? clearTimeout;
 	}
@@ -95,9 +102,7 @@ export class ApkRpcRequestBroker {
 	): number {
 		const id = this.#allocateMessageId();
 		this.#register(this.#normalRequests, id, callback);
-		void this.transport.sendJson({ id, method, params }, route).catch(error => {
-			this.#rejectTransport(this.#normalRequests, id, error);
-		});
+		this.#send(this.#normalRequests, id, () => this.transport.sendJson({ id, method, params }, route));
 		return id;
 	}
 
@@ -109,14 +114,12 @@ export class ApkRpcRequestBroker {
 	): number {
 		const id = this.#allocateMessageId();
 		this.#register(this.#blobRequests, id, callback);
-		void this.transport.sendJson({
+		this.#send(this.#blobRequests, id, () => this.transport.sendJson({
 			id,
 			method,
 			security: { endpoint: this.endpoint, nonce: this.nonce },
 			params,
-		}, route).catch(error => {
-			this.#rejectTransport(this.#blobRequests, id, error);
-		});
+		}, route));
 		return id;
 	}
 
@@ -128,7 +131,7 @@ export class ApkRpcRequestBroker {
 		const id = this.#allocateMessageId();
 		this.#register(this.#blobRequests, id, callback);
 		const method = Buffer.from(payload);
-		void this.transport.sendProtobuf({
+		this.#send(this.#blobRequests, id, () => this.transport.sendProtobuf({
 			kind: "blob",
 			id,
 			payload: method,
@@ -138,9 +141,7 @@ export class ApkRpcRequestBroker {
 				nonce: this.nonce,
 				method,
 			}),
-		}, route).catch(error => {
-			this.#rejectTransport(this.#blobRequests, id, error);
-		});
+		}, route));
 		return id;
 	}
 
@@ -152,14 +153,12 @@ export class ApkRpcRequestBroker {
 		const id = this.#allocateMessageId();
 		this.#register(this.#normalRequests, id, callback);
 		const method = Buffer.from(payload);
-		void this.transport.sendProtobuf({
+		this.#send(this.#normalRequests, id, () => this.transport.sendProtobuf({
 			kind: "normal",
 			id,
 			payload: method,
 			appToRobotMessage: encodeApkAppToRobotMessage({ id, method }),
-		}, route).catch(error => {
-			this.#rejectTransport(this.#normalRequests, id, error);
-		});
+		}, route));
 		return id;
 	}
 
@@ -167,7 +166,7 @@ export class ApkRpcRequestBroker {
 		const response = dps["102"];
 		if (!response || typeof response !== "object" || Array.isArray(response)) return false;
 		const id = (response as Record<string, unknown>).id;
-		if (typeof id !== "number" || !Number.isInteger(id)) return false;
+		if (typeof id !== "number" || !Number.isSafeInteger(id) || id < 1 || id > 0x7fff_ffff) return false;
 		if (this.#blobRequests.has(id)) return true;
 		const pending = this.#take(this.#normalRequests, id);
 		if (!pending) return false;
@@ -176,7 +175,7 @@ export class ApkRpcRequestBroker {
 	}
 
 	public acceptProtobufRpc(id: number, result: Uint8Array): boolean {
-		if (id <= 0 || this.#blobRequests.has(id)) return false;
+		if (!Number.isSafeInteger(id) || id < 1 || id > 0x7fff_ffff || this.#blobRequests.has(id)) return false;
 		const pending = this.#take(this.#normalRequests, id);
 		if (!pending) return false;
 		pending.callback(true, { pbResult: Buffer.from(result).toString("base64") });
@@ -184,6 +183,9 @@ export class ApkRpcRequestBroker {
 	}
 
 	public acceptBlobResponse(response: ApkRpcBlobPayload): boolean {
+		if (!Number.isSafeInteger(response.messageId)
+			|| response.messageId < 1
+			|| response.messageId > 0x7fff_ffff) return false;
 		const pending = this.#take(this.#blobRequests, response.messageId);
 		if (!pending) return false;
 		try {
@@ -196,8 +198,13 @@ export class ApkRpcRequestBroker {
 	}
 
 	public close(): void {
+		if (this.#closed) return;
+		this.#closed = true;
 		for (const table of [this.#normalRequests, this.#blobRequests]) {
-			for (const pending of table.values()) this.#clearTimer(pending.timer);
+			for (const pending of table.values()) {
+				this.#clearTimer(pending.timer);
+				callbackError(pending.callback, "closed");
+			}
 			table.clear();
 		}
 	}
@@ -207,12 +214,20 @@ export class ApkRpcRequestBroker {
 	}
 
 	#allocateMessageId(): number {
-		const id = this.#nextMessageId;
-		this.#nextMessageId = id === 0x7fff_ffff ? -0x8000_0000 : id + 1;
-		return id;
+		if (this.#closed) throw new Error("RPC-Broker ist geschlossen");
+		for (let attempts = 0; attempts < 0x7fff_ffff; attempts += 1) {
+			const id = this.#nextMessageId;
+			this.#nextMessageId = id === 0x7fff_ffff ? 1 : id + 1;
+			if (!this.#normalRequests.has(id) && !this.#blobRequests.has(id)) return id;
+		}
+		throw new Error("Keine freie RPC-Nachrichten-ID verfügbar");
 	}
 
 	#register(table: Map<number, PendingRequest>, id: number, callback: ApkReactCallback): void {
+		if (typeof callback !== "function") throw new Error("RPC-Aufruf benötigt einen Callback");
+		if (table.has(id) || this.#normalRequests.has(id) || this.#blobRequests.has(id)) {
+			throw new Error(`RPC-Nachrichten-ID ${id} ist bereits ausstehend`);
+		}
 		const timer = this.#setTimer(() => {
 			const pending = this.#take(table, id);
 			if (pending) callbackError(pending.callback, "timeout");
@@ -226,6 +241,20 @@ export class ApkRpcRequestBroker {
 		table.delete(id);
 		this.#clearTimer(pending.timer);
 		return pending;
+	}
+
+	#send(
+		table: Map<number, PendingRequest>,
+		id: number,
+		operation: () => Promise<void>,
+	): void {
+		try {
+			void Promise.resolve(operation()).catch(error => {
+				this.#rejectTransport(table, id, error);
+			});
+		} catch (error) {
+			this.#rejectTransport(table, id, error);
+		}
 	}
 
 	#rejectTransport(table: Map<number, PendingRequest>, id: number, error: unknown): void {

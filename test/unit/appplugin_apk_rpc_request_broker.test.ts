@@ -131,6 +131,53 @@ describe("APK RRRpcManager request broker", () => {
 		expect(callback).toHaveBeenCalledTimes(1);
 	});
 
+	it("wraps message IDs at the signed Java-int boundary without colliding across tables", () => {
+		const transport = new RecordingTransport();
+		const broker = new ApkRpcRequestBroker(
+			transport,
+			"ENDPOINT",
+			"00112233445566778899AABBCCDDEEFF",
+			{ initialMessageId: 0x7fff_ffff },
+		);
+		const first = vi.fn();
+		const second = vi.fn();
+		const third = vi.fn();
+
+		expect(broker.callJson("last", {}, "automatic", first)).toBe(0x7fff_ffff);
+		expect(broker.callBlobJson("wrapped", {}, "automatic", second)).toBe(1);
+		expect(broker.callProtobuf(Buffer.from("next"), "automatic", third)).toBe(2);
+		expect(new Set(transport.json.map(entry => entry.request.id))).toEqual(new Set([0x7fff_ffff, 1]));
+		expect(transport.protobuf[0]?.request.id).toBe(2);
+		broker.close();
+	});
+
+	it("closes every pending callback exactly once and rejects future allocation", () => {
+		vi.useFakeTimers();
+		const broker = new ApkRpcRequestBroker(
+			new RecordingTransport(),
+			"ENDPOINT",
+			"00112233445566778899AABBCCDDEEFF",
+			{ initialMessageId: 10 },
+		);
+		const normal = vi.fn();
+		const blob = vi.fn();
+		broker.callJson("normal", {}, "automatic", normal);
+		broker.callBlobJson("blob", {}, "automatic", blob);
+
+		broker.close();
+		broker.close();
+		expect(normal).toHaveBeenCalledOnce();
+		expect(normal).toHaveBeenCalledWith(false, { error: "closed" });
+		expect(blob).toHaveBeenCalledOnce();
+		expect(blob).toHaveBeenCalledWith(false, { error: "closed" });
+		expect(broker.pendingNormalRequestCount).toBe(0);
+		expect(broker.pendingBlobRequestCount).toBe(0);
+		vi.advanceTimersByTime(10_000);
+		expect(normal).toHaveBeenCalledOnce();
+		expect(blob).toHaveBeenCalledOnce();
+		expect(() => broker.callJson("after-close", {}, "automatic", vi.fn())).toThrow(/geschlossen/u);
+	});
+
 	it("preserves the APK automatic/local/cloud tri-state", () => {
 		expect(ApkRpcRequestBroker.routeToApkBoolean("automatic")).toBeNull();
 		expect(ApkRpcRequestBroker.routeToApkBoolean("local")).toBe(true);

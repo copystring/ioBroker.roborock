@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, realpathSync, statSync } from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createContext, Script, type Context } from "node:vm";
@@ -173,7 +173,7 @@ export class ApkV8WorkerRuntime {
 	#nextExecutorId = 1;
 
 	public constructor(options: ApkV8WorkerRuntimeOptions) {
-		this.#pluginRootPath = path.resolve(options.pluginRootPath);
+		this.#pluginRootPath = realpathSync.native(path.resolve(options.pluginRootPath));
 		this.#loadTimeoutMs = positiveInteger(options.loadTimeoutMs, 5_000, "loadTimeoutMs");
 		this.#callTimeoutMs = positiveInteger(options.callTimeoutMs, 10_000, "callTimeoutMs");
 		this.#maxSourceBytes = positiveInteger(options.maxSourceBytes, 8 * 1024 * 1024, "maxSourceBytes");
@@ -305,7 +305,7 @@ export class ApkV8WorkerRuntime {
 		} else {
 			workerPath = path.resolve(this.#pluginRootPath, jsFile);
 		}
-		workerPath = path.resolve(workerPath);
+		workerPath = realpathSync.native(path.resolve(workerPath));
 		const relative = path.relative(this.#pluginRootPath, workerPath);
 		if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
 			throw new Error(`APK-Worker verlässt das AppPlugin-Verzeichnis: ${jsFile}`);

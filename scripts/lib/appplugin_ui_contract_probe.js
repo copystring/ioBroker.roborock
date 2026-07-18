@@ -5,8 +5,15 @@ const { DirectMetroBundleRuntime, createDefaultPluginSdk } = require("./direct_m
 const { createDiscoverySkiaApi } = require("./discovery_skia_api.js");
 const { DirectJxWorkerHost } = require("./direct_jx_worker_host.js");
 const { createOffscreenSkiaCapture } = require("./offscreen_skia_capture.js");
+const apkHostContract = require("../../src/apppluginHost/generated/apk-appplugin-host-contract.json");
 
 const VIEW_MANAGER_NAME_PATTERN = /(?:RCT|RNC|RNS|Android|Lottie|Skia|YX|RR[A-Z])[A-Za-z0-9_]{3,60}/gu;
+const APK_VIEW_MANAGER_NAMES = Object.freeze(
+	[...new Set(apkHostContract.viewManagers
+		.filter(viewManager => viewManager.installedByHost)
+		.map(viewManager => viewManager.viewName))]
+		.sort()
+);
 
 const DIRECT_EVENT_REGISTRATION_NAMES = Object.freeze({
 	topAccessibilityAction: "onAccessibilityAction",
@@ -63,6 +70,12 @@ function createReactNativeEventTypes() {
 
 function hashFile(filePath) {
 	return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
+}
+
+function invokeNativeCallback(callback, ...args) {
+	if (typeof callback !== "function") return;
+	const handle = setImmediate(() => callback(...args));
+	handle.unref?.();
 }
 
 function summarizeUiValue(value, depth = 0) {
@@ -178,16 +191,16 @@ function createDiscoveryUiManager(viewManagerNames, operations) {
 		clearJSResponder: capture("clearJSResponder"),
 		measure(tag, callback) {
 			capture("measure")(tag);
-			callback?.(0, 0, 360, 640, 0, 0);
+			setImmediate(() => callback?.(0, 0, 360, 640, 0, 0)).unref?.();
 		},
 		measureInWindow(tag, callback) {
 			capture("measureInWindow")(tag);
-			callback?.(0, 0, 360, 640);
+			setImmediate(() => callback?.(0, 0, 360, 640)).unref?.();
 		},
 		measureLayout(tag, ancestorTag, errorCallback, callback) {
 			capture("measureLayout")(tag, ancestorTag);
 			void errorCallback;
-			callback?.(0, 0, 360, 640);
+			setImmediate(() => callback?.(0, 0, 360, 640)).unref?.();
 		}
 	};
 }
@@ -256,7 +269,7 @@ function createCaptureOnlyDeviceModule(options = {}) {
 		module: {
 			publishDps(payload, callback) {
 				capture("publishDps", [payload]);
-				callback?.(true);
+				invokeNativeCallback(callback, true);
 				return Promise.resolve(true);
 			},
 			loadDps() {
@@ -322,7 +335,11 @@ function createTimerDriver(errors) {
 		}
 	}
 	function schedule(timerId, duration, repeats) {
-		const delay = Math.max(0, Number(duration) || 0);
+		const delay = repeats
+			? Math.max(16, Number(duration) || 0)
+			: Math.max(0, Number(duration) || 0);
+		const existingHandle = handles.get(timerId);
+		if (existingHandle) clearTimeout(existingHandle);
 		const handle = setTimeout(() => {
 			handles.delete(timerId);
 			dispatch(timerId);
@@ -361,7 +378,7 @@ function wait(milliseconds) {
 async function probeMetroBundleUiContract(bundlePath, options = {}) {
 	const absoluteBundlePath = path.resolve(bundlePath);
 	const beforeHash = hashFile(absoluteBundlePath);
-	const viewManagerCandidates = extractViewManagerCandidates(fs.readFileSync(absoluteBundlePath));
+	const viewManagerCandidates = APK_VIEW_MANAGER_NAMES;
 	const uiOperations = [];
 	const device = createCaptureOnlyDeviceModule({ shadowDps: options.shadowDps });
 	const timerErrors = [];
@@ -412,9 +429,11 @@ async function probeMetroBundleUiContract(bundlePath, options = {}) {
 
 	let loadResult;
 	let runError;
+	let runErrorStack;
 	let microtaskPump;
 	let layoutPump;
 	let microtaskPumps = 0;
+	let layoutOperationCursor = 0;
 	try {
 		loadResult = runtime.load();
 		if (!loadResult.appRegistry) throw new Error("Bundle did not expose an AppRegistry");
@@ -428,7 +447,9 @@ async function probeMetroBundleUiContract(bundlePath, options = {}) {
 			}
 		}, options.pumpIntervalMs ?? 10);
 		layoutPump = setInterval(() => {
-			for (const operation of uiOperations) {
+			const pendingOperations = uiOperations.slice(layoutOperationCursor);
+			layoutOperationCursor = uiOperations.length;
+			for (const operation of pendingOperations) {
 				if (operation.kind !== "createView") continue;
 				const tag = operation.args[0];
 				if (typeof tag !== "number" || layoutedViewTags.has(tag)) continue;
@@ -481,6 +502,7 @@ async function probeMetroBundleUiContract(bundlePath, options = {}) {
 		await wait(options.durationMs ?? 750);
 	} catch (error) {
 		runError = error instanceof Error ? error.message : String(error);
+		runErrorStack = error instanceof Error ? error.stack : undefined;
 	} finally {
 		if (microtaskPump) clearInterval(microtaskPump);
 		if (layoutPump) clearInterval(layoutPump);
@@ -516,6 +538,7 @@ async function probeMetroBundleUiContract(bundlePath, options = {}) {
 		appKeys: loadResult?.appKeys ?? [],
 		registryKind: loadResult?.registryKind,
 		runError,
+		runErrorStack,
 		reportedExceptions: runtime.reportedExceptions.map(exception => exception.originalMessage ?? exception.message ?? String(exception)),
 		reportedExceptionDetails: runtime.reportedExceptions.map(exception => ({
 			message: exception.message,

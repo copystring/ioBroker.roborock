@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { createServer } from "node:net";
 import { spawn, type ChildProcessByStdio } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import type { Readable } from "node:stream";
 
+import { APPPLUGIN_SESSION_HEADER } from "./lib/appPluginDesktopHttpSession";
 import { finalQ7RoomSelectionDiagnostic } from "./lib/q7RoomSelectionEvidence";
 import {
 	Q7_FULL_SCENE_FIRMWARE,
@@ -16,6 +18,8 @@ import {
 interface RuntimeHandle {
 	child: ChildProcessByStdio<null, Readable, Readable>;
 	baseUrl: string;
+	secretRootPath: string;
+	sessionToken: string;
 	stderr: () => string;
 }
 
@@ -32,6 +36,7 @@ interface SemanticAction {
 	enabled: boolean;
 	selected: boolean;
 	owner: string;
+	provenance: string;
 	contract: string;
 }
 
@@ -112,6 +117,10 @@ function resolveToolchainBin(repositoryRoot: string): string | undefined {
 
 async function startRuntime(options: ProofOptions, port: number): Promise<RuntimeHandle> {
 	const { repositoryRoot } = options;
+	const secretRootPath = fs.mkdtempSync(path.join(os.tmpdir(), "appplugin-semantic-actions-"));
+	const sessionToken = randomBytes(32).toString("base64url");
+	const sessionTokenFilePath = path.join(secretRootPath, "http-session-token");
+	fs.writeFileSync(sessionTokenFilePath, sessionToken, { encoding: "utf8", mode: 0o600 });
 	const probePath = path.join(
 		repositoryRoot,
 		"artifacts",
@@ -157,6 +166,7 @@ async function startRuntime(options: ProofOptions, port: number): Promise<Runtim
 		"--react-state-probe",
 		"--replay-manifest", options.replayPath,
 		"--serve-port", String(port),
+		"--http-session-token-file", sessionTokenFilePath,
 		"--profile-label", `${options.runtimeLabel} · semantischer Capture-only-Nachweis`,
 	];
 	const toolchainBin = resolveToolchainBin(repositoryRoot);
@@ -173,59 +183,75 @@ async function startRuntime(options: ProofOptions, port: number): Promise<Runtim
 	child.stderr.on("data", (chunk: Buffer) => {
 		stderr = `${stderr}${chunk.toString("utf8")}`.slice(-64 * 1024);
 	});
-	const baseUrl = await new Promise<string>((resolve, reject) => {
-		let stdout = "";
-		const timeout = setTimeout(() => {
-			child.kill();
-			reject(new Error(`Semantische AppPlugin-Runtime wurde nicht bereit: ${stderr}`));
-		}, 90_000);
-		child.stdout.on("data", (chunk: Buffer) => {
-			stdout += chunk.toString("utf8");
-			const lines = stdout.split(/\r?\n/u);
-			stdout = lines.pop() ?? "";
-			for (const line of lines) {
-				try {
-					const message = jsonRecord(JSON.parse(line) as unknown, "Runtime-Status");
-					if (message.status === "interactive-server-ready" && typeof message.url === "string") {
-						clearTimeout(timeout);
-						resolve(message.url);
-						return;
+	try {
+		const baseUrl = await new Promise<string>((resolve, reject) => {
+			let stdout = "";
+			const timeout = setTimeout(() => {
+				child.kill();
+				reject(new Error(`Semantische AppPlugin-Runtime wurde nicht bereit: ${stderr}`));
+			}, 90_000);
+			child.stdout.on("data", (chunk: Buffer) => {
+				stdout += chunk.toString("utf8");
+				const lines = stdout.split(/\r?\n/u);
+				stdout = lines.pop() ?? "";
+				for (const line of lines) {
+					try {
+						const message = jsonRecord(JSON.parse(line) as unknown, "Runtime-Status");
+						if (message.status === "interactive-server-ready" && typeof message.url === "string") {
+							clearTimeout(timeout);
+							resolve(message.url);
+							return;
+						}
+					} catch {
+						// Build- und Diagnoseausgaben sind keine Runtime-Statuszeilen.
 					}
-				} catch {
-					// Build- und Diagnoseausgaben sind keine Runtime-Statuszeilen.
 				}
-			}
+			});
+			child.once("error", error => {
+				clearTimeout(timeout);
+				reject(error);
+			});
+			child.once("exit", code => {
+				clearTimeout(timeout);
+				reject(new Error(`Semantische AppPlugin-Runtime endete vorzeitig mit ${code}: ${stderr}`));
+			});
 		});
-		child.once("error", error => {
-			clearTimeout(timeout);
-			reject(error);
-		});
-		child.once("exit", code => {
-			clearTimeout(timeout);
-			reject(new Error(`Semantische AppPlugin-Runtime endete vorzeitig mit ${code}: ${stderr}`));
-		});
-	});
-	return { child, baseUrl, stderr: () => stderr };
+		return { child, baseUrl, secretRootPath, sessionToken, stderr: () => stderr };
+	} catch (error) {
+		fs.rmSync(secretRootPath, { force: true, recursive: true });
+		throw error;
+	}
 }
 
 async function stopRuntime(handle: RuntimeHandle): Promise<void> {
-	if (handle.child.exitCode !== null) return;
-	handle.child.kill();
-	await new Promise<void>(resolve => {
-		const timeout = setTimeout(resolve, 5_000);
-		handle.child.once("exit", () => {
-			clearTimeout(timeout);
-			resolve();
-		});
-	});
+	try {
+		if (handle.child.exitCode === null) {
+			handle.child.kill();
+			await new Promise<void>(resolve => {
+				const timeout = setTimeout(resolve, 5_000);
+				handle.child.once("exit", () => {
+					clearTimeout(timeout);
+					resolve();
+				});
+			});
+		}
+	} finally {
+		fs.rmSync(handle.secretRootPath, { force: true, recursive: true });
+	}
 }
 
 async function requestJson(
-	baseUrl: string,
+	handle: Pick<RuntimeHandle, "baseUrl" | "sessionToken">,
 	pathname: string,
 	init?: RequestInit,
 ): Promise<JsonRecord> {
-	const response = await fetch(`${baseUrl}${pathname}`, init);
+	const headers = new Headers(init?.headers);
+	headers.set(APPPLUGIN_SESSION_HEADER, handle.sessionToken);
+	if (init?.method === "POST") headers.set("Origin", handle.baseUrl);
+	const response = await fetch(`${handle.baseUrl}${pathname}`, {
+		...init,
+		headers,
+	});
 	const payload = jsonRecord(await response.json() as unknown, pathname);
 	if (!response.ok) throw new Error(`${pathname} antwortet mit ${response.status}: ${JSON.stringify(payload)}`);
 	return payload;
@@ -238,8 +264,9 @@ function semanticActions(payload: JsonRecord): SemanticAction[] {
 		assert.equal(typeof action.label, "string");
 		assert.equal(typeof action.enabled, "boolean");
 		assert.equal(typeof action.selected, "boolean");
-		assert.equal(action.owner, "unchanged-appplugin-ui");
-		assert.equal(action.contract, "scmap-bottom-control-panel-v2");
+		assert.equal(action.owner, "desktop-host-adapter");
+		assert.equal(action.provenance, "host-heuristic-from-appplugin-tree");
+		assert.equal(action.contract, "host-map-bottom-control-panel-v3");
 		assert.ok(!Object.hasOwn(action, "reactTag"));
 		assert.ok(!Object.hasOwn(action, "center"));
 		return action as unknown as SemanticAction;
@@ -268,10 +295,10 @@ function publishedMethods(payload: JsonRecord): string[] {
 }
 
 async function invokeSemanticAction(
-	baseUrl: string,
+	handle: Pick<RuntimeHandle, "baseUrl" | "sessionToken">,
 	id: string,
 ): Promise<JsonRecord> {
-	return requestJson(baseUrl, "/semantic-action?view=map", {
+	return requestJson(handle, "/semantic-action?view=map", {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify({ id }),
@@ -283,7 +310,7 @@ async function main(): Promise<void> {
 	const bundleSha256Before = sha256File(options.bundlePath);
 	const handle = await startRuntime(options, await freePort());
 	try {
-		const initialHealth = await requestJson(handle.baseUrl, "/health?view=map");
+		const initialHealth = await requestJson(handle, "/health?view=map");
 		const initialActions = semanticActions(initialHealth);
 		assert.deepEqual(
 			initialActions.map(action => action.id),
@@ -291,11 +318,11 @@ async function main(): Promise<void> {
 		);
 		assert.equal(selectedMode(initialActions), "map.mode.full");
 
-		const roomsResponse = await invokeSemanticAction(handle.baseUrl, "map.mode.rooms");
+		const roomsResponse = await invokeSemanticAction(handle, "map.mode.rooms");
 		assert.equal(selectedMode(semanticActions(roomsResponse)), "map.mode.rooms");
 		assert.deepEqual(jsonArray(roomsResponse.activePointerIds, "rooms.activePointerIds"), []);
 
-		const roomTapResponse = await requestJson(handle.baseUrl, "/pointer-sequence?view=map", {
+		const roomTapResponse = await requestJson(handle, "/pointer-sequence?view=map", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({
@@ -306,7 +333,7 @@ async function main(): Promise<void> {
 			}),
 		});
 		assert.deepEqual(jsonArray(roomTapResponse.activePointerIds, "roomTap.activePointerIds"), []);
-		const stateAfterSelection = await requestJson(handle.baseUrl, "/state");
+		const stateAfterSelection = await requestJson(handle, "/state");
 		assert.deepEqual(
 			finalQ7RoomSelectionDiagnostic(stateAfterSelection.appSysLogs, 4).selectedRoomIds,
 			[10],
@@ -314,11 +341,11 @@ async function main(): Promise<void> {
 
 		const beforeCleanCount = Number(roomTapResponse.publishedDpsCount);
 		assert.ok(Number.isSafeInteger(beforeCleanCount) && beforeCleanCount >= 0);
-		const cleanResponse = await invokeSemanticAction(handle.baseUrl, "clean.start");
+		const cleanResponse = await invokeSemanticAction(handle, "clean.start");
 		assert.deepEqual(jsonArray(cleanResponse.activePointerIds, "clean.activePointerIds"), []);
 		assert.ok(Number(cleanResponse.publishedDpsCount) > beforeCleanCount);
 		const publications = await requestJson(
-			handle.baseUrl,
+			handle,
 			`/published-dps?after=${beforeCleanCount}`,
 		);
 		const methods = publishedMethods(publications);
@@ -341,13 +368,15 @@ async function main(): Promise<void> {
 				unchanged: true,
 			},
 			semanticUi: {
-				contract: "scmap-bottom-control-panel-v2",
+				contract: "host-map-bottom-control-panel-v3",
+				provenance: "host-heuristic-from-appplugin-tree",
 				actionIds: initialActions.map(action => action.id),
 				labels: initialActions.map(action => action.label),
 				initialMode: "map.mode.full",
 				modeAfterDesktopAction: "map.mode.rooms",
 				selectedRoomIdsOwnedByAppPlugin: [10],
-				cleanActionOwnedByAppPlugin: true,
+				actionDiscoveryOwnedByHost: true,
+				cleanPayloadOwnedByAppPlugin: true,
 				hostCoordinatesExposed: false,
 				hostCommandPayloadImplemented: false,
 			},
