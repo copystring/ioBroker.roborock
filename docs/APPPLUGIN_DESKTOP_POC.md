@@ -74,6 +74,15 @@ Q7-M5-Gestengate prüft den gebündelten Weg einschließlich verändertem
 AppPlugin-Frame, vollständigem Pointer-Cleanup und null offenen nativen
 Messungen.
 
+Auch ein bereits abgeschlossener `JSTimers.callTimers`- oder
+`NativeAnimated`-Turn wird nicht nochmals vor dem nativen Layout auf globale
+Hermes-Ruhe geprüft. Android führt an dieser Stelle den angeforderten
+UI-/Layout-Turn aus; erst dessen `onLayout`-Ereignisse überqueren wieder eine
+einzelne Hermes-Barriere. Die umgekehrte Reihenfolge kann eine Bridge-Arbeit
+blockieren, deren Callback erst durch genau dieses Layout aufgelöst wird, und
+damit die komplette AppPlugin-Sitzung samt PoC-Webserver in den
+Barrieren-Timeout treiben.
+
 Ein normaler Einfinger-Drag im strukturell erkannten Vollkartenmodus darf nicht
 auf `Hermes -> vollständiges Host-SVG -> Bilddekodierung` pro Browserbewegung
 warten. Der Browser transformiert deshalb den letzten Hostdiagnose-Frame

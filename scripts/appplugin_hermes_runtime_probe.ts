@@ -1278,6 +1278,20 @@ async function main(): Promise<void> {
 		await session.waitForRuntimeBoundaryIdle();
 		await applyUiLayout();
 	};
+	const applyCompletedNativeUiTurn = async (): Promise<void> => {
+		// Android führt den nativen Layout-Turn direkt nach einem bereits
+		// abgeschlossenen JS-/NativeAnimated-Turn aus. Vor diesem Layout erneut
+		// auf globale Hermes-Ruhe zu warten kann eine Bridge-Arbeit blockieren,
+		// deren Callback erst durch genau diesen Layout-Turn aufgelöst wird.
+		// Layout-Ereignisse erhalten innerhalb des Turns weiterhin jeweils eine
+		// einzelne Hermes-Barriere, warten aber nicht auf zukünftige Timer.
+		interactiveLayoutBoundary = true;
+		try {
+			await applyUiLayout();
+		} finally {
+			interactiveLayoutBoundary = false;
+		}
+	};
 	const stabilizeInteractiveUi = async (): Promise<void> => {
 		// Pointer-Eingaben dürfen zukünftige AppPlugin-Timer nicht künstlich abwarten.
 		// Android liefert den Touch in einem nativen UI-Turn aus und wartet nicht,
@@ -1289,12 +1303,7 @@ async function main(): Promise<void> {
 		) {
 			return;
 		}
-		interactiveLayoutBoundary = true;
-		try {
-			await applyUiLayout();
-		} finally {
-			interactiveLayoutBoundary = false;
-		}
+		await applyCompletedNativeUiTurn();
 	};
 	let imminentTimerCycles = 0;
 	const settleImminentOneShotTimers = async (
@@ -1350,8 +1359,7 @@ async function main(): Promise<void> {
 		nativeAnimatedUiPump = enqueue(async () => {
 			while (nativeAnimatedUiPumpRequested) {
 				nativeAnimatedUiPumpRequested = false;
-				await session.waitForRuntimeBoundaryIdle();
-				await stabilizeUi();
+				await applyCompletedNativeUiTurn();
 			}
 		}).finally(() => {
 			nativeAnimatedUiPump = undefined;
@@ -1369,13 +1377,21 @@ async function main(): Promise<void> {
 		timerUiPump = enqueue(async () => {
 			while (timerUiPumpRequested) {
 				timerUiPumpRequested = false;
-				await session.waitForRuntimeBoundaryIdle();
-				const visualChanged = uiManager.visualMutationRevision() !== lastStabilizedVisualRevision
-					|| skiaVisualRevision() !== lastStabilizedSkiaRevision;
-				if (!visualChanged) continue;
-				await stabilizeUi();
-				revision += 1;
-				frameRevision += 1;
+				const visualRevisionBeforeLayout = lastStabilizedVisualRevision;
+				const skiaRevisionBeforeLayout = lastStabilizedSkiaRevision;
+				const nativeWorkPending = uiManager.operationCount() !== lastStabilizedOperationCount
+					|| uiManager.pendingNativeMeasurementCount() > 0;
+				const visualWorkPending = uiManager.visualMutationRevision() !== visualRevisionBeforeLayout
+					|| skiaVisualRevision() !== skiaRevisionBeforeLayout;
+				if (!nativeWorkPending && !visualWorkPending) continue;
+				await applyCompletedNativeUiTurn();
+				if (
+					lastStabilizedVisualRevision !== visualRevisionBeforeLayout
+					|| lastStabilizedSkiaRevision !== skiaRevisionBeforeLayout
+				) {
+					revision += 1;
+					frameRevision += 1;
+				}
 			}
 		}).finally(() => {
 			timerUiPump = undefined;

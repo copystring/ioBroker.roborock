@@ -318,6 +318,11 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(probe).toContain("timerUiPumpRequested");
 		expect(probe).toContain("nativeAnimatedUiPump = enqueue");
 		expect(probe).toContain("nativeAnimatedUiPumpRequested");
+		expect(probe).toContain("applyCompletedNativeUiTurn");
+		expect(probe).toContain("const nativeWorkPending");
+		expect(probe).not.toContain(
+			"timerUiPumpRequested = false;\n\t\t\t\tawait session.waitForRuntimeBoundaryIdle()",
+		);
 		expect(probe).toContain("settleActiveNativeAnimations");
 		expect(probe).toContain("lastStabilizedVisualRevision");
 		expect(probe).toContain('url.pathname === "/pointer-sequence"');
