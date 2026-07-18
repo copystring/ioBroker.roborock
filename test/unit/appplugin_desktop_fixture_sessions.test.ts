@@ -31,7 +31,7 @@ describe("AppPlugin desktop fixture session", () => {
 			deviceId: "washer-1",
 			deviceSN: "sn-1",
 			firmwareVersion: "1.0",
-			deviceExtra: { featuresNew: "test-feature" },
+			deviceProperties: { featuresNew: "test-feature" },
 			mapFamily: "v1",
 			mapProtocol: "fixture-only",
 			label: "Testaufnahme",
@@ -39,7 +39,7 @@ describe("AppPlugin desktop fixture session", () => {
 		});
 		expect(session.descriptor.device).toMatchObject({
 			model: "roborock.washer.test",
-			deviceExtra: { featuresNew: "test-feature" },
+			deviceProperties: { featuresNew: "test-feature" },
 		});
 		expect(session.descriptor).not.toHaveProperty("mapFamily");
 		expect(session.descriptor).not.toHaveProperty("mapProtocol");

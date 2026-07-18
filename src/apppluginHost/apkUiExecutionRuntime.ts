@@ -7,6 +7,11 @@ import {
 } from "./apkNativeViewHierarchyRuntime";
 import type { ApkJavaScriptModuleCaller } from "./apkTouchEventRuntime";
 import { ApkScrollViewRuntime } from "./apkScrollViewRuntime";
+import {
+	ApkSafeAreaEventRuntime,
+	type ApkSafeAreaEventDispatch,
+	type ApkSafeAreaInsets,
+} from "./apkSafeAreaEventRuntime";
 import { ApkUiHitTestRuntime } from "./apkUiHitTestRuntime";
 import type { ApkUiManagerRuntime } from "./apkUiManagerRuntime";
 import { ApkYogaLayoutRuntime, type ApkYogaLayoutEntry } from "./apkYogaLayoutRuntime";
@@ -22,6 +27,7 @@ export interface ApkUiExecutionRuntimeOptions {
 	androidApiLevel?: number;
 	direction?: "ltr" | "rtl";
 	doLeftAndRightSwapInRTL?: boolean;
+	safeAreaInsets?: Readonly<ApkSafeAreaInsets>;
 	/** Lets Hermes flush React work caused by topLayout before the next convergence round. */
 	afterLayoutEvents?: () => Promise<void>;
 }
@@ -30,6 +36,7 @@ export interface ApkUiExecutionRound {
 	round: number;
 	operationCountBefore: number;
 	operationCountAfter: number;
+	safeAreaEvents: readonly Readonly<ApkSafeAreaEventDispatch>[];
 	layoutEvents: readonly Readonly<ApkLayoutEventDispatch>[];
 }
 
@@ -53,6 +60,7 @@ export class ApkUiExecutionRuntime {
 	readonly #nativeHierarchy: ApkNativeViewHierarchyRuntime;
 	readonly #hitTest: ApkUiHitTestRuntime;
 	readonly #layoutEvents: ApkLayoutEventRuntime;
+	readonly #safeAreaEvents: ApkSafeAreaEventRuntime;
 	readonly #scrollView: ApkScrollViewRuntime;
 	readonly #yoga: ApkYogaLayoutRuntime;
 
@@ -68,6 +76,11 @@ export class ApkUiExecutionRuntime {
 		this.#nativeHierarchy = new ApkNativeViewHierarchyRuntime(options.uiManager.snapshot().tag, density);
 		this.#hitTest = new ApkUiHitTestRuntime(() => this.#nativeHierarchy.snapshot().root);
 		this.#layoutEvents = new ApkLayoutEventRuntime(options.jsModuleCaller, density);
+		this.#safeAreaEvents = new ApkSafeAreaEventRuntime(options.jsModuleCaller, {
+			width: options.width,
+			height: options.height,
+			insets: options.safeAreaInsets,
+		});
 		this.#scrollView = new ApkScrollViewRuntime(
 			this.#nativeHierarchy,
 			this.#hitTest,
@@ -117,12 +130,15 @@ export class ApkUiExecutionRuntime {
 			this.#nativeHierarchy.applyToHitTest(this.#hitTest);
 			this.#scrollView.synchronize();
 			latestNative = this.#nativeHierarchy.snapshot();
+			const safeAreaEvents = await this.#safeAreaEvents.dispatchChanged(shadowRoot, latestLayouts);
+			if (safeAreaEvents.length > 0) await this.options.afterLayoutEvents?.();
 			const layoutEvents = await this.#layoutEvents.dispatchChanged(shadowRoot, latestLayouts);
 			if (layoutEvents.length > 0) await this.options.afterLayoutEvents?.();
 			const operationCountAfter = this.options.uiManager.operationCount();
-			rounds.push({ round, operationCountBefore, operationCountAfter, layoutEvents });
+			rounds.push({ round, operationCountBefore, operationCountAfter, safeAreaEvents, layoutEvents });
 			if (
-				layoutEvents.length === 0
+				safeAreaEvents.length === 0
+				&& layoutEvents.length === 0
 				&& operationCountAfter === operationCountBefore
 				&& this.options.uiManager.pendingNativeMeasurementCount() === 0
 			) {

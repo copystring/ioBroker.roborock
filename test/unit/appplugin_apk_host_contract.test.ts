@@ -242,12 +242,34 @@ describe("APK-derived AppPlugin host contract", () => {
 		const device = effective.find(module => module.moduleName === "RRPluginDevice")!;
 		const registry = new StrictApkNativeModuleRegistry(contract);
 		expect(() => registry.get("RRPluginDevice")).toThrow(MissingApkNativeModuleError);
+		expect(registry.implementationCoverage()).toMatchObject({
+			status: "partial",
+			effectiveModuleCount: effective.length,
+			registeredModuleCount: 0,
+			implementedModuleCount: 0,
+		});
 		registry.register(device.javaClass, Object.fromEntries(device.methods.map(method => [method.name, () => undefined])));
 		expect(() => registry.assertImplements(["RRPluginDevice"])).not.toThrow();
+		expect(registry.implementationCoverage()).toMatchObject({
+			status: "partial",
+			effectiveModuleCount: effective.length,
+			registeredModuleCount: 1,
+			implementedModuleCount: 1,
+			implementedModules: ["RRPluginDevice"],
+		});
 
 		const incomplete = new StrictApkNativeModuleRegistry(contract);
 		incomplete.register(device.javaClass, {});
 		expect(() => incomplete.assertImplements(["RRPluginDevice"])).toThrow(MissingApkNativeMethodError);
+		expect(incomplete.implementationCoverage()).toMatchObject({
+			status: "partial",
+			registeredModuleCount: 1,
+			implementedModuleCount: 0,
+			partiallyImplementedModules: [{
+				moduleName: "RRPluginDevice",
+				missingMethods: device.methods.map(method => method.name),
+			}],
+		});
 	});
 
 	it("keeps every generated evidence hash tied to the current decompiled APK", () => {

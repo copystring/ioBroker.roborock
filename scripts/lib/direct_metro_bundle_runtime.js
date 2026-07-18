@@ -266,11 +266,6 @@ function defaultNativeModules(
 		RRPAGImageViewModule: {
 			VERSION: 1
 		},
-		AsyncSQLiteDBStorage: {
-			multiGet: () => {},
-			multiMerge: () => {},
-			multiSet: () => {}
-		},
 		Orientation: {
 			addListener: () => {},
 			getAutoRotateState: callback => invokeNativeCallback(callback, false),

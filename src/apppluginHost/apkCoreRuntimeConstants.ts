@@ -20,6 +20,21 @@ export interface ApkLocalizationRuntimeState {
 	doLeftAndRightSwapInRTL: boolean;
 }
 
+export interface ApkSafeAreaMetrics {
+	insets: Readonly<{
+		top: number;
+		right: number;
+		bottom: number;
+		left: number;
+	}>;
+	frame: Readonly<{
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+	}>;
+}
+
 function assertPositiveFinite(value: number, name: string): void {
 	if (!Number.isFinite(value) || value <= 0) {
 		throw new Error(`${name} muss eine positive endliche Zahl sein`);
@@ -60,6 +75,33 @@ export function createApkDeviceInfoConstants(
 	};
 }
 
+/**
+ * Reproduces SafeAreaContextModule.getTypedExportedConstants() from the APK.
+ * Android derives these logical-pixel values from the current decor/content
+ * views. A desktop host therefore has to supply its own measured frame and
+ * insets explicitly.
+ */
+export function createApkSafeAreaConstants(metrics: ApkSafeAreaMetrics): ApkNativeModuleConstants {
+	for (const [name, value] of Object.entries(metrics.insets)) {
+		if (!Number.isFinite(value) || value < 0) {
+			throw new Error(`safeArea.insets.${name} muss eine nichtnegative endliche Zahl sein`);
+		}
+	}
+	for (const [name, value] of Object.entries(metrics.frame)) {
+		if (!Number.isFinite(value) || (name === "width" || name === "height") && value <= 0) {
+			throw new Error(`safeArea.frame.${name} ist ungültig`);
+		}
+	}
+	return {
+		RNCSafeAreaContext: {
+			initialWindowMetrics: {
+				insets: { ...metrics.insets },
+				frame: { ...metrics.frame },
+			},
+		},
+	};
+}
+
 /** Reproduces the constant maps exported by the APK localization modules. */
 export function createApkLocalizationConstants(
 	state: ApkLocalizationRuntimeState,
@@ -89,7 +131,6 @@ export function createApkGestureHandlerConstants(): ApkNativeModuleConstants {
 export interface ApkPluginSdkRuntimeContext {
 	userId: string;
 	basePath: string;
-	deviceExtra: Readonly<Record<string, unknown>>;
 	deviceId: string;
 	deviceSN: string;
 	ownerId: string;
@@ -176,7 +217,9 @@ function assertExactPluginSdkConstantKeys(
 /**
  * Reproduces PluginSDKModule.getConstants() from the APK. Device-, user- and
  * host-specific values must be supplied by the embedding runtime; only literal
- * APK values are read from the generated contract.
+ * APK values are read from the generated contract. PluginSDKModule.getDeviceExtra()
+ * always creates an empty map in the inspected APK. Dynamic device properties
+ * belong to getDeviceExtraInfoForKey(Array), not to these constants.
  */
 export function createApkPluginSdkConstants(
 	contract: ApkAppPluginHostContract,
@@ -214,7 +257,7 @@ export function createApkPluginSdkConstants(
 		userId: context.userId,
 		apiLevel: apkPluginSdkApiLevel(contract),
 		basePath: context.basePath,
-		deviceExtra: { ...context.deviceExtra },
+		deviceExtra: {},
 		deviceId: context.deviceId,
 		deviceSN: context.deviceSN,
 		ownerId: context.ownerId,

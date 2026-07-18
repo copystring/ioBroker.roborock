@@ -10,6 +10,13 @@ export interface ApkPluginSdkActivityState {
 	hasRnActivity(): boolean;
 }
 
+export interface ApkPluginSdkStrategyState {
+	isInternetReachable(): boolean;
+	isLocalDeviceConnected(): boolean;
+	isBluetoothCommunicated(): boolean;
+	callBluetoothProtobuf(payload: Uint8Array, callback: ApkReactCallback): void;
+}
+
 function callbackActivityNull(callback: ApkReactCallback): void {
 	callback(false, { error: "null" });
 }
@@ -42,6 +49,7 @@ export class ApkPluginSdkRpcModule {
 	public constructor(
 		private readonly broker: ApkRpcRequestBroker,
 		private readonly activityState: ApkPluginSdkActivityState,
+		private readonly strategyState?: ApkPluginSdkStrategyState,
 	) {}
 
 	public callMethod(
@@ -101,6 +109,77 @@ export class ApkPluginSdkRpcModule {
 
 	public callMethodPbV2(methodBase64: string, _protocol: string, callback: ApkReactCallback): void {
 		this.#callMethodPb(methodBase64, "automatic", callback);
+	}
+
+	/**
+	 * Mirrors PluginSDKModule$callMethodPbWithStrategy$1 from the APK.
+	 *
+	 * The strategy owns only transport selection. Protobuf payload construction
+	 * and response correlation remain in the shared APK RPC broker.
+	 */
+	public callMethodPbWithStrategy(
+		strategy: string,
+		methodBase64: string,
+		_protocol: string,
+		callback: ApkReactCallback,
+	): void {
+		if (!this.activityState.hasRnActivity()) {
+			callbackActivityNull(callback);
+			return;
+		}
+		const payload = decodeApkPluginBase64(methodBase64);
+		const state = this.strategyState;
+		if (!state) {
+			callback(false, { error: "strategy transport unavailable" });
+			return;
+		}
+		switch (strategy) {
+			case "BLUETOOTH_ONLY":
+				state.callBluetoothProtobuf(payload, callback);
+				return;
+			case "BLUETOOTH_FIRST":
+				if (!state.isBluetoothCommunicated()) {
+					state.callBluetoothProtobuf(payload, callback);
+					return;
+				}
+				this.broker.callProtobuf(payload, "automatic", callback);
+				return;
+			case "NETWORK_ONLY":
+				this.broker.callProtobuf(payload, "automatic", callback);
+				return;
+			case "NETWORK_FIRST":
+			case "NONE":
+				if (state.isInternetReachable() || state.isLocalDeviceConnected()) {
+					this.broker.callProtobuf(payload, "automatic", callback);
+					return;
+				}
+				state.callBluetoothProtobuf(payload, callback);
+				return;
+			case "LAN_BLE_FIRST":
+				if (state.isLocalDeviceConnected()) {
+					this.broker.callProtobuf(payload, "local", callback);
+					return;
+				}
+				if (!state.isBluetoothCommunicated()) {
+					state.callBluetoothProtobuf(payload, callback);
+					return;
+				}
+				this.broker.callProtobuf(payload, "cloud", callback);
+				return;
+			default:
+				// CallMethodStrategy.Companion maps unknown strings to NONE.
+				if (state.isInternetReachable() || state.isLocalDeviceConnected()) {
+					this.broker.callProtobuf(payload, "automatic", callback);
+					return;
+				}
+				state.callBluetoothProtobuf(payload, callback);
+		}
+	}
+
+	public async blueIsConnected(_unused?: string): Promise<boolean> {
+		if (!this.activityState.hasRnActivity()) throw new Error("no activity");
+		if (!this.strategyState) throw new Error("bluetooth transport unavailable");
+		return this.strategyState.isBluetoothCommunicated();
 	}
 
 	public getMapData(

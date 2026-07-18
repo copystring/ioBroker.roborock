@@ -1,6 +1,8 @@
 export type ApkPluginDeviceCallback = (...arguments_: unknown[]) => void;
 
 export interface ApkPluginDeviceTransport {
+	connectLocalDeviceIfNeeded(timeoutSeconds: number): number;
+	deviceOnline(): Promise<boolean>;
 	loadShadowDps(): Promise<string | null>;
 	publishDps(dps: Readonly<Record<string, unknown>>): Promise<void>;
 }
@@ -24,6 +26,28 @@ export class ApkPluginDeviceRuntime {
 	public addListener(_eventName: string | null): void {}
 
 	public removeListeners(_count: number | null): void {}
+
+	public connectDeviceByLANIfNeeded(timeoutSeconds: number, callback: ApkPluginDeviceCallback): void {
+		if (!this.options.hasActivity()) {
+			callback(0);
+			return;
+		}
+		const timeout = Number.isSafeInteger(timeoutSeconds) && timeoutSeconds > 0
+			? timeoutSeconds
+			: 0;
+		const status = this.options.transport.connectLocalDeviceIfNeeded(timeout);
+		if (status === 1) {
+			callback(1);
+			return;
+		}
+		setTimeout(() => {
+			callback(this.options.transport.connectLocalDeviceIfNeeded(timeout));
+		}, timeout * 1_000);
+	}
+
+	public async getDeviceOnlineStatus(): Promise<boolean> {
+		return this.options.transport.deviceOnline();
+	}
 
 	public async loadDps(): Promise<string | null> {
 		if (!this.options.hasActivity()) throw new Error("activity is null");

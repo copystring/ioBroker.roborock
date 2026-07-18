@@ -31,10 +31,25 @@ export interface ApkFirmwareUpdateState {
 	errMsg: "0";
 }
 
+export interface ApkCurrentCountryInfo {
+	countryCode: string;
+	serverCode: string;
+}
+
+export class ApkHostServiceUnavailableError extends Error {
+	public override readonly name = "ApkHostServiceUnavailableError";
+
+	public constructor(public readonly serviceName: string) {
+		super(`APK-Host-Dienst ${serviceName} ist nicht verbunden`);
+	}
+}
+
 export interface ApkPluginSdkEnvironmentRuntimeOptions {
 	hasActivity(): boolean;
 	closeCurrentPage?(): void;
 	isSharedDevice?(): boolean;
+	currentCountryInfo?(): ApkCurrentCountryInfo | null;
+	loadUserRole?(model: string, code: string): Promise<string>;
 	firmwareVersion: string;
 	storageBasePath: string;
 	loadOtaInfo(): Promise<ApkOtaInfo | null>;
@@ -152,6 +167,35 @@ export class ApkPluginSdkEnvironmentRuntime {
 
 	public async getPluginAgreementsV2(): Promise<unknown[]> {
 		return this.getPluginAgreements();
+	}
+
+	/**
+	 * Mirrors PluginSDKModule.getCurrentCountryInfoCallback(). Country and
+	 * server are account state owned by the APK host, never product metadata
+	 * inferred from a model or AppPlugin path.
+	 */
+	public getCurrentCountryInfoCallback(callback: (...arguments_: unknown[]) => void): void {
+		if (!this.options.hasActivity()) {
+			callback(false);
+			return;
+		}
+		const info = this.options.currentCountryInfo?.();
+		callback(true, info
+			? {
+				countryCode: info.countryCode.toLowerCase(),
+				serverCode: info.serverCode,
+			}
+			: {});
+	}
+
+	/**
+	 * The inspected APK delegates this lookup to its product repository. The
+	 * host therefore exposes the same service boundary instead of inventing a
+	 * role or embedding device-family knowledge.
+	 */
+	public async getUserRole(model: string, code: string): Promise<string> {
+		if (!this.options.loadUserRole) throw new ApkHostServiceUnavailableError("product-user-role");
+		return this.options.loadUserRole(model, code);
 	}
 
 	/**

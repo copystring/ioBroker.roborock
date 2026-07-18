@@ -10,6 +10,19 @@ interface RegisteredModule {
 	implementation: ApkNativeModuleImplementation;
 }
 
+export interface ApkNativeModuleImplementationCoverage {
+	status: "complete" | "partial";
+	effectiveModuleCount: number;
+	registeredModuleCount: number;
+	implementedModuleCount: number;
+	implementedModules: readonly string[];
+	partiallyImplementedModules: readonly Readonly<{
+		moduleName: string;
+		missingMethods: readonly string[];
+	}>[];
+	unimplementedModules: readonly string[];
+}
+
 export class MissingApkNativeModuleError extends Error {
 	public constructor(public readonly moduleName: string) {
 		super(`Das vom APK-Vertrag geforderte Native Module ${moduleName} ist nicht implementiert.`);
@@ -82,6 +95,41 @@ export class StrictApkNativeModuleRegistry {
 
 	public registeredModuleNames(): string[] {
 		return [...this.implementations.keys()].sort();
+	}
+
+	public implementationCoverage(): ApkNativeModuleImplementationCoverage {
+		const effectiveModules = [...this.effectiveByName.keys()].sort();
+		const registeredModules = this.registeredModuleNames();
+		const unimplementedModules = effectiveModules.filter(moduleName =>
+			!this.implementations.has(moduleName),
+		);
+		const partiallyImplementedModules: Array<{
+			moduleName: string;
+			missingMethods: string[];
+		}> = [];
+		const implementedModules: string[] = [];
+		for (const moduleName of registeredModules) {
+			const registered = this.implementations.get(moduleName)!;
+			const missingMethods = registered.contract.methods
+				.map(method => method.name)
+				.filter(methodName => typeof registered.implementation[methodName] !== "function");
+			if (missingMethods.length > 0) {
+				partiallyImplementedModules.push({ moduleName, missingMethods });
+			} else {
+				implementedModules.push(moduleName);
+			}
+		}
+		return {
+			status: unimplementedModules.length === 0 && partiallyImplementedModules.length === 0
+				? "complete"
+				: "partial",
+			effectiveModuleCount: effectiveModules.length,
+			registeredModuleCount: registeredModules.length,
+			implementedModuleCount: implementedModules.length,
+			implementedModules,
+			partiallyImplementedModules,
+			unimplementedModules,
+		};
 	}
 
 	private assertModule(module: ApkNativeModuleContract): void {

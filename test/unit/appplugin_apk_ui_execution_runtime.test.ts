@@ -85,4 +85,46 @@ describe("APK UI execution runtime", () => {
 		]);
 		expect(afterLayoutEvents).toHaveBeenCalledTimes(2);
 		expect(uiManager.pendingNativeMeasurementCount()).toBe(0);
-	});});
+	});
+
+	it("emits the APK safe-area provider lifecycle event and lets React continue rendering", async () => {
+		const uiManager = new ApkUiManagerRuntime(contract, 1);
+		uiManager.createView(2, "RNCSafeAreaProvider", 1, { flex: 1 });
+		uiManager.setChildren(1, [2]);
+		let childCreated = false;
+		const callJsFunction = vi.fn(async (_module: string, _method: string, arguments_: readonly unknown[]) => {
+			if (arguments_[0] !== 2 || arguments_[1] !== "topInsetsChange" || childCreated) return;
+			childCreated = true;
+			uiManager.createView(3, "RCTView", 1, { flex: 1 });
+			uiManager.setChildren(2, [3]);
+		});
+		const backend: ApkAndroidTextLayoutBackend = {
+			intrinsicWidth: () => { throw new Error("Kein Text erwartet"); },
+			layout: () => { throw new Error("Kein Text erwartet"); },
+		};
+		const runtime = new ApkUiExecutionRuntime({
+			uiManager,
+			jsModuleCaller: { callJsFunction },
+			textLayoutBackend: backend,
+			width: 360,
+			height: 800,
+			density: 3,
+			fontScale: 1,
+			safeAreaInsets: { top: 8, right: 0, bottom: 12, left: 0 },
+			afterLayoutEvents: async () => undefined,
+		});
+
+		const result = await runtime.stabilize();
+
+		expect(result.rounds.map(round => round.safeAreaEvents.length)).toEqual([1, 0]);
+		expect(callJsFunction).toHaveBeenCalledWith("RCTEventEmitter", "receiveEvent", [
+			2,
+			"topInsetsChange",
+			{
+				insets: { top: 8, right: 0, bottom: 12, left: 0 },
+				frame: { x: 0, y: 0, width: 360, height: 800 },
+			},
+		]);
+		expect(uiManager.snapshot().children[0].children[0].tag).toBe(3);
+	});
+});

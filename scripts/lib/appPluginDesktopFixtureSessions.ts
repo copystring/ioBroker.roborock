@@ -15,7 +15,7 @@ export interface AppPluginDesktopFixtureSessionInput {
 	deviceId: string;
 	deviceSN: string;
 	firmwareVersion: string;
-	deviceExtra?: Readonly<Record<string, unknown>>;
+	deviceProperties?: Readonly<Record<string, unknown>>;
 	mapFamily: AppPluginMapFamily;
 	mapProtocol: string;
 	label: string;
@@ -59,7 +59,8 @@ export function createAppPluginDesktopFixtureSession(
 				model: input.model,
 				name: input.deviceName,
 				firmwareVersion: input.firmwareVersion,
-				deviceExtra: { ...input.deviceExtra },
+				protocolVersion: input.mapProtocol,
+				deviceProperties: { ...input.deviceProperties },
 				activeTime: 0,
 				robotTimeZone: 0,
 				iotType: 2,

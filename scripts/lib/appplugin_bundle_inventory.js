@@ -2,11 +2,20 @@ const childProcess = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
-const { DirectMetroBundleRuntime } = require("./direct_metro_bundle_runtime.js");
 
 const HERMES_MAGIC = Buffer.from([0xc6, 0x1f, 0xbc, 0x03]);
 const DEFAULT_HERMES_BOOTSTRAP = path.resolve(__dirname, "..", "..", "tools", "hermes-appplugin-host", "bridge_bootstrap.js");
+const DEFAULT_APK_HOST_CONTRACT = path.resolve(
+	__dirname,
+	"..",
+	"..",
+	"src",
+	"apppluginHost",
+	"generated",
+	"apk-appplugin-host-contract.json",
+);
 const HERMES_TIMEOUT_MS = 15_000;
+const apkContractNamesCache = new Map();
 
 function sha256(buffer) {
 	return crypto.createHash("sha256").update(buffer).digest("hex");
@@ -52,39 +61,69 @@ function inspectBundle(bundlePath) {
 	};
 }
 
-function exceptionMessage(exception) {
-	if (!exception) return "Unknown exception";
-	return exception.originalMessage ?? exception.message ?? String(exception);
+function installedApkContractNames(contractPath = DEFAULT_APK_HOST_CONTRACT) {
+	const absolutePath = path.resolve(contractPath);
+	const cached = apkContractNamesCache.get(absolutePath);
+	if (cached) return cached;
+	const contract = JSON.parse(fs.readFileSync(absolutePath, "utf8"));
+	const nativeModules = contract.nativeModules
+		.filter(module => module.installedByHost)
+		.map(module => module.moduleName);
+	const viewManagers = contract.viewManagers
+		.filter(view => view.installedByHost)
+		.map(view => view.viewName);
+	const installed = {
+		apkIdentity: contract.apk.identity,
+		names: new Set([...nativeModules, ...viewManagers]),
+	};
+	apkContractNamesCache.set(absolutePath, installed);
+	return installed;
 }
 
-function runMetroConformance(identity) {
-	let runtime;
-	try {
-		runtime = new DirectMetroBundleRuntime({ bundlePath: identity.bundlePath });
-		const result = runtime.load();
-		const afterHash = sha256(fs.readFileSync(identity.bundlePath));
-		const errors = result.reportedExceptions.map(exceptionMessage);
-		const appRegistered = result.appKeys.includes("App");
-		const unchanged = identity.sha256 === afterHash;
+function inspectApkContractCoverage(requestedNativeModules, contractPath = DEFAULT_APK_HOST_CONTRACT) {
+	const installed = installedApkContractNames(contractPath);
+	const requested = [...new Set(requestedNativeModules)].sort();
+	const unresolved = requested.filter(name => !installed.names.has(name));
+	return {
+		apkIdentity: installed.apkIdentity,
+		status: unresolved.length === 0 ? "complete" : "incomplete",
+		requestedCount: requested.length,
+		unresolved,
+	};
+}
+
+function classifyHermesHostFailure(execution, hostResult, output) {
+	const windowsStatus = execution.status === null ? undefined : execution.status >>> 0;
+	if (execution.error || windowsStatus === 0xc0000135 || (!hostResult && output.length === 0)) {
 		return {
-			...identity,
-			status: appRegistered && unchanged && errors.length === 0 ? "passed" : "failed",
-			appKeys: result.appKeys,
-			registryKind: result.registryKind,
-			unchanged,
-			reportedExceptions: errors,
-			requestedNativeModules: result.requestedNativeModules,
-			fallbackCapabilities: result.fallbackCapabilities
-		};
-	} catch (error) {
-		return {
-			...identity,
-			status: "failed",
-			error: error instanceof Error ? error.message : String(error),
-			requestedNativeModules: runtime?.trace.uniqueCapabilities("module-request") ?? [],
-			fallbackCapabilities: runtime?.trace.uniqueCapabilities("fallback-access") ?? []
+			status: "host-unavailable",
+			error: execution.error?.message
+				?? (windowsStatus === 0xc0000135
+					? "Hermes-Host konnte nicht gestartet werden; eine Windows-Laufzeitbibliothek fehlt"
+					: "Hermes-Host lieferte kein Protokollergebnis"),
 		};
 	}
+	const hostError = String(hostResult?.error ?? output);
+	if (hostError.includes("APK host hook __apkNativeInvoke is missing")
+		|| hostError.includes("APK host hook __apkNativeFlushQueue is missing")) {
+		return {
+			status: "host-incompatible",
+			error: "Hermes-Host-Binary und generierter APK-Bridge-Bootstrap besitzen unterschiedliche Versionen",
+		};
+	}
+	if (hostError.includes("APK native invocation requires --ipc")
+		|| hostError.includes("APK native invocation requires the Hermes host --ipc mode")
+		|| hostError.includes("Cannot read property 'mobileModel' of undefined")
+		|| hostError.includes("RRPluginSDK.deviceModel- undefined")) {
+		return {
+			status: "device-session-required",
+			error: "Das AppPlugin wurde unverändert geladen und benötigt für die Ausführung eine APK-Gerätesitzung",
+		};
+	}
+	return {
+		status: "runtime-failed",
+		error: execution.error?.message ?? hostResult?.error ?? (hostResult ? undefined : output),
+	};
 }
 
 function parseHostOutput(output) {
@@ -99,11 +138,29 @@ function parseHostOutput(output) {
 	return undefined;
 }
 
-function runHermesHostConformance(identity, hermesHostExecutable, bootstrapPath = DEFAULT_HERMES_BOOTSTRAP) {
+function createHermesHostEnvironment(runtimeLibraryDirectory, baseEnvironment = process.env) {
+	if (!runtimeLibraryDirectory) return { ...baseEnvironment };
+	return {
+		...baseEnvironment,
+		PATH: `${path.resolve(runtimeLibraryDirectory)}${path.delimiter}${baseEnvironment.PATH ?? ""}`,
+	};
+}
+
+function runHermesHostConformance(
+	identity,
+	hermesHostExecutable,
+	bootstrapPath = DEFAULT_HERMES_BOOTSTRAP,
+	runtimeLibraryDirectory,
+) {
 	const execution = childProcess.spawnSync(
 		path.resolve(hermesHostExecutable),
 		["--bundle", identity.bundlePath, "--bootstrap", path.resolve(bootstrapPath)],
-		{ encoding: "utf8", windowsHide: true, timeout: HERMES_TIMEOUT_MS }
+		{
+			encoding: "utf8",
+			env: createHermesHostEnvironment(runtimeLibraryDirectory),
+			windowsHide: true,
+			timeout: HERMES_TIMEOUT_MS,
+		},
 	);
 	const output = [execution.stdout, execution.stderr].filter(Boolean).join("\n").trim();
 	const hostResult = parseHostOutput(output);
@@ -120,9 +177,10 @@ function runHermesHostConformance(identity, hermesHostExecutable, bootstrapPath 
 		&& appKeys.includes("App")
 		&& reportedExceptions.length === 0
 		&& unchanged;
+	const failure = passed ? undefined : classifyHermesHostFailure(execution, hostResult, output);
 	return {
 		...identity,
-		status: passed ? "passed" : "failed",
+		status: passed ? "passed" : failure.status,
 		bytecodeAccepted: hostResult?.bytecodeAccepted,
 		bridgeConfigured: hostResult?.probe?.bridgeConfigured,
 		appKeys,
@@ -131,7 +189,7 @@ function runHermesHostConformance(identity, hermesHostExecutable, bootstrapPath 
 		reportedExceptions,
 		capturedNativeQueueCount: hostResult?.probe?.capturedNativeQueueCount,
 		exitCode: execution.status,
-		error: execution.error?.message ?? hostResult?.error ?? (hostResult ? undefined : output)
+		error: failure?.error,
 	};
 }
 
@@ -164,9 +222,21 @@ function runHermesConformance(identity, hermesExecutable) {
 
 function runBundleConformance(bundlePath, options = {}) {
 	const identity = inspectBundle(bundlePath);
-	if (identity.format === "metro") return runMetroConformance(identity);
-	if (identity.format === "hermes" && options.hermesHostExecutable) {
-		return runHermesHostConformance(identity, options.hermesHostExecutable, options.hermesBootstrapPath);
+	if ((identity.format === "metro" || identity.format === "hermes") && options.hermesHostExecutable) {
+		return runHermesHostConformance(
+			identity,
+			options.hermesHostExecutable,
+			options.hermesBootstrapPath,
+			options.runtimeLibraryDirectory,
+		);
+	}
+	if (identity.format === "metro") {
+		return {
+			...identity,
+			status: "bridge-host-required",
+			bytecodeAccepted: undefined,
+			error: "Metro-Quellbundles benötigen denselben nativen APK-Host wie Hermes-Bundles",
+		};
 	}
 	if (identity.format === "hermes") return runHermesConformance(identity, options.hermesExecutable);
 	return { ...identity, status: "failed", error: "Unknown bundle format" };
@@ -194,7 +264,14 @@ function runBundleMatrix(rootDir, options = {}) {
 			hermes: results.filter(result => result.format === "hermes").length,
 			passed: results.filter(result => result.status === "passed").length,
 			bridgeHostRequired: results.filter(result => result.status === "bridge-host-required").length,
-			failed: results.filter(result => result.status === "failed").length
+			hostUnavailable: results.filter(result => result.status === "host-unavailable").length,
+			hostIncompatible: results.filter(result => result.status === "host-incompatible").length,
+			deviceSessionRequired: results.filter(result => result.status === "device-session-required").length,
+			runtimeFailed: results.filter(result => result.status === "runtime-failed").length,
+			contractIncomplete: results.filter(result =>
+				result.apkContractCoverage?.status === "incomplete",
+			).length,
+			failed: results.filter(result => result.status === "failed").length,
 		},
 		results
 	};
@@ -203,8 +280,12 @@ function runBundleMatrix(rootDir, options = {}) {
 module.exports = {
 	HERMES_MAGIC,
 	DEFAULT_HERMES_BOOTSTRAP,
+	DEFAULT_APK_HOST_CONTRACT,
 	HERMES_TIMEOUT_MS,
+	classifyHermesHostFailure,
+	createHermesHostEnvironment,
 	findBundleFiles,
+	inspectApkContractCoverage,
 	inspectBundle,
 	parseHostOutput,
 	runBundleConformance,

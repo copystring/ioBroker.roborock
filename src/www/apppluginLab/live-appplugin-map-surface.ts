@@ -71,13 +71,25 @@ interface LiveAppPluginDeviceSession {
 			issues: unknown[];
 		}
 		| { status: "not-evaluated" };
+	runtimeUsage: {
+		invocationCount: number;
+		rejectedInvocationCount: number;
+		missingNativeCallCount: number;
+		missingNativeCalls: string[];
+		unavailableHostServiceCount: number;
+		unavailableHostServices: string[];
+		expectedDomainRejectionCount: number;
+		expectedDomainRejections: string[];
+		unexpectedRejectionCount: number;
+		unexpectedRejections: string[];
+	};
 	package?: {
 		models: string[];
 		versionCode?: number;
 		minSdkApiLevel?: number;
 		packagePath?: string;
 	};
-	deviceExtraKeys?: string[];
+	devicePropertyKeys?: string[];
 }
 
 interface LiveAppPluginHealth extends LiveAppPluginLocalizationState {

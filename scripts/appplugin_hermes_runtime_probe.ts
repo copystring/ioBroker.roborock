@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -46,6 +46,7 @@ import {
 	ApkAppStateRuntime,
 	ApkAsyncStorageRuntime,
 	ApkBlobTransferAssembler,
+	ApkDeviceIngress,
 	ApkAppSysRuntime,
 	ApkDarkModeRuntime,
 	ApkDeviceFirmwareRuntime,
@@ -55,9 +56,14 @@ import {
 	ApkLocalizationRuntime,
 	ApkNativeModuleDispatcher,
 	ApkNativeAnimatedRuntime,
+	classifyApkNativeInvocationRejections,
 	ApkNetInfoRuntime,
 	ApkPluginDeviceRuntime,
+	ApkPluginDeviceEventBridge,
+	ApkPluginHttpRuntime,
+	ApkPluginPermissionsRuntime,
 	ApkPluginSdkEnvironmentRuntime,
+	ApkPluginSdkRpcModule,
 	ApkPointerInputBridge,
 	ApkSkiaHostRuntime,
 	ApkSoundManagerRuntime,
@@ -76,13 +82,18 @@ import {
 	apkServedSurfaceViewport,
 	selectApkServedSurfaceRoot,
 	ApkV8WorkerRuntime,
+	ApkOrientationRuntime,
+	ApkRpcRequestBroker,
+	ApkHostServiceUnavailableError,
 	apkPluginSdkContextFromSession,
+	composeApkNativeModuleImplementation,
 	createApkBridgeBootstrap,
 	createApkCanvasKitTextLayoutBackend,
 	decodeApkB01MqttFrameToSegment,
 	createApkDeviceInfoConstants,
 	createApkGestureHandlerConstants,
 	createApkLocalizationConstants,
+	createApkSafeAreaConstants,
 	createApkPluginSdkConstants,
 	createApkRemoteModuleDefinitions,
 	createApkSourceCodeConstants,
@@ -94,6 +105,9 @@ import {
 	StrictApkNativeModuleRegistry,
 	type ApkAppPluginSessionDescriptor,
 	type ApkAppPluginHostContract,
+	type ApkJsonRpcRequest,
+	type ApkProtobufRpcRequest,
+	type ApkRpcRoute,
 	type ApkSemanticUiActionId,
 	type ApkUiManagerNodeSnapshot,
 	type ApkV8WorkerDiagnostic,
@@ -1033,12 +1047,53 @@ async function main(): Promise<void> {
 	const publishedDps: Array<Readonly<Record<string, unknown>>> = [];
 	let publishedDpsRetainedFrom = 0;
 	let publishedDpsCount = 0;
+	const rpcTransmissions: Array<Readonly<Record<string, unknown>>> = [];
+	const hostServiceRequests: Array<Readonly<Record<string, unknown>>> = [];
+	const rpcEndpoint = resolvedDeviceSession?.descriptor.host.iotOriginDevId
+		?? sessionId.replaceAll("-", "").slice(0, 15);
+	const rpcNonce = randomBytes(16).toString("hex");
+	const rpcBroker = new ApkRpcRequestBroker({
+		async sendJson(request: ApkJsonRpcRequest, route: ApkRpcRoute): Promise<void> {
+			appendBounded(rpcTransmissions, {
+				kind: "json",
+				route,
+				request: structuredClone(request),
+				wireDps: { "101": JSON.stringify(request) },
+			});
+		},
+		async sendProtobuf(request: ApkProtobufRpcRequest, route: ApkRpcRoute): Promise<void> {
+			appendBounded(rpcTransmissions, {
+				kind: "protobuf",
+				route,
+				request: {
+					kind: request.kind,
+					id: request.id,
+					payloadBase64: Buffer.from(request.payload).toString("base64"),
+					appToRobotMessageBase64: Buffer.from(request.appToRobotMessage).toString("base64"),
+				},
+			});
+		},
+	}, rpcEndpoint, rpcNonce);
+	const pluginSdkRpc = new ApkPluginSdkRpcModule(
+		rpcBroker,
+		{ hasRnActivity: () => true },
+		{
+			isInternetReachable: () => true,
+			isLocalDeviceConnected: () => false,
+			isBluetoothCommunicated: () => false,
+			callBluetoothProtobuf: (_payload, callback) => {
+				callback(false, { error: "bluetooth transport unavailable" });
+			},
+		},
+	);
 	let pageCloseRequestCount = 0;
 	const publishReplayResponseErrors: string[] = [];
 	let handlePublishedDps: ((dps: Readonly<Record<string, unknown>>, publishedIndex: number) => void) | undefined;
 	const pluginDevice = new ApkPluginDeviceRuntime({
 		hasActivity: () => true,
 		transport: {
+			connectLocalDeviceIfNeeded: () => 0,
+			deviceOnline: async () => true,
 			loadShadowDps: async () => shadowDpsJson,
 			publishDps: async dps => {
 				const publishedIndex = publishedDpsCount;
@@ -1055,6 +1110,15 @@ async function main(): Promise<void> {
 	});
 	const pluginSdkEnvironment = new ApkPluginSdkEnvironmentRuntime({
 		hasActivity: () => true,
+		currentCountryInfo: () => resolvedDeviceSession?.descriptor.account ?? null,
+		loadUserRole: async (model, code) => {
+			appendBounded(hostServiceRequests, {
+				service: "product-user-role",
+				model,
+				code,
+			});
+			throw new ApkHostServiceUnavailableError("product-user-role");
+		},
 		closeCurrentPage: () => {
 			pageCloseRequestCount += 1;
 		},
@@ -1062,10 +1126,31 @@ async function main(): Promise<void> {
 		storageBasePath,
 		loadOtaInfo: async () => null,
 		loadOtaProgress: async () => null,
-		loadDeviceExtraInfo: async () => ({}),
+		loadDeviceExtraInfo: async () => Object.fromEntries(
+			Object.entries(resolvedDeviceSession?.descriptor.device.deviceProperties ?? {})
+				.map(([key, value]) => [key, value === null || value === undefined ? "" : String(value)]),
+		),
 		loadAgreementAndPolicy: async () => agreementAndPolicy,
 		loadPluginAgreements: async () => signedPluginAgreements,
 		workerRuntime,
+	});
+	const pluginHttp = new ApkPluginHttpRuntime({
+		iot: {
+			get: async (requestPath, params) => {
+				appendBounded(hostServiceRequests, {
+					service: "iot-http",
+					method: "GET",
+					path: requestPath,
+					params,
+				});
+				throw new ApkHostServiceUnavailableError("iot-http");
+			},
+		},
+	});
+	const pluginPermissions = new ApkPluginPermissionsRuntime({
+		isBluetoothEnabled: () => false,
+		isLocationEnabled: () => false,
+		isWifiEnabled: () => true,
 	});
 	let sessionForTimers: ApkHermesHostSession | undefined;
 	let onTimerJsCompleted: (() => Promise<void>) | undefined;
@@ -1106,7 +1191,6 @@ async function main(): Promise<void> {
 		: {
 			userId: "",
 			basePath: basePathUrl,
-			deviceExtra: {},
 			deviceId: options.duid,
 			deviceSN: options.deviceSn,
 			ownerId: "",
@@ -1124,6 +1208,15 @@ async function main(): Promise<void> {
 		};
 	const constants = mergeApkNativeModuleConstants(
 		createApkDeviceInfoConstants(metrics, metrics),
+		createApkSafeAreaConstants({
+			insets: { top: 0, right: 0, bottom: 0, left: 0 },
+			frame: {
+				x: 0,
+				y: 0,
+				width: metrics.width / metrics.scale,
+				height: metrics.height / metrics.scale,
+			},
+		}),
 		createApkLocalizationConstants({
 			language: initialLocalization.language,
 			localeIdentifier: initialLocalization.localeIdentifier,
@@ -1143,6 +1236,9 @@ async function main(): Promise<void> {
 	fs.writeFileSync(options.bootstrapPath, bridgeBootstrap, "utf8");
 
 	const registry = new StrictApkNativeModuleRegistry(contract);
+	const orientation = new ApkOrientationRuntime(
+		options.width <= options.height ? "PORTRAIT" : "LANDSCAPE-LEFT",
+	);
 	const asyncStorage = new ApkAsyncStorageRuntime(path.join(
 		path.dirname(options.bootstrapPath),
 		"app-data",
@@ -1211,12 +1307,24 @@ async function main(): Promise<void> {
 		gestureHandler as unknown as Record<string, unknown>,
 	);
 	registry.register(
+		installedModule(contract, "Orientation").javaClass,
+		orientation as unknown as Record<string, unknown>,
+	);
+	registry.register(
 		installedModule(contract, "UIManager").javaClass,
 		uiManager as unknown as Record<string, unknown>,
 	);
 	registry.register(
 		installedModule(contract, "RRPluginSDK").javaClass,
-		pluginSdkEnvironment as unknown as Record<string, unknown>,
+		composeApkNativeModuleImplementation(pluginSdkEnvironment, pluginSdkRpc),
+	);
+	registry.register(
+		installedModule(contract, "RRPluginHttpTurboModule").javaClass,
+		pluginHttp as unknown as Record<string, unknown>,
+	);
+	registry.register(
+		installedModule(contract, "RRPluginPermissions").javaClass,
+		pluginPermissions as unknown as Record<string, unknown>,
 	);
 	registry.register(
 		installedModule(contract, "RRPluginDarkMode").javaClass,
@@ -1274,10 +1382,26 @@ async function main(): Promise<void> {
 		updateExceptionMessage: (...arguments_: unknown[]) =>
 			appendBounded(reportedExceptions, { method: "updateExceptionMessage", arguments: arguments_ }),
 	});
+	const nativeModuleImplementationCoverage = registry.implementationCoverage();
 
 	const definitions = createApkRemoteModuleDefinitions(contract, constants);
 	const nativeInvocations: Array<{ moduleName: string; methodName: string; argumentCount: number; arguments: readonly unknown[] }> = [];
 	const nativeInvocationRejections: Array<Readonly<Record<string, unknown>>> = [];
+	const runtimeNativeUsage = () => {
+		const diagnostics = classifyApkNativeInvocationRejections(nativeInvocationRejections);
+		return {
+			invocationCount: nativeInvocations.length,
+			rejectedInvocationCount: nativeInvocationRejections.length,
+			missingNativeCallCount: diagnostics.missingNativeCalls.length,
+			missingNativeCalls: diagnostics.missingNativeCalls,
+			unavailableHostServiceCount: diagnostics.unavailableHostServices.length,
+			unavailableHostServices: diagnostics.unavailableHostServices,
+			expectedDomainRejectionCount: diagnostics.expectedDomainRejections.length,
+			expectedDomainRejections: diagnostics.expectedDomainRejections,
+			unexpectedRejectionCount: diagnostics.unexpectedRejections.length,
+			unexpectedRejections: diagnostics.unexpectedRejections,
+		};
+	};
 	const session = new ApkHermesHostSession({
 		hostExecutablePath: options.hostExecutablePath,
 		bundlePath: options.bundlePath,
@@ -1478,16 +1602,33 @@ async function main(): Promise<void> {
 			response,
 			matchCount: 0,
 		}));
-		const blobAssembler = new ApkBlobTransferAssembler(options.duid, "unused-for-b01");
+		const blobAssembler = new ApkBlobTransferAssembler(options.duid, rpcEndpoint);
+		const deviceEvents = new ApkPluginDeviceEventBridge();
+		let deviceEventEmissionQueue: Promise<void> = Promise.resolve();
+		const enqueueDeviceEvent = (eventName: string, payload: unknown): void => {
+			deviceEventEmissionQueue = deviceEventEmissionQueue
+				.then(() => session.emitDeviceEvent(eventName, payload));
+		};
+		deviceEvents.addListener("RRDeviceDpsUpdateEvent", payload =>
+			enqueueDeviceEvent("RRDeviceDpsUpdateEvent", payload));
+		deviceEvents.addListener("RRDeviceDpsPbUpdateEvent", payload =>
+			enqueueDeviceEvent("RRDeviceDpsPbUpdateEvent", payload));
+		deviceEvents.addListener("RRDeviceBlobPayloadUpdateEvent", payload =>
+			enqueueDeviceEvent("RRDeviceBlobPayloadUpdateEvent", payload));
+		const deviceIngress = new ApkDeviceIngress(options.duid, blobAssembler, rpcBroker, deviceEvents);
+		const flushDeviceEvents = async (): Promise<void> => {
+			await deviceEventEmissionQueue;
+		};
+		const deviceProtocolVersion = resolvedDeviceSession?.descriptor.device.protocolVersion
+			?? (replayNeedsB01Key ? "B01" : "1.0");
 		const emitBlobPayload = async (
 			payload: Buffer,
 			source: Readonly<Record<string, unknown>>,
 		): Promise<Readonly<Record<string, unknown>>> => {
 			if (payload.length === 0) throw new Error("Leerer Geräteblob kann nicht emittiert werden");
 			const emittedEvent = "RRDeviceBlobPayloadUpdateEvent";
-			await session.emitDeviceEvent(emittedEvent, {
-				blob: payload.toString("base64"),
-			});
+			deviceEvents.emitBlobPayload(payload);
+			await flushDeviceEvents();
 			const ingress = {
 				...source,
 				payloadByteLength: payload.length,
@@ -1507,13 +1648,17 @@ async function main(): Promise<void> {
 			}
 			let diagnostic: Readonly<Record<string, unknown>>;
 			if (event.kind === "dps") {
-				await session.emitDeviceEvent("RRDeviceDpsUpdateEvent", {
-					dps: JSON.stringify(event.dps),
-				});
+				const ingress = deviceIngress.acceptJsonDps(
+					options.duid,
+					deviceProtocolVersion,
+					JSON.stringify(event.dps),
+				);
+				await flushDeviceEvents();
 				diagnostic = {
 					kind: event.kind,
 					emittedEvent: "RRDeviceDpsUpdateEvent",
 					dpsKeys: Object.keys(event.dps),
+					rpcAccepted: ingress.rpcAccepted,
 				};
 			} else if (event.kind === "blob") {
 				const payload = fs.readFileSync(event.blobPath);
@@ -1536,18 +1681,24 @@ async function main(): Promise<void> {
 					frameData,
 					options.b01LocalKey as string,
 				);
-				const assembled = blobAssembler.accept(segment);
+				const assembled = deviceIngress.acceptBlobSegment(segment);
+				await flushDeviceEvents();
 				let emittedEvent: string | undefined;
 				if (assembled?.kind === "b01-payload") {
 					emittedEvent = "RRDeviceBlobPayloadUpdateEvent";
-					const ingress = await emitBlobPayload(assembled.payload, {
+					const ingress = {
 						source: "b01-frame",
 						framePath: event.framePath,
 						frameByteLength: frameData.length,
 						protocolVersion: segment.pv,
 						nonce: segment.nonce,
 						sequenceId: segment.sequenceId,
-					});
+						payloadByteLength: assembled.payload.length,
+						payloadSha256: createHash("sha256").update(assembled.payload).digest("hex"),
+						blobType: assembled.payload[0],
+						emittedEvents: [emittedEvent],
+					};
+					blobIngresses.push(ingress);
 					b01Ingress ??= ingress;
 				}
 				diagnostic = {
@@ -1814,11 +1965,13 @@ async function main(): Promise<void> {
 			node.viewName === viewName || node.children.some(child => containsViewName(child, viewName));
 		const shadowRoot = uiManager.snapshot();
 		const hasNativeSvgView = containsViewName(shadowRoot, "RNSVGSvgViewAndroid");
-		const nativeHierarchy = uiExecution.nativeHierarchyRuntime().snapshot();
-		const nativeMeasurements = nativeHierarchy.layouts.flatMap(({ tag }) => {
+		const nativeHierarchy = options.runApplication
+			? uiExecution.nativeHierarchyRuntime().snapshot()
+			: undefined;
+		const nativeMeasurements = nativeHierarchy?.layouts.flatMap(({ tag }) => {
 			const box = uiExecution.nativeHierarchyRuntime().measure(tag);
 			return box ? [{ tag, box }] : [];
-		});
+		}) ?? [];
 		const apkUiPng = options.runApplication && hasNativeSvgView
 			? await exportApkNativeUiSnapshotPng({
 				shadowRoot,
@@ -2085,7 +2238,7 @@ async function main(): Promise<void> {
 						sendJson(response, 200, {
 							status: "appplugin-session-ready",
 							sessionId,
-							profileId: options.profileId,
+							profileId: options.profileId ?? "unknown",
 							mapFamily: options.fixtureMapFamily,
 							availableProfiles: options.availableProfiles,
 							deviceModel: options.deviceModel,
@@ -2095,13 +2248,15 @@ async function main(): Promise<void> {
 									source: "apk-device-session-descriptor",
 									compatibility: resolvedDeviceSession.compatibility,
 									package: resolvedDeviceSession.descriptor.package,
-									deviceExtraKeys: Object.keys(
-										resolvedDeviceSession.descriptor.device.deviceExtra,
+									devicePropertyKeys: Object.keys(
+										resolvedDeviceSession.descriptor.device.deviceProperties,
 									).sort(),
+									runtimeUsage: runtimeNativeUsage(),
 								}
 								: {
 									source: "legacy-cli",
 									compatibility: { status: "not-evaluated" },
+									runtimeUsage: runtimeNativeUsage(),
 								},
 							revision,
 							frameRevision,
@@ -2128,6 +2283,10 @@ async function main(): Promise<void> {
 							semanticActions: semanticActionsHttpState(),
 							...localizationHttpState(),
 							publishedDpsCount,
+							rpcTransmissionCount: rpcTransmissions.length,
+							hostServiceRequestCount: hostServiceRequests.length,
+							pendingRpcRequestCount:
+								rpcBroker.pendingNormalRequestCount + rpcBroker.pendingBlobRequestCount,
 							pageCloseRequestCount,
 						});
 						return;
@@ -2157,6 +2316,10 @@ async function main(): Promise<void> {
 							revision,
 							rawText: collectAppPluginRawText(uiManager.snapshot()),
 							publishedDpsCount,
+							rpcTransmissions,
+							hostServiceRequests,
+							pendingRpcRequestCount:
+								rpcBroker.pendingNormalRequestCount + rpcBroker.pendingBlobRequestCount,
 							pageCloseRequestCount,
 							startupReplayEvents: replayEvents,
 							blobIngresses,
@@ -2316,6 +2479,17 @@ async function main(): Promise<void> {
 						});
 						return;
 					}
+					if (request.method === "GET" && url.pathname === "/rpc-transmissions") {
+						sendJson(response, 200, {
+							rpcTransmissions,
+							rpcTransmissionCount: rpcTransmissions.length,
+							hostServiceRequests,
+							hostServiceRequestCount: hostServiceRequests.length,
+							pendingRpcRequestCount:
+								rpcBroker.pendingNormalRequestCount + rpcBroker.pendingBlobRequestCount,
+						});
+						return;
+					}
 					if (request.method === "GET" && url.pathname === "/semantic-actions") {
 						sendJson(response, 200, {
 							revision,
@@ -2379,6 +2553,8 @@ async function main(): Promise<void> {
 								argumentTypes: invocation.arguments.map(argument =>
 									Array.isArray(argument) ? "array" : argument === null ? "null" : typeof argument),
 							})),
+							rejections: nativeInvocationRejections,
+							runtimeUsage: runtimeNativeUsage(),
 						});
 						return;
 					}
@@ -2642,6 +2818,10 @@ async function main(): Promise<void> {
 			interactiveSurface,
 			apkInteractiveSurfacePng,
 			publishedDps,
+			rpcTransmissions,
+			hostServiceRequests,
+			pendingRpcRequestCount:
+				rpcBroker.pendingNormalRequestCount + rpcBroker.pendingBlobRequestCount,
 			timingErrors,
 			activeTimerIds: timing.activeTimerIds(),
 			activeTimers: timing.activeTimers(),
@@ -2653,6 +2833,7 @@ async function main(): Promise<void> {
 			statusBar: statusBar.snapshot(),
 			nativeInvocations,
 			nativeInvocationRejections,
+			nativeModuleImplementationCoverage,
 			uiTree: options.runApplication ? uiManager.snapshot() : undefined,
 			nativeHierarchy: options.runApplication ? nativeHierarchy : undefined,
 			nativeMeasurements: options.runApplication ? nativeMeasurements : undefined,
@@ -2660,6 +2841,7 @@ async function main(): Promise<void> {
 		})}\n`);
 		nativeAnimated.dispose();
 		timing.dispose();
+		rpcBroker.close();
 		await session.stop();
 		workerRuntime.stopAll();
 		disposeSkiaHost();
@@ -2671,6 +2853,7 @@ async function main(): Promise<void> {
 	} catch (error) {
 		nativeAnimated.dispose();
 		timing.dispose();
+		rpcBroker.close();
 		if (session.state === "running") await session.stop();
 		workerRuntime.stopAll();
 		disposeSkiaHost();

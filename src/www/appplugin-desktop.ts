@@ -40,6 +40,20 @@ function byId<T extends HTMLElement | SVGElement>(id: string): T {
 	return element as T;
 }
 
+function appPluginRuntimeEvidence(snapshot: LiveAppPluginMapSnapshot) {
+	return {
+		sessionId: snapshot.sessionId,
+		profileId: snapshot.profileId,
+		mapFamily: snapshot.mapFamily,
+		deviceModel: snapshot.deviceModel,
+		profileLabel: snapshot.profileLabel,
+		bundleKind: snapshot.bundleKind,
+		bundleSha256: snapshot.bundleSha256,
+		bundleProvenance: snapshot.bundleProvenance,
+		deviceSession: snapshot.deviceSession,
+	};
+}
+
 class AppPluginDesktop {
 	private activeNavigation = "map";
 	private tool: MapTool = "rooms";
@@ -78,7 +92,7 @@ class AppPluginDesktop {
 				this.runtimeStatus.textContent = "Bundle unverändert · Darstellung als Hostdiagnose";
 				this.runtimeStatus.dataset.state = "connected";
 				this.syncRuntimeProfile(snapshot);
-				this.runtimeProfile.disabled = false;
+				this.runtimeProfile.disabled = snapshot.availableProfiles.length < 2;
 				document.documentElement.dataset.theme = snapshot.colorScheme;
 				this.map.dataset.apppluginDirection = snapshot.isRTL ? "rtl" : "ltr";
 				this.mapFrame.dir = snapshot.isRTL ? "rtl" : "ltr";
@@ -105,7 +119,7 @@ class AppPluginDesktop {
 			name: "navigation.open",
 			arguments: {
 				page: "map",
-				mapSource: this.mapSurface.snapshot(),
+				mapSource: appPluginRuntimeEvidence(this.mapSurface.snapshot()),
 				localization: { owner: "unchanged-model-appplugin", status: "live" },
 			},
 		}, "Direkte AppPlugin-Sitzung verbunden");
@@ -119,8 +133,7 @@ class AppPluginDesktop {
 
 	private syncRuntimeProfile(snapshot: LiveAppPluginMapSnapshot): void {
 		for (const option of this.runtimeProfile.options) {
-			option.disabled = snapshot.availableProfiles.length > 0
-				&& !snapshot.availableProfiles.includes(option.value);
+			option.disabled = !snapshot.availableProfiles.includes(option.value);
 		}
 		const currentOption = [...this.runtimeProfile.options].find(option => option.value === snapshot.profileId);
 		if (!currentOption && snapshot.profileId !== "unknown") {
@@ -129,7 +142,11 @@ class AppPluginDesktop {
 			option.textContent = snapshot.profileLabel;
 			this.runtimeProfile.append(option);
 		}
-		if (snapshot.profileId !== "unknown") this.runtimeProfile.value = snapshot.profileId;
+		if (snapshot.profileId !== "unknown") {
+			this.runtimeProfile.value = snapshot.profileId;
+		} else {
+			this.runtimeProfile.selectedIndex = -1;
+		}
 	}
 
 	private async switchRuntimeProfile(profile: string): Promise<void> {
@@ -398,13 +415,23 @@ class AppPluginDesktop {
 	private updateMapSummary(snapshot: LiveAppPluginMapSnapshot): void {
 		const deviceFamilyBadge = byId<HTMLElement>("deviceFamilyBadge");
 		const compatibility = snapshot.deviceSession.compatibility;
-		deviceFamilyBadge.textContent = compatibility.status === "compatible"
-			? "APK"
-			: snapshot.mapFamily.toUpperCase();
+		const runtimeUsage = snapshot.deviceSession.runtimeUsage;
+		deviceFamilyBadge.textContent = runtimeUsage.missingNativeCallCount > 0
+			? `Fehlt ${runtimeUsage.missingNativeCallCount}`
+			: runtimeUsage.unavailableHostServiceCount > 0
+				? "Dienste offen"
+				: runtimeUsage.unexpectedRejectionCount > 0
+					? `Abweisung ${runtimeUsage.unexpectedRejectionCount}`
+				: "APK-Verträge ✓";
 		deviceFamilyBadge.title = snapshot.deviceSession.source === "apk-device-session-descriptor"
 			? `APK-validierter Gerätekontext · API ${compatibility.status === "compatible"
 				? compatibility.hostApiLevel
 				: "unbekannt"} · ${snapshot.deviceSession.package?.models.join(", ") ?? snapshot.deviceModel}`
+				+ ` · ${runtimeUsage.invocationCount} tatsächliche Native-Aufrufe`
+				+ ` · ${runtimeUsage.missingNativeCallCount} fehlende APK-Verträge`
+				+ ` · ${runtimeUsage.unavailableHostServiceCount} offene externe APK-Dienste`
+				+ ` · ${runtimeUsage.expectedDomainRejectionCount} erwartete APK-Fachablehnungen`
+				+ ` · ${runtimeUsage.unexpectedRejectionCount} unerwartete Abweisungen`
 			: "Legacy-Probe ohne Sitzungsdeskriptor";
 		byId<HTMLElement>("deviceName").textContent = snapshot.profileLabel;
 		const fullView = snapshot.view === "full";

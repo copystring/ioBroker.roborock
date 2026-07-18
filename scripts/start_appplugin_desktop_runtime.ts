@@ -6,6 +6,7 @@ import * as path from "node:path";
 
 import { build } from "esbuild";
 
+import { parseApkAppPluginSessionDescriptor } from "../src/apppluginHost";
 import { Q10_FIXTURE_DEFAULTS } from "../test/unit/q10FixtureDefaults";
 import {
 	readAppPluginDesktopSessionState,
@@ -20,14 +21,15 @@ import {
 	type AppPluginDesktopProfile,
 } from "./lib/appPluginDesktopProfiles";
 import {
+	parseAppPluginDesktopLauncherArgs,
+	type AppPluginDesktopLauncherOptions,
+	type AppPluginDesktopSessionLauncherOptions,
+} from "./lib/appPluginDesktopLauncher";
+import {
 	createAppPluginDesktopFixtureSession,
 	writeAppPluginDesktopFixtureDescriptor,
 	type AppPluginDesktopFixtureSession,
 } from "./lib/appPluginDesktopFixtureSessions";
-
-interface LauncherOptions {
-	profile: AppPluginDesktopProfile;
-}
 
 interface JsonRecord {
 	[key: string]: unknown;
@@ -48,21 +50,6 @@ const APPPLUGIN_DESKTOP_DISPLAY = Object.freeze({
 	densityDpi: 480,
 });
 
-function parseArgs(args: readonly string[]): LauncherOptions {
-	let profile: AppPluginDesktopProfile = "q7";
-	for (let index = 0; index < args.length; index += 1) {
-		const option = args[index];
-		const value = args[index + 1];
-		if (option === "--profile" && (value === "q7" || value === "q7-m5" || value === "q10")) {
-			profile = value;
-			index += 1;
-		} else {
-			throw new Error(`Unbekannte oder unvollständige Option: ${option}`);
-		}
-	}
-	return { profile };
-}
-
 function requireFile(filePath: string, description: string): string {
 	if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
 		throw new Error(`${description} fehlt: ${filePath}`);
@@ -79,6 +66,47 @@ function resolveToolchainBin(repositoryRoot: string): string | undefined {
 		.filter(candidate => fs.existsSync(candidate))
 		.sort()
 		.at(-1);
+}
+
+function resolveRuntimeLibraryDirectory(
+	repositoryRoot: string,
+	options: AppPluginDesktopLauncherOptions,
+): string | undefined {
+	if (options.runtimeLibraryDirectory) {
+		if (!fs.existsSync(options.runtimeLibraryDirectory)
+			|| !fs.statSync(options.runtimeLibraryDirectory).isDirectory()) {
+			throw new Error(`Hermes-Laufzeitbibliotheksverzeichnis fehlt: ${options.runtimeLibraryDirectory}`);
+		}
+		return options.runtimeLibraryDirectory;
+	}
+	return resolveToolchainBin(repositoryRoot);
+}
+
+function loadGenericSession(
+	options: AppPluginDesktopSessionLauncherOptions,
+): Readonly<{
+	descriptorPath: string;
+	replayManifestPath?: string;
+	b01LocalKeyFilePath?: string;
+	label: string;
+	serveFullRoot: boolean;
+}> {
+	const descriptorPath = requireFile(options.sessionDescriptorPath, "APK-AppPlugin-Sitzungsdeskriptor");
+	const descriptor = parseApkAppPluginSessionDescriptor(
+		JSON.parse(fs.readFileSync(descriptorPath, "utf8")) as unknown,
+		path.dirname(descriptorPath),
+	);
+	return {
+		descriptorPath,
+		replayManifestPath: options.replayManifestPath
+			? requireFile(options.replayManifestPath, "Geräte-Replayvertrag")
+			: undefined,
+		b01LocalKeyFilePath: options.b01LocalKeyFilePath
+			? requireFile(options.b01LocalKeyFilePath, "B01-Replay-Schlüssel")
+			: undefined,
+		label: options.label ?? descriptor.device.name ?? descriptor.device.model,
+		serveFullRoot: options.serveFullRoot,
+	};
 }
 
 function loadQ7FixtureIdentity(repositoryRoot: string): Q7FixtureIdentity {
@@ -226,7 +254,7 @@ function createProfileArguments(
 }
 
 async function main(): Promise<void> {
-	let options = parseArgs(process.argv.slice(2));
+	let options = parseAppPluginDesktopLauncherArgs(process.argv.slice(2));
 	const repositoryRoot = path.resolve(__dirname, "..", "..");
 	const runtimeProbePath = path.join(repositoryRoot, "artifacts", "appplugin-poc", "appplugin_hermes_runtime_probe-live.cjs");
 	await build({
@@ -239,17 +267,26 @@ async function main(): Promise<void> {
 	});
 
 	const hostPath = requireFile(
-		path.join(repositoryRoot, "tools", "hermes-appplugin-host", ".build-mingw-cmake3", "roborock-hermes-appplugin-host.exe"),
+		options.hostPath ?? path.join(
+			repositoryRoot,
+			"tools",
+			"hermes-appplugin-host",
+			".build-mingw-cmake3",
+			"roborock-hermes-appplugin-host.exe",
+		),
 		"Hermes-AppPlugin-Host",
 	);
 	const staticRootPath = path.join(repositoryRoot, "www");
-	const profileSwitchPath = path.join(
-		repositoryRoot,
-		"artifacts",
-		"appplugin-poc",
-		"runtime-probes",
-		"desktop-profile-switch.json",
-	);
+	const fixtureMode = options.mode === "fixture";
+	const profileSwitchPath = fixtureMode
+		? path.join(
+			repositoryRoot,
+			"artifacts",
+			"appplugin-poc",
+			"runtime-probes",
+			"desktop-profile-switch.json",
+		)
+		: undefined;
 	const sessionStatePath = path.join(
 		repositoryRoot,
 		"artifacts",
@@ -258,132 +295,160 @@ async function main(): Promise<void> {
 		"desktop-apk-session-state.json",
 	);
 	if (!fs.existsSync(sessionStatePath)) {
-		const legacyProfileStatePath = path.join(
-			repositoryRoot,
-			"artifacts",
-			"appplugin-poc",
-			"runtime-probes",
-			`desktop-${options.profile}-session-state.json`,
-		);
+		const legacyProfileStatePath = fixtureMode
+			? path.join(
+				repositoryRoot,
+				"artifacts",
+				"appplugin-poc",
+				"runtime-probes",
+				`desktop-${options.profile}-session-state.json`,
+			)
+			: "";
 		writeAppPluginDesktopSessionState(
 			sessionStatePath,
-			readAppPluginDesktopSessionState(legacyProfileStatePath),
+			legacyProfileStatePath
+				? readAppPluginDesktopSessionState(legacyProfileStatePath)
+				: readAppPluginDesktopSessionState(sessionStatePath),
 		);
 	}
-	clearAppPluginDesktopProfileSwitch(profileSwitchPath);
-	const toolchainBin = resolveToolchainBin(repositoryRoot);
+	if (profileSwitchPath) clearAppPluginDesktopProfileSwitch(profileSwitchPath);
+	const runtimeLibraryDirectory = resolveRuntimeLibraryDirectory(repositoryRoot, options);
 	const secretDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "roborock-appplugin-"));
 	const q10LocalKeyFilePath = path.join(secretDirectory, "b01-local-key");
 	const httpSessionTokenFilePath = path.join(secretDirectory, "http-session-token");
-	fs.writeFileSync(q10LocalKeyFilePath, Q10_FIXTURE_DEFAULTS.localKey, {
-		encoding: "utf8",
-		mode: 0o600,
-	});
+	if (fixtureMode) {
+		fs.writeFileSync(q10LocalKeyFilePath, Q10_FIXTURE_DEFAULTS.localKey, {
+			encoding: "utf8",
+			mode: 0o600,
+		});
+	}
 	fs.writeFileSync(httpSessionTokenFilePath, randomBytes(32).toString("base64url"), {
 		encoding: "utf8",
 		mode: 0o600,
 	});
 	let consecutiveUnexpectedFailures = 0;
 	try {
-	for (;;) {
-		const profile = options.profile;
-		const bootstrapPath = path.join(
-			repositoryRoot,
-			"artifacts",
-			"appplugin-poc",
-			"runtime-probes",
-			`desktop-${profile}-ipc-bridge.js`,
-		);
-		const fixtureSession = createProfileArguments(repositoryRoot, profile, q10LocalKeyFilePath);
-		const descriptorPath = path.join(
-			repositoryRoot,
-			"artifacts",
-			"appplugin-poc",
-			"runtime-probes",
-			`desktop-${profile}-device-session.json`,
-		);
-		writeAppPluginDesktopFixtureDescriptor(descriptorPath, fixtureSession);
-		const state = readAppPluginDesktopSessionState(sessionStatePath);
-		writeAppPluginDesktopSessionState(sessionStatePath, { ...state, restartRequested: false });
-		const args = [runtimeProbePath,
-			"--host", hostPath,
-			"--bootstrap-output", bootstrapPath,
-			"--width", String(APPPLUGIN_DESKTOP_DISPLAY.width),
-			"--height", String(APPPLUGIN_DESKTOP_DISPLAY.height),
-			"--scale", String(APPPLUGIN_DESKTOP_DISPLAY.scale),
-			"--density-dpi", String(APPPLUGIN_DESKTOP_DISPLAY.densityDpi),
-			"--language", state.language,
-			"--locale", state.localeIdentifier,
-			"--system-locale", state.systemLocaleIdentifier,
-			"--color-model", state.colorModel,
-			"--system-color-scheme", state.systemColorScheme,
-			"--card-style", String(state.cardStyle),
-			"--allow-rtl", String(state.allowRTL),
-			"--force-rtl", String(state.forceRTL),
-			"--swap-left-right-in-rtl", String(state.doLeftAndRightSwapInRTL),
-			"--font-scale", String(state.fontScale),
-			"--run-application", "--react-state-probe",
-			"--serve-port", String(APPPLUGIN_DESKTOP_PORT),
-			"--static-root", staticRootPath,
-			"--http-session-token-file", httpSessionTokenFilePath,
-			"--profile-id", profile,
-			"--fixture-map-family", fixtureSession.mapFamily,
-			"--available-profiles", APPPLUGIN_DESKTOP_PROFILES.join(","),
-			"--profile-switch-file", profileSwitchPath,
-			"--session-state", sessionStatePath,
-			"--session-descriptor", descriptorPath,
-			"--replay-manifest", fixtureSession.replayManifestPath,
-			"--profile-label", fixtureSession.label,
-			...(fixtureSession.b01LocalKeyFilePath
-				? ["--b01-local-key-file", fixtureSession.b01LocalKeyFilePath]
-				: []),
-			...(fixtureSession.serveFullRoot ? ["--serve-full-root"] : [])];
-		process.stdout.write(
-			`Starte ${profile.toUpperCase()} (${state.language}) mit echter lokaler Kartenaufnahme `
-			+ `auf der einzigen Adresse http://127.0.0.1:${APPPLUGIN_DESKTOP_PORT}/\n`,
-		);
-		const childStartedAt = Date.now();
-		const child = spawn(process.execPath, args, {
-			cwd: repositoryRoot,
-			env: {
-				...process.env,
-				PATH: toolchainBin ? `${toolchainBin}${path.delimiter}${process.env.PATH ?? ""}` : process.env.PATH,
-			},
-			stdio: "inherit",
-			windowsHide: true,
-		});
-		const exitCode = await new Promise<number>((resolve, reject) => {
-			child.once("error", reject);
-			child.once("exit", code => resolve(code ?? 1));
-		});
-		const nextProfile = consumeAppPluginDesktopProfileSwitch(profileSwitchPath);
-		const nextState = readAppPluginDesktopSessionState(sessionStatePath);
-		const decision = decideAppPluginDesktopSupervisorAction({
-			exitCode,
-			nextProfile,
-			restartRequested: nextState.restartRequested,
-			runDurationMs: Date.now() - childStartedAt,
-			consecutiveUnexpectedFailures,
-		});
-		if (decision.action === "switch") {
-			options = { profile: decision.profile };
-			consecutiveUnexpectedFailures = 0;
-			continue;
-		}
-		if (decision.action === "restart") {
-			consecutiveUnexpectedFailures = decision.consecutiveUnexpectedFailures;
-			if (decision.delayMs > 0) {
-				process.stderr.write(
-					`AppPlugin-Sitzung endete unerwartet (${exitCode}); `
-					+ `Neustart ${consecutiveUnexpectedFailures}/3 nach ${decision.delayMs} ms.\n`,
-				);
-				await new Promise(resolve => setTimeout(resolve, decision.delayMs));
+		for (;;) {
+			const profile = options.mode === "fixture" ? options.profile : undefined;
+			const bootstrapPath = path.join(
+				repositoryRoot,
+				"artifacts",
+				"appplugin-poc",
+				"runtime-probes",
+				`desktop-${profile ?? "device-session"}-ipc-bridge.js`,
+			);
+			const fixtureSession = profile
+				? createProfileArguments(repositoryRoot, profile, q10LocalKeyFilePath)
+				: undefined;
+			const genericSession = options.mode === "session"
+				? loadGenericSession(options)
+				: undefined;
+			const descriptorPath = fixtureSession
+				? path.join(
+					repositoryRoot,
+					"artifacts",
+					"appplugin-poc",
+					"runtime-probes",
+					`desktop-${profile}-device-session.json`,
+				)
+				: genericSession!.descriptorPath;
+			if (fixtureSession) writeAppPluginDesktopFixtureDescriptor(descriptorPath, fixtureSession);
+			const replayManifestPath = fixtureSession?.replayManifestPath ?? genericSession?.replayManifestPath;
+			const b01LocalKeyFilePath = fixtureSession?.b01LocalKeyFilePath ?? genericSession?.b01LocalKeyFilePath;
+			const profileLabel = fixtureSession?.label ?? genericSession!.label;
+			const serveFullRoot = fixtureSession?.serveFullRoot ?? genericSession!.serveFullRoot;
+			const state = readAppPluginDesktopSessionState(sessionStatePath);
+			writeAppPluginDesktopSessionState(sessionStatePath, { ...state, restartRequested: false });
+			const args = [runtimeProbePath,
+				"--host", hostPath,
+				"--bootstrap-output", bootstrapPath,
+				"--width", String(APPPLUGIN_DESKTOP_DISPLAY.width),
+				"--height", String(APPPLUGIN_DESKTOP_DISPLAY.height),
+				"--scale", String(APPPLUGIN_DESKTOP_DISPLAY.scale),
+				"--density-dpi", String(APPPLUGIN_DESKTOP_DISPLAY.densityDpi),
+				"--language", state.language,
+				"--locale", state.localeIdentifier,
+				"--system-locale", state.systemLocaleIdentifier,
+				"--color-model", state.colorModel,
+				"--system-color-scheme", state.systemColorScheme,
+				"--card-style", String(state.cardStyle),
+				"--allow-rtl", String(state.allowRTL),
+				"--force-rtl", String(state.forceRTL),
+				"--swap-left-right-in-rtl", String(state.doLeftAndRightSwapInRTL),
+				"--font-scale", String(state.fontScale),
+				"--run-application", "--react-state-probe",
+				"--serve-port", String(APPPLUGIN_DESKTOP_PORT),
+				"--static-root", staticRootPath,
+				"--http-session-token-file", httpSessionTokenFilePath,
+				"--session-state", sessionStatePath,
+				"--session-descriptor", descriptorPath,
+				"--profile-label", profileLabel,
+				...(fixtureSession && profileSwitchPath
+					? [
+						"--profile-id", fixtureSession.profile,
+						"--fixture-map-family", fixtureSession.mapFamily,
+						"--available-profiles", APPPLUGIN_DESKTOP_PROFILES.join(","),
+						"--profile-switch-file", profileSwitchPath,
+					]
+					: []),
+				...(replayManifestPath ? ["--replay-manifest", replayManifestPath] : []),
+				...(b01LocalKeyFilePath
+					? ["--b01-local-key-file", b01LocalKeyFilePath]
+					: []),
+				...(serveFullRoot ? ["--serve-full-root"] : [])];
+			process.stdout.write(
+				`Starte ${profileLabel} (${state.language}) als ${fixtureSession ? "lokale Test-Fixture" : "APK-Gerätesitzung"} `
+				+ `auf der einzigen Adresse http://127.0.0.1:${APPPLUGIN_DESKTOP_PORT}/\n`,
+			);
+			const childStartedAt = Date.now();
+			const child = spawn(process.execPath, args, {
+				cwd: repositoryRoot,
+				env: {
+					...process.env,
+					PATH: runtimeLibraryDirectory
+						? `${runtimeLibraryDirectory}${path.delimiter}${process.env.PATH ?? ""}`
+						: process.env.PATH,
+				},
+				stdio: "inherit",
+				windowsHide: true,
+			});
+			const exitCode = await new Promise<number>((resolve, reject) => {
+				child.once("error", reject);
+				child.once("exit", code => resolve(code ?? 1));
+			});
+			const nextProfile = profileSwitchPath
+				? consumeAppPluginDesktopProfileSwitch(profileSwitchPath)
+				: undefined;
+			const nextState = readAppPluginDesktopSessionState(sessionStatePath);
+			const decision = decideAppPluginDesktopSupervisorAction({
+				exitCode,
+				nextProfile,
+				restartRequested: nextState.restartRequested,
+				runDurationMs: Date.now() - childStartedAt,
+				consecutiveUnexpectedFailures,
+			});
+			if (decision.action === "switch") {
+				if (options.mode !== "fixture") {
+					throw new Error("Generische APK-Gerätesitzung darf kein Fixture-Profil anfordern");
+				}
+				options = { ...options, profile: decision.profile };
+				consecutiveUnexpectedFailures = 0;
+				continue;
 			}
-			continue;
+			if (decision.action === "restart") {
+				consecutiveUnexpectedFailures = decision.consecutiveUnexpectedFailures;
+				if (decision.delayMs > 0) {
+					process.stderr.write(
+						`AppPlugin-Sitzung endete unerwartet (${exitCode}); `
+						+ `Neustart ${consecutiveUnexpectedFailures}/3 nach ${decision.delayMs} ms.\n`,
+					);
+					await new Promise(resolve => setTimeout(resolve, decision.delayMs));
+				}
+				continue;
+			}
+			process.exitCode = decision.exitCode;
+			break;
 		}
-		process.exitCode = decision.exitCode;
-		break;
-	}
 	} finally {
 		fs.rmSync(secretDirectory, { force: true, recursive: true });
 	}

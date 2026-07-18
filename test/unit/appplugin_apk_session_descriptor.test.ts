@@ -42,7 +42,8 @@ function descriptor(root = pluginRoot()) {
 			model: "roborock.vacuum.sc01",
 			name: "Q7",
 			firmwareVersion: "4.3.5",
-			deviceExtra: { feature: "A", dockType: 3 },
+			protocolVersion: "B01",
+			deviceProperties: { feature: "A", dockType: 3 },
 			activeTime: 123,
 			robotTimeZone: 3_600_000,
 			iotType: 2,
@@ -53,6 +54,10 @@ function descriptor(root = pluginRoot()) {
 			clientId: "client-1",
 			memoryMiB: 4096,
 			iotOriginDevId: "origin-1",
+		},
+		account: {
+			countryCode: "DE",
+			serverCode: "eu",
 		},
 	});
 }
@@ -91,14 +96,38 @@ describe("APK AppPlugin session descriptor", () => {
 		expect(() => resolveApkAppPluginSession(mismatch, contract)).toThrow(/inkompatibel/u);
 	});
 
-	it("maps HomeData deviceExtra unchanged into the APK RRPluginSDK context", () => {
+	it("keeps dynamic HomeData properties out of the static APK RRPluginSDK context", () => {
 		const source = descriptor();
 		expect(apkPluginSdkContextFromSession(source, "file:///plugin/", "C:/storage"))
 			.toMatchObject({
 				deviceModel: "roborock.vacuum.sc01",
-				deviceExtra: { feature: "A", dockType: 3 },
 				robotTimeZone: 3_600_000,
 			});
+		expect(apkPluginSdkContextFromSession(source, "file:///plugin/", "C:/storage"))
+			.not.toHaveProperty("deviceExtra");
+		expect(source.device.deviceProperties).toEqual({ feature: "A", dockType: 3 });
+		expect(source.device.protocolVersion).toBe("B01");
+		expect(source.account).toEqual({ countryCode: "DE", serverCode: "eu" });
+	});
+
+	it("requires the HomeData protocol instead of inferring it from the model", () => {
+		const source = JSON.parse(JSON.stringify(descriptor())) as {
+			device: Record<string, unknown>;
+			[key: string]: unknown;
+		};
+		delete source.device.protocolVersion;
+		expect(() => parseApkAppPluginSessionDescriptor(source)).toThrow(/device\.protocolVersion/u);
+	});
+
+	it("migrates legacy descriptor deviceExtra into the dynamic property store", () => {
+		const source = JSON.parse(JSON.stringify(descriptor())) as {
+			device: Record<string, unknown>;
+			[key: string]: unknown;
+		};
+		source.device.deviceExtra = source.device.deviceProperties;
+		delete source.device.deviceProperties;
+		expect(parseApkAppPluginSessionDescriptor(source).device.deviceProperties)
+			.toEqual({ feature: "A", dockType: 3 });
 	});
 
 	it.each([

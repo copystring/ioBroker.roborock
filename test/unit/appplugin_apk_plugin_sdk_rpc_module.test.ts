@@ -28,8 +28,19 @@ function createHost(available = true, initialMessageId = 100) {
 	const broker = new ApkRpcRequestBroker(transport, "ENDPOINT", "00112233445566778899AABBCCDDEEFF", {
 		initialMessageId,
 	});
-	const module = new ApkPluginSdkRpcModule(broker, { hasRnActivity: () => available });
-	return { broker, module, transport };
+	const bluetooth = vi.fn();
+	const strategyState = {
+		isInternetReachable: vi.fn(() => true),
+		isLocalDeviceConnected: vi.fn(() => false),
+		isBluetoothCommunicated: vi.fn(() => false),
+		callBluetoothProtobuf: bluetooth,
+	};
+	const module = new ApkPluginSdkRpcModule(
+		broker,
+		{ hasRnActivity: () => available },
+		strategyState,
+	);
+	return { bluetooth, broker, module, strategyState, transport };
 }
 
 describe("APK AppToRobotMsg protobuf envelope", () => {
@@ -107,6 +118,51 @@ describe("APK RRPluginSDK RPC module", () => {
 			expect(Buffer.from(request.payload)).toEqual(Buffer.from([8, 42, 18, 1, 7]));
 		}
 		broker.close();
+	});
+
+	it("reproduces the APK strategy routing without model-specific command knowledge", () => {
+		const { bluetooth, broker, module, strategyState, transport } = createHost();
+		const payload = Buffer.from("request").toString("base64");
+
+		module.callMethodPbWithStrategy("NETWORK_ONLY", payload, "1.0", vi.fn());
+		module.callMethodPbWithStrategy("NETWORK_FIRST", payload, "1.0", vi.fn());
+		strategyState.isLocalDeviceConnected.mockReturnValue(true);
+		module.callMethodPbWithStrategy("LAN_BLE_FIRST", payload, "1.0", vi.fn());
+		strategyState.isLocalDeviceConnected.mockReturnValue(false);
+		module.callMethodPbWithStrategy("BLUETOOTH_ONLY", payload, "1.0", vi.fn());
+
+		expect(transport.protobuf.map(entry => entry.route)).toEqual(["automatic", "automatic", "local"]);
+		expect(bluetooth).toHaveBeenCalledTimes(1);
+		expect(Buffer.from(bluetooth.mock.calls[0][0])).toEqual(Buffer.from("request"));
+		broker.close();
+	});
+
+	it("uses the APK Bluetooth fallback branches when no network path is available", () => {
+		const { bluetooth, broker, module, strategyState, transport } = createHost();
+		const payload = Buffer.from("request").toString("base64");
+		strategyState.isInternetReachable.mockReturnValue(false);
+
+		module.callMethodPbWithStrategy("NETWORK_FIRST", payload, "1.0", vi.fn());
+		module.callMethodPbWithStrategy("BLUETOOTH_FIRST", payload, "1.0", vi.fn());
+		strategyState.isBluetoothCommunicated.mockReturnValue(true);
+		module.callMethodPbWithStrategy("LAN_BLE_FIRST", payload, "1.0", vi.fn());
+
+		expect(bluetooth).toHaveBeenCalledTimes(2);
+		expect(transport.protobuf.map(entry => entry.route)).toEqual(["cloud"]);
+		broker.close();
+	});
+
+	it("reports the APK Bluetooth communication state without model inference", async () => {
+		const { broker, module, strategyState } = createHost();
+		await expect(module.blueIsConnected("ignored-by-apk")).resolves.toBe(false);
+		strategyState.isBluetoothCommunicated.mockReturnValue(true);
+		await expect(module.blueIsConnected()).resolves.toBe(true);
+		expect(strategyState.isBluetoothCommunicated).toHaveBeenCalledTimes(2);
+		broker.close();
+
+		const unavailable = createHost(false);
+		await expect(unavailable.module.blueIsConnected()).rejects.toThrow("no activity");
+		unavailable.broker.close();
 	});
 
 	it("delegates map and robot data to the APK blob request paths", () => {

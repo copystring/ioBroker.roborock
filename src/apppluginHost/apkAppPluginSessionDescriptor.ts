@@ -28,7 +28,17 @@ export interface ApkAppPluginDeviceContext {
 	model: string;
 	name: string | null;
 	firmwareVersion?: string;
-	deviceExtra: Readonly<Record<string, unknown>>;
+	/**
+	 * HomeData/SDK protocol version (`pv`) used by the APK transport listeners.
+	 * It must not be inferred from a model or AppPlugin directory.
+	 */
+	protocolVersion: string;
+	/**
+	 * Dynamic values returned by RRPluginSDK.getDeviceExtraInfoForKey(Array).
+	 * They are deliberately not exported through the static deviceExtra constant,
+	 * because the inspected APK always exposes an empty map there.
+	 */
+	deviceProperties: Readonly<Record<string, unknown>>;
 	activeTime: number;
 	robotTimeZone: number;
 	iotType: 1 | 2;
@@ -42,6 +52,13 @@ export interface ApkAppPluginHostIdentity {
 	iotOriginDevId?: string;
 }
 
+export interface ApkAppPluginAccountContext {
+	/** ISO country selected for the signed-in APK account, for example DE. */
+	countryCode: string;
+	/** Roborock backend region selected by the APK account, for example eu. */
+	serverCode: string;
+}
+
 /**
  * Device-class-neutral input for one AppPlugin runtime. It mirrors the data
  * selected by the APK before React Native starts; map protocols and product UI
@@ -53,6 +70,7 @@ export interface ApkAppPluginSessionDescriptor {
 	package: ApkAppPluginPackageMetadata;
 	device: ApkAppPluginDeviceContext;
 	host: ApkAppPluginHostIdentity;
+	account?: ApkAppPluginAccountContext;
 }
 
 export type ApkAppPluginCompatibilityIssueCode =
@@ -133,7 +151,13 @@ function parsePackageMetadata(value: unknown): ApkAppPluginPackageMetadata {
 
 function parseDeviceContext(value: unknown): ApkAppPluginDeviceContext {
 	if (!isRecord(value)) throw new Error("device muss ein Objekt sein");
-	if (!isRecord(value.deviceExtra)) throw new Error("device.deviceExtra muss ein Objekt sein");
+	if (value.deviceProperties !== undefined && value.deviceExtra !== undefined) {
+		throw new Error("device darf nicht gleichzeitig deviceProperties und das veraltete deviceExtra enthalten");
+	}
+	const deviceProperties = value.deviceProperties ?? value.deviceExtra;
+	if (!isRecord(deviceProperties)) {
+		throw new Error("device.deviceProperties muss ein Objekt sein");
+	}
 	if (value.iotType !== 1 && value.iotType !== 2) throw new Error("device.iotType muss 1 oder 2 sein");
 	if (typeof value.userId !== "string") throw new Error("device.userId muss ein String sein");
 	if (typeof value.ownerId !== "string") throw new Error("device.ownerId muss ein String sein");
@@ -149,7 +173,8 @@ function parseDeviceContext(value: unknown): ApkAppPluginDeviceContext {
 		model: nonEmptyString(value.model, "device.model"),
 		name,
 		firmwareVersion: optionalString(value.firmwareVersion, "device.firmwareVersion"),
-		deviceExtra: { ...value.deviceExtra },
+		protocolVersion: nonEmptyString(value.protocolVersion, "device.protocolVersion"),
+		deviceProperties: { ...deviceProperties },
 		activeTime,
 		robotTimeZone: finiteNumber(value.robotTimeZone, "device.robotTimeZone"),
 		iotType: value.iotType,
@@ -171,6 +196,15 @@ function parseHostIdentity(value: unknown): ApkAppPluginHostIdentity {
 	};
 }
 
+function parseAccountContext(value: unknown): ApkAppPluginAccountContext | undefined {
+	if (value === undefined) return undefined;
+	if (!isRecord(value)) throw new Error("account muss ein Objekt sein");
+	return {
+		countryCode: nonEmptyString(value.countryCode, "account.countryCode"),
+		serverCode: nonEmptyString(value.serverCode, "account.serverCode"),
+	};
+}
+
 export function parseApkAppPluginSessionDescriptor(
 	value: unknown,
 	baseDirectory = process.cwd(),
@@ -184,6 +218,7 @@ export function parseApkAppPluginSessionDescriptor(
 		package: parsePackageMetadata(value.package),
 		device: parseDeviceContext(value.device),
 		host: parseHostIdentity(value.host),
+		account: parseAccountContext(value.account),
 	};
 }
 
@@ -283,7 +318,6 @@ export function apkPluginSdkContextFromSession(
 	return {
 		userId: descriptor.device.userId,
 		basePath,
-		deviceExtra: descriptor.device.deviceExtra,
 		deviceId: descriptor.device.deviceId,
 		deviceSN: descriptor.device.deviceSN,
 		ownerId: descriptor.device.ownerId,

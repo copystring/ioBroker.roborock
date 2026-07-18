@@ -73,6 +73,96 @@ describe("APK AppPlugin environment runtimes", () => {
 		expect(await runtime.getPluginAgreements()).toEqual([]);
 	});
 
+	it("loads device properties only through the APK asynchronous methods", async () => {
+		const root = mkdtempSync(path.join(tmpdir(), "apk-environment-"));
+		const runtime = new ApkPluginSdkEnvironmentRuntime({
+			hasActivity: () => true,
+			firmwareVersion: "02.24.90",
+			storageBasePath: root,
+			loadDeviceExtraInfo: async () => ({
+				features: "feature-a",
+				featuresNew: "feature-b",
+				dockType: "8",
+			}),
+			loadOtaInfo: async () => null,
+			loadAgreementAndPolicy: async () => ({
+				privacyProtocol: { version: null, langUrl: null },
+				userAgreement: { version: null, langUrl: null },
+			}),
+			loadPluginAgreements: async () => [],
+			workerRuntime: new ApkV8WorkerRuntime({ pluginRootPath: root }),
+		});
+
+		expect(await runtime.getDeviceExtraInfoForKey("features")).toEqual({
+			features: "feature-a",
+		});
+		expect(await runtime.getDeviceExtraInfoForKeyArray(["featuresNew", "dockType", "missing"]))
+			.toEqual({
+				featuresNew: "feature-b",
+				dockType: "8",
+				missing: "",
+			});
+	});
+
+	it("uses account state and the product repository boundary for country and role", async () => {
+		const root = mkdtempSync(path.join(tmpdir(), "apk-environment-"));
+		const loadUserRole = vi.fn(async (model: string, code: string) => `${model}:${code}:owner`);
+		const runtime = new ApkPluginSdkEnvironmentRuntime({
+			hasActivity: () => true,
+			currentCountryInfo: () => ({ countryCode: "DE", serverCode: "eu" }),
+			loadUserRole,
+			firmwareVersion: "02.24.90",
+			storageBasePath: root,
+			loadDeviceExtraInfo: async () => ({}),
+			loadOtaInfo: async () => null,
+			loadAgreementAndPolicy: async () => ({
+				privacyProtocol: { version: null, langUrl: null },
+				userAgreement: { version: null, langUrl: null },
+			}),
+			loadPluginAgreements: async () => [],
+			workerRuntime: new ApkV8WorkerRuntime({ pluginRootPath: root }),
+		});
+		const countryCallback = vi.fn();
+
+		runtime.getCurrentCountryInfoCallback(countryCallback);
+		expect(countryCallback).toHaveBeenCalledWith(true, {
+			countryCode: "de",
+			serverCode: "eu",
+		});
+		await expect(runtime.getUserRole("roborock.mower.s1", "MOWER")).resolves
+			.toBe("roborock.mower.s1:MOWER:owner");
+		expect(loadUserRole).toHaveBeenCalledWith("roborock.mower.s1", "MOWER");
+	});
+
+	it("keeps absent account and cloud-service input explicit", async () => {
+		const root = mkdtempSync(path.join(tmpdir(), "apk-environment-"));
+		const options = {
+			firmwareVersion: "02.24.90",
+			storageBasePath: root,
+			loadDeviceExtraInfo: async () => ({}),
+			loadOtaInfo: async () => null,
+			loadAgreementAndPolicy: async () => ({
+				privacyProtocol: { version: null, langUrl: null },
+				userAgreement: { version: null, langUrl: null },
+			}),
+			loadPluginAgreements: async () => [],
+			workerRuntime: new ApkV8WorkerRuntime({ pluginRootPath: root }),
+		};
+		const runtime = new ApkPluginSdkEnvironmentRuntime({ ...options, hasActivity: () => true });
+		const countryCallback = vi.fn();
+		runtime.getCurrentCountryInfoCallback(countryCallback);
+		expect(countryCallback).toHaveBeenCalledWith(true, {});
+		await expect(runtime.getUserRole("model", "code")).rejects.toMatchObject({
+			name: "ApkHostServiceUnavailableError",
+			serviceName: "product-user-role",
+		});
+
+		const inactive = new ApkPluginSdkEnvironmentRuntime({ ...options, hasActivity: () => false });
+		const inactiveCallback = vi.fn();
+		inactive.getCurrentCountryInfoCallback(inactiveCallback);
+		expect(inactiveCallback).toHaveBeenCalledWith(false);
+	});
+
 	it("forwards the APK closeCurrentPage activity boundary without a missing-method rejection", () => {
 		const root = mkdtempSync(path.join(tmpdir(), "apk-environment-"));
 		const closeCurrentPage = vi.fn();

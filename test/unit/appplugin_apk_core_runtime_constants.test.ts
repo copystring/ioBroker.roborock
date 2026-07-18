@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import contractJson from "../../src/apppluginHost/generated/apk-appplugin-host-contract.json";
 import {
 	createApkDeviceInfoConstants,
+	createApkSafeAreaConstants,
 	createApkLocalizationConstants,
 	createApkPluginSdkConstants,
 	mergeApkNativeModuleConstants,
@@ -39,6 +40,24 @@ describe("APK core runtime constants", () => {
 		});
 	});
 
+	it("reproduces APK safe-area initialWindowMetrics from explicit host measurements", () => {
+		expect(createApkSafeAreaConstants({
+			insets: { top: 8, right: 0, bottom: 12, left: 0 },
+			frame: { x: 0, y: 8, width: 360, height: 780 },
+		})).toEqual({
+			RNCSafeAreaContext: {
+				initialWindowMetrics: {
+					insets: { top: 8, right: 0, bottom: 12, left: 0 },
+					frame: { x: 0, y: 8, width: 360, height: 780 },
+				},
+			},
+		});
+		expect(() => createApkSafeAreaConstants({
+			insets: { top: -1, right: 0, bottom: 0, left: 0 },
+			frame: { x: 0, y: 0, width: 360, height: 800 },
+		})).toThrow(/safeArea\.insets\.top/u);
+	});
+
 	it("reproduces both APK localization constant maps", () => {
 		expect(createApkLocalizationConstants({
 			language: "de",
@@ -60,7 +79,6 @@ describe("APK core runtime constants", () => {
 		const constants = createApkPluginSdkConstants(contract, {
 			userId: "u-1",
 			basePath: "file:///plugin/Resources/",
-			deviceExtra: { features: "feature-a", dockType: 8 },
 			deviceId: "did-1",
 			deviceSN: "sn-1",
 			ownerId: "owner-1",
@@ -81,7 +99,7 @@ describe("APK core runtime constants", () => {
 				userId: "u-1",
 				apiLevel: 10042,
 				basePath: "file:///plugin/Resources/",
-				deviceExtra: { features: "feature-a", dockType: 8 },
+				deviceExtra: {},
 				deviceId: "did-1",
 				deviceSN: "sn-1",
 				ownerId: "owner-1",
@@ -114,7 +132,6 @@ describe("APK core runtime constants", () => {
 		const context = {
 			userId: "",
 			basePath: "file:///plugin/Resources/",
-			deviceExtra: {},
 			deviceId: "did-1",
 			deviceSN: "",
 			ownerId: "",
