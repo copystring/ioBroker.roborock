@@ -247,9 +247,14 @@
 			"evidence": [
 				"scripts/start_appplugin_desktop_runtime.ts",
 				"scripts/lib/appPluginDesktopProfiles.ts",
-				"scripts/appplugin_hermes_runtime_probe.ts"
+				"scripts/lib/appPluginDesktopFixtureSessions.ts",
+				"scripts/appplugin_hermes_runtime_probe.ts",
+				"src/apppluginHost/apkAppPluginSessionDescriptor.ts",
+				"src/apppluginHost/apkCoreRuntimeConstants.ts",
+				"test/unit/appplugin_apk_session_descriptor.test.ts",
+				"test/unit/appplugin_desktop_fixture_sessions.test.ts"
 			],
-			"nextAction": "Einen APK-abgeleiteten, geräteklassenneutralen Sitzungsdeskriptor für Modell, Bundle, Plugin-/API-Version, HomeData, Schema/Status, DeviceExtra, Docktyp, Transport und Rendereranforderungen einführen; Q7/Q10-Replays nur noch als Fixtures daran hängen."
+			"nextAction": "Den geräteklassenneutralen Deskriptor aus echten ioBroker-HomeData- und APK-Pluginmetadaten speisen, Product/Schema/Status über die belegten APK-Brücken einspeisen und anschließend ein unverändertes Nicht-Sauger-AppPlugin als Gegenprobe starten. Rendereranforderungen weiterhin dynamisch aus dem Bundle erkennen, nicht als Host-Profil vorgeben."
 		},
 		{
 			"id": "P0B-INPUT-LAYOUT",

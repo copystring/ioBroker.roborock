@@ -60,6 +60,7 @@ describe("APK core runtime constants", () => {
 		const constants = createApkPluginSdkConstants(contract, {
 			userId: "u-1",
 			basePath: "file:///plugin/Resources/",
+			deviceExtra: { features: "feature-a", dockType: 8 },
 			deviceId: "did-1",
 			deviceSN: "sn-1",
 			ownerId: "owner-1",
@@ -80,7 +81,7 @@ describe("APK core runtime constants", () => {
 				userId: "u-1",
 				apiLevel: 10042,
 				basePath: "file:///plugin/Resources/",
-				deviceExtra: {},
+				deviceExtra: { features: "feature-a", dockType: 8 },
 				deviceId: "did-1",
 				deviceSN: "sn-1",
 				ownerId: "owner-1",
@@ -113,6 +114,7 @@ describe("APK core runtime constants", () => {
 		const context = {
 			userId: "",
 			basePath: "file:///plugin/Resources/",
+			deviceExtra: {},
 			deviceId: "did-1",
 			deviceSN: "",
 			ownerId: "",

@@ -76,6 +76,7 @@ import {
 	apkServedSurfaceViewport,
 	selectApkServedSurfaceRoot,
 	ApkV8WorkerRuntime,
+	apkPluginSdkContextFromSession,
 	createApkBridgeBootstrap,
 	createApkCanvasKitTextLayoutBackend,
 	decodeApkB01MqttFrameToSegment,
@@ -87,8 +88,11 @@ import {
 	createApkSourceCodeConstants,
 	createApkUiManagerConstants,
 	mergeApkNativeModuleConstants,
+	parseApkAppPluginSessionDescriptor,
 	resolveEffectiveApkNativeModules,
+	resolveApkAppPluginSession,
 	StrictApkNativeModuleRegistry,
+	type ApkAppPluginSessionDescriptor,
 	type ApkAppPluginHostContract,
 	type ApkSemanticUiActionId,
 	type ApkUiManagerNodeSnapshot,
@@ -114,7 +118,7 @@ interface ProbeOptions {
 	forceRTL: boolean;
 	doLeftAndRightSwapInRTL: boolean;
 	deviceModel: string;
-	deviceName: string;
+	deviceName: string | null;
 	profileLabel: string;
 	mobileModel: string;
 	androidRelease: string;
@@ -126,8 +130,9 @@ interface ProbeOptions {
 	staticRootPath?: string;
 	httpSessionTokenFilePath?: string;
 	httpSessionToken?: string;
+	sessionDescriptor?: ApkAppPluginSessionDescriptor;
 	profileId?: AppPluginDesktopProfile;
-	mapFamily: AppPluginMapFamily;
+	fixtureMapFamily: AppPluginMapFamily;
 	availableProfiles: AppPluginDesktopProfile[];
 	profileSwitchPath?: string;
 	b01FramePath?: string;
@@ -195,11 +200,12 @@ function parseArgs(args: string[]): ProbeOptions {
 		runApplication: false,
 		reactStateProbe: false,
 		serveFullRoot: false,
-		mapFamily: "unknown",
+		fixtureMapFamily: "unknown",
 		availableProfiles: [],
 		duid: "appplugin-runtime-probe-device",
 		activeTime: 0,
 	};
+	let sessionDescriptorPath: string | undefined;
 	for (let index = 0; index < args.length; index += 1) {
 		const option = args[index];
 		const value = args[index + 1];
@@ -250,14 +256,18 @@ function parseArgs(args: string[]): ProbeOptions {
 		else if (option === "--http-session-token-file" && value) {
 			options.httpSessionTokenFilePath = path.resolve(args[++index]);
 		}
+		else if (option === "--session-descriptor" && value) {
+			if (sessionDescriptorPath) throw new Error("--session-descriptor darf nur einmal angegeben werden");
+			sessionDescriptorPath = path.resolve(args[++index]);
+		}
 		else if (option === "--profile-id" && value) {
 			options.profileId = parseAppPluginDesktopProfile(args[++index]);
 			if (!options.profileId) throw new Error("--profile-id enthält ein unbekanntes AppPlugin-Profil");
 		}
-		else if (option === "--map-family" && value) {
+		else if (option === "--fixture-map-family" && value) {
 			const mapFamily = parseAppPluginMapFamily(args[++index]);
-			if (!mapFamily) throw new Error("--map-family enthält eine unbekannte Kartenfamilie");
-			options.mapFamily = mapFamily;
+			if (!mapFamily) throw new Error("--fixture-map-family enthält eine unbekannte Kartenfamilie");
+			options.fixtureMapFamily = mapFamily;
 		}
 		else if (option === "--available-profiles" && value) {
 			options.availableProfiles = args[++index]
@@ -275,9 +285,43 @@ function parseArgs(args: string[]): ProbeOptions {
 		else if (option === "--active-time") options.activeTime = parseNonNegativeNumber(args[++index], option);
 		else throw new Error(`Unbekannte oder unvollständige Option: ${option}`);
 	}
+	if (sessionDescriptorPath) {
+		const descriptorOwnedOptions = [
+			"--bundle",
+			"--device-model",
+			"--device-name",
+			"--mobile-model",
+			"--android-release",
+			"--duid",
+			"--device-sn",
+			"--firmware-version",
+			"--active-time",
+		];
+		const conflicting = descriptorOwnedOptions.filter(option => args.includes(option));
+		if (conflicting.length > 0) {
+			throw new Error(
+				`--session-descriptor darf nicht mit ${conflicting.join(", ")} kombiniert werden`,
+			);
+		}
+		const descriptor = parseApkAppPluginSessionDescriptor(
+			JSON.parse(fs.readFileSync(sessionDescriptorPath, "utf8")) as unknown,
+			path.dirname(sessionDescriptorPath),
+		);
+		options.sessionDescriptor = descriptor;
+		options.bundlePath = path.join(descriptor.pluginRoot, "index.android.bundle");
+		options.deviceModel = descriptor.device.model;
+		options.deviceName = descriptor.device.name;
+		options.mobileModel = descriptor.host.mobileModel;
+		options.androidRelease = descriptor.host.androidRelease;
+		options.duid = descriptor.device.deviceId;
+		options.deviceSn = descriptor.device.deviceSN;
+		options.firmwareVersion = descriptor.device.firmwareVersion;
+		options.activeTime = descriptor.device.activeTime;
+	}
 	if (!options.bundlePath || !options.hostExecutablePath || !options.deviceModel) {
 		throw new Error(
-			"Verwendung: --bundle <index.android.bundle> --host <Hermes-Host> --device-model <HomeData-Modell> "
+			"Verwendung: --session-descriptor <json> --host <Hermes-Host> oder "
+			+ "--bundle <index.android.bundle> --host <Hermes-Host> --device-model <HomeData-Modell> "
 			+ "[--run-application --device-sn <Seriennummer> --firmware-version <Version>] "
 			+ "[Display-, Sprach- und Probe-Geräteoptionen]",
 		);
@@ -859,9 +903,13 @@ function parseSemanticActionHttpRequest(record: Readonly<Record<string, unknown>
 }
 async function main(): Promise<void> {
 	const options = parseArgs(process.argv.slice(2));
-	const bundleSha256 = createHash("sha256").update(fs.readFileSync(options.bundlePath)).digest("hex");
-	const sessionId = randomUUID();
 	const contract = contractJson as ApkAppPluginHostContract;
+	const resolvedDeviceSession = options.sessionDescriptor
+		? resolveApkAppPluginSession(options.sessionDescriptor, contract)
+		: undefined;
+	const bundleSha256 = resolvedDeviceSession?.bundle.sha256
+		?? createHash("sha256").update(fs.readFileSync(options.bundlePath)).digest("hex");
+	const sessionId = randomUUID();
 	const pointerReplay: ApkPointerReplayManifest | undefined = options.pointerReplayManifestPath
 		? loadApkPointerReplayManifest(options.pointerReplayManifestPath)
 		: undefined;
@@ -1053,6 +1101,27 @@ async function main(): Promise<void> {
 		allowRTL: options.allowRTL,
 		forceRTL: options.forceRTL,
 	});
+	const pluginSdkContext = options.sessionDescriptor
+		? apkPluginSdkContextFromSession(options.sessionDescriptor, basePathUrl, storageBasePath)
+		: {
+			userId: "",
+			basePath: basePathUrl,
+			deviceExtra: {},
+			deviceId: options.duid,
+			deviceSN: options.deviceSn,
+			ownerId: "",
+			deviceModel: options.deviceModel,
+			mobileModel: options.mobileModel,
+			androidRelease: options.androidRelease,
+			deviceName: options.deviceName,
+			storageBasePath,
+			activeTime: options.activeTime,
+			robotTimeZone: 0,
+			iotType: 2 as const,
+			memoryMiB: 4096,
+			iotOriginDevId: "appplugin-runtime-probe-origin",
+			clientId: "appplugin-hermes-runtime-probe",
+		};
 	const constants = mergeApkNativeModuleConstants(
 		createApkDeviceInfoConstants(metrics, metrics),
 		createApkLocalizationConstants({
@@ -1066,24 +1135,7 @@ async function main(): Promise<void> {
 		{ AppState: appState.constants() },
 		{ RRPluginDarkMode: darkMode.constants() },
 		createApkUiManagerConstants(contract),
-		createApkPluginSdkConstants(contract, {
-			userId: "",
-			basePath: basePathUrl,
-			deviceId: options.duid,
-			deviceSN: options.deviceSn,
-			ownerId: "",
-			deviceModel: options.deviceModel,
-			mobileModel: options.mobileModel,
-			androidRelease: options.androidRelease,
-			deviceName: options.deviceName,
-			storageBasePath,
-			activeTime: options.activeTime,
-			robotTimeZone: 0,
-			iotType: 2,
-			memoryMiB: 4096,
-			iotOriginDevId: "appplugin-runtime-probe-origin",
-			clientId: "appplugin-hermes-runtime-probe",
-		}),
+		createApkPluginSdkConstants(contract, pluginSdkContext),
 	);
 	fs.mkdirSync(path.dirname(options.bootstrapPath), { recursive: true });
 	const bridgeBootstrap = createApkBridgeBootstrap(contract, constants)
@@ -2034,10 +2086,23 @@ async function main(): Promise<void> {
 							status: "appplugin-session-ready",
 							sessionId,
 							profileId: options.profileId,
-							mapFamily: options.mapFamily,
+							mapFamily: options.fixtureMapFamily,
 							availableProfiles: options.availableProfiles,
 							deviceModel: options.deviceModel,
 							profileLabel: options.profileLabel,
+							deviceSession: resolvedDeviceSession
+								? {
+									source: "apk-device-session-descriptor",
+									compatibility: resolvedDeviceSession.compatibility,
+									package: resolvedDeviceSession.descriptor.package,
+									deviceExtraKeys: Object.keys(
+										resolvedDeviceSession.descriptor.device.deviceExtra,
+									).sort(),
+								}
+								: {
+									source: "legacy-cli",
+									compatibility: { status: "not-evaluated" },
+								},
 							revision,
 							frameRevision,
 							surface: currentSurface,
@@ -2487,7 +2552,8 @@ async function main(): Promise<void> {
 				viewport: interactiveViewport,
 				bundleKind: session.bundleKind,
 				bundleSha256,
-				mapFamily: options.mapFamily,
+				mapFamily: options.fixtureMapFamily,
+				deviceSessionCompatibility: resolvedDeviceSession?.compatibility,
 				bundleProvenance: "unchanged-appplugin-bundle",
 				renderProvenance: "host-svg-diagnostic",
 				inputProvenance: "host-apk-contract-emulation",

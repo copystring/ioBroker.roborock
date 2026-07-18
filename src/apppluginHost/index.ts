@@ -13,6 +13,7 @@ export * from "./apkLocalizationRuntime";
 export * from "./apkUiExecutionRuntime";
 export * from "./apkB01MqttFrameCodec";
 export * from "./apkAppearanceRuntime";
+export * from "./apkAppPluginSessionDescriptor";
 export * from "./apkBlobTransferAssembler";
 export * from "./apkBridgeBootstrap";
 export * from "./apkContract";

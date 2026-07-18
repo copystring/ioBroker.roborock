@@ -89,6 +89,7 @@ export function createApkGestureHandlerConstants(): ApkNativeModuleConstants {
 export interface ApkPluginSdkRuntimeContext {
 	userId: string;
 	basePath: string;
+	deviceExtra: Readonly<Record<string, unknown>>;
 	deviceId: string;
 	deviceSN: string;
 	ownerId: string;
@@ -141,6 +142,11 @@ function apkIntegerLiteral(module: ApkNativeModuleContract, name: string): numbe
 		throw new Error(`RRPluginSDK-Konstante ${name} ist kein Integer-Literal der APK: ${expression}`);
 	}
 	return Number(expression);
+}
+
+/** Returns the exact RRPluginSDK API level exported by the inspected APK. */
+export function apkPluginSdkApiLevel(contract: ApkAppPluginHostContract): number {
+	return apkIntegerLiteral(pluginSdkContract(contract), "apiLevel");
 }
 
 function assertFinite(value: number, name: string): void {
@@ -206,9 +212,9 @@ export function createApkPluginSdkConstants(
 
 	const values: Record<string, unknown> = {
 		userId: context.userId,
-		apiLevel: apkIntegerLiteral(module, "apiLevel"),
+		apiLevel: apkPluginSdkApiLevel(contract),
 		basePath: context.basePath,
-		deviceExtra: {},
+		deviceExtra: { ...context.deviceExtra },
 		deviceId: context.deviceId,
 		deviceSN: context.deviceSN,
 		ownerId: context.ownerId,

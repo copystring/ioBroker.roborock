@@ -61,6 +61,25 @@ interface LiveAppPluginLocalizationState {
 	languageSwitching: boolean;
 }
 
+interface LiveAppPluginDeviceSession {
+	source: "apk-device-session-descriptor" | "legacy-cli";
+	compatibility:
+		| {
+			status: "compatible";
+			hostApiLevel: number;
+			bundleKind: string;
+			issues: unknown[];
+		}
+		| { status: "not-evaluated" };
+	package?: {
+		models: string[];
+		versionCode?: number;
+		minSdkApiLevel?: number;
+		packagePath?: string;
+	};
+	deviceExtraKeys?: string[];
+}
+
 interface LiveAppPluginHealth extends LiveAppPluginLocalizationState {
 	status: "appplugin-session-ready";
 	sessionId: string;
@@ -69,6 +88,7 @@ interface LiveAppPluginHealth extends LiveAppPluginLocalizationState {
 	availableProfiles: string[];
 	deviceModel: string;
 	profileLabel: string;
+	deviceSession: LiveAppPluginDeviceSession;
 	revision: number;
 	frameRevision: number;
 	surface: LiveAppPluginSurfaceDescriptor;
@@ -153,6 +173,7 @@ export interface LiveAppPluginMapSnapshot extends LiveAppPluginLocalizationState
 	availableProfiles: string[];
 	deviceModel: string;
 	profileLabel: string;
+	deviceSession: LiveAppPluginDeviceSession;
 	revision: number;
 	frameRevision: number;
 	surface: LiveAppPluginSurfaceDescriptor;
@@ -457,6 +478,7 @@ export class LiveAppPluginMapSurface {
 			availableProfiles: [...this.#health.availableProfiles],
 			deviceModel: this.#health.deviceModel,
 			profileLabel: this.#health.profileLabel,
+			deviceSession: structuredClone(this.#health.deviceSession),
 			revision: this.#health.revision,
 			frameRevision: this.#health.frameRevision,
 			surface: { ...this.#health.surface },
@@ -1111,6 +1133,10 @@ export class LiveAppPluginMapSurface {
 		}
 		if (!["scmap", "yx", "v1", "tanos", "tanos-hybrid", "unknown"].includes(health.mapFamily)) {
 			throw new Error("Die AppPlugin-Host-Sitzung meldet eine unbekannte Kartenfamilie");
+		}
+		if (health.deviceSession.source === "apk-device-session-descriptor"
+			&& health.deviceSession.compatibility.status !== "compatible") {
+			throw new Error("Der APK-Gerätekontext ist nicht mit dem AppPlugin kompatibel");
 		}
 		const resolvedView = health.view ?? view ?? "map";
 		return {

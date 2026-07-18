@@ -19,6 +19,11 @@ import {
 	decideAppPluginDesktopSupervisorAction,
 	type AppPluginDesktopProfile,
 } from "./lib/appPluginDesktopProfiles";
+import {
+	createAppPluginDesktopFixtureSession,
+	writeAppPluginDesktopFixtureDescriptor,
+	type AppPluginDesktopFixtureSession,
+} from "./lib/appPluginDesktopFixtureSessions";
 
 interface LauncherOptions {
 	profile: AppPluginDesktopProfile;
@@ -162,64 +167,62 @@ function createProfileArguments(
 	repositoryRoot: string,
 	profile: AppPluginDesktopProfile,
 	q10LocalKeyFilePath: string,
-): string[] {
+): AppPluginDesktopFixtureSession {
 	const isQ7Profile = profile === "q7" || profile === "q7-m5";
 	if (isQ7Profile) {
 		const identity = loadQ7FixtureIdentity(repositoryRoot);
-		return [
-			"--bundle", profile === "q7-m5"
-				? requireFile(
-					path.join(
-						repositoryRoot,
-						".AppPlugins",
-						"Q7 M5",
-						"019b4e09d7ce7c6abedbb789d2be681d",
-						"index.android.bundle",
-					),
-					"Q7-M5-AppPlugin",
-				)
-				: requireFile(
-					path.join(
-						repositoryRoot,
-						".AppPlugins",
-						"Q7 L5",
-						"019a00a9af4b7b8e894080040a2793a5",
-						"index.android.bundle",
-					),
-					"Q7-L5-AppPlugin",
-				),
-			"--device-model", "roborock.vacuum.sc01",
-			"--device-name", "Roborock Q7",
-			"--device-sn", identity.deviceSn,
-			"--firmware-version", identity.firmwareVersion,
-			"--duid", identity.duid,
-			"--replay-manifest", createQ7ReplayManifest(repositoryRoot, profile),
-			"--profile-label", profile === "q7-m5"
-				? "Q7 M5 / SC01 · echte lokale Kartenaufnahme"
-				: "Q7 L5 / SC01 · echte lokale Kartenaufnahme",
-		];
-	}
-	return [
-		"--bundle", requireFile(
-			path.join(
+		const pluginRoot = profile === "q7-m5"
+			? path.join(
 				repositoryRoot,
 				".AppPlugins",
-				"Q10 X5+",
-				"019bdf41f583723bb937ccc99bbd7541",
-				"index.android.bundle",
-			),
-			"Q10-X5+-AppPlugin",
-		),
-		"--device-model", Q10_FIXTURE_DEFAULTS.model,
-		"--device-name", "Roborock Q10",
-		"--device-sn", Q10_FIXTURE_DEFAULTS.sn,
-		"--firmware-version", "02.24.90",
-		"--duid", "q10-local-history-device",
-		"--replay-manifest", createQ10ReplayManifest(repositoryRoot),
-		"--b01-local-key-file", q10LocalKeyFilePath,
-		"--profile-label", "Q10 X5+ / B01 · echte lokale Historienaufnahme (Blob 3)",
-		"--serve-full-root",
-	];
+				"Q7 M5",
+				"019b4e09d7ce7c6abedbb789d2be681d",
+			)
+			: path.join(
+				repositoryRoot,
+				".AppPlugins",
+				"Q7 L5",
+				"019a00a9af4b7b8e894080040a2793a5",
+			);
+		requireFile(path.join(pluginRoot, "index.android.bundle"), "Q7-AppPlugin");
+		return createAppPluginDesktopFixtureSession({
+			profile,
+			pluginRoot,
+			model: "roborock.vacuum.sc01",
+			deviceName: "Roborock Q7",
+			deviceSN: identity.deviceSn,
+			deviceId: identity.duid,
+			firmwareVersion: identity.firmwareVersion,
+			mapFamily: APPPLUGIN_DESKTOP_PROFILE_DEFINITIONS[profile].mapFamily,
+			mapProtocol: APPPLUGIN_DESKTOP_PROFILE_DEFINITIONS[profile].mapProtocol,
+			replayManifestPath: createQ7ReplayManifest(repositoryRoot, profile),
+			label: profile === "q7-m5"
+				? "Q7 M5 / SC01 · echte lokale Kartenaufnahme"
+				: "Q7 L5 / SC01 · echte lokale Kartenaufnahme",
+		});
+	}
+	const pluginRoot = path.join(
+		repositoryRoot,
+		".AppPlugins",
+		"Q10 X5+",
+		"019bdf41f583723bb937ccc99bbd7541",
+	);
+	requireFile(path.join(pluginRoot, "index.android.bundle"), "Q10-X5+-AppPlugin");
+	return createAppPluginDesktopFixtureSession({
+		profile,
+		pluginRoot,
+		model: Q10_FIXTURE_DEFAULTS.model,
+		deviceName: "Roborock Q10",
+		deviceSN: Q10_FIXTURE_DEFAULTS.sn,
+		deviceId: "q10-local-history-device",
+		firmwareVersion: "02.24.90",
+		mapFamily: APPPLUGIN_DESKTOP_PROFILE_DEFINITIONS[profile].mapFamily,
+		mapProtocol: APPPLUGIN_DESKTOP_PROFILE_DEFINITIONS[profile].mapProtocol,
+		replayManifestPath: createQ10ReplayManifest(repositoryRoot),
+		b01LocalKeyFilePath: q10LocalKeyFilePath,
+		label: "Q10 X5+ / B01 · echte lokale Historienaufnahme (Blob 3)",
+		serveFullRoot: true,
+	});
 }
 
 async function main(): Promise<void> {
@@ -291,7 +294,15 @@ async function main(): Promise<void> {
 			"runtime-probes",
 			`desktop-${profile}-ipc-bridge.js`,
 		);
-		const profileArguments = createProfileArguments(repositoryRoot, profile, q10LocalKeyFilePath);
+		const fixtureSession = createProfileArguments(repositoryRoot, profile, q10LocalKeyFilePath);
+		const descriptorPath = path.join(
+			repositoryRoot,
+			"artifacts",
+			"appplugin-poc",
+			"runtime-probes",
+			`desktop-${profile}-device-session.json`,
+		);
+		writeAppPluginDesktopFixtureDescriptor(descriptorPath, fixtureSession);
 		const state = readAppPluginDesktopSessionState(sessionStatePath);
 		writeAppPluginDesktopSessionState(sessionStatePath, { ...state, restartRequested: false });
 		const args = [runtimeProbePath,
@@ -316,11 +327,17 @@ async function main(): Promise<void> {
 			"--static-root", staticRootPath,
 			"--http-session-token-file", httpSessionTokenFilePath,
 			"--profile-id", profile,
-			"--map-family", APPPLUGIN_DESKTOP_PROFILE_DEFINITIONS[profile].mapFamily,
+			"--fixture-map-family", fixtureSession.mapFamily,
 			"--available-profiles", APPPLUGIN_DESKTOP_PROFILES.join(","),
 			"--profile-switch-file", profileSwitchPath,
 			"--session-state", sessionStatePath,
-			...profileArguments];
+			"--session-descriptor", descriptorPath,
+			"--replay-manifest", fixtureSession.replayManifestPath,
+			"--profile-label", fixtureSession.label,
+			...(fixtureSession.b01LocalKeyFilePath
+				? ["--b01-local-key-file", fixtureSession.b01LocalKeyFilePath]
+				: []),
+			...(fixtureSession.serveFullRoot ? ["--serve-full-root"] : [])];
 		process.stdout.write(
 			`Starte ${profile.toUpperCase()} (${state.language}) mit echter lokaler Kartenaufnahme `
 			+ `auf der einzigen Adresse http://127.0.0.1:${APPPLUGIN_DESKTOP_PORT}/\n`,

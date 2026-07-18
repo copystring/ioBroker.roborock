@@ -396,7 +396,16 @@ class AppPluginDesktop {
 		void this.mapSurface.invokeSemanticAction("clean.start");
 	}
 	private updateMapSummary(snapshot: LiveAppPluginMapSnapshot): void {
-		byId<HTMLElement>("deviceFamilyBadge").textContent = snapshot.mapFamily.toUpperCase();
+		const deviceFamilyBadge = byId<HTMLElement>("deviceFamilyBadge");
+		const compatibility = snapshot.deviceSession.compatibility;
+		deviceFamilyBadge.textContent = compatibility.status === "compatible"
+			? "APK"
+			: snapshot.mapFamily.toUpperCase();
+		deviceFamilyBadge.title = snapshot.deviceSession.source === "apk-device-session-descriptor"
+			? `APK-validierter Gerätekontext · API ${compatibility.status === "compatible"
+				? compatibility.hostApiLevel
+				: "unbekannt"} · ${snapshot.deviceSession.package?.models.join(", ") ?? snapshot.deviceModel}`
+			: "Legacy-Probe ohne Sitzungsdeskriptor";
 		byId<HTMLElement>("deviceName").textContent = snapshot.profileLabel;
 		const fullView = snapshot.view === "full";
 		const selectedMode = snapshot.semanticActions.find(action =>
