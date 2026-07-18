@@ -5,7 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<link rel="canonical" href="./appplugin-desktop.html" />
 		<title>Roborock AppPlugin · ioBroker PoC</title>
-		<script type="module" src="./appplugin-desktop.js?v=9a43f4402fd0"></script>
+		<script type="module" src="./appplugin-desktop.js?v=194ed3878948"></script>
 		<style>
 			:root {
 				color-scheme: light;
@@ -132,9 +132,6 @@
 			.map-card::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(var(--map-grid) 1px, transparent 1px), linear-gradient(90deg, var(--map-grid) 1px, transparent 1px); background-size: 22px 22px; opacity: .45; }
 			#desktopMap { position: absolute; z-index: 1; inset: 0; display: flex; align-items: center; justify-content: center; touch-action: none; user-select: none; overflow: hidden; background: var(--map-surface); }
 			#desktopMapFrame { position: absolute; max-width: none; max-height: none; object-fit: fill; display: block; pointer-events: none; will-change: transform; transform-origin: center; }
-			#desktopMapNativeLayer { position: absolute; z-index: 1; overflow: hidden; pointer-events: none; background: var(--map-surface); }
-			#desktopMapNativeLayer[hidden] { display: none; }
-			#desktopMapNativeFrame { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; will-change: transform; transform-origin: center; }
 			#desktopMap[data-render-mode="unchanged-appplugin-session"] { cursor: crosshair; }
 			#desktopMap[data-render-mode="unchanged-appplugin-session"]:active { cursor: grabbing; }
 			#originalMapViewport > path:not(.room-surface),
@@ -345,7 +342,6 @@
 								</div>
 								<div id="desktopMap" role="application" aria-label="Diagnostische Hostdarstellung des unveränderten Roborock-AppPlugin-Baums">
 									<img id="desktopMapFrame" alt="AppPlugin-Kartenframe" draggable="false" />
-									<div id="desktopMapNativeLayer" hidden aria-hidden="true"><img id="desktopMapNativeFrame" alt="" draggable="false" /></div>
 								</div>
 								<div id="mapNotice" class="map-notice">PC-Kartenmodus aus derselben Bundle-Sitzung. Die sichtbare SVG-Darstellung ist eine Hostdiagnose; Gerätebefehle werden nicht gesendet.</div>
 							</div>

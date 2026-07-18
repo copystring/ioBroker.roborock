@@ -5,6 +5,7 @@ export * from "./apkSemanticUiActions";
 export * from "./apkAppStateRuntime";
 export * from "./apkAppSysRuntime";
 export * from "./apkAppToRobotMessage";
+export * from "./apkAsyncStorageRuntime";
 export * from "./apkAndroidTextMeasureRuntime";
 export * from "./apkCanvasKitTextLayoutBackend";
 export * from "./apkLayoutEventRuntime";

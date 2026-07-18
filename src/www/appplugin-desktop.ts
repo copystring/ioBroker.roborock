@@ -53,8 +53,6 @@ class AppPluginDesktop {
 
 	private readonly map = byId<HTMLElement>("desktopMap");
 	private readonly mapFrame = byId<HTMLImageElement>("desktopMapFrame");
-	private readonly nativeMapLayer = byId<HTMLElement>("desktopMapNativeLayer");
-	private readonly nativeMapFrame = byId<HTMLImageElement>("desktopMapNativeFrame");
 	private readonly log = byId<HTMLElement>("eventLog");
 	private readonly payload = byId<HTMLElement>("payloadPreview");
 	private readonly themeMode = byId<HTMLSelectElement>("themeMode");
@@ -73,8 +71,6 @@ class AppPluginDesktop {
 		this.mapSurface = new LiveAppPluginMapSurface({
 			viewport: this.map,
 			frame: this.mapFrame,
-			nativeMapLayer: this.nativeMapLayer,
-			nativeMapFrame: this.nativeMapFrame,
 			apiBaseUrl: location.origin,
 			onEvent: (label, data) => this.logEvent(label, data),
 			onChange: snapshot => {
@@ -86,7 +82,6 @@ class AppPluginDesktop {
 				document.documentElement.dataset.theme = snapshot.colorScheme;
 				this.map.dataset.apppluginDirection = snapshot.isRTL ? "rtl" : "ltr";
 				this.mapFrame.dir = snapshot.isRTL ? "rtl" : "ltr";
-				this.nativeMapFrame.dir = snapshot.isRTL ? "rtl" : "ltr";
 				this.syncLanguageControl(snapshot);
 				this.themeMode.value = snapshot.colorModel === "default" ? "system" : snapshot.colorModel;
 				this.themeMode.disabled = !snapshot.themeSwitching;

@@ -44,6 +44,7 @@ import {
 	ApkAppearanceRuntime,
 	APK_SEMANTIC_UI_ACTION_IDS,
 	ApkAppStateRuntime,
+	ApkAsyncStorageRuntime,
 	ApkBlobTransferAssembler,
 	ApkAppSysRuntime,
 	ApkDarkModeRuntime,
@@ -1090,6 +1091,15 @@ async function main(): Promise<void> {
 	fs.writeFileSync(options.bootstrapPath, bridgeBootstrap, "utf8");
 
 	const registry = new StrictApkNativeModuleRegistry(contract);
+	const asyncStorage = new ApkAsyncStorageRuntime(path.join(
+		path.dirname(options.bootstrapPath),
+		"app-data",
+		"RKStorage.json",
+	));
+	registry.register(
+		installedModule(contract, "RNCAsyncStorage").javaClass,
+		asyncStorage as unknown as Record<string, unknown>,
+	);
 	const rootTag = 1;
 	const uiManager = new ApkUiManagerRuntime(contract, rootTag);
 	let revision = 0;

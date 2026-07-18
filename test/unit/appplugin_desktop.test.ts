@@ -6,11 +6,9 @@ import { describe, expect, it } from "vitest";
 import { createOfflineAppPluginEnvelope } from "../../src/www/apppluginLab/desktop-intents";
 import {
 	calculateAppPluginFramePresentation,
-	calculateAppPluginSubviewPlacement,
 	createAppPluginDragCommitPointers,
 	createAppPluginPinchZoomPointers,
 	hasInteractiveAppPluginMap,
-	shouldShowAppPluginNativeMapSubview,
 } from "../../src/www/apppluginLab/live-appplugin-map-surface";
 import { APPPLUGIN_LOCALIZATION_POLICY } from "../../src/www/apppluginLab/translations";
 
@@ -243,48 +241,21 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(html).toContain("background: var(--map-surface)");
 	});
 
-	it("composes the unchanged map subview inside the full host-rendered AppPlugin root", () => {
-		const placement = calculateAppPluginSubviewPlacement(
-			1_100,
-			800,
-			{ x: 0, y: 0, width: 360, height: 800 },
-			{ x: 44, y: 221, width: 275, height: 287 },
-		);
+	it("never overlays a second host-composed map above the complete AppPlugin root", () => {
 		const source = fs.readFileSync(sourcePath, "utf8");
 		const surface = fs.readFileSync(surfacePath, "utf8");
 		const html = fs.readFileSync(htmlPath, "utf8");
 
-		expect(placement).toEqual({
-			left: 414,
-			top: 221,
-			width: 275,
-			height: 287,
-			scale: 1,
-		});
 		for (const id of ["desktopMapNativeLayer", "desktopMapNativeFrame"]) {
-			expect(html).toContain(`id="${id}"`);
-			expect(source).toContain(`"${id}"`);
+			expect(html).not.toContain(id);
+			expect(source).not.toContain(id);
+			expect(surface).not.toContain(id);
 		}
 		expect(surface).toContain("await this.#fetchHealth(\"map\")");
 		expect(surface).toContain("Vollansicht und Karten-Teilfläche stammen nicht aus derselben AppPlugin-Sitzung");
 		expect(surface).toContain('source.searchParams.get("view") !== "map"');
-		expect(surface).toContain("this.options.nativeMapFrame.src =");
-		expect(surface).toContain("calculateAppPluginSubviewPlacement(");
-		expect(surface).toContain('this.#health.view === "full" && !this.options.nativeMapLayer.hidden');
-		expect(html).toContain("#desktopMapNativeLayer[hidden]");
-		const mapAction = {
-			id: "map.mode.rooms" as const,
-			label: "Räume",
-			enabled: true,
-			selected: true,
-			owner: "desktop-host-adapter" as const,
-			provenance: "host-heuristic-from-appplugin-tree" as const,
-			contract: "host-map-bottom-control-panel-v3" as const,
-		};
-		expect(shouldShowAppPluginNativeMapSubview("full", true, [mapAction])).toBe(true);
-		expect(shouldShowAppPluginNativeMapSubview("full", true, [])).toBe(false);
-		expect(shouldShowAppPluginNativeMapSubview("map", true, [mapAction])).toBe(false);
-		expect(shouldShowAppPluginNativeMapSubview("full", false, [mapAction])).toBe(false);
+		expect(surface).toContain('return this.#health.view === "map"');
+		expect(surface).not.toContain("calculateAppPluginSubviewPlacement(");
 	});
 
 	it("fits opaque map content for desktop presentation without using it as the native clip viewport", () => {

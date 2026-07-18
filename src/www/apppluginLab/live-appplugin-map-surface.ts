@@ -43,15 +43,13 @@ interface LiveAppPluginViewport {
 	height: number;
 }
 
-export interface LiveAppPluginSubviewPlacement {
+export interface LiveAppPluginFramePresentation {
 	left: number;
 	top: number;
 	width: number;
 	height: number;
 	scale: number;
 }
-
-export interface LiveAppPluginFramePresentation extends LiveAppPluginSubviewPlacement {}
 
 interface LiveAppPluginLocalizationState {
 	language: string;
@@ -182,22 +180,10 @@ export interface LiveAppPluginMapSnapshot extends LiveAppPluginLocalizationState
 export interface LiveAppPluginMapSurfaceOptions {
 	viewport: HTMLElement;
 	frame: HTMLImageElement;
-	nativeMapLayer: HTMLElement;
-	nativeMapFrame: HTMLImageElement;
 	onEvent: (label: string, data: unknown) => void;
 	onChange: (snapshot: LiveAppPluginMapSnapshot) => void;
 	apiBaseUrl?: string;
 	initialView?: LiveAppPluginSurfaceView;
-}
-
-export function shouldShowAppPluginNativeMapSubview(
-	view: LiveAppPluginSurfaceView,
-	hasMapHealth: boolean,
-	semanticActions: readonly Readonly<LiveAppPluginSemanticAction>[],
-): boolean {
-	return view === "full"
-		&& hasMapHealth
-		&& semanticActions.some(action => action.id.startsWith("map.mode."));
 }
 
 export function readAppPluginSessionToken(documentRoot: Document = document): string {
@@ -259,44 +245,6 @@ interface LocalMapDrag {
 }
 
 const LOCAL_MAP_DRAG_SLOP_DIP = 2;
-
-/**
- * Recreates Android's native child placement when a map subview is composed
- * inside the complete AppPlugin root. Both viewports come from the unchanged
- * AppPlugin session; the host only applies APK layout scaling.
- */
-export function calculateAppPluginSubviewPlacement(
-	containerWidth: number,
-	containerHeight: number,
-	parent: Readonly<LiveAppPluginViewport>,
-	child: Readonly<LiveAppPluginViewport>,
-): Readonly<LiveAppPluginSubviewPlacement> {
-	finite(containerWidth, "Container-Breite");
-	finite(containerHeight, "Container-Höhe");
-	for (const [name, value] of Object.entries(parent)) finite(value, `Eltern-Viewport ${name}`);
-	for (const [name, value] of Object.entries(child)) finite(value, `Kind-Viewport ${name}`);
-	if (containerWidth <= 0 || containerHeight <= 0 || parent.width <= 0 || parent.height <= 0) {
-		throw new Error("Container und Eltern-Viewport müssen positiv sein");
-	}
-	if (
-		child.width <= 0
-		|| child.height <= 0
-		|| child.x < parent.x
-		|| child.y < parent.y
-		|| child.x + child.width > parent.x + parent.width
-		|| child.y + child.height > parent.y + parent.height
-	) {
-		throw new Error("Kind-Viewport muss vollständig im Eltern-Viewport liegen");
-	}
-	const scale = Math.min(containerWidth / parent.width, containerHeight / parent.height);
-	return {
-		left: (containerWidth - parent.width * scale) / 2 + (child.x - parent.x) * scale,
-		top: (containerHeight - parent.height * scale) / 2 + (child.y - parent.y) * scale,
-		width: child.width * scale,
-		height: child.height * scale,
-		scale,
-	};
-}
 
 /**
  * Fits the AppPlugin's initially visible map content into a desktop canvas
@@ -465,13 +413,8 @@ export class LiveAppPluginMapSurface {
 		this.options.viewport.dataset.productFallbackAllowed = String(this.#health.productFallbackAllowed);
 		this.options.frame.addEventListener("load", () => {
 			this.#syncFramePresentation();
-			this.#syncNativeMapLayerLayout();
 			this.#settleLocalMapPresentation(this.options.frame);
 		});
-		this.options.nativeMapFrame.addEventListener(
-			"load",
-			() => this.#settleLocalMapPresentation(this.options.nativeMapFrame),
-		);
 		this.options.frame.addEventListener("error", () => {
 			if (this.#localMapCommitFrameRevision === undefined) return;
 			this.#resetLocalMapPresentation();
@@ -479,16 +422,8 @@ export class LiveAppPluginMapSurface {
 				frameRevision: this.#health.frameRevision,
 			});
 		});
-		this.options.nativeMapFrame.addEventListener("error", () => {
-			if (this.#localMapCommitFrameRevision === undefined) return;
-			this.#resetLocalMapPresentation();
-			this.options.onEvent("Native AppPlugin-Kartenteilfläche konnte nach Drag nicht geladen werden", {
-				frameRevision: this.#health.frameRevision,
-			});
-		});
 		window.addEventListener("resize", () => {
 			this.#syncFramePresentation();
-			this.#syncNativeMapLayerLayout();
 		});
 		this.#refreshFrame();
 		this.#bindPointers();
@@ -814,13 +749,11 @@ export class LiveAppPluginMapSurface {
 		) {
 			return false;
 		}
-		if (this.#health.view === "map") return true;
-		if (this.#health.view !== "full" || this.options.nativeMapLayer.hidden) return false;
-		const viewport = this.#mapHealth.viewport;
-		return point.x >= viewport.x
-			&& point.y >= viewport.y
-			&& point.x <= viewport.x + viewport.width
-			&& point.y <= viewport.y + viewport.height;
+		return this.#health.view === "map"
+			&& point.x >= this.#health.viewport.x
+			&& point.y >= this.#health.viewport.y
+			&& point.x <= this.#health.viewport.x + this.#health.viewport.width
+			&& point.y <= this.#health.viewport.y + this.#health.viewport.height;
 	}
 
 	#scheduleLocalMapPresentation(): void {
@@ -848,9 +781,7 @@ export class LiveAppPluginMapSurface {
 	}
 
 	#localPresentationFrame(): HTMLImageElement {
-		return this.#health.view === "full" && !this.options.nativeMapLayer.hidden
-			? this.options.nativeMapFrame
-			: this.options.frame;
+		return this.options.frame;
 	}
 
 	#settleLocalMapPresentation(frame: HTMLImageElement): void {
@@ -872,7 +803,6 @@ export class LiveAppPluginMapSurface {
 		this.#localMapCommitPending = false;
 		this.#localMapCommitFrameRevision = undefined;
 		this.options.frame.style.transform = "";
-		this.options.nativeMapFrame.style.transform = "";
 		delete this.options.viewport.dataset.inputPresentation;
 	}
 
@@ -1403,11 +1333,6 @@ export class LiveAppPluginMapSurface {
 		this.#syncFramePresentation();
 		this.options.frame.src =
 			`${this.#apiBaseUrl}/frame.svg?view=${this.#health.view}&revision=${this.#health.frameRevision}&session=${session}`;
-		this.#syncNativeMapLayerLayout();
-		if (this.#nativeMapLayerActive()) {
-			this.options.nativeMapFrame.src =
-				`${this.#apiBaseUrl}/frame.svg?view=map&revision=${this.#health.frameRevision}&session=${session}`;
-		}
 	}
 
 	#framePresentation(): Readonly<LiveAppPluginFramePresentation> {
@@ -1429,31 +1354,6 @@ export class LiveAppPluginMapSurface {
 		this.options.frame.style.top = `${presentation.top}px`;
 		this.options.frame.style.width = `${presentation.width}px`;
 		this.options.frame.style.height = `${presentation.height}px`;
-	}
-
-	#nativeMapLayerActive(): boolean {
-		return shouldShowAppPluginNativeMapSubview(
-			this.#health.view,
-			this.#mapHealth !== undefined,
-			this.#health.semanticActions,
-		);
-	}
-
-	#syncNativeMapLayerLayout(): void {
-		const active = this.#nativeMapLayerActive();
-		this.options.nativeMapLayer.hidden = !active;
-		if (!active || !this.#mapHealth) return;
-		const rect = this.options.viewport.getBoundingClientRect();
-		const placement = calculateAppPluginSubviewPlacement(
-			rect.width,
-			rect.height,
-			this.#health.viewport,
-			this.#mapHealth.viewport,
-		);
-		this.options.nativeMapLayer.style.left = `${placement.left}px`;
-		this.options.nativeMapLayer.style.top = `${placement.top}px`;
-		this.options.nativeMapLayer.style.width = `${placement.width}px`;
-		this.options.nativeMapLayer.style.height = `${placement.height}px`;
 	}
 
 	#emitChange(): void {

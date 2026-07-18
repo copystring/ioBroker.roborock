@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -215,6 +215,22 @@ describe("APK AppPlugin environment runtimes", () => {
 		const traversal = vi.fn();
 		runtime.readFile("../outside", traversal);
 		expect(traversal).toHaveBeenCalledWith(false, "");
+
+		mkdirSync(path.join(root, "logs"));
+		writeFileSync(path.join(root, "logs", "current.log"), "aktuell", "utf8");
+		writeFileSync(path.join(root, "logs", "previous.log"), "vorher", "utf8");
+		mkdirSync(path.join(root, "logs", "archive"));
+		expect(await runtime.readFileListAtPath("logs/")).toEqual(expect.arrayContaining([
+			{ name: "current.log" },
+			{ name: "previous.log" },
+		]));
+		expect(await runtime.readFileListAtPath("logs/")).toHaveLength(2);
+		await expect(runtime.readFileListAtPath("missing/")).rejects.toThrow(
+			"filePath not exists or is not a directory",
+		);
+		await expect(runtime.readFileListAtPath("../outside")).rejects.toThrow(
+			"filePath not exists or is not a directory",
+		);
 	});
 
 	it("delegates worker execution without adding parser logic", async () => {

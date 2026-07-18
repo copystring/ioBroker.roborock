@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { access, constants, readFile, readdir } from "node:fs/promises";
 import * as path from "node:path";
 
 import type { ApkWorkerCallback } from "./apkV8WorkerRuntime";
@@ -111,6 +111,30 @@ export class ApkPluginSdkEnvironmentRuntime {
 			contents => callback(true, contents),
 			() => callback(false, ""),
 		);
+	}
+
+	public async readFileListAtPath(directory: string): Promise<Array<{ name: string }>> {
+		const targetPath = this.#resolveStoragePath(directory);
+		if (!targetPath) throw new Error("filePath not exists or is not a directory");
+
+		let entries;
+		try {
+			entries = await readdir(targetPath, { withFileTypes: true });
+		} catch {
+			throw new Error("filePath not exists or is not a directory");
+		}
+
+		const files = await Promise.all(entries
+			.filter(entry => entry.isFile())
+			.map(async entry => {
+				try {
+					await access(path.join(targetPath, entry.name), constants.R_OK);
+					return { name: entry.name };
+				} catch {
+					return undefined;
+				}
+			}));
+		return files.filter((entry): entry is { name: string } => entry !== undefined);
 	}
 
 	public async agreementAndPolicy(): Promise<ApkAgreementAndPolicy> {
