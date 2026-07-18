@@ -36,6 +36,12 @@ interface Q7FixtureIdentity {
 
 const Q7_MAP_ID = 1_766_745_097;
 const APPPLUGIN_DESKTOP_PORT = 4_173;
+const APPPLUGIN_DESKTOP_DISPLAY = Object.freeze({
+	width: 1_080,
+	height: 2_400,
+	scale: 3,
+	densityDpi: 480,
+});
 
 function parseArgs(args: readonly string[]): LauncherOptions {
 	let profile: AppPluginDesktopProfile = "q7";
@@ -291,7 +297,10 @@ async function main(): Promise<void> {
 		const args = [runtimeProbePath,
 			"--host", hostPath,
 			"--bootstrap-output", bootstrapPath,
-			"--width", "360", "--height", "800", "--scale", "1",
+			"--width", String(APPPLUGIN_DESKTOP_DISPLAY.width),
+			"--height", String(APPPLUGIN_DESKTOP_DISPLAY.height),
+			"--scale", String(APPPLUGIN_DESKTOP_DISPLAY.scale),
+			"--density-dpi", String(APPPLUGIN_DESKTOP_DISPLAY.densityDpi),
 			"--language", state.language,
 			"--locale", state.localeIdentifier,
 			"--system-locale", state.systemLocaleIdentifier,

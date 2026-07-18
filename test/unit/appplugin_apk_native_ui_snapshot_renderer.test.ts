@@ -370,6 +370,59 @@ describe("APK-native UI snapshot renderer", () => {
 		);
 	});
 
+	it("maps AndroidBlurView radius and overlay directly from the AppPlugin native props", () => {
+		const blur = {
+			tag: 13,
+			viewName: "AndroidBlurView",
+			rootTag: 1,
+			props: {
+				blurRadius: 14,
+				overlayColor: -1559229428,
+				enabled: true,
+			},
+			children: [],
+		} satisfies ApkUiManagerNodeSnapshot;
+		const root = {
+			tag: 1,
+			viewName: "Root",
+			rootTag: 1,
+			props: {},
+			children: [blur],
+		} satisfies ApkUiManagerNodeSnapshot;
+		const hierarchy: ApkNativeViewHierarchySnapshot = {
+			root,
+			layouts: [
+				{ tag: 1, box: { x: 0, y: 0, width: 360, height: 800 } },
+				{ tag: 13, box: { x: 21, y: 615, width: 318, height: 151 } },
+			],
+			collapsedTags: [],
+			virtualTags: [],
+		};
+
+		const result = renderApkNativeUiSnapshotToSvg({
+			shadowRoot: root,
+			nativeHierarchy: hierarchy,
+			width: 360,
+			height: 800,
+		});
+
+		expect(result.svg).toContain('data-apk-native-blur-view="13"');
+		expect(result.svg).toContain('data-apk-blur-radius="14"');
+		expect(result.svg).toContain('fill="rgb(16 12 12 / 0.639216)"');
+		expect(result.svg).toContain("backdrop-filter:blur(14px)");
+
+		const disabledRoot = {
+			...root,
+			children: [{ ...blur, props: { ...blur.props, enabled: false } }],
+		};
+		expect(renderApkNativeUiSnapshotToSvg({
+			shadowRoot: disabledRoot,
+			nativeHierarchy: { ...hierarchy, root: disabledRoot },
+			width: 360,
+			height: 800,
+		}).svg).not.toContain("data-apk-native-blur-view");
+	});
+
 	it("keeps complete native text semantic for the browser renderer", () => {
 		const text: ApkUiManagerNodeSnapshot = {
 			tag: 2,

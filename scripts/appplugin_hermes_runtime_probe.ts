@@ -72,6 +72,7 @@ import {
 	publicApkSemanticUiActions,
 	renderApkNativeUiSnapshotToSvg,
 	resolveApkSemanticUiActions,
+	apkServedSurfaceViewport,
 	selectApkServedSurfaceRoot,
 	ApkV8WorkerRuntime,
 	createApkBridgeBootstrap,
@@ -1793,17 +1794,9 @@ async function main(): Promise<void> {
 				"q7-hermes-host-svg-diagnostic-map.png",
 			))
 			: undefined;
-		const interactiveViewport = options.serveFullRoot && interactiveSurface ? {
-			x: 0,
-			y: 0,
-			width: interactiveSurface.width,
-			height: interactiveSurface.height,
-		} : apkInteractiveSurfacePng?.contentBounds ?? (interactiveSurface ? {
-			x: 0,
-			y: 0,
-			width: interactiveSurface.width,
-			height: interactiveSurface.height,
-		} : undefined);
+		const interactiveViewport = interactiveSurface
+			? apkServedSurfaceViewport(interactiveSurface)
+			: undefined;
 		if (options.servePort !== undefined) {
 			if (!interactiveSurface || !interactiveViewport) {
 				throw new Error("Interaktive AppPlugin-Oberfläche oder Viewport fehlt" );
@@ -1855,12 +1848,7 @@ async function main(): Promise<void> {
 					...servedSurfaceOptions,
 					fullRootTag: view === "full" ? rootTag : undefined,
 				});
-				const viewport = view === "full" ? {
-					x: 0,
-					y: 0,
-					width: currentSurface.width,
-					height: currentSurface.height,
-				} : interactiveViewport;
+				const viewport = apkServedSurfaceViewport(currentSurface);
 				return { currentSurface, currentHierarchy, viewport, view };
 			};
 			const availableServedViews = (["map", "full"] as readonly ServedView[]).filter(view => {
@@ -2050,6 +2038,9 @@ async function main(): Promise<void> {
 							inputProvenance: "host-apk-contract-emulation",
 							semanticActionProvenance: "host-heuristic-from-appplugin-tree",
 							viewport,
+							presentationFocus: view === "map"
+								? apkInteractiveSurfacePng?.contentBounds
+								: undefined,
 							productFallbackAllowed: false,
 							surfaceKind: view === "full" ? "host-diagnostic-full-tree" : "host-diagnostic-map-viewport",
 							view,

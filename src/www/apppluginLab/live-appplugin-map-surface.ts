@@ -51,6 +51,8 @@ export interface LiveAppPluginSubviewPlacement {
 	scale: number;
 }
 
+export interface LiveAppPluginFramePresentation extends LiveAppPluginSubviewPlacement {}
+
 interface LiveAppPluginLocalizationState {
 	language: string;
 	localeIdentifier: string;
@@ -73,6 +75,7 @@ interface LiveAppPluginHealth extends LiveAppPluginLocalizationState {
 	frameRevision: number;
 	surface: LiveAppPluginSurfaceDescriptor;
 	viewport: LiveAppPluginViewport;
+	presentationFocus?: LiveAppPluginViewport;
 	bundleKind: string;
 	bundleSha256: string;
 	bundleProvenance: "unchanged-appplugin-bundle";
@@ -156,6 +159,7 @@ export interface LiveAppPluginMapSnapshot extends LiveAppPluginLocalizationState
 	frameRevision: number;
 	surface: LiveAppPluginSurfaceDescriptor;
 	viewport: LiveAppPluginViewport;
+	presentationFocus?: LiveAppPluginViewport;
 	bundleKind: string;
 	bundleSha256: string;
 	bundleProvenance: "unchanged-appplugin-bundle";
@@ -295,6 +299,45 @@ export function calculateAppPluginSubviewPlacement(
 }
 
 /**
+ * Fits the AppPlugin's initially visible map content into a desktop canvas
+ * without turning those pixels into a clipping boundary. The complete native
+ * View remains rendered, so panning is clipped only by the AppPlugin display
+ * and the real desktop canvas edge.
+ */
+export function calculateAppPluginFramePresentation(
+	containerWidth: number,
+	containerHeight: number,
+	viewport: Readonly<LiveAppPluginViewport>,
+	focus: Readonly<LiveAppPluginViewport> = viewport,
+): Readonly<LiveAppPluginFramePresentation> {
+	finite(containerWidth, "Container-Breite");
+	finite(containerHeight, "Container-Höhe");
+	for (const [name, value] of Object.entries(viewport)) finite(value, `Viewport ${name}`);
+	for (const [name, value] of Object.entries(focus)) finite(value, `Darstellungsfokus ${name}`);
+	if (containerWidth <= 0 || containerHeight <= 0 || viewport.width <= 0 || viewport.height <= 0) {
+		throw new Error("Container und Viewport müssen positiv sein");
+	}
+	if (
+		focus.width <= 0
+		|| focus.height <= 0
+		|| focus.x < viewport.x
+		|| focus.y < viewport.y
+		|| focus.x + focus.width > viewport.x + viewport.width
+		|| focus.y + focus.height > viewport.y + viewport.height
+	) {
+		throw new Error("Darstellungsfokus muss vollständig im nativen Viewport liegen");
+	}
+	const scale = Math.min(containerWidth / focus.width, containerHeight / focus.height);
+	return {
+		left: (containerWidth - focus.width * scale) / 2 - (focus.x - viewport.x) * scale,
+		top: (containerHeight - focus.height * scale) / 2 - (focus.y - viewport.y) * scale,
+		width: viewport.width * scale,
+		height: viewport.height * scale,
+		scale,
+	};
+}
+
+/**
  * Desktop-only optimistic presentation. The browser moves the diagnostic frame
  * immediately and commits a bounded, distance-dependent MOVE sequence through
  * the host's APK touch emulation before UP.
@@ -421,6 +464,7 @@ export class LiveAppPluginMapSurface {
 		this.options.viewport.dataset.bundleKind = this.#health.bundleKind;
 		this.options.viewport.dataset.productFallbackAllowed = String(this.#health.productFallbackAllowed);
 		this.options.frame.addEventListener("load", () => {
+			this.#syncFramePresentation();
 			this.#syncNativeMapLayerLayout();
 			this.#settleLocalMapPresentation(this.options.frame);
 		});
@@ -442,7 +486,10 @@ export class LiveAppPluginMapSurface {
 				frameRevision: this.#health.frameRevision,
 			});
 		});
-		window.addEventListener("resize", () => this.#syncNativeMapLayerLayout());
+		window.addEventListener("resize", () => {
+			this.#syncFramePresentation();
+			this.#syncNativeMapLayerLayout();
+		});
 		this.#refreshFrame();
 		this.#bindPointers();
 		this.#emitChange();
@@ -479,6 +526,9 @@ export class LiveAppPluginMapSurface {
 			frameRevision: this.#health.frameRevision,
 			surface: { ...this.#health.surface },
 			viewport: { ...this.#health.viewport },
+			presentationFocus: this.#health.presentationFocus
+				? { ...this.#health.presentationFocus }
+				: undefined,
 			bundleKind: this.#health.bundleKind,
 			bundleSha256: this.#health.bundleSha256,
 			bundleProvenance: this.#health.bundleProvenance,
@@ -514,6 +564,7 @@ export class LiveAppPluginMapSurface {
 			? "dark"
 			: "light";
 		return this.#enqueue(async () => {
+			const previousSessionId = this.#health.sessionId;
 			const response = await this.#fetch(`${this.#apiBaseUrl}/theme?view=${this.#health.view}`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -526,10 +577,14 @@ export class LiveAppPluginMapSurface {
 					response.status,
 				);
 			}
-			this.#health = { ...this.#health, ...payload };
-			this.#refreshFrame();
-			this.#emitChange();
-			this.options.onEvent("APK-Konfigurationswechsel an AppPlugin gesendet", { mode, ...payload });
+			await this.#adoptAuthoritativeMutationState(payload.view, previousSessionId);
+			this.options.onEvent("APK-Konfigurationswechsel an AppPlugin gesendet", {
+				mode,
+				sessionId: this.#health.sessionId,
+				profileId: this.#health.profileId,
+				colorModel: this.#health.colorModel,
+				colorScheme: this.#health.colorScheme,
+			});
 		});
 	}
 
@@ -541,6 +596,7 @@ export class LiveAppPluginMapSurface {
 			throw new Error(`Die APK bietet den Sprachcode ${language} nicht an`);
 		}
 		return this.#enqueue(async () => {
+			const previousSessionId = this.#health.sessionId;
 			const response = await this.#fetch(`${this.#apiBaseUrl}/locale?view=${this.#health.view}`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -559,18 +615,36 @@ export class LiveAppPluginMapSurface {
 				await this.#resolveMapHealth();
 				this.#publishedDpsCount = this.#health.publishedDpsCount;
 				this.#refreshFrame();
+				this.#emitChange();
 			} else {
-				this.#health = { ...this.#health, ...payload };
-				this.#synchronizeMapHealth();
-				if (payload.frameChanged) this.#refreshFrame();
+				await this.#adoptAuthoritativeMutationState(payload.view, previousSessionId);
 			}
-			this.#emitChange();
 			this.options.onEvent("APK-Sprachzustand und AppPlugin synchron", {
 				language: this.#health.language,
 				localeIdentifier: this.#health.localeIdentifier,
 				sessionId: this.#health.sessionId,
 			});
 		});
+	}
+
+	/**
+	 * Mutation responses intentionally stay small, but they must never be merged
+	 * into a snapshot from an older AppPlugin process. The APK host session is the
+	 * authoritative owner of profile, bundle, locale, theme, and native surfaces.
+	 */
+	async #adoptAuthoritativeMutationState(
+		view: LiveAppPluginSurfaceView,
+		previousSessionId: string,
+	): Promise<void> {
+		const health = await this.#fetchHealth(view);
+		if (health.sessionId !== previousSessionId) {
+			await this.#adoptRestartedRuntime(health, previousSessionId);
+			return;
+		}
+		this.#health = health;
+		this.#synchronizeMapHealth();
+		this.#refreshFrame();
+		this.#emitChange();
 	}
 
 	public async zoomBy(delta: number): Promise<void> {
@@ -897,26 +971,24 @@ export class LiveAppPluginMapSurface {
 	}
 
 	#surfaceScale(): number {
-		const rect = this.options.viewport.getBoundingClientRect();
-		const { width, height } = this.#health.viewport;
-		return Math.min(rect.width / width, rect.height / height);
+		return this.#framePresentation().scale;
 	}
 
 	#toSurfacePoint(clientX: number, clientY: number): { x: number; y: number } | undefined {
 		const rect = this.options.viewport.getBoundingClientRect();
-		const { width, height, x, y } = this.#health.viewport;
-		const scale = this.#surfaceScale();
-		const renderedWidth = width * scale;
-		const renderedHeight = height * scale;
-		const left = rect.left + (rect.width - renderedWidth) / 2;
-		const top = rect.top + (rect.height - renderedHeight) / 2;
-		if (clientX < left || clientY < top || clientX > left + renderedWidth || clientY > top + renderedHeight) {
+		const viewport = this.#health.viewport;
+		const presentation = this.#framePresentation();
+		const x = viewport.x + (clientX - rect.left - presentation.left) / presentation.scale;
+		const y = viewport.y + (clientY - rect.top - presentation.top) / presentation.scale;
+		if (
+			x < viewport.x
+			|| y < viewport.y
+			|| x > viewport.x + viewport.width
+			|| y > viewport.y + viewport.height
+		) {
 			return undefined;
 		}
-		return {
-			x: x + finite((clientX - left) / scale, "Pointer-x"),
-			y: y + finite((clientY - top) / scale, "Pointer-y"),
-		};
+		return { x: finite(x, "Pointer-x"), y: finite(y, "Pointer-y") };
 	}
 
 	#sendPointer(kind: "down" | "move" | "up", pointerId: number, x: number, y: number): Promise<void> {
@@ -1328,6 +1400,7 @@ export class LiveAppPluginMapSurface {
 
 	#refreshFrame(): void {
 		const session = encodeURIComponent(this.#sessionToken);
+		this.#syncFramePresentation();
 		this.options.frame.src =
 			`${this.#apiBaseUrl}/frame.svg?view=${this.#health.view}&revision=${this.#health.frameRevision}&session=${session}`;
 		this.#syncNativeMapLayerLayout();
@@ -1335,6 +1408,27 @@ export class LiveAppPluginMapSurface {
 			this.options.nativeMapFrame.src =
 				`${this.#apiBaseUrl}/frame.svg?view=map&revision=${this.#health.frameRevision}&session=${session}`;
 		}
+	}
+
+	#framePresentation(): Readonly<LiveAppPluginFramePresentation> {
+		const rect = this.options.viewport.getBoundingClientRect();
+		const focus = this.#health.view === "map"
+			? this.#health.presentationFocus ?? this.#health.viewport
+			: this.#health.viewport;
+		return calculateAppPluginFramePresentation(
+			rect.width,
+			rect.height,
+			this.#health.viewport,
+			focus,
+		);
+	}
+
+	#syncFramePresentation(): void {
+		const presentation = this.#framePresentation();
+		this.options.frame.style.left = `${presentation.left}px`;
+		this.options.frame.style.top = `${presentation.top}px`;
+		this.options.frame.style.width = `${presentation.width}px`;
+		this.options.frame.style.height = `${presentation.height}px`;
 	}
 
 	#nativeMapLayerActive(): boolean {

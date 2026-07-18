@@ -16,6 +16,13 @@ export interface ApkServedSurfaceOptions {
 	fallbackHeight: number;
 }
 
+export interface ApkServedSurfaceViewport {
+	x: 0;
+	y: 0;
+	width: number;
+	height: number;
+}
+
 const RESPONDER_CONTRACTS = Object.freeze([
 	"onStartShouldSetResponder",
 	"onMoveShouldSetResponder",
@@ -95,5 +102,25 @@ export function selectApkServedSurfaceRoot(
 		height,
 		area: width * height,
 		responderContractCount: 0,
+	});
+}
+
+/**
+ * Uses the native View bounds as the served viewport. Android's RCTView clips
+ * overflow against getWidth()/getHeight(); transparent pixels inside that View
+ * are content, not an additional crop boundary.
+ */
+export function apkServedSurfaceViewport(
+	surface: Readonly<Pick<ApkInteractiveSurfaceRoot, "width" | "height">>,
+): Readonly<ApkServedSurfaceViewport> {
+	if (!Number.isFinite(surface.width) || surface.width <= 0
+		|| !Number.isFinite(surface.height) || surface.height <= 0) {
+		throw new Error("APK-Oberflächenviewport benötigt positive native View-Abmessungen");
+	}
+	return Object.freeze({
+		x: 0,
+		y: 0,
+		width: surface.width,
+		height: surface.height,
 	});
 }

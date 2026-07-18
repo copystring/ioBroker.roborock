@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { createOfflineAppPluginEnvelope } from "../../src/www/apppluginLab/desktop-intents";
 import {
+	calculateAppPluginFramePresentation,
 	calculateAppPluginSubviewPlacement,
 	createAppPluginDragCommitPointers,
 	createAppPluginPinchZoomPointers,
@@ -46,6 +47,12 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(html).not.toContain("4174");
 		expect(html).not.toContain("4175");
 		expect(launcher).toContain("const APPPLUGIN_DESKTOP_PORT = 4_173");
+		expect(launcher).toContain("width: 1_080");
+		expect(launcher).toContain("height: 2_400");
+		expect(launcher).toContain("scale: 3");
+		expect(launcher).toContain("densityDpi: 480");
+		expect(launcher).toContain('"--density-dpi", String(APPPLUGIN_DESKTOP_DISPLAY.densityDpi)');
+		expect(launcher).not.toContain('"--width", "360", "--height", "800", "--scale", "1"');
 		expect(launcher).not.toContain("--port");
 		expect(source).not.toContain("OriginalMapSurface");
 		expect(surface).toContain("fetch(`${this.#apiBaseUrl}${endpoint}`");
@@ -280,6 +287,21 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(shouldShowAppPluginNativeMapSubview("full", false, [mapAction])).toBe(false);
 	});
 
+	it("fits opaque map content for desktop presentation without using it as the native clip viewport", () => {
+		const presentation = calculateAppPluginFramePresentation(
+			684,
+			380,
+			{ x: 0, y: 0, width: 360, height: 800 },
+			{ x: 44, y: 221, width: 275, height: 287 },
+		);
+
+		expect(presentation.scale).toBeCloseTo(380 / 287);
+		expect(presentation.width).toBeCloseTo(360 * 380 / 287);
+		expect(presentation.height).toBeCloseTo(800 * 380 / 287);
+		expect(presentation.left).toBeCloseTo(101.686411);
+		expect(presentation.top).toBeCloseTo(-292.61324);
+	});
+
 	it("keeps at most one non-pan AppPlugin MOVE in flight and reloads frames only for visual mutations", () => {
 		const surface = fs.readFileSync(surfacePath, "utf8");
 		const probe = fs.readFileSync(probePath, "utf8");
@@ -361,7 +383,7 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(html).toContain("grid-template-rows: minmax(0, 1fr) clamp(150px, 24vh, 220px)");
 		expect(html).toContain("@media (max-height: 820px) and (min-width: 881px)");
 		expect(html).toContain("#desktopMap { position: absolute");
-		expect(html).toContain("#desktopMapFrame { width: 100%; height: 100%; object-fit: contain");
+		expect(html).toContain("#desktopMapFrame { position: absolute; max-width: none; max-height: none; object-fit: fill");
 		expect(html).not.toContain(".map-card { min-height: 500px");
 	});
 
@@ -388,6 +410,10 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(source).toContain("document.documentElement.dataset.theme = snapshot.colorScheme");
 		expect(source).toContain("this.mapSurface.setTheme");
 		expect(surface).toContain("fetch(`${this.#apiBaseUrl}/theme?view=${this.#health.view}`");
+		expect(surface).toContain("await this.#adoptAuthoritativeMutationState(payload.view, previousSessionId)");
+		expect(surface).toContain("const health = await this.#fetchHealth(view)");
+		expect(surface).toContain("if (health.sessionId !== previousSessionId)");
+		expect(surface).not.toContain("this.#health = { ...this.#health, ...payload }");
 		expect(probe).toContain('session.emitDeviceEvent("themeDidChange"');
 		expect(probe).toContain('session.emitDeviceEvent("appearanceChanged"');
 		expect(probe).toContain('url.pathname === "/ui-state"');

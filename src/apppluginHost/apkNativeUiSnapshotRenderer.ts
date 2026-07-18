@@ -537,6 +537,7 @@ class SnapshotSvgRenderer {
 	#nativeSelf(node: ApkUiManagerNodeSnapshot, layout: Readonly<NativeLayoutBox>): string {
 		if (node.viewName === "RCTImageView") return this.#image(node, layout);
 		if (node.viewName === "RCTText") return this.#text(node, layout);
+		if (node.viewName === "AndroidBlurView") return this.#androidBlurView(node, layout);
 		const background = apkArgbToCss(node.props.backgroundColor);
 		const borderWidth = Math.max(0, finite(node.props.borderWidth));
 		const border = apkArgbToCss(node.props.borderColor);
@@ -545,6 +546,22 @@ class SnapshotSvgRenderer {
 			? ` stroke-dasharray="${borderWidth * 3} ${borderWidth * 3}"`
 			: "";
 		return `<path d="${roundedRectPath(layout.width, layout.height, node.props)}" fill="${background ?? "none"}" stroke="${border ?? "none"}" stroke-width="${borderWidth}"${dash}/>`;
+	}
+
+	/**
+	 * Mirrors the APK's BlurViewManager contract. The AppPlugin owns radius,
+	 * overlay color and enabled state; the host only maps the native backdrop
+	 * operation to the browser renderer. The color path is also the deterministic
+	 * fallback for SVG rasterizers without CSS backdrop-filter support.
+	 */
+	#androidBlurView(node: ApkUiManagerNodeSnapshot, layout: Readonly<NativeLayoutBox>): string {
+		if (node.props.enabled === false) return "";
+		const blurRadius = Math.max(0, finite(node.props.blurRadius, 10));
+		const overlay = apkArgbToCss(node.props.overlayColor) ?? "none";
+		const backdropStyle = blurRadius === 0
+			? ""
+			: ` style="backdrop-filter:blur(${blurRadius}px);-webkit-backdrop-filter:blur(${blurRadius}px)"`;
+		return `<path data-apk-native-blur-view="${node.tag}" data-apk-blur-radius="${blurRadius}" d="${roundedRectPath(layout.width, layout.height, node.props)}" fill="${overlay}"${backdropStyle}/>`;
 	}
 
 	#image(node: ApkUiManagerNodeSnapshot, layout: Readonly<NativeLayoutBox>): string {

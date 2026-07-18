@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	apkServedSurfaceViewport,
 	findApkInteractiveSurfaceRoot,
 	selectApkServedSurfaceRoot,
 } from "../../src/apppluginHost/apkInteractiveSurfaceRoot";
@@ -52,6 +53,19 @@ describe("APK interactive surface root", () => {
 		};
 
 		expect(() => findApkInteractiveSurfaceRoot(hierarchy)).toThrow(/keine native interaktive Hauptfläche/u);
+	});
+
+	it("uses the complete native View as viewport instead of cropping to opaque pixels", () => {
+		expect(apkServedSurfaceViewport({
+			width: 360,
+			height: 800,
+		})).toEqual({
+			x: 0,
+			y: 0,
+			width: 360,
+			height: 800,
+		});
+		expect(() => apkServedSurfaceViewport({ width: 0, height: 800 })).toThrow(/positive native View-Abmessungen/u);
 	});
 
 	it("lets an explicit full-root request override automatic map-surface discovery", () => {
