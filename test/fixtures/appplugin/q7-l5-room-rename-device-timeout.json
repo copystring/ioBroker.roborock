@@ -73,33 +73,15 @@
       "waitAfterMs": 350
     },
     {
-      "kind": "down",
-      "pointerId": 0,
-      "x": 145,
-      "y": 103,
-      "timeMs": 4800
-    },
-    {
-      "kind": "up",
-      "pointerId": 0,
-      "x": 145,
-      "y": 103,
-      "timeMs": 4840,
+      "kind": "tap-visible-text",
+      "text": "Raum1",
+      "timeMs": 4800,
       "waitAfterMs": 350
     },
     {
-      "kind": "down",
-      "pointerId": 0,
-      "x": 145,
-      "y": 103,
-      "timeMs": 5200
-    },
-    {
-      "kind": "up",
-      "pointerId": 0,
-      "x": 145,
-      "y": 103,
-      "timeMs": 5240,
+      "kind": "tap-visible-text",
+      "text": "Raum1",
+      "timeMs": 5200,
       "waitAfterMs": 350
     },
     {

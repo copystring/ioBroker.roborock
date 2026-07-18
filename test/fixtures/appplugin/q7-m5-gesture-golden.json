@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "source": "unchanged-q7-m5-appplugin-session",
+  "profileLabel": "Q7 M5 / SC01 · echte lokale Kartenaufnahme",
+  "deviceModel": "roborock.vacuum.sc01",
+  "bundleKind": "hermes-bytecode",
+  "bundleSha256": "c4136ce753609838415d14264c39e661792c83949f3e9e86d9c463b9bbd19205",
+  "productFallbackAllowed": false,
+  "pointerOwnership": "apk-touch-dispatch-to-unchanged-appplugin",
+  "centerPinch": {
+    "initialScale": 1.484536,
+    "zoomedScale": 1.946536,
+    "restoredScale": 1.484536,
+    "inverseMatrixDelta": 0
+  },
+  "boundaries": {
+    "minScale": 1,
+    "maxScale": 8,
+    "minScaleAfterRoundTrip": 1,
+    "minAttempts": 3,
+    "maxAttempts": 17,
+    "minRoundTripAttempts": 17
+  },
+  "focus": {
+    "requestedTouchCenter": {
+      "x": 187,
+      "y": 123.41
+    },
+    "originalZoomAnchor": {
+      "x": 202.277056,
+      "y": 124.510823
+    },
+    "mapPointBefore": {
+      "x": 206.277056,
+      "y": -17.489177
+    },
+    "mapPointAfter": {
+      "x": 206.277056,
+      "y": -17.489177
+    },
+    "drift": 0
+  },
+  "drag": {
+    "requestedDelta": {
+      "x": 36,
+      "y": 24
+    },
+    "observedTranslationDelta": {
+      "x": 36,
+      "y": 24
+    }
+  },
+  "cancel": {
+    "frameChangedBeforeCancel": true,
+    "matrixBefore": {
+      "a": 1.462,
+      "b": 0,
+      "c": 0,
+      "d": 1.462,
+      "tx": -63.3,
+      "ty": 174.08
+    },
+    "matrixAfter": {
+      "a": 1.462,
+      "b": 0,
+      "c": 0,
+      "d": 1.462,
+      "tx": -63.3,
+      "ty": 174.08
+    },
+    "activePointerIdsAfterCancel": [],
+    "followUpGestureAccepted": true
+  }
+}

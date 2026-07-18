@@ -1,10 +1,10 @@
 {
 	"version": 1,
 	"project": "ioBroker Roborock AppPlugin-first Rework",
-	"lastReviewed": "2026-07-17",
+	"lastReviewed": "2026-07-18",
 	"currentPhase": "0C",
-	"currentFocus": ["P0C-Q7-M5-GATES"],
-	"nextUp": ["P0C-Q7-M5-GATES", "P0C-Q7-ROOM-PROPERTIES", "P0C-Q7-BOUNDARIES", "P0C-Q7-ZONES"],
+	"currentFocus": ["P0C-Q7-ROOM-PROPERTIES"],
+	"nextUp": ["P0C-Q7-ROOM-PROPERTIES", "P0C-Q7-BOUNDARIES", "P0C-Q7-ZONES", "P0C-Q7-MAP-STOCK"],
 	"phases": [
 		{
 			"id": "0A",
@@ -49,7 +49,7 @@
 			"title": "SCMap/Skia – Q7 L5, Q7 M5 und B01",
 			"contract": "Hermes HBC, SCMap.RobotMap, React Native und Skia",
 			"status": "in_progress",
-			"gate": "Den für Q7 L5 und M5 gemeinsamen Host-, Vollszenen-, Theme-, Akteur-, Split- und Merge-Vertrag um die noch offenen M5-Rename- und Gesten-Gates erweitern."
+			"gate": "Den für Q7 L5 und M5 gemeinsamen Host-, Vollszenen-, Theme-, Akteur-, Auswahl-, Rename-, Split-, Merge- und Gestenvertrag um Raumdetails, Begrenzungen, Zonen und Kartenbestand erweitern."
 		},
 		{
 			"id": "yx",
@@ -427,18 +427,24 @@
 		{
 			"id": "P0C-Q7-GESTURES",
 			"phase": "0C",
-			"area": "Q7 L5 – Interaktion",
+			"area": "Q7 L5/M5 – Interaktion",
 			"family": "scmap",
-			"title": "Pinch-Zoom-Grundpfad durch die originale Touchkette nachweisen",
+			"title": "Drag, Pinch, Zoomgrenzen, Originalanker, Abbruch und Wiederaufnahme durch die originale Touchkette nachweisen",
 			"status": "completed",
 			"priority": "P0",
 			"dependsOn": ["P0C-Q7-DIRECT-RUN", "P0B-INPUT-LAYOUT"],
 			"evidence": [
+				"scripts/prove_q7_appplugin_gestures.ts",
 				"test/unit/appplugin_apk_pointer_replay_manifest.test.ts",
 				"test/unit/appplugin_apk_pointer_input_bridge.test.ts",
-				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md"
+				"test/unit/appplugin_q7_gesture_goldens.test.ts",
+				"test/fixtures/appplugin/q7-l5-gesture-golden.json",
+				"test/fixtures/appplugin/q7-m5-gesture-golden.json",
+				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
+				"`npm run poc:appplugin-q7-gestures`",
+				"`npm run poc:appplugin-q7-m5-gestures`"
 			],
-			"nextAction": "Drag, Fokuspunkt, minimale/maximale Skalierung, Pointerverlust und Abbruch gegen die Original-App prüfen."
+			"nextAction": "Dieselbe matrixbasierte Originalsemantik auf weitere Kartenfamilien übertragen; keine Web-Zoomgrenze oder eigenen Fokuspunkt erzwingen."
 		},
 		{
 			"id": "P0C-Q7-FULL-SCENE",
@@ -548,7 +554,7 @@
 		{
 			"id": "P0C-Q7-RENAME-HAPPY",
 			"phase": "0C",
-			"area": "Q7 L5 – Kartenbearbeitung",
+			"area": "Q7 L5/M5 – Kartenbearbeitung",
 			"family": "scmap",
 			"title": "Raum umbenennen bis zur AppPlugin-eigenen service.rename_room-Absicht nachweisen",
 			"status": "completed",
@@ -556,15 +562,17 @@
 			"dependsOn": ["P0C-Q7-DIRECT-RUN", "P0B-CAPTURE-ONLY", "P0B-INPUT-LAYOUT"],
 			"evidence": [
 				"scripts/prove_q7_appplugin_rename.ts",
+				"scripts/run_q7_appplugin_rename_suite.ts",
 				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
-				"`npm run poc:appplugin-q7-rename-proof`"
+				"`npm run poc:appplugin-q7-rename-proof`",
+				"`npm run poc:appplugin-q7-m5-rename-proof`"
 			],
 			"nextAction": "Den belegten Payload ausschließlich als semantische Befehlsabsicht behandeln und nicht im Host nachbauen."
 		},
 		{
 			"id": "P0C-Q7-RENAME-EMPTY",
 			"phase": "0C",
-			"area": "Q7 L5 – Kartenbearbeitung",
+			"area": "Q7 L5/M5 – Kartenbearbeitung",
 			"family": "scmap",
 			"title": "Leeren Raumnamen durch die AppPlugin-eigene Validierung blockieren",
 			"status": "completed",
@@ -572,15 +580,17 @@
 			"dependsOn": ["P0C-Q7-RENAME-HAPPY"],
 			"evidence": [
 				"scripts/prove_q7_appplugin_rename.ts",
+				"scripts/run_q7_appplugin_rename_suite.ts",
 				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
-				"`npm run poc:appplugin-q7-rename-proof`"
+				"`npm run poc:appplugin-q7-rename-proof`",
+				"`npm run poc:appplugin-q7-m5-rename-proof`"
 			],
 			"nextAction": "Die gleiche Gate-Struktur für weitere Namen- und Fehlerfälle wiederverwenden."
 		},
 		{
 			"id": "P0C-Q7-RENAME-MAX-LENGTH",
 			"phase": "0C",
-			"area": "Q7 L5 – Kartenbearbeitung",
+			"area": "Q7 L5/M5 – Kartenbearbeitung",
 			"family": "scmap",
 			"title": "AppPlugin-eigene Kürzung überlanger Raumnamen und resultierenden Payload prüfen",
 			"status": "completed",
@@ -588,16 +598,18 @@
 			"dependsOn": ["P0C-Q7-RENAME-HAPPY", "P0B-INPUT-LAYOUT"],
 			"evidence": [
 				"scripts/prove_q7_appplugin_rename.ts",
+				"scripts/run_q7_appplugin_rename_suite.ts",
 				"test/fixtures/appplugin/q7-l5-room-rename-max-length.json",
 				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
-				"`npm run poc:appplugin-q7-rename-proof`"
+				"`npm run poc:appplugin-q7-rename-proof`",
+				"`npm run poc:appplugin-q7-m5-rename-proof`"
 			],
 			"nextAction": "TEXTMAXLENGTH und die Kürzung weiterhin aus dem geladenen AppPlugin übernehmen; kein modellabhängiges Limit im Host pflegen."
 		},
 		{
 			"id": "P0C-Q7-RENAME-VALIDATION",
 			"phase": "0C",
-			"area": "Q7 L5 – Kartenbearbeitung",
+			"area": "Q7 L5/M5 – Kartenbearbeitung",
 			"family": "scmap",
 			"title": "Vordefinierte und doppelte Raumnamen prüfen",
 			"status": "completed",
@@ -605,17 +617,19 @@
 			"dependsOn": ["P0C-Q7-RENAME-HAPPY", "P0C-Q7-RENAME-EMPTY", "P0C-Q7-RENAME-MAX-LENGTH"],
 			"evidence": [
 				"scripts/prove_q7_appplugin_rename.ts",
+				"scripts/run_q7_appplugin_rename_suite.ts",
 				"test/fixtures/appplugin/q7-l5-room-rename-predefined.json",
 				"test/fixtures/appplugin/q7-l5-room-rename-duplicate.json",
 				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
-				"`npm run poc:appplugin-q7-rename-proof`"
+				"`npm run poc:appplugin-q7-rename-proof`",
+				"`npm run poc:appplugin-q7-m5-rename-proof`"
 			],
 			"nextAction": "Lokalisierte Namen, Typ-IDs und Duplikatprüfung weiterhin vollständig aus dem geladenen AppPlugin übernehmen."
 		},
 		{
 			"id": "P0C-Q7-RENAME-FAILURE",
 			"phase": "0C",
-			"area": "Q7 L5 – Kartenbearbeitung",
+			"area": "Q7 L5/M5 – Kartenbearbeitung",
 			"family": "scmap",
 			"title": "Gerätefehler, Timeout, AppPlugin-eigenen Retry und erneuten Kartenabruf beim Umbenennen prüfen",
 			"status": "completed",
@@ -623,11 +637,13 @@
 			"dependsOn": ["P0C-Q7-RENAME-HAPPY", "P0B-ERROR-CLASSIFICATION"],
 			"evidence": [
 				"scripts/prove_q7_appplugin_rename.ts",
+				"scripts/run_q7_appplugin_rename_suite.ts",
 				"test/fixtures/appplugin/q7-l5-room-rename-device-error.json",
 				"test/fixtures/appplugin/q7-l5-room-rename-device-timeout.json",
 				"test/fixtures/appplugin/q7-l5-room-rename-device-error-retry-success.json",
 				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
-				"`npm run poc:appplugin-q7-rename-failure-proof`"
+				"`npm run poc:appplugin-q7-rename-failure-proof`",
+				"`npm run poc:appplugin-q7-m5-rename-failure-proof`"
 			],
 			"nextAction": "Keinen Host-Rollback ergänzen: Fehlerzustand, offener Dialog, Retry, Erfolg und Karten-Reload bleiben Eigentum des geladenen AppPlugins."
 		},
@@ -797,6 +813,9 @@
 				"scripts/capture_q7_appplugin_theme_goldens.ts",
 				"scripts/prove_q7_appplugin_actor_scaling.ts",
 				"scripts/prove_q7_appplugin_semantic_actions.ts",
+				"scripts/prove_q7_appplugin_gestures.ts",
+				"scripts/prove_q7_appplugin_rename.ts",
+				"scripts/run_q7_appplugin_rename_suite.ts",
 				"scripts/prove_q7_appplugin_split.ts",
 				"scripts/run_q7_appplugin_split_suite.ts",
 				"scripts/prove_q7_appplugin_merge.ts",
@@ -804,16 +823,21 @@
 				"test/fixtures/appplugin/q7-m5-full-scene-golden.json",
 				"test/fixtures/appplugin/q7-m5-theme-goldens.json",
 				"test/fixtures/appplugin/q7-m5-actor-scaling-golden.json",
+				"test/fixtures/appplugin/q7-m5-gesture-golden.json",
 				"test/unit/appplugin_q7_m5_contract_gate.test.ts",
+				"test/unit/appplugin_q7_gesture_goldens.test.ts",
 				"test/unit/appplugin_q7_theme_actor_goldens.test.ts",
 				"test/unit/appplugin_q7_split_gate.test.ts",
 				"test/unit/appplugin_q7_merge_gate.test.ts",
 				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
 				"`npm run poc:appplugin-q7-m5-semantic-actions-proof`",
+				"`npm run poc:appplugin-q7-m5-gestures`",
+				"`npm run poc:appplugin-q7-m5-rename-proof`",
+				"`npm run poc:appplugin-q7-m5-rename-failure-proof`",
 				"`npm run poc:appplugin-q7-m5-split-proof`",
 				"`npm run poc:appplugin-q7-m5-merge-proof`"
 			],
-			"nextAction": "Die gemeinsamen Rename- und verbleibenden Gesten-Gates gegen M5 ausführen; nur belegte Bundleabweichungen separat festhalten."
+			"nextAction": "Neue Raumdetail-, Begrenzungs-, Zonen- und Kartenbestands-Gates jeweils mit demselben Runner gegen L5 und M5 ausführen; nur belegte Bundleabweichungen separat festhalten."
 		},
 		{
 			"id": "P0C-B01-RAW-INGRESS",

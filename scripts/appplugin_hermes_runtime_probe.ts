@@ -543,6 +543,44 @@ function collectVisibleTextLayouts(
 	visit(root);
 	return result.slice(-30);
 }
+
+function resolveVisibleTextCenter(
+	root: ApkUiManagerNodeSnapshot,
+	measure: (tag: number) => Readonly<{ x: number; y: number; width: number; height: number }> | undefined,
+	text: string,
+	occurrence: number,
+): Readonly<{ x: number; y: number; tag: number; text: string }> {
+	const uniqueLayouts = new Map<string, Readonly<{ x: number; y: number; tag: number; text: string }>>();
+	const visit = (node: ApkUiManagerNodeSnapshot): void => {
+		if (node.viewName === "RCTText" && collectAppPluginRawText(node).join("") === text) {
+			const box = measure(node.tag);
+			if (box && box.width > 0 && box.height > 0) {
+				const key = [box.x, box.y, box.width, box.height].map(value => value.toFixed(6)).join(":");
+				if (!uniqueLayouts.has(key)) {
+					uniqueLayouts.set(key, {
+						x: box.x + box.width / 2,
+						y: box.y + box.height / 2,
+						tag: node.tag,
+						text,
+					});
+				}
+			}
+		}
+		for (const child of node.children) visit(child);
+	};
+	visit(root);
+	const matches = [...uniqueLayouts.values()].sort((left, right) =>
+		left.y - right.y || left.x - right.x || left.tag - right.tag);
+	const match = matches[occurrence];
+	if (!match) {
+		throw new Error(
+			`Sichtbarer AppPlugin-Text ${JSON.stringify(text)} Vorkommen ${occurrence} fehlt; `
+			+ `gefunden=${matches.length}`,
+		);
+	}
+	return match;
+}
+
 interface PointerHttpRequest {
 	kind: "down" | "move" | "up" | "cancel";
 	pointerId?: number;
@@ -1344,25 +1382,36 @@ async function main(): Promise<void> {
 		// oder Interaktionsreplays beginnen, muss die beim Mount ausgelöste
 		// Antwort einschließlich ihrer AppPlugin-UI-Stabilisierung abgeschlossen sein.
 		await waitForOperationQueueIdle();
+		const observedInteractionRawText = new Set<string>();
+		const observeInteractionRawText = (): void => {
+			for (const text of collectAppPluginRawText(uiManager.snapshot())) observedInteractionRawText.add(text);
+		};
 		const settleReplayEvent = async (waitAfterMs: number): Promise<void> => {
 			if (waitAfterMs > 0) await new Promise(resolve => setTimeout(resolve, waitAfterMs));
+			observeInteractionRawText();
 			// Pointer callbacks can synchronously enqueue APK transport responses or
 			// timer-driven UI work. A quiet Hermes boundary alone does not prove that
 			// this host-side queue has already handed the result back to the bundle.
 			// Finish the complete APK/host round-trip before the next replay touch,
 			// otherwise identical AppPlugins can observe different intermediate trees.
 			await waitForOperationQueueIdle();
+			observeInteractionRawText();
 			await session.waitForRuntimeBoundaryIdle();
+			observeInteractionRawText();
 			imminentTimerCycles += await settleImminentOneShotTimers();
+			observeInteractionRawText();
 			await waitForOperationQueueIdle();
 			await stabilizeUi();
+			observeInteractionRawText();
 			// React Native kann NativeAnimated erst während dieses ersten Layout-
 			// Durchlaufs starten. Deshalb wird danach auf die unveränderte
 			// AppPlugin-Animation gewartet und ihr finaler Frame erneut gelayoutet.
 			await settleActiveNativeAnimations();
+			observeInteractionRawText();
 			await session.waitForRuntimeBoundaryIdle();
 			await waitForOperationQueueIdle();
 			await stabilizeUi();
+			observeInteractionRawText();
 			await waitForOperationQueueIdle();
 		};
 		const dispatchPointerReplayEvent = async (
@@ -1393,9 +1442,34 @@ async function main(): Promise<void> {
 		}
 		const interactionEvents: Array<Readonly<Record<string, unknown>>> = [];
 		for (const [eventIndex, event] of (interactionReplay?.events ?? []).entries()) {
+			if (event.kind === "tap-visible-text") {
+				const target = resolveVisibleTextCenter(
+					uiManager.snapshot(),
+					tag => uiExecution.nativeHierarchyRuntime().measure(tag),
+					event.text,
+					event.occurrence,
+				);
+				const down = await pointerInput.pointerDown(event.pointerId, target.x, target.y, event.timeMs);
+				const up = await pointerInput.pointerUp(event.pointerId, target.x, target.y, event.timeMs + 40);
+				interactionEvents.push({
+					eventIndex,
+					kind: event.kind,
+					text: event.text,
+					occurrence: event.occurrence,
+					timeMs: event.timeMs,
+					waitAfterMs: event.waitAfterMs,
+					resolvedFromOriginalUi: target,
+					targets: [...down.touches, ...up.touches].map(touch => touch.target),
+					changedIndices: [...down.changedIndices, ...up.changedIndices],
+				});
+				await settleReplayEvent(event.waitAfterMs);
+				continue;
+			}
 			if (event.kind === "assert") {
 				const rawText = collectAppPluginRawText(uiManager.snapshot());
 				const missingText = event.rawTextIncludes.filter(expected => !rawText.includes(expected));
+				const missingObservedText = event.rawTextObservedIncludes
+					.filter(expected => !observedInteractionRawText.has(expected));
 				const activeTextInputs = textInput.activeInputs();
 				const activeTextInputCount = activeTextInputs.length;
 				const activeTextInputTexts = activeTextInputs.map(input => input.text);
@@ -1407,6 +1481,7 @@ async function main(): Promise<void> {
 				const missingTextInputMaxLengths = event.activeTextInputMaxLengthsInclude
 					.filter(expected => !activeTextInputMaxLengths.includes(expected));
 				if (missingText.length > 0
+					|| missingObservedText.length > 0
 					|| missingTextInputTexts.length > 0
 					|| missingTextInputMaxLengths.length > 0
 					|| (event.activeTextInputCount !== undefined && event.activeTextInputCount !== activeTextInputCount)) {
@@ -1434,6 +1509,7 @@ async function main(): Promise<void> {
 					throw new Error(
 						`Interaktions-Replay event[${eventIndex}] Assertion fehlgeschlagen: `
 						+ `fehlende Texte=${JSON.stringify(missingText)}, `
+						+ `nicht beobachtete Texte=${JSON.stringify(missingObservedText)}, `
 						+ `fehlende TextInput-Texte=${JSON.stringify(missingTextInputTexts)}, `
 						+ `fehlende maxLength-Werte=${JSON.stringify(missingTextInputMaxLengths)}, `
 						+ `TextInput-Texte=${JSON.stringify(activeTextInputTexts)}, `
@@ -1450,6 +1526,7 @@ async function main(): Promise<void> {
 					kind: event.kind,
 					waitAfterMs: event.waitAfterMs,
 					rawTextIncludes: event.rawTextIncludes,
+					rawTextObservedIncludes: event.rawTextObservedIncludes,
 					activeTextInputCount,
 					activeTextInputTexts,
 					activeTextInputMaxLengths,

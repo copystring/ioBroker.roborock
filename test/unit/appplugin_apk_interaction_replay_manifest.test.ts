@@ -16,9 +16,11 @@ describe("APK interaction replay manifest", () => {
 			events: [
 				{ kind: "down", pointerId: 0, x: 180, y: 634, timeMs: 1000 },
 				{ kind: "up", pointerId: 0, x: 180, y: 634, timeMs: 1040, waitAfterMs: 300 },
+				{ kind: "tap-visible-text", text: "Raum1", timeMs: 1100, waitAfterMs: 200 },
 				{
 					kind: "assert",
 					rawTextIncludes: ["Name"],
+					rawTextObservedIncludes: ["Bereit"],
 					activeTextInputCount: 1,
 					activeTextInputTextsInclude: ["Raum1"],
 					activeTextInputMaxLengthsInclude: [20],
@@ -34,8 +36,17 @@ describe("APK interaction replay manifest", () => {
 			expect.objectContaining({ kind: "down", x: 180, y: 634 }),
 			expect.objectContaining({ kind: "up", waitAfterMs: 300 }),
 			{
+				kind: "tap-visible-text",
+				text: "Raum1",
+				occurrence: 0,
+				pointerId: 0,
+				timeMs: 1100,
+				waitAfterMs: 200,
+			},
+			{
 				kind: "assert",
 				rawTextIncludes: ["Name"],
+				rawTextObservedIncludes: ["Bereit"],
 				activeTextInputCount: 1,
 				activeTextInputTextsInclude: ["Raum1"],
 				activeTextInputMaxLengthsInclude: [20],

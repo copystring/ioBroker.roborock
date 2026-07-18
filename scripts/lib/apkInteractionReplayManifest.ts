@@ -9,8 +9,16 @@ export type ApkInteractionReplayEvent = ApkPointerReplayEvent | {
 	tag?: number;
 	waitAfterMs: number;
 } | {
+	kind: "tap-visible-text";
+	text: string;
+	occurrence: number;
+	pointerId: number;
+	timeMs: number;
+	waitAfterMs: number;
+} | {
 	kind: "assert";
 	rawTextIncludes: readonly string[];
+	rawTextObservedIncludes: readonly string[];
 	activeTextInputCount?: number;
 	activeTextInputTextsInclude: readonly string[];
 	activeTextInputMaxLengthsInclude: readonly number[];
@@ -56,10 +64,44 @@ export function loadApkInteractionReplayManifest(filePath: string): ApkInteracti
 			throw new Error(`Interaktions-Replay event[${index}] muss ein Objekt sein`);
 		}
 		const event = rawEvent as Readonly<Record<string, unknown>>;
+		if (event.kind === "tap-visible-text") {
+			if (typeof event.text !== "string" || event.text.length === 0) {
+				throw new Error(`event[${index}].text muss eine nichtleere Zeichenfolge sein`);
+			}
+			const occurrence = event.occurrence === undefined
+				? 0
+				: nonNegativeNumber(event.occurrence, `event[${index}].occurrence`);
+			const pointerId = event.pointerId === undefined
+				? 0
+				: nonNegativeNumber(event.pointerId, `event[${index}].pointerId`);
+			const timeMs = event.timeMs === undefined
+				? 0
+				: nonNegativeNumber(event.timeMs, `event[${index}].timeMs`);
+			if (!Number.isSafeInteger(occurrence) || !Number.isSafeInteger(pointerId)) {
+				throw new Error(`event[${index}] benötigt ganzzahlige occurrence und pointerId`);
+			}
+			return Object.freeze({
+				kind: "tap-visible-text",
+				text: event.text,
+				occurrence,
+				pointerId,
+				timeMs,
+				waitAfterMs: event.waitAfterMs === undefined
+					? 0
+					: nonNegativeNumber(event.waitAfterMs, `event[${index}].waitAfterMs`),
+			});
+		}
 		if (event.kind === "assert") {
 			const rawTextIncludes = event.rawTextIncludes === undefined ? [] : event.rawTextIncludes;
 			if (!Array.isArray(rawTextIncludes) || rawTextIncludes.some(value => typeof value !== "string")) {
 				throw new Error(`event[${index}].rawTextIncludes muss ein Zeichenfolgen-Array sein`);
+			}
+			const rawTextObservedIncludes = event.rawTextObservedIncludes === undefined
+				? []
+				: event.rawTextObservedIncludes;
+			if (!Array.isArray(rawTextObservedIncludes)
+				|| rawTextObservedIncludes.some(value => typeof value !== "string")) {
+				throw new Error(`event[${index}].rawTextObservedIncludes muss ein Zeichenfolgen-Array sein`);
 			}
 			const activeTextInputTextsInclude = event.activeTextInputTextsInclude === undefined
 				? []
@@ -83,6 +125,7 @@ export function loadApkInteractionReplayManifest(filePath: string): ApkInteracti
 				throw new Error(`event[${index}].activeTextInputCount muss eine ganze Zahl sein`);
 			}
 			if (rawTextIncludes.length === 0
+				&& rawTextObservedIncludes.length === 0
 				&& activeTextInputCount === undefined
 				&& activeTextInputTextsInclude.length === 0
 				&& activeTextInputMaxLengthsInclude.length === 0) {
@@ -91,6 +134,7 @@ export function loadApkInteractionReplayManifest(filePath: string): ApkInteracti
 			return Object.freeze({
 				kind: "assert",
 				rawTextIncludes: Object.freeze([...rawTextIncludes] as string[]),
+				rawTextObservedIncludes: Object.freeze([...rawTextObservedIncludes] as string[]),
 				activeTextInputTextsInclude: Object.freeze([...activeTextInputTextsInclude] as string[]),
 				activeTextInputMaxLengthsInclude: Object.freeze([...activeTextInputMaxLengthsInclude] as number[]),
 				...(activeTextInputCount === undefined ? {} : { activeTextInputCount }),

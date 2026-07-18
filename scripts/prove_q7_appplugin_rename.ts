@@ -26,6 +26,7 @@ interface ProofOptions {
 	outputPath: string;
 	timeoutMs: number;
 	scenario: ProofScenario;
+	runtimeLabel: string;
 }
 
 function record(value: unknown, context: string): JsonRecord {
@@ -70,7 +71,8 @@ function parseArgs(args: string[]): ProofOptions {
 		localKeyFilePath: path.join(runtimeDirectory, ".q7-local.key"),
 		outputPath: path.join(runtimeDirectory, "q7-l5-room-rename-proof.json"),
 		timeoutMs: 180_000,
-		scenario: "rename-success"
+		scenario: "rename-success",
+		runtimeLabel: "unchanged Q7 L5 Hermes AppPlugin"
 	};
 	const pathOptions: Readonly<Record<string, keyof ProofOptions>> = {
 		"--probe": "probePath",
@@ -108,6 +110,12 @@ function parseArgs(args: string[]): ProofOptions {
 				throw new Error("--timeout-ms benötigt eine positive Ganzzahl");
 			}
 			options.timeoutMs = timeoutMs;
+			continue;
+		}
+		if (option === "--runtime-label") {
+			const runtimeLabel = args[++index];
+			if (!runtimeLabel) throw new Error("--runtime-label benötigt einen Wert");
+			options.runtimeLabel = runtimeLabel;
 			continue;
 		}
 		const property = pathOptions[option];
@@ -366,7 +374,8 @@ function buildSanitizedProof(
 	interactionManifestPath: string,
 	bundleHashBefore: string,
 	bundleHashAfter: string,
-	scenario: ProofScenario
+	scenario: ProofScenario,
+	runtimeLabel: string
 ): JsonRecord {
 	if (bundleHashBefore !== bundleHashAfter)
 		throw new Error("Das AppPlugin-Bundle wurde während des Beweislaufs verändert");
@@ -421,9 +430,10 @@ function buildSanitizedProof(
 	});
 	const manifestEvents = expectedEvents.map(event => record(event, "Interaktionsmanifest-Ereignis"));
 	const assertedRawText = manifestEvents.flatMap(event =>
-		event.kind === "assert" && Array.isArray(event.rawTextIncludes)
-			? event.rawTextIncludes.filter(value => typeof value === "string") as string[]
-			: []
+		event.kind === "assert"
+			? [event.rawTextIncludes, event.rawTextObservedIncludes].flatMap(values =>
+				Array.isArray(values) ? values.filter(value => typeof value === "string") as string[] : [])
+			: [],
 	);
 	const textInputManifestEvents = manifestEvents.filter(event => event.kind === "text-input");
 	const requestedInputText = textInputManifestEvents.at(-1)?.text;
@@ -635,8 +645,8 @@ function buildSanitizedProof(
 		);
 		const successAssertion = manifestEvents.find(event =>
 			event.kind === "assert"
-			&& Array.isArray(event.rawTextIncludes)
-			&& event.rawTextIncludes.includes("Erfolgreich benannt")
+			&& [event.rawTextIncludes, event.rawTextObservedIncludes].some(values =>
+				Array.isArray(values) && values.includes("Erfolgreich benannt"))
 		);
 		const failureInputTexts = failureAssertion && Array.isArray(failureAssertion.activeTextInputTextsInclude)
 			? failureAssertion.activeTextInputTextsInclude
@@ -668,7 +678,7 @@ function buildSanitizedProof(
 		status: "passed",
 		generatedAt: new Date().toISOString(),
 		scenario,
-		runtime: "unchanged Q7 L5 Hermes AppPlugin",
+		runtime: runtimeLabel,
 		captureOnly: true,
 		bundle: {
 			kind: result.bundleKind,
@@ -721,7 +731,8 @@ async function main(): Promise<void> {
 			options.interactionManifestPath,
 			bundleHashBefore,
 			sha256(options.bundlePath),
-			options.scenario
+			options.scenario,
+			options.runtimeLabel
 		);
 		fs.mkdirSync(path.dirname(options.outputPath), { recursive: true });
 		fs.writeFileSync(options.outputPath, `${JSON.stringify(proof, null, 2)}\n`, "utf8");
