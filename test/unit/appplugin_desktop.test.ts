@@ -98,6 +98,7 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		const html = fs.readFileSync(htmlPath, "utf8");
 		const source = fs.readFileSync(sourcePath, "utf8");
 		const surface = fs.readFileSync(surfacePath, "utf8");
+		const probe = fs.readFileSync(probePath, "utf8");
 
 		for (const id of ["zoomOut", "zoomIn", "zoomValue", "desktopMap", "selectionSummary"]) {
 			expect(html).toContain(`id="${id}"`);
@@ -118,7 +119,11 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(source).not.toContain("React-Tag ${snapshot.surface.tag}");
 		expect(source).not.toContain("revision: snapshot.revision");
 		expect(html).toContain('aria-label="Zoom wird vom AppPlugin verwaltet">Zoom</span>');
-		expect(surface).not.toContain('addEventListener("wheel"');
+		expect(surface).toContain('addEventListener("wheel"');
+		expect(surface).toContain('this.#health.view !== "full"');
+		expect(surface).toContain("fetch(`${this.#apiBaseUrl}/wheel?view=${this.#health.view}`");
+		expect(probe).toContain('url.pathname === "/wheel"');
+		expect(probe).toContain("uiExecution.scrollViewRuntime().wheel");
 		expect(html).toContain('data-tool="zones" disabled');
 		expect(sourcePath).toBeTruthy();
 	});
@@ -145,15 +150,25 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(zoomIn[3].pointerId).toBe(zoomIn[0].pointerId);
 	});
 
-	it("coalesces raw mouse moves and reloads frames only for AppPlugin visual mutations", () => {
+	it("keeps at most one AppPlugin MOVE in flight and reloads frames only for visual mutations", () => {
 		const surface = fs.readFileSync(surfacePath, "utf8");
 		const probe = fs.readFileSync(probePath, "utf8");
 		const pointerEndpoint = probe.slice(probe.indexOf('url.pathname === "/pointer"'));
 
 		expect(surface).toContain("#pendingPointerMoves");
+		expect(surface).toContain("#pointerMoveRequestActive");
+		expect(surface).toContain("#scheduleLatestPointerMoves");
+		expect(surface).toContain("#takePendingPointerMoves");
+		expect(surface).toContain("const pendingMoves = this.#takePendingPointerMoves()");
+		expect(surface).toContain("if (this.#pointerMoveRequestActive || this.#pendingPointerMoves.size === 0) return");
+		expect(surface).toContain("await this.#requestPointerSequence(moves, false)");
+		expect(surface).toContain("this.#scheduleLatestPointerMoves();");
+		expect(surface).not.toContain("if (moves.length > 0) void this.#sendPointerSequence(moves)");
 		expect(surface).toContain("requestAnimationFrame");
 		expect(surface).toContain("frameRevision");
 		expect(surface).toContain("if (frameChanged) this.#refreshFrame()");
+		expect(surface).toContain("if (publicStateBefore !== this.#interactivePublicState()) this.#emitChange()");
+		expect(surface).toContain("this.#pointerEventSummary");
 		expect(probe).toContain("const resolveCurrentSurface");
 		expect(probe).toContain("const frameChanged = uiManager.visualMutationRevision()");
 		expect(probe).toContain('response.setHeader("X-AppPlugin-Frame-Revision"');
@@ -330,7 +345,28 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(resolver).not.toMatch(/Voll|Räume|Zonen|Saugen|Dockingstation/u);
 		expect(html).toContain("Direkter AppPlugin-Zustand · bundle-lokalisiert");
 		expect(html).toContain('data-intent="clean.start" disabled');
+		expect(html).toContain('data-semantic-action="dock.panel" disabled');
 		expect(html).toContain("· über AppPlugin");
+		expect(source).toContain("button.dataset.semanticAction as LiveAppPluginSemanticActionId");
+		expect(source).toContain('candidate.id === button.dataset.semanticAction');
+		expect(source).toContain('action.id === "dock.panel"');
+	});
+
+	it("does not present offline previews as working PC or device actions", () => {
+		const html = fs.readFileSync(htmlPath, "utf8");
+		const source = fs.readFileSync(sourcePath, "utf8");
+
+		expect(html).toContain('data-intent="clean.pause" disabled');
+		expect(html).toContain('data-intent="clean.locate" disabled');
+		expect(html).toContain('data-intent="dock.empty" disabled');
+		expect(html).toContain('data-schedule="weekday-morning" disabled');
+		expect(html).toContain('data-device-setting="map.furniture" disabled');
+		expect(html).toContain('data-history-id="today-0730" disabled');
+		expect(html).toContain('id="clearSelection" class="tool-button" type="button" disabled');
+		expect(html).toContain("Vorschau · AppPlugin-Vertrag offen");
+		expect(source).toContain('[data-intent]:not([data-intent=\\"clean.start\\"])');
+		expect(source).toContain("Vorschau: semantischer AppPlugin-Vertrag noch offen");
+		expect(source).toContain("Vorschau: AppPlugin-Historienvertrag noch offen");
 	});
 
 	it("starts Q7 and Q10 from the real ignored local recordings instead of the synthetic map", () => {

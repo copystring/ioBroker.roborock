@@ -236,16 +236,18 @@
 			"dependsOn": ["P0B-REACT-NATIVE-BRIDGE"],
 			"evidence": [
 				"src/apppluginHost/apkPointerInputBridge.ts",
+				"src/apppluginHost/apkScrollViewRuntime.ts",
 				"src/apppluginHost/apkUiManagerRuntime.ts",
 				"src/apppluginHost/apkNativeViewHierarchyRuntime.ts",
 				"src/www/apppluginLab/live-appplugin-map-surface.ts",
 				"test/unit/appplugin_apk_pointer_input_bridge.test.ts",
+				"test/unit/appplugin_apk_scroll_view_runtime.test.ts",
 				"test/unit/appplugin_apk_ui_manager_runtime.test.ts",
 				"test/unit/appplugin_apk_native_view_hierarchy_runtime.test.ts",
 				"test/unit/appplugin_apk_text_input_runtime.test.ts",
 				"test/unit/appplugin_apk_native_animated_runtime.test.ts"
 			],
-			"nextAction": "Pointerverlust, Abbruch, Fokus und Dichtetransformation gegen Familienläufe schließen; dabei Rohbewegungen takten und Frames nur nach visuellen AppPlugin-Mutationen übertragen."
+			"nextAction": "Pointerverlust, Abbruch, Fokus, Fling/Momentum und verschachtelte ScrollViews gegen Familienläufe schließen; der belegte Latest-MOVE- und native ScrollView-Vertrag bleibt zentral und profilunabhängig."
 		},
 		{
 			"id": "P0B-SKIA-HOST",

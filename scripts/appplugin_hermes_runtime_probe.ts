@@ -593,6 +593,14 @@ interface PointerSequenceHttpRequest {
 	pointers: readonly PointerHttpRequest[];
 }
 
+interface WheelHttpRequest {
+	x: number;
+	y: number;
+	deltaX: number;
+	deltaY: number;
+	timeMs: number;
+}
+
 interface ThemeHttpRequest {
 	mode: "dark" | "light" | "system";
 	systemColorScheme: "dark" | "light";
@@ -699,6 +707,29 @@ function parsePointerSequenceHttpRequest(record: Readonly<Record<string, unknown
 			}
 			return parsePointerHttpRequest(pointer as Readonly<Record<string, unknown>>);
 		}),
+	};
+}
+
+function parseWheelHttpRequest(record: Readonly<Record<string, unknown>>): WheelHttpRequest {
+	const values = {
+		x: record.x,
+		y: record.y,
+		deltaX: record.deltaX,
+		deltaY: record.deltaY,
+	};
+	for (const [name, value] of Object.entries(values)) {
+		if (typeof value !== "number" || !Number.isFinite(value)) {
+			throw new Error(`Scrollrad-Anfrage benötigt eine endliche Zahl für ${name}`);
+		}
+	}
+	return {
+		x: values.x as number,
+		y: values.y as number,
+		deltaX: values.deltaX as number,
+		deltaY: values.deltaY as number,
+		timeMs: typeof record.timeMs === "number" && Number.isFinite(record.timeMs)
+			? record.timeMs
+			: Date.now(),
 	};
 }
 
@@ -1112,6 +1143,7 @@ async function main(): Promise<void> {
 	const pointerInput = new ApkPointerInputBridge(
 		uiExecution.hitTestRuntime(),
 		new ApkTouchEventDispatcher(new ApkTouchEventRuntime(), session),
+		uiExecution.scrollViewRuntime(),
 	);
 	const textInput = new ApkTextInputRuntime(uiManager, session);
 	const uiExecutionSnapshots: unknown[] = [];
@@ -1700,6 +1732,7 @@ async function main(): Promise<void> {
 						: pointerInput.pointerUp(pointer.pointerId as number, pointer.x as number, pointer.y as number, pointer.timeMs as number);
 			const dispatchInteractivePointers = async (pointers: readonly PointerHttpRequest[]) => {
 				const uiVisualRevisionBefore = uiManager.visualMutationRevision();
+				const nativeVisualRevisionBefore = uiExecution.nativeHierarchyRuntime().visualMutationRevision();
 				const pictureUpdatesBefore = skiaHost.getDiagnostics().pictureUpdates;
 				const dispatches = [];
 				// Android liefert eine Mehrfinger-Geste als zusammenhängende Touchfolge.
@@ -1716,9 +1749,29 @@ async function main(): Promise<void> {
 				await stabilizeInteractiveUi();
 				revision += 1;
 				const frameChanged = uiManager.visualMutationRevision() !== uiVisualRevisionBefore
+					|| uiExecution.nativeHierarchyRuntime().visualMutationRevision() !== nativeVisualRevisionBefore
 					|| skiaHost.getDiagnostics().pictureUpdates !== pictureUpdatesBefore;
 				if (frameChanged) frameRevision += 1;
 				return { dispatches, frameChanged };
+			};
+			const dispatchInteractiveWheel = async (wheel: WheelHttpRequest) => {
+				const uiVisualRevisionBefore = uiManager.visualMutationRevision();
+				const nativeVisualRevisionBefore = uiExecution.nativeHierarchyRuntime().visualMutationRevision();
+				const pictureUpdatesBefore = skiaHost.getDiagnostics().pictureUpdates;
+				const dispatch = await uiExecution.scrollViewRuntime().wheel(
+					wheel.x,
+					wheel.y,
+					wheel.deltaX,
+					wheel.deltaY,
+					wheel.timeMs,
+				);
+				await stabilizeInteractiveUi();
+				revision += 1;
+				const frameChanged = uiManager.visualMutationRevision() !== uiVisualRevisionBefore
+					|| uiExecution.nativeHierarchyRuntime().visualMutationRevision() !== nativeVisualRevisionBefore
+					|| skiaHost.getDiagnostics().pictureUpdates !== pictureUpdatesBefore;
+				if (frameChanged) frameRevision += 1;
+				return { dispatch, frameChanged };
 			};
 			let requestInteractiveServerStop: (() => void) | undefined;
 			const server = createServer((request, response) => {
@@ -2061,6 +2114,33 @@ async function main(): Promise<void> {
 						response.setHeader("X-AppPlugin-Revision", String(revision));
 						response.setHeader("X-AppPlugin-Frame-Revision", String(frameRevision));
 						response.end(artifact.svg);
+						return;
+					}
+					if (request.method === "POST" && url.pathname === "/wheel") {
+						if (pointerInput.activePointerIds().length > 0) {
+							throw new Error("Scrollrad-Eingabe benötigt eine ruhende Pointer-Sitzung");
+						}
+						const view = requestedView(url);
+						const wheel = parseWheelHttpRequest(await readJsonRequest(request));
+						const { dispatch, frameChanged } = await dispatchInteractiveWheel(wheel);
+						const { currentSurface, viewport } = resolveCurrentSurface(view);
+						sendJson(response, 200, {
+							revision,
+							frameRevision,
+							frameChanged,
+							surface: currentSurface,
+							viewport,
+							view,
+							targets: dispatch ? [dispatch.tag] : [],
+							changedIndices: [],
+							activePointerIds: pointerInput.activePointerIds(),
+							jsResponder: uiManager.jsResponder(),
+							pendingNativeMeasurementCount: uiManager.pendingNativeMeasurementCount(),
+							publishedDpsCount: publishedDps.length,
+							semanticActions: semanticActionsHttpState(),
+							scrollDispatch: dispatch,
+							...localizationHttpState(),
+						});
 						return;
 					}
 					if (request.method === "POST" && url.pathname === "/pointer") {

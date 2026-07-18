@@ -34,6 +34,7 @@ export * from "./apkSoundManagerRuntime";
 export * from "./apkStatusBarRuntime";
 export * from "./apkRpcBlobCodec";
 export * from "./apkRpcRequestBroker";
+export * from "./apkScrollViewRuntime";
 export * from "./apkTimingRuntime";
 export * from "./apkTouchEventRuntime";
 export * from "./apkTextInputRuntime";

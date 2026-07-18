@@ -218,8 +218,12 @@ export class LiveAppPluginMapSurface {
 	readonly #apiBaseUrl: string;
 	readonly #activePointers = new Set<number>();
 	readonly #pendingPointerMoves = new Map<number, { x: number; y: number }>();
+	#pendingWheel?: { x: number; y: number; deltaX: number; deltaY: number };
 	#requestQueue: Promise<unknown> = Promise.resolve();
 	#pointerMoveFrame?: number;
+	#pointerMoveRequestActive = false;
+	#wheelFrame?: number;
+	#wheelRequestActive = false;
 	#health!: LiveAppPluginHealth;
 	#publishedDpsCount = 0;
 
@@ -414,14 +418,32 @@ export class LiveAppPluginMapSurface {
 				return;
 			}
 			event.preventDefault();
-			const pendingMove = this.#takePendingPointerMove(event.pointerId);
+			const pendingMoves = this.#takePendingPointerMoves();
 			void this.#sendPointerSequence([
-				...(pendingMove ? [{ kind: "move" as const, pointerId: event.pointerId, ...pendingMove }] : []),
+				...pendingMoves,
 				{ kind: "up" as const, pointerId: event.pointerId, x: point.x, y: point.y },
 			]);
 		};
 		this.options.viewport.addEventListener("pointerup", event => release("up", event));
 		this.options.viewport.addEventListener("pointercancel", event => release("cancel", event));
+		this.options.viewport.addEventListener("wheel", event => {
+			if (this.#health.view !== "full" || this.#activePointers.size > 0) return;
+			const point = this.#toSurfacePoint(event.clientX, event.clientY);
+			if (!point) return;
+			event.preventDefault();
+			const scale = this.#surfaceScale();
+			const deltaScale = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+				? 16
+				: event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+					? this.#health.viewport.height
+					: 1 / scale;
+			this.#queueWheel(
+				point.x,
+				point.y,
+				event.deltaX * deltaScale,
+				event.deltaY * deltaScale,
+			);
+		}, { passive: false });
 	}
 
 	#queuePointerMove(pointerId: number, x: number, y: number): void {
@@ -429,30 +451,102 @@ export class LiveAppPluginMapSurface {
 		if (this.#pointerMoveFrame !== undefined) return;
 		this.#pointerMoveFrame = requestAnimationFrame(() => {
 			this.#pointerMoveFrame = undefined;
-			const moves = [...this.#pendingPointerMoves].map(([pendingPointerId, point]) => ({
-				kind: "move" as const,
-				pointerId: pendingPointerId,
-				...point,
-			}));
-			this.#pendingPointerMoves.clear();
-			if (moves.length > 0) void this.#sendPointerSequence(moves);
+			this.#scheduleLatestPointerMoves();
 		});
 	}
 
-	#takePendingPointerMove(pointerId: number): { x: number; y: number } | undefined {
-		const move = this.#pendingPointerMoves.get(pointerId);
-		this.#pendingPointerMoves.delete(pointerId);
-		if (this.#pendingPointerMoves.size === 0 && this.#pointerMoveFrame !== undefined) {
+	/**
+	 * Mirrors Android's frame-bound input delivery: while Hermes processes one
+	 * MOVE, browser frames only replace the pending coordinates. They must never
+	 * append an unbounded list of stale MOVE requests behind the current frame.
+	 */
+	#scheduleLatestPointerMoves(): void {
+		if (this.#pointerMoveRequestActive || this.#pendingPointerMoves.size === 0) return;
+		this.#pointerMoveRequestActive = true;
+		void this.#enqueue(async () => {
+			const moves = [...this.#pendingPointerMoves].map(([pointerId, point]) => ({
+				kind: "move" as const,
+				pointerId,
+				...point,
+			}));
+			this.#pendingPointerMoves.clear();
+			if (moves.length > 0) await this.#requestPointerSequence(moves, false);
+		}).finally(() => {
+			this.#pointerMoveRequestActive = false;
+			this.#scheduleLatestPointerMoves();
+		});
+	}
+
+	#takePendingPointerMoves(): readonly Readonly<{
+		kind: "move";
+		pointerId: number;
+		x: number;
+		y: number;
+	}>[] {
+		const moves = [...this.#pendingPointerMoves].map(([pointerId, point]) => ({
+			kind: "move" as const,
+			pointerId,
+			...point,
+		}));
+		this.#pendingPointerMoves.clear();
+		if (this.#pointerMoveFrame !== undefined) {
 			cancelAnimationFrame(this.#pointerMoveFrame);
 			this.#pointerMoveFrame = undefined;
 		}
-		return move;
+		return moves;
+	}
+
+	#queueWheel(x: number, y: number, deltaX: number, deltaY: number): void {
+		const pending = this.#pendingWheel;
+		this.#pendingWheel = {
+			x,
+			y,
+			deltaX: (pending?.deltaX ?? 0) + deltaX,
+			deltaY: (pending?.deltaY ?? 0) + deltaY,
+		};
+		if (this.#wheelFrame !== undefined) return;
+		this.#wheelFrame = requestAnimationFrame(() => {
+			this.#wheelFrame = undefined;
+			this.#scheduleLatestWheel();
+		});
+	}
+
+	#scheduleLatestWheel(): void {
+		if (this.#wheelRequestActive || !this.#pendingWheel) return;
+		this.#wheelRequestActive = true;
+		void this.#enqueue(async () => {
+			const wheel = this.#pendingWheel;
+			this.#pendingWheel = undefined;
+			if (!wheel) return;
+			const response = await fetch(`${this.#apiBaseUrl}/wheel?view=${this.#health.view}`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					...wheel,
+					timeMs: performance.timeOrigin + performance.now(),
+				}),
+			});
+			const payload = await response.json() as PointerResponse | { error: string };
+			if (!response.ok || "error" in payload) {
+				throw new Error("error" in payload ? payload.error : `Scrollrad-Bridge antwortet mit HTTP ${response.status}`);
+			}
+			await this.#applyPointerResponse(payload);
+		}).finally(() => {
+			this.#wheelRequestActive = false;
+			this.#scheduleLatestWheel();
+		});
+	}
+
+	#surfaceScale(): number {
+		const rect = this.options.viewport.getBoundingClientRect();
+		const { width, height } = this.#health.viewport;
+		return Math.min(rect.width / width, rect.height / height);
 	}
 
 	#toSurfacePoint(clientX: number, clientY: number): { x: number; y: number } | undefined {
 		const rect = this.options.viewport.getBoundingClientRect();
 		const { width, height, x, y } = this.#health.viewport;
-		const scale = Math.min(rect.width / width, rect.height / height);
+		const scale = this.#surfaceScale();
 		const renderedWidth = width * scale;
 		const renderedHeight = height * scale;
 		const left = rect.left + (rect.width - renderedWidth) / 2;
@@ -473,33 +567,41 @@ export class LiveAppPluginMapSurface {
 	#sendPointerSequence(
 		pointers: readonly Readonly<{ kind: "down" | "move" | "up"; pointerId: number; x: number; y: number }>[],
 	): Promise<void> {
-		return this.#enqueue(async () => {
-			if (pointers.length === 1) {
-				await this.#requestPointer(pointers[0]);
-				return;
-			}
-			const startedAt = performance.timeOrigin + performance.now();
-			const response = await fetch(`${this.#apiBaseUrl}/pointer-sequence?view=${this.#health.view}`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					pointers: pointers.map((pointer, index) => ({ ...pointer, timeMs: startedAt + index })),
-				}),
-			});
-			const payload = await response.json() as PointerResponse | { error: string };
-			if (!response.ok || "error" in payload) {
-				throw new Error("error" in payload ? payload.error : `Pointer-Sequenz antwortet mit HTTP ${response.status}`);
-			}
-			await this.#applyPointerResponse(payload);
-			this.options.onEvent("AppPlugin-Pointersequenz", {
-				kinds: pointers.map(pointer => pointer.kind),
-				...payload,
-			});
+		return this.#enqueue(() => this.#requestPointerSequence(pointers, true));
+	}
+
+	async #requestPointerSequence(
+		pointers: readonly Readonly<{ kind: "down" | "move" | "up"; pointerId: number; x: number; y: number }>[],
+		report: boolean,
+	): Promise<void> {
+		if (pointers.length === 1) {
+			await this.#requestPointer(pointers[0], report);
+			return;
+		}
+		const startedAt = performance.timeOrigin + performance.now();
+		const response = await fetch(`${this.#apiBaseUrl}/pointer-sequence?view=${this.#health.view}`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				pointers: pointers.map((pointer, index) => ({ ...pointer, timeMs: startedAt + index })),
+			}),
 		});
+		const payload = await response.json() as PointerResponse | { error: string };
+		if (!response.ok || "error" in payload) {
+			throw new Error("error" in payload ? payload.error : `Pointer-Sequenz antwortet mit HTTP ${response.status}`);
+		}
+		await this.#applyPointerResponse(payload);
+		if (report) {
+			this.options.onEvent("AppPlugin-Pointersequenz", this.#pointerEventSummary(
+				pointers.map(pointer => pointer.kind),
+				payload,
+			));
+		}
 	}
 
 	async #requestPointer(
 		pointer: Readonly<{ kind: "down" | "move" | "up"; pointerId: number; x: number; y: number }>,
+		report: boolean,
 	): Promise<void> {
 		const response = await fetch(`${this.#apiBaseUrl}/pointer?view=${this.#health.view}`, {
 			method: "POST",
@@ -511,7 +613,12 @@ export class LiveAppPluginMapSurface {
 			throw new Error("error" in payload ? payload.error : `Pointer-Bridge antwortet mit HTTP ${response.status}`);
 		}
 		await this.#applyPointerResponse(payload);
-		this.options.onEvent(`AppPlugin-Pointer ${pointer.kind}`, payload);
+		if (report) {
+			this.options.onEvent(
+				`AppPlugin-Pointer ${pointer.kind}`,
+				this.#pointerEventSummary([pointer.kind], payload),
+			);
+		}
 	}
 
 	#sendCancel(): Promise<void> {
@@ -535,6 +642,7 @@ export class LiveAppPluginMapSurface {
 
 	async #applyPointerResponse(response: PointerResponse): Promise<void> {
 		const frameChanged = response.frameRevision !== this.#health.frameRevision;
+		const publicStateBefore = this.#interactivePublicState();
 		this.#health = {
 			...this.#health,
 			revision: response.revision,
@@ -553,8 +661,41 @@ export class LiveAppPluginMapSurface {
 			semanticActions: response.semanticActions.map(action => ({ ...action })),
 		};
 		if (frameChanged) this.#refreshFrame();
-		this.#emitChange();
+		if (publicStateBefore !== this.#interactivePublicState()) this.#emitChange();
 		if (response.publishedDpsCount > this.#publishedDpsCount) await this.#syncPublishedDps(response.publishedDpsCount);
+	}
+
+	#interactivePublicState(): string {
+		return JSON.stringify({
+			surface: this.#health.surface,
+			viewport: this.#health.viewport,
+			view: this.#health.view,
+			publishedDpsCount: this.#health.publishedDpsCount,
+			language: this.#health.language,
+			localeIdentifier: this.#health.localeIdentifier,
+			systemLocaleIdentifier: this.#health.systemLocaleIdentifier,
+			isRTL: this.#health.isRTL,
+			doLeftAndRightSwapInRTL: this.#health.doLeftAndRightSwapInRTL,
+			availableLanguages: this.#health.availableLanguages,
+			languageSwitching: this.#health.languageSwitching,
+			semanticActions: this.#health.semanticActions,
+		});
+	}
+
+	#pointerEventSummary(
+		kinds: readonly ("down" | "move" | "up")[],
+		response: Readonly<PointerResponse>,
+	): Readonly<Record<string, unknown>> {
+		return {
+			kinds,
+			revision: response.revision,
+			frameRevision: response.frameRevision,
+			frameChanged: response.frameChanged,
+			targets: response.targets,
+			changedIndices: response.changedIndices,
+			activePointerIds: response.activePointerIds,
+			publishedDpsCount: response.publishedDpsCount,
+		};
 	}
 
 	async #fetchHealth(view?: LiveAppPluginSurfaceView): Promise<LiveAppPluginHealth> {

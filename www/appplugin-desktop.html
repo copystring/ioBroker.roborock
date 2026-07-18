@@ -5,7 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<link rel="canonical" href="./appplugin-desktop.html" />
 		<title>Roborock AppPlugin · ioBroker PoC</title>
-		<script type="module" src="./appplugin-desktop.js?v=a07bb98481f5"></script>
+		<script type="module" src="./appplugin-desktop.js?v=a1f8b29c4a03"></script>
 		<style>
 			:root {
 				color-scheme: light;
@@ -331,7 +331,7 @@
 								<button class="tool-button" type="button" data-tool="noMop" disabled><span>Wischfreie Zone</span></button>
 								<button class="tool-button" type="button" data-tool="virtualWall" disabled><span>Unsichtbare Wand</span></button>
 								<button class="tool-button" type="button" data-tool="pin" disabled>Zielpunkt</button>
-								<button id="clearSelection" class="tool-button" type="button">Auswahl leeren</button>
+								<button id="clearSelection" class="tool-button" type="button" disabled title="Noch kein belegter semantischer AppPlugin-Vertrag">Auswahl leeren</button>
 							</div>
 							<div class="map-card">
 								<div id="mapOriginLabel" class="map-origin-label">Q7 L5 / SC01 · AppPlugin-Kartenviewport</div>
@@ -378,8 +378,8 @@
 								<div class="section-card">
 									<div class="action-grid">
 										<button class="action-button primary" type="button" data-intent="clean.start" disabled><span>Reinigen</span> · über AppPlugin</button>
-										<button class="action-button" type="button" data-intent="clean.pause"><span>Pause</span></button>
-										<button class="action-button" type="button" data-intent="clean.dock"><span>Andocken</span></button>
+										<button class="action-button" type="button" data-intent="clean.pause" disabled><span>Pause</span></button>
+										<button class="action-button" type="button" data-semantic-action="dock.panel" disabled><span>Dockingstation</span></button>
 									</div>
 									<div class="offline-note" style="margin-top:8px"><strong>Jetzt testbar:</strong> Wechsle oberhalb der Karte auf „Original testen“. Dort kannst du die originalen AppPlugin-Menüs bedienen, Räume auswählen sowie Bearbeiten → Unterteilen oder Zusammenführen öffnen. Entstehende DPS werden unten angezeigt, aber nicht an ein Gerät gesendet.</div>
 								</div>
@@ -388,40 +388,40 @@
 							<section class="context-page" data-context-page="overview" hidden>
 								<div class="panel-heading"><h2>Geräteübersicht</h2><small>Offline-Fixture</small></div>
 								<div class="quick-stats"><div class="stat"><strong>82 %</strong><small>Akku</small></div><div class="stat"><strong>42 m²</strong><small>Fläche</small></div><div class="stat"><strong>48 min</strong><small>Dauer</small></div></div>
-								<div class="section-card"><div class="section-title"><strong>Roboter</strong><small>Bereit</small></div><div class="action-grid"><button class="action-button" type="button" data-intent="clean.locate"><span>Meinen Roboter suchen</span></button><button class="action-button" type="button" data-intent="clean.dock"><span>Andocken</span></button></div></div>
-								<div class="section-card"><div class="section-title"><strong>Station</strong><small>Q Revo-Funktionsbild</small></div><div class="action-grid"><button class="action-button" type="button" data-intent="dock.empty"><span>Staubbehälter entleeren</span></button><button class="action-button" type="button" data-intent="dock.wash"><span>Mopp waschen</span></button><button class="action-button" type="button" data-intent="dock.dry"><span>Trocknen</span></button></div></div>
+								<div class="section-card"><div class="section-title"><strong>Roboter</strong><small>Vorschau · AppPlugin-Vertrag offen</small></div><div class="action-grid"><button class="action-button" type="button" data-intent="clean.locate" disabled><span>Meinen Roboter suchen</span></button><button class="action-button" type="button" data-intent="clean.dock" disabled><span>Andocken</span></button></div></div>
+								<div class="section-card"><div class="section-title"><strong>Station</strong><small>Vorschau · AppPlugin-Verträge offen</small></div><div class="action-grid"><button class="action-button" type="button" data-intent="dock.empty" disabled><span>Staubbehälter entleeren</span></button><button class="action-button" type="button" data-intent="dock.wash" disabled><span>Mopp waschen</span></button><button class="action-button" type="button" data-intent="dock.dry" disabled><span>Trocknen</span></button></div></div>
 								<div class="offline-note">Statuswerte und Beschriftungen der Desktop-Hülle sind Demo-Fixtures. Im Produktpfad liefert ausschließlich das aktuell geladene AppPlugin seine Funktionsnamen und Übersetzungen.</div>
 							</section>
 
 							<section class="context-page" data-context-page="schedules" hidden>
 								<div class="panel-heading"><h2>Pläne</h2><small>3 Einträge</small></div>
 								<div class="list-card">
-									<label class="toggle-row" style="padding-inline:10px"><span><strong>Werktags morgens</strong><small>07:30 · Küche + Flur</small></span><span class="switch"><input type="checkbox" checked data-schedule="weekday-morning" /><span></span></span></label>
-									<label class="toggle-row" style="padding-inline:10px"><span><strong>Wohnbereich</strong><small>Mo, Mi, Fr · 13:00</small></span><span class="switch"><input type="checkbox" data-schedule="living-area" /><span></span></span></label>
-									<label class="toggle-row" style="padding-inline:10px"><span><strong>Nachtprogramm</strong><small>Täglich · 22:30 · Leise</small></span><span class="switch"><input type="checkbox" checked data-schedule="night" /><span></span></span></label>
+									<label class="toggle-row" style="padding-inline:10px"><span><strong>Werktags morgens</strong><small>Vorschau · AppPlugin-Vertrag offen</small></span><span class="switch"><input type="checkbox" checked data-schedule="weekday-morning" disabled /><span></span></span></label>
+									<label class="toggle-row" style="padding-inline:10px"><span><strong>Wohnbereich</strong><small>Vorschau · AppPlugin-Vertrag offen</small></span><span class="switch"><input type="checkbox" data-schedule="living-area" disabled /><span></span></span></label>
+									<label class="toggle-row" style="padding-inline:10px"><span><strong>Nachtprogramm</strong><small>Vorschau · AppPlugin-Vertrag offen</small></span><span class="switch"><input type="checkbox" checked data-schedule="night" disabled /><span></span></span></label>
 								</div>
 								<div class="offline-note">Zeitpläne werden hier nur als Desktop-Menü simuliert. Umschalten schreibt ausschließlich einen Eintrag ins Ereignisprotokoll.</div>
 							</section>
 
 							<section class="context-page" data-context-page="history" hidden>
 								<div class="panel-heading"><h2>Reinigungsverlauf</h2><small>Offline-Daten</small></div>
-								<div class="segmented"><button class="active" type="button"><span>Alle</span></button><button type="button">Reinigung</button><button type="button">Station</button></div>
+								<div class="segmented"><button class="active" type="button" disabled><span>Alle</span></button><button type="button" disabled>Reinigung</button><button type="button" disabled>Station</button></div>
 								<div class="list-card">
-									<button class="list-row" type="button" data-history-id="today-0730"><span><strong>Komplette Reinigung</strong><small>42 m² · 48 min · beendet</small></span><time>Heute 07:30</time></button>
-									<button class="list-row" type="button" data-history-id="yesterday-kitchen"><span><strong>Küche + Flur</strong><small>18 m² · 22 min · beendet</small></span><time>Gestern</time></button>
-									<button class="list-row" type="button" data-history-id="mop-wash"><span><strong>Moppwäsche</strong><small>Station · beendet</small></span><time>Gestern</time></button>
+									<button class="list-row" type="button" data-history-id="today-0730" disabled><span><strong>Komplette Reinigung</strong><small>Vorschau · AppPlugin-Vertrag offen</small></span><time>Heute 07:30</time></button>
+									<button class="list-row" type="button" data-history-id="yesterday-kitchen" disabled><span><strong>Küche + Flur</strong><small>Vorschau · AppPlugin-Vertrag offen</small></span><time>Gestern</time></button>
+									<button class="list-row" type="button" data-history-id="mop-wash" disabled><span><strong>Moppwäsche</strong><small>Vorschau · AppPlugin-Vertrag offen</small></span><time>Gestern</time></button>
 								</div>
 							</section>
 
 							<section class="context-page" data-context-page="settings" hidden>
 								<div class="panel-heading"><h2>Einstellungen</h2><small>Offline-Vorschau</small></div>
 								<div class="section-card"><div class="section-title"><strong>Kartendetails</strong><small>Host-Drahtmodell · Live-AppPlugin offen</small></div>
-									<label class="toggle-row"><span><strong>Möbel</strong><small>Auf der Karte anzeigen</small></span><span class="switch"><input type="checkbox" checked data-device-setting="map.furniture" /><span></span></span></label>
-									<label class="toggle-row"><span><strong>Fahrweg</strong><small>Reinigungsroute anzeigen</small></span><span class="switch"><input type="checkbox" checked data-device-setting="map.path" /><span></span></span></label>
-									<label class="toggle-row"><span><strong>Raumnamen</strong><small>Beschriftungen anzeigen</small></span><span class="switch"><input type="checkbox" checked data-device-setting="map.roomNames" /><span></span></span></label>
+									<label class="toggle-row"><span><strong>Möbel</strong><small>Vorschau · AppPlugin-Vertrag offen</small></span><span class="switch"><input type="checkbox" checked data-device-setting="map.furniture" disabled /><span></span></span></label>
+									<label class="toggle-row"><span><strong>Fahrweg</strong><small>Vorschau · AppPlugin-Vertrag offen</small></span><span class="switch"><input type="checkbox" checked data-device-setting="map.path" disabled /><span></span></span></label>
+									<label class="toggle-row"><span><strong>Raumnamen</strong><small>Vorschau · AppPlugin-Vertrag offen</small></span><span class="switch"><input type="checkbox" checked data-device-setting="map.roomNames" disabled /><span></span></span></label>
 								</div>
-								<div class="section-card"><div class="section-title"><strong>Karte bearbeiten</strong><small>Menüvorschau</small></div><div class="action-grid"><button class="action-button" type="button" data-intent="map.tool.change" data-intent-argument="editSurface"><span>Fläche bearbeiten</span></button><button class="action-button" type="button" data-intent="map.tool.change" data-intent-argument="cleaningArea"><span>Reinigungsfläche verwalten</span></button></div></div>
-								<div class="section-card"><div class="section-title"><strong>Wartung</strong><small>Funktionsmenü</small></div><div class="list-card"><button class="list-row" type="button" data-intent="device.setting.change" data-intent-argument="brush"><span><strong>Hauptbürste</strong><small>82 % verbleibend</small></span><em>›</em></button><button class="list-row" type="button" data-intent="device.setting.change" data-intent-argument="filter"><span><strong>Filter</strong><small>64 % verbleibend</small></span><em>›</em></button></div></div>
+								<div class="section-card"><div class="section-title"><strong>Karte bearbeiten</strong><small>Vorschau · AppPlugin-Verträge offen</small></div><div class="action-grid"><button class="action-button" type="button" data-intent="map.tool.change" data-intent-argument="editSurface" disabled><span>Fläche bearbeiten</span></button><button class="action-button" type="button" data-intent="map.tool.change" data-intent-argument="cleaningArea" disabled><span>Reinigungsfläche verwalten</span></button></div></div>
+								<div class="section-card"><div class="section-title"><strong>Wartung</strong><small>Vorschau · AppPlugin-Verträge offen</small></div><div class="list-card"><button class="list-row" type="button" data-intent="device.setting.change" data-intent-argument="brush" disabled><span><strong>Hauptbürste</strong><small>82 % verbleibend</small></span><em>›</em></button><button class="list-row" type="button" data-intent="device.setting.change" data-intent-argument="filter" disabled><span><strong>Filter</strong><small>64 % verbleibend</small></span><em>›</em></button></div></div>
 							</section>
 						</aside>
 					</div>

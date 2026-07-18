@@ -11,6 +11,19 @@ interface ActivePointer {
 	locationOffsetY: number;
 }
 
+export interface ApkNativePointerObserver {
+	pointerDown(
+		identifier: number,
+		pageX: number,
+		pageY: number,
+		timestamp: number,
+		targetTag: number,
+	): Promise<void>;
+	pointerMove(identifier: number, pageX: number, pageY: number, timestamp: number): Promise<void>;
+	pointerUp(identifier: number, pageX: number, pageY: number, timestamp: number): Promise<void>;
+	cancel(): void;
+}
+
 /**
  * Converts pointer input from the PC shell into the same touch stream that the
  * APK sends to RCTEventEmitter. It does not interpret map gestures or rooms.
@@ -20,7 +33,8 @@ export class ApkPointerInputBridge {
 
 	public constructor(
 		private readonly hitTestRuntime: ApkUiHitTestRuntime,
-		private readonly dispatcher: ApkTouchEventDispatcher
+		private readonly dispatcher: ApkTouchEventDispatcher,
+		private readonly nativeObserver?: ApkNativePointerObserver,
 	) {}
 
 	public activePointerIds(): readonly number[] {
@@ -63,6 +77,7 @@ export class ApkPointerInputBridge {
 		}
 		this.#activePointers.push(pointer);
 		try {
+			await this.nativeObserver?.pointerDown(identifier, pageX, pageY, timestamp, pointer.target);
 			return await this.dispatcher.dispatch({
 				eventName: "topTouchStart",
 				touches: this.#touches(timestamp),
@@ -83,6 +98,7 @@ export class ApkPointerInputBridge {
 		const pointer = this.#active(identifier);
 		pointer.pageX = pageX;
 		pointer.pageY = pageY;
+		await this.nativeObserver?.pointerMove(identifier, pageX, pageY, timestamp);
 		this.#refreshCoordinatesFromCurrentHitTarget();
 		return this.dispatcher.dispatch({
 			eventName: "topTouchMove",
@@ -99,6 +115,7 @@ export class ApkPointerInputBridge {
 		const pointer = this.#active(identifier);
 		pointer.pageX = pageX;
 		pointer.pageY = pageY;
+		await this.nativeObserver?.pointerUp(identifier, pageX, pageY, timestamp);
 		if (this.#activePointers.length === 1) this.#refreshCoordinatesFromCurrentHitTarget();
 		try {
 			return await this.dispatcher.dispatch({
@@ -114,6 +131,7 @@ export class ApkPointerInputBridge {
 	public async cancel(timestamp: number): Promise<Readonly<ApkTouchDispatch>> {
 		if (this.#activePointers.length === 0) throw new Error("Es gibt keine aktiven Zeiger");
 		try {
+			this.nativeObserver?.cancel();
 			return await this.dispatcher.dispatch({
 				eventName: "topTouchCancel",
 				touches: this.#touches(timestamp)

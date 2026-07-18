@@ -59,6 +59,8 @@ interface NativeLayoutBox {
 	y: number;
 	width: number;
 	height: number;
+	scrollX?: number;
+	scrollY?: number;
 	transform?: Readonly<{
 		a: number;
 		b: number;
@@ -423,10 +425,18 @@ class SnapshotSvgRenderer {
 		if (!layout) throw new Error(`Native Layout für React-Tag ${node.tag} fehlt`);
 		this.#diagnostics.renderedNativeViews += 1;
 		const opacity = finite(node.props.opacity, 1);
+		const children = nativeChildren(node).map(child => this.#native(child)).join("");
+		const scrollX = layout.scrollX ?? 0;
+		const scrollY = layout.scrollY ?? 0;
+		const scrolledChildren = scrollX === 0 && scrollY === 0
+			? children
+			: `<g data-apk-scroll-content="${node.tag}" transform="translate(${-scrollX} ${-scrollY})">${children}</g>`;
 		const content = node.viewName === "RNSVGSvgViewAndroid"
 			? this.#svgView(node, layout)
-			: [this.#nativeSelf(node, layout), ...nativeChildren(node).map(child => this.#native(child))].join("");
-		const clipId = node.props.overflow === "hidden" ? this.#clip(node, layout) : undefined;
+			: this.#nativeSelf(node, layout) + scrolledChildren;
+		const clipId = node.props.overflow === "hidden" || node.props.overflow === "scroll"
+			? this.#clip(node, layout)
+			: undefined;
 		const clipped = clipId ? `<g clip-path="url(#${clipId})">${content}</g>` : content;
 		return `<g data-react-tag="${node.tag}" data-view-name="${escapeXml(node.viewName)}" transform="${transformAttribute(layout)}"${opacity === 1 ? "" : ` opacity="${opacity}"`}>${clipped}</g>`;
 	}

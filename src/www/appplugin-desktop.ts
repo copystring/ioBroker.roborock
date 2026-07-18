@@ -293,6 +293,14 @@ class AppPluginDesktop {
 			});
 		});
 
+		document.querySelectorAll<HTMLButtonElement>("[data-semantic-action]").forEach(button => {
+			button.addEventListener("click", () => {
+				void this.mapSurface.invokeSemanticAction(
+					button.dataset.semanticAction as LiveAppPluginSemanticActionId,
+				);
+			});
+		});
+
 		document.querySelectorAll<HTMLButtonElement>("[data-clean-method]").forEach(button => {
 			button.addEventListener("click", () => {
 				this.method = button.dataset.cleanMethod as CleanMethod;
@@ -450,6 +458,10 @@ class AppPluginDesktop {
 				const label = document.querySelector<HTMLElement>('[data-intent="clean.start"] span');
 				if (label) label.textContent = action.label;
 			}
+			if (action.id === "dock.panel") {
+				const label = document.querySelector<HTMLElement>('[data-semantic-action="dock.panel"] span');
+				if (label) label.textContent = action.label;
+			}
 		}
 	}
 	private syncLanguageControl(snapshot: LiveAppPluginMapSnapshot): void {
@@ -522,6 +534,30 @@ class AppPluginDesktop {
 				? "Das laufende AppPlugin bietet noch keine semantische Reinigungsaktion an"
 				: "Löst die originale AppPlugin-Reinigungsaktion aus; Befehlsparameter bleiben im Bundle";
 		}
+		document.querySelectorAll<HTMLButtonElement>("[data-semantic-action]").forEach(button => {
+			const action = this.mapSnapshot?.semanticActions.find(candidate =>
+				candidate.id === button.dataset.semanticAction,
+			);
+			button.disabled = action?.enabled !== true;
+			button.title = button.disabled
+				? "Das laufende AppPlugin bietet diese semantische Aktion noch nicht an"
+				: "Löst die originale AppPlugin-Aktion ohne feste Bildschirmkoordinate aus";
+		});
+		const clearSelection = byId<HTMLButtonElement>("clearSelection");
+		clearSelection.disabled = true;
+		clearSelection.title = "Noch kein belegter semantischer AppPlugin-Vertrag";
+		document.querySelectorAll<HTMLButtonElement>("[data-intent]:not([data-intent=\"clean.start\"])").forEach(button => {
+			button.disabled = true;
+			button.title = "Vorschau: semantischer AppPlugin-Vertrag noch offen";
+		});
+		document.querySelectorAll<HTMLInputElement>("[data-device-setting], [data-schedule]").forEach(input => {
+			input.disabled = true;
+			input.title = "Vorschau: semantischer AppPlugin-Vertrag noch offen";
+		});
+		document.querySelectorAll<HTMLButtonElement>("[data-history-id]").forEach(button => {
+			button.disabled = true;
+			button.title = "Vorschau: AppPlugin-Historienvertrag noch offen";
+		});
 		byId<HTMLElement>("mapInstruction").textContent = this.mapSnapshot
 			? this.mapSnapshot.view === "full"
 				? "Original-Testansicht · AppPlugin-Menüs direkt anklicken · DPS unten prüfen"

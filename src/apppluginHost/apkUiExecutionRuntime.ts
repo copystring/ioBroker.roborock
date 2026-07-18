@@ -6,6 +6,7 @@ import {
 	type ApkNativeViewHierarchySnapshot,
 } from "./apkNativeViewHierarchyRuntime";
 import type { ApkJavaScriptModuleCaller } from "./apkTouchEventRuntime";
+import { ApkScrollViewRuntime } from "./apkScrollViewRuntime";
 import { ApkUiHitTestRuntime } from "./apkUiHitTestRuntime";
 import type { ApkUiManagerRuntime } from "./apkUiManagerRuntime";
 import { ApkYogaLayoutRuntime, type ApkYogaLayoutEntry } from "./apkYogaLayoutRuntime";
@@ -52,6 +53,7 @@ export class ApkUiExecutionRuntime {
 	readonly #nativeHierarchy: ApkNativeViewHierarchyRuntime;
 	readonly #hitTest: ApkUiHitTestRuntime;
 	readonly #layoutEvents: ApkLayoutEventRuntime;
+	readonly #scrollView: ApkScrollViewRuntime;
 	readonly #yoga: ApkYogaLayoutRuntime;
 
 	public constructor(private readonly options: Readonly<ApkUiExecutionRuntimeOptions>) {
@@ -66,6 +68,12 @@ export class ApkUiExecutionRuntime {
 		this.#nativeHierarchy = new ApkNativeViewHierarchyRuntime(options.uiManager.snapshot().tag, density);
 		this.#hitTest = new ApkUiHitTestRuntime(() => this.#nativeHierarchy.snapshot().root);
 		this.#layoutEvents = new ApkLayoutEventRuntime(options.jsModuleCaller, density);
+		this.#scrollView = new ApkScrollViewRuntime(
+			this.#nativeHierarchy,
+			this.#hitTest,
+			options.jsModuleCaller,
+			density,
+		);
 		this.#yoga = new ApkYogaLayoutRuntime({
 			width: positiveFinite(options.width, "UI-Breite"),
 			height: positiveFinite(options.height, "UI-Höhe"),
@@ -82,6 +90,10 @@ export class ApkUiExecutionRuntime {
 
 	public nativeHierarchyRuntime(): ApkNativeViewHierarchyRuntime {
 		return this.#nativeHierarchy;
+	}
+
+	public scrollViewRuntime(): ApkScrollViewRuntime {
+		return this.#scrollView;
 	}
 
 	public async stabilize(maxRounds = 8): Promise<Readonly<ApkUiExecutionResult>> {
@@ -103,6 +115,8 @@ export class ApkUiExecutionRuntime {
 			);
 			if (measurementCallbacks > 0) await this.options.afterLayoutEvents?.();
 			this.#nativeHierarchy.applyToHitTest(this.#hitTest);
+			this.#scrollView.synchronize();
+			latestNative = this.#nativeHierarchy.snapshot();
 			const layoutEvents = await this.#layoutEvents.dispatchChanged(shadowRoot, latestLayouts);
 			if (layoutEvents.length > 0) await this.options.afterLayoutEvents?.();
 			const operationCountAfter = this.options.uiManager.operations().length;

@@ -212,10 +212,12 @@ function yogaLayoutMap(entries: readonly Readonly<ApkYogaLayoutEntry>[]): Map<nu
 export class ApkNativeViewHierarchyRuntime {
 	readonly #dispositions = new Map<number, NativeDisposition>();
 	readonly #viewNames = new Map<number, string>();
+	readonly #scrollOffsets = new Map<number, Readonly<{ x: number; y: number }>>();
 	readonly #density: number;
 	#operationCursor = 0;
 	#snapshot?: Readonly<ApkNativeViewHierarchySnapshot>;
 	readonly #appliedHitTestTags = new Set<number>();
+	#visualMutationRevision = 0;
 
 	public constructor(private readonly rootTag: number, density = 1) {
 		if (!Number.isSafeInteger(rootTag) || rootTag < 1) {
@@ -263,11 +265,23 @@ export class ApkNativeViewHierarchyRuntime {
 		if (roots.length !== 1 || roots[0].tag !== this.rootTag) {
 			throw new Error("Die APK-native Hierarchie besitzt keine eindeutige Root-View");
 		}
+		const currentTags = new Set(nativeLayouts.map(entry => entry.tag));
+		for (const tag of this.#scrollOffsets.keys()) {
+			if (!currentTags.has(tag)) this.#scrollOffsets.delete(tag);
+		}
 		this.#snapshot = Object.freeze({
 			root: roots[0],
 			layouts: Object.freeze(nativeLayouts.map(entry => Object.freeze({
 				tag: entry.tag,
-				box: Object.freeze({ ...entry.box }),
+				box: Object.freeze({
+					...entry.box,
+					...(this.#scrollOffsets.has(entry.tag)
+						? {
+							scrollX: this.#scrollOffsets.get(entry.tag)?.x,
+							scrollY: this.#scrollOffsets.get(entry.tag)?.y,
+						}
+						: {}),
+				}),
 			}))),
 			collapsedTags: Object.freeze([...collapsedTags]),
 			virtualTags: Object.freeze([...virtualTags]),
@@ -278,6 +292,34 @@ export class ApkNativeViewHierarchyRuntime {
 	public snapshot(): Readonly<ApkNativeViewHierarchySnapshot> {
 		if (!this.#snapshot) throw new Error("Die APK-native Hierarchie wurde noch nicht aufgebaut");
 		return this.#snapshot;
+	}
+
+	public visualMutationRevision(): number {
+		return this.#visualMutationRevision;
+	}
+
+	public setScrollOffset(tag: number, x: number, y: number): boolean {
+		if (!Number.isSafeInteger(tag) || tag < 1) throw new Error("Scroll-Tag muss eine positive ganze Zahl sein");
+		finiteNumber(x, "scrollX");
+		finiteNumber(y, "scrollY");
+		const snapshot = this.snapshot();
+		if (!snapshot.layouts.some(entry => entry.tag === tag)) {
+			throw new Error(`Native ScrollView mit React-Tag ${tag} existiert nicht`);
+		}
+		const previous = this.#scrollOffsets.get(tag) ?? { x: 0, y: 0 };
+		if (previous.x === x && previous.y === y) return false;
+		this.#scrollOffsets.set(tag, Object.freeze({ x, y }));
+		this.#snapshot = Object.freeze({
+			...snapshot,
+			layouts: Object.freeze(snapshot.layouts.map(entry => entry.tag === tag
+				? Object.freeze({
+					tag: entry.tag,
+					box: Object.freeze({ ...entry.box, scrollX: x, scrollY: y }),
+				})
+				: entry)),
+		});
+		this.#visualMutationRevision += 1;
+		return true;
 	}
 
 	public applyToHitTest(hitTest: ApkUiHitTestRuntime): void {
