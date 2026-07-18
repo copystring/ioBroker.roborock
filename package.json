@@ -35,7 +35,7 @@
     "node-forge": "^1.4.0",
     "p-queue": "^9.3.1",
     "ping": "^1.0.0",
-    "protobufjs": "^8.6.5",
+    "protobufjs": "^8.7.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
