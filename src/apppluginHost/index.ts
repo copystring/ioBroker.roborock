@@ -37,6 +37,7 @@ export * from "./apkPluginBundle";
 export * from "./apkPluginHttpRuntime";
 export * from "./apkPluginPermissionsRuntime";
 export * from "./apkPluginInstallationStore";
+export * from "./apkPluginPackageInstaller";
 export * from "./apkPluginSdkRpcModule";
 export * from "./apkRriotSessionDescriptor";
 export * from "./apkRobotToAppMessage";

@@ -160,12 +160,71 @@ Sitzungsdeskriptor führt sie deshalb getrennt als
 `installation.mainPluginDownloadVersions`; ohne bestätigten Eintrag liefert
 unser `RRDevicesModule` wie die APK `0`.
 
+### Paketintegrität und Aktivierung
+
+Der Paketabschluss ist in der APK kryptografisch und dateisystemseitig
+definiert:
+
+1. Das Haupt-Plugin wird als ZIP geladen, an dessen Ende eine 256 Byte lange
+   RSA-Signatur hängt.
+2. `DownloadListener` bildet SHA-256 über alle Bytes vor dieser Signatur und
+   prüft sie mit `SHA256withRSA` sowie dem in der APK hinterlegten öffentlichen
+   2048-Bit-RSA-Schlüssel. Eine falsche Signatur löscht den Download und endet
+   mit Fehler `-21025`.
+3. Erst ein gültiges Archiv wird nach `<model>_tmp` entpackt. Danach löscht die
+   APK das ZIP, entfernt ein altes `<model>_READY` und benennt `_tmp` in
+   `_READY` um.
+4. Beim Gerätestart muss `_READY/index.android.bundle` lesbar sein. Die APK
+   verschiebt das bisher aktive Modellverzeichnis vorübergehend nach
+   `plugin_v3/tmp`, übernimmt `_READY` als aktives Modellverzeichnis und stellt
+   bei einem fehlgeschlagenen Rename den alten Ordner wieder her.
+5. Der Paket-Erfolgs-Callback übernimmt die temporären Versionswerte. Die
+   dekompilierte Reihenfolge schreibt diese Metadaten vor der anschließend
+   gestarteten asynchronen `_READY`-Aktivierung; Rename-Ergebnisse werden dabei
+   nicht überall geprüft.
+
+Der neuere `RnCardPluginFileRepo` verwendet zusätzlich eine zweite, ebenfalls
+APK-belegte Form: `index.android.bundle` wird vollständig mit SHA-256 gehasht
+und gegen die separate Datei `index.android.bundle.sign` mit demselben
+öffentlichen RSA-Schlüssel geprüft. Ein beim Start gefundenes gültiges
+Kategorieverzeichnis `<category>_READY` wird erst danach aktiviert; bei
+ungültiger Bundle-Signatur setzt die APK die gespeicherte Kategorieversion und
+den Plugin-Level auf `0`.
+
+`ApkMainPluginPackageInstaller` bildet beide Signaturformate direkt in
+TypeScript ab und übernimmt den Hauptpaketpfad
+`_tmp -> _READY -> aktiv`. Seine Produktgrenze ist bewusst strenger als die
+Android-Implementierung:
+
+- ZIP-CRC, Pfadflucht, symbolische Links, Anzahl sowie komprimierte und
+  entpackte Größen werden begrenzt.
+- Der Rollbackordner ist modellbezogen, weil der ioBroker-Prozess mehrere
+  Geräte parallel aktivieren kann; die APK nutzt beim interaktiven Einzelstart
+  den globalen Ordner `plugin_v3/tmp`.
+- Die sichtbare Downloadversion wird erst nach erfolgreicher Aktivierung
+  committed. Ein Fehler lässt aktives Bundle und bisherige Version gemeinsam
+  unverändert.
+
+Diese Härtungen sind ioBroker-Anpassungen und werden nicht als Verhalten der
+APK ausgegeben. Die Implementierung interpretiert weder Bundlecode noch
+Geräteklasse. Ein lokaler Gegenlauf bestätigte beide Signaturformen mit
+unveränderten Herstellerartefakten für Q7 L5, Q7 M5, Q10, RockMow Z1 und Saros
+Z70. Ein vollständiger RockMow-Installationslauf unter einem temporären
+Verzeichnis ergab denselben SHA-256-Hash für das aktivierte und das bereits
+entpackte Original-Bundle.
+
 Belege:
 
 - `com/roborock/smart/refactor/ui/plugins/modules/RRDevicesModuleImpl$getDeviceMainPluginDownloadVersion$2$1.java:49`
 - `com/roborock/smart/utils/o0OoOo0.java:62-65,68-71,124-127`
 - `com/roborock/smart/model/OooO.java:72-73`
 - `com/roborock/smart/model/OooOO0O.java:241-259`
+- `com/roborock/smart/service/OooO0O0.java:17-50`
+- `com/roborock/smart/service/DownloadListener$decompress$1.java:214-248,301-354`
+- `com/roborock/smart/model/DeviceManipulator$clickDevice$2.java:105-121,238-267`
+- `com/roborock/smart/model/DeviceManipulator$onDownloadSuccess$2.java:113-123`
+- `com/roborock/smart/refactor/workers/OooO0O0.java:85-125`
+- `com/roborock/smart/refactor/workers/RnCardPluginFileRepo$initPluginsInfo$2$1$job$1.java:68-92`
 
 ## Befehlsweg und Route
 
@@ -404,9 +463,10 @@ ausdrücklich nicht als Produktfreigabe bewertet.
    Zwischenablage arbeitenden Deskriptor-Pipepfad aus dem Adapter-Lebenszyklus
    starten und stoppen; danach echte Mehrgeräte-HomeData in derselben
    isolierten Sitzung an `RRDevicesModule` prüfen.
-3. Den APK-Installationsspeicher mit temporärer Downloadversion, erfolgreichem
-   Paketabschluss und atomarer Übernahme nachbilden; weder Ordnernamen noch
-   `project.json.version_code` als Ersatz verwenden.
+3. Den signaturprüfenden APK-Paketinstaller an Versionsabfrage, authentifizierten
+   Download, persistierten Installationsspeicher und Adapter-Lebenszyklus
+   anbinden. Ordnernamen und `project.json.version_code` bleiben als
+   Versionsersatz verboten.
 4. Die getrennten Bootstrap-, Root-Mount-, beobachteter-Ausschnitt- und
    Produktfreigabestufen in allen Runnern und Matrizen beibehalten.
 5. Jeden lokalen Pluginlauf mit einer Bedarfsdeckung versehen: verlangter
