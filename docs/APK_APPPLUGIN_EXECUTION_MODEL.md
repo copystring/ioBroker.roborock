@@ -218,8 +218,25 @@ laufende HTTP-Reads abgebrochen.
 Die zusätzliche Operation `acquireForDevice` ist die explizite
 gerätebezogene Grenze: Sie löst DUID, Modell, V5-Produkt-ID und optional den
 benannten APK-Einstieg auf und delegiert erst danach an denselben abgesicherten
-Beschaffungspfad. Sie ist noch an keinen ioBroker-State, UI-Klick oder
-Autostart gebunden.
+Beschaffungspfad. Die ioBroker-Messagebox stellt dafür zwei bewusste
+Managementoperationen bereit:
+
+- `appplugin_package_status` liest nur den lokalen Installationsstand und löst
+  keinen Netzwerkzugriff aus.
+- `appplugin_package_acquire` beschafft das Paket nur mit `confirm = true`.
+
+Beide Operationen leiten die Ziel-DUID erneut aus dem aktuellen APK-HomeData-
+Kontext ab. Ihre Antworten enthalten ausschließlich DUID, Modell,
+Laufzeitbereitschaft und gegebenenfalls Downloadversion sowie Plugin-Level.
+HomeData, Produkt-Tags, Download-URLs und Dateipfade überschreiten diese Grenze
+nicht; auch interne Beschaffungsfehler werden dort absichtlich durch eine
+allgemeine Fehlermeldung ersetzt.
+
+Beschaffungen sind modellbezogen serialisiert, weil Download-, `_tmp`-,
+`_READY`- und Aktivierungspfade pro Modell gemeinsam sind. Die zentrale
+Modellnamenprüfung läuft vor Metadatenabfrage und Download. Verschiedene Modelle
+bleiben unabhängig. Es gibt weiterhin weder automatische Paketbeschaffung noch
+einen Start des Hermes-Supervisors durch diese Managementoperationen.
 
 Der bestehende `AppPluginManager` ist damit nicht die kanonische
 Hostimplementierung: Er lädt nur ausgewählte Assets aus dem Archiv und besitzt

@@ -16,6 +16,7 @@ import {
 	type ApkMainPluginInstallation,
 } from "./apkPluginInstallationStore";
 import {
+	apkMainPluginPackageKey,
 	ApkMainPluginPackageInstaller,
 	type ApkPluginPackageSignatureVerifier,
 } from "./apkPluginPackageInstaller";
@@ -52,6 +53,7 @@ export class ApkAppPluginPackageRuntime {
 	readonly #store: ApkMainPluginInstallationStore;
 	readonly #service: ApkMainPluginAcquisitionService;
 	readonly #shutdownController = new AbortController();
+	readonly #modelAcquisitionTails = new Map<string, Promise<void>>();
 	#stopped = false;
 
 	private constructor(
@@ -112,13 +114,35 @@ export class ApkAppPluginPackageRuntime {
 		if (this.#stopped) {
 			throw new Error("Die AppPlugin-Paketlaufzeit wurde bereits beendet");
 		}
+		const model = apkMainPluginPackageKey(request.model);
 		const signal = request.signal
 			? AbortSignal.any([request.signal, this.#shutdownController.signal])
 			: this.#shutdownController.signal;
-		return this.#service.acquire({
-			...request,
-			signal,
+		const previous = this.#modelAcquisitionTails.get(model)
+			?? Promise.resolve();
+		const operation = previous
+			.catch(() => undefined)
+			.then(async () => {
+				if (this.#stopped) {
+					throw new Error("Die AppPlugin-Paketlaufzeit wurde bereits beendet");
+				}
+				return this.#service.acquire({
+					...request,
+					model,
+					signal,
+				});
+			});
+		const tail = operation.then(
+			() => undefined,
+			() => undefined,
+		);
+		this.#modelAcquisitionTails.set(model, tail);
+		void tail.finally(() => {
+			if (this.#modelAcquisitionTails.get(model) === tail) {
+				this.#modelAcquisitionTails.delete(model);
+			}
 		});
+		return operation;
 	}
 
 	/**

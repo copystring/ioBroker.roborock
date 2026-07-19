@@ -1,6 +1,9 @@
 // /lib/socketHandler.ts
 
 import { Roborock } from "../main"; // Import main adapter type
+import {
+	resolveApkMainPluginDeviceAcquisition,
+} from "../apppluginHost/apkMainPluginEntry";
 
 // Robot object definition
 interface Robot {
@@ -10,6 +13,20 @@ interface Robot {
 
 // Message handler type
 type MessageHandler = (message: any, id?: string | number) => Promise<any>;
+
+interface AppPluginPackageMessage {
+	readonly confirm?: boolean;
+	readonly duid?: unknown;
+}
+
+interface AppPluginPackageStatus {
+	readonly downloadVersion?: number;
+	readonly duid: string;
+	readonly installed: boolean;
+	readonly model: string;
+	readonly pluginLevel?: number;
+	readonly runtimeReady: true;
+}
 
 export class socketHandler {
 	private adapter: Roborock;
@@ -23,6 +40,14 @@ export class socketHandler {
 		// Initialize command map
 		this.commandHandlers = new Map<string, MessageHandler>();
 		this.commandHandlers.set("getDeviceList", () => this.handleGetDeviceList());
+		this.commandHandlers.set(
+			"appplugin_package_status",
+			msg => this.handleAppPluginPackageStatus(msg),
+		);
+		this.commandHandlers.set(
+			"appplugin_package_acquire",
+			msg => this.handleAppPluginPackageAcquire(msg),
+		);
 
 		this.commandHandlers.set("app_start", (msg, id) => this.handleSimpleCommand(msg.duid, "app_start", id));
 		this.commandHandlers.set("app_pause", (msg, id) => this.handleSimpleCommand(msg.duid, "app_pause", id));
@@ -249,6 +274,89 @@ export class socketHandler {
 
 		this.adapter.rLog("System", null, "Debug", undefined, undefined, `Returning robot list: ${JSON.stringify(robotList)}`, "debug");
 		return robotList;
+	}
+
+	private appPluginPackageContext(message: AppPluginPackageMessage): {
+		readonly duid: string;
+		readonly homeData: NonNullable<ReturnType<
+			Roborock["http_api"]["getAppPluginHomeDataContext"]
+		>>;
+		readonly runtime: NonNullable<Roborock["appPluginPackageRuntime"]>;
+	} {
+		if (typeof message?.duid !== "string" || message.duid.length === 0) {
+			throw new Error("AppPlugin-Paketaktion benötigt eine DUID");
+		}
+		const runtime = this.adapter.appPluginPackageRuntime;
+		if (!runtime) {
+			throw new Error("Die AppPlugin-Paketlaufzeit ist nicht bereit");
+		}
+		const homeData = this.adapter.http_api.getAppPluginHomeDataContext();
+		if (!homeData) {
+			throw new Error("Der APK-HomeData-Kontext ist nicht verfügbar");
+		}
+		return {
+			duid: message.duid,
+			homeData,
+			runtime,
+		};
+	}
+
+	private async handleAppPluginPackageStatus(
+		message: AppPluginPackageMessage,
+	): Promise<AppPluginPackageStatus> {
+		const { duid, homeData, runtime } = this.appPluginPackageContext(message);
+		const request = resolveApkMainPluginDeviceAcquisition(homeData, duid);
+		const installed = runtime.getInstalled(request.model);
+		return {
+			duid,
+			installed: installed !== undefined,
+			model: request.model,
+			runtimeReady: true,
+			...(installed
+				? {
+					downloadVersion: installed.downloadVersion,
+					pluginLevel: installed.pluginLevel,
+				}
+				: {}),
+		};
+	}
+
+	private async handleAppPluginPackageAcquire(
+		message: AppPluginPackageMessage,
+	): Promise<AppPluginPackageStatus> {
+		if (message?.confirm !== true) {
+			throw new Error("AppPlugin-Paketdownload benötigt confirm=true");
+		}
+		const { duid, homeData, runtime } = this.appPluginPackageContext(message);
+		let result: Awaited<ReturnType<typeof runtime.acquireForDevice>>;
+		try {
+			result = await runtime.acquireForDevice({
+				homeData,
+				targetDuid: duid,
+			});
+		} catch {
+			throw new Error(
+				"Das signierte AppPlugin-Paket konnte nicht beschafft oder aktiviert werden",
+			);
+		}
+		const installation = result.installation.installation;
+		this.adapter.rLog(
+			"System",
+			duid,
+			"Info",
+			undefined,
+			undefined,
+			`Signiertes AppPlugin-Paket aktiviert (Version ${installation.downloadVersion}, Plugin-Level ${installation.pluginLevel})`,
+			"info",
+		);
+		return {
+			downloadVersion: installation.downloadVersion,
+			duid,
+			installed: true,
+			model: result.installation.model,
+			pluginLevel: installation.pluginLevel,
+			runtimeReady: true,
+		};
 	}
 
 	/**

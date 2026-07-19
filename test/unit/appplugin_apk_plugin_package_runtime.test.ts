@@ -171,4 +171,81 @@ describe("APK AppPlugin package runtime", () => {
 			productId: 123,
 		})).rejects.toThrow(/bereits beendet/u);
 	});
+
+	it("serializes acquisitions for one model before touching shared package paths", async () => {
+		const instanceDataDirectory = await temporaryDirectory();
+		const signed = await signedPackage();
+		let releaseFirstFetch: (() => void) | undefined;
+		const firstFetchBlocked = new Promise<void>(resolve => {
+			releaseFirstFetch = resolve;
+		});
+		let markFirstFetchStarted: (() => void) | undefined;
+		const firstFetchStarted = new Promise<void>(resolve => {
+			markFirstFetchStarted = resolve;
+		});
+		let activeFetches = 0;
+		let maximumActiveFetches = 0;
+		let fetchCount = 0;
+		const post = vi.fn(async () => ({ data: metadataResponse() }));
+		const runtime = await ApkAppPluginPackageRuntime.create({
+			artifactFetch: async () => {
+				fetchCount += 1;
+				activeFetches += 1;
+				maximumActiveFetches = Math.max(
+					maximumActiveFetches,
+					activeFetches,
+				);
+				if (fetchCount === 1) {
+					markFirstFetchStarted?.();
+					await firstFetchBlocked;
+				}
+				activeFetches -= 1;
+				return new Response(signed.bytes, { status: 200 });
+			},
+			instanceDataDirectory,
+			maxDownloadBytes: signed.bytes.length + 1,
+			metadataClient: { post } as never,
+			signatureVerifier: signed.verifier,
+		});
+
+		const first = runtime.acquire({
+			model: "roborock.mower.a01",
+			productId: 123,
+		});
+		const second = runtime.acquire({
+			model: "roborock.mower.a01",
+			productId: 123,
+		});
+		await firstFetchStarted;
+		expect(post).toHaveBeenCalledOnce();
+		expect(fetchCount).toBe(1);
+
+		releaseFirstFetch?.();
+		await Promise.all([first, second]);
+
+		expect(post).toHaveBeenCalledTimes(2);
+		expect(fetchCount).toBe(2);
+		expect(maximumActiveFetches).toBe(1);
+		runtime.shutdown();
+	});
+
+	it("rejects unsafe model names before metadata or artifact network access", async () => {
+		const instanceDataDirectory = await temporaryDirectory();
+		const post = vi.fn();
+		const artifactFetch = vi.fn();
+		const runtime = await ApkAppPluginPackageRuntime.create({
+			artifactFetch,
+			instanceDataDirectory,
+			metadataClient: { post } as never,
+		});
+
+		await expect(runtime.acquire({
+			model: "../outside",
+			productId: 123,
+		})).rejects.toThrow(/kein sicherer Verzeichnisname/u);
+
+		expect(post).not.toHaveBeenCalled();
+		expect(artifactFetch).not.toHaveBeenCalled();
+		runtime.shutdown();
+	});
 });

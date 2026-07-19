@@ -284,6 +284,7 @@
 				"src/apppluginHost/apkNativeInvocationDiagnostics.ts",
 				"src/apppluginHost/apkPluginSdkRpcModule.ts",
 				"src/lib/httpApi.ts",
+				"src/lib/socketHandler.ts",
 				"test/unit/appplugin_apk_home_data_context.test.ts",
 				"test/unit/appplugin_apk_main_plugin_entry.test.ts",
 				"test/unit/appplugin_apk_native_invocation_diagnostics.test.ts",
@@ -292,13 +293,14 @@
 				"test/unit/appplugin_apk_plugin_installation_store.test.ts",
 				"test/unit/appplugin_apk_plugin_package_installer.test.ts",
 				"test/unit/appplugin_apk_plugin_package_runtime.test.ts",
+				"test/unit/appplugin_package_message_handling.test.ts",
 				"test/unit/appplugin_apk_rriot_session_descriptor.test.ts",
 				"test/unit/appplugin_apk_session_descriptor.test.ts",
 				"test/unit/appplugin_desktop_launcher.test.ts",
 				"test/unit/appplugin_desktop_fixture_sessions.test.ts",
 				"test/unit/appplugin_session_descriptor_transport.test.ts"
 			],
-			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Ein geräteklassenneutraler Rriot-Builder leitet daraus die statischen RRPluginSDK-Werte für die Ziel-DUID ab. Supervisor und Laufzeit akzeptieren den validierten Deskriptor jeweils über einen begrenzten Einmal-Pipeeingang. Der generische Akquisitionspfad fragt die APK-Parameter apilevel 10042, type 2 und numerische Produkt-ID über die angemeldete Metadatensitzung ab, prüft Plugin- und API-Level und lädt die Paket-URL separat ohne Cloud-Token mit begrenztem Range-Resume. Der Paketinstaller prüft beide APK-RSA-Signaturformen, entpackt über _tmp und _READY, aktiviert mit modellbezogenem Rollback und persistiert die sichtbare Version atomar erst danach; Q7, Q10, RockMow und Saros bestehen den lokalen Herstellerartefakt-Nachweis. Ein netzwerk-inaktiver Composition Root wird nach HomeData im offiziellen ioBroker-Instanzdatenverzeichnis vorbereitet, stellt den Versionsstand nach Neustart wieder her und wird beim unload abgebrochen. Die explizite Geräteoperation löst DUID, Modell und numerische V5-Produkt-ID generisch auf; der normale APK-Geräteklick besitzt kein leastLevel, während spezielle Einstiege ausschließlich den exakt benannten requirePlugin-ProductTag verwenden. Als Nächstes diese Operation hinter einer bewussten Adapter-Managementaktion mit echter angemeldeter Cloud-Antwort belegen und den Hermes-Supervisor aus dem Adapter-Lebenszyklus starten und stoppen. RockMow bleibt bis zu echter Mäher-HomeData und vollständiger Bedarfsdeckung eine Bootstrap-Gegenprobe."
+			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Ein geräteklassenneutraler Rriot-Builder leitet daraus die statischen RRPluginSDK-Werte für die Ziel-DUID ab. Supervisor und Laufzeit akzeptieren den validierten Deskriptor jeweils über einen begrenzten Einmal-Pipeeingang. Der generische Akquisitionspfad fragt die APK-Parameter apilevel 10042, type 2 und numerische Produkt-ID über die angemeldete Metadatensitzung ab, prüft Plugin- und API-Level und lädt die Paket-URL separat ohne Cloud-Token mit begrenztem Range-Resume. Der Paketinstaller prüft beide APK-RSA-Signaturformen, entpackt über _tmp und _READY, aktiviert mit modellbezogenem Rollback und persistiert die sichtbare Version atomar erst danach; Q7, Q10, RockMow und Saros bestehen den lokalen Herstellerartefakt-Nachweis. Ein netzwerk-inaktiver Composition Root wird nach HomeData im offiziellen ioBroker-Instanzdatenverzeichnis vorbereitet, stellt den Versionsstand nach Neustart wieder her und wird beim unload abgebrochen. Die explizite Geräteoperation löst DUID, Modell und numerische V5-Produkt-ID generisch auf; der normale APK-Geräteklick besitzt kein leastLevel, während spezielle Einstiege ausschließlich den exakt benannten requirePlugin-ProductTag verwenden. Bewusste Messagebox-Aktionen lesen den lokalen Status oder beschaffen erst mit confirm=true; ihre Antworten enthalten keine HomeData, URLs oder Pfade. Modellgleiche Beschaffungen sind vor allen gemeinsamen Paketpfaden serialisiert, und unsichere Modellnamen scheitern vor jedem Netzwerkzugriff. Als Nächstes die bestätigte Operation mit einer echten angemeldeten Cloud-Antwort belegen und den Hermes-Supervisor aus dem Adapter-Lebenszyklus starten und stoppen. RockMow bleibt bis zu echter Mäher-HomeData und vollständiger Bedarfsdeckung eine Bootstrap-Gegenprobe."
 		},
 		{
 			"id": "P0B-APK-HOST-SERVICES",

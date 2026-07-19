@@ -128,7 +128,7 @@ interface PackagePaths {
 	readonly rollback: string;
 }
 
-function packageKey(value: string): string {
+export function apkMainPluginPackageKey(value: string): string {
 	if (
 		typeof value !== "string"
 		|| value.length === 0
@@ -256,7 +256,7 @@ export class ApkMainPluginPackageInstaller {
 	public async install(
 		request: ApkMainPluginPackageInstallRequest,
 	): Promise<ApkMainPluginPackageInstallResult> {
-		const model = packageKey(request.model);
+		const model = apkMainPluginPackageKey(request.model);
 		if (this.#inFlight.has(model)) {
 			throw new Error(`Für ${model} läuft bereits eine AppPlugin-Installation`);
 		}
