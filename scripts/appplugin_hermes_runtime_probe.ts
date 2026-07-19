@@ -51,6 +51,7 @@ import {
 	ApkAsyncStorageRuntime,
 	ApkBlobTransferAssembler,
 	ApkDeviceIngress,
+	ApkDevicesRuntime,
 	ApkAppSysRuntime,
 	ApkDarkModeRuntime,
 	ApkDeviceFirmwareRuntime,
@@ -107,6 +108,7 @@ import {
 	parseApkAppPluginSessionDescriptor,
 	resolveEffectiveApkNativeModules,
 	resolveApkAppPluginSession,
+	evaluateApkRuntimeReadiness,
 	StrictApkNativeModuleRegistry,
 	type ApkAppPluginSessionDescriptor,
 	type ApkAppPluginHostContract,
@@ -1110,23 +1112,33 @@ async function main(): Promise<void> {
 	let pageCloseRequestCount = 0;
 	const publishReplayResponseErrors: string[] = [];
 	let handlePublishedDps: ((dps: Readonly<Record<string, unknown>>, publishedIndex: number) => void) | undefined;
+	const capturePublishedDps = async (dps: Readonly<Record<string, unknown>>): Promise<void> => {
+		const publishedIndex = publishedDpsCount;
+		publishedDpsCount += 1;
+		publishedDps.push(dps);
+		if (publishedDps.length > MAX_PUBLISHED_DPS_ENTRIES) {
+			const removed = publishedDps.length - MAX_PUBLISHED_DPS_ENTRIES;
+			publishedDps.splice(0, removed);
+			publishedDpsRetainedFrom += removed;
+		}
+		handlePublishedDps?.(dps, publishedIndex);
+	};
 	const pluginDevice = new ApkPluginDeviceRuntime({
 		hasActivity: () => true,
 		transport: {
 			connectLocalDeviceIfNeeded: () => 0,
 			deviceOnline: async () => true,
 			loadShadowDps: async () => shadowDpsJson,
-			publishDps: async dps => {
-				const publishedIndex = publishedDpsCount;
-				publishedDpsCount += 1;
-				publishedDps.push(dps);
-				if (publishedDps.length > MAX_PUBLISHED_DPS_ENTRIES) {
-					const removed = publishedDps.length - MAX_PUBLISHED_DPS_ENTRIES;
-					publishedDps.splice(0, removed);
-					publishedDpsRetainedFrom += removed;
-				}
-				handlePublishedDps?.(dps, publishedIndex);
-			},
+			publishDps: capturePublishedDps,
+		},
+	});
+	const devices = new ApkDevicesRuntime({
+		hasActivity: () => true,
+		homeData: resolvedDeviceSession?.descriptor.homeData,
+		resolveRpc: did => did === options.duid ? pluginSdkRpc : undefined,
+		publishDps: async (did, dps) => {
+			if (did !== options.duid) throw new ApkHostServiceUnavailableError("multi-device-dps");
+			await capturePublishedDps(dps);
 		},
 	});
 	const pluginSdkEnvironment = new ApkPluginSdkEnvironmentRuntime({
@@ -1351,6 +1363,10 @@ async function main(): Promise<void> {
 		),
 	);
 	registry.register(
+		installedModule(contract, "RRDevicesModule").javaClass,
+		devices as unknown as Record<string, unknown>,
+	);
+	registry.register(
 		installedModule(contract, "RRPluginHttpTurboModule").javaClass,
 		pluginHttp as unknown as Record<string, unknown>,
 	);
@@ -1403,6 +1419,13 @@ async function main(): Promise<void> {
 		},
 	});
 	const reportedExceptions: Array<{ method: string; arguments: unknown[] }> = [];
+	const fatalRuntimeExceptions = () => reportedExceptions.filter(entry => {
+		if (entry.method === "reportFatalException") return true;
+		const details = entry.arguments[0];
+		return details !== null
+			&& typeof details === "object"
+			&& (details as Readonly<Record<string, unknown>>).isFatal === true;
+	});
 	registry.register(installedModule(contract, "ExceptionsManager").javaClass, {
 		dismissRedbox: () => undefined,
 		reportException: (...arguments_: unknown[]) =>
@@ -2068,15 +2091,8 @@ async function main(): Promise<void> {
 			const defaultServedView: ServedView = options.serveFullRoot ? "full" : "map";
 			let requestInteractiveServerStop: (() => void) | undefined;
 			let runtimeStopScheduled = false;
-			const fatalRuntimeException = () => reportedExceptions.find(entry => {
-				if (entry.method === "reportFatalException") return true;
-				const details = entry.arguments[0];
-				return details !== null
-					&& typeof details === "object"
-					&& (details as Readonly<Record<string, unknown>>).isFatal === true;
-			});
 			const assertInteractiveRuntimeHealthy = (): void => {
-				const fatal = fatalRuntimeException();
+				const fatal = fatalRuntimeExceptions()[0];
 				const rootMounted = uiManager.snapshot().children.length > 0;
 				if (!fatal && rootMounted) return;
 				if (!runtimeStopScheduled) {
@@ -2783,11 +2799,31 @@ async function main(): Promise<void> {
 				server.close(error => error ? reject(error) : resolve());
 			});
 		}
-		const renderStarted = options.runApplication
-			&& reportedExceptions.length === 0
-			&& uiManager.snapshot().children.length > 0;
+		const rootChildCount = uiManager.snapshot().children.length;
+		const rootMounted = options.runApplication
+			&& fatalRuntimeExceptions().length === 0
+			&& rootChildCount > 0;
+		const runtimeUsage = runtimeNativeUsage();
+		const hostInteractionTargetCount = options.runApplication
+			? publicApkSemanticUiActions(resolveApkSemanticUiActions(
+				uiManager.snapshot(),
+				tag => uiExecution.nativeHierarchyRuntime().measure(tag),
+				(x, y) => uiExecution.hitTestRuntime().findTouchTarget(x, y).target,
+			)).length
+			: 0;
+		const runtimeReadiness = options.runApplication
+			? evaluateApkRuntimeReadiness({
+				applicationStarted: true,
+				rootChildCount,
+				hostInteractionTargetCount,
+				fatalRuntimeExceptionCount: fatalRuntimeExceptions().length,
+				missingNativeCalls: runtimeUsage.missingNativeCalls,
+				unavailableHostServices: runtimeUsage.unavailableHostServices,
+				unexpectedNativeRejections: runtimeUsage.unexpectedRejections,
+			})
+			: undefined;
 		process.stdout.write(`${JSON.stringify({
-			status: options.runApplication ? (renderStarted ? "render-started" : "render-failed") : "app-registered",
+			status: options.runApplication ? (rootMounted ? "root-mounted" : "root-mount-failed") : "app-registered",
 			bundlePath: options.bundlePath,
 			bootstrapPath: options.bootstrapPath,
 			bundleKind: session.bundleKind,
@@ -2866,6 +2902,8 @@ async function main(): Promise<void> {
 			statusBar: statusBar.snapshot(),
 			nativeInvocations,
 			nativeInvocationRejections,
+			runtimeNativeUsage: runtimeUsage,
+			runtimeReadiness,
 			nativeModuleImplementationCoverage,
 			uiTree: options.runApplication ? uiManager.snapshot() : undefined,
 			nativeHierarchy: options.runApplication ? nativeHierarchy : undefined,
@@ -2878,9 +2916,9 @@ async function main(): Promise<void> {
 		await session.stop();
 		workerRuntime.stopAll();
 		disposeSkiaHost();
-		if (options.runApplication && !renderStarted) {
+		if (options.runApplication && !rootMounted) {
 			throw new Error(
-				`APK-Renderstart fehlgeschlagen: Ausnahmen=${reportedExceptions.length}, Root-Kinder=${uiManager.snapshot().children.length}`,
+				`APK-Root-Mount fehlgeschlagen: fatale Ausnahmen=${fatalRuntimeExceptions().length}, Root-Kinder=${rootChildCount}`,
 			);
 		}
 	} catch (error) {

@@ -78,7 +78,7 @@ interface LiveAppPluginDeviceSession {
 	source: "apk-device-session-descriptor" | "legacy-cli";
 	compatibility:
 		| {
-			status: "compatible";
+			status: "bootstrap-compatible";
 			hostApiLevel: number;
 			bundleKind: string;
 			issues: unknown[];
@@ -1163,8 +1163,8 @@ export class LiveAppPluginMapSurface {
 			throw new Error("Die AppPlugin-Host-Sitzung meldet eine unbekannte Kartenfamilie");
 		}
 		if (health.deviceSession.source === "apk-device-session-descriptor"
-			&& health.deviceSession.compatibility.status !== "compatible") {
-			throw new Error("Der APK-Gerätekontext ist nicht mit dem AppPlugin kompatibel");
+			&& health.deviceSession.compatibility.status !== "bootstrap-compatible") {
+			throw new Error("Der APK-Bootstrap passt nicht zum AppPlugin");
 		}
 		const resolvedView = health.view ?? view ?? "map";
 		return {

@@ -361,12 +361,12 @@ async function runProbe(
 	for (let index = lines.length - 1; index >= 0; index -= 1) {
 		try {
 			const result = record(JSON.parse(lines[index]) as unknown, "Probe-Ergebnis");
-			if (result.status === "render-started") return result;
+			if (result.status === "root-mounted") return result;
 		} catch {
 			// Andere Statuszeilen sind für den sanitisierten Beweis nicht relevant.
 		}
 	}
-	throw new Error("Q7-Rename-Probe lieferte kein render-started-Ergebnis");
+	throw new Error("Q7-Rename-Probe lieferte kein root-mounted-Ergebnis");
 }
 
 function buildSanitizedProof(

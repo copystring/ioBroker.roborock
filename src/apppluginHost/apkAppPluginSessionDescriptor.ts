@@ -59,6 +59,15 @@ export interface ApkAppPluginAccountContext {
 	serverCode: string;
 }
 
+export interface ApkAppPluginHomeDataContext {
+	/** Raw RRDeviceBeanV2 deviceJsonStr values from the current APK home. */
+	deviceJsonStrings: readonly string[];
+	/** Raw ProductEntity jsonString values for products used in the current home. */
+	productJsonStrings: readonly string[];
+	/** APK-local installed main-plugin versions keyed by model. */
+	pluginDownloadVersions?: Readonly<Record<string, number>>;
+}
+
 /**
  * Device-class-neutral input for one AppPlugin runtime. It mirrors the data
  * selected by the APK before React Native starts; map protocols and product UI
@@ -71,6 +80,7 @@ export interface ApkAppPluginSessionDescriptor {
 	device: ApkAppPluginDeviceContext;
 	host: ApkAppPluginHostIdentity;
 	account?: ApkAppPluginAccountContext;
+	homeData?: ApkAppPluginHomeDataContext;
 }
 
 export type ApkAppPluginCompatibilityIssueCode =
@@ -85,7 +95,7 @@ export interface ApkAppPluginCompatibilityIssue {
 }
 
 export interface ApkAppPluginSessionCompatibility {
-	status: "compatible" | "incompatible";
+	status: "bootstrap-compatible" | "bootstrap-incompatible";
 	hostApiLevel: number;
 	bundleKind?: ApkHermesBundleKind;
 	issues: readonly ApkAppPluginCompatibilityIssue[];
@@ -95,7 +105,7 @@ export interface ResolvedApkAppPluginSession {
 	descriptor: ApkAppPluginSessionDescriptor;
 	bundle: ApkPluginBundle;
 	compatibility: ApkAppPluginSessionCompatibility & {
-		status: "compatible";
+		status: "bootstrap-compatible";
 		bundleKind: ApkHermesBundleKind;
 	};
 }
@@ -205,6 +215,41 @@ function parseAccountContext(value: unknown): ApkAppPluginAccountContext | undef
 	};
 }
 
+function parseRawJsonStrings(value: unknown, name: string): string[] {
+	if (!Array.isArray(value)) throw new Error(`${name} muss ein Array sein`);
+	return value.map((entry, index) => {
+		const json = nonEmptyString(entry, `${name}[${index}]`);
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(json);
+		} catch {
+			throw new Error(`${name}[${index}] muss gültiges JSON enthalten`);
+		}
+		if (!isRecord(parsed)) throw new Error(`${name}[${index}] muss ein JSON-Objekt enthalten`);
+		return json;
+	});
+}
+
+function parsePluginDownloadVersions(value: unknown): Readonly<Record<string, number>> | undefined {
+	if (value === undefined) return undefined;
+	if (!isRecord(value)) throw new Error("homeData.pluginDownloadVersions muss ein Objekt sein");
+	return Object.fromEntries(Object.entries(value).map(([model, version]) => {
+		const parsed = safeInteger(version, `homeData.pluginDownloadVersions.${model}`);
+		if (parsed === undefined) throw new Error(`homeData.pluginDownloadVersions.${model} fehlt`);
+		return [nonEmptyString(model, "homeData.pluginDownloadVersions model"), parsed];
+	}));
+}
+
+function parseHomeDataContext(value: unknown): ApkAppPluginHomeDataContext | undefined {
+	if (value === undefined) return undefined;
+	if (!isRecord(value)) throw new Error("homeData muss ein Objekt sein");
+	return {
+		deviceJsonStrings: parseRawJsonStrings(value.deviceJsonStrings, "homeData.deviceJsonStrings"),
+		productJsonStrings: parseRawJsonStrings(value.productJsonStrings, "homeData.productJsonStrings"),
+		pluginDownloadVersions: parsePluginDownloadVersions(value.pluginDownloadVersions),
+	};
+}
+
 export function parseApkAppPluginSessionDescriptor(
 	value: unknown,
 	baseDirectory = process.cwd(),
@@ -219,6 +264,7 @@ export function parseApkAppPluginSessionDescriptor(
 		device: parseDeviceContext(value.device),
 		host: parseHostIdentity(value.host),
 		account: parseAccountContext(value.account),
+		homeData: parseHomeDataContext(value.homeData),
 	};
 }
 
@@ -282,7 +328,7 @@ export function inspectApkAppPluginSessionCompatibility(
 		});
 	}
 	return {
-		status: issues.length === 0 ? "compatible" : "incompatible",
+		status: issues.length === 0 ? "bootstrap-compatible" : "bootstrap-incompatible",
 		hostApiLevel,
 		bundleKind,
 		issues,
@@ -294,7 +340,7 @@ export function resolveApkAppPluginSession(
 	contract: ApkAppPluginHostContract,
 ): ResolvedApkAppPluginSession {
 	const compatibility = inspectApkAppPluginSessionCompatibility(descriptor, contract);
-	if (compatibility.status !== "compatible" || !compatibility.bundleKind) {
+	if (compatibility.status !== "bootstrap-compatible" || !compatibility.bundleKind) {
 		throw new Error(
 			`AppPlugin-Sitzung ist inkompatibel: ${compatibility.issues.map(issue => issue.message).join("; ")}`,
 		);
@@ -304,7 +350,7 @@ export function resolveApkAppPluginSession(
 		bundle: loadApkPluginBundle(descriptor.pluginRoot),
 		compatibility: {
 			...compatibility,
-			status: "compatible",
+			status: "bootstrap-compatible",
 			bundleKind: compatibility.bundleKind,
 		},
 	};

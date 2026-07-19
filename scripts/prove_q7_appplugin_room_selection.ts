@@ -247,12 +247,12 @@ async function runProbe(
 	for (const line of stdout.trim().split(/\r?\n/u).reverse()) {
 		try {
 			const result = jsonRecord(JSON.parse(line) as unknown, "Probe-Ergebnis");
-			if (result.status === "render-started") return result;
+			if (result.status === "root-mounted") return result;
 		} catch {
 			// Frühere Statuszeilen sind kein finales Probe-Ergebnis.
 		}
 	}
-	throw new Error(`Q7-Raumauswahl-Probe ${scenario.name} lieferte kein render-started-Ergebnis`);
+	throw new Error(`Q7-Raumauswahl-Probe ${scenario.name} lieferte kein root-mounted-Ergebnis`);
 }
 
 function publishedMethods(result: JsonRecord): string[] {

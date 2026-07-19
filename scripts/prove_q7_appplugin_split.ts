@@ -269,12 +269,12 @@ async function runProbe(options: ProofOptions, temporaryDirectory: string, repla
 	for (const line of stdout.trim().split(/\r?\n/u).reverse()) {
 		try {
 			const result = record(JSON.parse(line) as unknown, "Probe-Ergebnis");
-			if (result.status === "render-started") return result;
+			if (result.status === "root-mounted") return result;
 		} catch {
 			// Frühere Statuszeilen sind kein finales Probe-Ergebnis.
 		}
 	}
-	throw new Error("Q7-Split-Probe lieferte kein render-started-Ergebnis");
+	throw new Error("Q7-Split-Probe lieferte kein root-mounted-Ergebnis");
 }
 
 function parsePublishedPayload(entryValue: unknown): JsonRecord | undefined {

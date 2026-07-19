@@ -129,14 +129,26 @@ async function runProbe(options: ProofOptions, temporaryDirectory: string): Prom
 		child.once("close", code => finish(() => code === 0 ? resolve(stdout) : reject(new Error(`Q7-Full-Scene-Probe endete mit Code ${code ?? "null"}: ${sanitizeDiagnostic(stderr)}`))));
 	});
 	for (const line of output.trim().split(/\r?\n/u).reverse()) {
-		try { const result = jsonRecord(JSON.parse(line) as unknown, "Probe-Ergebnis"); if (result.status === "render-started") return result; }
+		try { const result = jsonRecord(JSON.parse(line) as unknown, "Probe-Ergebnis"); if (result.status === "root-mounted") return result; }
 		catch { /* Vorherige Statuszeilen gehören nicht zum finalen Beweisobjekt. */ }
 	}
-	throw new Error("Q7-Full-Scene-Probe lieferte kein render-started-Ergebnis");
+	throw new Error("Q7-Full-Scene-Probe lieferte kein root-mounted-Ergebnis");
 }
 
 function verifyRuntime(result: JsonRecord, fixtureSha256: string): void {
 	assert.equal(result.bundleKind, "hermes-bytecode", "Q7-Bundle muss unveränderter Hermes-Bytecode bleiben");
+	const readiness = jsonRecord(result.runtimeReadiness, "runtimeReadiness");
+	assert.equal(
+		readiness.status,
+		"observed-slice-ready",
+		"Der konkrete Q7-Lauf muss einen beobachteten interaktiven Ausschnitt ohne offenen aufgerufenen Hostvertrag erreichen",
+	);
+	assert.equal(readiness.observedSliceReady, true);
+	const coverage = jsonRecord(result.nativeModuleImplementationCoverage, "nativeModuleImplementationCoverage");
+	assert.ok(
+		jsonArray(coverage.implementedModules, "implementedModules").includes("RRDevicesModule"),
+		"Die APK-abgeleitete RRDevicesModule-Brücke muss vollständig registriert sein",
+	);
 	assert.deepEqual(jsonArray(result.reportedExceptions, "reportedExceptions"), []);
 	assert.equal(result.b01Ingress, undefined, "Synthetischer Beweis darf keinen B01-/Local-Key-Pfad verwenden");
 	const blobIngresses = jsonArray(result.blobIngresses, "blobIngresses").map(value => jsonRecord(value, "Blob-Eingang"));
@@ -202,6 +214,8 @@ async function main(): Promise<void> {
 			},
 			worker: jsonRecord(runtimeEvidence.worker, "Evidence-Worker"),
 			scene: { roomCount: jsonArray(sceneEvidence.roomChains, "Raumketten").length, mapPixelCount: sceneEvidence.mapPixelCount, semanticGoldenSha256: sha256File(options.semanticGoldenPath) },
+			runtimeObservation: result.runtimeReadiness,
+			hostCoverage: result.nativeModuleImplementationCoverage,
 			visual, reportedExceptionCount: 0, pipelineErrorCount: 0, unexpectedNativeRejectionCount: 0 };
 		fs.mkdirSync(path.dirname(options.outputPath), { recursive: true });
 		fs.writeFileSync(options.outputPath, `${JSON.stringify(proof, null, 2)}\n`, "utf8");

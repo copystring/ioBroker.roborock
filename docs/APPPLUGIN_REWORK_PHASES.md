@@ -4,19 +4,24 @@
 
 Die zentrale, maschinenlesbare Aufgabenliste liegt in [appplugin-rework-tracker.json](appplugin-rework-tracker.json). Die daraus erzeugte Seite [APPPLUGIN_REWORK_STATUS.md](generated/APPPLUGIN_REWORK_STATUS.md) zeigt aktuellen Fokus, nächste Schritte, Abhängigkeiten, Belege und Blocker, ohne eine zweite manuelle Wahrheit zu erzeugen.
 
-Das Vorhaben befindet sich weiterhin in **Phase 0**, genauer in **Phase 0C –
-Verhaltensnachweis**. Einzelne Hostkomponenten sind robust implementiert und
-getestet. Das Gesamtsystem bleibt trotzdem ein PoC, bis die unveränderten
-AppPlugins die verbindlichen Familien-Gates, unabhängige Android-Differenztests
-und anschließend Phase 0D für Isolation und Härtung bestanden haben. Die
-Begriffe „unverändert“, „Host-Golden“ und „Original-App-Parität“ sind in
+Das Vorhaben befindet sich weiterhin in **Phase 0**. Der systematische
+APK-Quellabgleich hat Phase **0A und 0B erneut geöffnet**: Einzelne Q7-Pfade
+befinden sich bereits im Verhaltensnachweis 0C, der generische Host als Ganzes
+aber noch nicht. Von 70 effektiven, durch die untersuchte APK installierten
+Native-Modulen implementiert der aktuelle PoC 19 vollständig, vier teilweise
+und 47 noch gar nicht. Ein ausgewertetes Bundle oder ein erzeugter React-Root
+ist daher ausdrücklich keine generische Plugin-Kompatibilität.
+
+Das belegte APK-Ausführungsmodell und die korrigierten Kompatibilitätsstufen
+stehen in [APK_APPPLUGIN_EXECUTION_MODEL.md](APK_APPPLUGIN_EXECUTION_MODEL.md).
+Die Begriffe „unverändert“, „Host-Golden“ und „Original-App-Parität“ sind in
 [APPPLUGIN_EVIDENCE_LEVELS.md](APPPLUGIN_EVIDENCE_LEVELS.md) strikt getrennt.
 
 | Phase | Ziel | Aktueller Status |
 | --- | --- | --- |
-| 0A – Inventur | APK-, AppPlugin-, Codec-, Bundle- und Hostverträge vollständig erfassen | Für die lokal vorhandenen Pakete weitgehend abgeschlossen |
-| 0B – Laufzeithost | Metro/Hermes, React-Native-Brücke, Layout, Skia und APK-Module direkt ausführen | Für wichtige Grundlagen und Q7/Hermes weit fortgeschritten |
-| 0C – Verhaltensnachweis | Echte Karten, Gesten, Theme, Bearbeitung und Befehlsabsichten gegen die Original-App prüfen | **Aktuelle Phase; in Arbeit** |
+| 0A – Inventur | APK-, AppPlugin-, Codec-, Bundle- und Hostverträge vollständig erfassen | APK-Ausführungsmodell belegt; Bedarfsinventur pro Bundle noch offen |
+| 0B – Laufzeithost | Metro/Hermes, React-Native-Brücke, Layout, Skia und APK-Module direkt ausführen | **Aktueller Gesamtfokus; Native- und Dienstabdeckung noch deutlich unvollständig** |
+| 0C – Verhaltensnachweis | Echte Karten, Gesten, Theme, Bearbeitung und Befehlsabsichten gegen die Original-App prüfen | Für einzelne Q7-Slices in Arbeit; keine generische Hostfreigabe |
 | 0D – Härtung und externe APK-Abnahme | Android-Differenz, Prozessisolation, Ressourcen- und Plattformgrenzen verbindlich abnehmen | Offen; lokale API und Evidenzgrenze bereits gehärtet |
 | 1 – Produkt-Runtime | Isolierten, versionierten AppPlugin-Dienst mit stabiler semantischer API bauen | Noch nicht begonnen |
 | 2 – ioBroker-Integration | Geräteereignisse, Befehlsfreigabe und Desktop-/Smart-Home-UI anbinden | Noch nicht begonnen; UI ist nur PoC-Hülle |
@@ -26,10 +31,10 @@ Begriffe „unverändert“, „Host-Golden“ und „Original-App-Parität“ s
 
 - Die lokal vorhandenen Metro-Bundles und die Q7-L5-/M5-Hermes-Bundles werden
   direkt und mit unverändertem Hash ausgeführt.
-- `UIManager`, Layout, Native Animated, Timer, Locale, Theme, Scroll-, Pointer-,
-  TextInput-, Geräte-, Blob- und RPC-Verträge besitzen zentrale
-  APK-abgeleitete Implementierungen mit Negativ-, Timeout- und
-  Ressourcenprüfungen.
+- Ausgewählte Verträge wie `UIManager`, Layout, Native Animated, Timer, Locale,
+  Theme, Scroll, Pointer, TextInput, Geräteereignisse, Blob und RPC besitzen
+  zentrale APK-abgeleitete Implementierungen. Die globale Modulabdeckung bleibt
+  mit 19 vollständigen, vier teilweisen und 47 fehlenden Modulen unvollständig.
 - Die Q7-SCMap-Fixture läuft durch bundle-eigene Entschlüsselung,
   Protobuf-Auswertung und den unveränderten 96.000-Werte-Worker. Raumzustände,
   Transformationen, Layer-Props und Befehlsabsichten stammen aus dem Bundle.

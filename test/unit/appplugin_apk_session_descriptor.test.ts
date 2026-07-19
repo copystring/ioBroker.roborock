@@ -59,6 +59,19 @@ function descriptor(root = pluginRoot()) {
 			countryCode: "DE",
 			serverCode: "eu",
 		},
+		homeData: {
+			deviceJsonStrings: [JSON.stringify({
+				duid: "device-1",
+				model: "roborock.vacuum.sc01",
+				featureSet: "33",
+				newFeatureSet: "00ff",
+			})],
+			productJsonStrings: [JSON.stringify({
+				rrPid: "product-1",
+				model: "roborock.vacuum.sc01",
+			})],
+			pluginDownloadVersions: { "roborock.vacuum.sc01": 42 },
+		},
 	});
 }
 
@@ -72,7 +85,7 @@ describe("APK AppPlugin session descriptor", () => {
 	it("resolves an unchanged Hermes bundle from a device-class-neutral descriptor", () => {
 		const resolved = resolveApkAppPluginSession(descriptor(), contract);
 		expect(resolved.compatibility).toMatchObject({
-			status: "compatible",
+			status: "bootstrap-compatible",
 			hostApiLevel: 10042,
 			bundleKind: "hermes-bytecode",
 			issues: [],
@@ -86,7 +99,7 @@ describe("APK AppPlugin session descriptor", () => {
 		mismatch.package.minSdkApiLevel = 10043;
 		fs.writeFileSync(path.join(mismatch.pluginRoot, "index.android.bundle"), "not a bundle");
 		expect(inspectApkAppPluginSessionCompatibility(mismatch, contract)).toMatchObject({
-			status: "incompatible",
+			status: "bootstrap-incompatible",
 			issues: [
 				{ code: "bundle-format-unknown" },
 				{ code: "device-model-mismatch" },
@@ -108,6 +121,9 @@ describe("APK AppPlugin session descriptor", () => {
 		expect(source.device.deviceProperties).toEqual({ feature: "A", dockType: 3 });
 		expect(source.device.protocolVersion).toBe("B01");
 		expect(source.account).toEqual({ countryCode: "DE", serverCode: "eu" });
+		expect(source.homeData).toMatchObject({
+			pluginDownloadVersions: { "roborock.vacuum.sc01": 42 },
+		});
 	});
 
 	it("requires the HomeData protocol instead of inferring it from the model", () => {
@@ -137,7 +153,16 @@ describe("APK AppPlugin session descriptor", () => {
 		const source = descriptor();
 		source.device.model = model;
 		source.package.models = [model];
-		expect(resolveApkAppPluginSession(source, contract).compatibility.status).toBe("compatible");
+		expect(resolveApkAppPluginSession(source, contract).compatibility.status).toBe("bootstrap-compatible");
+	});
+
+	it("rejects malformed raw HomeData instead of inventing a feature context", () => {
+		const source = JSON.parse(JSON.stringify(descriptor())) as {
+			homeData: Record<string, unknown>;
+			[key: string]: unknown;
+		};
+		source.homeData.deviceJsonStrings = ["not-json"];
+		expect(() => parseApkAppPluginSessionDescriptor(source)).toThrow(/gültiges JSON/u);
 	});
 
 	it("parses project.json metadata without introducing a device-class mapping", () => {

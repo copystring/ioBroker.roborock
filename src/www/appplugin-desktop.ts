@@ -484,7 +484,7 @@ class AppPluginDesktop {
 					? `Abweisung ${runtimeUsage.unexpectedRejectionCount}`
 				: "APK-Verträge ✓";
 		deviceFamilyBadge.title = snapshot.deviceSession.source === "apk-device-session-descriptor"
-			? `APK-validierter Gerätekontext · API ${compatibility.status === "compatible"
+			? `APK-Bootstrap geprüft · API ${compatibility.status === "bootstrap-compatible"
 				? compatibility.hostApiLevel
 				: "unbekannt"} · ${snapshot.deviceSession.package?.models.join(", ") ?? snapshot.deviceModel}`
 				+ ` · ${runtimeUsage.invocationCount} tatsächliche Native-Aufrufe`
