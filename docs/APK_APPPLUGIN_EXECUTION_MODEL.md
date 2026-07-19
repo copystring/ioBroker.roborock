@@ -170,10 +170,10 @@ Dateidownload:
    `productids = [id]` ab. Dieser Request läuft mit dem Token des angemeldeten
    `RRUser` im `Authorization`-Header.
 2. Die Antwort `PluginVersion` enthält nur `productid`, `version`,
-   `pluginLevel`, `apilevel` und `url`. Das geforderte Plugin-Level und
-   mindestens API-Level `10028` werden vor dem Download geprüft. Eine fehlende
-   Kompatibilität endet im Gerätepfad mit `-21023`, eine leere oder nicht mit
-   `http` beginnende URL mit `-21024`.
+   `pluginLevel`, `apilevel` und `url`. Ein für den konkreten Einstieg
+   gefordertes Plugin-Level und mindestens API-Level `10028` werden vor dem
+   Download geprüft. Eine fehlende Kompatibilität endet im Gerätepfad mit
+   `-21023`, eine leere oder nicht mit `http` beginnende URL mit `-21024`.
 3. `DownloadCacheUtil` verwendet für die zurückgegebene URL einen separaten
    OkHttp-Client mit 60 Sekunden Verbindungs-, Schreib- und Lese-Timeout. Sein
    Request enthält einen `Range: bytes=<position>-`-Header, aber weder den
@@ -189,6 +189,23 @@ Range-Header mit `200` ignoriert, und begrenzt Gesamtdauer sowie Byteanzahl.
 Die strengere Prüfung, dass die Antwort tatsächlich zur einzeln angefragten
 Produkt-ID gehört, ist eine ioBroker-Härtung.
 
+Der APK-Ausführungsweg unterscheidet dabei ausdrücklich zwischen dem normalen
+Geräteklick und speziellen Einstiegen. Der normale Aufruf von
+`DeviceManipulator.clickDevice` reicht sowohl `leastVersion` als auch
+`leastLevel` als `null` weiter; seine Haupt-Plugin-Abfrage besitzt daher keine
+produktseitige Mindeststufe. Ein Einstieg wie `Scene_CommandList` sucht dagegen
+im V5-Produkt genau den benannten `ProductTag` `scene_2.0`, prüft
+`requirePlugin` und reicht nur dessen `pluginLevel` weiter. Es gibt keinen
+globalen oder über alle Tags maximierten Mindestwert.
+
+`resolveApkMainPluginDeviceAcquisition` bildet diese Verzweigung aus dem
+vollständigen HomeData-/V5-Produktkontext nach. Es ordnet die Ziel-DUID exakt
+ihrem Produkt zu, verwendet dessen numerische APK-Produkt-ID und lässt die
+Mindeststufe beim normalen Geräteeinstieg weg. Nur ein ausdrücklich benannter,
+pluginpflichtiger ProductTag darf sie setzen. Fehlende, widersprüchliche oder
+ungültige Daten brechen die Auflösung ab, statt ein Modellprofil oder einen
+Fallbackwert zu erfinden.
+
 `ApkAppPluginPackageRuntime` ist der instanzgebundene Composition Root für
 diesen Pfad. Er liegt ausschließlich unter dem von ioBroker bereitgestellten
 Instanzdatenverzeichnis in `appplugin-runtime/`, lädt dort den geheimnisfreien
@@ -198,6 +215,11 @@ startet keinen Prozess. Der Adapter bereitet ihn nach der angemeldeten
 HomeData-Aktualisierung vor; nur ein späterer expliziter `acquire`-Aufruf darf
 ein Paket beschaffen. Beim Adapter-`unload` werden neue Aufträge gesperrt und
 laufende HTTP-Reads abgebrochen.
+Die zusätzliche Operation `acquireForDevice` ist die explizite
+gerätebezogene Grenze: Sie löst DUID, Modell, V5-Produkt-ID und optional den
+benannten APK-Einstieg auf und delegiert erst danach an denselben abgesicherten
+Beschaffungspfad. Sie ist noch an keinen ioBroker-State, UI-Klick oder
+Autostart gebunden.
 
 Der bestehende `AppPluginManager` ist damit nicht die kanonische
 Hostimplementierung: Er lädt nur ausgewählte Assets aus dem Archiv und besitzt

@@ -25,6 +25,7 @@ export * from "./apkDeviceFirmwareRuntime";
 export * from "./apkHermesHostProtocol";
 export * from "./apkHermesHostSession";
 export * from "./apkHomeDataContext";
+export * from "./apkMainPluginEntry";
 export * from "./apkGestureHandlerRuntime";
 export * from "./apkI18nManagerRuntime";
 export * from "./apkNativeModuleDispatcher";

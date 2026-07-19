@@ -8,10 +8,9 @@ import {
 	type ApkAppPluginPackageMetadata,
 	type ApkAppPluginSessionDescriptor,
 } from "./apkAppPluginSessionDescriptor";
-
-interface JsonRecord {
-	[key: string]: unknown;
-}
+import {
+	resolveApkHomeDataDeviceProduct,
+} from "./apkHomeDataLookup";
 
 export interface ApkRriotSessionDescriptorInput {
 	readonly pluginRoot: string;
@@ -31,23 +30,6 @@ export interface ApkRriotSessionDescriptorInput {
 	readonly baseDirectory?: string;
 }
 
-function record(value: unknown, label: string): JsonRecord {
-	if (value === null || typeof value !== "object" || Array.isArray(value)) {
-		throw new Error(`${label} muss ein JSON-Objekt sein`);
-	}
-	return value as JsonRecord;
-}
-
-function parseJsonRecord(value: string, label: string): JsonRecord {
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(value) as unknown;
-	} catch {
-		throw new Error(`${label} ist kein gültiges JSON`);
-	}
-	return record(parsed, label);
-}
-
 function nonEmptyString(value: unknown, label: string): string {
 	if (typeof value !== "string" || value.length === 0) {
 		throw new Error(`${label} muss ein nichtleerer String sein`);
@@ -59,50 +41,11 @@ function optionalString(value: unknown): string | undefined {
 	return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-function identifier(value: unknown): string | undefined {
-	if (typeof value === "string" && value.length > 0) return value;
-	if (typeof value === "number" && Number.isFinite(value)) return String(value);
-	return undefined;
-}
-
 function nonNegativeFiniteNumber(value: unknown, label: string): number {
 	if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
 		throw new Error(`${label} muss eine nichtnegative endliche Zahl sein`);
 	}
 	return value;
-}
-
-function productById(
-	productJsonStrings: readonly string[],
-): ReadonlyMap<string, JsonRecord> {
-	const products = new Map<string, JsonRecord>();
-	for (const [index, json] of productJsonStrings.entries()) {
-		const product = parseJsonRecord(json, `HomeData-Produkt ${index}`);
-		const id = identifier(product.id);
-		if (!id) continue;
-		const existing = products.get(id);
-		if (existing && JSON.stringify(existing) !== JSON.stringify(product)) {
-			throw new Error(`HomeData enthält widersprüchliche Produkte für ID ${id}`);
-		}
-		products.set(id, product);
-	}
-	return products;
-}
-
-function targetDevice(
-	deviceJsonStrings: readonly string[],
-	targetDuid: string,
-): JsonRecord {
-	const matches = deviceJsonStrings
-		.map((json, index) => parseJsonRecord(json, `HomeData-Gerät ${index}`))
-		.filter(device => device.duid === targetDuid);
-	if (matches.length === 0) {
-		throw new Error(`HomeData enthält kein Gerät mit DUID ${targetDuid}`);
-	}
-	if (matches.length > 1) {
-		throw new Error(`HomeData enthält die DUID ${targetDuid} mehrfach`);
-	}
-	return matches[0];
 }
 
 /**
@@ -163,10 +106,10 @@ export function createApkRriotDeviceContext(
 	>,
 ): ApkAppPluginDeviceContext {
 	const duid = nonEmptyString(input.targetDuid, "targetDuid");
-	const device = targetDevice(input.homeData.deviceJsonStrings, duid);
-	const products = productById(input.homeData.productJsonStrings);
-	const productId = identifier(device.productId);
-	const product = productId ? products.get(productId) : undefined;
+	const { device, product } = resolveApkHomeDataDeviceProduct(
+		input.homeData,
+		duid,
+	);
 	const model = optionalString(device.model) ?? optionalString(product?.model);
 	if (!model) {
 		throw new Error(`HomeData-Gerät ${duid} besitzt kein auflösbares Modell`);

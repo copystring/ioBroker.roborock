@@ -93,10 +93,25 @@ describe("APK AppPlugin package runtime", () => {
 		await expect(stat(path.join(instanceDataDirectory, "appplugin-runtime")))
 			.rejects.toMatchObject({ code: "ENOENT" });
 
-		const acquired = await runtime.acquire({
-			model: "roborock.mower.a01",
-			productId: 123,
-			requiredPluginLevel: 3,
+		const acquired = await runtime.acquireForDevice({
+			homeData: {
+				deviceJsonStrings: [JSON.stringify({
+					duid: "mower-1",
+					model: "roborock.mower.a01",
+					productId: "123",
+				})],
+				productJsonStrings: [JSON.stringify({
+					id: 123,
+					model: "roborock.mower.a01",
+					productTags: [],
+				})],
+			},
+			targetDuid: "mower-1",
+		});
+		expect(post).toHaveBeenCalledWith("api/v1/appplugin", {
+			apilevel: 10042,
+			productids: [123],
+			type: 2,
 		});
 		expect(await readFile(acquired.installation.bundlePath, "utf8"))
 			.toBe("runtime bundle");

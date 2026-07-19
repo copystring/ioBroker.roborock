@@ -19,6 +19,13 @@ import {
 	ApkMainPluginPackageInstaller,
 	type ApkPluginPackageSignatureVerifier,
 } from "./apkPluginPackageInstaller";
+import {
+	type ApkMainPluginEntry,
+	resolveApkMainPluginDeviceAcquisition,
+} from "./apkMainPluginEntry";
+import type {
+	ApkAppPluginHomeDataContext,
+} from "./apkAppPluginSessionDescriptor";
 
 const RUNTIME_DIRECTORY = "appplugin-runtime";
 
@@ -111,6 +118,27 @@ export class ApkAppPluginPackageRuntime {
 		return this.#service.acquire({
 			...request,
 			signal,
+		});
+	}
+
+	/**
+	 * Explicitly acquires the package selected by the APK's device/product
+	 * association. This method is not called during adapter startup.
+	 */
+	public async acquireForDevice(request: {
+		readonly entry?: ApkMainPluginEntry;
+		readonly homeData: ApkAppPluginHomeDataContext;
+		readonly signal?: AbortSignal;
+		readonly targetDuid: string;
+	}): Promise<ApkMainPluginAcquisitionResult> {
+		const resolved = resolveApkMainPluginDeviceAcquisition(
+			request.homeData,
+			request.targetDuid,
+			request.entry,
+		);
+		return this.acquire({
+			...resolved,
+			signal: request.signal,
 		});
 	}
 
