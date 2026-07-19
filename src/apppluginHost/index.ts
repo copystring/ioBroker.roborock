@@ -40,6 +40,7 @@ export * from "./apkPluginInstallationStore";
 export * from "./apkPluginInstallationPersistence";
 export * from "./apkPluginPackageInstaller";
 export * from "./apkPluginAcquisition";
+export * from "./apkPluginPackageRuntime";
 export * from "./apkPluginSdkRpcModule";
 export * from "./apkRriotSessionDescriptor";
 export * from "./apkRobotToAppMessage";

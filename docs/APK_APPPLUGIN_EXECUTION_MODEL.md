@@ -189,6 +189,16 @@ Range-Header mit `200` ignoriert, und begrenzt Gesamtdauer sowie Byteanzahl.
 Die strengere Prüfung, dass die Antwort tatsächlich zur einzeln angefragten
 Produkt-ID gehört, ist eine ioBroker-Härtung.
 
+`ApkAppPluginPackageRuntime` ist der instanzgebundene Composition Root für
+diesen Pfad. Er liegt ausschließlich unter dem von ioBroker bereitgestellten
+Instanzdatenverzeichnis in `appplugin-runtime/`, lädt dort den geheimnisfreien
+Installationsstand und hält Metadatenclient, Downloader, Installer und
+Persistenz zusammen. Seine Konstruktion macht keinen Netzwerkaufruf und
+startet keinen Prozess. Der Adapter bereitet ihn nach der angemeldeten
+HomeData-Aktualisierung vor; nur ein späterer expliziter `acquire`-Aufruf darf
+ein Paket beschaffen. Beim Adapter-`unload` werden neue Aufträge gesperrt und
+laufende HTTP-Reads abgebrochen.
+
 Der bestehende `AppPluginManager` ist damit nicht die kanonische
 Hostimplementierung: Er lädt nur ausgewählte Assets aus dem Archiv und besitzt
 noch einen alten Fallback mit `apilevel = 1000`. Er muss bei der späteren
@@ -204,6 +214,7 @@ Belege:
 - `com/roborock/smart/utils/download/C6357OooO0o.java:1026-1148`
 - `com/roborock/smart/utils/download/DownloadCacheUtil$client$2.java:37-52`
 - `com/roborock/smart/utils/download/DownloadCacheUtil$downloadInner$1.java:164-223`
+- `node_modules/@iobroker/adapter-core/README.md:38-47`
 
 ### Paketintegrität und Aktivierung
 

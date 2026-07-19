@@ -5,6 +5,7 @@ import * as utils from "@iobroker/adapter-core";
 import { ChildProcess, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import go2rtcPath from "go2rtc-static";
+import { ApkAppPluginPackageRuntime } from "./apppluginHost/apkPluginPackageRuntime";
 import { commitInfo } from "./lib/commitInfo";
 
 // --- API & Helper Imports ---
@@ -117,6 +118,7 @@ export class Roborock extends utils.Adapter {
 	/** B01: FIFO queue of expected 301 map response types (classify + taskBeginDate match using this order). */
 	public b01MapResponseQueue: Map<string, Array<"get_map_v1" | "get_clean_record_map">> = new Map();
 	public appPluginManager: AppPluginManager;
+	public appPluginPackageRuntime: ApkAppPluginPackageRuntime | undefined;
 
 	public isInitializing: boolean;
 	public sentryInstance: SentryPlugin | undefined;
@@ -232,6 +234,10 @@ export class Roborock extends utils.Adapter {
 
 			// 1. Start Cloud Data Sync (Get Keys & DUIDs)
 			await this.http_api.updateHomeData();
+
+			// 1a. Prepare the instance-scoped APK package host. This performs
+			// no download; acquisition remains an explicit later action.
+			await this.initializeAppPluginPackageRuntime();
 
 			// 1b. Asset download for account models (before device init)
 			await this.downloadAssetsForAccountModels();
@@ -1369,6 +1375,8 @@ export class Roborock extends utils.Adapter {
 			this.mqtt_api.cleanup();
 			this.local_api.stopUdpDiscovery();
 			this.local_api.stopTcpKeepaliveInterval();
+			this.appPluginPackageRuntime?.shutdown();
+			this.appPluginPackageRuntime = undefined;
 
 			// Remove the global process exit listener to prevent memory leaks
 			if (this.onExitBound) {
@@ -1574,6 +1582,35 @@ export class Roborock extends utils.Adapter {
 		await this.ensureState("HomeData", { name: "HomeData string", write: false });
 		await this.ensureState("clientID", { name: "Client ID", write: false });
 		await this.ensureState("endpoint", { name: "MQTT endpoint", write: false });
+	}
+
+	/** Prepares the opt-in APK package runtime without downloading a package. */
+	private async initializeAppPluginPackageRuntime(): Promise<void> {
+		if (this.appPluginPackageRuntime) {
+			return;
+		}
+		try {
+			const metadataClient = this.http_api.loginApi;
+			if (!metadataClient) {
+				throw new Error("Die angemeldete Cloud-Sitzung für AppPlugin-Metadaten fehlt");
+			}
+			this.appPluginPackageRuntime = await ApkAppPluginPackageRuntime.create({
+				instanceDataDirectory: utils.getAbsoluteInstanceDataDir(this),
+				metadataClient,
+			});
+		} catch (error) {
+			// The package host is still Phase 0B and must not make the existing
+			// adapter unusable. Its own state remains fail-closed.
+			this.rLog(
+				"System",
+				null,
+				"Warn",
+				undefined,
+				undefined,
+				`AppPlugin-Paketlaufzeit konnte nicht vorbereitet werden: ${this.errorMessage(error)}`,
+				"warn",
+			);
+		}
 	}
 
 	/** Obstacle assets for account models at startup (before device init). */
