@@ -143,6 +143,47 @@ describe("APK AppPlugin package installer", () => {
 		expect(store.hasPending(model)).toBe(false);
 	});
 
+	it("rolls the active package back when durable metadata commit fails", async () => {
+		const root = await temporaryDirectory();
+		const pluginRoot = path.join(root, "plugin_v3");
+		const model = "roborock.vacuum.sc01";
+		const active = path.join(pluginRoot, model);
+		await mkdir(active, { recursive: true });
+		await writeFile(path.join(active, "index.android.bundle"), "old");
+		const { privateKey, publicKey } = testKeys();
+		const archivePath = path.join(root, "plugin.zip");
+		await writeFile(archivePath, await signedArchive({
+			"index.android.bundle": "new",
+		}, privateKey));
+		const store = new ApkMainPluginInstallationStore({
+			[model]: {
+				downloadVersion: 41,
+				pluginLevel: 6,
+			},
+		});
+		const installer = new ApkMainPluginPackageInstaller({
+			pluginRoot,
+			installationStore: store,
+			installationPersistence: {
+				save: async () => {
+					throw new Error("disk full");
+				},
+			},
+			signatureVerifier: new ApkRsaPluginPackageSignatureVerifier(publicKey),
+		});
+
+		await expect(installer.install({
+			model,
+			archivePath,
+			downloadVersion: 42,
+			pluginLevel: 7,
+		})).rejects.toThrow(/disk full/u);
+
+		expect(await readFile(path.join(active, "index.android.bundle"), "utf8")).toBe("old");
+		expect(store.getDownloadVersion(model)).toBe(41);
+		expect(store.hasPending(model)).toBe(false);
+	});
+
 	it("rejects a signed archive without the APK entry bundle", async () => {
 		const root = await temporaryDirectory();
 		const { privateKey, publicKey } = testKeys();

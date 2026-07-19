@@ -160,6 +160,51 @@ Sitzungsdeskriptor führt sie deshalb getrennt als
 `installation.mainPluginDownloadVersions`; ohne bestätigten Eintrag liefert
 unser `RRDevicesModule` wie die APK `0`.
 
+### Versionsabfrage und Paketdownload
+
+Die APK trennt die angemeldete Metadatenabfrage strikt vom eigentlichen
+Dateidownload:
+
+1. `DeviceManipulator` fragt für genau die numerische Produkt-ID
+   `POST /api/v1/appplugin` mit `apilevel = 10042`, `type = 2` und
+   `productids = [id]` ab. Dieser Request läuft mit dem Token des angemeldeten
+   `RRUser` im `Authorization`-Header.
+2. Die Antwort `PluginVersion` enthält nur `productid`, `version`,
+   `pluginLevel`, `apilevel` und `url`. Das geforderte Plugin-Level und
+   mindestens API-Level `10028` werden vor dem Download geprüft. Eine fehlende
+   Kompatibilität endet im Gerätepfad mit `-21023`, eine leere oder nicht mit
+   `http` beginnende URL mit `-21024`.
+3. `DownloadCacheUtil` verwendet für die zurückgegebene URL einen separaten
+   OkHttp-Client mit 60 Sekunden Verbindungs-, Schreib- und Lese-Timeout. Sein
+   Request enthält einen `Range: bytes=<position>-`-Header, aber weder den
+   Cloud-Token noch die Header der Metadatenabfrage. Teilstände liegen als
+   `.temp`-Datei und werden anhand der gespeicherten Position fortgesetzt.
+
+`ApkMainPluginVersionResolver` und `ApkPluginArtifactDownloader` bilden diese
+Grenze getrennt ab. Die Metadatenabfrage kann den bereits angemeldeten
+Axios-Client des Adapters verwenden; der Downloader kann technisch gar keinen
+Cloud-Token übernehmen. Er akzeptiert nur HTTP(S), hängt einen Teilstand nur an
+einen passenden `206 Content-Range` an, startet neu, wenn ein Server den
+Range-Header mit `200` ignoriert, und begrenzt Gesamtdauer sowie Byteanzahl.
+Die strengere Prüfung, dass die Antwort tatsächlich zur einzeln angefragten
+Produkt-ID gehört, ist eine ioBroker-Härtung.
+
+Der bestehende `AppPluginManager` ist damit nicht die kanonische
+Hostimplementierung: Er lädt nur ausgewählte Assets aus dem Archiv und besitzt
+noch einen alten Fallback mit `apilevel = 1000`. Er muss bei der späteren
+Adapterintegration durch den generischen Akquisitionspfad ersetzt werden,
+statt als Vorlage für diesen zu dienen.
+
+Belege:
+
+- `com/roborock/smart/sdk/misc/C6235OooO0O0.java:74-98`
+- `com/roborock/smart/sdk/bean/PluginVersion.java:1-75`
+- `com/roborock/smart/model/C5090OooO.java:74-176`
+- `com/roborock/smart/sdk/network/AbstractRunnableC6254OooOO0O.java:108-205`
+- `com/roborock/smart/utils/download/C6357OooO0o.java:1026-1148`
+- `com/roborock/smart/utils/download/DownloadCacheUtil$client$2.java:37-52`
+- `com/roborock/smart/utils/download/DownloadCacheUtil$downloadInner$1.java:164-223`
+
 ### Paketintegrität und Aktivierung
 
 Der Paketabschluss ist in der APK kryptografisch und dateisystemseitig
@@ -202,8 +247,11 @@ Android-Implementierung:
   Geräte parallel aktivieren kann; die APK nutzt beim interaktiven Einzelstart
   den globalen Ordner `plugin_v3/tmp`.
 - Die sichtbare Downloadversion wird erst nach erfolgreicher Aktivierung
-  committed. Ein Fehler lässt aktives Bundle und bisherige Version gemeinsam
-  unverändert.
+  committed und zuvor atomar als geheimnisfreier JSON-Stand persistiert. Ein
+  Signatur-, Aktivierungs- oder Persistenzfehler lässt aktives Bundle und
+  bisherige Version gemeinsam unverändert. Gleichzeitige Abschlüsse
+  verschiedener Modelle werden serialisiert, damit kein Versionsstand
+  verlorengeht.
 
 Diese Härtungen sind ioBroker-Anpassungen und werden nicht als Verhalten der
 APK ausgegeben. Die Implementierung interpretiert weder Bundlecode noch

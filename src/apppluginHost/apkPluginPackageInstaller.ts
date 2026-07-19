@@ -18,6 +18,7 @@ import JSZip, { type JSZipObject } from "jszip";
 import {
 	ApkMainPluginInstallationStore,
 	type ApkMainPluginInstallation,
+	type ApkMainPluginInstallationPersistence,
 } from "./apkPluginInstallationStore";
 
 const APK_RSA_SIGNATURE_BYTES = 256;
@@ -232,6 +233,7 @@ async function removeTree(filePath: string): Promise<void> {
 export class ApkMainPluginPackageInstaller {
 	readonly #pluginRoot: string;
 	readonly #installationStore: ApkMainPluginInstallationStore;
+	readonly #installationPersistence?: ApkMainPluginInstallationPersistence;
 	readonly #signatureVerifier: ApkPluginPackageSignatureVerifier;
 	readonly #limits: ApkPluginPackageInstallerLimits;
 	readonly #inFlight = new Set<string>();
@@ -239,11 +241,13 @@ export class ApkMainPluginPackageInstaller {
 	public constructor(options: {
 		readonly pluginRoot: string;
 		readonly installationStore: ApkMainPluginInstallationStore;
+		readonly installationPersistence?: ApkMainPluginInstallationPersistence;
 		readonly signatureVerifier?: ApkPluginPackageSignatureVerifier;
 		readonly limits?: Partial<ApkPluginPackageInstallerLimits>;
 	}) {
 		this.#pluginRoot = path.resolve(options.pluginRoot);
 		this.#installationStore = options.installationStore;
+		this.#installationPersistence = options.installationPersistence;
 		this.#signatureVerifier = options.signatureVerifier
 			?? new ApkRsaPluginPackageSignatureVerifier();
 		this.#limits = normalizedLimits(options.limits);
@@ -328,7 +332,12 @@ export class ApkMainPluginPackageInstaller {
 		try {
 			await rename(paths.ready, paths.active);
 			promoted = true;
-			installation = this.#installationStore.commit(model);
+			installation = this.#installationPersistence
+				? await this.#installationStore.commitPersisted(
+					model,
+					this.#installationPersistence,
+				)
+				: this.#installationStore.commit(model);
 		} catch (error) {
 			if (promoted) {
 				await removeTree(paths.active);

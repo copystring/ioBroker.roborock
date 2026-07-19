@@ -5,6 +5,14 @@ export interface ApkMainPluginInstallation {
 	readonly pluginLevel: number;
 }
 
+export type ApkMainPluginInstallationSnapshot = Readonly<
+	Record<string, ApkMainPluginInstallation>
+>;
+
+export interface ApkMainPluginInstallationPersistence {
+	save(snapshot: ApkMainPluginInstallationSnapshot): Promise<void>;
+}
+
 function modelKey(model: string): string {
 	if (typeof model !== "string" || model.trim().length === 0) {
 		throw new Error("AppPlugin-Modell darf nicht leer sein");
@@ -34,9 +42,10 @@ function nonNegativeInteger(value: number, name: string): number {
 export class ApkMainPluginInstallationStore {
 	readonly #installed = new Map<string, ApkMainPluginInstallation>();
 	readonly #pending = new Map<string, ApkMainPluginInstallation>();
+	#persistenceTail: Promise<void> = Promise.resolve();
 
 	public constructor(
-		initial?: Readonly<Record<string, ApkMainPluginInstallation>>,
+		initial?: ApkMainPluginInstallationSnapshot,
 	) {
 		for (const [model, installation] of Object.entries(initial ?? {})) {
 			this.#installed.set(modelKey(model), this.#validate(installation));
@@ -65,6 +74,39 @@ export class ApkMainPluginInstallationStore {
 		return { ...pending };
 	}
 
+	/**
+	 * Persists the complete next snapshot before exposing the staged version.
+	 *
+	 * Installations for different models may finish concurrently. Serializing
+	 * this boundary prevents two otherwise valid commits from overwriting each
+	 * other with snapshots derived from stale in-memory state.
+	 */
+	public commitPersisted(
+		model: string,
+		persistence: ApkMainPluginInstallationPersistence,
+	): Promise<ApkMainPluginInstallation> {
+		const key = modelKey(model);
+		const operation = this.#persistenceTail.then(async () => {
+			const pending = this.#pending.get(key);
+			if (!pending) {
+				throw new Error(`Für ${key} ist keine AppPlugin-Installation vorgemerkt`);
+			}
+			const nextSnapshot = {
+				...this.toSnapshot(),
+				[key]: { ...pending },
+			};
+			await persistence.save(nextSnapshot);
+			this.#installed.set(key, pending);
+			this.#pending.delete(key);
+			return { ...pending };
+		});
+		this.#persistenceTail = operation.then(
+			() => undefined,
+			() => undefined,
+		);
+		return operation;
+	}
+
 	public abort(model: string): void {
 		this.#pending.delete(modelKey(model));
 	}
@@ -82,11 +124,18 @@ export class ApkMainPluginInstallationStore {
 		return this.#pending.has(modelKey(model));
 	}
 
+	public toSnapshot(): ApkMainPluginInstallationSnapshot {
+		return Object.fromEntries(
+			[...this.#installed.entries()]
+				.sort(([left], [right]) => left.localeCompare(right))
+				.map(([model, installation]) => [model, { ...installation }]),
+		);
+	}
+
 	public toSessionContext(): ApkAppPluginInstallationContext {
 		return {
 			mainPluginDownloadVersions: Object.fromEntries(
-				[...this.#installed.entries()]
-					.sort(([left], [right]) => left.localeCompare(right))
+				Object.entries(this.toSnapshot())
 					.map(([model, installation]) => [model, installation.downloadVersion]),
 			),
 		};
