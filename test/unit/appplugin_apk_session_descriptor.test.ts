@@ -70,7 +70,9 @@ function descriptor(root = pluginRoot()) {
 				rrPid: "product-1",
 				model: "roborock.vacuum.sc01",
 			})],
-			pluginDownloadVersions: { "roborock.vacuum.sc01": 42 },
+		},
+		installation: {
+			mainPluginDownloadVersions: { "roborock.vacuum.sc01": 42 },
 		},
 	});
 }
@@ -121,9 +123,19 @@ describe("APK AppPlugin session descriptor", () => {
 		expect(source.device.deviceProperties).toEqual({ feature: "A", dockType: 3 });
 		expect(source.device.protocolVersion).toBe("B01");
 		expect(source.account).toEqual({ countryCode: "DE", serverCode: "eu" });
-		expect(source.homeData).toMatchObject({
-			pluginDownloadVersions: { "roborock.vacuum.sc01": 42 },
+		expect(source.installation).toEqual({
+			mainPluginDownloadVersions: { "roborock.vacuum.sc01": 42 },
 		});
+	});
+
+	it("keeps the APK installation registry separate from HomeData", () => {
+		const source = JSON.parse(JSON.stringify(descriptor())) as {
+			homeData: Record<string, unknown>;
+			[key: string]: unknown;
+		};
+		source.homeData.pluginDownloadVersions = { "roborock.vacuum.sc01": 42 };
+		expect(() => parseApkAppPluginSessionDescriptor(source))
+			.toThrow(/installation\.mainPluginDownloadVersions/u);
 	});
 
 	it("requires the HomeData protocol instead of inferring it from the model", () => {

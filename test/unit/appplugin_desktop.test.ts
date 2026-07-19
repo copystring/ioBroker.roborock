@@ -544,7 +544,9 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(source).not.toContain("hostImplementation.implementedModuleCount");
 		expect(source).toContain("appPluginRuntimeEvidence(this.mapSurface.snapshot())");
 		expect(source).not.toContain("mapSource: this.mapSurface.snapshot()");
-		expect(launcher).toContain("--session-descriptor");
+		expect(launcher).toContain("--session-descriptor-stdin");
+		expect(launcher).toContain('stdio: ["pipe", "inherit", "inherit"]');
+		expect(launcher).not.toContain("writeAppPluginDesktopFixtureDescriptor");
 		expect(launcher).toContain('options.mode === "session"');
 		expect(launcher).toContain("parseApkAppPluginSessionDescriptor");
 		expect(launcher).not.toContain('"--device-name", "Roborock Q7"');

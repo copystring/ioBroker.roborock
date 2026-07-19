@@ -32,9 +32,9 @@ import {
 } from "./lib/appPluginDesktopLauncher";
 import {
 	createAppPluginDesktopFixtureSession,
-	writeAppPluginDesktopFixtureDescriptor,
 	type AppPluginDesktopFixtureSession,
 } from "./lib/appPluginDesktopFixtureSessions";
+import { serializeAppPluginSessionDescriptor } from "./lib/appPluginSessionDescriptorTransport";
 import {
 	appPluginDesktopCatalogId,
 	discoverAppPluginDesktopBundles,
@@ -121,7 +121,7 @@ function resolveRuntimeLibraryDirectory(
 function loadGenericSession(
 	options: AppPluginDesktopSessionLauncherOptions,
 ): Readonly<{
-	descriptorPath: string;
+	descriptor: ApkAppPluginSessionDescriptor;
 	replayManifestPath?: string;
 	b01LocalKeyFilePath?: string;
 	label: string;
@@ -133,7 +133,7 @@ function loadGenericSession(
 		path.dirname(descriptorPath),
 	);
 	return {
-		descriptorPath,
+		descriptor,
 		replayManifestPath: options.replayManifestPath
 			? requireFile(options.replayManifestPath, "Geräte-Replayvertrag")
 			: undefined,
@@ -557,16 +557,8 @@ async function main(): Promise<void> {
 			const genericSession = options.mode === "session"
 				? loadGenericSession(options)
 				: undefined;
-			const descriptorPath = runtimeSession
-				? path.join(
-					repositoryRoot,
-					"artifacts",
-					"appplugin-poc",
-					"runtime-probes",
-					`desktop-${profile}-device-session.json`,
-				)
-				: genericSession!.descriptorPath;
-			if (runtimeSession) writeAppPluginDesktopFixtureDescriptor(descriptorPath, runtimeSession);
+			const sessionDescriptor = runtimeSession?.descriptor ?? genericSession!.descriptor;
+			const serializedSessionDescriptor = serializeAppPluginSessionDescriptor(sessionDescriptor);
 			const replayManifestPath = runtimeSession?.replayManifestPath ?? genericSession?.replayManifestPath;
 			const b01LocalKeyFilePath = runtimeSession?.b01LocalKeyFilePath ?? genericSession?.b01LocalKeyFilePath;
 			const profileLabel = runtimeSession?.label ?? genericSession!.label;
@@ -595,7 +587,7 @@ async function main(): Promise<void> {
 				"--static-root", staticRootPath,
 				"--http-session-token-file", httpSessionTokenFilePath,
 				"--session-state", sessionStatePath,
-				"--session-descriptor", descriptorPath,
+				"--session-descriptor-stdin",
 				"--profile-label", profileLabel,
 				...(runtimeSession && profileSwitchPath && runtimeCatalogPath
 					? [
@@ -629,13 +621,39 @@ async function main(): Promise<void> {
 						? `${runtimeLibraryDirectory}${path.delimiter}${process.env.PATH ?? ""}`
 						: process.env.PATH,
 				},
-				stdio: "inherit",
+				stdio: ["pipe", "inherit", "inherit"],
 				windowsHide: true,
 			});
-			const exitCode = await new Promise<number>((resolve, reject) => {
-				child.once("error", reject);
-				child.once("exit", code => resolve(code ?? 1));
+			const childResult = new Promise<Readonly<{ exitCode: number; error?: Error }>>(resolve => {
+				child.once("error", error => resolve({ exitCode: 1, error }));
+				child.once("exit", code => resolve({ exitCode: code ?? 1 }));
 			});
+			let descriptorWriteError: unknown;
+			try {
+				await new Promise<void>((resolve, reject) => {
+					if (!child.stdin) {
+						reject(new Error("Standardeingabe der AppPlugin-Laufzeit ist nicht verfügbar"));
+						return;
+					}
+					const rejectWrite = (error: Error): void => reject(error);
+					child.stdin.once("error", rejectWrite);
+					child.stdin.end(serializedSessionDescriptor, () => {
+						child.stdin?.off("error", rejectWrite);
+						resolve();
+					});
+				});
+			} catch (error) {
+				descriptorWriteError = error;
+				child.kill();
+			} finally {
+				serializedSessionDescriptor.fill(0);
+			}
+			if (descriptorWriteError) {
+				await childResult;
+				throw descriptorWriteError;
+			}
+			const { exitCode, error: childError } = await childResult;
+			if (childError) throw childError;
 			const nextProfile = profileSwitchPath
 				? consumeAppPluginDesktopProfileSwitch(profileSwitchPath)
 				: undefined;

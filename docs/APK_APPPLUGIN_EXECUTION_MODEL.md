@@ -138,6 +138,35 @@ kompakten `RRPluginSDK`-Gerätekontext als auch die vollständigen rohen
 Geräte-/Produktdaten des `RRDevicesModule` bereitstellen. Ein manuell
 zusammengebautes Vakuum-Testprofil reicht für neue Geräteklassen nicht aus.
 
+### Installierte Haupt-Plugin-Version
+
+`RRDevicesModule.getDeviceMainPluginDownloadVersion(model)` liest weder
+HomeData noch `project.json` und fragt auch keinen Cloud-Endpunkt ab. Der
+APK-Pfad liest aus den `MISC`-SharedPreferences direkt den Integer unter dem
+Modellschlüssel; fehlt er, ist das Ergebnis `0`.
+
+Der Schreibweg besitzt eine wichtige Commit-Invariante:
+
+1. Nach erfolgreicher Versionsabfrage werden Downloadversion und Plugin-Level
+   zunächst unter `<model>_tmp` und `<model>_pl_tmp` gespeichert.
+2. Erst der erfolgreiche Paketabschluss übernimmt diese Werte nach `<model>`
+   und `<model>_pl`.
+3. Anschließend werden die temporären Schlüssel gelöscht.
+
+Damit ist die von AppPlugins gelesene Downloadversion Zustand des erfolgreich
+installierten Plugin-Artefakts. Sie darf nicht aus HomeData, einem Ordnernamen
+oder ungeprüft aus `project.json.version_code` hergeleitet werden. Der
+Sitzungsdeskriptor führt sie deshalb getrennt als
+`installation.mainPluginDownloadVersions`; ohne bestätigten Eintrag liefert
+unser `RRDevicesModule` wie die APK `0`.
+
+Belege:
+
+- `com/roborock/smart/refactor/ui/plugins/modules/RRDevicesModuleImpl$getDeviceMainPluginDownloadVersion$2$1.java:49`
+- `com/roborock/smart/utils/o0OoOo0.java:62-65,68-71,124-127`
+- `com/roborock/smart/model/OooO.java:72-73`
+- `com/roborock/smart/model/OooOO0O.java:241-259`
+
 ## Befehlsweg und Route
 
 Das AppPlugin bildet Methode und Parameter. Die APK übernimmt Transport und
@@ -268,6 +297,30 @@ registriert. Ohne rohe HomeData- und Produkt-JSON-Daten im Sitzungsdeskriptor
 meldet es jedoch bewusst einen fehlenden Hostdienst, statt Geräte oder Features
 zu erfinden.
 
+`createApkAppPluginHomeDataContext()` bildet inzwischen auch die APK-Reihenfolge
+und Auswahl zentral ab: eigene Geräte vor empfangenen Geräten, Geräteobjekte
+als semantisch rohe JSONs sowie genau die per `productId` benötigten
+V5-Produktobjekte, eindeutig in erster Auftretensreihenfolge. Der bestehende
+Cloud-Client kann diesen Kontext über `getAppPluginHomeDataContext()` im
+Speicher bereitstellen. Da die Geräte-JSONs wie in der APK Zugangsdaten
+enthalten können, dürfen sie weder geloggt noch in Adapterzuständen,
+Dokumentation oder Repository-Fixtures persistiert werden. Der
+Desktop-Supervisor serialisiert den bereits validierten Sitzungsdeskriptor
+deshalb im Speicher und übergibt ihn mit einem festen Acht-MiB-Limit über die
+Standardeingabe an genau den gestarteten Laufzeitprozess. Der Inhalt erscheint
+weder in dessen Argumentliste oder Umgebung noch in einer vom Supervisor
+erzeugten Deskriptordatei. Ein ausdrücklich vom Nutzer angegebener
+Deskriptorpfad bleibt nur Eingabe des äußeren Launchers und wird nicht an den
+Kindprozess weitergereicht.
+
+Die installierte Haupt-Plugin-Version ist davon getrennt. Der Host besitzt
+dafür einen eigenen APK-abgeleiteten Installationskontext und gibt bei
+fehlendem bestätigtem Eintrag `0` zurück. `ApkMainPluginInstallationStore`
+bildet die APK-Invariante aus temporärem Staging, sichtbarem Commit und
+folgenlosem Abbruch zentral ab. Noch offen ist die produktive
+Installationskomponente, die diesen Commit erst nach erfolgreicher
+Integritätsprüfung des echten Pakets auslöst.
+
 Diese Zählung ist eine Hostabdeckung, keine Aussage, dass jedes Plugin jedes
 Modul benötigt. Für eine Freigabe muss deshalb zusätzlich pro Bundle gemessen
 werden, welche Module, Methoden, Views, Props, Commands und Ereignisse im
@@ -323,14 +376,19 @@ ausdrücklich nicht als Produktfreigabe bewertet.
 
 1. Die vorhandene APK-Inventur zur einzigen Quelle für Module, Methoden,
    Konstanten, Views, Props, Commands und Ereignisse machen.
-2. Die implementierte `RRDevicesModule`-Brücke aus echten ioBroker-HomeData-
-   und APK-Produktdaten speisen und für mehrere Geräte derselben Sitzung prüfen.
-3. Die getrennten Bootstrap-, Root-Mount-, beobachteter-Ausschnitt- und
+2. Den bereits begrenzt und ohne persistente Zwischenablage arbeitenden
+   Deskriptor-Pipepfad an den Adapter-Lebenszyklus anschließen und den echten
+   ioBroker-HomeData-/Produktkontext für mehrere Geräte derselben isolierten
+   Sitzung an `RRDevicesModule` prüfen.
+3. Den APK-Installationsspeicher mit temporärer Downloadversion, erfolgreichem
+   Paketabschluss und atomarer Übernahme nachbilden; weder Ordnernamen noch
+   `project.json.version_code` als Ersatz verwenden.
+4. Die getrennten Bootstrap-, Root-Mount-, beobachteter-Ausschnitt- und
    Produktfreigabestufen in allen Runnern und Matrizen beibehalten.
-4. Jeden lokalen Pluginlauf mit einer Bedarfsdeckung versehen: verlangter
+5. Jeden lokalen Pluginlauf mit einer Bedarfsdeckung versehen: verlangter
    Vertrag gegen implementierten Vertrag, nicht nur global registrierte Module.
-5. Für jede Rendererfamilie einen echten Gerätekontext und echte Daten
+6. Für jede Rendererfamilie einen echten Gerätekontext und echte Daten
    bereitstellen. Fehlende Konto-/Cloud-/Datei-/Native-View-Dienste bleiben
    harte Blocker statt weißer Oberfläche.
-6. Erst nach einem vollständigen Bedarfsdeckungs-Gate wieder sichtbare UI-
+7. Erst nach einem vollständigen Bedarfsdeckungs-Gate wieder sichtbare UI-
    Parität und Desktop-Bedienung weiterentwickeln.

@@ -5,12 +5,16 @@ import type { ApkReactCallback } from "./apkRpcRequestBroker";
 export interface ApkDevicesHomeDataContext {
 	readonly deviceJsonStrings: readonly string[];
 	readonly productJsonStrings: readonly string[];
-	readonly pluginDownloadVersions?: Readonly<Record<string, number>>;
+}
+
+export interface ApkDevicesInstallationContext {
+	readonly mainPluginDownloadVersions: Readonly<Record<string, number>>;
 }
 
 export interface ApkDevicesRuntimeOptions {
 	readonly hasActivity: () => boolean;
 	readonly homeData?: ApkDevicesHomeDataContext;
+	readonly installation?: ApkDevicesInstallationContext;
 	readonly resolveRpc: (did: string) => ApkPluginSdkRpcModule | undefined;
 	readonly publishDps?: (
 		did: string,
@@ -87,7 +91,7 @@ export class ApkDevicesRuntime {
 	}
 
 	public async getDeviceMainPluginDownloadVersion(model: string): Promise<number> {
-		return this.#homeData().pluginDownloadVersions?.[model] ?? 0;
+		return this.options.installation?.mainPluginDownloadVersions[model] ?? 0;
 	}
 
 	public publishDps(

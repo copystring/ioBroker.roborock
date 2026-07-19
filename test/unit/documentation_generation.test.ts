@@ -47,7 +47,7 @@ describe("AppPlugin rework tracking", () => {
 		const tracker = loadTracker(trackerPath);
 		const rendered = renderTracker(tracker);
 
-		expect(tracker.currentPhase).toBe("0C");
+		expect(tracker.currentPhase).toBe("0B");
 		expect(tracker.items.length).toBeGreaterThan(50);
 		expect(rendered).toContain(AUTO_GENERATED_MARKER);
 		expect(rendered).toContain("## Aktueller Fokus");

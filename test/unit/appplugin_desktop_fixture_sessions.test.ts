@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
 	createAppPluginDesktopFixtureSession,
-	writeAppPluginDesktopFixtureDescriptor,
 } from "../../scripts/lib/appPluginDesktopFixtureSessions";
 
 const temporaryDirectories: string[] = [];
@@ -43,9 +42,5 @@ describe("AppPlugin desktop fixture session", () => {
 		});
 		expect(session.descriptor).not.toHaveProperty("mapFamily");
 		expect(session.descriptor).not.toHaveProperty("mapProtocol");
-
-		const descriptorPath = path.join(root, "session.json");
-		writeAppPluginDesktopFixtureDescriptor(descriptorPath, session);
-		expect(JSON.parse(fs.readFileSync(descriptorPath, "utf8"))).toEqual(session.descriptor);
 	});
 });

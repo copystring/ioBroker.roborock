@@ -1,4 +1,3 @@
-import * as fs from "node:fs";
 import * as path from "node:path";
 
 import type { ApkAppPluginSessionDescriptor } from "../../src/apppluginHost";
@@ -82,14 +81,4 @@ export function createAppPluginDesktopFixtureSession(
 			: undefined,
 		serveFullRoot: input.serveFullRoot === true,
 	};
-}
-
-export function writeAppPluginDesktopFixtureDescriptor(
-	filePath: string,
-	session: Readonly<{ descriptor: ApkAppPluginSessionDescriptor }>,
-): void {
-	fs.mkdirSync(path.dirname(filePath), { recursive: true });
-	const temporaryPath = `${filePath}.${process.pid}.tmp`;
-	fs.writeFileSync(temporaryPath, `${JSON.stringify(session.descriptor, null, 2)}\n`, "utf8");
-	fs.renameSync(temporaryPath, filePath);
 }

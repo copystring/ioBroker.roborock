@@ -64,8 +64,15 @@ export interface ApkAppPluginHomeDataContext {
 	deviceJsonStrings: readonly string[];
 	/** Raw ProductEntity jsonString values for products used in the current home. */
 	productJsonStrings: readonly string[];
-	/** APK-local installed main-plugin versions keyed by model. */
-	pluginDownloadVersions?: Readonly<Record<string, number>>;
+}
+
+export interface ApkAppPluginInstallationContext {
+	/**
+	 * Successfully installed main-plugin download versions keyed by device
+	 * model. The APK keeps this registry in MISC SharedPreferences, separate
+	 * from HomeData and from the bundle's project.json metadata.
+	 */
+	mainPluginDownloadVersions: Readonly<Record<string, number>>;
 }
 
 /**
@@ -81,6 +88,7 @@ export interface ApkAppPluginSessionDescriptor {
 	host: ApkAppPluginHostIdentity;
 	account?: ApkAppPluginAccountContext;
 	homeData?: ApkAppPluginHomeDataContext;
+	installation?: ApkAppPluginInstallationContext;
 }
 
 export type ApkAppPluginCompatibilityIssueCode =
@@ -230,23 +238,41 @@ function parseRawJsonStrings(value: unknown, name: string): string[] {
 	});
 }
 
-function parsePluginDownloadVersions(value: unknown): Readonly<Record<string, number>> | undefined {
-	if (value === undefined) return undefined;
-	if (!isRecord(value)) throw new Error("homeData.pluginDownloadVersions muss ein Objekt sein");
+function parseMainPluginDownloadVersions(value: unknown): Readonly<Record<string, number>> {
+	if (!isRecord(value)) {
+		throw new Error("installation.mainPluginDownloadVersions muss ein Objekt sein");
+	}
 	return Object.fromEntries(Object.entries(value).map(([model, version]) => {
-		const parsed = safeInteger(version, `homeData.pluginDownloadVersions.${model}`);
-		if (parsed === undefined) throw new Error(`homeData.pluginDownloadVersions.${model} fehlt`);
-		return [nonEmptyString(model, "homeData.pluginDownloadVersions model"), parsed];
+		const parsed = safeInteger(version, `installation.mainPluginDownloadVersions.${model}`);
+		if (parsed === undefined) {
+			throw new Error(`installation.mainPluginDownloadVersions.${model} fehlt`);
+		}
+		return [nonEmptyString(model, "installation.mainPluginDownloadVersions model"), parsed];
 	}));
 }
 
 function parseHomeDataContext(value: unknown): ApkAppPluginHomeDataContext | undefined {
 	if (value === undefined) return undefined;
 	if (!isRecord(value)) throw new Error("homeData muss ein Objekt sein");
+	if (value.pluginDownloadVersions !== undefined) {
+		throw new Error(
+			"homeData.pluginDownloadVersions ist kein APK-HomeData-Feld; "
+			+ "verwende installation.mainPluginDownloadVersions",
+		);
+	}
 	return {
 		deviceJsonStrings: parseRawJsonStrings(value.deviceJsonStrings, "homeData.deviceJsonStrings"),
 		productJsonStrings: parseRawJsonStrings(value.productJsonStrings, "homeData.productJsonStrings"),
-		pluginDownloadVersions: parsePluginDownloadVersions(value.pluginDownloadVersions),
+	};
+}
+
+function parseInstallationContext(value: unknown): ApkAppPluginInstallationContext | undefined {
+	if (value === undefined) return undefined;
+	if (!isRecord(value)) throw new Error("installation muss ein Objekt sein");
+	return {
+		mainPluginDownloadVersions: parseMainPluginDownloadVersions(
+			value.mainPluginDownloadVersions,
+		),
 	};
 }
 
@@ -265,6 +291,7 @@ export function parseApkAppPluginSessionDescriptor(
 		host: parseHostIdentity(value.host),
 		account: parseAccountContext(value.account),
 		homeData: parseHomeDataContext(value.homeData),
+		installation: parseInstallationContext(value.installation),
 	};
 }
 

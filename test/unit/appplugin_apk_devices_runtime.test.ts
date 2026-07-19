@@ -13,7 +13,6 @@ function homeData() {
 			newFeatureSet: "00ff",
 		})],
 		productJsonStrings: [JSON.stringify({ rrPid: "product-1" })],
-		pluginDownloadVersions: { "roborock.vacuum.sc01": 42 },
 	};
 }
 
@@ -23,6 +22,9 @@ describe("APK RRDevicesModule runtime", () => {
 		const runtime = new ApkDevicesRuntime({
 			hasActivity: () => true,
 			homeData: source,
+			installation: {
+				mainPluginDownloadVersions: { "roborock.vacuum.sc01": 42 },
+			},
 			resolveRpc: () => undefined,
 		});
 		await expect(runtime.getDeviceListInfo()).resolves.toEqual(source.deviceJsonStrings);
@@ -30,6 +32,15 @@ describe("APK RRDevicesModule runtime", () => {
 		await expect(runtime.getConnectedRawProductModels()).resolves.toEqual(source.productJsonStrings);
 		await expect(runtime.getDeviceMainPluginDownloadVersion("roborock.vacuum.sc01"))
 			.resolves.toBe(42);
+	});
+
+	it("returns the APK default 0 when no installed version is recorded", async () => {
+		const runtime = new ApkDevicesRuntime({
+			hasActivity: () => true,
+			resolveRpc: () => undefined,
+		});
+		await expect(runtime.getDeviceMainPluginDownloadVersion("roborock.vacuum.unknown"))
+			.resolves.toBe(0);
 	});
 
 	it("keeps absent HomeData visible as a missing APK host service", async () => {

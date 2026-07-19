@@ -38,6 +38,7 @@ import {
 	type AppPluginDesktopCatalogEntry,
 } from "./lib/appPluginDesktopCatalog";
 import { resolveAppPluginDesktopStaticAsset } from "./lib/appPluginDesktopStaticAssets";
+import { readAppPluginSessionDescriptorFromFd } from "./lib/appPluginSessionDescriptorTransport";
 import {
 	injectAppPluginSessionToken,
 	isValidAppPluginSessionToken,
@@ -229,6 +230,7 @@ function parseArgs(args: string[]): ProbeOptions {
 		activeTime: 0,
 	};
 	let sessionDescriptorPath: string | undefined;
+	let sessionDescriptorFromStdin = false;
 	let profileCatalogPath: string | undefined;
 	for (let index = 0; index < args.length; index += 1) {
 		const option = args[index];
@@ -281,8 +283,16 @@ function parseArgs(args: string[]): ProbeOptions {
 			options.httpSessionTokenFilePath = path.resolve(args[++index]);
 		}
 		else if (option === "--session-descriptor" && value) {
-			if (sessionDescriptorPath) throw new Error("--session-descriptor darf nur einmal angegeben werden");
+			if (sessionDescriptorPath || sessionDescriptorFromStdin) {
+				throw new Error("Es darf nur eine Quelle für den Sitzungsdeskriptor angegeben werden");
+			}
 			sessionDescriptorPath = path.resolve(args[++index]);
+		}
+		else if (option === "--session-descriptor-stdin") {
+			if (sessionDescriptorPath || sessionDescriptorFromStdin) {
+				throw new Error("Es darf nur eine Quelle für den Sitzungsdeskriptor angegeben werden");
+			}
+			sessionDescriptorFromStdin = true;
 		}
 		else if (option === "--profile-id" && value) {
 			options.profileId = parseAppPluginDesktopProfile(args[++index]);
@@ -322,7 +332,7 @@ function parseArgs(args: string[]): ProbeOptions {
 		else if (option === "--active-time") options.activeTime = parseNonNegativeNumber(args[++index], option);
 		else throw new Error(`Unbekannte oder unvollständige Option: ${option}`);
 	}
-	if (sessionDescriptorPath) {
+	if (sessionDescriptorPath || sessionDescriptorFromStdin) {
 		const descriptorOwnedOptions = [
 			"--bundle",
 			"--device-model",
@@ -340,10 +350,12 @@ function parseArgs(args: string[]): ProbeOptions {
 				`--session-descriptor darf nicht mit ${conflicting.join(", ")} kombiniert werden`,
 			);
 		}
-		const descriptor = parseApkAppPluginSessionDescriptor(
-			JSON.parse(fs.readFileSync(sessionDescriptorPath, "utf8")) as unknown,
-			path.dirname(sessionDescriptorPath),
-		);
+		const descriptor = sessionDescriptorFromStdin
+			? readAppPluginSessionDescriptorFromFd(0, repositoryRoot)
+			: parseApkAppPluginSessionDescriptor(
+				JSON.parse(fs.readFileSync(sessionDescriptorPath!, "utf8")) as unknown,
+				path.dirname(sessionDescriptorPath!),
+			);
 		options.sessionDescriptor = descriptor;
 		options.bundlePath = path.join(descriptor.pluginRoot, "index.android.bundle");
 		options.deviceModel = descriptor.device.model;
@@ -357,7 +369,8 @@ function parseArgs(args: string[]): ProbeOptions {
 	}
 	if (!options.bundlePath || !options.hostExecutablePath || !options.deviceModel) {
 		throw new Error(
-			"Verwendung: --session-descriptor <json> --host <Hermes-Host> oder "
+			"Verwendung: (--session-descriptor <json> | --session-descriptor-stdin) "
+			+ "--host <Hermes-Host> oder "
 			+ "--bundle <index.android.bundle> --host <Hermes-Host> --device-model <HomeData-Modell> "
 			+ "[--run-application --device-sn <Seriennummer> --firmware-version <Version>] "
 			+ "[Display-, Sprach- und Probe-Geräteoptionen]",
@@ -1135,6 +1148,7 @@ async function main(): Promise<void> {
 	const devices = new ApkDevicesRuntime({
 		hasActivity: () => true,
 		homeData: resolvedDeviceSession?.descriptor.homeData,
+		installation: resolvedDeviceSession?.descriptor.installation,
 		resolveRpc: did => did === options.duid ? pluginSdkRpc : undefined,
 		publishDps: async (did, dps) => {
 			if (did !== options.duid) throw new ApkHostServiceUnavailableError("multi-device-dps");

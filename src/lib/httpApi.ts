@@ -2,6 +2,8 @@ import type { AxiosInstance, InternalAxiosRequestConfig } from "axios";
 import axios from "axios";
 import * as crypto from "node:crypto";
 import { Roborock } from "../main";
+import type { ApkAppPluginHomeDataContext } from "../apppluginHost/apkAppPluginSessionDescriptor";
+import { createApkAppPluginHomeDataContext } from "../apppluginHost/apkHomeDataContext";
 import { LoginV4Response, ProductV5Response } from "./apiTypes";
 import { cryptoEngine } from "./cryptoEngine";
 
@@ -812,6 +814,16 @@ export class http_api {
 	getReceivedDevices(): Device[] {
 		if (!this.homeData) return [];
 		return this.homeData.receivedDevices || [];
+	}
+
+	/**
+	 * Builds the APK-compatible raw RRDevicesModule context in memory.
+	 *
+	 * This data may contain device credentials. Callers must not log it or write
+	 * it to persistent adapter states, documentation, or repository fixtures.
+	 */
+	getAppPluginHomeDataContext(): ApkAppPluginHomeDataContext | undefined {
+		return createApkAppPluginHomeDataContext(this.homeData, this.productInfo);
 	}
 
 	/**
