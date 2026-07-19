@@ -49,6 +49,33 @@ interface MutableNode {
 	parentTag?: number;
 }
 
+interface MutableViewManagerUsage {
+	createdViewCount: number;
+	updatedViewCount: number;
+	usedProps: Set<string>;
+	unknownProps: Set<string>;
+	dispatchedCommands: Set<string>;
+}
+
+export interface ApkViewManagerRuntimeUsage {
+	effectiveViewManagerCount: number;
+	usedViewManagerCount: number;
+	unusedViewManagers: readonly string[];
+	viewManagers: readonly Readonly<{
+		javaClass: string;
+		viewName: string;
+		createdViewCount: number;
+		updatedViewCount: number;
+		usedProps: readonly string[];
+		unknownProps: readonly string[];
+		dispatchedCommands: readonly string[];
+		requiredCommandNames: readonly string[];
+		requiredBubblingEventNames: readonly string[];
+		requiredDirectEventNames: readonly string[];
+		nativeMethods: readonly string[];
+	}>[];
+}
+
 const visualUiManagerOperations = new Set([
 	"createView",
 	"dispatchViewManagerCommand",
@@ -173,6 +200,7 @@ export function createApkDefaultEventTypes(): Readonly<Record<string, unknown>> 
 export class ApkUiManagerRuntime {
 	readonly #viewManagers: Map<string, ApkViewManagerContract>;
 	readonly #nodes = new Map<number, MutableNode>();
+	readonly #viewManagerUsage = new Map<string, MutableViewManagerUsage>();
 	readonly #operations: ApkUiManagerOperation[] = [];
 	readonly #pendingNativeMeasurements: PendingNativeMeasurement[] = [];
 	#jsResponder?: { tag: number; blockNativeResponder: boolean };
@@ -230,6 +258,7 @@ export class ApkUiManagerRuntime {
 		const viewManager = this.#viewManagers.get(viewName);
 		if (!viewManager) throw new Error(`Unbekannter APK-ViewManager: ${viewName}`);
 		viewManagerConfig(viewManager);
+		this.#trackViewProps(viewManager, props ?? {}, "create");
 		this.#nodes.set(tag, {
 			tag,
 			viewName,
@@ -249,6 +278,7 @@ export class ApkUiManagerRuntime {
 		if (node.viewName !== viewName) {
 			throw new Error(`React-Tag ${tag} gehört zu ${node.viewName}, nicht ${viewName}`);
 		}
+		this.#trackViewProps(this.#viewManager(viewName), props, "update");
 		node.props = { ...node.props, ...props };
 		this.#record("updateView", [tag, viewName, props]);
 	};
@@ -259,6 +289,7 @@ export class ApkUiManagerRuntime {
 		props: Readonly<Record<string, unknown>>,
 	): void {
 		const node = this.#node(tag);
+		this.#trackViewProps(this.#viewManager(node.viewName), props, "update");
 		node.props = { ...node.props, ...props };
 		this.#record("updateView", [tag, node.viewName, props]);
 	}
@@ -266,6 +297,11 @@ export class ApkUiManagerRuntime {
 	/** Applies Android's null-prop reset without leaving synthetic null styles in the snapshot. */
 	public restoreDefaultViewProps(tag: number, propNames: readonly string[]): void {
 		const node = this.#node(tag);
+		this.#trackViewProps(
+			this.#viewManager(node.viewName),
+			Object.fromEntries(propNames.map(propName => [propName, null])),
+			"update",
+		);
 		const reset: Record<string, null> = {};
 		for (const propName of propNames) {
 			delete node.props[propName];
@@ -396,9 +432,68 @@ export class ApkUiManagerRuntime {
 		command: string | number,
 		arguments_: readonly unknown[] | null,
 	): void => {
-		this.#node(tag);
-		this.#record("dispatchViewManagerCommand", [tag, command, arguments_]);
+		const node = this.#node(tag);
+		const viewManager = this.#viewManager(node.viewName);
+		const numericCommand = viewManager.commands.find(candidate =>
+			typeof command === "string" ? candidate.name === command : candidate.value === command,
+		);
+		const stringCommand = typeof command === "string"
+			? viewManager.stringCommands.find(candidate => candidate.name === command)
+			: undefined;
+		const commandName = numericCommand?.name ?? stringCommand?.name;
+		if (!commandName) {
+			throw new Error(
+				`Unbekannter APK-ViewManager-Command ${String(command)} für ${viewManager.viewName}`,
+			);
+		}
+		this.#viewUsage(viewManager).dispatchedCommands.add(commandName);
+		this.#record("dispatchViewManagerCommand", [tag, commandName, arguments_]);
 	};
+
+	/**
+	 * Returns the exact per-bundle ViewManager demand observed by this runtime.
+	 * This is intentionally a demand inventory, not a claim that every native
+	 * visual behavior has already been ported.
+	 */
+	public runtimeContractUsage(): Readonly<ApkViewManagerRuntimeUsage> {
+		const viewManagers = [...this.#viewManagerUsage.entries()]
+			.sort(([left], [right]) => left.localeCompare(right))
+			.map(([viewName, usage]) => {
+				const contract = this.#viewManager(viewName);
+				return Object.freeze({
+					javaClass: contract.javaClass,
+					viewName,
+					createdViewCount: usage.createdViewCount,
+					updatedViewCount: usage.updatedViewCount,
+					usedProps: Object.freeze([...usage.usedProps].sort()),
+					unknownProps: Object.freeze([...usage.unknownProps].sort()),
+					dispatchedCommands: Object.freeze([...usage.dispatchedCommands].sort()),
+					requiredCommandNames: Object.freeze([
+						...new Set([
+							...contract.commands.map(command => command.name),
+							...contract.stringCommands.map(command => command.name),
+						]),
+					].sort()),
+					requiredBubblingEventNames: Object.freeze(
+						contract.bubblingEventTypes.map(event => event.topLevelName).sort(),
+					),
+					requiredDirectEventNames: Object.freeze(
+						contract.directEventTypes.map(event => event.topLevelName).sort(),
+					),
+					nativeMethods: Object.freeze([...contract.nativeMethods].sort()),
+				});
+			});
+		return Object.freeze({
+			effectiveViewManagerCount: this.#viewManagers.size,
+			usedViewManagerCount: viewManagers.length,
+			unusedViewManagers: Object.freeze(
+				[...this.#viewManagers.keys()]
+					.filter(viewName => !this.#viewManagerUsage.has(viewName))
+					.sort(),
+			),
+			viewManagers: Object.freeze(viewManagers),
+		});
+	}
 
 	public readonly setJSResponder = (tag: number, blockNativeResponder: boolean): void => {
 		this.#node(tag);
@@ -520,6 +615,42 @@ export class ApkUiManagerRuntime {
 			else request.callback(box.x, box.y, box.width, box.height);
 		}
 		return pending.length;
+	}
+
+	#viewManager(viewName: string): ApkViewManagerContract {
+		const viewManager = this.#viewManagers.get(viewName);
+		if (!viewManager) throw new Error(`Unbekannter APK-ViewManager: ${viewName}`);
+		return viewManager;
+	}
+
+	#viewUsage(viewManager: ApkViewManagerContract): MutableViewManagerUsage {
+		let usage = this.#viewManagerUsage.get(viewManager.viewName);
+		if (!usage) {
+			usage = {
+				createdViewCount: 0,
+				updatedViewCount: 0,
+				usedProps: new Set(),
+				unknownProps: new Set(),
+				dispatchedCommands: new Set(),
+			};
+			this.#viewManagerUsage.set(viewManager.viewName, usage);
+		}
+		return usage;
+	}
+
+	#trackViewProps(
+		viewManager: ApkViewManagerContract,
+		props: Readonly<Record<string, unknown>>,
+		operation: "create" | "update",
+	): void {
+		const usage = this.#viewUsage(viewManager);
+		if (operation === "create") usage.createdViewCount += 1;
+		else usage.updatedViewCount += 1;
+		const knownProps = new Set(viewManager.nativeProps.map(prop => prop.name));
+		for (const propName of Object.keys(props)) {
+			usage.usedProps.add(propName);
+			if (!knownProps.has(propName)) usage.unknownProps.add(propName);
+		}
 	}
 
 	#queueNativeMeasurement(

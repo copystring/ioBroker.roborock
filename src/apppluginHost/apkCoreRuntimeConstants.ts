@@ -35,6 +35,19 @@ export interface ApkSafeAreaMetrics {
 	}>;
 }
 
+export interface ApkPlatformRuntimeState {
+	apiLevel: number;
+	androidRelease: string;
+	serial: string;
+	fingerprint: string;
+	model: string;
+	manufacturer: string;
+	brand: string;
+	isTesting: boolean;
+	isDisableAnimations?: boolean;
+	uiMode: "normal" | "desk" | "car" | "tv" | "watch" | "vrheadset" | "unknown";
+}
+
 function assertPositiveFinite(value: number, name: string): void {
 	if (!Number.isFinite(value) || value <= 0) {
 		throw new Error(`${name} muss eine positive endliche Zahl sein`);
@@ -126,6 +139,64 @@ export function createApkGestureHandlerConstants(): ApkNativeModuleConstants {
 			Direction: APK_GESTURE_HANDLER_DIRECTIONS,
 		},
 	};
+}
+
+/** Reproduces the constants exported by React Native's ToastAndroid module. */
+export function createApkToastConstants(): ApkNativeModuleConstants {
+	return {
+		ToastAndroid: {
+			SHORT: 0,
+			LONG: 1,
+			TOP: 49,
+			BOTTOM: 81,
+			CENTER: 17,
+		},
+	};
+}
+
+/**
+ * Reproduces AndroidInfoModule.getTypedExportedConstants() from the APK.
+ * Android build and device values remain explicit host inputs. The React
+ * Native version is fixed by the inspected APK source.
+ */
+export function createApkPlatformConstants(
+	state: ApkPlatformRuntimeState,
+): ApkNativeModuleConstants {
+	if (!Number.isSafeInteger(state.apiLevel) || state.apiLevel <= 0) {
+		throw new Error("platform.apiLevel muss eine positive ganze Zahl sein");
+	}
+	for (const [value, name] of [
+		[state.androidRelease, "androidRelease"],
+		[state.serial, "serial"],
+		[state.fingerprint, "fingerprint"],
+		[state.model, "model"],
+		[state.manufacturer, "manufacturer"],
+		[state.brand, "brand"],
+		[state.uiMode, "uiMode"],
+	] as const) {
+		if (value.length === 0) throw new Error(`platform.${name} darf nicht leer sein`);
+	}
+	const values: Record<string, unknown> = {
+		Version: state.apiLevel,
+		Release: state.androidRelease,
+		Serial: state.serial,
+		Fingerprint: state.fingerprint,
+		Model: state.model,
+		Manufacturer: state.manufacturer,
+		Brand: state.brand,
+		isTesting: state.isTesting,
+		reactNativeVersion: {
+			major: 0,
+			minor: 73,
+			patch: 6,
+			prerelease: null,
+		},
+		uiMode: state.uiMode,
+	};
+	if (state.isDisableAnimations !== undefined) {
+		values.isDisableAnimations = state.isDisableAnimations;
+	}
+	return { PlatformConstants: values };
 }
 
 export interface ApkPluginSdkRuntimeContext {

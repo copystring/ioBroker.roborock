@@ -468,13 +468,13 @@ Hermes-Host meldet für den statisch erfassten APK-Vertrag:
 | Zustand | Anzahl |
 | --- | ---: |
 | effektive APK-Native-Module | 70 |
-| im PoC registriert | 23 |
-| vollständig implementiert | 19 |
-| teilweise implementiert | 4 |
-| vollständig fehlend | 47 |
+| im PoC registriert | 34 |
+| vollständig implementiert | 31 |
+| teilweise implementiert | 3 |
+| vollständig fehlend | 36 |
 
-Teilweise sind derzeit insbesondere `Orientation`,
-`RRPluginHttpTurboModule`, `RRPluginPermissions` und `RRPluginSDK`.
+Teilweise sind derzeit `RRPluginHttpTurboModule`, `RRPluginPermissions` und
+`RRPluginSDK`.
 Vollständig fehlend sind unter anderem native 3D-Module und -Views,
 Kamera/Video, Datei-/Konto-/Profil-Turbo-Module, Networking,
 WebSocket, MMKV sowie mehrere React-Native-Basismodule.
@@ -537,6 +537,68 @@ Modul benötigt. Für eine Freigabe muss deshalb zusätzlich pro Bundle gemessen
 werden, welche Module, Methoden, Views, Props, Commands und Ereignisse im
 tatsächlichen Ausführungsweg verlangt werden.
 
+### Endlicher Audit aller lokalen Bundles
+
+`npm run poc:appplugin-contract-audit` startet jedes unterschiedliche lokale
+`index.android.bundle` unverändert. Der Audit wartet nicht auf einen erfundenen
+globalen Leerlaufzustand der React-Native-Brücke, sondern begrenzt ausschließlich
+die für den Start relevanten Runtime-, Layout- und Ereignisgrenzen. Das ist eine
+Diagnosestrategie unseres Hosts und kein behauptetes APK-Verhalten.
+
+Der Lauf vom 19. Juli 2026 ergibt:
+
+| Messwert | Ergebnis |
+| --- | ---: |
+| gefundene Bundlepfade | 16 |
+| unterschiedliche Bundle-Hashes | 14 |
+| vollständig erzeugte Berichte | 14 |
+| erzeugte React-Roots | 10 |
+| Abbruch vor Bericht | 0 |
+| Zeitüberschreitungen | 0 |
+| als produktionsreif bewertet | 0 |
+
+Einen Root erzeugen Q10 X5+, Q10, Q7 L5, Q7 M5, S6 MaxV, S8 MaxV Ultra,
+S8 Pro Ultra, Saros 10, Saros 20 und Saros Z70. Das bedeutet ausdrücklich nur
+`root-mounted`; echte Gerätesitzung, Interaktion, Kartenpayload,
+Android-Differenz und Betriebsgrenzen sind dadurch nicht bewiesen.
+
+Neun dieser zehn Root-Läufe besitzen inzwischen weder einen fehlenden nativen
+Aufruf noch einen unerwarteten nativen Fehler. Sie stehen auf `loading`, weil
+der begrenzte Startaudit ohne echte Gerätedaten noch kein Interaktionsziel
+beobachtet. Saros 20 erreicht ebenfalls den Root, verlangt danach jedoch
+`RRPluginHttpTurboModule.userGet` und `RRPluginSDK.getUserRole`. Beide Methoden
+erreichen den richtigen Hostvertrag; ohne angemeldeten User-HTTP-Dienst und
+Produktrollen-Antwort bleiben sie bewusst als externe Hostdienste blockiert.
+
+`RRPluginSDK.readFileListAtPath` lehnt ein noch nicht vorhandenes
+Unterverzeichnis in der APK ausdrücklich mit
+`filePath not exists or is not a directory` ab. Da mehrere Bundles genau diesen
+negativen Zustand als Start-Fallback abfragen, klassifiziert die Diagnostik nur
+diese exakte Kombination aus Modul, Methode, Fehlertyp und Text als erwartete
+Domänenablehnung. Andere Datei- und Berechtigungsfehler bleiben unerwartete
+Fehler.
+
+Qrevo Curv, Qrevo Master, Qrevo MaxV und S7 MaxV erreichen den Bericht, aber
+scheitern vor dem Root reproduzierbar an
+`Cannot read property 'multiMerge' of undefined`. Die Bundles fragen den
+eingebetteten älteren React-Native-`AsyncStorage`-Namen ab. Die untersuchte
+APK 4.54.02 installiert dagegen ausschließlich `RNCAsyncStorage`; belegt ist
+dies unter anderem durch
+`com/reactnativecommunity/asyncstorage/AsyncStorageModule.java:29-32,271-294`
+und `o00OOooO/o0OoOoOo.java:80-83`.
+
+Diese vier Fälle werden deshalb nicht durch einen stillen Alias im aktuellen
+Hostprofil kaschiert. Der generische Weg ist ein versionierter APK-Hostvertrag:
+Ein Plugin läuft gegen das durch seine APK-Generation belegte Profil. Solange
+die passende ältere APK nicht zugeordnet und inventarisiert ist, bleibt die
+Abweichung ein sichtbarer Profilblocker.
+
+Der Audit schreibt zusätzlich die tatsächlich verlangten Native-Methoden und
+View Manager in
+`artifacts/appplugin-poc/runtime-probes/all-appplugins-contract-audit.json`.
+Damit richtet sich die weitere Implementierungsreihenfolge nach beobachtetem
+familienübergreifendem Bedarf, ohne Fachlogik aus den Bundles zu kopieren.
+
 ## Korrigierte Kompatibilitätsbegriffe
 
 Die folgenden Stufen dürfen nicht mehr zusammengefasst werden:
@@ -585,19 +647,23 @@ ausdrücklich nicht als Produktfreigabe bewertet.
 
 ## Nächste verbindliche Phase-0-Arbeit
 
-1. Die vorhandene APK-Inventur zur einzigen Quelle für Module, Methoden,
-   Konstanten, Views, Props, Commands und Ereignisse machen.
-2. Den nun auf beiden Prozessgrenzen begrenzt und ohne persistente
+1. Für die vier älteren JavaScript-Bundles die zugehörige APK-Generation
+   beschaffen, inventarisieren und als explizites Hostprofil neben APK 4.54.02
+   stellen; keine unbelegten Modulaliase verwenden.
+2. Die vorhandene APK-Inventur zur einzigen Quelle für Module, Methoden,
+   Konstanten, Views, Props, Commands und Ereignisse machen und die vom
+   Bundle-Audit beobachtete Bedarfsmenge dagegen prüfen.
+3. Den nun auf beiden Prozessgrenzen begrenzt und ohne persistente
    Zwischenablage arbeitenden Deskriptor-Pipepfad aus dem Adapter-Lebenszyklus
    starten und stoppen; danach echte Mehrgeräte-HomeData in derselben
    isolierten Sitzung an `RRDevicesModule` prüfen.
-3. Den signaturprüfenden APK-Paketinstaller an Versionsabfrage, authentifizierten
+4. Den signaturprüfenden APK-Paketinstaller an Versionsabfrage, authentifizierten
    Download, persistierten Installationsspeicher und Adapter-Lebenszyklus
    anbinden. Ordnernamen und `project.json.version_code` bleiben als
    Versionsersatz verboten.
-4. Die getrennten Bootstrap-, Root-Mount-, beobachteter-Ausschnitt- und
+5. Die getrennten Bootstrap-, Root-Mount-, beobachteter-Ausschnitt- und
    Produktfreigabestufen in allen Runnern und Matrizen beibehalten.
-5. Jeden lokalen Pluginlauf mit einer Bedarfsdeckung versehen: verlangter
+6. Jeden lokalen Pluginlauf mit einer Bedarfsdeckung versehen: verlangter
    Vertrag gegen implementierten Vertrag, nicht nur global registrierte Module.
 6. Für jede Rendererfamilie einen echten Gerätekontext und echte Daten
    bereitstellen. Fehlende Konto-/Cloud-/Datei-/Native-View-Dienste bleiben

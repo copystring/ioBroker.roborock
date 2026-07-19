@@ -130,83 +130,83 @@
 
 ## View-Manager
 
-- `AIRMap` — `com.rnmaps.maps.MapManager`; NativeProps: 148; Bubbling-Events: 9; direkte Events: 0; Commands: 0; native Methoden: keine
-- `AIRMapCallout` — `com.rnmaps.maps.MapCalloutManager`; NativeProps: 113; Bubbling-Events: 9; direkte Events: 0; Commands: 0; native Methoden: keine
-- `AIRMapCircle` — `com.rnmaps.maps.MapCircleManager`; NativeProps: 117; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `AIRMapGradientPolyline` — `com.rnmaps.maps.MapGradientPolylineManager`; NativeProps: 115; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `AIRMapHeatmap` — `com.rnmaps.maps.MapHeatmapManager`; NativeProps: 115; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `AIRMapLocalTile` — `com.rnmaps.maps.MapLocalTileManager`; NativeProps: 115; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `AIRMapMarker` — `com.rnmaps.maps.MapMarkerManager`; NativeProps: 124; Bubbling-Events: 0; direkte Events: 0; Commands: 0; native Methoden: keine
-- `AIRMapOverlay` — `com.rnmaps.maps.MapOverlayManager`; NativeProps: 116; Bubbling-Events: 9; direkte Events: 0; Commands: 0; native Methoden: keine
-- `AIRMapPolygon` — `com.rnmaps.maps.MapPolygonManager`; NativeProps: 119; Bubbling-Events: 9; direkte Events: 0; Commands: 0; native Methoden: keine
-- `AIRMapPolyline` — `com.rnmaps.maps.MapPolylineManager`; NativeProps: 119; Bubbling-Events: 9; direkte Events: 0; Commands: 0; native Methoden: keine
-- `AIRMapUrlTile` — `com.rnmaps.maps.MapUrlTileManager`; NativeProps: 122; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `AIRMapWMSTile` — `com.rnmaps.maps.MapWMSTileManager`; NativeProps: 120; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `AndroidBlurView` — `com.reactnativecommunity.blurview.BlurViewManager`; NativeProps: 122; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `AndroidDrawerLayout` — `com.facebook.react.views.drawer.ReactDrawerLayoutManager`; NativeProps: 118; Bubbling-Events: 9; direkte Events: 5; Commands: 2; native Methoden: keine
-- `AndroidHorizontalScrollContentView` — `com.facebook.react.views.scroll.ReactHorizontalScrollContainerViewManager`; NativeProps: 113; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `AndroidHorizontalScrollView` — `com.facebook.react.views.scroll.ReactHorizontalScrollViewManager`; NativeProps: 145; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `AndroidProgressBar` — `com.facebook.react.views.progressbar.ReactProgressBarViewManager`; NativeProps: 118; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `AndroidSwipeRefreshLayout` — `com.facebook.react.views.swiperefresh.SwipeRefreshLayoutManager`; NativeProps: 118; Bubbling-Events: 9; direkte Events: 2; Commands: 0; native Methoden: keine
-- `AndroidSwitch` — `com.facebook.react.views.switchview.ReactSwitchManager`; NativeProps: 121; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `AndroidTextInput` — `com.facebook.react.views.textinput.ReactTextInputManager`; NativeProps: 176; Bubbling-Events: 15; direkte Events: 2; Commands: 2; native Methoden: keine
-- `ARTSurfaceView` — `com.reactnativecommunity.art.ARTSurfaceViewManager`; NativeProps: 112; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `GLCanvas` — `com.projectseptember.RNGL.GLCanvasManager`; NativeProps: 121; Bubbling-Events: 9; direkte Events: 0; Commands: 1; native Methoden: keine
-- `LottieAnimationView` — `com.airbnb.android.react.lottie.LottieAnimationViewManager`; NativeProps: 128; Bubbling-Events: 9; direkte Events: 3; Commands: 0; native Methoden: keine
-- `RCTImageView` — `com.facebook.react.views.image.ReactImageManager`; NativeProps: 132; Bubbling-Events: 9; direkte Events: 6; Commands: 0; native Methoden: keine
-- `RCTModalHostView` — `com.facebook.react.views.modal.ReactModalHostManager`; NativeProps: 121; Bubbling-Events: 9; direkte Events: 5; Commands: 0; native Methoden: keine
-- `RCTRawText` — `com.facebook.react.views.text.ReactRawTextManager`; NativeProps: 1; Bubbling-Events: 0; direkte Events: 0; Commands: 0; native Methoden: keine
-- `RCTScrollView` — `com.facebook.react.views.scroll.ReactScrollViewManager`; NativeProps: 146; Bubbling-Events: 9; direkte Events: 1; Commands: 3; native Methoden: keine
-- `RCTText` — `com.facebook.react.views.text.ReactTextViewManager`; NativeProps: 154; Bubbling-Events: 9; direkte Events: 3; Commands: 0; native Methoden: keine
-- `RCTTextInlineImage` — `com.facebook.react.views.text.frescosupport.FrescoBasedReactTextInlineImageViewManager`; NativeProps: 116; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RCTVideo` — `com.brentvatne.react.ReactVideoViewManager`; NativeProps: 125; Bubbling-Events: 9; direkte Events: 0; Commands: 0; native Methoden: keine
-- `RCTView` — `com.facebook.react.views.view.ReactViewManager`; NativeProps: 152; Bubbling-Events: 9; direkte Events: 1; Commands: 2; native Methoden: keine
-- `RCTVirtualText` — `com.facebook.react.views.text.ReactVirtualTextViewManager`; NativeProps: 133; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RNCMaskedView` — `org.reactnative.maskedview.RNCMaskedViewManager`; NativeProps: 113; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RNCSafeAreaProvider` — `com.th3rdwave.safeareacontext.SafeAreaProviderManager`; NativeProps: 112; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RNCSafeAreaView` — `com.th3rdwave.safeareacontext.SafeAreaViewManager`; NativeProps: 154; Bubbling-Events: 9; direkte Events: 1; Commands: 2; native Methoden: keine
-- `RNCWebView` — `com.reactnativecommunity.webview.RNCWebViewManager`; NativeProps: 158; Bubbling-Events: 9; direkte Events: 12; Commands: 11; native Methoden: keine
-- `RNGestureHandlerButton` — `com.swmansion.gesturehandler.react.RNGestureHandlerButtonViewManager`; NativeProps: 126; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RNGestureHandlerRootView` — `com.swmansion.gesturehandler.react.RNGestureHandlerRootViewManager`; NativeProps: 112; Bubbling-Events: 9; direkte Events: 0; Commands: 0; native Methoden: keine
-- `RNLinearGradient` — `com.rnlineargradient.LinearGradientManager`; NativeProps: 120; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RNSModalScreen` — `com.swmansion.rnscreens.ModalScreenViewManager`; NativeProps: 127; Bubbling-Events: 9; direkte Events: 8; Commands: 0; native Methoden: keine
-- `RNSScreen` — `com.swmansion.rnscreens.ScreenViewManager`; NativeProps: 127; Bubbling-Events: 9; direkte Events: 8; Commands: 0; native Methoden: keine
-- `RNSScreenContainer` — `com.swmansion.rnscreens.ScreenContainerViewManager`; NativeProps: 112; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RNSScreenStack` — `com.swmansion.rnscreens.ScreenStackViewManager`; NativeProps: 112; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RNSScreenStackHeaderConfig` — `com.swmansion.rnscreens.ScreenStackHeaderConfigViewManager`; NativeProps: 125; Bubbling-Events: 9; direkte Events: 2; Commands: 0; native Methoden: keine
-- `RNSScreenStackHeaderSubview` — `com.swmansion.rnscreens.ScreenStackHeaderSubviewManager`; NativeProps: 113; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RNSSearchBar` — `com.swmansion.rnscreens.SearchBarManager`; NativeProps: 122; Bubbling-Events: 9; direkte Events: 0; Commands: 0; native Methoden: keine
-- `RNSVGCircle` — `com.horcrux.svg.RenderableViewManager$CircleViewManager`; NativeProps: 138; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RNSVGClipPath` — `com.horcrux.svg.RenderableViewManager$ClipPathViewManager`; NativeProps: 25; Bubbling-Events: 0; direkte Events: 0; Commands: 0; native Methoden: keine
-- `RNSVGDefs` — `com.horcrux.svg.RenderableViewManager$DefsViewManager`; NativeProps: 122; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RNSVGEllipse` — `com.horcrux.svg.RenderableViewManager$EllipseViewManager`; NativeProps: 139; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RNSVGForeignObject` — `com.horcrux.svg.RenderableViewManager$ForeignObjectManager`; NativeProps: 29; Bubbling-Events: 0; direkte Events: 0; Commands: 0; native Methoden: keine
-- `RNSVGGroup` — `com.horcrux.svg.RenderableViewManager$GroupViewManager`; NativeProps: 25; Bubbling-Events: 0; direkte Events: 0; Commands: 0; native Methoden: keine
-- `RNSVGImage` — `com.horcrux.svg.RenderableViewManager$ImageViewManager`; NativeProps: 140; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RNSVGLine` — `com.horcrux.svg.RenderableViewManager$LineViewManager`; NativeProps: 139; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RNSVGLinearGradient` — `com.horcrux.svg.RenderableViewManager$LinearGradientManager`; NativeProps: 129; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RNSVGMarker` — `com.horcrux.svg.RenderableViewManager$MarkerManager`; NativeProps: 37; Bubbling-Events: 0; direkte Events: 0; Commands: 0; native Methoden: keine
-- `RNSVGMask` — `com.horcrux.svg.RenderableViewManager$MaskManager`; NativeProps: 31; Bubbling-Events: 0; direkte Events: 0; Commands: 0; native Methoden: keine
-- `RNSVGPath` — `com.horcrux.svg.RenderableViewManager$PathViewManager`; NativeProps: 136; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RNSVGPattern` — `com.horcrux.svg.RenderableViewManager$PatternManager`; NativeProps: 38; Bubbling-Events: 0; direkte Events: 0; Commands: 0; native Methoden: keine
-- `RNSVGRadialGradient` — `com.horcrux.svg.RenderableViewManager$RadialGradientManager`; NativeProps: 131; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RNSVGRect` — `com.horcrux.svg.RenderableViewManager$RectViewManager`; NativeProps: 139; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RNSVGSvgViewAndroid` — `com.horcrux.svg.SvgViewManager`; NativeProps: 162; Bubbling-Events: 9; direkte Events: 1; Commands: 2; native Methoden: keine
-- `RNSVGSymbol` — `com.horcrux.svg.RenderableViewManager$SymbolManager`; NativeProps: 31; Bubbling-Events: 0; direkte Events: 0; Commands: 0; native Methoden: keine
-- `RNSVGText` — `com.horcrux.svg.RenderableViewManager$TextViewManager`; NativeProps: 35; Bubbling-Events: 0; direkte Events: 0; Commands: 0; native Methoden: keine
-- `RNSVGTextPath` — `com.horcrux.svg.RenderableViewManager$TextPathViewManager`; NativeProps: 41; Bubbling-Events: 0; direkte Events: 0; Commands: 0; native Methoden: keine
-- `RNSVGTSpan` — `com.horcrux.svg.RenderableViewManager$TSpanViewManager`; NativeProps: 36; Bubbling-Events: 0; direkte Events: 0; Commands: 0; native Methoden: keine
-- `RNSVGUse` — `com.horcrux.svg.RenderableViewManager$UseViewManager`; NativeProps: 138; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RNViewOverflow` — `com.entria.views.RNViewOverflowManager`; NativeProps: 113; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RR3DMapView` — `com.roborock.smart.react.map.RR3DMapViewManager`; NativeProps: 115; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RR3DMapView` — `com.roborock.smart.react.mapv2.rn.MapViewManager`; NativeProps: 115; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RR3DMapView` — `com.roborock.smart.react.view.RR3DMapViewNativeManager`; NativeProps: 115; Bubbling-Events: 0; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RRCustomImageView` — `com.roborock.smart.react.view.RRCustomImageViewNativeManager`; NativeProps: 132; Bubbling-Events: 9; direkte Events: 6; Commands: 0; native Methoden: keine
-- `RRPAGAnimationView` — `com.roborock.smart.react.view.RRPAGAnimationNativeManager`; NativeProps: 115; Bubbling-Events: 0; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RRPathView` — `com.roborock.smart.react.view.RRPathViewManager`; NativeProps: 115; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RRRecordView` — `com.roborock.smart.react.view.RRRecordViewNativeManager`; NativeProps: 112; Bubbling-Events: 0; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RRScanQR` — `com.roborock.smart.react.view.RRScanQRViewManager`; NativeProps: 112; Bubbling-Events: 0; direkte Events: 1; Commands: 0; native Methoden: keine
-- `RRVideoView` — `com.roborock.smart.react.view.RRVideoViewNativeManager`; NativeProps: 112; Bubbling-Events: 9; direkte Events: 0; Commands: 0; native Methoden: keine
-- `SkiaDomView` — `com.shopify.reactnative.skia.SkiaDomViewManager`; NativeProps: 154; Bubbling-Events: 9; direkte Events: 1; Commands: 2; native Methoden: initHybrid, registerView, setBgColor, setDebugMode, setMode, surfaceAvailable, surfaceDestroyed, surfaceSizeChanged, unregisterView, updateTouchPoints
-- `SkiaPictureView` — `com.shopify.reactnative.skia.SkiaPictureViewManager`; NativeProps: 154; Bubbling-Events: 9; direkte Events: 1; Commands: 2; native Methoden: initHybrid, registerView, setBgColor, setDebugMode, setMode, surfaceAvailable, surfaceDestroyed, surfaceSizeChanged, unregisterView, updateTouchPoints
-- `UnimplementedNativeView` — `com.facebook.react.views.unimplementedview.ReactUnimplementedViewManager`; NativeProps: 113; Bubbling-Events: 9; direkte Events: 1; Commands: 0; native Methoden: keine
+- `AIRMap` — `com.rnmaps.maps.MapManager`; NativeProps: 148; Bubbling-Events: 9; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `AIRMapCallout` — `com.rnmaps.maps.MapCalloutManager`; NativeProps: 113; Bubbling-Events: 9; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `AIRMapCircle` — `com.rnmaps.maps.MapCircleManager`; NativeProps: 117; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `AIRMapGradientPolyline` — `com.rnmaps.maps.MapGradientPolylineManager`; NativeProps: 115; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `AIRMapHeatmap` — `com.rnmaps.maps.MapHeatmapManager`; NativeProps: 115; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `AIRMapLocalTile` — `com.rnmaps.maps.MapLocalTileManager`; NativeProps: 115; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `AIRMapMarker` — `com.rnmaps.maps.MapMarkerManager`; NativeProps: 124; Bubbling-Events: 0; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `AIRMapOverlay` — `com.rnmaps.maps.MapOverlayManager`; NativeProps: 116; Bubbling-Events: 9; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `AIRMapPolygon` — `com.rnmaps.maps.MapPolygonManager`; NativeProps: 119; Bubbling-Events: 9; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `AIRMapPolyline` — `com.rnmaps.maps.MapPolylineManager`; NativeProps: 119; Bubbling-Events: 9; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `AIRMapUrlTile` — `com.rnmaps.maps.MapUrlTileManager`; NativeProps: 122; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `AIRMapWMSTile` — `com.rnmaps.maps.MapWMSTileManager`; NativeProps: 120; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `AndroidBlurView` — `com.reactnativecommunity.blurview.BlurViewManager`; NativeProps: 122; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `AndroidDrawerLayout` — `com.facebook.react.views.drawer.ReactDrawerLayoutManager`; NativeProps: 118; Bubbling-Events: 9; direkte Events: 5; numerische Commands: 2; String-Commands: 0; native Methoden: keine
+- `AndroidHorizontalScrollContentView` — `com.facebook.react.views.scroll.ReactHorizontalScrollContainerViewManager`; NativeProps: 113; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `AndroidHorizontalScrollView` — `com.facebook.react.views.scroll.ReactHorizontalScrollViewManager`; NativeProps: 145; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `AndroidProgressBar` — `com.facebook.react.views.progressbar.ReactProgressBarViewManager`; NativeProps: 118; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `AndroidSwipeRefreshLayout` — `com.facebook.react.views.swiperefresh.SwipeRefreshLayoutManager`; NativeProps: 118; Bubbling-Events: 9; direkte Events: 2; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `AndroidSwitch` — `com.facebook.react.views.switchview.ReactSwitchManager`; NativeProps: 121; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `AndroidTextInput` — `com.facebook.react.views.textinput.ReactTextInputManager`; NativeProps: 176; Bubbling-Events: 15; direkte Events: 2; numerische Commands: 2; String-Commands: 0; native Methoden: keine
+- `ARTSurfaceView` — `com.reactnativecommunity.art.ARTSurfaceViewManager`; NativeProps: 112; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `GLCanvas` — `com.projectseptember.RNGL.GLCanvasManager`; NativeProps: 121; Bubbling-Events: 9; direkte Events: 0; numerische Commands: 1; String-Commands: 0; native Methoden: keine
+- `LottieAnimationView` — `com.airbnb.android.react.lottie.LottieAnimationViewManager`; NativeProps: 128; Bubbling-Events: 9; direkte Events: 3; numerische Commands: 0; String-Commands: 4; native Methoden: keine
+- `RCTImageView` — `com.facebook.react.views.image.ReactImageManager`; NativeProps: 132; Bubbling-Events: 9; direkte Events: 6; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RCTModalHostView` — `com.facebook.react.views.modal.ReactModalHostManager`; NativeProps: 121; Bubbling-Events: 9; direkte Events: 5; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RCTRawText` — `com.facebook.react.views.text.ReactRawTextManager`; NativeProps: 1; Bubbling-Events: 0; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RCTScrollView` — `com.facebook.react.views.scroll.ReactScrollViewManager`; NativeProps: 146; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 3; String-Commands: 0; native Methoden: keine
+- `RCTText` — `com.facebook.react.views.text.ReactTextViewManager`; NativeProps: 154; Bubbling-Events: 9; direkte Events: 3; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RCTTextInlineImage` — `com.facebook.react.views.text.frescosupport.FrescoBasedReactTextInlineImageViewManager`; NativeProps: 116; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RCTVideo` — `com.brentvatne.react.ReactVideoViewManager`; NativeProps: 125; Bubbling-Events: 9; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RCTView` — `com.facebook.react.views.view.ReactViewManager`; NativeProps: 152; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 2; String-Commands: 0; native Methoden: keine
+- `RCTVirtualText` — `com.facebook.react.views.text.ReactVirtualTextViewManager`; NativeProps: 133; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNCMaskedView` — `org.reactnative.maskedview.RNCMaskedViewManager`; NativeProps: 113; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNCSafeAreaProvider` — `com.th3rdwave.safeareacontext.SafeAreaProviderManager`; NativeProps: 112; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNCSafeAreaView` — `com.th3rdwave.safeareacontext.SafeAreaViewManager`; NativeProps: 154; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 2; String-Commands: 0; native Methoden: keine
+- `RNCWebView` — `com.reactnativecommunity.webview.RNCWebViewManager`; NativeProps: 158; Bubbling-Events: 9; direkte Events: 12; numerische Commands: 11; String-Commands: 11; native Methoden: keine
+- `RNGestureHandlerButton` — `com.swmansion.gesturehandler.react.RNGestureHandlerButtonViewManager`; NativeProps: 126; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNGestureHandlerRootView` — `com.swmansion.gesturehandler.react.RNGestureHandlerRootViewManager`; NativeProps: 112; Bubbling-Events: 9; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNLinearGradient` — `com.rnlineargradient.LinearGradientManager`; NativeProps: 120; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSModalScreen` — `com.swmansion.rnscreens.ModalScreenViewManager`; NativeProps: 127; Bubbling-Events: 9; direkte Events: 8; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSScreen` — `com.swmansion.rnscreens.ScreenViewManager`; NativeProps: 127; Bubbling-Events: 9; direkte Events: 8; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSScreenContainer` — `com.swmansion.rnscreens.ScreenContainerViewManager`; NativeProps: 112; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSScreenStack` — `com.swmansion.rnscreens.ScreenStackViewManager`; NativeProps: 112; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSScreenStackHeaderConfig` — `com.swmansion.rnscreens.ScreenStackHeaderConfigViewManager`; NativeProps: 125; Bubbling-Events: 9; direkte Events: 2; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSScreenStackHeaderSubview` — `com.swmansion.rnscreens.ScreenStackHeaderSubviewManager`; NativeProps: 113; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSSearchBar` — `com.swmansion.rnscreens.SearchBarManager`; NativeProps: 122; Bubbling-Events: 9; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSVGCircle` — `com.horcrux.svg.RenderableViewManager$CircleViewManager`; NativeProps: 138; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSVGClipPath` — `com.horcrux.svg.RenderableViewManager$ClipPathViewManager`; NativeProps: 25; Bubbling-Events: 0; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSVGDefs` — `com.horcrux.svg.RenderableViewManager$DefsViewManager`; NativeProps: 122; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSVGEllipse` — `com.horcrux.svg.RenderableViewManager$EllipseViewManager`; NativeProps: 139; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSVGForeignObject` — `com.horcrux.svg.RenderableViewManager$ForeignObjectManager`; NativeProps: 29; Bubbling-Events: 0; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSVGGroup` — `com.horcrux.svg.RenderableViewManager$GroupViewManager`; NativeProps: 25; Bubbling-Events: 0; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSVGImage` — `com.horcrux.svg.RenderableViewManager$ImageViewManager`; NativeProps: 140; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSVGLine` — `com.horcrux.svg.RenderableViewManager$LineViewManager`; NativeProps: 139; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSVGLinearGradient` — `com.horcrux.svg.RenderableViewManager$LinearGradientManager`; NativeProps: 129; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSVGMarker` — `com.horcrux.svg.RenderableViewManager$MarkerManager`; NativeProps: 37; Bubbling-Events: 0; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSVGMask` — `com.horcrux.svg.RenderableViewManager$MaskManager`; NativeProps: 31; Bubbling-Events: 0; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSVGPath` — `com.horcrux.svg.RenderableViewManager$PathViewManager`; NativeProps: 136; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSVGPattern` — `com.horcrux.svg.RenderableViewManager$PatternManager`; NativeProps: 38; Bubbling-Events: 0; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSVGRadialGradient` — `com.horcrux.svg.RenderableViewManager$RadialGradientManager`; NativeProps: 131; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSVGRect` — `com.horcrux.svg.RenderableViewManager$RectViewManager`; NativeProps: 139; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSVGSvgViewAndroid` — `com.horcrux.svg.SvgViewManager`; NativeProps: 162; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 2; String-Commands: 0; native Methoden: keine
+- `RNSVGSymbol` — `com.horcrux.svg.RenderableViewManager$SymbolManager`; NativeProps: 31; Bubbling-Events: 0; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSVGText` — `com.horcrux.svg.RenderableViewManager$TextViewManager`; NativeProps: 35; Bubbling-Events: 0; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSVGTextPath` — `com.horcrux.svg.RenderableViewManager$TextPathViewManager`; NativeProps: 41; Bubbling-Events: 0; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSVGTSpan` — `com.horcrux.svg.RenderableViewManager$TSpanViewManager`; NativeProps: 36; Bubbling-Events: 0; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNSVGUse` — `com.horcrux.svg.RenderableViewManager$UseViewManager`; NativeProps: 138; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RNViewOverflow` — `com.entria.views.RNViewOverflowManager`; NativeProps: 113; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RR3DMapView` — `com.roborock.smart.react.map.RR3DMapViewManager`; NativeProps: 115; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RR3DMapView` — `com.roborock.smart.react.mapv2.rn.MapViewManager`; NativeProps: 115; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RR3DMapView` — `com.roborock.smart.react.view.RR3DMapViewNativeManager`; NativeProps: 115; Bubbling-Events: 0; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RRCustomImageView` — `com.roborock.smart.react.view.RRCustomImageViewNativeManager`; NativeProps: 132; Bubbling-Events: 9; direkte Events: 6; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RRPAGAnimationView` — `com.roborock.smart.react.view.RRPAGAnimationNativeManager`; NativeProps: 115; Bubbling-Events: 0; direkte Events: 1; numerische Commands: 0; String-Commands: 2; native Methoden: keine
+- `RRPathView` — `com.roborock.smart.react.view.RRPathViewManager`; NativeProps: 115; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RRRecordView` — `com.roborock.smart.react.view.RRRecordViewNativeManager`; NativeProps: 112; Bubbling-Events: 0; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RRScanQR` — `com.roborock.smart.react.view.RRScanQRViewManager`; NativeProps: 112; Bubbling-Events: 0; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `RRVideoView` — `com.roborock.smart.react.view.RRVideoViewNativeManager`; NativeProps: 112; Bubbling-Events: 9; direkte Events: 0; numerische Commands: 0; String-Commands: 0; native Methoden: keine
+- `SkiaDomView` — `com.shopify.reactnative.skia.SkiaDomViewManager`; NativeProps: 154; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 2; String-Commands: 0; native Methoden: initHybrid, registerView, setBgColor, setDebugMode, setMode, surfaceAvailable, surfaceDestroyed, surfaceSizeChanged, unregisterView, updateTouchPoints
+- `SkiaPictureView` — `com.shopify.reactnative.skia.SkiaPictureViewManager`; NativeProps: 154; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 2; String-Commands: 0; native Methoden: initHybrid, registerView, setBgColor, setDebugMode, setMode, surfaceAvailable, surfaceDestroyed, surfaceSizeChanged, unregisterView, updateTouchPoints
+- `UnimplementedNativeView` — `com.facebook.react.views.unimplementedview.ReactUnimplementedViewManager`; NativeProps: 113; Bubbling-Events: 9; direkte Events: 1; numerische Commands: 0; String-Commands: 0; native Methoden: keine

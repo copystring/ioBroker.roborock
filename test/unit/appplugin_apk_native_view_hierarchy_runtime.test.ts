@@ -35,6 +35,26 @@ describe("APK native view hierarchy runtime", () => {
 		expect(isApkLayoutOnlyAndCollapsable({ overflow: "hidden" })).toBe(false);
 	});
 
+	it("preserves metadata for a view created before a later attach batch", () => {
+		const ui = new ApkUiManagerRuntime(contract, 1);
+		const hierarchy = new ApkNativeViewHierarchyRuntime(1);
+		ui.createView(2, "RCTView", 1, { width: 40, height: 30 });
+
+		hierarchy.rebuild(
+			ui.snapshot(),
+			[{ tag: 1, box: { x: 0, y: 0, width: 100, height: 100 } }],
+			ui.operationJournal(),
+		);
+
+		ui.updateView(2, "RCTView", { backgroundColor: 0xff000000 });
+		ui.setChildren(1, [2]);
+		const yoga = new ApkYogaLayoutRuntime({ width: 100, height: 100 }).calculate(ui.snapshot());
+		const native = hierarchy.rebuild(ui.snapshot(), yoga, ui.operationJournal());
+
+		expect(native.collapsedTags).toEqual([]);
+		expect(native.root.children.map(child => child.tag)).toEqual([2]);
+	});
+
 	it("removes layout-only RCTViews while preserving rounded native offsets", () => {
 		const ui = new ApkUiManagerRuntime(contract, 1);
 		ui.createView(2, "RCTView", 1, {

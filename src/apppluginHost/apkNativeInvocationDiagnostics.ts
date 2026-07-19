@@ -30,9 +30,19 @@ function isExpectedApkDomainRejection(
 ): boolean {
 	// PluginSDKModule.getFirmwareUpdateState reicht den leeren RRHomeSdk-OTA-Callback
 	// nachweislich als Promise-Ablehnung "data is null" an das AppPlugin weiter.
-	return call === "RRPluginSDK.getFirmwareUpdateState"
+	if (
+		call === "RRPluginSDK.getFirmwareUpdateState"
 		&& errorName === "Error"
-		&& errorMessage === "data is null";
+		&& errorMessage === "data is null"
+	) return true;
+
+	// PluginSDKModule.readFileListAtPath lehnt einen fehlenden oder nicht als
+	// Verzeichnis lesbaren Pfad in der APK ausdrücklich mit genau diesem Text ab.
+	// AppPlugins verwenden diese Ablehnung als normalen "noch keine Dateien"-
+	// Fallback; andere Datei- oder Hostfehler dürfen dadurch nicht verschwinden.
+	return call === "RRPluginSDK.readFileListAtPath"
+		&& errorName === "Error"
+		&& errorMessage === "filePath not exists or is not a directory";
 }
 
 export function classifyApkNativeInvocationRejections(

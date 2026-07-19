@@ -57,6 +57,11 @@ export interface ApkViewManagerCommandContract {
 	evidence: ApkContractEvidence;
 }
 
+export interface ApkViewManagerStringCommandContract {
+	name: string;
+	evidence: ApkContractEvidence;
+}
+
 export type ApkViewManagerConstantValue =
 	| string
 	| number
@@ -82,6 +87,7 @@ export interface ApkViewManagerContract {
 	bubblingEventTypes: ApkBubblingEventContract[];
 	directEventTypes: ApkDirectEventContract[];
 	commands: ApkViewManagerCommandContract[];
+	stringCommands: ApkViewManagerStringCommandContract[];
 	viewConstantsStatus: "none" | "parsed" | "unparsed";
 	viewConstants: ApkViewManagerConstantContract[];
 	nativeMethods: string[];
@@ -279,6 +285,7 @@ export function assertApkAppPluginHostContract(value: unknown): asserts value is
 			|| !Array.isArray(view.bubblingEventTypes)
 			|| !Array.isArray(view.directEventTypes)
 			|| !Array.isArray(view.commands)
+			|| !Array.isArray(view.stringCommands)
 			|| !Array.isArray(view.viewConstants)
 			|| !["none", "parsed", "unparsed"].includes(String(view.viewConstantsStatus))) {
 			invalidContract(`View-Manager ${index} ist unvollständig`);
@@ -345,6 +352,15 @@ export function assertApkAppPluginHostContract(value: unknown): asserts value is
 			assertEvidence(command.evidence, `View-Manager ${view.viewName}.${command.name}`);
 		}
 		assertUnique(commandNames, `View-Manager ${view.viewName}.commands`);
+		const stringCommandNames: string[] = [];
+		for (const command of view.stringCommands) {
+			if (!isRecord(command) || !isNonEmptyString(command.name)) {
+				invalidContract(`View-Manager ${view.viewName} enthält ein ungültiges String-Command`);
+			}
+			stringCommandNames.push(command.name);
+			assertEvidence(command.evidence, `View-Manager ${view.viewName}.${command.name}`);
+		}
+		assertUnique(stringCommandNames, `View-Manager ${view.viewName}.stringCommands`);
 		const constantNames: string[] = [];
 		for (const constant of view.viewConstants) {
 			if (!isRecord(constant)

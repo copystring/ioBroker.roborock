@@ -36,6 +36,12 @@ export interface ApkCurrentCountryInfo {
 	serverCode: string;
 }
 
+export interface ApkMobileOperatorInfo {
+	name: string;
+	simOperator: string;
+	countryCode: string;
+}
+
 export class ApkHostServiceUnavailableError extends Error {
 	public override readonly name = "ApkHostServiceUnavailableError";
 
@@ -49,6 +55,8 @@ export interface ApkPluginSdkEnvironmentRuntimeOptions {
 	closeCurrentPage?(): void;
 	isSharedDevice?(): boolean;
 	currentCountryInfo?(): ApkCurrentCountryInfo | null;
+	mobileOperatorInfo?(): ApkMobileOperatorInfo | null;
+	systemTimeZoneName?(): string;
 	loadUserRole?(model: string, code: string): Promise<string>;
 	firmwareVersion: string;
 	storageBasePath: string;
@@ -196,6 +204,26 @@ export class ApkPluginSdkEnvironmentRuntime {
 	public async getUserRole(model: string, code: string): Promise<string> {
 		if (!this.options.loadUserRole) throw new ApkHostServiceUnavailableError("product-user-role");
 		return this.options.loadUserRole(model, code);
+	}
+
+	/**
+	 * Mirrors the current APK's single-slot TelephonyManager result. The mobile
+	 * operator is Android host state; a desktop embedding may provide an empty
+	 * slot, but it must not infer operator data from a robot model.
+	 */
+	public async getOperatorsInfo(): Promise<Record<"1", ApkMobileOperatorInfo>> {
+		const operator = this.options.mobileOperatorInfo?.();
+		if (!operator) throw new Error("no sim card");
+		return { "1": { ...operator } };
+	}
+
+	/** Mirrors the APK callback shape: success flag followed by IANA time zone. */
+	public getSystemTimezoneNameWithCallback(
+		callback: (...arguments_: unknown[]) => void,
+	): void {
+		const timeZone = this.options.systemTimeZoneName?.()
+			?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+		callback(true, timeZone);
 	}
 
 	/**

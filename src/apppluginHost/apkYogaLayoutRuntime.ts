@@ -293,8 +293,11 @@ function applyYogaStyle(
 
 	if (props.position !== undefined && props.position !== null) {
 		if (props.position === "absolute") node.setPositionType(PositionType.Absolute);
-		else if (props.position === "relative") node.setPositionType(PositionType.Relative);
-		else throw new Error(`position besitzt einen unbekannten Yoga-Wert: ${String(props.position)}`);
+		else if (props.position === "static") node.setPositionType(PositionType.Static);
+		// LayoutShadowNode.setPosition() in the inspected APK logs invalid
+		// strings and deliberately falls back to RELATIVE. Several unchanged
+		// Roborock bundles rely on that behavior with the typo "releative".
+		else node.setPositionType(PositionType.Relative);
 	}
 	if (props.display !== undefined && props.display !== null) {
 		if (props.display === "none") node.setDisplay(Display.None);
@@ -405,6 +408,56 @@ export class ApkYogaLayoutRuntime {
 		config: ReturnType<typeof Yoga.Config.create>,
 		nodes: Map<number, YogaNode>
 	): YogaNode {
+		const root = this.#createConfiguredNode(snapshot, config, nodes);
+		const pending: Array<{
+			snapshot: ApkUiManagerNodeSnapshot;
+			node: YogaNode;
+			children: readonly ApkUiManagerNodeSnapshot[];
+			nextChild: number;
+		}> = [{
+			snapshot,
+			node: root,
+			children: yogaChildren(snapshot),
+			nextChild: 0,
+		}];
+		while (pending.length > 0) {
+			const parent = pending[pending.length - 1];
+			if (parent.nextChild >= parent.children.length) {
+				pending.pop();
+				continue;
+			}
+			const childIndex = parent.nextChild;
+			const child = parent.children[childIndex];
+			parent.nextChild += 1;
+			const yogaChild = this.#createConfiguredNode(child, config, nodes);
+			// ReactModalHostShadowNode sets its only child to the Android window
+			// size when it is inserted into a separate DialogRootViewGroup.
+			if (parent.snapshot.viewName === "RCTModalHostView") {
+				yogaChild.setWidth(this.#width * this.#density);
+				yogaChild.setHeight(this.#height * this.#density);
+			}
+			parent.node.insertChild(yogaChild, childIndex);
+			const children = yogaChildren(child);
+			if (children.length > 0) {
+				pending.push({
+					snapshot: child,
+					node: yogaChild,
+					children,
+					nextChild: 0,
+				});
+			}
+		}
+		return root;
+	}
+
+	#createConfiguredNode(
+		snapshot: ApkUiManagerNodeSnapshot,
+		config: ReturnType<typeof Yoga.Config.create>,
+		nodes: Map<number, YogaNode>,
+	): YogaNode {
+		if (nodes.has(snapshot.tag)) {
+			throw new Error(`React-Tag ${snapshot.tag} ist im Yoga-Baum mehrfach vorhanden`);
+		}
 		const node = Yoga.Node.createWithConfig(config);
 		nodes.set(snapshot.tag, node);
 		applyYogaStyle(node, snapshot, this.#density, this.#direction, this.#doLeftAndRightSwapInRTL);
@@ -435,20 +488,6 @@ export class ApkYogaLayoutRuntime {
 					return { width: measuredWidth, height: measuredHeight };
 				});
 			}
-			return node;
-		}
-		const children = yogaChildren(snapshot);
-		for (const [index, child] of children.entries()) {
-			const yogaChild = this.#createNode(child, config, nodes);
-			// ReactModalHostShadowNode sets its only child to the Android window size
-			// when it is inserted. The native host then moves that child into a
-			// separate fullscreen DialogRootViewGroup. Keeping this at the Yoga
-			// boundary reproduces the APK invariant for every AppPlugin modal.
-			if (snapshot.viewName === "RCTModalHostView") {
-				yogaChild.setWidth(this.#width * this.#density);
-				yogaChild.setHeight(this.#height * this.#density);
-			}
-			node.insertChild(yogaChild, index);
 		}
 		return node;
 	}

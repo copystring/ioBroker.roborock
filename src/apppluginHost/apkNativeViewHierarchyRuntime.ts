@@ -264,10 +264,12 @@ export class ApkNativeViewHierarchyRuntime {
 			for (const child of node.children) collectLiveTags(child);
 		};
 		collectLiveTags(shadowRoot);
-		for (const collection of [this.#dispositions, this.#viewNames, this.#scrollOffsets]) {
-			for (const tag of collection.keys()) {
-				if (!liveTags.has(tag)) collection.delete(tag);
-			}
+		// React Native may create a shadow/native view in one UI batch and attach
+		// it to the root in a later batch. Keep its immutable view name and
+		// layout-only disposition until a future createView for the same tag
+		// replaces them; reachability alone is not a valid view-lifecycle signal.
+		for (const tag of this.#scrollOffsets.keys()) {
+			if (!liveTags.has(tag)) this.#scrollOffsets.delete(tag);
 		}
 		for (const tag of this.#appliedHitTestTags) {
 			if (!liveTags.has(tag)) this.#appliedHitTestTags.delete(tag);

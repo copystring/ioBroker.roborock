@@ -171,6 +171,40 @@ describe("APK AppPlugin environment runtimes", () => {
 		expect(loadUserRole).toHaveBeenCalledWith("roborock.mower.s1", "MOWER");
 	});
 
+	it("uses APK host state for operator and system-time-zone results", async () => {
+		const root = mkdtempSync(path.join(tmpdir(), "apk-environment-"));
+		const runtime = new ApkPluginSdkEnvironmentRuntime({
+			hasActivity: () => true,
+			mobileOperatorInfo: () => ({
+				name: "Testnetz",
+				simOperator: "26201",
+				countryCode: "de",
+			}),
+			systemTimeZoneName: () => "Europe/Berlin",
+			firmwareVersion: "02.24.90",
+			storageBasePath: root,
+			loadDeviceExtraInfo: async () => ({}),
+			loadOtaInfo: async () => null,
+			loadAgreementAndPolicy: async () => ({
+				privacyProtocol: { version: null, langUrl: null },
+				userAgreement: { version: null, langUrl: null },
+			}),
+			loadPluginAgreements: async () => [],
+			workerRuntime: new ApkV8WorkerRuntime({ pluginRootPath: root }),
+		});
+		const callback = vi.fn();
+
+		await expect(runtime.getOperatorsInfo()).resolves.toEqual({
+			"1": {
+				name: "Testnetz",
+				simOperator: "26201",
+				countryCode: "de",
+			},
+		});
+		runtime.getSystemTimezoneNameWithCallback(callback);
+		expect(callback).toHaveBeenCalledWith(true, "Europe/Berlin");
+	});
+
 	it("keeps absent account and cloud-service input explicit", async () => {
 		const root = mkdtempSync(path.join(tmpdir(), "apk-environment-"));
 		const options = {

@@ -31,6 +31,10 @@ type ViewManagerCommandContract = {
 	value: number;
 	evidence: Evidence;
 };
+type ViewManagerStringCommandContract = {
+	name: string;
+	evidence: Evidence;
+};
 type ViewManagerConstantValue =
 	| string
 	| number
@@ -885,6 +889,42 @@ function effectiveViewManagerCommands(
 	return [...effective.values()].sort((left, right) => left.name.localeCompare(right.name));
 }
 
+/**
+ * React-Native-Codegen managers do not expose their commands through
+ * getCommandsMap(). The APK instead routes string command IDs through
+ * receiveCommand() and a generated *ViewManagerInterface.
+ */
+function codegenViewManagerStringCommands(
+	source: string,
+	decompiledRoot: string,
+): ViewManagerStringCommandContract[] {
+	if (!/\breceiveCommand\s*\([^)]*\bString\b[^)]*\)/su.test(source)) return [];
+	const implementsClause = /\bimplements\s+([^{]+)\{/su.exec(source)?.[1];
+	if (!implementsClause) return [];
+
+	const commands = new Map<string, ViewManagerStringCommandContract>();
+	for (const interfaceExpression of splitTopLevel(implementsClause)) {
+		const interfaceName = interfaceExpression.trim().replace(/<.*>$/u, "");
+		if (!interfaceName.endsWith("ViewManagerInterface")) continue;
+		const javaClass = resolveJavaClass(interfaceName, source, decompiledRoot);
+		const interfacePath = javaClassPath(javaClass, decompiledRoot);
+		if (!fs.existsSync(interfacePath)) continue;
+		const interfaceSource = fs.readFileSync(interfacePath, "utf8");
+		for (const match of interfaceSource.matchAll(/\bvoid\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\([^)]*\)\s*;/gu)) {
+			const name = match[1];
+			// Codegen property setters are not receiveCommand targets. The
+			// generated interfaces in this APK use the set* convention for all
+			// properties, including the Lottie dummy compatibility setter.
+			if (name.startsWith("set")) continue;
+			commands.set(name, {
+				name,
+				evidence: evidence(interfacePath, interfaceSource, match.index ?? 0),
+			});
+		}
+	}
+	return [...commands.values()].sort((left, right) => left.name.localeCompare(right.name));
+}
+
 function effectiveViewManagerEvents<T extends BubblingEventContract | DirectEventContract>(
 	filePath: string,
 	source: string,
@@ -944,6 +984,7 @@ function renderDocumentation(contract: {
 		bubblingEventTypes: BubblingEventContract[];
 		directEventTypes: DirectEventContract[];
 		commands: ViewManagerCommandContract[];
+		stringCommands: ViewManagerStringCommandContract[];
 		viewConstantsStatus: "none" | "parsed" | "unparsed";
 		viewConstants: ViewManagerConstantContract[];
 		nativeMethods: string[];
@@ -979,7 +1020,7 @@ function renderDocumentation(contract: {
 		"## View-Manager",
 		"",
 		...contract.viewManagers.map(view =>
-			`- \`${view.viewName}\` — \`${view.javaClass}\`; NativeProps: ${view.nativeProps.length}; Bubbling-Events: ${view.bubblingEventTypes.length}; direkte Events: ${view.directEventTypes.length}; Commands: ${view.commands.length}; native Methoden: ${view.nativeMethods.join(", ") || "keine"}`,
+			`- \`${view.viewName}\` — \`${view.javaClass}\`; NativeProps: ${view.nativeProps.length}; Bubbling-Events: ${view.bubblingEventTypes.length}; direkte Events: ${view.directEventTypes.length}; numerische Commands: ${view.commands.length}; String-Commands: ${view.stringCommands.length}; native Methoden: ${view.nativeMethods.join(", ") || "keine"}`,
 		),
 		"",
 	];
@@ -1084,6 +1125,7 @@ for (const filePath of walkJavaFiles(decompiledRoot)) {
 				extractDirectEvents,
 			),
 			commands: effectiveViewManagerCommands(filePath, source, inherited),
+			stringCommands: codegenViewManagerStringCommands(source, decompiledRoot),
 			viewConstantsStatus: viewConstants.status,
 			viewConstants: viewConstants.constants,
 			nativeMethods,
@@ -1174,6 +1216,7 @@ for (const [packageIndex, packageItem] of packageList.entries()) {
 				extractDirectEvents,
 			),
 			commands: effectiveViewManagerCommands(registration.filePath, registration.source, inherited),
+			stringCommands: codegenViewManagerStringCommands(registration.source, decompiledRoot),
 			viewConstantsStatus: viewConstants.status,
 			viewConstants: viewConstants.constants,
 			nativeMethods: [...new Set([

@@ -124,6 +124,24 @@ describe("APK-derived AppPlugin host contract", () => {
 				expect.objectContaining({ name: "ScaleNone", value: "5" }),
 				expect.objectContaining({ name: "ScaleAspectFill", value: "18" }),
 			]));
+		expect(contract.viewManagers.find(view => view.viewName === "LottieAnimationView")?.stringCommands)
+			.toEqual([
+				expect.objectContaining({ name: "pause" }),
+				expect.objectContaining({ name: "play" }),
+				expect.objectContaining({ name: "reset" }),
+				expect.objectContaining({ name: "resume" }),
+			]);
+		expect(contract.viewManagers.find(view => view.viewName === "RRPAGAnimationView")?.stringCommands)
+			.toEqual([
+				expect.objectContaining({ name: "pause" }),
+				expect.objectContaining({ name: "play" }),
+			]);
+		expect(contract.viewManagers.find(view => view.viewName === "RNCWebView")?.stringCommands)
+			.toEqual(expect.arrayContaining([
+				expect.objectContaining({ name: "goBack" }),
+				expect.objectContaining({ name: "injectJavaScript" }),
+				expect.objectContaining({ name: "reload" }),
+			]));
 	});
 
 	it("captures inherited methods, callback events and native Skia touch entrypoints", () => {
@@ -256,6 +274,11 @@ describe("APK-derived AppPlugin host contract", () => {
 			registeredModuleCount: 1,
 			implementedModuleCount: 1,
 			implementedModules: ["RRPluginDevice"],
+			modules: expect.arrayContaining([expect.objectContaining({
+				moduleName: "RRPluginDevice",
+				status: "complete",
+				missingMethods: [],
+			})]),
 		});
 
 		const incomplete = new StrictApkNativeModuleRegistry(contract);
@@ -269,6 +292,12 @@ describe("APK-derived AppPlugin host contract", () => {
 				moduleName: "RRPluginDevice",
 				missingMethods: device.methods.map(method => method.name),
 			}],
+			modules: expect.arrayContaining([expect.objectContaining({
+				moduleName: "RRPluginDevice",
+				status: "partial",
+				implementedMethods: [],
+				missingMethods: device.methods.map(method => method.name),
+			})]),
 		});
 	});
 
@@ -283,6 +312,7 @@ describe("APK-derived AppPlugin host contract", () => {
 			...contract.viewManagers.flatMap(item => item.bubblingEventTypes.map(event => event.evidence)),
 			...contract.viewManagers.flatMap(item => item.directEventTypes.map(event => event.evidence)),
 			...contract.viewManagers.flatMap(item => item.commands.map(command => command.evidence)),
+			...contract.viewManagers.flatMap(item => item.stringCommands.map(command => command.evidence)),
 			...contract.viewManagers.flatMap(item => item.viewConstants.map(constant => constant.evidence)),
 		];
 		const hashByFile = new Map<string, string>();

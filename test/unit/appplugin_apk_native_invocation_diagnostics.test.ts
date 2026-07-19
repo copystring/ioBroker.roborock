@@ -21,6 +21,11 @@ describe("APK native invocation diagnostics", () => {
 				error: { name: "Error", message: "data is null" },
 			},
 			{
+				moduleName: "RRPluginSDK",
+				methodName: "readFileListAtPath",
+				error: { name: "Error", message: "filePath not exists or is not a directory" },
+			},
+			{
 				moduleName: "UIManager",
 				methodName: "measure",
 				error: { name: "Error", message: "boom" },
@@ -28,7 +33,10 @@ describe("APK native invocation diagnostics", () => {
 		])).toEqual({
 			missingNativeCalls: ["MissingModule.missing"],
 			unavailableHostServices: ["RRPluginHttpTurboModule.iotGet"],
-			expectedDomainRejections: ["RRPluginSDK.getFirmwareUpdateState"],
+			expectedDomainRejections: [
+				"RRPluginSDK.getFirmwareUpdateState",
+				"RRPluginSDK.readFileListAtPath",
+			],
 			unexpectedRejections: ["UIManager.measure"],
 		});
 	});
@@ -39,5 +47,13 @@ describe("APK native invocation diagnostics", () => {
 			methodName: "getFirmwareUpdateState",
 			error: { name: "Error", message: "transport failed" },
 		}]).unexpectedRejections).toEqual(["RRPluginSDK.getFirmwareUpdateState"]);
+	});
+
+	it("does not hide a different file-list failure behind the APK missing-directory rule", () => {
+		expect(classifyApkNativeInvocationRejections([{
+			moduleName: "RRPluginSDK",
+			methodName: "readFileListAtPath",
+			error: { name: "Error", message: "permission denied" },
+		}]).unexpectedRejections).toEqual(["RRPluginSDK.readFileListAtPath"]);
 	});
 });

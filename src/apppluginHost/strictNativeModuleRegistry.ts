@@ -21,6 +21,13 @@ export interface ApkNativeModuleImplementationCoverage {
 		missingMethods: readonly string[];
 	}>[];
 	unimplementedModules: readonly string[];
+	modules: readonly Readonly<{
+		javaClass: string;
+		moduleName: string;
+		status: "complete" | "partial" | "unimplemented";
+		implementedMethods: readonly string[];
+		missingMethods: readonly string[];
+	}>[];
 }
 
 export class MissingApkNativeModuleError extends Error {
@@ -108,6 +115,29 @@ export class StrictApkNativeModuleRegistry {
 			missingMethods: string[];
 		}> = [];
 		const implementedModules: string[] = [];
+		const modules = effectiveModules.map(moduleName => {
+			const contract = this.effectiveByName.get(moduleName)!;
+			const registered = this.implementations.get(moduleName);
+			const implementedMethods = registered
+				? contract.methods
+					.map(method => method.name)
+					.filter(methodName => typeof registered.implementation[methodName] === "function")
+				: [];
+			const missingMethods = contract.methods
+				.map(method => method.name)
+				.filter(methodName => !implementedMethods.includes(methodName));
+			return {
+				javaClass: contract.javaClass,
+				moduleName,
+				status: registered === undefined
+					? "unimplemented" as const
+					: missingMethods.length === 0
+						? "complete" as const
+						: "partial" as const,
+				implementedMethods,
+				missingMethods,
+			};
+		});
 		for (const moduleName of registeredModules) {
 			const registered = this.implementations.get(moduleName)!;
 			const missingMethods = registered.contract.methods
@@ -129,6 +159,7 @@ export class StrictApkNativeModuleRegistry {
 			implementedModules,
 			partiallyImplementedModules,
 			unimplementedModules,
+			modules,
 		};
 	}
 

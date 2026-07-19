@@ -96,8 +96,12 @@ function resolveToolchainBin(repositoryRoot: string): string | undefined {
 }
 
 function sanitizeDiagnostic(value: string): string {
-	return value.replaceAll(Q7_FULL_SCENE_SERIAL, "<synthetic-sn>").split(/\r?\n/u)
-		.map(line => line.trim()).filter(line => line.length > 0).slice(-8).join(" | ").slice(0, 3_000);
+	const lines = value.replaceAll(Q7_FULL_SCENE_SERIAL, "<synthetic-sn>").split(/\r?\n/u)
+		.map(line => line.trim()).filter(line => line.length > 0);
+	const selected = lines.length <= 12
+		? lines
+		: [...lines.slice(0, 4), "...", ...lines.slice(-8)];
+	return selected.join(" | ").slice(0, 3_000);
 }
 
 async function runProbe(options: ProofOptions, temporaryDirectory: string): Promise<JsonRecord> {
@@ -111,6 +115,7 @@ async function runProbe(options: ProofOptions, temporaryDirectory: string): Prom
 		"--width", "360", "--height", "800", "--scale", "1", "--device-model", Q7_FULL_SCENE_MODEL,
 		"--duid", "q7-full-scene-synthetic-device", "--device-sn", Q7_FULL_SCENE_SERIAL,
 		"--firmware-version", Q7_FULL_SCENE_FIRMWARE, "--run-application", "--react-state-probe",
+		"--settle-startup-animations",
 		"--replay-manifest", options.replayManifestPath];
 	const toolchainBin = resolveToolchainBin(options.repositoryRoot);
 	const output = await new Promise<string>((resolve, reject) => {
@@ -141,7 +146,12 @@ function verifyRuntime(result: JsonRecord, fixtureSha256: string): void {
 	assert.equal(
 		readiness.status,
 		"observed-slice-ready",
-		"Der konkrete Q7-Lauf muss einen beobachteten interaktiven Ausschnitt ohne offenen aufgerufenen Hostvertrag erreichen",
+		"Der konkrete Q7-Lauf muss einen beobachteten interaktiven Ausschnitt ohne offenen aufgerufenen Hostvertrag erreichen: "
+			+ JSON.stringify({
+				readiness,
+				runtimeNativeUsage: result.runtimeNativeUsage,
+				nativeInvocationRejections: result.nativeInvocationRejections,
+			}),
 	);
 	assert.equal(readiness.observedSliceReady, true);
 	const coverage = jsonRecord(result.nativeModuleImplementationCoverage, "nativeModuleImplementationCoverage");

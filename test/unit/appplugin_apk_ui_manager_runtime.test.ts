@@ -135,6 +135,7 @@ describe("APK UIManager runtime", () => {
 
 		const lottie = runtime.getConstantsForViewManager("LottieAnimationView");
 		expect(lottie?.Constants).toEqual({ VERSION: 1 });
+		expect(lottie).not.toHaveProperty("Commands");
 
 		const view = runtime.getConstantsForViewManager("RCTView");
 		expect(view?.Commands).toEqual({ hotspotUpdate: 1, setPressed: 2 });
@@ -189,6 +190,37 @@ describe("APK UIManager runtime", () => {
 			"setChildren",
 			"manageChildren",
 		]);
+	});
+
+	it("records the exact per-bundle ViewManager demand and rejects unknown commands", () => {
+		const runtime = new ApkUiManagerRuntime(contract, 1);
+		runtime.createView(2, "RCTView", 1, { opacity: 1, hostOnlyGuess: true });
+		runtime.updateView(2, "RCTView", { backgroundColor: 0xff_00_00_00 });
+		runtime.dispatchViewManagerCommand(2, 2, [true]);
+
+		const usage = runtime.runtimeContractUsage();
+		expect(usage.effectiveViewManagerCount).toBe(78);
+		expect(usage.usedViewManagerCount).toBe(1);
+		expect(usage.unusedViewManagers).toContain("RR3DMapView");
+		expect(usage.viewManagers).toEqual([expect.objectContaining({
+			viewName: "RCTView",
+			createdViewCount: 1,
+			updatedViewCount: 1,
+			usedProps: ["backgroundColor", "hostOnlyGuess", "opacity"],
+			unknownProps: ["hostOnlyGuess"],
+			dispatchedCommands: ["setPressed"],
+			requiredCommandNames: ["hotspotUpdate", "setPressed"],
+		})]);
+		expect(() => runtime.dispatchViewManagerCommand(2, "inventedCommand", null))
+			.toThrow(/Unbekannter APK-ViewManager-Command/u);
+
+		runtime.createView(3, "LottieAnimationView", 1, {});
+		expect(() => runtime.dispatchViewManagerCommand(3, "play", [0, 120])).not.toThrow();
+		expect(runtime.runtimeContractUsage().viewManagers.find(view => view.viewName === "LottieAnimationView"))
+			.toEqual(expect.objectContaining({
+				dispatchedCommands: ["play"],
+				requiredCommandNames: ["pause", "play", "reset", "resume"],
+			}));
 	});
 
 	it("separates visual mutations from responder bookkeeping", () => {

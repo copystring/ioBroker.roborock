@@ -22,4 +22,24 @@ describe("APK RRPluginHttpTurboModule runtime", () => {
 			serviceName: "iot-http",
 		});
 	});
+
+	it("delegates userGet to the separate APK user service and ignores options like the APK", async () => {
+		const get = vi.fn(async () => "{\"result\":\"user\"}");
+		const runtime = new ApkPluginHttpRuntime({ user: { get } });
+
+		await expect(runtime.userGet("user/devices", { page: 2 }, { headers: { ignored: true } }))
+			.resolves.toBe("{\"result\":\"user\"}");
+		expect(get).toHaveBeenCalledWith("user/devices", { page: 2 });
+	});
+
+	it("does not route userGet through the IoT service or fabricate an offline response", async () => {
+		const iotGet = vi.fn(async () => "{\"wrong\":\"service\"}");
+		const runtime = new ApkPluginHttpRuntime({ iot: { get: iotGet } });
+
+		await expect(runtime.userGet("user/devices", null, null)).rejects.toMatchObject({
+			name: "ApkHostServiceUnavailableError",
+			serviceName: "user-http",
+		});
+		expect(iotGet).not.toHaveBeenCalled();
+	});
 });

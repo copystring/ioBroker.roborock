@@ -59,6 +59,7 @@ import {
 	ApkGestureHandlerRuntime,
 	ApkHermesHostSession,
 	ApkI18nManagerRuntime,
+	ApkIntentRuntime,
 	ApkLocalizationRuntime,
 	ApkNativeModuleDispatcher,
 	ApkNativeAnimatedRuntime,
@@ -90,6 +91,8 @@ import {
 	selectApkServedSurfaceRoot,
 	ApkV8WorkerRuntime,
 	ApkOrientationRuntime,
+	ApkPluginAnalyticsRuntime,
+	ApkPlatformServicesRuntime,
 	ApkRpcRequestBroker,
 	ApkHostServiceUnavailableError,
 	apkPluginSdkContextFromSession,
@@ -100,10 +103,12 @@ import {
 	createApkDeviceInfoConstants,
 	createApkGestureHandlerConstants,
 	createApkLocalizationConstants,
+	createApkPlatformConstants,
 	createApkSafeAreaConstants,
 	createApkPluginSdkConstants,
 	createApkRemoteModuleDefinitions,
 	createApkSourceCodeConstants,
+	createApkToastConstants,
 	createApkUiManagerConstants,
 	mergeApkNativeModuleConstants,
 	parseApkAppPluginSessionDescriptor,
@@ -146,6 +151,8 @@ interface ProbeOptions {
 	androidRelease: string;
 	runApplication: boolean;
 	reactStateProbe: boolean;
+	finiteStartupAudit: boolean;
+	settleStartupAnimations: boolean;
 	servePort?: number;
 	serveFullRoot: boolean;
 	sessionStatePath?: string;
@@ -222,6 +229,8 @@ function parseArgs(args: string[]): ProbeOptions {
 		profileLabel: "Lokale AppPlugin-Aufzeichnung",
 		runApplication: false,
 		reactStateProbe: false,
+		finiteStartupAudit: false,
+		settleStartupAnimations: false,
 		serveFullRoot: false,
 		fixtureMapFamily: "unknown",
 		availableProfiles: [],
@@ -267,6 +276,8 @@ function parseArgs(args: string[]): ProbeOptions {
 		else if (option === "--android-release" && value) options.androidRelease = args[++index];
 		else if (option === "--run-application") options.runApplication = true;
 		else if (option === "--react-state-probe") options.reactStateProbe = true;
+		else if (option === "--finite-startup-audit") options.finiteStartupAudit = true;
+		else if (option === "--settle-startup-animations") options.settleStartupAnimations = true;
 		else if (option === "--b01-frame" && value) options.b01FramePath = path.resolve(args[++index]);
 		else if (option === "--b01-local-key" && value) {
 			throw new Error("--b01-local-key ist aus Sicherheitsgründen deaktiviert; verwende --b01-local-key-file");
@@ -1158,6 +1169,12 @@ async function main(): Promise<void> {
 	const pluginSdkEnvironment = new ApkPluginSdkEnvironmentRuntime({
 		hasActivity: () => true,
 		currentCountryInfo: () => resolvedDeviceSession?.descriptor.account ?? null,
+		mobileOperatorInfo: () => ({
+			name: "",
+			simOperator: "",
+			countryCode: "",
+		}),
+		systemTimeZoneName: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
 		loadUserRole: async (model, code) => {
 			appendBounded(hostServiceRequests, {
 				service: "product-user-role",
@@ -1188,6 +1205,16 @@ async function main(): Promise<void> {
 		"RRPluginSDK",
 		`${createHash("sha256").update(pluginPreferencesIdentity).digest("hex")}.json`,
 	));
+	const pluginAnalyticsEvents: Array<Readonly<Record<string, unknown>>> = [];
+	const pluginAnalytics = new ApkPluginAnalyticsRuntime({
+		firmwareVersion,
+		pluginVersion: resolvedDeviceSession?.descriptor.package.versionCode ?? 0,
+		productModel: options.deviceModel,
+		emit: event => appendBounded(
+			pluginAnalyticsEvents,
+			event as Readonly<Record<string, unknown>>,
+		),
+	});
 	const pluginHttp = new ApkPluginHttpRuntime({
 		iot: {
 			get: async (requestPath, params) => {
@@ -1198,6 +1225,17 @@ async function main(): Promise<void> {
 					params,
 				});
 				throw new ApkHostServiceUnavailableError("iot-http");
+			},
+		},
+		user: {
+			get: async (requestPath, params) => {
+				appendBounded(hostServiceRequests, {
+					service: "user-http",
+					method: "GET",
+					path: requestPath,
+					params,
+				});
+				throw new ApkHostServiceUnavailableError("user-http");
 			},
 		},
 	});
@@ -1260,6 +1298,63 @@ async function main(): Promise<void> {
 			iotOriginDevId: "appplugin-runtime-probe-origin",
 			clientId: "appplugin-hermes-runtime-probe",
 		};
+	let sessionForOrientation: ApkHermesHostSession | undefined;
+	let orientationEventQueue: Promise<void> = Promise.resolve();
+	const orientationEvents: Array<{ eventName: string; payload: Readonly<Record<string, unknown>> }> = [];
+	const requestedHostOrientations: Array<{
+		orientation: string;
+		androidRequestedOrientation: number;
+	}> = [];
+	const orientation = new ApkOrientationRuntime(
+		options.width <= options.height ? "PORTRAIT" : "LANDSCAPE-LEFT",
+		{
+			emitDeviceEvent: (eventName, payload) => {
+				const orientationSession = sessionForOrientation;
+				if (!orientationSession) throw new Error("Hermes-Session für Orientation fehlt");
+				appendBounded(orientationEvents, { eventName, payload });
+				orientationEventQueue = orientationEventQueue
+					.then(() => orientationSession.emitDeviceEvent(eventName, payload));
+			},
+			requestHostOrientation: (orientation_, androidRequestedOrientation) =>
+				appendBounded(requestedHostOrientations, {
+					orientation: orientation_,
+					androidRequestedOrientation,
+				}),
+		},
+	);
+	let clipboardText = "";
+	const platformServiceEvents: Array<Readonly<Record<string, unknown>>> = [];
+	const platformServices = new ApkPlatformServicesRuntime({
+		androidId: "appplugin-runtime-probe-android-id",
+		readClipboardText: () => clipboardText,
+		writeClipboardText: value => {
+			clipboardText = value;
+			appendBounded(platformServiceEvents, { type: "clipboard-write", value });
+		},
+		invokeDefaultBackPressHandler: () =>
+			appendBounded(platformServiceEvents, { type: "default-back-press" }),
+		showToast: request =>
+			appendBounded(platformServiceEvents, { type: "toast", ...request }),
+		vibrate: request =>
+			appendBounded(platformServiceEvents, { type: "vibration", request }),
+	});
+	const intent = new ApkIntentRuntime({
+		initialUrl: () => null,
+		canOpenUrl: url => {
+			appendBounded(platformServiceEvents, { type: "can-open-url", url });
+			return false;
+		},
+		openUrl: url =>
+			appendBounded(platformServiceEvents, { type: "open-url", url }),
+		openApplicationSettings: () =>
+			appendBounded(platformServiceEvents, { type: "open-application-settings" }),
+		canSendIntent: action => {
+			appendBounded(platformServiceEvents, { type: "can-send-intent", action });
+			return false;
+		},
+		sendIntent: (action, extras) =>
+			appendBounded(platformServiceEvents, { type: "send-intent", action, extras }),
+	});
 	const constants = mergeApkNativeModuleConstants(
 		createApkDeviceInfoConstants(metrics, metrics),
 		createApkSafeAreaConstants({
@@ -1278,8 +1373,21 @@ async function main(): Promise<void> {
 			doLeftAndRightSwapInRTL: options.doLeftAndRightSwapInRTL,
 		}),
 		createApkGestureHandlerConstants(),
+		createApkToastConstants(),
+		createApkPlatformConstants({
+			apiLevel: 35,
+			androidRelease: options.androidRelease,
+			serial: "unknown",
+			fingerprint: "ioBroker/appplugin-runtime-probe",
+			model: options.mobileModel,
+			manufacturer: "ioBroker",
+			brand: "ioBroker",
+			isTesting: true,
+			uiMode: "normal",
+		}),
 		createApkSourceCodeConstants(sourceCodeUrl),
 		{ AppState: appState.constants() },
+		{ Orientation: orientation.constants() },
 		{ RRPluginDarkMode: darkMode.constants() },
 		createApkUiManagerConstants(contract),
 		createApkPluginSdkConstants(contract, pluginSdkContext),
@@ -1290,9 +1398,53 @@ async function main(): Promise<void> {
 	fs.writeFileSync(options.bootstrapPath, bridgeBootstrap, "utf8");
 
 	const registry = new StrictApkNativeModuleRegistry(contract);
-	const orientation = new ApkOrientationRuntime(
-		options.width <= options.height ? "PORTRAIT" : "LANDSCAPE-LEFT",
+	for (const moduleName of [
+		"DeviceInfo",
+		"FrescoModule",
+		"RNCSafeAreaContext",
+		"RNSModule",
+		"SourceCode",
+	]) {
+		registry.register(installedModule(contract, moduleName).javaClass, {});
+	}
+	registry.register(installedModule(contract, "Clipboard").javaClass, {
+		getString: () => platformServices.getString(),
+		setString: (value: string) => platformServices.setString(value),
+	});
+	registry.register(installedModule(contract, "DeviceEventManager").javaClass, {
+		invokeDefaultBackPressHandler: () => platformServices.invokeDefaultBackPressHandler(),
+	});
+	registry.register(
+		installedModule(contract, "IntentAndroid").javaClass,
+		intent as unknown as Record<string, unknown>,
 	);
+	registry.register(installedModule(contract, "PlatformConstants").javaClass, {
+		getAndroidID: () => platformServices.getAndroidID(),
+	});
+	registry.register(installedModule(contract, "ToastAndroid").javaClass, {
+		show: (message: string, duration: number) => platformServices.show(message, duration),
+		showWithGravity: (message: string, duration: number, gravity: number) =>
+			platformServices.showWithGravity(message, duration, gravity),
+		showWithGravityAndOffset: (
+			message: string,
+			duration: number,
+			gravity: number,
+			xOffset: number,
+			yOffset: number,
+		) => platformServices.showWithGravityAndOffset(
+			message,
+			duration,
+			gravity,
+			xOffset,
+			yOffset,
+		),
+	});
+	registry.register(installedModule(contract, "Vibration").javaClass, {
+		cancel: () => platformServices.cancel(),
+		vibrate: (duration: number) => platformServices.vibrate(duration),
+		vibrateByPattern: (pattern: readonly unknown[], repeat: number) =>
+			platformServices.vibrateByPattern(pattern, repeat),
+	});
 	const asyncStorage = new ApkAsyncStorageRuntime(path.join(
 		path.dirname(options.bootstrapPath),
 		"app-data",
@@ -1371,6 +1523,7 @@ async function main(): Promise<void> {
 	registry.register(
 		installedModule(contract, "RRPluginSDK").javaClass,
 		composeApkNativeModuleImplementation(
+			pluginAnalytics,
 			pluginSdkEnvironment,
 			pluginSdkPreferences,
 			pluginSdkRpc,
@@ -1491,7 +1644,8 @@ async function main(): Promise<void> {
 	});
 	sessionForTimers = session;
 	sessionForLocalization = session;
-	let interactiveLayoutBoundary = false;
+	sessionForOrientation = session;
+	let interactiveLayoutBoundaryDepth = 0;
 	const uiExecution = new ApkUiExecutionRuntime({
 		uiManager,
 		jsModuleCaller: session,
@@ -1503,7 +1657,7 @@ async function main(): Promise<void> {
 		direction: initialIsRTL ? "rtl" : "ltr",
 		doLeftAndRightSwapInRTL: options.doLeftAndRightSwapInRTL,
 		afterLayoutEvents: async () => {
-			if (interactiveLayoutBoundary) {
+			if (interactiveLayoutBoundaryDepth > 0) {
 				await session.flushRuntimeBoundary();
 				return;
 			}
@@ -1541,12 +1695,27 @@ async function main(): Promise<void> {
 		// deren Callback erst durch genau diesen Layout-Turn aufgelöst wird.
 		// Layout-Ereignisse erhalten innerhalb des Turns weiterhin jeweils eine
 		// einzelne Hermes-Barriere, warten aber nicht auf zukünftige Timer.
-		interactiveLayoutBoundary = true;
+		interactiveLayoutBoundaryDepth += 1;
 		try {
 			await applyUiLayout();
 		} finally {
-			interactiveLayoutBoundary = false;
+			interactiveLayoutBoundaryDepth -= 1;
 		}
+	};
+	const settleFiniteStartupAudit = async (maximumRounds = 12): Promise<number> => {
+		let previousOperationCount = -1;
+		let stableRounds = 0;
+		for (let round = 1; round <= maximumRounds; round += 1) {
+			await session.flushRuntimeBoundary();
+			await applyCompletedNativeUiTurn();
+			const operationCount = uiManager.operationCount();
+			const rootHasChildren = uiManager.snapshot().children.length > 0;
+			if (rootHasChildren && operationCount === previousOperationCount) stableRounds += 1;
+			else stableRounds = 0;
+			if (stableRounds >= 2) return round;
+			previousOperationCount = operationCount;
+		}
+		return maximumRounds;
 	};
 	const stabilizeInteractiveUi = async (): Promise<void> => {
 		// Pointer-Eingaben dürfen zukünftige AppPlugin-Timer nicht künstlich abwarten.
@@ -1833,11 +2002,21 @@ async function main(): Promise<void> {
 					concurrentRoot: true,
 				},
 			});
-			runtimeIdleRounds = await session.waitForRuntimeBoundaryIdle();
-			await new Promise(resolve => setTimeout(resolve, 350));
-			timerRuntimeIdleRounds = await session.waitForRuntimeBoundaryIdle();
-			imminentTimerCycles += await settleImminentOneShotTimers();
-			await stabilizeUi();
+			if (options.finiteStartupAudit) {
+				runtimeIdleRounds = await settleFiniteStartupAudit();
+				await new Promise(resolve => setTimeout(resolve, 350));
+				timerRuntimeIdleRounds = await settleFiniteStartupAudit();
+			} else {
+				runtimeIdleRounds = await session.waitForRuntimeBoundaryIdle();
+				await new Promise(resolve => setTimeout(resolve, 350));
+				timerRuntimeIdleRounds = await session.waitForRuntimeBoundaryIdle();
+				imminentTimerCycles += await settleImminentOneShotTimers();
+				await stabilizeUi();
+				if (options.settleStartupAnimations) {
+					await settleActiveNativeAnimations();
+					await stabilizeUi();
+				}
+			}
 		}
 		for (const [eventIndex, event] of deviceReplay.events.entries()) {
 			replayEvents.push(await emitReplayEvent(event, {
@@ -2406,6 +2585,7 @@ async function main(): Promise<void> {
 							appearanceEvents,
 							localization: localization.snapshot(),
 							localizationEvents,
+							pluginAnalyticsEvents,
 							activeTextInputs: textInput.activeInputs(),
 							appliedActivityStyles,
 							requestedColorModels,
@@ -2813,6 +2993,7 @@ async function main(): Promise<void> {
 				server.close(error => error ? reject(error) : resolve());
 			});
 		}
+		await orientationEventQueue;
 		const rootChildCount = uiManager.snapshot().children.length;
 		const rootMounted = options.runApplication
 			&& fatalRuntimeExceptions().length === 0
@@ -2845,6 +3026,9 @@ async function main(): Promise<void> {
 			applicationStarted: options.runApplication,
 			runtimeIdleRounds,
 			timerRuntimeIdleRounds,
+			startupSettlingStrategy: options.finiteStartupAudit
+				? "bounded-boundary-and-layout"
+				: "global-boundary-idle",
 			imminentTimerCycles,
 			uiExecutionSnapshots,
 			b01Ingress,
@@ -2911,12 +3095,17 @@ async function main(): Promise<void> {
 			i18nPreferences: i18nManager.snapshot(),
 			localization: localization.snapshot(),
 			localizationEvents,
+			pluginAnalyticsEvents,
+			orientationEvents,
+			requestedHostOrientations,
+			platformServiceEvents,
 			appSysLogs,
 			touchSoundCount: soundManager.touchSoundCount(),
 			statusBar: statusBar.snapshot(),
 			nativeInvocations,
 			nativeInvocationRejections,
 			runtimeNativeUsage: runtimeUsage,
+			runtimeViewManagerUsage: uiManager.runtimeContractUsage(),
 			runtimeReadiness,
 			nativeModuleImplementationCoverage,
 			uiTree: options.runApplication ? uiManager.snapshot() : undefined,

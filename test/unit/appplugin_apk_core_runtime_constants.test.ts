@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import contractJson from "../../src/apppluginHost/generated/apk-appplugin-host-contract.json";
 import {
 	createApkDeviceInfoConstants,
+	createApkPlatformConstants,
 	createApkSafeAreaConstants,
 	createApkLocalizationConstants,
 	createApkPluginSdkConstants,
+	createApkToastConstants,
 	mergeApkNativeModuleConstants,
 	type ApkAppPluginHostContract,
 } from "../../src/apppluginHost/apkCoreRuntimeConstants";
@@ -72,6 +74,60 @@ describe("APK core runtime constants", () => {
 			},
 			ReactLocalization: { language: "de" },
 		});
+	});
+
+	it("reproduces ToastAndroid and PlatformConstants from the inspected APK", () => {
+		expect(createApkToastConstants()).toEqual({
+			ToastAndroid: {
+				SHORT: 0,
+				LONG: 1,
+				TOP: 49,
+				BOTTOM: 81,
+				CENTER: 17,
+			},
+		});
+		expect(createApkPlatformConstants({
+			apiLevel: 35,
+			androidRelease: "15",
+			serial: "unknown",
+			fingerprint: "test/fingerprint",
+			model: "Pixel Test",
+			manufacturer: "Google",
+			brand: "google",
+			isTesting: true,
+			isDisableAnimations: false,
+			uiMode: "normal",
+		})).toEqual({
+			PlatformConstants: {
+				Version: 35,
+				Release: "15",
+				Serial: "unknown",
+				Fingerprint: "test/fingerprint",
+				Model: "Pixel Test",
+				Manufacturer: "Google",
+				Brand: "google",
+				isTesting: true,
+				isDisableAnimations: false,
+				reactNativeVersion: {
+					major: 0,
+					minor: 73,
+					patch: 6,
+					prerelease: null,
+				},
+				uiMode: "normal",
+			},
+		});
+		expect(() => createApkPlatformConstants({
+			apiLevel: 0,
+			androidRelease: "15",
+			serial: "unknown",
+			fingerprint: "test/fingerprint",
+			model: "Pixel Test",
+			manufacturer: "Google",
+			brand: "google",
+			isTesting: false,
+			uiMode: "normal",
+		})).toThrow(/apiLevel/u);
 	});
 
 

@@ -62,6 +62,18 @@ describe("APK Yoga layout runtime", () => {
 		expect(result.get(3)).toEqual({ x: 10, y: 5, width: 270, height: 30 });
 	});
 
+	it("matches the APK fallback from invalid position strings to relative", () => {
+		const relative = node(1, "Root", {}, [
+			node(2, "RCTView", { position: "relative", width: 40, height: 30 }),
+		]);
+		const misspelled = node(1, "Root", {}, [
+			node(2, "RCTView", { position: "releative", width: 40, height: 30 }),
+		]);
+		const runtime = new ApkYogaLayoutRuntime({ width: 300, height: 200 });
+
+		expect(layouts(runtime.calculate(misspelled))).toEqual(layouts(runtime.calculate(relative)));
+	});
+
 	it("maps physical left/right styles through the APK I18nUtil preference in RTL", () => {
 		const root = node(1, "Root", {}, [
 			node(2, "RCTView", { width: "100%", height: "100%" }, [
@@ -141,5 +153,16 @@ describe("APK Yoga layout runtime", () => {
 			node: text,
 			text: "Roborock",
 		}));
+	});
+
+	it("constructs deeply nested AppPlugin trees without a JavaScript call-stack traversal", () => {
+		let root = node(129, "RCTView", { width: 1, height: 1 });
+		for (let tag = 128; tag >= 1; tag -= 1) {
+			root = node(tag, "RCTView", { width: 1, height: 1 }, [root]);
+		}
+
+		const result = new ApkYogaLayoutRuntime({ width: 300, height: 200 }).calculate(root);
+		expect(result).toHaveLength(129);
+		expect(result.at(-1)?.tag).toBe(129);
 	});
 });
