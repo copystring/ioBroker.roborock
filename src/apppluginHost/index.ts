@@ -55,6 +55,7 @@ export * from "./apkNetInfoRuntime";
 export * from "./apkOrientationRuntime";
 export * from "./apkPluginDeviceListenerRuntime";
 export * from "./apkPluginSdkEnvironmentRuntime";
+export * from "./apkPluginSdkPreferencesRuntime";
 export * from "./apkSourceCodeConstants";
 export * from "./apkV8WorkerRuntime";
 export * from "./strictNativeModuleRegistry";

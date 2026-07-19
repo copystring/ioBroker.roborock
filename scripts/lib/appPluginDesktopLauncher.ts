@@ -1,8 +1,8 @@
 import * as path from "node:path";
 
 import {
-	parseAppPluginDesktopProfile,
-	type AppPluginDesktopProfile,
+	parseAppPluginDesktopFixtureProfile,
+	type AppPluginDesktopFixtureProfile,
 } from "./appPluginDesktopProfiles";
 
 interface AppPluginDesktopLauncherSharedOptions {
@@ -12,7 +12,7 @@ interface AppPluginDesktopLauncherSharedOptions {
 
 export interface AppPluginDesktopFixtureLauncherOptions extends AppPluginDesktopLauncherSharedOptions {
 	mode: "fixture";
-	profile: AppPluginDesktopProfile;
+	profile: AppPluginDesktopFixtureProfile;
 }
 
 export interface AppPluginDesktopSessionLauncherOptions extends AppPluginDesktopLauncherSharedOptions {
@@ -48,7 +48,7 @@ export function parseAppPluginDesktopLauncherArgs(
 	args: readonly string[],
 	workingDirectory = process.cwd(),
 ): AppPluginDesktopLauncherOptions {
-	let profile: AppPluginDesktopProfile | undefined;
+	let profile: AppPluginDesktopFixtureProfile | undefined;
 	let sessionDescriptorPath: string | undefined;
 	let replayManifestPath: string | undefined;
 	let b01LocalKeyFilePath: string | undefined;
@@ -66,7 +66,7 @@ export function parseAppPluginDesktopLauncherArgs(
 		const value = nextValue(args, index, option);
 		index += 1;
 		if (option === "--profile") {
-			profile = parseAppPluginDesktopProfile(value);
+			profile = parseAppPluginDesktopFixtureProfile(value);
 			if (!profile) throw new Error(`Unbekanntes AppPlugin-Fixture-Profil: ${value}`);
 		} else if (option === "--session-descriptor") {
 			sessionDescriptorPath = value;

@@ -73,6 +73,7 @@ class AppPluginDesktop {
 	private readonly languageMode = byId<HTMLSelectElement>("languageMode");
 	private readonly runtimeProfile = byId<HTMLSelectElement>("runtimeProfile");
 	private readonly runtimeStatus = byId<HTMLElement>("runtimeStatus");
+	private readonly deviceContextKind = byId<HTMLElement>("deviceContextKind");
 
 	public async init(): Promise<void> {
 		this.bindNavigation();
@@ -89,9 +90,8 @@ class AppPluginDesktop {
 			onEvent: (label, data) => this.logEvent(label, data),
 			onChange: snapshot => {
 				this.mapSnapshot = snapshot;
-				this.runtimeStatus.textContent = "Bundle unverändert · Darstellung als Hostdiagnose";
-				this.runtimeStatus.dataset.state = "connected";
 				this.syncRuntimeProfile(snapshot);
+				this.updateRuntimeStatus(snapshot);
 				this.runtimeProfile.disabled = snapshot.availableProfiles.length < 2;
 				document.documentElement.dataset.theme = snapshot.colorScheme;
 				this.map.dataset.apppluginDirection = snapshot.isRTL ? "rtl" : "ltr";
@@ -132,15 +132,43 @@ class AppPluginDesktop {
 	}
 
 	private syncRuntimeProfile(snapshot: LiveAppPluginMapSnapshot): void {
-		for (const option of this.runtimeProfile.options) {
-			option.disabled = !snapshot.availableProfiles.includes(option.value);
+		const catalog = snapshot.profileCatalog.length > 0
+			? snapshot.profileCatalog
+			: snapshot.availableProfiles.map(id => ({
+				id,
+				label: id.toUpperCase(),
+				aliases: [id],
+				bundleKind: "hermes-bytecode" as const,
+				bundleSha256: "",
+				runtimeMode: "fixture-replay" as const,
+				modelSource: "home-data-fixture" as const,
+				availability: "available" as const,
+			}));
+		this.runtimeProfile.replaceChildren();
+		const replayGroup = document.createElement("optgroup");
+		replayGroup.label = "Mit echter lokaler Geräteaufnahme";
+		const auditGroup = document.createElement("optgroup");
+		auditGroup.label = "Unverändertes Bundle · UI-Audit ohne Live-Gerät";
+		for (const entry of catalog) {
+			const option = document.createElement("option");
+			option.value = entry.id;
+			option.textContent = entry.runtimeMode === "fixture-replay"
+				? entry.label
+				: `${entry.label} · ${entry.availability === "failed" ? "noch nicht startfähig" : "UI-Audit"}`;
+			option.disabled = !snapshot.availableProfiles.includes(entry.id);
+			option.title = entry.failure
+				?? entry.warning
+				?? `${entry.bundleKind} · ${entry.bundleSha256.slice(0, 12)}`;
+			(entry.runtimeMode === "fixture-replay" ? replayGroup : auditGroup).append(option);
 		}
+		if (replayGroup.children.length > 0) this.runtimeProfile.append(replayGroup);
+		if (auditGroup.children.length > 0) this.runtimeProfile.append(auditGroup);
 		const currentOption = [...this.runtimeProfile.options].find(option => option.value === snapshot.profileId);
 		if (!currentOption && snapshot.profileId !== "unknown") {
 			const option = document.createElement("option");
 			option.value = snapshot.profileId;
 			option.textContent = snapshot.profileLabel;
-			this.runtimeProfile.append(option);
+			this.runtimeProfile.prepend(option);
 		}
 		if (snapshot.profileId !== "unknown") {
 			this.runtimeProfile.value = snapshot.profileId;
@@ -149,12 +177,34 @@ class AppPluginDesktop {
 		}
 	}
 
+	private updateRuntimeStatus(snapshot: LiveAppPluginMapSnapshot): void {
+		const entry = snapshot.profileCatalog.find(candidate => candidate.id === snapshot.profileId);
+		const contextLabel = entry?.runtimeMode === "bundle-audit"
+			? entry.modelSource === "apk-home-data"
+				? "Originalmodell aus lokaler APK-HomeData · ohne Live-Gerät"
+				: entry.modelSource === "appplugin-project"
+					? "Originaler AppPlugin-Paketkontext · ohne Live-Gerät"
+					: "Neutraler AppPlugin-Auditkontext · ohne Live-Gerät"
+			: "Echte lokale Geräteaufnahme";
+		this.runtimeStatus.textContent = `Bundle unverändert · ${contextLabel}`;
+		this.deviceContextKind.textContent = contextLabel;
+		this.runtimeStatus.dataset.state = "connected";
+		this.runtimeProfile.title = entry
+			? [
+				`${snapshot.profileCatalog.length} unterschiedliche Bundles im gemeinsamen Katalog`,
+				`${entry.bundleKind} · ${entry.bundleSha256.slice(0, 12)}`,
+				entry.warning,
+			].filter(Boolean).join("\n")
+			: "Gemeinsamer AppPlugin-Katalog";
+	}
+
 	private async switchRuntimeProfile(profile: string): Promise<void> {
 		const previousSnapshot = this.mapSnapshot;
 		if (!previousSnapshot || profile === previousSnapshot.profileId) return;
 		this.runtimeProfile.disabled = true;
 		this.setSessionControlsConnected(false);
-		this.runtimeStatus.textContent = `Wechsle AppPlugin-Profil zu ${profile.toUpperCase()} …`;
+		const target = previousSnapshot.profileCatalog.find(entry => entry.id === profile);
+		this.runtimeStatus.textContent = `Wechsle AppPlugin zu ${target?.label ?? profile} …`;
 		this.runtimeStatus.dataset.state = "connecting";
 		try {
 			const response = await fetch(`${location.origin}/profile`, {
@@ -211,7 +261,17 @@ class AppPluginDesktop {
 						status?: string;
 						profileId?: string;
 						sessionId?: string;
+						profileCatalog?: Array<{
+							id?: string;
+							availability?: string;
+							failure?: string;
+						}>;
 					};
+					const target = health.profileCatalog?.find(entry => entry.id === profile);
+					if (target?.availability === "failed") {
+						lastError = new Error(target.failure ?? `Profil ${profile} ist noch nicht startfähig`);
+						break;
+					}
 					if (health.status === "appplugin-session-ready"
 						&& health.profileId === profile
 						&& health.sessionId !== previousSessionId) {

@@ -39,9 +39,11 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(surface).toContain("throw await responseError(response");
 		expect(html).toContain('id="runtimeProfile"');
 		expect(html).toContain('id="runtimeStatus"');
-		expect(html).toContain('<option value="q7">Q7 L5 · SC01</option>');
-		expect(html).toContain('<option value="q7-m5">Q7 M5 · SC01</option>');
-		expect(html).toContain('<option value="q10">Q10 X5+ · B01</option>');
+		expect(html).toContain('AppPlugin <select id="runtimeProfile"');
+		expect(source).toContain("snapshot.profileCatalog");
+		expect(source).toContain('auditGroup.label = "Unverändertes Bundle · UI-Audit ohne Live-Gerät"');
+		expect(launcher).toContain("discoverAppPluginDesktopBundles");
+		expect(launcher).toContain('"--profile-catalog-file", runtimeCatalogPath');
 		expect(html).not.toContain("4174");
 		expect(html).not.toContain("4175");
 		expect(launcher).toContain("const APPPLUGIN_DESKTOP_PORT = 4_173");
@@ -402,7 +404,10 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		for (const page of ["overview", "map", "schedules", "history", "settings"]) {
 			expect(html).toContain(`data-navigation="${page}"`);
 		}
-		expect(source).toContain('this.runtimeStatus.textContent = "Bundle unverändert · Darstellung als Hostdiagnose"');
+		expect(source).toContain('"Originalmodell aus lokaler APK-HomeData · ohne Live-Gerät"');
+		expect(source).toContain('"Echte lokale Geräteaufnahme"');
+		expect(source).toContain("this.deviceContextKind.textContent = contextLabel");
+		expect(html).toContain('id="deviceContextKind"');
 		expect(html).toContain('id="languageMode"');
 		expect(source).toContain("this.syncLanguageControl(snapshot)");
 		expect(source).toContain("this.mapSurface.setLanguage(this.languageMode.value)");

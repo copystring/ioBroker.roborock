@@ -1,12 +1,15 @@
 import { spawn } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
 import { build } from "esbuild";
 
-import { parseApkAppPluginSessionDescriptor } from "../src/apppluginHost";
+import {
+	parseApkAppPluginSessionDescriptor,
+	type ApkAppPluginSessionDescriptor,
+} from "../src/apppluginHost";
 import { Q10_FIXTURE_DEFAULTS } from "../test/unit/q10FixtureDefaults";
 import {
 	readAppPluginDesktopSessionState,
@@ -18,7 +21,9 @@ import {
 	clearAppPluginDesktopProfileSwitch,
 	consumeAppPluginDesktopProfileSwitch,
 	decideAppPluginDesktopSupervisorAction,
+	type AppPluginDesktopFixtureProfile,
 	type AppPluginDesktopProfile,
+	type AppPluginMapFamily,
 } from "./lib/appPluginDesktopProfiles";
 import {
 	parseAppPluginDesktopLauncherArgs,
@@ -30,6 +35,20 @@ import {
 	writeAppPluginDesktopFixtureDescriptor,
 	type AppPluginDesktopFixtureSession,
 } from "./lib/appPluginDesktopFixtureSessions";
+import {
+	appPluginDesktopCatalogId,
+	discoverAppPluginDesktopBundles,
+	withAppPluginDeviceModel,
+	type AppPluginDesktopCatalogEntry,
+	type AppPluginDesktopModelSource,
+	type AppPluginDesktopRuntimeMode,
+	type DiscoveredAppPluginDesktopBundle,
+} from "./lib/appPluginDesktopCatalog";
+import {
+	matchAppPluginHomeDataRecord,
+	readAppPluginHomeDataCatalog,
+	type AppPluginHomeDataRecord,
+} from "./lib/appPluginHomeDataCatalog";
 
 interface JsonRecord {
 	[key: string]: unknown;
@@ -39,6 +58,23 @@ interface Q7FixtureIdentity {
 	deviceSn: string;
 	duid: string;
 	firmwareVersion: string;
+}
+
+interface AppPluginDesktopRuntimeSession {
+	profile: AppPluginDesktopProfile;
+	descriptor: ApkAppPluginSessionDescriptor;
+	mapFamily: AppPluginMapFamily;
+	mapProtocol: string;
+	label: string;
+	replayManifestPath?: string;
+	b01LocalKeyFilePath?: string;
+	serveFullRoot: boolean;
+	runtimeMode: AppPluginDesktopRuntimeMode;
+	modelSource: AppPluginDesktopModelSource;
+	bundleSha256: string;
+	bundleKind: AppPluginDesktopCatalogEntry["bundleKind"];
+	aliases: string[];
+	warning?: string;
 }
 
 const Q7_MAP_ID = 1_766_745_097;
@@ -193,7 +229,7 @@ function createQ10ReplayManifest(repositoryRoot: string): string {
 
 function createProfileArguments(
 	repositoryRoot: string,
-	profile: AppPluginDesktopProfile,
+	profile: AppPluginDesktopFixtureProfile,
 	q10LocalKeyFilePath: string,
 ): AppPluginDesktopFixtureSession {
 	const isQ7Profile = profile === "q7" || profile === "q7-m5";
@@ -253,8 +289,161 @@ function createProfileArguments(
 	});
 }
 
+function inspectRuntimeBundle(pluginRoot: string): Readonly<{
+	bundleSha256: string;
+	bundleKind: AppPluginDesktopCatalogEntry["bundleKind"];
+}> {
+	const bundlePath = requireFile(path.join(pluginRoot, "index.android.bundle"), "AppPlugin-Bundle");
+	const bytes = fs.readFileSync(bundlePath);
+	const bundleKind = bytes.subarray(0, 4).equals(Buffer.from([0xc6, 0x1f, 0xbc, 0x03]))
+		? "hermes-bytecode"
+		: "javascript-source";
+	return {
+		bundleSha256: createHash("sha256").update(bytes).digest("hex"),
+		bundleKind,
+	};
+}
+
+function fixtureAliases(profile: AppPluginDesktopFixtureProfile): string[] {
+	if (profile === "q7") return ["Q7 L5"];
+	if (profile === "q7-m5") return ["Q7 M5"];
+	return ["Q10 X5+"];
+}
+
+function runtimeFixtureSession(
+	session: AppPluginDesktopFixtureSession,
+): AppPluginDesktopRuntimeSession {
+	const bundle = inspectRuntimeBundle(session.descriptor.pluginRoot);
+	return {
+		...session,
+		runtimeMode: "fixture-replay",
+		modelSource: "home-data-fixture",
+		...bundle,
+		aliases: fixtureAliases(session.profile),
+	};
+}
+
+function auditRuntimeSession(
+	bundle: DiscoveredAppPluginDesktopBundle,
+	homeDataRecords: readonly AppPluginHomeDataRecord[],
+): AppPluginDesktopRuntimeSession {
+	const profile = appPluginDesktopCatalogId(bundle.bundleSha256);
+	const homeData = matchAppPluginHomeDataRecord(bundle.aliases, homeDataRecords);
+	const model = homeData?.model
+		?? bundle.packageMetadata?.models[0]
+		?? `appplugin.audit.${bundle.bundleSha256.slice(0, 16)}`;
+	const modelSource = homeData
+		? "apk-home-data"
+		: bundle.packageMetadata
+			? "appplugin-project"
+			: "audit-placeholder";
+	const archiveNote = bundle.sourceKind === "archive-cache"
+		? " Das ZIP wurde wie in der APK vollständig in den lokalen Laufzeitcache entpackt."
+		: "";
+	const warning = modelSource === "apk-home-data"
+		? `Originales Modell sowie Feature-Metadaten aus einer lokalen APK-HomeData-Aufnahme; ohne Geräteidentität, Geheimnisse, Live-Zustände oder Replay-Antworten.${archiveNote}`
+		: modelSource === "appplugin-project"
+			? `UI-Audit ohne echte HomeData, Gerätezustände oder Replay-Antworten.${archiveNote}`
+			: `Das Paket enthält keinen originalen Modellvertrag; die UI läuft mit einem klar markierten neutralen Auditmodell und ohne HomeData.${archiveNote}`;
+	const sessionPackage = withAppPluginDeviceModel(bundle.packageMetadata, model);
+	const descriptor = parseApkAppPluginSessionDescriptor({
+		version: 1,
+		pluginRoot: bundle.pluginRoot,
+		package: sessionPackage,
+		device: {
+			userId: "",
+			ownerId: "",
+			deviceId: `appplugin-audit-${bundle.bundleSha256.slice(0, 16)}`,
+			deviceSN: `appplugin-audit-${bundle.bundleSha256.slice(0, 16)}`,
+			model,
+			name: bundle.aliases.join(" / "),
+			firmwareVersion: homeData?.firmwareVersion ?? "0.0.0-audit",
+			protocolVersion: homeData?.protocolVersion ?? "unknown",
+			deviceProperties: {},
+			activeTime: 0,
+			robotTimeZone: 0,
+			iotType: 2,
+		},
+		host: {
+			mobileModel: "ioBroker generischer AppPlugin-Audithost",
+			androidRelease: "APK contract",
+			clientId: `appplugin-audit:${bundle.bundleSha256.slice(0, 16)}`,
+			memoryMiB: 4_096,
+			iotOriginDevId: "rr-appplugin-poc",
+		},
+	}, path.dirname(bundle.pluginRoot));
+	return {
+		profile,
+		descriptor,
+		mapFamily: "unknown",
+		mapProtocol: "unknown",
+		label: bundle.aliases.join(" / "),
+		serveFullRoot: true,
+		runtimeMode: "bundle-audit",
+		modelSource,
+		bundleSha256: bundle.bundleSha256,
+		bundleKind: bundle.bundleKind,
+		aliases: [...bundle.aliases],
+		warning,
+	};
+}
+
+async function createRuntimeCatalog(
+	repositoryRoot: string,
+	q10LocalKeyFilePath: string,
+): Promise<Readonly<{
+	sessions: Map<AppPluginDesktopProfile, AppPluginDesktopRuntimeSession>;
+	entries: AppPluginDesktopCatalogEntry[];
+}>> {
+	const sessions = new Map<AppPluginDesktopProfile, AppPluginDesktopRuntimeSession>();
+	const fixtureByHash = new Map<string, AppPluginDesktopRuntimeSession>();
+	const homeDataRecords = readAppPluginHomeDataCatalog();
+	for (const profile of APPPLUGIN_DESKTOP_PROFILES) {
+		const session = runtimeFixtureSession(
+			createProfileArguments(repositoryRoot, profile, q10LocalKeyFilePath),
+		);
+		sessions.set(profile, session);
+		fixtureByHash.set(session.bundleSha256, session);
+	}
+
+	for (const bundle of await discoverAppPluginDesktopBundles({ repositoryRoot })) {
+		const fixture = fixtureByHash.get(bundle.bundleSha256);
+		if (fixture) {
+			fixture.aliases = [...new Set([...fixture.aliases, ...bundle.aliases])]
+				.sort((left, right) => left.localeCompare(right));
+			continue;
+		}
+		const session = auditRuntimeSession(bundle, homeDataRecords);
+		sessions.set(session.profile, session);
+	}
+	const entries = [...sessions.values()].map(session => ({
+		id: session.profile,
+		label: session.runtimeMode === "fixture-replay"
+			? session.label
+			: session.aliases.join(" / "),
+		aliases: [...session.aliases],
+		bundleKind: session.bundleKind,
+		bundleSha256: session.bundleSha256,
+		runtimeMode: session.runtimeMode,
+		modelSource: session.modelSource,
+		availability: "available" as const,
+		warning: session.warning,
+	})).sort((left, right) => {
+		if (left.runtimeMode !== right.runtimeMode) return left.runtimeMode === "fixture-replay" ? -1 : 1;
+		return left.label.localeCompare(right.label);
+	});
+	return { sessions, entries };
+}
+
+function writeRuntimeCatalog(filePath: string, entries: readonly AppPluginDesktopCatalogEntry[]): void {
+	fs.mkdirSync(path.dirname(filePath), { recursive: true });
+	const temporaryPath = `${filePath}.${process.pid}.tmp`;
+	fs.writeFileSync(temporaryPath, `${JSON.stringify({ version: 1, entries }, null, 2)}\n`, "utf8");
+	fs.renameSync(temporaryPath, filePath);
+}
+
 async function main(): Promise<void> {
-	let options = parseAppPluginDesktopLauncherArgs(process.argv.slice(2));
+	const options = parseAppPluginDesktopLauncherArgs(process.argv.slice(2));
 	const repositoryRoot = path.resolve(__dirname, "..", "..");
 	const runtimeProbePath = path.join(repositoryRoot, "artifacts", "appplugin-poc", "appplugin_hermes_runtime_probe-live.cjs");
 	await build({
@@ -326,10 +515,32 @@ async function main(): Promise<void> {
 		encoding: "utf8",
 		mode: 0o600,
 	});
+	const runtimeCatalog = fixtureMode
+		? await createRuntimeCatalog(repositoryRoot, q10LocalKeyFilePath)
+		: undefined;
+	const runtimeCatalogPath = fixtureMode
+		? path.join(
+			repositoryRoot,
+			"artifacts",
+			"appplugin-poc",
+			"runtime-probes",
+			"desktop-appplugin-catalog.json",
+		)
+		: undefined;
+	if (runtimeCatalog && runtimeCatalogPath) {
+		writeRuntimeCatalog(runtimeCatalogPath, runtimeCatalog.entries);
+		process.stdout.write(
+			`${runtimeCatalog.entries.length} unterschiedliche lokale AppPlugin-Bundles im gemeinsamen Katalog.\n`,
+		);
+	}
+	let currentProfileId: AppPluginDesktopProfile | undefined = options.mode === "fixture"
+		? options.profile
+		: undefined;
+	let lastRunnableProfileId = currentProfileId;
 	let consecutiveUnexpectedFailures = 0;
 	try {
 		for (;;) {
-			const profile = options.mode === "fixture" ? options.profile : undefined;
+			const profile = currentProfileId;
 			const bootstrapPath = path.join(
 				repositoryRoot,
 				"artifacts",
@@ -337,13 +548,16 @@ async function main(): Promise<void> {
 				"runtime-probes",
 				`desktop-${profile ?? "device-session"}-ipc-bridge.js`,
 			);
-			const fixtureSession = profile
-				? createProfileArguments(repositoryRoot, profile, q10LocalKeyFilePath)
+			const runtimeSession = profile
+				? runtimeCatalog?.sessions.get(profile)
 				: undefined;
+			if (profile && !runtimeSession) {
+				throw new Error(`AppPlugin-Katalogeintrag ist nicht lauffähig: ${profile}`);
+			}
 			const genericSession = options.mode === "session"
 				? loadGenericSession(options)
 				: undefined;
-			const descriptorPath = fixtureSession
+			const descriptorPath = runtimeSession
 				? path.join(
 					repositoryRoot,
 					"artifacts",
@@ -352,11 +566,11 @@ async function main(): Promise<void> {
 					`desktop-${profile}-device-session.json`,
 				)
 				: genericSession!.descriptorPath;
-			if (fixtureSession) writeAppPluginDesktopFixtureDescriptor(descriptorPath, fixtureSession);
-			const replayManifestPath = fixtureSession?.replayManifestPath ?? genericSession?.replayManifestPath;
-			const b01LocalKeyFilePath = fixtureSession?.b01LocalKeyFilePath ?? genericSession?.b01LocalKeyFilePath;
-			const profileLabel = fixtureSession?.label ?? genericSession!.label;
-			const serveFullRoot = fixtureSession?.serveFullRoot ?? genericSession!.serveFullRoot;
+			if (runtimeSession) writeAppPluginDesktopFixtureDescriptor(descriptorPath, runtimeSession);
+			const replayManifestPath = runtimeSession?.replayManifestPath ?? genericSession?.replayManifestPath;
+			const b01LocalKeyFilePath = runtimeSession?.b01LocalKeyFilePath ?? genericSession?.b01LocalKeyFilePath;
+			const profileLabel = runtimeSession?.label ?? genericSession!.label;
+			const serveFullRoot = runtimeSession?.serveFullRoot ?? genericSession!.serveFullRoot;
 			const state = readAppPluginDesktopSessionState(sessionStatePath);
 			writeAppPluginDesktopSessionState(sessionStatePath, { ...state, restartRequested: false });
 			const args = [runtimeProbePath,
@@ -383,11 +597,11 @@ async function main(): Promise<void> {
 				"--session-state", sessionStatePath,
 				"--session-descriptor", descriptorPath,
 				"--profile-label", profileLabel,
-				...(fixtureSession && profileSwitchPath
+				...(runtimeSession && profileSwitchPath && runtimeCatalogPath
 					? [
-						"--profile-id", fixtureSession.profile,
-						"--fixture-map-family", fixtureSession.mapFamily,
-						"--available-profiles", APPPLUGIN_DESKTOP_PROFILES.join(","),
+						"--profile-id", runtimeSession.profile,
+						"--fixture-map-family", runtimeSession.mapFamily,
+						"--profile-catalog-file", runtimeCatalogPath,
 						"--profile-switch-file", profileSwitchPath,
 					]
 					: []),
@@ -397,7 +611,13 @@ async function main(): Promise<void> {
 					: []),
 				...(serveFullRoot ? ["--serve-full-root"] : [])];
 			process.stdout.write(
-				`Starte ${profileLabel} (${state.language}) als ${fixtureSession ? "lokale Test-Fixture" : "APK-Gerätesitzung"} `
+				`Starte ${profileLabel} (${state.language}) als ${
+					runtimeSession?.runtimeMode === "bundle-audit"
+						? "unveränderten Bundle-UI-Audit"
+						: runtimeSession
+							? "lokale Test-Fixture"
+							: "APK-Gerätesitzung"
+				} `
 				+ `auf der einzigen Adresse http://127.0.0.1:${APPPLUGIN_DESKTOP_PORT}/\n`,
 			);
 			const childStartedAt = Date.now();
@@ -420,6 +640,32 @@ async function main(): Promise<void> {
 				? consumeAppPluginDesktopProfileSwitch(profileSwitchPath)
 				: undefined;
 			const nextState = readAppPluginDesktopSessionState(sessionStatePath);
+			if (runtimeSession && exitCode === 0) lastRunnableProfileId = runtimeSession.profile;
+			if (runtimeSession?.runtimeMode === "bundle-audit"
+				&& exitCode !== 0
+				&& !nextProfile
+				&& !nextState.restartRequested
+				&& runtimeCatalog
+				&& runtimeCatalogPath) {
+				const failedEntry = runtimeCatalog.entries.find(entry => entry.id === runtimeSession.profile);
+				if (failedEntry) {
+					failedEntry.availability = "failed";
+					failedEntry.failure = "Bundle-UI konnte mit dem aktuell nachgebauten APK-Hostvertrag nicht starten";
+					writeRuntimeCatalog(runtimeCatalogPath, runtimeCatalog.entries);
+				}
+				const fallbackProfile = lastRunnableProfileId
+					&& lastRunnableProfileId !== runtimeSession.profile
+					&& runtimeCatalog.sessions.has(lastRunnableProfileId)
+					? lastRunnableProfileId
+					: options.profile;
+				process.stderr.write(
+					`${runtimeSession.label} ist mit dem aktuellen APK-Hostvertrag noch nicht startfähig; `
+					+ `der gemeinsame Server fällt auf ${fallbackProfile} zurück.\n`,
+				);
+				currentProfileId = fallbackProfile;
+				consecutiveUnexpectedFailures = 0;
+				continue;
+			}
 			const decision = decideAppPluginDesktopSupervisorAction({
 				exitCode,
 				nextProfile,
@@ -429,9 +675,9 @@ async function main(): Promise<void> {
 			});
 			if (decision.action === "switch") {
 				if (options.mode !== "fixture") {
-					throw new Error("Generische APK-Gerätesitzung darf kein Fixture-Profil anfordern");
+					throw new Error("Generische APK-Gerätesitzung darf keinen Katalogwechsel anfordern");
 				}
-				options = { ...options, profile: decision.profile };
+				currentProfileId = decision.profile;
 				consecutiveUnexpectedFailures = 0;
 				continue;
 			}

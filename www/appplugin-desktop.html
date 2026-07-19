@@ -5,7 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<link rel="canonical" href="./appplugin-desktop.html" />
 		<title>Roborock AppPlugin · ioBroker PoC</title>
-		<script type="module" src="./appplugin-desktop.js?v=0ff79ba935fe"></script>
+		<script type="module" src="./appplugin-desktop.js?v=7f12ef347108"></script>
 		<style>
 			:root {
 				color-scheme: light;
@@ -109,6 +109,7 @@
 			.status-pill[data-state="error"] { border-color: var(--danger); color: var(--danger); background: var(--surface); }
 			.language-control, .theme-control, .profile-control { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
 			.language-control select, .theme-control select, .profile-control select { border: 1px solid var(--line); background: var(--surface); color: var(--text); padding: 7px 28px 7px 9px; }
+			.profile-control select { width: clamp(190px, 24vw, 360px); text-overflow: ellipsis; }
 
 			.workbench { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) clamp(150px, 24vh, 220px); gap: 1px; background: var(--line); overflow: hidden; }
 			.content-grid { min-height: 0; overflow: hidden; display: grid; grid-template-columns: minmax(520px, 1fr) 344px; background: var(--canvas); }
@@ -294,7 +295,7 @@
 				<div class="device-mini">
 					<div class="device-mini-row">
 						<div class="robot-dot" id="deviceFamilyBadge">…</div>
-						<div><strong id="deviceName">AppPlugin Testgerät</strong><small>Lokale Aufnahme · Hostdiagnose</small></div>
+						<div><strong id="deviceName">AppPlugin Testgerät</strong><small id="deviceContextKind">AppPlugin-Sitzung · Hostdiagnose</small></div>
 						<span class="online-dot" title="PoC aktiv"></span>
 					</div>
 				</div>
@@ -305,7 +306,7 @@
 					<div class="breadcrumb"><small>Roborock / AppPlugin Testgerät</small><strong id="currentSection">Karte & Reinigung</strong></div>
 					<div class="top-actions">
 						<span id="runtimeStatus" class="status-pill">Lokale AppPlugin-Runtime wird gesucht …</span>
-						<label class="profile-control" for="runtimeProfile" title="Alle Profile verwenden denselben Server und denselben Port">Testprofil <select id="runtimeProfile"><option value="q7">Q7 L5 · SC01</option><option value="q7-m5">Q7 M5 · SC01</option><option value="q10">Q10 X5+ · B01</option></select></label>
+						<label class="profile-control" for="runtimeProfile" title="Alle AppPlugins verwenden denselben Server und denselben Port">AppPlugin <select id="runtimeProfile" aria-label="Lokales AppPlugin auswählen"></select></label>
 						<label class="theme-control" for="themeMode">Darstellung <select id="themeMode"><option value="system">System</option><option value="light">Hell</option><option value="dark">Dunkel</option></select></label>
 						<label class="language-control" for="languageMode">AppPlugin-Sprache <select id="languageMode" aria-label="Sprache der gemeinsamen APK- und AppPlugin-Sitzung"></select></label>
 					</div>

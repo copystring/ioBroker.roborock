@@ -4,7 +4,8 @@ import * as path from "node:path";
 export const APPPLUGIN_DESKTOP_PROFILES = ["q7", "q7-m5", "q10"] as const;
 export const APPPLUGIN_MAP_FAMILIES = ["scmap", "yx", "v1", "tanos", "tanos-hybrid", "unknown"] as const;
 
-export type AppPluginDesktopProfile = typeof APPPLUGIN_DESKTOP_PROFILES[number];
+export type AppPluginDesktopProfile = string;
+export type AppPluginDesktopFixtureProfile = typeof APPPLUGIN_DESKTOP_PROFILES[number];
 export type AppPluginMapFamily = typeof APPPLUGIN_MAP_FAMILIES[number];
 
 export type AppPluginDesktopSupervisorDecision =
@@ -24,14 +25,14 @@ export type AppPluginDesktopSupervisorDecision =
 	}>;
 
 export interface AppPluginDesktopProfileDefinition {
-	id: AppPluginDesktopProfile;
+	id: AppPluginDesktopFixtureProfile;
 	mapFamily: AppPluginMapFamily;
 	mapProtocol: string;
 	label: string;
 }
 
 export const APPPLUGIN_DESKTOP_PROFILE_DEFINITIONS: Readonly<
-	Record<AppPluginDesktopProfile, Readonly<AppPluginDesktopProfileDefinition>>
+	Record<AppPluginDesktopFixtureProfile, Readonly<AppPluginDesktopProfileDefinition>>
 > = Object.freeze({
 	q7: Object.freeze({ id: "q7", mapFamily: "scmap", mapProtocol: "SC01", label: "Q7 L5 · SC01" }),
 	"q7-m5": Object.freeze({ id: "q7-m5", mapFamily: "scmap", mapProtocol: "SC01", label: "Q7 M5 · SC01" }),
@@ -44,8 +45,17 @@ interface ProfileSwitchRequest {
 }
 
 export function parseAppPluginDesktopProfile(value: unknown): AppPluginDesktopProfile | undefined {
-	return typeof value === "string" && APPPLUGIN_DESKTOP_PROFILES.includes(value as AppPluginDesktopProfile)
-		? value as AppPluginDesktopProfile
+	return typeof value === "string" && /^[a-z](?:[a-z0-9._-]{0,95})$/u.test(value)
+		? value
+		: undefined;
+}
+
+export function parseAppPluginDesktopFixtureProfile(
+	value: unknown,
+): AppPluginDesktopFixtureProfile | undefined {
+	return typeof value === "string"
+		&& APPPLUGIN_DESKTOP_PROFILES.includes(value as AppPluginDesktopFixtureProfile)
+		? value as AppPluginDesktopFixtureProfile
 		: undefined;
 }
 

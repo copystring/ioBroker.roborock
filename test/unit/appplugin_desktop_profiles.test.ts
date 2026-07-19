@@ -12,6 +12,7 @@ import {
 	APPPLUGIN_DESKTOP_PROFILES,
 	consumeAppPluginDesktopProfileSwitch,
 	decideAppPluginDesktopSupervisorAction,
+	parseAppPluginDesktopFixtureProfile,
 	parseAppPluginDesktopProfile,
 	writeAppPluginDesktopProfileSwitch,
 } from "../../scripts/lib/appPluginDesktopProfiles";
@@ -42,11 +43,14 @@ describe("gemeinsamer AppPlugin-Desktop-Server", () => {
 		expect(new Headers(fetchMock.mock.calls[1][1]?.headers).get("x-appplugin-session")).toBe(token);
 	});
 
-	it("akzeptiert ausschließlich registrierte Profile", () => {
+	it("trennt sichere Katalog-IDs von den drei lokalen Replay-Fixtures", () => {
 		expect(APPPLUGIN_DESKTOP_PROFILES).toEqual(["q7", "q7-m5", "q10"]);
 		expect(parseAppPluginDesktopProfile("q10")).toBe("q10");
+		expect(parseAppPluginDesktopProfile("plugin-c0ffee123456")).toBe("plugin-c0ffee123456");
 		expect(parseAppPluginDesktopProfile("4175")).toBeUndefined();
 		expect(parseAppPluginDesktopProfile("../q10")).toBeUndefined();
+		expect(parseAppPluginDesktopFixtureProfile("q10")).toBe("q10");
+		expect(parseAppPluginDesktopFixtureProfile("plugin-c0ffee123456")).toBeUndefined();
 	});
 
 	it("übergibt einen Profilwechsel genau einmal an den Launcher", () => {

@@ -33,6 +33,10 @@ import {
 	type AppPluginDesktopProfile,
 	type AppPluginMapFamily,
 } from "./lib/appPluginDesktopProfiles";
+import {
+	readAppPluginDesktopCatalog,
+	type AppPluginDesktopCatalogEntry,
+} from "./lib/appPluginDesktopCatalog";
 import { resolveAppPluginDesktopStaticAsset } from "./lib/appPluginDesktopStaticAssets";
 import {
 	injectAppPluginSessionToken,
@@ -62,6 +66,7 @@ import {
 	ApkPluginDeviceEventBridge,
 	ApkPluginHttpRuntime,
 	ApkPluginPermissionsRuntime,
+	ApkPluginSdkPreferencesRuntime,
 	ApkPluginSdkEnvironmentRuntime,
 	ApkPluginSdkRpcModule,
 	ApkPointerInputBridge,
@@ -148,6 +153,7 @@ interface ProbeOptions {
 	profileId?: AppPluginDesktopProfile;
 	fixtureMapFamily: AppPluginMapFamily;
 	availableProfiles: AppPluginDesktopProfile[];
+	profileCatalog: AppPluginDesktopCatalogEntry[];
 	profileSwitchPath?: string;
 	b01FramePath?: string;
 	b01LocalKey?: string;
@@ -216,10 +222,12 @@ function parseArgs(args: string[]): ProbeOptions {
 		serveFullRoot: false,
 		fixtureMapFamily: "unknown",
 		availableProfiles: [],
+		profileCatalog: [],
 		duid: "appplugin-runtime-probe-device",
 		activeTime: 0,
 	};
 	let sessionDescriptorPath: string | undefined;
+	let profileCatalogPath: string | undefined;
 	for (let index = 0; index < args.length; index += 1) {
 		const option = args[index];
 		const value = args[index + 1];
@@ -284,10 +292,23 @@ function parseArgs(args: string[]): ProbeOptions {
 			options.fixtureMapFamily = mapFamily;
 		}
 		else if (option === "--available-profiles" && value) {
+			if (profileCatalogPath) {
+				throw new Error("--available-profiles darf nicht mit --profile-catalog-file vorkommen");
+			}
 			options.availableProfiles = args[++index]
 				.split(",")
 				.map(profile => parseAppPluginDesktopProfile(profile))
 				.filter((profile): profile is AppPluginDesktopProfile => profile !== undefined);
+		}
+		else if (option === "--profile-catalog-file" && value) {
+			if (profileCatalogPath || options.availableProfiles.length > 0) {
+				throw new Error("--profile-catalog-file darf nur einmal und nicht mit --available-profiles vorkommen");
+			}
+			profileCatalogPath = path.resolve(args[++index]);
+			options.profileCatalog = readAppPluginDesktopCatalog(profileCatalogPath);
+			options.availableProfiles = options.profileCatalog
+				.filter(entry => entry.availability === "available")
+				.map(entry => entry.id);
 		}
 		else if (option === "--profile-switch-file" && value) {
 			options.profileSwitchPath = path.resolve(args[++index]);
@@ -1134,6 +1155,13 @@ async function main(): Promise<void> {
 		loadPluginAgreements: async () => signedPluginAgreements,
 		workerRuntime,
 	});
+	const pluginPreferencesIdentity = options.deviceSn || options.duid;
+	const pluginSdkPreferences = new ApkPluginSdkPreferencesRuntime(path.join(
+		path.dirname(options.bootstrapPath),
+		"app-data",
+		"RRPluginSDK",
+		`${createHash("sha256").update(pluginPreferencesIdentity).digest("hex")}.json`,
+	));
 	const pluginHttp = new ApkPluginHttpRuntime({
 		iot: {
 			get: async (requestPath, params) => {
@@ -1316,7 +1344,11 @@ async function main(): Promise<void> {
 	);
 	registry.register(
 		installedModule(contract, "RRPluginSDK").javaClass,
-		composeApkNativeModuleImplementation(pluginSdkEnvironment, pluginSdkRpc),
+		composeApkNativeModuleImplementation(
+			pluginSdkEnvironment,
+			pluginSdkPreferences,
+			pluginSdkRpc,
+		),
 	);
 	registry.register(
 		installedModule(contract, "RRPluginHttpTurboModule").javaClass,
@@ -2241,6 +2273,7 @@ async function main(): Promise<void> {
 							profileId: options.profileId ?? "unknown",
 							mapFamily: options.fixtureMapFamily,
 							availableProfiles: options.availableProfiles,
+							profileCatalog: options.profileCatalog,
 							deviceModel: options.deviceModel,
 							profileLabel: options.profileLabel,
 							deviceSession: resolvedDeviceSession

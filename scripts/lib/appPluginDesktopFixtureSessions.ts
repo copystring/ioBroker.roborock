@@ -3,12 +3,12 @@ import * as path from "node:path";
 
 import type { ApkAppPluginSessionDescriptor } from "../../src/apppluginHost";
 import type {
-	AppPluginDesktopProfile,
+	AppPluginDesktopFixtureProfile,
 	AppPluginMapFamily,
 } from "./appPluginDesktopProfiles";
 
 export interface AppPluginDesktopFixtureSessionInput {
-	profile: AppPluginDesktopProfile;
+	profile: AppPluginDesktopFixtureProfile;
 	pluginRoot: string;
 	model: string;
 	deviceName: string;
@@ -25,7 +25,7 @@ export interface AppPluginDesktopFixtureSessionInput {
 }
 
 export interface AppPluginDesktopFixtureSession {
-	profile: AppPluginDesktopProfile;
+	profile: AppPluginDesktopFixtureProfile;
 	descriptor: ApkAppPluginSessionDescriptor;
 	mapFamily: AppPluginMapFamily;
 	mapProtocol: string;
@@ -86,7 +86,7 @@ export function createAppPluginDesktopFixtureSession(
 
 export function writeAppPluginDesktopFixtureDescriptor(
 	filePath: string,
-	session: AppPluginDesktopFixtureSession,
+	session: Readonly<{ descriptor: ApkAppPluginSessionDescriptor }>,
 ): void {
 	fs.mkdirSync(path.dirname(filePath), { recursive: true });
 	const temporaryPath = `${filePath}.${process.pid}.tmp`;

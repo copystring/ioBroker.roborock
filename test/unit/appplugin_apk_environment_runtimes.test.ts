@@ -9,10 +9,47 @@ import { createApkGestureHandlerConstants } from "../../src/apppluginHost/apkCor
 import { ApkGestureHandlerRuntime } from "../../src/apppluginHost/apkGestureHandlerRuntime";
 import { ApkNetInfoRuntime } from "../../src/apppluginHost/apkNetInfoRuntime";
 import { ApkPluginSdkEnvironmentRuntime } from "../../src/apppluginHost/apkPluginSdkEnvironmentRuntime";
+import { ApkPluginSdkPreferencesRuntime } from "../../src/apppluginHost/apkPluginSdkPreferencesRuntime";
 import { ApkStatusBarRuntime } from "../../src/apppluginHost/apkStatusBarRuntime";
 import { ApkV8WorkerRuntime } from "../../src/apppluginHost/apkV8WorkerRuntime";
 
 describe("APK AppPlugin environment runtimes", () => {
+	it("reproduces RRPluginSDK device SharedPreferences and callback shapes", () => {
+		const root = mkdtempSync(path.join(tmpdir(), "apk-plugin-preferences-"));
+		const filePath = path.join(root, "device.json");
+		const runtime = new ApkPluginSdkPreferencesRuntime(filePath);
+		const getCallback = vi.fn();
+		const removeCallback = vi.fn();
+
+		runtime.getValue("missing", getCallback);
+		runtime.setValue("theme", "dark");
+		runtime.saveInfo({
+			count: 3.9,
+			enabled: true,
+			nested: { room: 7 },
+			list: [1, "two"],
+		});
+		new ApkPluginSdkPreferencesRuntime(filePath).getValue("theme", getCallback);
+		runtime.removeValue("theme", removeCallback);
+
+		expect(getCallback).toHaveBeenNthCalledWith(1, "");
+		expect(getCallback).toHaveBeenNthCalledWith(2, "dark");
+		expect(removeCallback).toHaveBeenCalledWith(true);
+		const persisted = new ApkPluginSdkPreferencesRuntime(filePath);
+		const persistedCallback = vi.fn();
+		persisted.getValue("count", persistedCallback);
+		persisted.getValue("enabled", persistedCallback);
+		persisted.getValue("nested", persistedCallback);
+		expect(persistedCallback.mock.calls).toEqual([
+			["3"],
+			["true"],
+			['{"room":7}'],
+		]);
+		const clearCallback = vi.fn();
+		persisted.clearValues(clearCallback);
+		expect(clearCallback).toHaveBeenCalledWith(true);
+	});
+
 	it("reproduces the APK gesture constants and handler lifecycle", () => {
 		expect(createApkGestureHandlerConstants()).toEqual({
 			RNGestureHandlerModule: {

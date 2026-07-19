@@ -61,6 +61,19 @@ interface LiveAppPluginLocalizationState {
 	languageSwitching: boolean;
 }
 
+export interface LiveAppPluginCatalogEntry {
+	id: string;
+	label: string;
+	aliases: string[];
+	bundleKind: "hermes-bytecode" | "javascript-source";
+	bundleSha256: string;
+	runtimeMode: "fixture-replay" | "bundle-audit";
+	modelSource: "home-data-fixture" | "apk-home-data" | "appplugin-project" | "audit-placeholder";
+	availability: "available" | "failed";
+	failure?: string;
+	warning?: string;
+}
+
 interface LiveAppPluginDeviceSession {
 	source: "apk-device-session-descriptor" | "legacy-cli";
 	compatibility:
@@ -98,6 +111,7 @@ interface LiveAppPluginHealth extends LiveAppPluginLocalizationState {
 	profileId: string;
 	mapFamily: LiveAppPluginMapFamily;
 	availableProfiles: string[];
+	profileCatalog: LiveAppPluginCatalogEntry[];
 	deviceModel: string;
 	profileLabel: string;
 	deviceSession: LiveAppPluginDeviceSession;
@@ -183,6 +197,7 @@ export interface LiveAppPluginMapSnapshot extends LiveAppPluginLocalizationState
 	profileId: string;
 	mapFamily: LiveAppPluginMapFamily;
 	availableProfiles: string[];
+	profileCatalog: LiveAppPluginCatalogEntry[];
 	deviceModel: string;
 	profileLabel: string;
 	deviceSession: LiveAppPluginDeviceSession;
@@ -488,6 +503,7 @@ export class LiveAppPluginMapSurface {
 			profileId: this.#health.profileId,
 			mapFamily: this.#health.mapFamily,
 			availableProfiles: [...this.#health.availableProfiles],
+			profileCatalog: structuredClone(this.#health.profileCatalog),
 			deviceModel: this.#health.deviceModel,
 			profileLabel: this.#health.profileLabel,
 			deviceSession: structuredClone(this.#health.deviceSession),
@@ -1155,6 +1171,7 @@ export class LiveAppPluginMapSurface {
 			...health,
 			profileId: health.profileId ?? "unknown",
 			availableProfiles: [...(health.availableProfiles ?? [])],
+			profileCatalog: structuredClone(health.profileCatalog ?? []),
 			systemLocaleIdentifier: health.systemLocaleIdentifier ?? health.localeIdentifier,
 			colorScheme: health.colorScheme ?? "light",
 			colorModel: health.colorModel ?? "default",
