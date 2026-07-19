@@ -9,6 +9,7 @@ import {
 	parseApkAppPluginProjectMetadata,
 	type ApkAppPluginPackageMetadata,
 } from "../../src/apppluginHost/apkAppPluginSessionDescriptor";
+import { associateApkPackageWithDeviceModel } from "../../src/apppluginHost/apkRriotSessionDescriptor";
 import { parseAppPluginDesktopProfile } from "./appPluginDesktopProfiles";
 
 const HERMES_MAGIC = Buffer.from([0xc6, 0x1f, 0xbc, 0x03]);
@@ -304,10 +305,8 @@ export function withAppPluginDeviceModel(
 	packageMetadata: ApkAppPluginPackageMetadata | undefined,
 	deviceModel: string,
 ): ApkAppPluginPackageMetadata {
-	return packageMetadata
-		? {
-			...packageMetadata,
-			models: [...new Set([...packageMetadata.models, deviceModel])],
-		}
-		: { models: [deviceModel] };
+	return associateApkPackageWithDeviceModel(
+		packageMetadata ?? { models: [] },
+		deviceModel,
+	);
 }

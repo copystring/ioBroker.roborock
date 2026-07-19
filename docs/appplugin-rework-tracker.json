@@ -271,6 +271,7 @@
 				"src/apppluginHost/apkAppPluginSessionDescriptor.ts",
 				"src/apppluginHost/apkHomeDataContext.ts",
 				"src/apppluginHost/apkPluginInstallationStore.ts",
+				"src/apppluginHost/apkRriotSessionDescriptor.ts",
 				"src/apppluginHost/apkDevicesRuntime.ts",
 				"src/apppluginHost/apkCoreRuntimeConstants.ts",
 				"src/apppluginHost/apkDeviceIngress.ts",
@@ -281,12 +282,13 @@
 				"test/unit/appplugin_apk_native_invocation_diagnostics.test.ts",
 				"test/unit/appplugin_apk_devices_runtime.test.ts",
 				"test/unit/appplugin_apk_plugin_installation_store.test.ts",
+				"test/unit/appplugin_apk_rriot_session_descriptor.test.ts",
 				"test/unit/appplugin_apk_session_descriptor.test.ts",
 				"test/unit/appplugin_desktop_launcher.test.ts",
 				"test/unit/appplugin_desktop_fixture_sessions.test.ts",
 				"test/unit/appplugin_session_descriptor_transport.test.ts"
 			],
-			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge im Speicher; der Supervisor übergibt den validierten Deskriptor begrenzt per Standardeingabe statt über Kindprozessargumente, Umgebung oder eine selbst erzeugte Datei. Die APK-lokale Haupt-Plugin-Version ist aus HomeData entfernt und besitzt einen atomaren Staging-/Commit-/Abbruchspeicher; ohne bestätigten Eintrag liefert RRDevicesModule 0. Als Nächstes diesen Speicherpfad an den Adapter-Lebenszyklus anschließen, echte Mehrgeräte-HomeData in der isolierten Sitzung prüfen und den Commit an die Integritätsprüfung des realen Pluginpakets binden. RockMow bleibt bis zu echter Mäher-HomeData und vollständiger Bedarfsdeckung eine Bootstrap-Gegenprobe."
+			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Ein geräteklassenneutraler Rriot-Builder leitet daraus die statischen RRPluginSDK-Werte für die Ziel-DUID ab; der Supervisor übergibt den validierten Deskriptor begrenzt per Standardeingabe statt über Kindprozessargumente, Umgebung oder eine selbst erzeugte Datei. Die APK-lokale Haupt-Plugin-Version besitzt einen atomaren Staging-/Commit-/Abbruchspeicher. Als Nächstes Builder und Pipe im Adapter-Lebenszyklus verbinden, echte Mehrgeräte-HomeData in derselben isolierten Sitzung prüfen und den Installations-Commit an die Integritätsprüfung des realen Pluginpakets binden. RockMow bleibt bis zu echter Mäher-HomeData und vollständiger Bedarfsdeckung eine Bootstrap-Gegenprobe."
 		},
 		{
 			"id": "P0B-APK-HOST-SERVICES",

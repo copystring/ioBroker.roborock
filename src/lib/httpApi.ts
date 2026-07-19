@@ -2,8 +2,14 @@ import type { AxiosInstance, InternalAxiosRequestConfig } from "axios";
 import axios from "axios";
 import * as crypto from "node:crypto";
 import { Roborock } from "../main";
-import type { ApkAppPluginHomeDataContext } from "../apppluginHost/apkAppPluginSessionDescriptor";
-import { createApkAppPluginHomeDataContext } from "../apppluginHost/apkHomeDataContext";
+import type {
+	ApkAppPluginCloudBootstrapContext,
+	ApkAppPluginHomeDataContext,
+} from "../apppluginHost";
+import {
+	createApkAppPluginCloudBootstrapContext,
+	createApkAppPluginHomeDataContext,
+} from "../apppluginHost/apkHomeDataContext";
 import { LoginV4Response, ProductV5Response } from "./apiTypes";
 import { cryptoEngine } from "./cryptoEngine";
 
@@ -59,6 +65,9 @@ interface RriotData {
 interface UserData {
 	token: string;
 	rriot: RriotData;
+	rruid?: string;
+	region?: string;
+	country?: string;
 }
 
 export interface Device {
@@ -824,6 +833,18 @@ export class http_api {
 	 */
 	getAppPluginHomeDataContext(): ApkAppPluginHomeDataContext | undefined {
 		return createApkAppPluginHomeDataContext(this.homeData, this.productInfo);
+	}
+
+	/**
+	 * Returns the complete signed-in APK bootstrap context without persisting or
+	 * logging its raw device JSON.
+	 */
+	getAppPluginCloudBootstrapContext(): ApkAppPluginCloudBootstrapContext | undefined {
+		return createApkAppPluginCloudBootstrapContext(
+			this.homeData,
+			this.productInfo,
+			this.userData,
+		);
 	}
 
 	/**

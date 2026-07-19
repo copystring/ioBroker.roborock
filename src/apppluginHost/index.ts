@@ -38,6 +38,7 @@ export * from "./apkPluginHttpRuntime";
 export * from "./apkPluginPermissionsRuntime";
 export * from "./apkPluginInstallationStore";
 export * from "./apkPluginSdkRpcModule";
+export * from "./apkRriotSessionDescriptor";
 export * from "./apkRobotToAppMessage";
 export * from "./apkSkiaHostRuntime";
 export * from "./apkSoundManagerRuntime";

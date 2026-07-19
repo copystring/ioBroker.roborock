@@ -313,6 +313,27 @@ erzeugten Deskriptordatei. Ein ausdrücklich vom Nutzer angegebener
 Deskriptorpfad bleibt nur Eingabe des äußeren Launchers und wird nicht an den
 Kindprozess weitergereicht.
 
+`createApkRriotSessionDescriptor()` bildet daraus jetzt auch die statischen
+Gerätewerte des APK-`PluginSDKModule` für ein ausgewähltes Rriot-Gerät: `rruid`
+als `userId` und `ownerId`, `duid`, `sn`, über `productId` aufgelöstes Modell,
+Name, `fv`, `pv`, `activeTime` und den zum Startzeitpunkt gültigen
+Millisekunden-Offset von `timeZone`. Der unbekannte-Zeitzonen-Fallback ist wie
+bei `java.util.TimeZone.getTimeZone()` GMT und nicht die lokale PC-Zeitzone.
+Dieser Pfad enthält keine Staubsauger-, Karten-, Q7-, Q10- oder
+Dock-Sonderlogik und ist mit einem Mäher-Modell sowie einer halbstündigen
+Zeitzone abgesichert. Dynamische Werte von
+`getDeviceExtraInfoForKey()` bleiben eine explizite Hosteingabe; sie werden
+nicht aus `deviceStatus` oder Featurestrings erfunden. Der angemeldete
+Cloud-Client stellt `rruid`, Land, Region und die rohen HomeData-/Produktdaten
+gemeinsam im Speicher bereit.
+
+APK-Belege:
+
+- `com/roborock/smart/react/PluginSDKModule.java:2917-2928,2949-2998`
+- `com/roborock/smart/react/PluginSDKModule.java:3100-3129,3139-3142`
+- `com/roborock/smart/react/PluginSDKModule.java:3652-3660,4394-4398,4441-4449`
+- `com/roborock/smart/refactor/data/models/RRDeviceBeanV2.java`
+
 Die installierte Haupt-Plugin-Version ist davon getrennt. Der Host besitzt
 dafür einen eigenen APK-abgeleiteten Installationskontext und gibt bei
 fehlendem bestätigtem Eintrag `0` zurück. `ApkMainPluginInstallationStore`
@@ -377,9 +398,9 @@ ausdrücklich nicht als Produktfreigabe bewertet.
 1. Die vorhandene APK-Inventur zur einzigen Quelle für Module, Methoden,
    Konstanten, Views, Props, Commands und Ereignisse machen.
 2. Den bereits begrenzt und ohne persistente Zwischenablage arbeitenden
-   Deskriptor-Pipepfad an den Adapter-Lebenszyklus anschließen und den echten
-   ioBroker-HomeData-/Produktkontext für mehrere Geräte derselben isolierten
-   Sitzung an `RRDevicesModule` prüfen.
+   Deskriptor-Pipepfad mit dem neuen Rriot-Deskriptorbuilder im
+   Adapter-Lebenszyklus verbinden und echte Mehrgeräte-HomeData in derselben
+   isolierten Sitzung an `RRDevicesModule` prüfen.
 3. Den APK-Installationsspeicher mit temporärer Downloadversion, erfolgreichem
    Paketabschluss und atomarer Übernahme nachbilden; weder Ordnernamen noch
    `project.json.version_code` als Ersatz verwenden.

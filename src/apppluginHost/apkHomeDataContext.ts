@@ -1,4 +1,13 @@
-import type { ApkAppPluginHomeDataContext } from "./apkAppPluginSessionDescriptor";
+import type {
+	ApkAppPluginAccountContext,
+	ApkAppPluginHomeDataContext,
+} from "./apkAppPluginSessionDescriptor";
+
+export interface ApkAppPluginCloudBootstrapContext {
+	readonly userId: string;
+	readonly account?: ApkAppPluginAccountContext;
+	readonly homeData: ApkAppPluginHomeDataContext;
+}
 
 interface DeviceEntry {
 	readonly raw: Readonly<Record<string, unknown>>;
@@ -94,5 +103,32 @@ export function createApkAppPluginHomeDataContext(
 		deviceJsonStrings: devices.map((device, index) =>
 			serializeRawJson(device.raw, `HomeData-Gerät ${index}`)),
 		productJsonStrings,
+	};
+}
+
+/**
+ * Selects the account values used by PluginSDKModule from the V4 login result.
+ * `rruid` is the exact source of RRPluginSDK.userId in the inspected APK.
+ */
+export function createApkAppPluginCloudBootstrapContext(
+	homeData: unknown,
+	productResponse: unknown,
+	loginResult: unknown,
+): ApkAppPluginCloudBootstrapContext | undefined {
+	const context = createApkAppPluginHomeDataContext(homeData, productResponse);
+	const login = record(loginResult);
+	const userId = login?.rruid;
+	if (!context || typeof userId !== "string") return undefined;
+	const countryCode = login?.country;
+	const serverCode = login?.region;
+	return {
+		userId,
+		account: typeof countryCode === "string"
+			&& countryCode.length > 0
+			&& typeof serverCode === "string"
+			&& serverCode.length > 0
+			? { countryCode, serverCode }
+			: undefined,
+		homeData: context,
 	};
 }
