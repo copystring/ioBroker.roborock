@@ -457,11 +457,15 @@
 			"phase": "0B",
 			"area": "Betrieb",
 			"title": "Start, Wiederverwendung, Abbruch, Neustart und parallele Sitzungen deterministisch steuern",
-			"status": "pending",
+			"status": "in_progress",
 			"priority": "P0",
 			"dependsOn": ["P0B-HERMES-HOST", "P0B-METRO-HOST"],
-			"evidence": [],
-			"nextAction": "Lebenszykluszustände und Cleanup-Invarianten definieren und mit Absturz-/Timeout-Fällen testen."
+			"evidence": [
+				"src/apppluginHost/apkAppPluginSessionSupervisor.ts",
+				"test/unit/appplugin_apk_session_supervisor.test.ts",
+				"docs/APK_APPPLUGIN_EXECUTION_MODEL.md"
+			],
+			"nextAction": "Der APK-belegte, zugriffsgeordnete Drei-Modell-Cache ist mit expliziten Leases, deduplizierten Modellstarts, LRU-Verdrängung nur inaktiver Hosts, Wiederholbarkeit nach Startfehlern sowie vollständigem Shutdown trotz Einzelfehlern abgesichert. Vor der Adapterverdrahtung muss ApkHermesHostSession mehrere Root-Tags mit AppRegistry.runApplication und unmountApplicationComponentAtRootTag tragen; anschließend ist die gemeinsame native Runtime-Composition aus dem Probe-Skript in eine produktive Factory zu extrahieren."
 		},
 		{
 			"id": "P0B-RESOURCE-LIMITS",

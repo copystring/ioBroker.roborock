@@ -80,6 +80,36 @@ Belege:
 - `com/roborock/smart/react/o0000O00.java:67`
 - `com/roborock/smart/react/OooOO0O.java`
 
+`RNActivity` besitzt dabei den sichtbaren Root, nicht zwingend die gesamte
+Modell-Runtime. Beim Öffnen ergänzt sie `colorMode`, startet den
+gerätespezifischen RPC-Loop und übergibt Resume, Pause und Destroy an React
+Native. Beim Ablösen eines klassischen React-Roots ruft React Native
+`AppRegistry.unmountApplicationComponentAtRootTag` auf. Die Produktions-Hosts
+werden getrennt davon in einer zugriffsgeordneten Map nach Modell
+wiederverwendet; nach dem Einfügen eines vierten Modells wird der älteste Host
+freigegeben. Der Cache-Schlüssel ist nachweislich `device.model`, während der
+RPC-Manager nach DUID referenzgezählt wird.
+
+`ApkAppPluginSessionSupervisor` bildet zunächst nur diesen
+gerätekategorienneutralen Besitz- und Cachevertrag ab: gleichzeitige Öffnungen
+desselben Modells teilen einen Start, sichtbare Nutzer erhalten explizite
+Leases, nur inaktive Hosts dürfen per LRU verdrängt werden und Adapter-Shutdown
+wartet einen bereits laufenden, begrenzten Start ab, bevor jede Runtime genau
+einmal gestoppt wird. Fehlgeschlagene Starts werden aus dem Cache entfernt und
+können sauber neu versucht werden. Der Supervisor startet noch keinen
+Produktionsprozess, weil unser aktueller `ApkHermesHostSession` bisher nur einen
+Root zulässt. Vor der Adapterverdrahtung müssen Mehrfach-Root,
+`unmountApplicationComponentAtRootTag` und die gemeinsame native
+Runtime-Composition aus dem Probe-Skript herausgelöst werden.
+
+Zusätzliche Belege:
+
+- `com/roborock/smart/react/RNActivity.java:124-261`
+- `com/roborock/smart/react/AbstractC5374o0000O00.java:20-112`
+- `com/roborock/smart/react/RunnableC5116OooO.java:91-144`
+- `com/roborock/smart/sdk/C6213OooO0OO.java:133-147`
+- `com/facebook/react/C2850o00oO0o.java:231-237,276-281,444-455`
+
 Die generierte Inventur in
 [`generated/AppPlugin_APK_Host.md`](generated/AppPlugin_APK_Host.md) erfasst für
 diese APK:

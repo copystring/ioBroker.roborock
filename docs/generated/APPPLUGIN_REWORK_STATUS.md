@@ -11,8 +11,8 @@ Quelle: [`docs/appplugin-rework-tracker.json`](../appplugin-rework-tracker.json)
 Aktuelle Phase: **0B – Laufzeithost und APK-Brücke**
 
 - ✅ 15 abgeschlossen
-- 🔄 26 in Arbeit
-- ⏳ 42 offen
+- 🔄 27 in Arbeit
+- ⏳ 41 offen
 - ⛔ 5 blockiert
 
 ## Aktueller Fokus
@@ -157,7 +157,7 @@ Aktuelle Phase: **0B – Laufzeithost und APK-Brücke**
 
 | ID | Prio | Status | Aufgabe | Abhängigkeiten | Belege | Nächster Schritt / Blocker |
 | --- | --- | --- | --- | --- | --- | --- |
-| `P0B-SESSION-LIFECYCLE` | P0 | ⏳ offen | Start, Wiederverwendung, Abbruch, Neustart und parallele Sitzungen deterministisch steuern | `P0B-HERMES-HOST`, `P0B-METRO-HOST` | — | Lebenszykluszustände und Cleanup-Invarianten definieren und mit Absturz-/Timeout-Fällen testen. |
+| `P0B-SESSION-LIFECYCLE` | P0 | 🔄 in Arbeit | Start, Wiederverwendung, Abbruch, Neustart und parallele Sitzungen deterministisch steuern | `P0B-HERMES-HOST`, `P0B-METRO-HOST` | [`src/apppluginHost/apkAppPluginSessionSupervisor.ts`](../../src/apppluginHost/apkAppPluginSessionSupervisor.ts)<br>[`test/unit/appplugin_apk_session_supervisor.test.ts`](../../test/unit/appplugin_apk_session_supervisor.test.ts)<br>[`docs/APK_APPPLUGIN_EXECUTION_MODEL.md`](../../docs/APK_APPPLUGIN_EXECUTION_MODEL.md) | Der APK-belegte, zugriffsgeordnete Drei-Modell-Cache ist mit expliziten Leases, deduplizierten Modellstarts, LRU-Verdrängung nur inaktiver Hosts, Wiederholbarkeit nach Startfehlern sowie vollständigem Shutdown trotz Einzelfehlern abgesichert. Vor der Adapterverdrahtung muss ApkHermesHostSession mehrere Root-Tags mit AppRegistry.runApplication und unmountApplicationComponentAtRootTag tragen; anschließend ist die gemeinsame native Runtime-Composition aus dem Probe-Skript in eine produktive Factory zu extrahieren. |
 | `P0B-RESOURCE-LIMITS` | P0 | ⏳ offen | Zeit-, RAM-, CPU-, Datei- und Netzwerkgrenzen des Hosts messen und erzwingen | `P0B-SESSION-LIFECYCLE` | — | Messbare Budgets, harte Timeouts und reproduzierbare Abbruchtests für jede Runtime festlegen. |
 
 #### Plattformen
