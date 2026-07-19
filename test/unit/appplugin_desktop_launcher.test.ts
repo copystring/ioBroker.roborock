@@ -26,6 +26,7 @@ describe("generic AppPlugin desktop launcher", () => {
 		], workingDirectory)).toEqual({
 			mode: "session",
 			sessionDescriptorPath: path.join(workingDirectory, "sessions", "mower.json"),
+			sessionDescriptorStdin: false,
 			replayManifestPath: path.join(workingDirectory, "replays", "mower.json"),
 			b01LocalKeyFilePath: undefined,
 			label: "RockMow Z1",
@@ -35,13 +36,34 @@ describe("generic AppPlugin desktop launcher", () => {
 		});
 	});
 
+	it("accepts a one-shot in-memory descriptor for an adapter-owned supervisor start", () => {
+		expect(parseAppPluginDesktopLauncherArgs([
+			"--session-descriptor-stdin",
+			"--label", "Gerätesitzung",
+		], workingDirectory)).toEqual({
+			mode: "session",
+			sessionDescriptorPath: undefined,
+			sessionDescriptorStdin: true,
+			replayManifestPath: undefined,
+			b01LocalKeyFilePath: undefined,
+			label: "Gerätesitzung",
+			serveFullRoot: false,
+			hostPath: undefined,
+			runtimeLibraryDirectory: undefined,
+		});
+	});
+
 	it("rejects fixture routing and fixture replay data on a generic device session boundary", () => {
 		expect(() => parseAppPluginDesktopLauncherArgs([
 			"--profile", "q10",
 			"--session-descriptor", "session.json",
-		], workingDirectory)).toThrow("--profile und --session-descriptor");
+		], workingDirectory)).toThrow("--profile und ein Sitzungsdeskriptor");
 		expect(() => parseAppPluginDesktopLauncherArgs([
 			"--replay-manifest", "replay.json",
-		], workingDirectory)).toThrow("benötigt --session-descriptor");
+		], workingDirectory)).toThrow("benötigt --session-descriptor oder --session-descriptor-stdin");
+		expect(() => parseAppPluginDesktopLauncherArgs([
+			"--session-descriptor", "session.json",
+			"--session-descriptor-stdin",
+		], workingDirectory)).toThrow("dürfen nicht kombiniert werden");
 	});
 });

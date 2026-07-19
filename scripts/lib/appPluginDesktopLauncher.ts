@@ -17,7 +17,8 @@ export interface AppPluginDesktopFixtureLauncherOptions extends AppPluginDesktop
 
 export interface AppPluginDesktopSessionLauncherOptions extends AppPluginDesktopLauncherSharedOptions {
 	mode: "session";
-	sessionDescriptorPath: string;
+	sessionDescriptorPath?: string;
+	sessionDescriptorStdin: boolean;
 	replayManifestPath?: string;
 	b01LocalKeyFilePath?: string;
 	label?: string;
@@ -50,6 +51,7 @@ export function parseAppPluginDesktopLauncherArgs(
 ): AppPluginDesktopLauncherOptions {
 	let profile: AppPluginDesktopFixtureProfile | undefined;
 	let sessionDescriptorPath: string | undefined;
+	let sessionDescriptorStdin = false;
 	let replayManifestPath: string | undefined;
 	let b01LocalKeyFilePath: string | undefined;
 	let label: string | undefined;
@@ -61,6 +63,13 @@ export function parseAppPluginDesktopLauncherArgs(
 		const option = args[index];
 		if (option === "--serve-full-root") {
 			serveFullRoot = true;
+			continue;
+		}
+		if (option === "--session-descriptor-stdin") {
+			if (sessionDescriptorStdin) {
+				throw new Error("--session-descriptor-stdin darf nur einmal angegeben werden");
+			}
+			sessionDescriptorStdin = true;
 			continue;
 		}
 		const value = nextValue(args, index, option);
@@ -91,21 +100,32 @@ export function parseAppPluginDesktopLauncherArgs(
 		label ? "--label" : undefined,
 		serveFullRoot ? "--serve-full-root" : undefined,
 	].filter((option): option is string => option !== undefined);
-	if (profile && sessionDescriptorPath) {
-		throw new Error("--profile und --session-descriptor dürfen nicht kombiniert werden");
+	if (sessionDescriptorPath && sessionDescriptorStdin) {
+		throw new Error(
+			"--session-descriptor und --session-descriptor-stdin dürfen nicht kombiniert werden",
+		);
 	}
-	if (!sessionDescriptorPath && sessionOnlyOptions.length > 0) {
-		throw new Error(`${sessionOnlyOptions.join(", ")} benötigt --session-descriptor`);
+	const hasSessionDescriptor = Boolean(sessionDescriptorPath) || sessionDescriptorStdin;
+	if (profile && hasSessionDescriptor) {
+		throw new Error("--profile und ein Sitzungsdeskriptor dürfen nicht kombiniert werden");
+	}
+	if (!hasSessionDescriptor && sessionOnlyOptions.length > 0) {
+		throw new Error(
+			`${sessionOnlyOptions.join(", ")} benötigt --session-descriptor oder --session-descriptor-stdin`,
+		);
 	}
 
 	const shared = {
 		hostPath: resolveOptionalPath(hostPath, workingDirectory),
 		runtimeLibraryDirectory: resolveOptionalPath(runtimeLibraryDirectory, workingDirectory),
 	};
-	if (sessionDescriptorPath) {
+	if (hasSessionDescriptor) {
 		return {
 			mode: "session",
-			sessionDescriptorPath: path.resolve(workingDirectory, sessionDescriptorPath),
+			sessionDescriptorPath: sessionDescriptorPath
+				? path.resolve(workingDirectory, sessionDescriptorPath)
+				: undefined,
+			sessionDescriptorStdin,
 			replayManifestPath: resolveOptionalPath(replayManifestPath, workingDirectory),
 			b01LocalKeyFilePath: resolveOptionalPath(b01LocalKeyFilePath, workingDirectory),
 			label,

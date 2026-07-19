@@ -309,9 +309,12 @@ Desktop-Supervisor serialisiert den bereits validierten Sitzungsdeskriptor
 deshalb im Speicher und übergibt ihn mit einem festen Acht-MiB-Limit über die
 Standardeingabe an genau den gestarteten Laufzeitprozess. Der Inhalt erscheint
 weder in dessen Argumentliste oder Umgebung noch in einer vom Supervisor
-erzeugten Deskriptordatei. Ein ausdrücklich vom Nutzer angegebener
-Deskriptorpfad bleibt nur Eingabe des äußeren Launchers und wird nicht an den
-Kindprozess weitergereicht.
+erzeugten Deskriptordatei. Der Supervisor selbst akzeptiert denselben
+begrenzten Einmal-Eingang über `--session-descriptor-stdin`, liest ihn vor der
+Neustartschleife genau einmal und behält danach nur das validierte Objekt im
+Speicher. Ein ausdrücklich vom Nutzer angegebener Deskriptorpfad bleibt als
+Diagnoseeingang möglich, wird aber ebenfalls nicht an den Kindprozess
+weitergereicht.
 
 `createApkRriotSessionDescriptor()` bildet daraus jetzt auch die statischen
 Gerätewerte des APK-`PluginSDKModule` für ein ausgewähltes Rriot-Gerät: `rruid`
@@ -397,9 +400,9 @@ ausdrücklich nicht als Produktfreigabe bewertet.
 
 1. Die vorhandene APK-Inventur zur einzigen Quelle für Module, Methoden,
    Konstanten, Views, Props, Commands und Ereignisse machen.
-2. Den bereits begrenzt und ohne persistente Zwischenablage arbeitenden
-   Deskriptor-Pipepfad mit dem neuen Rriot-Deskriptorbuilder im
-   Adapter-Lebenszyklus verbinden und echte Mehrgeräte-HomeData in derselben
+2. Den nun auf beiden Prozessgrenzen begrenzt und ohne persistente
+   Zwischenablage arbeitenden Deskriptor-Pipepfad aus dem Adapter-Lebenszyklus
+   starten und stoppen; danach echte Mehrgeräte-HomeData in derselben
    isolierten Sitzung an `RRDevicesModule` prüfen.
 3. Den APK-Installationsspeicher mit temporärer Downloadversion, erfolgreichem
    Paketabschluss und atomarer Übernahme nachbilden; weder Ordnernamen noch

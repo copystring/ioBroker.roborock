@@ -34,7 +34,10 @@ import {
 	createAppPluginDesktopFixtureSession,
 	type AppPluginDesktopFixtureSession,
 } from "./lib/appPluginDesktopFixtureSessions";
-import { serializeAppPluginSessionDescriptor } from "./lib/appPluginSessionDescriptorTransport";
+import {
+	readAppPluginSessionDescriptorFromFd,
+	serializeAppPluginSessionDescriptor,
+} from "./lib/appPluginSessionDescriptorTransport";
 import {
 	appPluginDesktopCatalogId,
 	discoverAppPluginDesktopBundles,
@@ -127,11 +130,18 @@ function loadGenericSession(
 	label: string;
 	serveFullRoot: boolean;
 }> {
-	const descriptorPath = requireFile(options.sessionDescriptorPath, "APK-AppPlugin-Sitzungsdeskriptor");
-	const descriptor = parseApkAppPluginSessionDescriptor(
-		JSON.parse(fs.readFileSync(descriptorPath, "utf8")) as unknown,
-		path.dirname(descriptorPath),
-	);
+	const descriptor = options.sessionDescriptorStdin
+		? readAppPluginSessionDescriptorFromFd(0, process.cwd())
+		: (() => {
+			const descriptorPath = requireFile(
+				options.sessionDescriptorPath!,
+				"APK-AppPlugin-Sitzungsdeskriptor",
+			);
+			return parseApkAppPluginSessionDescriptor(
+				JSON.parse(fs.readFileSync(descriptorPath, "utf8")) as unknown,
+				path.dirname(descriptorPath),
+			);
+		})();
 	return {
 		descriptor,
 		replayManifestPath: options.replayManifestPath
@@ -536,6 +546,9 @@ async function main(): Promise<void> {
 	let currentProfileId: AppPluginDesktopProfile | undefined = options.mode === "fixture"
 		? options.profile
 		: undefined;
+	const genericSession = options.mode === "session"
+		? loadGenericSession(options)
+		: undefined;
 	let lastRunnableProfileId = currentProfileId;
 	let consecutiveUnexpectedFailures = 0;
 	try {
@@ -554,9 +567,6 @@ async function main(): Promise<void> {
 			if (profile && !runtimeSession) {
 				throw new Error(`AppPlugin-Katalogeintrag ist nicht lauffähig: ${profile}`);
 			}
-			const genericSession = options.mode === "session"
-				? loadGenericSession(options)
-				: undefined;
 			const sessionDescriptor = runtimeSession?.descriptor ?? genericSession!.descriptor;
 			const serializedSessionDescriptor = serializeAppPluginSessionDescriptor(sessionDescriptor);
 			const replayManifestPath = runtimeSession?.replayManifestPath ?? genericSession?.replayManifestPath;
