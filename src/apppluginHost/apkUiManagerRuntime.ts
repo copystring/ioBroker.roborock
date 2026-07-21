@@ -37,7 +37,19 @@ type ApkUiManagerCallback = (...arguments_: unknown[]) => void;
 interface PendingNativeMeasurement {
 	kind: "measure" | "measureInWindow";
 	tag: number;
+	rootTag?: number;
 	callback: ApkUiManagerCallback;
+}
+
+interface MutableRootState {
+	readonly tag: number;
+	readonly operations: ApkUiManagerOperation[];
+	operationOffset: number;
+	operationCount: number;
+	treeRevision: number;
+	visualMutationRevision: number;
+	snapshotRevision: number;
+	snapshotCache?: ApkUiManagerNodeSnapshot;
 }
 
 interface MutableNode {
@@ -74,6 +86,23 @@ export interface ApkViewManagerRuntimeUsage {
 		requiredDirectEventNames: readonly string[];
 		nativeMethods: readonly string[];
 	}>[];
+}
+
+/** Root-scoped projection consumed by one ReactRootView/UI execution pipeline. */
+export interface ApkUiManagerRootRuntime {
+	readonly rootTag?: number;
+	snapshot(): ApkUiManagerNodeSnapshot;
+	operationJournal(): Readonly<ApkUiManagerOperationJournal>;
+	operationCount(): number;
+	visualMutationRevision(): number;
+	pendingNativeMeasurementCount(): number;
+	flushNativeMeasurements(
+		measure: (tag: number) => Readonly<ApkNativeMeasuredBox> | undefined,
+	): number;
+	synchronouslyUpdateViewOnUiThread(
+		tag: number,
+		props: Readonly<Record<string, unknown>>,
+	): void;
 }
 
 const visualUiManagerOperations = new Set([
@@ -200,6 +229,7 @@ export function createApkDefaultEventTypes(): Readonly<Record<string, unknown>> 
 export class ApkUiManagerRuntime {
 	readonly #viewManagers: Map<string, ApkViewManagerContract>;
 	readonly #nodes = new Map<number, MutableNode>();
+	readonly #roots = new Map<number, MutableRootState>();
 	readonly #viewManagerUsage = new Map<string, MutableViewManagerUsage>();
 	readonly #operations: ApkUiManagerOperation[] = [];
 	readonly #pendingNativeMeasurements: PendingNativeMeasurement[] = [];
@@ -207,17 +237,12 @@ export class ApkUiManagerRuntime {
 	#visualMutationRevision = 0;
 	#operationOffset = 0;
 	#operationCount = 0;
-	#treeRevision = 0;
-	#snapshotRevision = -1;
-	#snapshotCache?: ApkUiManagerNodeSnapshot;
+	#nextRootTag = 1;
 
 	public constructor(
 		contract: ApkAppPluginHostContract,
-		private readonly rootTag: number,
+		initialRootTag?: number,
 	) {
-		if (!Number.isSafeInteger(rootTag) || rootTag < 1) {
-			throw new Error("rootTag muss eine positive ganze Zahl sein");
-		}
 		const effectiveViewManagers = resolveEffectiveApkViewManagers(contract);
 		this.#viewManagers = new Map(effectiveViewManagers.map(viewManager => [
 			viewManager.viewName,
@@ -226,12 +251,39 @@ export class ApkUiManagerRuntime {
 		if (this.#viewManagers.size !== effectiveViewManagers.length) {
 			throw new Error("Die effektiven APK-ViewManager-Namen sind nicht eindeutig");
 		}
-		this.#nodes.set(rootTag, {
-			tag: rootTag,
-			viewName: "Root",
+		if (initialRootTag !== undefined) {
+			this.#registerRootView(initialRootTag);
+			this.#nextRootTag = initialRootTag + 10;
+		}
+	}
+
+	/** Mirrors the APK's legacy UIManagerModule.addRootView tag allocator (1, 11, 21, ...). */
+	public addRootView(): number {
+		const rootTag = this.#nextRootTag;
+		this.#nextRootTag += 10;
+		this.#registerRootView(rootTag);
+		return rootTag;
+	}
+
+	public root(rootTag: number): Readonly<ApkUiManagerRootRuntime> {
+		this.#rootState(rootTag);
+		return Object.freeze({
 			rootTag,
-			props: {},
-			children: [],
+			snapshot: () => this.snapshot(rootTag),
+			operationJournal: () => this.operationJournal(rootTag),
+			operationCount: () => this.operationCount(rootTag),
+			visualMutationRevision: () => this.visualMutationRevision(rootTag),
+			pendingNativeMeasurementCount: () => this.pendingNativeMeasurementCount(rootTag),
+			flushNativeMeasurements: (
+				measure: (tag: number) => Readonly<ApkNativeMeasuredBox> | undefined,
+			) => this.flushNativeMeasurementsForRoot(rootTag, measure),
+			synchronouslyUpdateViewOnUiThread: (
+				tag: number,
+				props: Readonly<Record<string, unknown>>,
+			) => {
+				this.#assertNodeRoot(tag, rootTag);
+				this.synchronouslyUpdateViewOnUiThread(tag, props);
+			},
 		});
 	}
 
@@ -252,7 +304,7 @@ export class ApkUiManagerRuntime {
 	): void => {
 		this.#assertTag(tag, "tag");
 		if (this.#nodes.has(tag)) throw new Error(`React-Tag ${tag} existiert bereits`);
-		if (rootTag !== this.rootTag || !this.#nodes.has(rootTag)) {
+		if (!this.#roots.has(rootTag)) {
 			throw new Error(`Root-Tag ${rootTag} ist nicht registriert`);
 		}
 		const viewManager = this.#viewManagers.get(viewName);
@@ -266,7 +318,7 @@ export class ApkUiManagerRuntime {
 			props: { ...(props ?? {}) },
 			children: [],
 		});
-		this.#record("createView", [tag, viewName, rootTag, props]);
+		this.#record("createView", [tag, viewName, rootTag, props], rootTag);
 	};
 
 	public readonly updateView = (
@@ -280,7 +332,7 @@ export class ApkUiManagerRuntime {
 		}
 		this.#trackViewProps(this.#viewManager(viewName), props, "update");
 		node.props = { ...node.props, ...props };
-		this.#record("updateView", [tag, viewName, props]);
+		this.#record("updateView", [tag, viewName, props], node.rootTag);
 	};
 
 	/** Mirrors UIManager.synchronouslyUpdateViewOnUIThread used by NativeAnimatedModule. */
@@ -291,7 +343,7 @@ export class ApkUiManagerRuntime {
 		const node = this.#node(tag);
 		this.#trackViewProps(this.#viewManager(node.viewName), props, "update");
 		node.props = { ...node.props, ...props };
-		this.#record("updateView", [tag, node.viewName, props]);
+		this.#record("updateView", [tag, node.viewName, props], node.rootTag);
 	}
 
 	/** Applies Android's null-prop reset without leaving synthetic null styles in the snapshot. */
@@ -307,7 +359,7 @@ export class ApkUiManagerRuntime {
 			delete node.props[propName];
 			reset[propName] = null;
 		}
-		this.#record("updateView", [tag, node.viewName, reset]);
+		this.#record("updateView", [tag, node.viewName, reset], node.rootTag);
 	}
 
 	public readonly setChildren = (parentTag: number, childTags: readonly number[]): void => {
@@ -319,7 +371,7 @@ export class ApkUiManagerRuntime {
 		const children = childTags.map(childTag => this.#node(childTag));
 		for (const child of children) this.#validateAttach(parent, child);
 		for (const child of children) this.#attach(parent, child, parent.children.length);
-		this.#record("setChildren", [parentTag, childTags]);
+		this.#record("setChildren", [parentTag, childTags], parent.rootTag);
 	};
 
 	public readonly manageChildren = (
@@ -394,25 +446,30 @@ export class ApkUiManagerRuntime {
 		}
 		parent.children = finalChildren;
 		for (const childTag of finalChildren) this.#node(childTag).parentTag = parent.tag;
-		this.#record("manageChildren", [parentTag, moveFrom, moveTo, addChildTags, addAtIndices, removeFrom]);
+		this.#record(
+			"manageChildren",
+			[parentTag, moveFrom, moveTo, addChildTags, addAtIndices, removeFrom],
+			parent.rootTag,
+		);
 	};
 
 	public readonly removeRootView = (tag: number): void => {
-		if (tag !== this.rootTag) throw new Error(`React-Tag ${tag} ist kein Root-Tag`);
+		this.#rootState(tag);
 		this.#deleteSubtree(tag);
-		this.#record("removeRootView", [tag]);
+		this.#record("removeRootView", [tag], tag);
+		this.#roots.delete(tag);
 	};
 
 	public readonly removeSubviewsFromContainerWithID = (tag: number): void => {
 		const parent = this.#node(tag);
 		for (const childTag of [...parent.children]) this.#deleteSubtree(childTag);
 		parent.children = [];
-		this.#record("removeSubviewsFromContainerWithID", [tag]);
+		this.#record("removeSubviewsFromContainerWithID", [tag], parent.rootTag);
 	};
 
 	public readonly replaceExistingNonRootView = (oldTag: number, newTag: number): void => {
 		const oldNode = this.#node(oldTag);
-		if (oldTag === this.rootTag || oldNode.parentTag === undefined) {
+		if (this.#roots.has(oldTag) || oldNode.parentTag === undefined) {
 			throw new Error(`React-Tag ${oldTag} ist keine ersetzbare Nicht-Root-View`);
 		}
 		const parent = this.#node(oldNode.parentTag);
@@ -424,7 +481,7 @@ export class ApkUiManagerRuntime {
 		oldNode.parentTag = undefined;
 		this.#deleteSubtree(oldTag);
 		this.#attach(parent, newNode, index);
-		this.#record("replaceExistingNonRootView", [oldTag, newTag]);
+		this.#record("replaceExistingNonRootView", [oldTag, newTag], parent.rootTag);
 	};
 
 	public readonly dispatchViewManagerCommand = (
@@ -447,7 +504,7 @@ export class ApkUiManagerRuntime {
 			);
 		}
 		this.#viewUsage(viewManager).dispatchedCommands.add(commandName);
-		this.#record("dispatchViewManagerCommand", [tag, commandName, arguments_]);
+		this.#record("dispatchViewManagerCommand", [tag, commandName, arguments_], node.rootTag);
 	};
 
 	/**
@@ -498,7 +555,7 @@ export class ApkUiManagerRuntime {
 	public readonly setJSResponder = (tag: number, blockNativeResponder: boolean): void => {
 		this.#node(tag);
 		this.#jsResponder = { tag, blockNativeResponder };
-		this.#record("setJSResponder", [tag, blockNativeResponder]);
+		this.#record("setJSResponder", [tag, blockNativeResponder], this.#node(tag).rootTag);
 	};
 
 	public readonly clearJSResponder = (): void => {
@@ -552,8 +609,8 @@ export class ApkUiManagerRuntime {
 	public readonly dismissPopupMenu = (): void => this.#record("dismissPopupMenu", []);
 
 	public readonly sendAccessibilityEvent = (tag: number, eventType: number): void => {
-		this.#node(tag);
-		this.#record("sendAccessibilityEvent", [tag, eventType]);
+		const node = this.#node(tag);
+		this.#record("sendAccessibilityEvent", [tag, eventType], node.rootTag);
 	};
 
 	public readonly setLayoutAnimationEnabledExperimental = (enabled: boolean): void =>
@@ -563,11 +620,12 @@ export class ApkUiManagerRuntime {
 		throw new ApkUiLayoutUnavailableError("showPopupMenu");
 	};
 
-	public snapshot(): ApkUiManagerNodeSnapshot {
-		if (this.#snapshotCache && this.#snapshotRevision === this.#treeRevision) return this.#snapshotCache;
-		this.#snapshotCache = this.#snapshot(this.#node(this.rootTag));
-		this.#snapshotRevision = this.#treeRevision;
-		return this.#snapshotCache;
+	public snapshot(rootTag?: number): ApkUiManagerNodeSnapshot {
+		const root = this.#rootState(this.#resolveRootTag(rootTag));
+		if (root.snapshotCache && root.snapshotRevision === root.treeRevision) return root.snapshotCache;
+		root.snapshotCache = this.#snapshot(this.#node(root.tag));
+		root.snapshotRevision = root.treeRevision;
+		return root.snapshotCache;
 	}
 
 	public jsResponder(): Readonly<{ tag: number; blockNativeResponder: boolean }> | undefined {
@@ -581,7 +639,15 @@ export class ApkUiManagerRuntime {
 		}));
 	}
 
-	public operationJournal(): Readonly<ApkUiManagerOperationJournal> {
+	public operationJournal(rootTag?: number): Readonly<ApkUiManagerOperationJournal> {
+		if (rootTag !== undefined) {
+			const root = this.#rootState(rootTag);
+			return Object.freeze({
+				offset: root.operationOffset,
+				total: root.operationCount,
+				operations: this.#copyOperations(root.operations),
+			});
+		}
 		return Object.freeze({
 			offset: this.#operationOffset,
 			total: this.#operationCount,
@@ -589,22 +655,43 @@ export class ApkUiManagerRuntime {
 		});
 	}
 
-	public operationCount(): number {
-		return this.#operationCount;
+	public operationCount(rootTag?: number): number {
+		return rootTag === undefined ? this.#operationCount : this.#rootState(rootTag).operationCount;
 	}
 
-	public visualMutationRevision(): number {
-		return this.#visualMutationRevision;
+	public visualMutationRevision(rootTag?: number): number {
+		return rootTag === undefined
+			? this.#visualMutationRevision
+			: this.#rootState(rootTag).visualMutationRevision;
 	}
 
-	public pendingNativeMeasurementCount(): number {
-		return this.#pendingNativeMeasurements.length;
+	public pendingNativeMeasurementCount(rootTag?: number): number {
+		return rootTag === undefined
+			? this.#pendingNativeMeasurements.length
+			: this.#pendingNativeMeasurements.filter(request => request.rootTag === rootTag).length;
 	}
 
 	public flushNativeMeasurements(
 		measure: (tag: number) => Readonly<ApkNativeMeasuredBox> | undefined,
 	): number {
-		const pending = this.#pendingNativeMeasurements.splice(0);
+		return this.#flushNativeMeasurements(undefined, measure);
+	}
+
+	public flushNativeMeasurementsForRoot(
+		rootTag: number,
+		measure: (tag: number) => Readonly<ApkNativeMeasuredBox> | undefined,
+	): number {
+		this.#rootState(rootTag);
+		return this.#flushNativeMeasurements(rootTag, measure);
+	}
+
+	#flushNativeMeasurements(
+		rootTag: number | undefined,
+		measure: (tag: number) => Readonly<ApkNativeMeasuredBox> | undefined,
+	): number {
+		const pending = rootTag === undefined
+			? this.#pendingNativeMeasurements.splice(0)
+			: this.#takePendingMeasurements(rootTag);
 		for (const request of pending) {
 			const box = measure(request.tag);
 			if (!box) {
@@ -660,20 +747,99 @@ export class ApkUiManagerRuntime {
 	): void {
 		this.#assertTag(tag, "tag");
 		if (typeof callback !== "function") throw new Error(`UIManager.${kind} benötigt einen Callback`);
-		this.#pendingNativeMeasurements.push({ kind, tag, callback });
+		this.#pendingNativeMeasurements.push({
+			kind,
+			tag,
+			rootTag: this.#nodes.get(tag)?.rootTag,
+			callback,
+		});
 	}
 
-	#record(method: string, arguments_: readonly unknown[]): void {
+	#record(method: string, arguments_: readonly unknown[], rootTag?: number): void {
 		this.#operations.push({ method, arguments: arguments_ });
 		this.#operationCount += 1;
-		this.#treeRevision += 1;
-		const maximumRetainedOperations = 4_096;
-		if (this.#operations.length > maximumRetainedOperations) {
-			const removed = this.#operations.length - maximumRetainedOperations;
-			this.#operations.splice(0, removed);
-			this.#operationOffset += removed;
+		this.#operationOffset += this.#trimOperations(this.#operations);
+		if (rootTag !== undefined) {
+			const root = this.#rootState(rootTag);
+			root.operations.push({ method, arguments: arguments_ });
+			root.operationCount += 1;
+			root.operationOffset += this.#trimOperations(root.operations);
+			root.treeRevision += 1;
+			if (visualUiManagerOperations.has(method)) root.visualMutationRevision += 1;
 		}
 		if (visualUiManagerOperations.has(method)) this.#visualMutationRevision += 1;
+	}
+
+	#trimOperations(operations: ApkUiManagerOperation[]): number {
+		const maximumRetainedOperations = 4_096;
+		if (operations.length <= maximumRetainedOperations) return 0;
+		const removed = operations.length - maximumRetainedOperations;
+		operations.splice(0, removed);
+		return removed;
+	}
+
+	#copyOperations(operations: readonly ApkUiManagerOperation[]): ApkUiManagerOperation[] {
+		return operations.map(operation => ({
+			method: operation.method,
+			arguments: [...operation.arguments],
+		}));
+	}
+
+	#registerRootView(rootTag: number): void {
+		this.#assertTag(rootTag, "rootTag");
+		if (this.#nodes.has(rootTag) || this.#roots.has(rootTag)) {
+			throw new Error(`React-Tag ${rootTag} existiert bereits`);
+		}
+		this.#nodes.set(rootTag, {
+			tag: rootTag,
+			viewName: "Root",
+			rootTag,
+			props: {},
+			children: [],
+		});
+		this.#roots.set(rootTag, {
+			tag: rootTag,
+			operations: [],
+			operationOffset: 0,
+			operationCount: 0,
+			treeRevision: 0,
+			visualMutationRevision: 0,
+			snapshotRevision: -1,
+		});
+	}
+
+	#resolveRootTag(rootTag: number | undefined): number {
+		if (rootTag !== undefined) return rootTag;
+		if (this.#roots.size !== 1) {
+			throw new Error(`Genau ein Root-Tag erwartet, gefunden: ${this.#roots.size}`);
+		}
+		return this.#roots.keys().next().value as number;
+	}
+
+	#rootState(rootTag: number): MutableRootState {
+		this.#assertTag(rootTag, "rootTag");
+		const root = this.#roots.get(rootTag);
+		if (!root) throw new Error(`Root-Tag ${rootTag} ist nicht registriert`);
+		return root;
+	}
+
+	#assertNodeRoot(tag: number, rootTag: number): MutableNode {
+		const node = this.#node(tag);
+		if (node.rootTag !== rootTag) {
+			throw new Error(`React-Tag ${tag} gehört nicht zu Root-Tag ${rootTag}`);
+		}
+		return node;
+	}
+
+	#takePendingMeasurements(rootTag: number): PendingNativeMeasurement[] {
+		const selected: PendingNativeMeasurement[] = [];
+		for (let index = this.#pendingNativeMeasurements.length - 1; index >= 0; index -= 1) {
+			const request = this.#pendingNativeMeasurements[index];
+			if (request.rootTag !== rootTag) continue;
+			selected.unshift(request);
+			this.#pendingNativeMeasurements.splice(index, 1);
+		}
+		return selected;
 	}
 
 	#assertTag(tag: number, name: string): void {

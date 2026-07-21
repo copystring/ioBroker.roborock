@@ -361,7 +361,7 @@
 				"test/unit/appplugin_apk_text_input_runtime.test.ts",
 				"test/unit/appplugin_apk_native_animated_runtime.test.ts"
 			],
-			"nextAction": "Die für Q7 L5/M5 belegte Trennung gebündelter MotionEvents gegen einen unabhängigen Android-Capture prüfen; Pointerverlust, Fokus, Fling/Momentum und verschachtelte ScrollViews gegen Familienläufe schließen. Lokale native Drag-Präsentation, native Karten-Unteransicht, Latest-MOVE und ScrollView bleiben zentrale Host-Verträge. Auf Q10/YX erst nach belegter interaktiver Kartenfläche erweitern."
+			"nextAction": "Ein gemeinsamer APK-UIManager kann jetzt mehrere React-Roots mit getrennten Snapshots, begrenzten Operationsjournalen, Layoutausführungen und Messwarteschlangen gleichzeitig tragen; der belegte Root-Tag-Zähler 1, 11, 21 ersetzt die Probe-Konstante. Als Nächstes die für Q7 L5/M5 belegte Trennung gebündelter MotionEvents gegen einen unabhängigen Android-Capture prüfen; Pointerverlust, Fokus, Fling/Momentum und verschachtelte ScrollViews gegen Familienläufe schließen. Auf Q10/YX erst nach belegter interaktiver Kartenfläche erweitern."
 		},
 		{
 			"id": "P0B-SKIA-HOST",
@@ -489,7 +489,7 @@
 				"test/unit/appplugin_apk_hermes_host_session.test.ts",
 				"docs/APK_APPPLUGIN_EXECUTION_MODEL.md"
 			],
-			"nextAction": "Der APK-belegte, zugriffsgeordnete Drei-Modell-Cache ist mit expliziten Leases, deduplizierten Modellstarts, LRU-Verdrängung nur inaktiver Hosts, Wiederholbarkeit nach Startfehlern sowie vollständigem Shutdown trotz Einzelfehlern abgesichert. ApkHermesHostSession trägt jetzt gleichzeitig mehrere positive ganzzahlige Root-Tags, ordnet Start- und Unmount-Bestätigungen root-spezifisch zu, verhindert doppelte Belegung und gibt einen Tag erst nach bestätigtem AppRegistry.unmountApplicationComponentAtRootTag wieder frei. Bootstrap und nativer Hermes-Host leiten exakt diesen React-Native-Aufruf über den bestehenden JSONL-Kanal; der MinGW-Nativbuild ist grün. Als Nächstes die gemeinsame native Runtime-Composition aus dem Probe-Skript in eine produktive, gerätekategorienneutrale Modell-Runtime-Factory extrahieren und eine sichtbare Root-Lease beim Freigeben zuverlässig aushängen."
+			"nextAction": "Der APK-belegte, zugriffsgeordnete Drei-Modell-Cache ist mit expliziten Leases, deduplizierten Modellstarts, LRU-Verdrängung nur inaktiver Hosts, Wiederholbarkeit nach Startfehlern sowie vollständigem Shutdown trotz Einzelfehlern abgesichert. ApkHermesHostSession trägt mehrere Root-Tags gleichzeitig und bestätigt Start sowie AppRegistry-Unmount root-spezifisch über den bestehenden JSONL-Kanal. Der gemeinsame UIManager verwendet nun wie APK UIManagerModule.addRootView die Folge 1, 11, 21 und isoliert Baum, Operationsstrom, Layout sowie Mess-Callbacks je Root; der Probe-Ausführungsweg nutzt bereits die sichtbare Root-Projektion. Als Nächstes die gemeinsame native Runtime-Composition aus dem Probe-Skript in eine produktive, gerätekategorienneutrale Modell-Runtime-Factory extrahieren und Root-Erzeugung, runApplication sowie bestätigtes Unmount als eine sichtbare Root-Lease koppeln."
 		},
 		{
 			"id": "P0B-RESOURCE-LIMITS",

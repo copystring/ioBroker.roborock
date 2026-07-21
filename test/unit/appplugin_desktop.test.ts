@@ -104,9 +104,9 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		);
 		expect(interactiveStabilization).toContain("await session.flushRuntimeBoundary()");
 		expect(interactiveStabilization).not.toContain("await session.waitForRuntimeBoundaryIdle()");
-		expect(probe).toContain("if (interactiveLayoutBoundary)");
-		expect(probe).toContain("interactiveLayoutBoundary = true");
-		expect(probe).toContain("interactiveLayoutBoundary = false");
+		expect(probe).toContain("if (interactiveLayoutBoundaryDepth > 0)");
+		expect(probe).toContain("interactiveLayoutBoundaryDepth += 1");
+		expect(probe).toContain("interactiveLayoutBoundaryDepth -= 1");
 		expect(html).toContain("AppPlugin-Karte als Hostdiagnose");
 		expect(html).toContain("Bundle unverändert · Host-SVG · kein Kartenfallback");
 		expect(html).toContain("eine Originaldarstellung oder Pixelgleichheit ist damit nicht belegt");
@@ -117,7 +117,7 @@ describe("AppPlugin desktop smart-home PoC", () => {
 
 	it("snapshots the UI tree before deriving native render capabilities", () => {
 		const probe = fs.readFileSync(probePath, "utf8");
-		const snapshotDeclaration = probe.indexOf("const shadowRoot = uiManager.snapshot()");
+		const snapshotDeclaration = probe.indexOf("const shadowRoot = uiRoot.snapshot()");
 		const svgCapabilityRead = probe.indexOf("const hasNativeSvgView = containsViewName(shadowRoot");
 
 		expect(snapshotDeclaration).toBeGreaterThan(0);
@@ -296,7 +296,7 @@ describe("AppPlugin desktop smart-home PoC", () => {
 		expect(surface).toContain("if (publicStateBefore !== this.#interactivePublicState()) this.#emitChange()");
 		expect(surface).toContain("this.#pointerEventSummary");
 		expect(probe).toContain("const resolveCurrentSurface");
-		expect(probe).toContain("const frameChanged = uiManager.visualMutationRevision()");
+		expect(probe).toContain("const frameChanged = uiRoot.visualMutationRevision()");
 		expect(probe).toContain('response.setHeader("X-AppPlugin-Frame-Revision"');
 		expect(pointerEndpoint).toContain("resolveCurrentSurface(view)");
 		expect(pointerEndpoint).not.toContain("currentFrame(view)");

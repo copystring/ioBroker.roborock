@@ -1495,8 +1495,9 @@ async function main(): Promise<void> {
 		installedModule(contract, "RNCAsyncStorage").javaClass,
 		asyncStorage as unknown as Record<string, unknown>,
 	);
-	const rootTag = 1;
-	const uiManager = new ApkUiManagerRuntime(contract, rootTag);
+	const uiManager = new ApkUiManagerRuntime(contract);
+	const rootTag = uiManager.addRootView();
+	const uiRoot = uiManager.root(rootTag);
 	let revision = 0;
 	let frameRevision = 0;
 	let requestNativeAnimatedUiPump: (() => void) | undefined;
@@ -1688,7 +1689,7 @@ async function main(): Promise<void> {
 	sessionForOrientation = session;
 	let interactiveLayoutBoundaryDepth = 0;
 	const uiExecution = new ApkUiExecutionRuntime({
-		uiManager,
+		uiManager: uiRoot,
 		jsModuleCaller: session,
 		textLayoutBackend: createApkCanvasKitTextLayoutBackend(skiaHost.api),
 		width: options.width / options.scale,
@@ -1710,19 +1711,19 @@ async function main(): Promise<void> {
 		new ApkTouchEventDispatcher(new ApkTouchEventRuntime(), session),
 		uiExecution.scrollViewRuntime(),
 	);
-	const textInput = new ApkTextInputRuntime(uiManager, session);
+	const textInput = new ApkTextInputRuntime(uiRoot, session);
 	const uiExecutionSnapshots: unknown[] = [];
 	const skiaVisualRevision = (): number => {
 		const diagnostics = skiaHost.getDiagnostics();
 		return diagnostics.pictureUpdates + diagnostics.redrawRequests;
 	};
-	let lastStabilizedOperationCount = uiManager.operationCount();
-	let lastStabilizedVisualRevision = uiManager.visualMutationRevision();
+	let lastStabilizedOperationCount = uiRoot.operationCount();
+	let lastStabilizedVisualRevision = uiRoot.visualMutationRevision();
 	let lastStabilizedSkiaRevision = skiaVisualRevision();
 	const applyUiLayout = async (): Promise<void> => {
 		appendBounded(uiExecutionSnapshots, await uiExecution.stabilize());
-		lastStabilizedOperationCount = uiManager.operationCount();
-		lastStabilizedVisualRevision = uiManager.visualMutationRevision();
+		lastStabilizedOperationCount = uiRoot.operationCount();
+		lastStabilizedVisualRevision = uiRoot.visualMutationRevision();
 		lastStabilizedSkiaRevision = skiaVisualRevision();
 	};
 	const stabilizeUi = async (): Promise<void> => {
@@ -1749,8 +1750,8 @@ async function main(): Promise<void> {
 		for (let round = 1; round <= maximumRounds; round += 1) {
 			await session.flushRuntimeBoundary();
 			await applyCompletedNativeUiTurn();
-			const operationCount = uiManager.operationCount();
-			const rootHasChildren = uiManager.snapshot().children.length > 0;
+			const operationCount = uiRoot.operationCount();
+			const rootHasChildren = uiRoot.snapshot().children.length > 0;
 			if (rootHasChildren && operationCount === previousOperationCount) stableRounds += 1;
 			else stableRounds = 0;
 			if (stableRounds >= 2) return round;
@@ -1764,8 +1765,8 @@ async function main(): Promise<void> {
 		// bis eine davon unabhängige Animation die gesamte Bridge ruhig werden lässt.
 		await session.flushRuntimeBoundary();
 		if (
-			uiManager.operationCount() === lastStabilizedOperationCount
-			&& uiManager.pendingNativeMeasurementCount() === 0
+			uiRoot.operationCount() === lastStabilizedOperationCount
+			&& uiRoot.pendingNativeMeasurementCount() === 0
 		) {
 			return;
 		}
@@ -1845,9 +1846,9 @@ async function main(): Promise<void> {
 				timerUiPumpRequested = false;
 				const visualRevisionBeforeLayout = lastStabilizedVisualRevision;
 				const skiaRevisionBeforeLayout = lastStabilizedSkiaRevision;
-				const nativeWorkPending = uiManager.operationCount() !== lastStabilizedOperationCount
-					|| uiManager.pendingNativeMeasurementCount() > 0;
-				const visualWorkPending = uiManager.visualMutationRevision() !== visualRevisionBeforeLayout
+				const nativeWorkPending = uiRoot.operationCount() !== lastStabilizedOperationCount
+					|| uiRoot.pendingNativeMeasurementCount() > 0;
+				const visualWorkPending = uiRoot.visualMutationRevision() !== visualRevisionBeforeLayout
 					|| skiaVisualRevision() !== skiaRevisionBeforeLayout;
 				if (!nativeWorkPending && !visualWorkPending) continue;
 				await applyCompletedNativeUiTurn();
@@ -2071,7 +2072,7 @@ async function main(): Promise<void> {
 		await waitForOperationQueueIdle();
 		const observedInteractionRawText = new Set<string>();
 		const observeInteractionRawText = (): void => {
-			for (const text of collectAppPluginRawText(uiManager.snapshot())) observedInteractionRawText.add(text);
+			for (const text of collectAppPluginRawText(uiRoot.snapshot())) observedInteractionRawText.add(text);
 		};
 		const settleReplayEvent = async (waitAfterMs: number): Promise<void> => {
 			if (waitAfterMs > 0) await new Promise(resolve => setTimeout(resolve, waitAfterMs));
@@ -2131,7 +2132,7 @@ async function main(): Promise<void> {
 		for (const [eventIndex, event] of (interactionReplay?.events ?? []).entries()) {
 			if (event.kind === "tap-visible-text") {
 				const target = resolveVisibleTextCenter(
-					uiManager.snapshot(),
+					uiRoot.snapshot(),
 					tag => uiExecution.nativeHierarchyRuntime().measure(tag),
 					event.text,
 					event.occurrence,
@@ -2153,7 +2154,7 @@ async function main(): Promise<void> {
 				continue;
 			}
 			if (event.kind === "assert") {
-				const rawText = collectAppPluginRawText(uiManager.snapshot());
+				const rawText = collectAppPluginRawText(uiRoot.snapshot());
 				const missingText = event.rawTextIncludes.filter(expected => !rawText.includes(expected));
 				const missingObservedText = event.rawTextObservedIncludes
 					.filter(expected => !observedInteractionRawText.has(expected));
@@ -2177,7 +2178,7 @@ async function main(): Promise<void> {
 						targets: entry.targets,
 					}));
 					const visibleTextLayouts = collectVisibleTextLayouts(
-						uiManager.snapshot(),
+						uiRoot.snapshot(),
 						tag => uiExecution.nativeHierarchyRuntime().measure(tag),
 					);
 					const assertionSnapshotPath = path.join(
@@ -2185,7 +2186,7 @@ async function main(): Promise<void> {
 						`interaction-assertion-${eventIndex}.png`,
 					);
 					await exportApkNativeUiSnapshotPng({
-						shadowRoot: uiManager.snapshot(),
+						shadowRoot: uiRoot.snapshot(),
 						nativeHierarchy: uiExecution.nativeHierarchyRuntime().snapshot(),
 						rootTag,
 						width: Math.round(options.width / options.scale),
@@ -2252,7 +2253,7 @@ async function main(): Promise<void> {
 		}
 		const containsViewName = (node: ApkUiManagerNodeSnapshot, viewName: string): boolean =>
 			node.viewName === viewName || node.children.some(child => containsViewName(child, viewName));
-		const shadowRoot = uiManager.snapshot();
+		const shadowRoot = uiRoot.snapshot();
 		const hasNativeSvgView = containsViewName(shadowRoot, "RNSVGSvgViewAndroid");
 		const nativeHierarchy = options.runApplication
 			? uiExecution.nativeHierarchyRuntime().snapshot()
@@ -2327,7 +2328,7 @@ async function main(): Promise<void> {
 			let runtimeStopScheduled = false;
 			const assertInteractiveRuntimeHealthy = (): void => {
 				const fatal = fatalRuntimeExceptions()[0];
-				const rootMounted = uiManager.snapshot().children.length > 0;
+				const rootMounted = uiRoot.snapshot().children.length > 0;
 				if (!fatal && rootMounted) return;
 				if (!runtimeStopScheduled) {
 					runtimeStopScheduled = true;
@@ -2368,7 +2369,7 @@ async function main(): Promise<void> {
 				return view;
 			};
 			const resolvedSemanticActions = () => resolveApkSemanticUiActions(
-				uiManager.snapshot(),
+				uiRoot.snapshot(),
 				tag => uiExecution.nativeHierarchyRuntime().measure(tag),
 				(x, y) => uiExecution.hitTestRuntime().findTouchTarget(x, y).target,
 			);
@@ -2376,7 +2377,7 @@ async function main(): Promise<void> {
 			const currentFrame = (view: ServedView = defaultServedView) => {
 				const { currentSurface, currentHierarchy, viewport } = resolveCurrentSurface(view);
 				const artifact = renderApkNativeUiSnapshotToSvg({
-					shadowRoot: uiManager.snapshot(),
+					shadowRoot: uiRoot.snapshot(),
 					nativeHierarchy: currentHierarchy,
 					rootTag: currentSurface.tag,
 					viewport,
@@ -2405,7 +2406,7 @@ async function main(): Promise<void> {
 						? pointerInput.pointerMove(pointer.pointerId as number, pointer.x as number, pointer.y as number, pointer.timeMs as number)
 						: pointerInput.pointerUp(pointer.pointerId as number, pointer.x as number, pointer.y as number, pointer.timeMs as number);
 			const dispatchInteractivePointers = async (pointers: readonly PointerHttpRequest[]) => {
-				const uiVisualRevisionBefore = uiManager.visualMutationRevision();
+				const uiVisualRevisionBefore = uiRoot.visualMutationRevision();
 				const nativeVisualRevisionBefore = uiExecution.nativeHierarchyRuntime().visualMutationRevision();
 				const skiaRevisionBefore = skiaVisualRevision();
 				const dispatches = [];
@@ -2467,14 +2468,14 @@ async function main(): Promise<void> {
 				}
 				await stabilizeInteractiveUi();
 				revision += 1;
-				const frameChanged = uiManager.visualMutationRevision() !== uiVisualRevisionBefore
+				const frameChanged = uiRoot.visualMutationRevision() !== uiVisualRevisionBefore
 					|| uiExecution.nativeHierarchyRuntime().visualMutationRevision() !== nativeVisualRevisionBefore
 					|| skiaVisualRevision() !== skiaRevisionBefore;
 				if (frameChanged) frameRevision += 1;
 				return { dispatches, frameChanged };
 			};
 			const dispatchInteractiveWheel = async (wheel: WheelHttpRequest) => {
-				const uiVisualRevisionBefore = uiManager.visualMutationRevision();
+				const uiVisualRevisionBefore = uiRoot.visualMutationRevision();
 				const nativeVisualRevisionBefore = uiExecution.nativeHierarchyRuntime().visualMutationRevision();
 				const skiaRevisionBefore = skiaVisualRevision();
 				const dispatch = await uiExecution.scrollViewRuntime().wheel(
@@ -2486,7 +2487,7 @@ async function main(): Promise<void> {
 				);
 				await stabilizeInteractiveUi();
 				revision += 1;
-				const frameChanged = uiManager.visualMutationRevision() !== uiVisualRevisionBefore
+				const frameChanged = uiRoot.visualMutationRevision() !== uiVisualRevisionBefore
 					|| uiExecution.nativeHierarchyRuntime().visualMutationRevision() !== nativeVisualRevisionBefore
 					|| skiaVisualRevision() !== skiaRevisionBefore;
 				if (frameChanged) frameRevision += 1;
@@ -2597,7 +2598,7 @@ async function main(): Promise<void> {
 					if (request.method === "GET" && url.pathname === "/state") {
 						sendJson(response, 200, {
 							revision,
-							rawText: collectAppPluginRawText(uiManager.snapshot()),
+							rawText: collectAppPluginRawText(uiRoot.snapshot()),
 							publishedDpsCount,
 							rpcTransmissions,
 							hostServiceRequests,
@@ -2618,7 +2619,7 @@ async function main(): Promise<void> {
 							activePointerIds: pointerInput.activePointerIds(),
 							gestureHandlers: gestureHandler.snapshot(),
 							jsResponder: uiManager.jsResponder(),
-							uiManagerOperations: uiManager.operationJournal(),
+							uiManagerOperations: uiRoot.operationJournal(),
 							colorScheme: darkMode.getColorScheme(),
 							colorModel: darkMode.getColorModel(),
 							systemColorScheme: darkMode.snapshot().systemColorScheme,
@@ -2684,13 +2685,13 @@ async function main(): Promise<void> {
 						const view = requestedView(url);
 						const language = parseLanguageHttpRequest(requestBody!);
 						const previousLanguage = localization.snapshot().language;
-						const uiVisualRevisionBefore = uiManager.visualMutationRevision();
+						const uiVisualRevisionBefore = uiRoot.visualMutationRevision();
 						const skiaRevisionBefore = skiaVisualRevision();
 						await localization.setLanguage(language.language);
 						await session.waitForRuntimeBoundaryIdle();
 						imminentTimerCycles += await settleImminentOneShotTimers();
 						await stabilizeUi();
-						const frameChanged = uiManager.visualMutationRevision() !== uiVisualRevisionBefore
+						const frameChanged = uiRoot.visualMutationRevision() !== uiVisualRevisionBefore
 							|| skiaVisualRevision() !== skiaRevisionBefore;
 						if (previousLanguage !== language.language) revision += 1;
 						if (frameChanged) frameRevision += 1;
@@ -2728,14 +2729,14 @@ async function main(): Promise<void> {
 						const jsResponder = uiManager.jsResponder();
 						sendJson(response, 200, {
 							revision,
-							rawText: collectAppPluginRawText(uiManager.snapshot()),
-							uiTree: uiManager.snapshot(),
+							rawText: collectAppPluginRawText(uiRoot.snapshot()),
+							uiTree: uiRoot.snapshot(),
 							nativeHierarchy: uiExecution.nativeHierarchyRuntime().snapshot(),
 							jsResponder,
 							jsResponderMeasurement: jsResponder
 								? uiExecution.nativeHierarchyRuntime().measure(jsResponder.tag)
 								: undefined,
-							pendingNativeMeasurementCount: uiManager.pendingNativeMeasurementCount(),
+							pendingNativeMeasurementCount: uiRoot.pendingNativeMeasurementCount(),
 						});
 						return;
 					}
@@ -2821,7 +2822,7 @@ async function main(): Promise<void> {
 							dispatches,
 							activePointerIds: pointerInput.activePointerIds(),
 							jsResponder: uiManager.jsResponder(),
-							pendingNativeMeasurementCount: uiManager.pendingNativeMeasurementCount(),
+							pendingNativeMeasurementCount: uiRoot.pendingNativeMeasurementCount(),
 							publishedDpsCount,
 							pageCloseRequestCount,
 							...localizationHttpState(),
@@ -2867,7 +2868,7 @@ async function main(): Promise<void> {
 					}
 					if (request.method === "POST" && url.pathname === "/text-input") {
 						const input = parseTextInputHttpRequest(requestBody!);
-						const uiVisualRevisionBefore = uiManager.visualMutationRevision();
+						const uiVisualRevisionBefore = uiRoot.visualMutationRevision();
 						const nativeVisualRevisionBefore = uiExecution.nativeHierarchyRuntime().visualMutationRevision();
 						const skiaRevisionBefore = skiaVisualRevision();
 						const dispatch = await textInput.replaceText(input.text, input.tag);
@@ -2875,7 +2876,7 @@ async function main(): Promise<void> {
 						imminentTimerCycles += await settleImminentOneShotTimers();
 						await stabilizeUi();
 						revision += 1;
-						const frameChanged = uiManager.visualMutationRevision() !== uiVisualRevisionBefore
+						const frameChanged = uiRoot.visualMutationRevision() !== uiVisualRevisionBefore
 							|| uiExecution.nativeHierarchyRuntime().visualMutationRevision() !== nativeVisualRevisionBefore
 							|| skiaVisualRevision() !== skiaRevisionBefore;
 						if (frameChanged) frameRevision += 1;
@@ -2923,7 +2924,7 @@ async function main(): Promise<void> {
 							changedIndices: [],
 							activePointerIds: pointerInput.activePointerIds(),
 							jsResponder: uiManager.jsResponder(),
-							pendingNativeMeasurementCount: uiManager.pendingNativeMeasurementCount(),
+							pendingNativeMeasurementCount: uiRoot.pendingNativeMeasurementCount(),
 							publishedDpsCount,
 							pageCloseRequestCount,
 							semanticActions: semanticActionsHttpState(),
@@ -2949,7 +2950,7 @@ async function main(): Promise<void> {
 							changedIndices: dispatch.changedIndices,
 							activePointerIds: pointerInput.activePointerIds(),
 							jsResponder: uiManager.jsResponder(),
-							pendingNativeMeasurementCount: uiManager.pendingNativeMeasurementCount(),
+							pendingNativeMeasurementCount: uiRoot.pendingNativeMeasurementCount(),
 							publishedDpsCount,
 							pageCloseRequestCount,
 							semanticActions: semanticActionsHttpState(),
@@ -2975,7 +2976,7 @@ async function main(): Promise<void> {
 							dispatches,
 							activePointerIds: pointerInput.activePointerIds(),
 							jsResponder: uiManager.jsResponder(),
-							pendingNativeMeasurementCount: uiManager.pendingNativeMeasurementCount(),
+							pendingNativeMeasurementCount: uiRoot.pendingNativeMeasurementCount(),
 							publishedDpsCount,
 							pageCloseRequestCount,
 							semanticActions: semanticActionsHttpState(),
@@ -3035,14 +3036,14 @@ async function main(): Promise<void> {
 			});
 		}
 		await orientationEventQueue;
-		const rootChildCount = uiManager.snapshot().children.length;
+		const rootChildCount = uiRoot.snapshot().children.length;
 		const rootMounted = options.runApplication
 			&& fatalRuntimeExceptions().length === 0
 			&& rootChildCount > 0;
 		const runtimeUsage = runtimeNativeUsage();
 		const hostInteractionTargetCount = options.runApplication
 			? publicApkSemanticUiActions(resolveApkSemanticUiActions(
-				uiManager.snapshot(),
+				uiRoot.snapshot(),
 				tag => uiExecution.nativeHierarchyRuntime().measure(tag),
 				(x, y) => uiExecution.hitTestRuntime().findTouchTarget(x, y).target,
 			)).length
@@ -3149,10 +3150,10 @@ async function main(): Promise<void> {
 			runtimeViewManagerUsage: uiManager.runtimeContractUsage(),
 			runtimeReadiness,
 			nativeModuleImplementationCoverage,
-			uiTree: options.runApplication ? uiManager.snapshot() : undefined,
+			uiTree: options.runApplication ? uiRoot.snapshot() : undefined,
 			nativeHierarchy: options.runApplication ? nativeHierarchy : undefined,
 			nativeMeasurements: options.runApplication ? nativeMeasurements : undefined,
-			uiOperations: options.runApplication ? uiManager.operations() : undefined,
+			uiOperations: options.runApplication ? uiRoot.operationJournal().operations : undefined,
 		})}\n`);
 		nativeAnimated.dispose();
 		timing.dispose();

@@ -13,11 +13,11 @@ import {
 	type ApkSafeAreaInsets,
 } from "./apkSafeAreaEventRuntime";
 import { ApkUiHitTestRuntime } from "./apkUiHitTestRuntime";
-import type { ApkUiManagerRuntime } from "./apkUiManagerRuntime";
+import type { ApkUiManagerRootRuntime } from "./apkUiManagerRuntime";
 import { ApkYogaLayoutRuntime, type ApkYogaLayoutEntry } from "./apkYogaLayoutRuntime";
 
 export interface ApkUiExecutionRuntimeOptions {
-	uiManager: ApkUiManagerRuntime;
+	uiManager: ApkUiManagerRootRuntime;
 	jsModuleCaller: ApkJavaScriptModuleCaller;
 	textLayoutBackend: ApkAndroidTextLayoutBackend;
 	width: number;

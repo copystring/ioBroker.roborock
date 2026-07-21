@@ -192,6 +192,55 @@ describe("APK UIManager runtime", () => {
 		]);
 	});
 
+	it("shares one APK UIManager across independently isolated React roots", () => {
+		const runtime = new ApkUiManagerRuntime(contract);
+		const firstRootTag = runtime.addRootView();
+		const secondRootTag = runtime.addRootView();
+		expect([firstRootTag, secondRootTag]).toEqual([1, 11]);
+
+		runtime.createView(2, "RCTView", firstRootTag, { testID: "first" });
+		runtime.createView(12, "RCTView", secondRootTag, { testID: "second" });
+		runtime.createView(13, "RCTView", secondRootTag, { testID: "unattached-second" });
+		runtime.setChildren(firstRootTag, [2]);
+		runtime.setChildren(secondRootTag, [12]);
+		const firstRoot = runtime.root(firstRootTag);
+		const secondRoot = runtime.root(secondRootTag);
+
+		expect(() => runtime.snapshot()).toThrow(/Genau ein Root-Tag/u);
+		expect(firstRoot.snapshot().children.map(child => child.tag)).toEqual([2]);
+		expect(secondRoot.snapshot().children.map(child => child.tag)).toEqual([12]);
+		expect(firstRoot.operationJournal().operations.map(operation => operation.arguments[0]))
+			.toEqual([2, 1]);
+		expect(secondRoot.operationJournal().operations.map(operation => operation.arguments[0]))
+			.toEqual([12, 13, 11]);
+		expect(() => runtime.manageChildren(firstRootTag, null, null, [13], [1], null))
+			.toThrow(/anderen Root/u);
+
+		const firstMeasurement = vi.fn();
+		const secondMeasurement = vi.fn();
+		runtime.measure(2, firstMeasurement);
+		runtime.measure(12, secondMeasurement);
+		expect(firstRoot.pendingNativeMeasurementCount()).toBe(1);
+		expect(secondRoot.pendingNativeMeasurementCount()).toBe(1);
+		expect(firstRoot.flushNativeMeasurements(tag => tag === 2
+			? { x: 1, y: 2, width: 3, height: 4 }
+			: undefined)).toBe(1);
+		expect(firstMeasurement).toHaveBeenCalledWith(0, 0, 3, 4, 1, 2);
+		expect(secondMeasurement).not.toHaveBeenCalled();
+		expect(secondRoot.pendingNativeMeasurementCount()).toBe(1);
+		const secondSnapshot = secondRoot.snapshot();
+		for (let index = 0; index < 4_100; index += 1) {
+			runtime.updateView(2, "RCTView", { opacity: index % 2 });
+		}
+		expect(firstRoot.operationJournal()).toEqual(expect.objectContaining({ offset: 6, total: 4_102 }));
+		expect(secondRoot.operationJournal()).toEqual(expect.objectContaining({ offset: 0, total: 3 }));
+		expect(secondRoot.snapshot()).toBe(secondSnapshot);
+
+		runtime.removeRootView(firstRootTag);
+		expect(() => runtime.snapshot(firstRootTag)).toThrow(/nicht registriert/u);
+		expect(runtime.snapshot(secondRootTag).children.map(child => child.tag)).toEqual([12]);
+	});
+
 	it("records the exact per-bundle ViewManager demand and rejects unknown commands", () => {
 		const runtime = new ApkUiManagerRuntime(contract, 1);
 		runtime.createView(2, "RCTView", 1, { opacity: 1, hostOnlyGuess: true });

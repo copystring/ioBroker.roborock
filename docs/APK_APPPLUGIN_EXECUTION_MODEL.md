@@ -106,6 +106,17 @@ keinen Produktionsprozess, weil die gemeinsame native Runtime-Composition noch
 aus dem Probe-Skript in eine produktive Modell-Runtime-Factory extrahiert und
 mit den sichtbaren Root-Leases verbunden werden muss.
 
+Auch der native UI-Vertrag ist pro Modell-Runtime geteilt. Die APK erzeugt den
+Root-Tag in `UIManagerModule.addRootView` aus einem pro Prozess gemeinsamen
+Zähler (`1`, danach jeweils `+10`) und übergibt erst den so registrierten Tag an
+`AppRegistry.runApplication`. `ApkUiManagerRuntime` bildet deshalb nicht mehr
+einen einzelnen Root ab: Ein gemeinsamer UIManager besitzt mehrere isolierte
+Root-Bäume sowie je Root getrennte Operations-, Layout- und Messwarteschlangen.
+Der Hermes-Probeweg verwendet bereits diesen APK-Allocator und gibt Layout,
+TextInput und Rendering nur die Projektion des sichtbaren Roots. Die
+Produktions-Factory und Root-Lease-Kopplung bleiben weiterhin der nächste
+Schritt.
+
 Zusätzliche Belege:
 
 - `com/roborock/smart/react/RNActivity.java:124-261`
@@ -113,6 +124,8 @@ Zusätzliche Belege:
 - `com/roborock/smart/react/RunnableC5116OooO.java:91-144`
 - `com/roborock/smart/sdk/C6213OooO0OO.java:133-147`
 - `com/facebook/react/C2850o00oO0o.java:231-237,276-281,444-455`
+- `com/facebook/react/uimanager/UIManagerModule.java:122-151`
+- `com/facebook/react/uimanager/AbstractC2971o00Oo0.java:112-116`
 
 Die generierte Inventur in
 [`generated/AppPlugin_APK_Host.md`](generated/AppPlugin_APK_Host.md) erfasst für

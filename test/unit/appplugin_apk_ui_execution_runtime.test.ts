@@ -11,6 +11,54 @@ import {
 const contract = contractJson as ApkAppPluginHostContract;
 
 describe("APK UI execution runtime", () => {
+	it("executes concurrent React roots without consuming another root's UI work", async () => {
+		const uiManager = new ApkUiManagerRuntime(contract);
+		const firstRootTag = uiManager.addRootView();
+		const secondRootTag = uiManager.addRootView();
+		uiManager.createView(2, "RCTView", firstRootTag, { width: 100, height: 50, collapsable: false });
+		uiManager.createView(12, "RCTView", secondRootTag, { width: 80, height: 40, collapsable: false });
+		uiManager.setChildren(firstRootTag, [2]);
+		uiManager.setChildren(secondRootTag, [12]);
+		const firstMeasurement = vi.fn();
+		const secondMeasurement = vi.fn();
+		uiManager.measure(2, firstMeasurement);
+		uiManager.measure(12, secondMeasurement);
+		const backend: ApkAndroidTextLayoutBackend = {
+			intrinsicWidth: () => { throw new Error("Kein Text erwartet"); },
+			layout: () => { throw new Error("Kein Text erwartet"); },
+		};
+		const firstRuntime = new ApkUiExecutionRuntime({
+			uiManager: uiManager.root(firstRootTag),
+			jsModuleCaller: { callJsFunction: vi.fn(async () => undefined) },
+			textLayoutBackend: backend,
+			width: 360,
+			height: 800,
+			density: 3,
+			fontScale: 1,
+		});
+		const secondRuntime = new ApkUiExecutionRuntime({
+			uiManager: uiManager.root(secondRootTag),
+			jsModuleCaller: { callJsFunction: vi.fn(async () => undefined) },
+			textLayoutBackend: backend,
+			width: 420,
+			height: 900,
+			density: 3,
+			fontScale: 1,
+		});
+
+		const first = await firstRuntime.stabilize();
+		expect(first.nativeHierarchy.root.tag).toBe(firstRootTag);
+		expect(first.nativeHierarchy.layouts.map(layout => layout.tag)).toEqual([2, firstRootTag]);
+		expect(firstMeasurement).toHaveBeenCalledTimes(1);
+		expect(secondMeasurement).not.toHaveBeenCalled();
+		expect(uiManager.root(secondRootTag).pendingNativeMeasurementCount()).toBe(1);
+
+		const second = await secondRuntime.stabilize();
+		expect(second.nativeHierarchy.root.tag).toBe(secondRootTag);
+		expect(second.nativeHierarchy.layouts.map(layout => layout.tag)).toEqual([12, secondRootTag]);
+		expect(secondMeasurement).toHaveBeenCalledTimes(1);
+	});
+
 	it("repeats physical Yoga and topLayout until React stops mutating the shadow tree", async () => {
 		const uiManager = new ApkUiManagerRuntime(contract, 1);
 		uiManager.createView(2, "RCTView", 1, { width: 100, height: 50, onLayout: true });
