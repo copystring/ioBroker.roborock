@@ -90,17 +90,21 @@ wiederverwendet; nach dem Einfügen eines vierten Modells wird der älteste Host
 freigegeben. Der Cache-Schlüssel ist nachweislich `device.model`, während der
 RPC-Manager nach DUID referenzgezählt wird.
 
-`ApkAppPluginSessionSupervisor` bildet zunächst nur diesen
+`ApkAppPluginSessionSupervisor` bildet diesen
 gerätekategorienneutralen Besitz- und Cachevertrag ab: gleichzeitige Öffnungen
 desselben Modells teilen einen Start, sichtbare Nutzer erhalten explizite
 Leases, nur inaktive Hosts dürfen per LRU verdrängt werden und Adapter-Shutdown
 wartet einen bereits laufenden, begrenzten Start ab, bevor jede Runtime genau
 einmal gestoppt wird. Fehlgeschlagene Starts werden aus dem Cache entfernt und
-können sauber neu versucht werden. Der Supervisor startet noch keinen
-Produktionsprozess, weil unser aktueller `ApkHermesHostSession` bisher nur einen
-Root zulässt. Vor der Adapterverdrahtung müssen Mehrfach-Root,
-`unmountApplicationComponentAtRootTag` und die gemeinsame native
-Runtime-Composition aus dem Probe-Skript herausgelöst werden.
+können sauber neu versucht werden. `ApkHermesHostSession` kann nun mehrere
+sichtbare Root-Tags innerhalb derselben Modell-Runtime gleichzeitig starten.
+Start und Unmount werden pro Root bestätigt; ein Tag bleibt bis zur Bestätigung
+von `unmountApplicationComponentAtRootTag` belegt. Bootstrap und nativer
+Hermes-Host rufen dafür die vorhandenen `AppRegistry`-Methoden des unveränderten
+Bundles über denselben JSONL-Kanal auf. Der Supervisor startet trotzdem noch
+keinen Produktionsprozess, weil die gemeinsame native Runtime-Composition noch
+aus dem Probe-Skript in eine produktive Modell-Runtime-Factory extrahiert und
+mit den sichtbaren Root-Leases verbunden werden muss.
 
 Zusätzliche Belege:
 

@@ -57,7 +57,9 @@ describe("APK-derived Hermes bridge bootstrap", () => {
 		expect(source).toContain("__apkSettleHostPromise");
 		expect(source).toContain("__apkEmitDeviceEvent");
 		expect(source).toContain("__apkRunApplication");
+		expect(source).toContain("__apkUnmountApplication");
 		expect(source).toContain('"AppRegistry", "runApplication"');
+		expect(source).toContain('"AppRegistry", "unmountApplicationComponentAtRootTag"');
 		expect(source).toContain('"RCTDeviceEventEmitter", "emit"');
 		expect(source).toContain("return new Promise(function apkNativePromise");
 		expect(source).toContain('"RRPluginSDK",{"apiLevel":10010}');

@@ -84,6 +84,13 @@ export interface ApkHermesApplicationStartedMessage {
 	rootTag: number;
 }
 
+export interface ApkHermesApplicationUnmountedMessage {
+	protocol: "roborock-appplugin-host";
+	version: 1;
+	type: "applicationUnmounted";
+	rootTag: number;
+}
+
 export interface ApkHermesRuntimeBarrierReachedMessage {
 	protocol: "roborock-appplugin-host";
 	version: 1;
@@ -105,6 +112,7 @@ export type ApkHermesNativeMessage =
 	| ApkHermesLifecycleMessage
 	| ApkHermesBundleEvaluatedMessage
 	| ApkHermesApplicationStartedMessage
+	| ApkHermesApplicationUnmountedMessage
 	| ApkHermesRuntimeBarrierReachedMessage
 	| ApkHermesFatalMessage;
 
@@ -154,6 +162,12 @@ export type ApkHermesHostMessage =
 		type: "runApplication";
 		appKey: string;
 		parameters: ApkHermesWireValue;
+	}
+	| {
+		protocol: "roborock-appplugin-host";
+		version: 1;
+		type: "unmountApplication";
+		rootTag: number;
 	}
 	| {
 		protocol: "roborock-appplugin-host";
@@ -274,10 +288,16 @@ export function parseApkHermesNativeMessage(line: string): ApkHermesNativeMessag
 		return value as unknown as ApkHermesBundleEvaluatedMessage;
 	}
 	if (value.type === "applicationStarted") {
-		if (typeof value.appKey !== "string" || !Number.isFinite(value.rootTag)) {
+		if (typeof value.appKey !== "string" || !Number.isSafeInteger(value.rootTag) || Number(value.rootTag) < 1) {
 			throw new Error("Ungültiger Hermes-Application-Start");
 		}
 		return value as unknown as ApkHermesApplicationStartedMessage;
+	}
+	if (value.type === "applicationUnmounted") {
+		if (!Number.isSafeInteger(value.rootTag) || Number(value.rootTag) < 1) {
+			throw new Error("Ungültiger Hermes-Application-Unmount");
+		}
+		return value as unknown as ApkHermesApplicationUnmountedMessage;
 	}
 	if (value.type === "runtimeBarrierReached") {
 		if (!Number.isSafeInteger(value.barrierId) || Number(value.barrierId) < 1) {

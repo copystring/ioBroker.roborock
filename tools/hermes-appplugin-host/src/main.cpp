@@ -501,6 +501,10 @@ class IpcBridge final {
       runApplication(runtime, message);
       return;
     }
+    if (type == "unmountApplication") {
+      unmountApplication(runtime, message);
+      return;
+    }
     if (type == "runtimeBarrier") {
       runtimeBarrier(runtime, message);
       return;
@@ -623,6 +627,9 @@ class IpcBridge final {
     }
     const auto rootTag = requiredNumber(
         runtime, parametersValue.asObject(runtime), "rootTag");
+    if (rootTag < 1 || rootTag != static_cast<uint64_t>(rootTag)) {
+      throw jsi::JSError(runtime, "Invalid APK AppRegistry rootTag");
+    }
     auto parameters = unmarshal(runtime, std::move(parametersValue));
     auto runner = runtime.global().getPropertyAsFunction(
         runtime, "__apkRunApplication");
@@ -636,7 +643,25 @@ class IpcBridge final {
         "\",\"version\":" + std::to_string(kProtocolVersion) +
         ",\"type\":\"applicationStarted\",\"appKey\":\"" +
         jsonEscape(appKey) + "\",\"rootTag\":" +
-        std::to_string(rootTag) + "}");
+        std::to_string(static_cast<uint64_t>(rootTag)) + "}");
+  }
+
+  void unmountApplication(
+      jsi::Runtime &runtime,
+      const jsi::Object &message) {
+    const auto rootTag = requiredNumber(runtime, message, "rootTag");
+    if (rootTag < 1 || rootTag != static_cast<uint64_t>(rootTag)) {
+      throw jsi::JSError(runtime, "Invalid APK AppRegistry rootTag");
+    }
+    auto unmount = runtime.global().getPropertyAsFunction(
+        runtime, "__apkUnmountApplication");
+    auto queue = unmount.call(runtime, rootTag);
+    emitQueue(runtime, queue);
+    writeLine(
+        std::string("{\"protocol\":\"") + kProtocolName +
+        "\",\"version\":" + std::to_string(kProtocolVersion) +
+        ",\"type\":\"applicationUnmounted\",\"rootTag\":" +
+        std::to_string(static_cast<uint64_t>(rootTag)) + "}");
   }
 
   void callJsFunction(

@@ -320,18 +320,23 @@
 				"src/apppluginHost/apkHostServiceAdapterHandlers.ts",
 				"src/apppluginHost/apkHostServiceProtocol.ts",
 				"src/apppluginHost/apkHostServiceRuntimePorts.ts",
+				"src/apppluginHost/apkAxiosRestfulHttpService.ts",
 				"src/apppluginHost/apkPluginHttpRuntime.ts",
 				"src/apppluginHost/apkPluginPermissionsRuntime.ts",
+				"src/apppluginHost/apkProductRoleCatalog.ts",
 				"src/apppluginHost/apkPluginSdkEnvironmentRuntime.ts",
 				"src/apppluginHost/apkPluginSdkRpcModule.ts",
+				"src/lib/httpApi.ts",
 				"test/unit/appplugin_apk_host_service_protocol.test.ts",
 				"test/unit/appplugin_apk_host_service_runtime_ports.test.ts",
 				"test/unit/appplugin_apk_host_service_adapter_handlers.test.ts",
+				"test/unit/appplugin_apk_axios_restful_http_service.test.ts",
 				"test/unit/appplugin_apk_plugin_http_runtime.test.ts",
 				"test/unit/appplugin_apk_plugin_permissions_runtime.test.ts",
+				"test/unit/appplugin_apk_product_role_catalog.test.ts",
 				"test/unit/appplugin_apk_environment_runtimes.test.ts"
 			],
-			"nextAction": "RRPluginHttpTurboModule bildet alle 22 APK-Methoden ab und hält IoT-, User-, Mall-, Header- und Bildvorbereitungsdienste getrennt. Ein allowlist-basierter, größen-, tiefen-, parallelitäts- und zeitbegrenzter Prozesskanal-Vertrag deckt genau diese Repository-Aufrufe und die Produktrollen-Abfrage ab; clientseitige Laufzeitports und serverseitige Adapterhandler bestehen den End-to-End-Loopback. Binäre Bildteile sind serialisierbar, Dateipfade und Zugangsdaten gehören nicht in die Dienstnachrichten. Die Handler validieren Operation und Nutzlast, verhindern das Überschreiben der authentifizierten Repository-Ursprünge und rekonstruieren ausschließlich den belegten Mall-Business-Header. Unerwartete Adapterfehler werden vor dem AppPlugin bereinigt. Als Nächstes die Handler mit den vorhandenen getrennten RRSDK-, IoT- und Mall-Clients verbinden und den Vertrag als dauerhaften IPC-Kanal in den Sitzungssupervisor einhängen; Offline-Proben dürfen fehlende Antworten weiterhin nicht erfinden."
+			"nextAction": "RRPluginHttpTurboModule bildet alle 22 APK-Methoden ab und hält IoT-, User-, Mall-, Header- und Bildvorbereitungsdienste getrennt. Die belegten User- und IoT-Repository-Aufrufe sind an die vorhandenen, getrennt authentifizierten Axios-Clients gebunden; GET und DELETE übertragen skalare Querywerte, POST und PUT skalare Formwerte und JSON-Pfade unverändert als JSON. Die APK-Rollenliste wird vor dem Hermes-Prozess einmal über die Login-API geladen und als strikt typisierter Produktkatalog in den Sitzungsdeskriptor gegeben. Deshalb ist kein zweiter Prozesskanal erforderlich: Native AppPlugin-Aufrufe laufen bereits über den einen Hermes-JSONL-Kanal zum TypeScript-Dispatcher im Adapterprozess. Binäre Bildvorbereitung und die noch nicht produktiv komponierten Mall-Pfade bleiben explizite Ports und dürfen offline keine Antworten erfinden. Als Nächstes diese Repository-Ports zusammen mit der nativen Modul-Composition in die produktive Modell-Runtime-Factory einhängen."
 		},
 		{
 			"id": "P0B-INPUT-LAYOUT",
@@ -474,10 +479,17 @@
 			"dependsOn": ["P0B-HERMES-HOST", "P0B-METRO-HOST"],
 			"evidence": [
 				"src/apppluginHost/apkAppPluginSessionSupervisor.ts",
+				"src/apppluginHost/apkBridgeBootstrap.ts",
+				"src/apppluginHost/apkHermesHostProtocol.ts",
+				"src/apppluginHost/apkHermesHostSession.ts",
+				"tools/hermes-appplugin-host/src/main.cpp",
 				"test/unit/appplugin_apk_session_supervisor.test.ts",
+				"test/unit/appplugin_apk_bridge_bootstrap.test.ts",
+				"test/unit/appplugin_apk_hermes_host_protocol.test.ts",
+				"test/unit/appplugin_apk_hermes_host_session.test.ts",
 				"docs/APK_APPPLUGIN_EXECUTION_MODEL.md"
 			],
-			"nextAction": "Der APK-belegte, zugriffsgeordnete Drei-Modell-Cache ist mit expliziten Leases, deduplizierten Modellstarts, LRU-Verdrängung nur inaktiver Hosts, Wiederholbarkeit nach Startfehlern sowie vollständigem Shutdown trotz Einzelfehlern abgesichert. Vor der Adapterverdrahtung muss ApkHermesHostSession mehrere Root-Tags mit AppRegistry.runApplication und unmountApplicationComponentAtRootTag tragen; anschließend ist die gemeinsame native Runtime-Composition aus dem Probe-Skript in eine produktive Factory zu extrahieren."
+			"nextAction": "Der APK-belegte, zugriffsgeordnete Drei-Modell-Cache ist mit expliziten Leases, deduplizierten Modellstarts, LRU-Verdrängung nur inaktiver Hosts, Wiederholbarkeit nach Startfehlern sowie vollständigem Shutdown trotz Einzelfehlern abgesichert. ApkHermesHostSession trägt jetzt gleichzeitig mehrere positive ganzzahlige Root-Tags, ordnet Start- und Unmount-Bestätigungen root-spezifisch zu, verhindert doppelte Belegung und gibt einen Tag erst nach bestätigtem AppRegistry.unmountApplicationComponentAtRootTag wieder frei. Bootstrap und nativer Hermes-Host leiten exakt diesen React-Native-Aufruf über den bestehenden JSONL-Kanal; der MinGW-Nativbuild ist grün. Als Nächstes die gemeinsame native Runtime-Composition aus dem Probe-Skript in eine produktive, gerätekategorienneutrale Modell-Runtime-Factory extrahieren und eine sichtbare Root-Lease beim Freigeben zuverlässig aushängen."
 		},
 		{
 			"id": "P0B-RESOURCE-LIMITS",
@@ -498,8 +510,12 @@
 			"status": "pending",
 			"priority": "P1",
 			"dependsOn": ["P0B-CODEC-RUNTIME", "P0B-HERMES-HOST", "P0B-METRO-HOST", "P0B-RESOURCE-LIMITS"],
-			"evidence": [],
-			"nextAction": "CI-Matrix, ABI-Prüfung und paketierte Smoke-Tests ohne Java oder Emulator aufbauen."
+			"evidence": [
+				"scripts/build_hermes_appplugin_host.js",
+				"tools/hermes-appplugin-host/CMakeLists.txt",
+				"tools/hermes-appplugin-host/src/main.cpp"
+			],
+			"nextAction": "Der vorhandene Windows-MinGW-Build kompiliert den Hermes-Host einschließlich des Mehrfach-Root-Protokolls erfolgreich. Der Standard-MSVC-Build scheitert vorher im unveränderten Hermes-0.13-HadesGC an der aktuellen MSVC-Version; diesen Toolchainpfad reproduzierbar festlegen oder ersetzen. Anschließend CI-Matrix, ABI-Prüfung und paketierte Smoke-Tests für Windows, Linux und macOS ohne Java oder Emulator aufbauen."
 		},
 		{
 			"id": "P0C-Q7-DIRECT-RUN",

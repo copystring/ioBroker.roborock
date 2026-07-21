@@ -119,8 +119,13 @@ export class ApkHermesHostSession {
 	readonly #options: ResolvedOptions;
 	readonly #startup = deferred<void>();
 	readonly #exit = deferred<{ code: number | null; signal: NodeJS.Signals | null }>();
-	readonly #applicationStarted = deferred<ApkHermesApplicationStartedMessage>();
 	readonly #decoder: ApkHermesJsonLineDecoder;
+	readonly #mountedApplications = new Map<number, string>();
+	readonly #pendingApplicationStarts = new Map<number, Readonly<{
+		appKey: string;
+		completion: Deferred<ApkHermesApplicationStartedMessage>;
+	}>>();
+	readonly #pendingApplicationUnmounts = new Map<number, Deferred<void>>();
 	#state: ApkHermesHostSessionState = "idle";
 	#child?: ChildProcessWithoutNullStreams;
 	#controller?: ApkHermesHostProtocolController;
@@ -130,7 +135,6 @@ export class ApkHermesHostSession {
 	#stderr = "";
 	#probe?: ApkHermesBundleProbe;
 	#bundleKind?: ApkHermesBundleKind;
-	#applicationRequested = false;
 	#sawStopped = false;
 	#nextBarrierId = 1;
 	#runtimeActivityRevision = 0;
@@ -219,13 +223,20 @@ export class ApkHermesHostSession {
 		if (this.#state !== "running") {
 			throw new Error("AppRegistry.runApplication benötigt einen laufenden Hermes-Appplugin-Host");
 		}
-		if (this.#applicationRequested) throw new Error("AppRegistry.runApplication wurde bereits angefordert");
 		if (appKey.length === 0) throw new Error("appKey darf nicht leer sein");
 		const rootTag = parameters.rootTag;
-		if (typeof rootTag !== "number" || !Number.isFinite(rootTag)) {
-			throw new Error("AppRegistry.rootTag muss eine endliche Zahl sein");
+		if (typeof rootTag !== "number" || !Number.isSafeInteger(rootTag) || rootTag < 1) {
+			throw new Error("AppRegistry.rootTag muss eine positive ganze Zahl sein");
 		}
-		this.#applicationRequested = true;
+		if (
+			this.#mountedApplications.has(rootTag)
+			|| this.#pendingApplicationStarts.has(rootTag)
+			|| this.#pendingApplicationUnmounts.has(rootTag)
+		) {
+			throw new Error(`AppRegistry.rootTag ${rootTag} ist bereits belegt`);
+		}
+		const completion = deferred<ApkHermesApplicationStartedMessage>();
+		this.#pendingApplicationStarts.set(rootTag, { appKey, completion });
 		try {
 			await this.#write({
 				protocol: "roborock-appplugin-host",
@@ -235,13 +246,13 @@ export class ApkHermesHostSession {
 				parameters: toApkHermesWireValue(parameters),
 			});
 		} catch (error) {
-			this.#applicationRequested = false;
+			this.#pendingApplicationStarts.delete(rootTag);
 			throw error;
 		}
 		let timeout: NodeJS.Timeout | undefined;
 		try {
 			const started = await Promise.race([
-				this.#applicationStarted.promise,
+				completion.promise,
 				new Promise<never>((_resolve, reject) => {
 					timeout = setTimeout(() => {
 						reject(new Error(
@@ -257,6 +268,57 @@ export class ApkHermesHostSession {
 		} catch (error) {
 			this.#fail(error);
 			throw this.#failure ?? new Error("AppRegistry.runApplication ist fehlgeschlagen");
+		} finally {
+			if (timeout) clearTimeout(timeout);
+		}
+	}
+
+	public async unmountApplication(rootTag: number): Promise<void> {
+		if (this.#state !== "running") {
+			throw new Error("AppRegistry.unmountApplicationComponentAtRootTag benötigt einen laufenden Hermes-Appplugin-Host");
+		}
+		if (!Number.isSafeInteger(rootTag) || rootTag < 1) {
+			throw new Error("AppRegistry.rootTag muss eine positive ganze Zahl sein");
+		}
+		if (this.#pendingApplicationStarts.has(rootTag)) {
+			throw new Error(`AppRegistry.rootTag ${rootTag} wird noch gestartet`);
+		}
+		if (this.#pendingApplicationUnmounts.has(rootTag)) {
+			throw new Error(`AppRegistry.rootTag ${rootTag} wird bereits ausgehängt`);
+		}
+		if (!this.#mountedApplications.has(rootTag)) {
+			throw new Error(`AppRegistry.rootTag ${rootTag} ist nicht eingehängt`);
+		}
+		const completion = deferred<void>();
+		this.#pendingApplicationUnmounts.set(rootTag, completion);
+		try {
+			await this.#write({
+				protocol: "roborock-appplugin-host",
+				version: 1,
+				type: "unmountApplication",
+				rootTag,
+			});
+		} catch (error) {
+			this.#pendingApplicationUnmounts.delete(rootTag);
+			throw error;
+		}
+		let timeout: NodeJS.Timeout | undefined;
+		try {
+			await Promise.race([
+				completion.promise,
+				new Promise<never>((_resolve, reject) => {
+					timeout = setTimeout(() => {
+						reject(new Error(
+							`AppRegistry.unmountApplicationComponentAtRootTag(${rootTag}) war nach `
+							+ `${this.#options.startupTimeoutMs} ms nicht bestätigt`,
+						));
+					}, this.#options.startupTimeoutMs);
+					timeout.unref();
+				}),
+			]);
+		} catch (error) {
+			this.#fail(error);
+			throw this.#failure ?? new Error("AppRegistry.unmountApplicationComponentAtRootTag ist fehlgeschlagen");
 		} finally {
 			if (timeout) clearTimeout(timeout);
 		}
@@ -420,10 +482,30 @@ export class ApkHermesHostSession {
 			return;
 		}
 		if (message.type === "applicationStarted") {
-			if (!this.#applicationRequested || this.#state !== "running") {
+			if (this.#state !== "running" && this.#state !== "stopping") {
 				throw new Error(`applicationStarted im Zustand ${this.#state}`);
 			}
-			this.#applicationStarted.resolve(message);
+			const pending = this.#pendingApplicationStarts.get(message.rootTag);
+			if (!pending) throw new Error(`applicationStarted für unbekannten Root-Tag ${message.rootTag}`);
+			if (pending.appKey !== message.appKey) {
+				throw new Error(
+					`Hermes-Host bestätigte für Root-Tag ${message.rootTag} App ${message.appKey} statt ${pending.appKey}`,
+				);
+			}
+			this.#pendingApplicationStarts.delete(message.rootTag);
+			this.#mountedApplications.set(message.rootTag, message.appKey);
+			pending.completion.resolve(message);
+			return;
+		}
+		if (message.type === "applicationUnmounted") {
+			if (this.#state !== "running" && this.#state !== "stopping") {
+				throw new Error(`applicationUnmounted im Zustand ${this.#state}`);
+			}
+			const pending = this.#pendingApplicationUnmounts.get(message.rootTag);
+			if (!pending) throw new Error(`applicationUnmounted für unbekannten Root-Tag ${message.rootTag}`);
+			this.#pendingApplicationUnmounts.delete(message.rootTag);
+			this.#mountedApplications.delete(message.rootTag);
+			pending.resolve();
 			return;
 		}
 		if (message.type === "runtimeBarrierReached") {
@@ -535,8 +617,14 @@ export class ApkHermesHostSession {
 		} else if (this.#state === "running") {
 			this.#fail(new Error(`Hermes-Appplugin-Host endete unerwartet (Code ${code ?? "null"})`), false);
 		} else if (this.#state === "stopping") {
-			if (code === 0 && this.#sawStopped) this.#state = "stopped";
-			else this.#fail(new Error(`Ungültiger Hermes-Hostabschluss: Code ${code ?? "null"}, stopped=${this.#sawStopped}`), false);
+			if (code === 0 && this.#sawStopped) {
+				this.#mountedApplications.clear();
+				this.#state = "stopped";
+			} else {
+				this.#fail(new Error(
+					`Ungültiger Hermes-Hostabschluss: Code ${code ?? "null"}, stopped=${this.#sawStopped}`,
+				), false);
+			}
 		}
 		this.#exit.resolve({ code, signal });
 	}
@@ -547,7 +635,11 @@ export class ApkHermesHostSession {
 		this.#state = "failed";
 		this.#clearStartupTimer();
 		this.#startup.reject(this.#failure);
-		if (this.#applicationRequested) this.#applicationStarted.reject(this.#failure);
+		for (const pending of this.#pendingApplicationStarts.values()) pending.completion.reject(this.#failure);
+		this.#pendingApplicationStarts.clear();
+		for (const pending of this.#pendingApplicationUnmounts.values()) pending.reject(this.#failure);
+		this.#pendingApplicationUnmounts.clear();
+		this.#mountedApplications.clear();
 		for (const barrier of this.#runtimeBarriers.values()) barrier.reject(this.#failure);
 		this.#runtimeBarriers.clear();
 		if (terminate && this.#child && !this.#child.killed) this.#child.kill();

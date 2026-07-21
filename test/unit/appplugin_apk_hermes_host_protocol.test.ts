@@ -106,6 +106,18 @@ describe("APK Hermes host protocol", () => {
 		expect(parseApkHermesNativeMessage(JSON.stringify({
 			protocol: "roborock-appplugin-host",
 			version: 1,
+			type: "applicationUnmounted",
+			rootTag: 1,
+		}))).toMatchObject({ type: "applicationUnmounted", rootTag: 1 });
+		expect(() => parseApkHermesNativeMessage(JSON.stringify({
+			protocol: "roborock-appplugin-host",
+			version: 1,
+			type: "applicationUnmounted",
+			rootTag: 1.5,
+		}))).toThrow(/Application-Unmount/u);
+		expect(parseApkHermesNativeMessage(JSON.stringify({
+			protocol: "roborock-appplugin-host",
+			version: 1,
 			type: "runtimeBarrierReached",
 			barrierId: 3,
 		}))).toMatchObject({ type: "runtimeBarrierReached", barrierId: 3 });
