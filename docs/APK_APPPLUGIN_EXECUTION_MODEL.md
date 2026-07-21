@@ -469,15 +469,23 @@ Hermes-Host meldet für den statisch erfassten APK-Vertrag:
 | --- | ---: |
 | effektive APK-Native-Module | 70 |
 | im PoC registriert | 34 |
-| vollständig implementiert | 31 |
-| teilweise implementiert | 3 |
+| vollständig implementiert | 32 |
+| teilweise implementiert | 2 |
 | vollständig fehlend | 36 |
 
-Teilweise sind derzeit `RRPluginHttpTurboModule`, `RRPluginPermissions` und
-`RRPluginSDK`.
+Teilweise sind derzeit `RRPluginPermissions` und `RRPluginSDK`.
 Vollständig fehlend sind unter anderem native 3D-Module und -Views,
 Kamera/Video, Datei-/Konto-/Profil-Turbo-Module, Networking,
 WebSocket, MMKV sowie mehrere React-Native-Basismodule.
+
+`RRPluginHttpTurboModule` implementiert nun alle 22 Methoden des effektiven
+APK-4.54.02-Vertrags. Wie in der APK bleiben IoT-, User- und Mall-Repository,
+authentifizierte Header sowie Androids Bildvorbereitung getrennte Hostdienste.
+Der Offline-Audit protokolliert jeden dieser Wege und lehnt ihn ohne
+angeschlossenen Dienst explizit ab; er erfindet weder Antworten noch
+AppPlugin-Endpunkte. Die drei Account-Methoden bleiben entsprechend der
+untersuchten APK ausstehend, weil die APK ihre React-Native-Promises dort
+weder erfüllt noch ablehnt.
 
 `RRDevicesModule` ist inzwischen vollständig als APK-abgeleitete Hostgrenze
 registriert. Ohne rohe HomeData- und Produkt-JSON-Daten im Sitzungsdeskriptor
@@ -545,7 +553,7 @@ globalen Leerlaufzustand der React-Native-Brücke, sondern begrenzt ausschließl
 die für den Start relevanten Runtime-, Layout- und Ereignisgrenzen. Das ist eine
 Diagnosestrategie unseres Hosts und kein behauptetes APK-Verhalten.
 
-Der Lauf vom 19. Juli 2026 ergibt:
+Der Lauf vom 21. Juli 2026 ergibt:
 
 | Messwert | Ergebnis |
 | --- | ---: |

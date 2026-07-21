@@ -258,7 +258,7 @@
 				"test/unit/appplugin_apk_js_module_call_protocol.test.ts",
 				"`npm run poc:appplugin-contract-audit`"
 			],
-			"nextAction": "Die aus APK 4.54.02 inventarisierten 70 effektiven Native-Module bleiben die aktuelle Obermenge. Davon sind 31 vollständig, drei teilweise und 36 nicht implementiert. Der endliche Audit über 14 unterschiedliche lokale Bundles meldet 14 vollständige Berichte, zehn erzeugte React-Roots und keine Zeitüberschreitung. Vier ältere JavaScript-Bundles verlangen beim Bootstrap einen anderen AsyncStorage-Namen als APK 4.54.02 bereitstellt; dafür ein durch eine passende ältere APK belegtes Hostprofil ergänzen, statt einen stillen Kompatibilitätsalias in das aktuelle Profil einzubauen."
+			"nextAction": "Die aus APK 4.54.02 inventarisierten 70 effektiven Native-Module bleiben die aktuelle Obermenge. Davon sind 32 vollständig, zwei teilweise und 36 nicht implementiert. RRPluginHttpTurboModule deckt alle 22 APK-Methoden ab; echte IoT-, User-, Mall-, Header- und Bildvorbereitungsdienste bleiben bewusst externe Ports. Der endliche Audit über 14 unterschiedliche lokale Bundles meldet 14 vollständige Berichte, zehn erzeugte React-Roots und keine Zeitüberschreitung. Vier ältere JavaScript-Bundles verlangen beim Bootstrap einen anderen AsyncStorage-Namen als APK 4.54.02 bereitstellt; dafür ein durch eine passende ältere APK belegtes Hostprofil ergänzen, statt einen stillen Kompatibilitätsalias in das aktuelle Profil einzubauen."
 		},
 		{
 			"id": "P0B-DEVICE-BOOTSTRAP",
@@ -325,7 +325,7 @@
 				"test/unit/appplugin_apk_plugin_permissions_runtime.test.ts",
 				"test/unit/appplugin_apk_environment_runtimes.test.ts"
 			],
-			"nextAction": "Die getrennten und APK-belegten Hostgrenzen iotGet und userGet sowie die Produktrollen-Abfrage an den vorhandenen authentifizierten ioBroker-Roborock-Transport hängen; Offline-Proben dürfen fehlende Antworten weiterhin nicht erfinden."
+			"nextAction": "RRPluginHttpTurboModule bildet alle 22 APK-Methoden ab und hält IoT-, User-, Mall-, Header- und Bildvorbereitungsdienste getrennt. Als Nächstes diese Ports und die Produktrollen-Abfrage an den vorhandenen authentifizierten ioBroker-Roborock-Transport hängen; Offline-Proben dürfen fehlende Antworten weiterhin nicht erfinden."
 		},
 		{
 			"id": "P0B-INPUT-LAYOUT",

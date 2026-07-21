@@ -1215,28 +1215,76 @@ async function main(): Promise<void> {
 			event as Readonly<Record<string, unknown>>,
 		),
 	});
+	const rejectHttpRequest = async (
+		service: "iot-http" | "user-http",
+		method: string,
+		requestPath: string,
+		payload: unknown,
+	): Promise<never> => {
+		appendBounded(hostServiceRequests, {
+			service,
+			method,
+			path: requestPath,
+			payload,
+		});
+		throw new ApkHostServiceUnavailableError(service);
+	};
+	const unavailableRestfulHttpService = (service: "iot-http" | "user-http") => ({
+		delete: (requestPath: string, params: unknown) => rejectHttpRequest(service, "DELETE", requestPath, params),
+		get: (requestPath: string, params: unknown) => rejectHttpRequest(service, "GET", requestPath, params),
+		post: (requestPath: string, params: unknown) => rejectHttpRequest(service, "POST", requestPath, params),
+		postJson: (requestPath: string, data: unknown) => rejectHttpRequest(service, "POST_JSON", requestPath, data),
+		put: (requestPath: string, params: unknown) => rejectHttpRequest(service, "PUT", requestPath, params),
+		putJson: (requestPath: string, data: unknown) => rejectHttpRequest(service, "PUT_JSON", requestPath, data),
+	});
 	const pluginHttp = new ApkPluginHttpRuntime({
-		iot: {
-			get: async (requestPath, params) => {
-				appendBounded(hostServiceRequests, {
-					service: "iot-http",
-					method: "GET",
-					path: requestPath,
-					params,
-				});
-				throw new ApkHostServiceUnavailableError("iot-http");
-			},
-		},
+		iot: unavailableRestfulHttpService("iot-http"),
 		user: {
-			get: async (requestPath, params) => {
+			...unavailableRestfulHttpService("user-http"),
+			postImages: async (requestPath, params, images): Promise<never> => {
 				appendBounded(hostServiceRequests, {
 					service: "user-http",
-					method: "GET",
+					method: "POST_IMAGES",
 					path: requestPath,
 					params,
+					imageCount: images.length,
 				});
 				throw new ApkHostServiceUnavailableError("user-http");
 			},
+		},
+		mallProduct: {
+			get: async (requestPath, params, headers): Promise<never> => {
+				appendBounded(hostServiceRequests, {
+					service: "mall-product-http",
+					method: "GET",
+					path: requestPath,
+					params,
+					headers,
+				});
+				throw new ApkHostServiceUnavailableError("mall-product-http");
+			},
+			postJson: async (requestPath, data, headers): Promise<never> => {
+				appendBounded(hostServiceRequests, {
+					service: "mall-product-http",
+					method: "POST_JSON",
+					path: requestPath,
+					data,
+					headers,
+				});
+				throw new ApkHostServiceUnavailableError("mall-product-http");
+			},
+		},
+		loadHttpHeaders: () => {
+			appendBounded(hostServiceRequests, { service: "http-headers", method: "GET" });
+			throw new ApkHostServiceUnavailableError("http-headers");
+		},
+		prepareUserImages: async references => {
+			appendBounded(hostServiceRequests, {
+				service: "user-image-preparation",
+				method: "PREPARE",
+				references,
+			});
+			throw new ApkHostServiceUnavailableError("user-image-preparation");
 		},
 	});
 	const pluginPermissions = new ApkPluginPermissionsRuntime({
