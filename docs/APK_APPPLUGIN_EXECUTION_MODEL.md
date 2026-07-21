@@ -500,9 +500,14 @@ sind mit `RRPluginHttpTurboModule` verbunden.
 Die serverseitigen Handler validieren jede Nutzlast, verhindern absolute URLs
 und Protokollwechsel gegen die authentifizierten Repository-Ursprünge und
 rekonstruieren für Mall-Aufrufe ausschließlich `X-BusinessId`. Der End-to-End-
-Loopback über Laufzeitport, Client, Router und Adapterhandler ist belegt. Noch
-offen sind
-die Verbindung dieser Handler mit den konkreten angemeldeten Repository-Clients
+Loopback über Laufzeitport, Client, Router und Adapterhandler ist belegt. Die
+User- und IoT-REST-Handler können nun direkt an die bereits angemeldeten Axios-
+Clients gebunden werden. Der Adapter übernimmt dabei Retrofit-kompatibel Verb,
+Query-, Formular- oder JSON-Nutzlast und liefert unveränderten Antworttext;
+Region, Token und Hawk-Interceptor bleiben in ihren vorhandenen Clients. Der
+Android-spezifische Bildpfad ist separat, sodass sein noch fehlender
+Vorbereitungsschritt normale User-REST-Aufrufe nicht länger blockiert. Noch
+offen sind Mall-Client, Bildvorbereitung, der belegte öffentliche Headerwert
 und der dauerhafte Prozessanschluss im Sitzungssupervisor.
 
 `RRPluginSDK.getUserRole(model, code)` ist entgegen der früheren

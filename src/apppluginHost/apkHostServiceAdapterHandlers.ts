@@ -11,12 +11,16 @@ import type {
 	ApkPluginHttpRuntimeOptions,
 	ApkPluginMallProductHttpService,
 	ApkPluginRestfulHttpService,
-	ApkPluginUserHttpService,
 } from "./apkPluginHttpRuntime";
 
 export interface ApkHostServiceAdapterHandlerOptions {
 	iot?: ApkPluginRestfulHttpService;
-	user?: ApkPluginUserHttpService;
+	user?: ApkPluginRestfulHttpService;
+	postUserImages?: (
+		path: string,
+		params: ApkPluginHttpMap | null,
+		images: readonly unknown[],
+	) => Promise<string>;
 	mallProduct?: ApkPluginMallProductHttpService;
 	loadHttpHeaders?(): Readonly<Record<string, string>> | Promise<Readonly<Record<string, string>>>;
 }
@@ -110,12 +114,14 @@ export function createApkHostServiceAdapterHandlers(
 	if (options.iot) Object.assign(handlers, restHandlers("http.iot", options.iot));
 	if (options.user) {
 		Object.assign(handlers, restHandlers("http.user", options.user));
+	}
+	if (options.postUserImages) {
 		handlers["http.user.postImages"] = async payload => {
 			const record = payloadRecord(payload, "http.user.postImages");
 			const path = repositoryPath(record.path);
 			const params = mapOrNull(record.params, "Bildparameter");
 			if (!Array.isArray(record.images)) return invalid("Vorbereitete Bilder müssen eine Liste sein");
-			return response(await options.user!.postImages(path, params, record.images));
+			return response(await options.postUserImages!(path, params, record.images));
 		};
 	}
 	if (options.mallProduct) {
@@ -148,7 +154,10 @@ export function createApkHostServiceAdapterHandlers(
 	return handlers as ApkHostServiceHandlers;
 }
 
-export type ApkHostServiceHttpAdapterPorts = Pick<
+export interface ApkHostServiceHttpAdapterPorts extends Pick<
 	ApkPluginHttpRuntimeOptions,
-	"iot" | "loadHttpHeaders" | "mallProduct" | "user"
->;
+	"iot" | "loadHttpHeaders" | "mallProduct"
+> {
+	user?: ApkPluginRestfulHttpService;
+	postUserImages?: ApkHostServiceAdapterHandlerOptions["postUserImages"];
+}

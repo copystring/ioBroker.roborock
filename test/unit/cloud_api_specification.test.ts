@@ -112,4 +112,20 @@ describe("Roborock Cloud API Specification", () => {
 		await expect(api.refreshAppPluginProductRoles()).rejects.toThrow("offline");
 		expect(api.getAppPluginProductRepositoryContext()).toEqual({ userRoles: roles });
 	});
+
+	it("binds AppPlugin User and IoT repositories to their distinct authenticated clients", async () => {
+		const adapter = { rLog: vi.fn() };
+		const api = new http_api(adapter as any);
+		const iotRequest = vi.fn().mockResolvedValue({ data: "iot-result" });
+		const userRequest = vi.fn().mockResolvedValue({ data: "user-result" });
+		(api as any).realApi = { request: iotRequest };
+		(api as any).loginApi = { request: userRequest };
+
+		const ports = api.getAppPluginAuthenticatedHttpAdapterPorts();
+		await expect(ports.iot.get("/iot", null)).resolves.toBe("iot-result");
+		await expect(ports.user.get("/user", null)).resolves.toBe("user-result");
+
+		expect(iotRequest).toHaveBeenCalledWith(expect.objectContaining({ url: "/iot" }));
+		expect(userRequest).toHaveBeenCalledWith(expect.objectContaining({ url: "/user" }));
+	});
 });

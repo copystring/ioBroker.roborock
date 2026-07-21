@@ -43,7 +43,8 @@ describe("APK host service adapter handlers", () => {
 		};
 		const handlers = createApkHostServiceAdapterHandlers({
 			iot,
-			user,
+			user: userRest,
+			postUserImages: user.postImages,
 			mallProduct,
 			loadHttpHeaders: async () => ({ "x-app-name": "roborock" }),
 		});
@@ -111,5 +112,19 @@ describe("APK host service adapter handlers", () => {
 			null,
 			{ "X-BusinessId": "business" },
 		);
+	});
+
+	it("keeps ordinary user REST available when Android image preparation is absent", async () => {
+		const user = recordingRestful();
+		const client = loopbackClient(new ApkHostServiceRouter(
+			createApkHostServiceAdapterHandlers({ user }),
+		));
+		const runtime = new ApkPluginHttpRuntime(createApkHostServiceRuntimePorts(client).http);
+
+		await expect(runtime.userGet("/profile", null, null)).resolves.toBe("get-result");
+		await expect(runtime.userPostImages("/images", [], null, null)).rejects.toMatchObject({
+			code: "unavailable",
+		});
+		expect(user.get).toHaveBeenCalledWith("/profile", null);
 	});
 });

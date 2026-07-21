@@ -8,6 +8,7 @@ export * from "./apkAppSysRuntime";
 export * from "./apkAppToRobotMessage";
 export * from "./apkAsyncStorageRuntime";
 export * from "./apkAndroidTextMeasureRuntime";
+export * from "./apkAxiosRestfulHttpService";
 export * from "./apkCanvasKitTextLayoutBackend";
 export * from "./apkLayoutEventRuntime";
 export * from "./apkLocalizationRuntime";

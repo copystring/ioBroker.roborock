@@ -8,6 +8,10 @@ import type {
 } from "../apppluginHost";
 import type { ApkAppPluginProductRepositoryContext } from "../apppluginHost/apkAppPluginSessionDescriptor";
 import {
+	createApkAuthenticatedHttpAdapterPorts,
+	type ApkAuthenticatedHttpAdapterPorts,
+} from "../apppluginHost/apkAxiosRestfulHttpService";
+import {
 	createApkAppPluginCloudBootstrapContext,
 	createApkAppPluginHomeDataContext,
 } from "../apppluginHost/apkHomeDataContext";
@@ -872,6 +876,18 @@ export class http_api {
 		return {
 			userRoles: structuredClone(this.appPluginProductRoles),
 		};
+	}
+
+	/**
+	 * Binds the APK User and IoT repositories to the already authenticated
+	 * account clients. The returned services contain no copy of credentials;
+	 * requests remain inside the adapter process and use each client's existing
+	 * region and authentication interceptor.
+	 */
+	getAppPluginAuthenticatedHttpAdapterPorts(): ApkAuthenticatedHttpAdapterPorts {
+		if (!this.loginApi) throw new Error("loginApi is not initialized.");
+		if (!this.realApi) throw new Error("realApi is not initialized.");
+		return createApkAuthenticatedHttpAdapterPorts(this.realApi, this.loginApi);
 	}
 
 	/**
