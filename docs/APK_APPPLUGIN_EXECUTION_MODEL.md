@@ -487,6 +487,24 @@ AppPlugin-Endpunkte. Die drei Account-Methoden bleiben entsprechend der
 untersuchten APK ausstehend, weil die APK ihre React-Native-Promises dort
 weder erfüllt noch ablehnt.
 
+Für die Verbindung zwischen Laufzeit- und Adapterprozess existiert dafür jetzt
+ein eigener, allowlist-basierter Hostdienstvertrag. Er lässt ausschließlich
+die belegten IoT-, User-, Mall-, Header- und Produktrollen-Operationen zu, begrenzt
+Nachrichtengröße, Verschachtelung, Knoten, Parallelität und Laufzeit und
+korreliert Antworten über kollisionsfreie Anfrage-IDs. Android-kompatibel
+vorbereitete Bildbytes können serialisiert werden; die ursprünglichen
+Dateipfade, Cloud-Zugangsdaten, Axios-Instanzen und regionalen Basis-URLs
+verlassen ihre jeweiligen Prozesse nicht. Unbekannte interne Transportfehler
+werden nicht wörtlich zum AppPlugin zurückgegeben. Die clientseitigen Ports
+sind mit `RRPluginHttpTurboModule` und `RRPluginSDK.getUserRole` verbunden.
+Die serverseitigen Handler validieren jede Nutzlast, verhindern absolute URLs
+und Protokollwechsel gegen die authentifizierten Repository-Ursprünge und
+rekonstruieren für Mall-Aufrufe ausschließlich `X-BusinessId`. Der End-to-End-
+Loopback über Laufzeitport, Client, Router und Adapterhandler ist belegt. Noch
+offen sind
+die Verbindung dieser Handler mit den konkreten angemeldeten Repository-Clients
+und der dauerhafte Prozessanschluss im Sitzungssupervisor.
+
 `RRDevicesModule` ist inzwischen vollständig als APK-abgeleitete Hostgrenze
 registriert. Ohne rohe HomeData- und Produkt-JSON-Daten im Sitzungsdeskriptor
 meldet es jedoch bewusst einen fehlenden Hostdienst, statt Geräte oder Features

@@ -39,7 +39,7 @@ export interface ApkPluginHttpRuntimeOptions {
 	iot?: ApkPluginIotHttpService;
 	user?: ApkPluginUserHttpService;
 	mallProduct?: ApkPluginMallProductHttpService;
-	loadHttpHeaders?(): Readonly<Record<string, string>>;
+	loadHttpHeaders?(): Readonly<Record<string, string>> | Promise<Readonly<Record<string, string>>>;
 	prepareUserImages?(references: readonly string[]): Promise<readonly unknown[]>;
 	nowMilliseconds?(): number;
 }
@@ -95,7 +95,7 @@ export class ApkPluginHttpRuntime {
 
 	public async getHttpHeaders(): Promise<Record<string, string>> {
 		if (!this.options.loadHttpHeaders) throw new ApkHostServiceUnavailableError("http-headers");
-		return { ...this.options.loadHttpHeaders() };
+		return { ...await this.options.loadHttpHeaders() };
 	}
 
 	public async getTimestamp(): Promise<number> {

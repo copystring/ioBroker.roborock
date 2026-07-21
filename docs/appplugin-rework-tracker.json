@@ -1,7 +1,7 @@
 {
 	"version": 1,
 	"project": "ioBroker Roborock AppPlugin-first Rework",
-	"lastReviewed": "2026-07-19",
+	"lastReviewed": "2026-07-21",
 	"currentPhase": "0C",
 	"currentFocus": ["P0B-REACT-NATIVE-BRIDGE", "P0B-APK-HOST-SERVICES", "P0C-Q7-FULL-SCENE", "P0C-CROSS-FAMILY-MATRIX"],
 	"nextUp": ["P0B-DEVICE-BOOTSTRAP", "P0C-ANDROID-DIFFERENTIAL", "P0C-GOLDEN-HARNESS", "P0C-RESILIENCE"],
@@ -317,15 +317,21 @@
 			"priority": "P0",
 			"dependsOn": ["P0B-DEVICE-BOOTSTRAP", "P0B-REACT-NATIVE-BRIDGE"],
 			"evidence": [
+				"src/apppluginHost/apkHostServiceAdapterHandlers.ts",
+				"src/apppluginHost/apkHostServiceProtocol.ts",
+				"src/apppluginHost/apkHostServiceRuntimePorts.ts",
 				"src/apppluginHost/apkPluginHttpRuntime.ts",
 				"src/apppluginHost/apkPluginPermissionsRuntime.ts",
 				"src/apppluginHost/apkPluginSdkEnvironmentRuntime.ts",
 				"src/apppluginHost/apkPluginSdkRpcModule.ts",
+				"test/unit/appplugin_apk_host_service_protocol.test.ts",
+				"test/unit/appplugin_apk_host_service_runtime_ports.test.ts",
+				"test/unit/appplugin_apk_host_service_adapter_handlers.test.ts",
 				"test/unit/appplugin_apk_plugin_http_runtime.test.ts",
 				"test/unit/appplugin_apk_plugin_permissions_runtime.test.ts",
 				"test/unit/appplugin_apk_environment_runtimes.test.ts"
 			],
-			"nextAction": "RRPluginHttpTurboModule bildet alle 22 APK-Methoden ab und hält IoT-, User-, Mall-, Header- und Bildvorbereitungsdienste getrennt. Als Nächstes diese Ports und die Produktrollen-Abfrage an den vorhandenen authentifizierten ioBroker-Roborock-Transport hängen; Offline-Proben dürfen fehlende Antworten weiterhin nicht erfinden."
+			"nextAction": "RRPluginHttpTurboModule bildet alle 22 APK-Methoden ab und hält IoT-, User-, Mall-, Header- und Bildvorbereitungsdienste getrennt. Ein allowlist-basierter, größen-, tiefen-, parallelitäts- und zeitbegrenzter Prozesskanal-Vertrag deckt genau diese Repository-Aufrufe und die Produktrollen-Abfrage ab; clientseitige Laufzeitports und serverseitige Adapterhandler bestehen den End-to-End-Loopback. Binäre Bildteile sind serialisierbar, Dateipfade und Zugangsdaten gehören nicht in die Dienstnachrichten. Die Handler validieren Operation und Nutzlast, verhindern das Überschreiben der authentifizierten Repository-Ursprünge und rekonstruieren ausschließlich den belegten Mall-Business-Header. Unerwartete Adapterfehler werden vor dem AppPlugin bereinigt. Als Nächstes die Handler mit den vorhandenen getrennten RRSDK-, IoT- und Mall-Clients verbinden und den Vertrag als dauerhaften IPC-Kanal in den Sitzungssupervisor einhängen; Offline-Proben dürfen fehlende Antworten weiterhin nicht erfinden."
 		},
 		{
 			"id": "P0B-INPUT-LAYOUT",
