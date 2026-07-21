@@ -18,7 +18,6 @@ export const APK_HOST_SERVICE_OPERATIONS = [
 	"http.user.postJson",
 	"http.user.put",
 	"http.user.putJson",
-	"product.userRole.get",
 ] as const;
 
 export type ApkHostServiceOperation = typeof APK_HOST_SERVICE_OPERATIONS[number];

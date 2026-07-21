@@ -74,6 +74,15 @@ function descriptor(root = pluginRoot()) {
 		installation: {
 			mainPluginDownloadVersions: { "roborock.vacuum.sc01": 42 },
 		},
+		productRepository: {
+			userRoles: [{
+				role: "owner",
+				products: [{
+					prodModel: "roborock.vacuum.sc01",
+					catCode: "robot.vacuum.cleaner",
+				}],
+			}],
+		},
 	});
 }
 
@@ -126,6 +135,13 @@ describe("APK AppPlugin session descriptor", () => {
 		expect(source.installation).toEqual({
 			mainPluginDownloadVersions: { "roborock.vacuum.sc01": 42 },
 		});
+		expect(source.productRepository?.userRoles).toEqual([{
+			role: "owner",
+			products: [{
+				prodModel: "roborock.vacuum.sc01",
+				catCode: "robot.vacuum.cleaner",
+			}],
+		}]);
 	});
 
 	it("keeps the APK installation registry separate from HomeData", () => {
@@ -175,6 +191,18 @@ describe("APK AppPlugin session descriptor", () => {
 		};
 		source.homeData.deviceJsonStrings = ["not-json"];
 		expect(() => parseApkAppPluginSessionDescriptor(source)).toThrow(/gültiges JSON/u);
+	});
+
+	it("rejects malformed product repository roles instead of inventing aliases", () => {
+		const source = JSON.parse(JSON.stringify(descriptor())) as {
+			productRepository: Record<string, unknown>;
+			[key: string]: unknown;
+		};
+		source.productRepository.userRoles = [{
+			role: "owner",
+			products: [{ model: "all", catCode: "robot.vacuum.cleaner" }],
+		}];
+		expect(() => parseApkAppPluginSessionDescriptor(source)).toThrow(/prodModel/u);
 	});
 
 	it("parses project.json metadata without introducing a device-class mapping", () => {

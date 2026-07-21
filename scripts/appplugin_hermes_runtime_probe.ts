@@ -1175,14 +1175,7 @@ async function main(): Promise<void> {
 			countryCode: "",
 		}),
 		systemTimeZoneName: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
-		loadUserRole: async (model, code) => {
-			appendBounded(hostServiceRequests, {
-				service: "product-user-role",
-				model,
-				code,
-			});
-			throw new ApkHostServiceUnavailableError("product-user-role");
-		},
+		productRoles: resolvedDeviceSession?.descriptor.productRepository?.userRoles,
 		closeCurrentPage: () => {
 			pageCloseRequestCount += 1;
 		},

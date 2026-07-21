@@ -141,13 +141,21 @@ describe("APK AppPlugin environment runtimes", () => {
 			});
 	});
 
-	it("uses account state and the product repository boundary for country and role", async () => {
+	it("uses account state and the APK-local product role catalog", async () => {
 		const root = mkdtempSync(path.join(tmpdir(), "apk-environment-"));
-		const loadUserRole = vi.fn(async (model: string, code: string) => `${model}:${code}:owner`);
 		const runtime = new ApkPluginSdkEnvironmentRuntime({
 			hasActivity: () => true,
 			currentCountryInfo: () => ({ countryCode: "DE", serverCode: "eu" }),
-			loadUserRole,
+			productRoles: [
+				{
+					role: "owner",
+					products: [{ prodModel: "roborock.mower.s1", catCode: "MOWER" }],
+				},
+				{
+					role: "operator",
+					products: [{ prodModel: "all", catCode: "MOWER" }],
+				},
+			],
 			firmwareVersion: "02.24.90",
 			storageBasePath: root,
 			loadDeviceExtraInfo: async () => ({}),
@@ -167,8 +175,7 @@ describe("APK AppPlugin environment runtimes", () => {
 			serverCode: "eu",
 		});
 		await expect(runtime.getUserRole("roborock.mower.s1", "MOWER")).resolves
-			.toBe("roborock.mower.s1:MOWER:owner");
-		expect(loadUserRole).toHaveBeenCalledWith("roborock.mower.s1", "MOWER");
+			.toBe("owner,operator");
 	});
 
 	it("uses APK host state for operator and system-time-zone results", async () => {
@@ -205,7 +212,7 @@ describe("APK AppPlugin environment runtimes", () => {
 		expect(callback).toHaveBeenCalledWith(true, "Europe/Berlin");
 	});
 
-	it("keeps absent account and cloud-service input explicit", async () => {
+	it("keeps absent account explicit and uses the APK's empty local role cache", async () => {
 		const root = mkdtempSync(path.join(tmpdir(), "apk-environment-"));
 		const options = {
 			firmwareVersion: "02.24.90",
@@ -223,10 +230,7 @@ describe("APK AppPlugin environment runtimes", () => {
 		const countryCallback = vi.fn();
 		runtime.getCurrentCountryInfoCallback(countryCallback);
 		expect(countryCallback).toHaveBeenCalledWith(true, {});
-		await expect(runtime.getUserRole("model", "code")).rejects.toMatchObject({
-			name: "ApkHostServiceUnavailableError",
-			serviceName: "product-user-role",
-		});
+		await expect(runtime.getUserRole("model", "code")).resolves.toBe("");
 
 		const inactive = new ApkPluginSdkEnvironmentRuntime({ ...options, hasActivity: () => false });
 		const inactiveCallback = vi.fn();

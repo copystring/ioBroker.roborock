@@ -87,6 +87,15 @@ describe("APK Rriot session descriptor", () => {
 			installation: {
 				mainPluginDownloadVersions: { "roborock.vacuum.test": 42 },
 			},
+			productRepository: {
+				userRoles: [{
+					role: "owner",
+					products: [{
+						prodModel: "roborock.vacuum.test",
+						catCode: "robot.vacuum.cleaner",
+					}],
+				}],
+			},
 			targetDuid: "vacuum-1",
 			userId: "rr-user",
 			host: {
@@ -108,6 +117,7 @@ describe("APK Rriot session descriptor", () => {
 		expect(descriptor.installation?.mainPluginDownloadVersions).toEqual({
 			"roborock.vacuum.test": 42,
 		});
+		expect(descriptor.productRepository?.userRoles[0]?.role).toBe("owner");
 	});
 
 	it("matches Android's GMT fallback and rejects ambiguous or incomplete HomeData", () => {

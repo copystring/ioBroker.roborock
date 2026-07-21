@@ -5,6 +5,7 @@ import {
 	type ApkAppPluginHomeDataContext,
 	type ApkAppPluginHostIdentity,
 	type ApkAppPluginInstallationContext,
+	type ApkAppPluginProductRepositoryContext,
 	type ApkAppPluginPackageMetadata,
 	type ApkAppPluginSessionDescriptor,
 } from "./apkAppPluginSessionDescriptor";
@@ -17,6 +18,7 @@ export interface ApkRriotSessionDescriptorInput {
 	readonly package: ApkAppPluginPackageMetadata;
 	readonly homeData: ApkAppPluginHomeDataContext;
 	readonly installation?: ApkAppPluginInstallationContext;
+	readonly productRepository?: ApkAppPluginProductRepositoryContext;
 	readonly targetDuid: string;
 	readonly userId: string;
 	readonly host: ApkAppPluginHostIdentity;
@@ -153,5 +155,6 @@ export function createApkRriotSessionDescriptor(
 		account: input.account,
 		homeData: input.homeData,
 		installation: input.installation,
+		productRepository: input.productRepository,
 	}, input.baseDirectory ?? process.cwd());
 }

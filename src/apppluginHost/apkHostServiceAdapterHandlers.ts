@@ -19,7 +19,6 @@ export interface ApkHostServiceAdapterHandlerOptions {
 	user?: ApkPluginUserHttpService;
 	mallProduct?: ApkPluginMallProductHttpService;
 	loadHttpHeaders?(): Readonly<Record<string, string>> | Promise<Readonly<Record<string, string>>>;
-	loadUserRole?(model: string, code: string): Promise<string>;
 }
 
 function invalid(message: string): never {
@@ -144,15 +143,6 @@ export function createApkHostServiceAdapterHandlers(
 		handlers["http.headers.get"] = async payload => {
 			if (payload !== null) return invalid("http.headers.get akzeptiert keine Nutzlast");
 			return response(await options.loadHttpHeaders!());
-		};
-	}
-	if (options.loadUserRole) {
-		handlers["product.userRole.get"] = async payload => {
-			const record = payloadRecord(payload, "product.userRole.get");
-			return response(await options.loadUserRole!(
-				boundedText(record.model, "Produktmodell", 256),
-				boundedText(record.code, "Produktcode", 256),
-			));
 		};
 	}
 	return handlers as ApkHostServiceHandlers;

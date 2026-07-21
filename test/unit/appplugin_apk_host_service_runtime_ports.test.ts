@@ -20,7 +20,6 @@ class LoopbackHostService {
 		const payload = fromApkHostServiceWireValue(request.payload);
 		let value: string | Record<string, string> = JSON.stringify({ operation: request.operation, payload });
 		if (request.operation === "http.headers.get") value = { "x-app-name": "roborock", "x-region": "eu" };
-		if (request.operation === "product.userRole.get") value = "owner";
 		const response: ApkHostServiceResponse = {
 			protocol: APK_HOST_SERVICE_PROTOCOL,
 			version: APK_HOST_SERVICE_PROTOCOL_VERSION,
@@ -75,7 +74,7 @@ describe("APK host service runtime ports", () => {
 		});
 	});
 
-	it("maps headers, mall, prepared images and product roles without credentials", async () => {
+	it("maps headers, mall and prepared images without credentials", async () => {
 		const loopback = new LoopbackHostService();
 		loopback.client = new ApkHostServiceClient(loopback.send);
 		const ports = createApkHostServiceRuntimePorts(loopback.client);
@@ -95,14 +94,12 @@ describe("APK host service runtime ports", () => {
 		await runtime.mallProductGetV2("/mall/product", "shop", { id: "p1" }, null);
 		await runtime.mallProductPostJsonV2("/mall/product", "shop", "{\"id\":\"p1\"}", null);
 		await runtime.userPostImages("/user/images", ["content://room.jpg"], { room: 1 }, null);
-		await expect(ports.loadUserRole("roborock.mower.s1", "MOWER")).resolves.toBe("owner");
 
 		expect(loopback.requests.map(request => request.operation)).toEqual([
 			"http.headers.get",
 			"http.mall.get",
 			"http.mall.postJson",
 			"http.user.postImages",
-			"product.userRole.get",
 		]);
 		const imagePayload = fromApkHostServiceWireValue(loopback.requests[3]!.payload) as {
 			images: Array<{ bytes: Buffer }>;
@@ -111,7 +108,7 @@ describe("APK host service runtime ports", () => {
 		expect(JSON.stringify(loopback.requests)).not.toMatch(/authorization|bearer|token/iu);
 	});
 
-	it("fails closed when the adapter returns the wrong public result shape", async () => {
+	it("fails closed when the adapter returns the wrong header result shape", async () => {
 		let client!: ApkHostServiceClient;
 		client = new ApkHostServiceClient(request => queueMicrotask(() => client.accept({
 			protocol: APK_HOST_SERVICE_PROTOCOL,
@@ -123,7 +120,6 @@ describe("APK host service runtime ports", () => {
 		})));
 		const ports = createApkHostServiceRuntimePorts(client);
 
-		await expect(ports.loadUserRole("model", "code")).rejects.toThrow(/keine Zeichenfolge/u);
 		await expect(ports.http.loadHttpHeaders!()).rejects.toThrow(/keine Headerabbildung/u);
 	});
 });

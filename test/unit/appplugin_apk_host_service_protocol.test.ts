@@ -92,7 +92,7 @@ describe("APK host service protocol", () => {
 		const sent: ApkHostServiceRequest[] = [];
 		const client = new ApkHostServiceClient(message => sent.push(message), { initialRequestId: 41 });
 		const first = client.request("http.iot.get", { path: "/first" });
-		const second = client.request("product.userRole.get", { model: "roborock.mower.s1", code: "MOWER" });
+		const second = client.request("http.user.get", { path: "/second" });
 
 		expect(sent.map(message => message.requestId)).toEqual([41, 42]);
 		expect(client.accept(success(42, "owner"))).toBe(true);
@@ -138,9 +138,9 @@ describe("APK host service protocol", () => {
 
 	it("routes only registered APK services and preserves safe public errors", async () => {
 		const router = new ApkHostServiceRouter({
-			"product.userRole.get": payload => {
-				expect(payload).toEqual({ model: "roborock.mower.s1", code: "MOWER" });
-				return "owner";
+			"http.user.get": payload => {
+				expect(payload).toEqual({ path: "/user/profile" });
+				return "profile";
 			},
 			"http.iot.get": () => {
 				throw new ApkHostServicePublicError("unavailable", "IoT-Sitzung fehlt");
@@ -148,9 +148,9 @@ describe("APK host service protocol", () => {
 		});
 
 		await expect(router.handle(request({
-			operation: "product.userRole.get",
-			payload: { model: "roborock.mower.s1", code: "MOWER" },
-		}))).resolves.toMatchObject({ ok: true, value: "owner" });
+			operation: "http.user.get",
+			payload: { path: "/user/profile" },
+		}))).resolves.toMatchObject({ ok: true, value: "profile" });
 		await expect(router.handle(request({ operation: "http.iot.get" }))).resolves.toMatchObject({
 			ok: false,
 			error: { code: "unavailable", message: "IoT-Sitzung fehlt" },

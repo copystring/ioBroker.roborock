@@ -55,7 +55,6 @@ function restfulService(
 
 export interface ApkHostServiceRuntimePorts {
 	http: Pick<ApkPluginHttpRuntimeOptions, "iot" | "loadHttpHeaders" | "mallProduct" | "user">;
-	loadUserRole(model: string, code: string): Promise<string>;
 }
 
 /**
@@ -97,9 +96,5 @@ export function createApkHostServiceRuntimePorts(client: ApkHostServiceClient): 
 			mallProduct,
 			loadHttpHeaders: async () => headerResult(await client.request("http.headers.get", null)),
 		},
-		loadUserRole: async (model, code) => stringResult(
-			await client.request("product.userRole.get", toApkHostServiceWireValue({ model, code })),
-			"product.userRole.get",
-		),
 	};
 }

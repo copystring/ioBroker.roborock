@@ -33,7 +33,7 @@ function loopbackClient(router: ApkHostServiceRouter): ApkHostServiceClient {
 }
 
 describe("APK host service adapter handlers", () => {
-	it("connects runtime HTTP and role ports end to end while preserving repository separation", async () => {
+	it("connects runtime HTTP ports end to end while preserving repository separation", async () => {
 		const iot = recordingRestful();
 		const userRest = recordingRestful();
 		const user = { ...userRest, postImages: vi.fn(async () => "images-result") };
@@ -46,7 +46,6 @@ describe("APK host service adapter handlers", () => {
 			user,
 			mallProduct,
 			loadHttpHeaders: async () => ({ "x-app-name": "roborock" }),
-			loadUserRole: async () => "owner",
 		});
 		const client = loopbackClient(new ApkHostServiceRouter(handlers));
 		const ports = createApkHostServiceRuntimePorts(client);
@@ -63,7 +62,6 @@ describe("APK host service adapter handlers", () => {
 		await expect(runtime.mallProductGetV2("/mall/product", "shop", { id: "p1" }, null))
 			.resolves.toBe("mall-get-result");
 		await expect(runtime.getHttpHeaders()).resolves.toEqual({ "x-app-name": "roborock" });
-		await expect(ports.loadUserRole("roborock.mower.s1", "MOWER")).resolves.toBe("owner");
 
 		expect(iot.get).toHaveBeenCalledWith("/iot/status", { id: 1 });
 		expect(userRest.postJson).toHaveBeenCalledWith("/user/raw", "{\"ok\":true}");

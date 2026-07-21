@@ -88,4 +88,28 @@ describe("Roborock Cloud API Specification", () => {
 		expect(api.homeData).toBeNull();
 		expect(adapter.rLog).toHaveBeenCalledWith("HTTP", null, "Error", "Cloud", undefined, expect.stringContaining("Error updating HomeData"), "error");
 	});
+
+	it("refreshes and detaches the APK product-role repository context", async () => {
+		const adapter = {
+			rLog: vi.fn(),
+			errorMessage: (error: unknown) => error instanceof Error ? error.message : String(error),
+		};
+		const api = new http_api(adapter as any);
+		const roles = [{
+			role: "owner",
+			products: [{ prodModel: "all", catCode: "robot.mower" }],
+		}];
+		(api as any).loginApi = {
+			get: vi.fn().mockResolvedValue({ data: { data: roles } }),
+		};
+
+		await api.refreshAppPluginProductRoles();
+		const first = api.getAppPluginProductRepositoryContext();
+		(first.userRoles[0]!.products as Array<{ prodModel: string }>)[0]!.prodModel = "mutated";
+		(api as any).loginApi.get = vi.fn().mockRejectedValue(new Error("offline"));
+
+		expect(api.getAppPluginProductRepositoryContext()).toEqual({ userRoles: roles });
+		await expect(api.refreshAppPluginProductRoles()).rejects.toThrow("offline");
+		expect(api.getAppPluginProductRepositoryContext()).toEqual({ userRoles: roles });
+	});
 });

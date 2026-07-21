@@ -6,10 +6,15 @@ import type {
 	ApkAppPluginCloudBootstrapContext,
 	ApkAppPluginHomeDataContext,
 } from "../apppluginHost";
+import type { ApkAppPluginProductRepositoryContext } from "../apppluginHost/apkAppPluginSessionDescriptor";
 import {
 	createApkAppPluginCloudBootstrapContext,
 	createApkAppPluginHomeDataContext,
 } from "../apppluginHost/apkHomeDataContext";
+import {
+	loadApkProductRoleDefinitions,
+	type ApkProductRoleDefinition,
+} from "../apppluginHost/apkProductRoleCatalog";
 import { LoginV4Response, ProductV5Response } from "./apiTypes";
 import { cryptoEngine } from "./cryptoEngine";
 
@@ -191,6 +196,7 @@ export class http_api {
 	homeData: HomeData | null = null;
 	homeID: number | null = null;
 	public productInfo: ProductV5Response | null = null;
+	private appPluginProductRoles: readonly ApkProductRoleDefinition[] = [];
 
 	private fwFeaturesCache = new Map<string, number[]>();
 
@@ -427,6 +433,23 @@ export class http_api {
 		// Set global auth header for loginApi (though mostly unused after this)
 		this.loginApi.defaults.headers.common["Authorization"] = this.userData.token;
 
+		// ProductRepository.refreshProduct() in the APK refreshes this account
+		// cache before AppPlugins query RRPluginSDK.getUserRole(). A failure leaves
+		// the local cache unchanged and must not make the normal adapter unusable.
+		try {
+			await this.refreshAppPluginProductRoles();
+		} catch (error) {
+			this.adapter.rLog(
+				"HTTP",
+				null,
+				"Warn",
+				"Cloud",
+				undefined,
+				`Failed to refresh AppPlugin product roles: ${this.adapter.errorMessage(error)}`,
+				"warn",
+			);
+		}
+
 		try {
 			const rriot = this.get_rriot();
 
@@ -603,6 +626,12 @@ export class http_api {
 			this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, "ProductInfo not present. Fetching V5 Product Info...", "debug");
 			await this.getProductInfoV5();
 		}
+	}
+
+	/** Refreshes the APK product repository's account-role cache once. */
+	async refreshAppPluginProductRoles(): Promise<void> {
+		if (!this.loginApi) throw new Error("loginApi is not initialized.");
+		this.appPluginProductRoles = await loadApkProductRoleDefinitions(this.loginApi);
 	}
 
 	async downloadProductImages() {
@@ -833,6 +862,16 @@ export class http_api {
 	 */
 	getAppPluginHomeDataContext(): ApkAppPluginHomeDataContext | undefined {
 		return createApkAppPluginHomeDataContext(this.homeData, this.productInfo);
+	}
+
+	/**
+	 * Returns the non-secret ProductLocalSource input for an AppPlugin session.
+	 * The returned graph is detached so a bundle cannot mutate the account cache.
+	 */
+	getAppPluginProductRepositoryContext(): ApkAppPluginProductRepositoryContext {
+		return {
+			userRoles: structuredClone(this.appPluginProductRoles),
+		};
 	}
 
 	/**

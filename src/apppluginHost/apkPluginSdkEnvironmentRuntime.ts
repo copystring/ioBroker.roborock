@@ -3,6 +3,10 @@ import * as path from "node:path";
 
 import type { ApkWorkerCallback } from "./apkV8WorkerRuntime";
 import { ApkV8WorkerRuntime } from "./apkV8WorkerRuntime";
+import {
+	ApkProductRoleCatalog,
+	type ApkProductRoleDefinition,
+} from "./apkProductRoleCatalog";
 
 export interface ApkAgreementDocument {
 	version: string | null;
@@ -57,7 +61,7 @@ export interface ApkPluginSdkEnvironmentRuntimeOptions {
 	currentCountryInfo?(): ApkCurrentCountryInfo | null;
 	mobileOperatorInfo?(): ApkMobileOperatorInfo | null;
 	systemTimeZoneName?(): string;
-	loadUserRole?(model: string, code: string): Promise<string>;
+	productRoles?: readonly ApkProductRoleDefinition[];
 	firmwareVersion: string;
 	storageBasePath: string;
 	loadOtaInfo(): Promise<ApkOtaInfo | null>;
@@ -75,10 +79,12 @@ export interface ApkPluginSdkEnvironmentRuntimeOptions {
  */
 export class ApkPluginSdkEnvironmentRuntime {
 	readonly #storageBasePath: string;
+	readonly #productRoles: ApkProductRoleCatalog;
 
 	public constructor(private readonly options: ApkPluginSdkEnvironmentRuntimeOptions) {
 		if (options.firmwareVersion.length === 0) throw new Error("firmwareVersion darf nicht leer sein");
 		this.#storageBasePath = path.resolve(options.storageBasePath);
+		this.#productRoles = new ApkProductRoleCatalog(options.productRoles);
 	}
 
 	public async getLastVersionInfo(): Promise<ApkFirmwareVersionInfo> {
@@ -197,13 +203,12 @@ export class ApkPluginSdkEnvironmentRuntime {
 	}
 
 	/**
-	 * The inspected APK delegates this lookup to its product repository. The
-	 * host therefore exposes the same service boundary instead of inventing a
-	 * role or embedding device-family knowledge.
+	 * The inspected APK reads this result from ProductLocalSource. Its role data
+	 * is refreshed from `/api/v1/user/roles` before plugin execution, indexed by
+	 * role/category/model and then queried locally for every call.
 	 */
 	public async getUserRole(model: string, code: string): Promise<string> {
-		if (!this.options.loadUserRole) throw new ApkHostServiceUnavailableError("product-user-role");
-		return this.options.loadUserRole(model, code);
+		return this.#productRoles.getUserRole(model, code);
 	}
 
 	/**

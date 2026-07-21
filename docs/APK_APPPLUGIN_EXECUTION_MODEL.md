@@ -489,14 +489,14 @@ weder erfüllt noch ablehnt.
 
 Für die Verbindung zwischen Laufzeit- und Adapterprozess existiert dafür jetzt
 ein eigener, allowlist-basierter Hostdienstvertrag. Er lässt ausschließlich
-die belegten IoT-, User-, Mall-, Header- und Produktrollen-Operationen zu, begrenzt
+die belegten IoT-, User-, Mall- und Header-Operationen zu, begrenzt
 Nachrichtengröße, Verschachtelung, Knoten, Parallelität und Laufzeit und
 korreliert Antworten über kollisionsfreie Anfrage-IDs. Android-kompatibel
 vorbereitete Bildbytes können serialisiert werden; die ursprünglichen
 Dateipfade, Cloud-Zugangsdaten, Axios-Instanzen und regionalen Basis-URLs
 verlassen ihre jeweiligen Prozesse nicht. Unbekannte interne Transportfehler
 werden nicht wörtlich zum AppPlugin zurückgegeben. Die clientseitigen Ports
-sind mit `RRPluginHttpTurboModule` und `RRPluginSDK.getUserRole` verbunden.
+sind mit `RRPluginHttpTurboModule` verbunden.
 Die serverseitigen Handler validieren jede Nutzlast, verhindern absolute URLs
 und Protokollwechsel gegen die authentifizierten Repository-Ursprünge und
 rekonstruieren für Mall-Aufrufe ausschließlich `X-BusinessId`. Der End-to-End-
@@ -504,6 +504,17 @@ Loopback über Laufzeitport, Client, Router und Adapterhandler ist belegt. Noch
 offen sind
 die Verbindung dieser Handler mit den konkreten angemeldeten Repository-Clients
 und der dauerhafte Prozessanschluss im Sitzungssupervisor.
+
+`RRPluginSDK.getUserRole(model, code)` ist entgegen der früheren
+Hostdienstannahme kein einzelner Cloud-Aufruf. Die untersuchte APK lädt über
+`GET /api/v1/user/roles` eine Liste aus `RoleBean(role, products)` und hält sie
+im lokalen `ProductLocalSource` als Rolle → Kategorie → Produktmodelle. Der
+Sitzungsdeskriptor kann diesen Produkt-Repository-Zustand nun typisiert tragen;
+die Runtime indiziert ihn einmal und löst jeden AppPlugin-Aufruf lokal auf.
+Dabei gelten nur das exakte Modell oder der APK-Platzhalter `all`, mehrere
+Treffer werden in stabiler Rollenreihenfolge mit Komma verbunden und ein leerer
+Cache liefert wie die APK eine leere Zeichenfolge. Der zuvor eingeführte
+`product.userRole.get`-Prozessaufruf wurde deshalb vollständig entfernt.
 
 `RRDevicesModule` ist inzwischen vollständig als APK-abgeleitete Hostgrenze
 registriert. Ohne rohe HomeData- und Produkt-JSON-Daten im Sitzungsdeskriptor
@@ -592,9 +603,11 @@ Neun dieser zehn Root-Läufe besitzen inzwischen weder einen fehlenden nativen
 Aufruf noch einen unerwarteten nativen Fehler. Sie stehen auf `loading`, weil
 der begrenzte Startaudit ohne echte Gerätedaten noch kein Interaktionsziel
 beobachtet. Saros 20 erreicht ebenfalls den Root, verlangt danach jedoch
-`RRPluginHttpTurboModule.userGet` und `RRPluginSDK.getUserRole`. Beide Methoden
-erreichen den richtigen Hostvertrag; ohne angemeldeten User-HTTP-Dienst und
-Produktrollen-Antwort bleiben sie bewusst als externe Hostdienste blockiert.
+`RRPluginHttpTurboModule.userGet` und `RRPluginSDK.getUserRole`. `userGet`
+benötigt weiterhin den angemeldeten User-HTTP-Dienst. `getUserRole` folgt nun
+dem nachträglich belegten lokalen APK-Weg; ein Offline-Deskriptor ohne zuvor
+geladene Rollen liefert deshalb den leeren APK-Cache statt eines erfundenen
+externen Hostdienstfehlers.
 
 `RRPluginSDK.readFileListAtPath` lehnt ein noch nicht vorhandenes
 Unterverzeichnis in der APK ausdrücklich mit

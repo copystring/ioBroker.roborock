@@ -10,6 +10,10 @@ import {
 	type ApkPluginBundle,
 } from "./apkPluginBundle";
 import type { ApkHermesBundleKind } from "./apkHermesHostProtocol";
+import {
+	parseApkProductRoleDefinitions,
+	type ApkProductRoleDefinition,
+} from "./apkProductRoleCatalog";
 
 export interface ApkAppPluginPackageMetadata {
 	models: readonly string[];
@@ -75,6 +79,11 @@ export interface ApkAppPluginInstallationContext {
 	mainPluginDownloadVersions: Readonly<Record<string, number>>;
 }
 
+export interface ApkAppPluginProductRepositoryContext {
+	/** Parsed RoleBean values cached by the APK product repository. */
+	userRoles: readonly ApkProductRoleDefinition[];
+}
+
 /**
  * Device-class-neutral input for one AppPlugin runtime. It mirrors the data
  * selected by the APK before React Native starts; map protocols and product UI
@@ -89,6 +98,7 @@ export interface ApkAppPluginSessionDescriptor {
 	account?: ApkAppPluginAccountContext;
 	homeData?: ApkAppPluginHomeDataContext;
 	installation?: ApkAppPluginInstallationContext;
+	productRepository?: ApkAppPluginProductRepositoryContext;
 }
 
 export type ApkAppPluginCompatibilityIssueCode =
@@ -276,6 +286,19 @@ function parseInstallationContext(value: unknown): ApkAppPluginInstallationConte
 	};
 }
 
+function parseProductRepositoryContext(
+	value: unknown,
+): ApkAppPluginProductRepositoryContext | undefined {
+	if (value === undefined) return undefined;
+	if (!isRecord(value)) throw new Error("productRepository muss ein Objekt sein");
+	return {
+		userRoles: parseApkProductRoleDefinitions(
+			value.userRoles,
+			"productRepository.userRoles",
+		),
+	};
+}
+
 export function parseApkAppPluginSessionDescriptor(
 	value: unknown,
 	baseDirectory = process.cwd(),
@@ -292,6 +315,7 @@ export function parseApkAppPluginSessionDescriptor(
 		account: parseAccountContext(value.account),
 		homeData: parseHomeDataContext(value.homeData),
 		installation: parseInstallationContext(value.installation),
+		productRepository: parseProductRepositoryContext(value.productRepository),
 	};
 }
 
