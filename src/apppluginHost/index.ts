@@ -33,6 +33,7 @@ export * from "./apkContract";
 export * from "./apkCoreRuntimeConstants";
 export * from "./apkDeviceEvents";
 export * from "./apkDeviceIngress";
+export * from "./apkDeviceRepositoryTransport";
 export * from "./apkDevicesRuntime";
 export * from "./apkDeviceFirmwareRuntime";
 export * from "./apkHermesHostProtocol";

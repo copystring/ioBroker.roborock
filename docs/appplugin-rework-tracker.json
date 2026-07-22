@@ -1,7 +1,7 @@
 {
 	"version": 1,
 	"project": "ioBroker Roborock AppPlugin-first Rework",
-	"lastReviewed": "2026-07-22",
+	"lastReviewed": "2026-07-23",
 	"currentPhase": "0C",
 	"currentFocus": ["P0B-DEVICE-BOOTSTRAP", "P0B-REACT-NATIVE-BRIDGE", "P0B-APK-HOST-SERVICES", "P0B-CROSS-PLATFORM", "P0C-Q7-FULL-SCENE", "P0C-CROSS-FAMILY-MATRIX"],
 	"nextUp": ["P0C-ANDROID-DIFFERENTIAL", "P0C-GOLDEN-HARNESS", "P0C-RESILIENCE"],
@@ -304,6 +304,7 @@
 				"src/apppluginHost/apkAppPluginAdapterHostLeaseFactory.ts",
 				"src/apppluginHost/apkAppPluginDeviceModelRuntimeFactory.ts",
 				"src/apppluginHost/apkAppPluginDeviceNativeRuntimeEnvironment.ts",
+				"src/apppluginHost/apkDeviceRepositoryTransport.ts",
 				"src/apppluginHost/apkAppPluginDeviceRuntimeHostProvider.ts",
 				"src/apppluginHost/apkAppPluginSharedNativeModules.ts",
 				"src/apppluginHost/apkAppPluginDeviceSessionRuntime.ts",
@@ -343,6 +344,7 @@
 				"test/unit/appplugin_apk_hermes_host_artifact.test.ts",
 				"test/unit/appplugin_apk_device_model_runtime_factory.test.ts",
 				"test/unit/appplugin_apk_device_native_runtime_environment.test.ts",
+				"test/unit/appplugin_apk_device_repository_transport.test.ts",
 				"test/unit/appplugin_apk_device_runtime_host_provider.test.ts",
 				"test/unit/appplugin_apk_shared_native_modules.test.ts",
 				"test/unit/appplugin_apk_device_session_runtime.test.ts",
@@ -358,9 +360,10 @@
 				"test/unit/appplugin_session_descriptor_transport.test.ts",
 				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/o0000O00.java",
 				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/OooO.java",
-				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/PluginSDKModule.java"
+				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/PluginSDKModule.java",
+				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/o00oOoo.java"
 			],
-			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Paketakquisition, Installation, Modellcache und Paketersetzung bleiben signiert, atomar, serialisiert und geräteklassenneutral. Der gepinnte Hermes-Host wird über eine eigene native Sechs-Ziel-Matrix gebaut: Staging verlangt einen erfolgreichen HBC-v96-Smoke-Lauf; der Abschlussjob verweigert fehlende, zusätzliche, manipulierte oder nur kompilierte Artefakte und kontrolliert zusätzlich den npm-Paketinhalt. Windows-x64 ist lokal mit exakt der in CI festgelegten LLVM-MinGW-Version gebaut und ausgeführt; die übrigen fünf nativen Runner sind erst nach einem erlaubten GitHub-Lauf bestätigt. Noch sind keine Native-Artefakte eingecheckt, in den bestehenden Release-Workflow übernommen oder an ready/unload angeschlossen. Probe und Produktions-Factory verwenden dieselbe streng typisierte, geräteklassenneutrale Zuordnung der gemeinsamen APK-Module. Der produktive Environment-Owner erzeugt pro geprüfter Gerätesitzung genau einmal Konto-, HTTP-, RPC-, Geräte-, Plattform-, Locale-, Theme-, Speicher-, Timer- und Worker-Laufzeiten. Die Factory konstruiert ihn selbst; ein Hostprovider kann Bundle, Konto, Gerätekontext, APK-Vertrag oder Hermes-Artefakt deshalb nicht ersetzen. Der verwaltete Provider serialisiert Shutdown gegen laufende Akquisitionen, macht Releases idempotent und räumt alle verbliebenen Hostressourcen trotz Einzelfehlern auf. Ein einziger Adapter-Runtime-Service besitzt nun Konto-/Paketsitzung, Modell-Supervisor, Factory und Provider und erzwingt beim unload die Reihenfolge Modell-Runtimes vor Hostressourcen. Die konkrete Adapter-Hostlease-Fabrik besitzt sichere Instanz- und Sitzungsverzeichnisse, unveränderten Bootstrap, CanvasKit/Skia, Textlayout und Hermes-Ressourcenrichtlinien; ein realer CanvasKit-Lease wurde von der produktiven Native-Environment akzeptiert und vollständig freigegeben. Als Nächstes die expliziten ioBroker-Ports für Aktivität, Plattform, Gerätekommunikation sowie optionale Mall-/Bilddienste anbinden und die gesamte weiterhin deaktivierte Servicekette mit echten Environment-Instanzen testen. RockMow bleibt bis zu echter Mäher-HomeData eine Bootstrap-Gegenprobe."
+			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Paketakquisition, Installation, Modellcache und Paketersetzung bleiben signiert, atomar, serialisiert und geräteklassenneutral. Der gepinnte Hermes-Host wird über eine eigene native Sechs-Ziel-Matrix gebaut: Staging verlangt einen erfolgreichen HBC-v96-Smoke-Lauf; der Abschlussjob verweigert fehlende, zusätzliche, manipulierte oder nur kompilierte Artefakte und kontrolliert zusätzlich den npm-Paketinhalt. Windows-x64 ist lokal mit exakt der in CI festgelegten LLVM-MinGW-Version gebaut und ausgeführt; die übrigen fünf nativen Runner sind erst nach einem erlaubten GitHub-Lauf bestätigt. Noch sind keine Native-Artefakte eingecheckt, in den bestehenden Release-Workflow übernommen oder an ready/unload angeschlossen. Probe und Produktions-Factory verwenden dieselbe streng typisierte, geräteklassenneutrale Zuordnung der gemeinsamen APK-Module. Der produktive Environment-Owner erzeugt pro geprüfter Gerätesitzung genau einmal Konto-, HTTP-, RPC-, Geräte-, Plattform-, Locale-, Theme-, Speicher-, Timer- und Worker-Laufzeiten. Die Factory konstruiert ihn selbst; ein Hostprovider kann Bundle, Konto, Gerätekontext, APK-Vertrag oder Hermes-Artefakt deshalb nicht ersetzen. Der verwaltete Provider serialisiert Shutdown gegen laufende Akquisitionen, macht Releases idempotent und räumt alle verbliebenen Hostressourcen trotz Einzelfehlern auf. Ein einziger Adapter-Runtime-Service besitzt nun Konto-/Paketsitzung, Modell-Supervisor, Factory und Provider und erzwingt beim unload die Reihenfolge Modell-Runtimes vor Hostressourcen. Die konkrete Adapter-Hostlease-Fabrik besitzt sichere Instanz- und Sitzungsverzeichnisse, unveränderten Bootstrap, CanvasKit/Skia, Textlayout und Hermes-Ressourcenrichtlinien; ein realer CanvasKit-Lease wurde von der produktiven Native-Environment akzeptiert und vollständig freigegeben. Die APK-belegte Device-Repository-Brücke hält RRPluginDevice und RRRpcManager auf derselben Transportinstanz, legt JSON-RPC unverändert in dps.101 und bewahrt automatische, lokale sowie MQTT-Routen auch für Protobuf. Als Nächstes diese neun geräteklassenneutralen Repository-Operationen an den bestehenden ioBroker-Wire-Transport binden und danach Aktivität, Plattform sowie optionale Mall-/Bilddienste ergänzen. RockMow bleibt bis zu echter Mäher-HomeData eine Bootstrap-Gegenprobe."
 		},
 		{
 			"id": "P0B-APK-HOST-SERVICES",
@@ -381,6 +384,7 @@
 				"src/apppluginHost/apkPluginSdkEnvironmentRuntime.ts",
 				"src/apppluginHost/apkPluginSdkRpcModule.ts",
 				"src/apppluginHost/apkAppPluginDeviceNativeRuntimeEnvironment.ts",
+				"src/apppluginHost/apkDeviceRepositoryTransport.ts",
 				"src/apppluginHost/apkAppPluginDeviceRuntimeHostProvider.ts",
 				"src/apppluginHost/apkAppPluginAdapterHostLeaseFactory.ts",
 				"src/lib/httpApi.ts",
@@ -393,10 +397,11 @@
 				"test/unit/appplugin_apk_product_role_catalog.test.ts",
 				"test/unit/appplugin_apk_environment_runtimes.test.ts",
 				"test/unit/appplugin_apk_device_native_runtime_environment.test.ts",
+				"test/unit/appplugin_apk_device_repository_transport.test.ts",
 				"test/unit/appplugin_apk_device_runtime_host_provider.test.ts",
 				"test/unit/appplugin_apk_adapter_host_lease_factory.test.ts"
 			],
-			"nextAction": "RRPluginHttpTurboModule bildet alle 22 APK-Methoden ab und hält IoT-, User-, Mall-, Header- und Bildvorbereitungsdienste getrennt. Die belegten User- und IoT-Repository-Aufrufe sind an die vorhandenen, getrennt authentifizierten Axios-Clients gebunden; GET und DELETE übertragen skalare Querywerte, POST und PUT skalare Formwerte und JSON-Pfade unverändert als JSON. Die APK-Rollenliste wird vor dem Hermes-Prozess einmal über die Login-API geladen und als strikt typisierter Produktkatalog in den Sitzungsdeskriptor gegeben. Die produktive Geräteumgebung hängt diese Konto-, Rollen-, HomeData-, RPC- und Geräteports nun gemeinsam in die Native-Modul-Composition ein; fehlende optionale Dienste bleiben explizite Hostfehler und erzeugen keine erfundenen Antworten. Als Nächstes Mall-, Header- und Bildvorbereitungsports an die vorhandenen Adapterdienste binden und ihre erlaubten Dateitypen, Größen- und Zeitgrenzen festlegen."
+			"nextAction": "RRPluginHttpTurboModule bildet alle 22 APK-Methoden ab und hält IoT-, User-, Mall-, Header- und Bildvorbereitungsdienste getrennt. Die belegten User- und IoT-Repository-Aufrufe sind an die vorhandenen, getrennt authentifizierten Axios-Clients gebunden; GET und DELETE übertragen skalare Querywerte, POST und PUT skalare Formwerte und JSON-Pfade unverändert als JSON. Die APK-Rollenliste wird vor dem Hermes-Prozess einmal über die Login-API geladen und als strikt typisierter Produktkatalog in den Sitzungsdeskriptor gegeben. Die produktive Geräteumgebung hängt diese Konto-, Rollen-, HomeData-, RPC- und Geräteports nun gemeinsam in die Native-Modul-Composition ein; fehlende optionale Dienste bleiben explizite Hostfehler und erzeugen keine erfundenen Antworten. Die neue Device-Repository-Brücke bildet die sechs APK-Routen für JSON- und Protobuf-RPC sowie die drei gemeinsamen Geräteoperationen ohne Befehls- oder Produktmapping ab. Als Nächstes deren ioBroker-Wire-Port implementieren und Mall-, Header- sowie Bildvorbereitungsports mit erlaubten Dateitypen, Größen- und Zeitgrenzen an die vorhandenen Adapterdienste binden."
 		},
 		{
 			"id": "P0B-INPUT-LAYOUT",
