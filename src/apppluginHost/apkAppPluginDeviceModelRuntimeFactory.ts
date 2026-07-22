@@ -8,6 +8,10 @@ import {
 	createApkAppPluginNativeModelRuntimeComposition,
 	type ApkAppPluginNativeModelRuntimeCompositionOptions,
 } from "./apkAppPluginNativeRuntimeComposition";
+import {
+	createApkAppPluginSharedNativeModuleBindings,
+	type ApkAppPluginSharedNativeModuleRuntimes,
+} from "./apkAppPluginSharedNativeModules";
 import type {
 	ApkAppPluginManagedModelRuntimeFactory,
 	ApkAppPluginModelRuntimeRequest,
@@ -16,8 +20,12 @@ import type { ApkAppPluginHostContract } from "./apkContract";
 
 type DeviceNativeCompositionOptions = Omit<
 	ApkAppPluginNativeModelRuntimeCompositionOptions,
-	"bundlePath" | "contract" | "hostExecutablePath"
->;
+	"bundlePath" | "contract" | "createModules" | "hostExecutablePath"
+> & {
+	readonly createSharedNativeModules: (
+		uiManager: Parameters<ApkAppPluginNativeModelRuntimeCompositionOptions["createModules"]>[0],
+	) => Readonly<ApkAppPluginSharedNativeModuleRuntimes>;
+};
 
 export interface ApkAppPluginDeviceModelRuntimeFactoryOptions {
 	readonly contract: ApkAppPluginHostContract;
@@ -38,10 +46,14 @@ export function createApkAppPluginDeviceModelRuntimeFactory(
 	return request => {
 		const artifact = resolveApkHermesHostArtifact();
 		const compositionOptions = options.createCompositionOptions(request, artifact);
+		const { createSharedNativeModules, ...nativeOptions } = compositionOptions;
 		return new ApkAppPluginModelRuntime(createApkAppPluginNativeModelRuntimeComposition({
-			...compositionOptions,
+			...nativeOptions,
 			bundlePath: request.context.session.bundle.bundlePath,
 			contract: options.contract,
+			createModules: uiManager => createApkAppPluginSharedNativeModuleBindings(
+				createSharedNativeModules(uiManager),
+			),
 			hostExecutablePath: artifact.executablePath,
 		}));
 	};

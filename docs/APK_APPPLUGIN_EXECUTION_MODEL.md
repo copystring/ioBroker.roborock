@@ -121,9 +121,15 @@ APK-Vertrag gemeinsam Native-Registry, Teilkonstanten, Remote-Definitionen,
 Bootstrap, Dispatcher, Skia-Brücke und Hermes-Sitzung. Er bindet dabei zwingend
 exakt den gemeinsamen UIManager der Modell-Runtime; Java-Klassennamen bleiben
 im zentralen APK-Vertrag und dringen nicht mehr in den aufrufenden Probeweg.
-Der Supervisor startet trotzdem noch keinen Produktionsprozess, weil die
-konkreten APK-Modulimplementierungen und Adapterports weiterhin im Probe-Skript
-erzeugt werden und erst in eine produktive Modell-Runtime-Factory gehören.
+`createApkAppPluginSharedNativeModuleBindings` ist nun zusätzlich die einzige
+gemeinsame Zuordnung der bereits implementierten APK-Module zu ihren
+plattformneutralen Laufzeiten. Probe und produktive Modell-Runtime-Factory
+verwenden exakt dieselbe Zuordnung; ein Geräte- oder Modellpfad kann weder
+Modulnamen erfinden noch eines dieser gemeinsamen Module still auslassen. Der
+Supervisor startet trotzdem noch keinen Produktionsprozess, weil die konkreten
+Laufzeitinstanzen und ihre Adapterports weiterhin im Probe-Skript erzeugt
+werden. Deren produktive Erzeugung aus Sitzung, Transporten und Plattformports
+bleibt die nächste Kompositionsgrenze.
 
 `ApkAppPluginDeviceSessionRuntime` schließt davor die bislang getrennten
 Produktionsgrenzen zusammen: Sie löst das konkrete HomeData-Gerät und dessen
@@ -153,15 +159,18 @@ wird erst das bestätigte AppRegistry-Unmount abgewartet und anschließend der
 native Root-Besitz beendet; ein fehlgeschlagener Mount hinterlässt keinen
 halben Root. Der generische Supervisor erhält den konkreten Runtime-Typ, sodass
 diese Root-Lease ohne Casts über den modellbezogenen Drei-Host-Cache erreichbar
-ist. Registrierung und Hostkomposition sind nun zentral extrahiert. Die
+ist. Registrierung, Hostkomposition und die gemeinsame APK-Modulzuordnung sind
+nun zentral extrahiert. Die
 unveränderten Q7-L5- und Q7-M5-Hermes-Pfade bestehen darüber den vollständigen
 semantischen Szenenbeweis und ihren jeweiligen pixelgenauen
 360×800-Goldenvergleich; Q10 X5+ mountet über
 denselben Provider einen Root ohne fatale Ausnahme oder unerwartete native
 Ablehnung. Ohne echte Q10-Geräteantwort bleibt dieser Lauf korrekt auf
 `loading` und belegt keine Interaktions- oder Kartenparität. Noch zu extrahieren
-ist die umfangreiche Erzeugung der konkreten Modulimplementierungen aus dem
-Probe-Skript einschließlich ihrer produktiven Adapterports.
+ist die umfangreiche Erzeugung der konkreten Laufzeitinstanzen aus dem
+Probe-Skript einschließlich ihrer produktiven Adapterports; die Zuordnung
+dieser Instanzen zu den APK-Modulnamen ist bereits gemeinsam und
+gerätekategorieneutral.
 
 Zusätzliche Belege:
 

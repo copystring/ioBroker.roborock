@@ -237,6 +237,7 @@
 				"src/apppluginHost/apkAsyncStorageRuntime.ts",
 				"src/apppluginHost/apkNativeInvocationDiagnostics.ts",
 				"src/apppluginHost/apkNativeModuleComposition.ts",
+				"src/apppluginHost/apkAppPluginSharedNativeModules.ts",
 				"src/apppluginHost/apkDevicesRuntime.ts",
 				"src/apppluginHost/apkIntentRuntime.ts",
 				"src/apppluginHost/apkOrientationRuntime.ts",
@@ -250,6 +251,7 @@
 				"test/unit/appplugin_apk_environment_runtimes.test.ts",
 				"test/unit/appplugin_apk_intent_runtime.test.ts",
 				"test/unit/appplugin_apk_native_invocation_diagnostics.test.ts",
+				"test/unit/appplugin_apk_shared_native_modules.test.ts",
 				"test/unit/appplugin_apk_devices_runtime.test.ts",
 				"test/unit/appplugin_apk_platform_services_runtime.test.ts",
 				"test/unit/appplugin_apk_plugin_http_runtime.test.ts",
@@ -299,6 +301,7 @@
 				"src/apppluginHost/apkAppPluginSessionSupervisor.ts",
 				"src/apppluginHost/apkAppPluginModelRuntime.ts",
 				"src/apppluginHost/apkAppPluginDeviceModelRuntimeFactory.ts",
+				"src/apppluginHost/apkAppPluginSharedNativeModules.ts",
 				"src/apppluginHost/apkAppPluginDeviceSessionRuntime.ts",
 				"src/apppluginHost/apkHermesHostArtifact.ts",
 				"src/apppluginHost/generated/hermes-host-artifact-contract.json",
@@ -333,6 +336,7 @@
 				"test/unit/appplugin_apk_model_runtime.test.ts",
 				"test/unit/appplugin_apk_hermes_host_artifact.test.ts",
 				"test/unit/appplugin_apk_device_model_runtime_factory.test.ts",
+				"test/unit/appplugin_apk_shared_native_modules.test.ts",
 				"test/unit/appplugin_apk_device_session_runtime.test.ts",
 				".github/workflows/appplugin-hermes-host.yml",
 				"scripts/build_hermes_appplugin_host.js",
@@ -348,7 +352,7 @@
 				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/OooO.java",
 				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/PluginSDKModule.java"
 			],
-			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Paketakquisition, Installation, Modellcache und Paketersetzung bleiben signiert, atomar, serialisiert und geräteklassenneutral. Der gepinnte Hermes-Host wird über eine eigene native Sechs-Ziel-Matrix gebaut: Staging verlangt einen erfolgreichen HBC-v96-Smoke-Lauf; der Abschlussjob verweigert fehlende, zusätzliche, manipulierte oder nur kompilierte Artefakte und kontrolliert zusätzlich den npm-Paketinhalt. Windows-x64 ist lokal mit exakt der in CI festgelegten LLVM-MinGW-Version gebaut und ausgeführt; die übrigen fünf nativen Runner sind erst nach einem erlaubten GitHub-Lauf bestätigt. Noch sind keine Native-Artefakte eingecheckt, in den bestehenden Release-Workflow übernommen oder an ready/unload angeschlossen. Als Nächstes die Matrix extern ausführen und danach die gemeinsamen APK-Native-Module in der neuen Factory komponieren. Erst bei vollständiger Bedarfsdeckung wird der Adapter-Lifecycle aktiviert. RockMow bleibt bis zu echter Mäher-HomeData eine Bootstrap-Gegenprobe."
+			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Paketakquisition, Installation, Modellcache und Paketersetzung bleiben signiert, atomar, serialisiert und geräteklassenneutral. Der gepinnte Hermes-Host wird über eine eigene native Sechs-Ziel-Matrix gebaut: Staging verlangt einen erfolgreichen HBC-v96-Smoke-Lauf; der Abschlussjob verweigert fehlende, zusätzliche, manipulierte oder nur kompilierte Artefakte und kontrolliert zusätzlich den npm-Paketinhalt. Windows-x64 ist lokal mit exakt der in CI festgelegten LLVM-MinGW-Version gebaut und ausgeführt; die übrigen fünf nativen Runner sind erst nach einem erlaubten GitHub-Lauf bestätigt. Noch sind keine Native-Artefakte eingecheckt, in den bestehenden Release-Workflow übernommen oder an ready/unload angeschlossen. Probe und Produktions-Factory verwenden jetzt dieselbe streng typisierte, geräteklassenneutrale Zuordnung der 33 bereits registrierten gemeinsamen APK-Module; Modellpfade können diese Zuordnung nicht mehr ersetzen oder Module still auslassen. Als Nächstes die konkreten Laufzeitinstanzen samt Transport-, Konto-, Plattform- und Dateisystemports aus dem Probe-Skript in einen produktiven, sitzungsgebundenen Composition Root überführen. Erst bei vollständiger Bedarfsdeckung wird der Adapter-Lifecycle aktiviert. RockMow bleibt bis zu echter Mäher-HomeData eine Bootstrap-Gegenprobe."
 		},
 		{
 			"id": "P0B-APK-HOST-SERVICES",

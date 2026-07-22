@@ -3,9 +3,11 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import contractJson from "../../src/apppluginHost/generated/apk-appplugin-host-contract.json";
 import type { ApkAppPluginDeviceModelContext } from "../../src/apppluginHost/apkAppPluginDeviceSessionRuntime";
 import { ApkAppPluginModelRuntime } from "../../src/apppluginHost/apkAppPluginModelRuntime";
+import type { ApkAppPluginSharedNativeModuleRuntimes } from "../../src/apppluginHost/apkAppPluginSharedNativeModules";
 import type { ApkAppPluginHostContract } from "../../src/apppluginHost/apkContract";
 
-const { compositionMock, resolverMock } = vi.hoisted(() => ({
+const { bindingMock, compositionMock, resolverMock } = vi.hoisted(() => ({
+	bindingMock: vi.fn(),
 	compositionMock: vi.fn(),
 	resolverMock: vi.fn(),
 }));
@@ -18,6 +20,11 @@ vi.mock("../../src/apppluginHost/apkHermesHostArtifact", async importOriginal =>
 vi.mock("../../src/apppluginHost/apkAppPluginNativeRuntimeComposition", async importOriginal => ({
 	...await importOriginal<typeof import("../../src/apppluginHost/apkAppPluginNativeRuntimeComposition")>(),
 	createApkAppPluginNativeModelRuntimeComposition: compositionMock,
+}));
+
+vi.mock("../../src/apppluginHost/apkAppPluginSharedNativeModules", async importOriginal => ({
+	...await importOriginal<typeof import("../../src/apppluginHost/apkAppPluginSharedNativeModules")>(),
+	createApkAppPluginSharedNativeModuleBindings: bindingMock,
 }));
 
 import { createApkAppPluginDeviceModelRuntimeFactory } from "../../src/apppluginHost/apkAppPluginDeviceModelRuntimeFactory";
@@ -35,6 +42,8 @@ const applicationSession = {
 beforeEach(() => {
 	resolverMock.mockReset();
 	compositionMock.mockReset();
+	bindingMock.mockReset();
+	bindingMock.mockReturnValue([{ moduleName: "DeviceInfo", implementation: {} }]);
 	resolverMock.mockReturnValue({
 		executable: "roborock-hermes-appplugin-host.exe",
 		executablePath: "C:\\adapter\\native\\roborock-hermes-appplugin-host.exe",
@@ -63,10 +72,12 @@ function context(bundlePath: string): ApkAppPluginDeviceModelContext {
 
 describe("APK AppPlugin device model runtime factory", () => {
 	it("locks bundle and executable paths to the device session and packaged resolver", async () => {
+		const sharedNativeModules = { marker: "shared" } as unknown as ApkAppPluginSharedNativeModuleRuntimes;
+		const createSharedNativeModules = vi.fn(() => sharedNativeModules);
 		const createCompositionOptions = vi.fn(() => ({
 			bootstrapPath: "C:\\adapter-data\\bridge.js",
 			constantSources: [],
-			createModules: () => [],
+			createSharedNativeModules,
 			textLayoutBackend: {
 				intrinsicWidth: () => { throw new Error("Kein Text erwartet"); },
 				layout: () => { throw new Error("Kein Text erwartet"); },
@@ -93,6 +104,15 @@ describe("APK AppPlugin device model runtime factory", () => {
 			contract,
 			hostExecutablePath: "C:\\adapter\\native\\roborock-hermes-appplugin-host.exe",
 		}));
+		const compositionOptions = compositionMock.mock.calls[0]?.[0] as {
+			createModules(uiManager: unknown): unknown;
+		};
+		const uiManager = { marker: "ui-manager" };
+		expect(compositionOptions.createModules(uiManager)).toEqual([
+			{ moduleName: "DeviceInfo", implementation: {} },
+		]);
+		expect(createSharedNativeModules).toHaveBeenCalledWith(uiManager);
+		expect(bindingMock).toHaveBeenCalledWith(sharedNativeModules);
 	});
 
 	it("fails before composing modules when the packaged host is unavailable", () => {

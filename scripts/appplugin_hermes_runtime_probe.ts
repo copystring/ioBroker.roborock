@@ -61,7 +61,6 @@ import {
 	ApkI18nManagerRuntime,
 	ApkIntentRuntime,
 	ApkLocalizationRuntime,
-	ApkNativeModuleBindingBuilder,
 	ApkNativeAnimatedRuntime,
 	classifyApkNativeInvocationRejections,
 	ApkNetInfoRuntime,
@@ -96,8 +95,8 @@ import {
 	ApkRpcRequestBroker,
 	ApkHostServiceUnavailableError,
 	apkPluginSdkContextFromSession,
-	composeApkNativeModuleImplementation,
 	createApkAppPluginNativeRuntimeComposition,
+	createApkAppPluginSharedNativeModuleBindings,
 	createApkCanvasKitTextLayoutBackend,
 	decodeApkB01MqttFrameToSegment,
 	createApkDeviceInfoConstants,
@@ -1423,63 +1422,11 @@ async function main(): Promise<void> {
 		createApkUiManagerConstants(contract),
 		createApkPluginSdkConstants(contract, pluginSdkContext),
 	] as const;
-	const moduleBindings = new ApkNativeModuleBindingBuilder();
-	for (const moduleName of [
-		"DeviceInfo",
-		"FrescoModule",
-		"RNCSafeAreaContext",
-		"RNSModule",
-		"SourceCode",
-	]) {
-		moduleBindings.register(moduleName, {});
-	}
-	moduleBindings.register("Clipboard", {
-		getString: () => platformServices.getString(),
-		setString: (value: string) => platformServices.setString(value),
-	});
-	moduleBindings.register("DeviceEventManager", {
-		invokeDefaultBackPressHandler: () => platformServices.invokeDefaultBackPressHandler(),
-	});
-	moduleBindings.register(
-		"IntentAndroid",
-		intent as unknown as Record<string, unknown>,
-	);
-	moduleBindings.register("PlatformConstants", {
-		getAndroidID: () => platformServices.getAndroidID(),
-	});
-	moduleBindings.register("ToastAndroid", {
-		show: (message: string, duration: number) => platformServices.show(message, duration),
-		showWithGravity: (message: string, duration: number, gravity: number) =>
-			platformServices.showWithGravity(message, duration, gravity),
-		showWithGravityAndOffset: (
-			message: string,
-			duration: number,
-			gravity: number,
-			xOffset: number,
-			yOffset: number,
-		) => platformServices.showWithGravityAndOffset(
-			message,
-			duration,
-			gravity,
-			xOffset,
-			yOffset,
-		),
-	});
-	moduleBindings.register("Vibration", {
-		cancel: () => platformServices.cancel(),
-		vibrate: (duration: number) => platformServices.vibrate(duration),
-		vibrateByPattern: (pattern: readonly unknown[], repeat: number) =>
-			platformServices.vibrateByPattern(pattern, repeat),
-	});
 	const asyncStorage = new ApkAsyncStorageRuntime(path.join(
 		path.dirname(options.bootstrapPath),
 		"app-data",
 		"RKStorage.json",
 	));
-	moduleBindings.register(
-		"RNCAsyncStorage",
-		asyncStorage as unknown as Record<string, unknown>,
-	);
 	const uiManager = new ApkUiManagerRuntime(contract);
 	const rootTag = uiManager.addRootView();
 	const uiRoot = uiManager.root(rootTag);
@@ -1495,29 +1442,16 @@ async function main(): Promise<void> {
 			requestNativeAnimatedUiPump?.();
 		},
 	});
-	moduleBindings.register(
-		"NativeAnimatedModule",
-		nativeAnimated as unknown as Record<string, unknown>,
-	);
 	const i18nManager = new ApkI18nManagerRuntime({
 		allowRTL: options.allowRTL,
 		forceRTL: options.forceRTL,
 		doLeftAndRightSwapInRTL: options.doLeftAndRightSwapInRTL,
 	}, preferences => persistSessionState(preferences));
-	moduleBindings.register("I18nManager", {
-		allowRTL: i18nManager.allowRTL,
-		forceRTL: i18nManager.forceRTL,
-		swapLeftAndRightInRTL: i18nManager.swapLeftAndRightInRTL,
-	});
 	const appSysLogs: unknown[] = [];
 	const appSys = new ApkAppSysRuntime({
 		networkReachable: () => true,
 		writeLog: entry => appendBounded(appSysLogs, entry),
 	});
-	moduleBindings.register(
-		"RRAppSysTurboModule",
-		appSys as unknown as Record<string, unknown>,
-	);
 	const requestedColorSchemeModes: number[] = [];
 	const appearanceEvents: Array<{ eventName: string; payload: unknown }> = [];
 	const appearance = new ApkAppearanceRuntime({
@@ -1525,89 +1459,10 @@ async function main(): Promise<void> {
 		requestColorScheme: mode => appendBounded(requestedColorSchemeModes, mode),
 		emitDeviceEvent: (eventName, payload) => appendBounded(appearanceEvents, { eventName, payload }),
 	});
-	moduleBindings.register("Appearance", {
-		addListener: appearance.addListener,
-		removeListeners: appearance.removeListeners,
-		getColorScheme: appearance.getColorScheme,
-		setColorScheme: appearance.setColorScheme,
-	});
-	moduleBindings.register("RNSkiaModule", {
-		install: () => true,
-	});
 	const gestureHandler = new ApkGestureHandlerRuntime();
-	moduleBindings.register(
-		"RNGestureHandlerModule",
-		gestureHandler as unknown as Record<string, unknown>,
-	);
-	moduleBindings.register(
-		"Orientation",
-		orientation as unknown as Record<string, unknown>,
-	);
-	moduleBindings.register(
-		"RRPluginSDK",
-		composeApkNativeModuleImplementation(
-			pluginAnalytics,
-			pluginSdkEnvironment,
-			pluginSdkPreferences,
-			pluginSdkRpc,
-		),
-	);
-	moduleBindings.register(
-		"RRDevicesModule",
-		devices as unknown as Record<string, unknown>,
-	);
-	moduleBindings.register(
-		"RRPluginHttpTurboModule",
-		pluginHttp as unknown as Record<string, unknown>,
-	);
-	moduleBindings.register(
-		"RRPluginPermissions",
-		pluginPermissions as unknown as Record<string, unknown>,
-	);
-	moduleBindings.register(
-		"RRPluginDarkMode",
-		darkMode as unknown as Record<string, unknown>,
-	);
-	moduleBindings.register(
-		"RNCNetInfo",
-		netInfo as unknown as Record<string, unknown>,
-	);
-	moduleBindings.register(
-		"RRPluginDevice",
-		pluginDevice as unknown as Record<string, unknown>,
-	);
 	const deviceFirmware = new ApkDeviceFirmwareRuntime();
-	moduleBindings.register(
-		"RRPluginDeviceFirmware",
-		deviceFirmware as unknown as Record<string, unknown>,
-	);
 	const soundManager = new ApkSoundManagerRuntime();
-	moduleBindings.register(
-		"SoundManager",
-		soundManager as unknown as Record<string, unknown>,
-	);
 	const statusBar = new ApkStatusBarRuntime();
-	moduleBindings.register(
-		"StatusBarManager",
-		statusBar as unknown as Record<string, unknown>,
-	);
-	moduleBindings.register(
-		"AppState",
-		appState as unknown as Record<string, unknown>,
-	);
-	moduleBindings.register(
-		"Timing",
-		timing as unknown as Record<string, unknown>,
-	);
-	moduleBindings.register("ReactLocalization", {
-		getLanguage: (callback: (...arguments_: unknown[]) => void) => localization.getLanguage(callback),
-		setLanguage: async (nextLanguage: string) => {
-			const previousLanguage = localization.snapshot().language;
-			const result = await localization.setLanguage(nextLanguage);
-			if (previousLanguage !== nextLanguage) revision += 1;
-			return result;
-		},
-	});
 	const reportedExceptions: Array<{ method: string; arguments: unknown[] }> = [];
 	const fatalRuntimeExceptions = () => reportedExceptions.filter(entry => {
 		if (entry.method === "reportFatalException") return true;
@@ -1616,7 +1471,7 @@ async function main(): Promise<void> {
 			&& typeof details === "object"
 			&& (details as Readonly<Record<string, unknown>>).isFatal === true;
 	});
-	moduleBindings.register("ExceptionsManager", {
+	const exceptionsManager = {
 		dismissRedbox: () => undefined,
 		reportException: (...arguments_: unknown[]) =>
 			appendBounded(reportedExceptions, { method: "reportException", arguments: arguments_ }),
@@ -1626,7 +1481,7 @@ async function main(): Promise<void> {
 			appendBounded(reportedExceptions, { method: "reportSoftException", arguments: arguments_ }),
 		updateExceptionMessage: (...arguments_: unknown[]) =>
 			appendBounded(reportedExceptions, { method: "updateExceptionMessage", arguments: arguments_ }),
-	});
+	};
 	const nativeInvocations: Array<{ moduleName: string; methodName: string; argumentCount: number; arguments: readonly unknown[] }> = [];
 	const nativeInvocationRejections: Array<Readonly<Record<string, unknown>>> = [];
 	const runtimeNativeUsage = () => {
@@ -1648,7 +1503,38 @@ async function main(): Promise<void> {
 		contract,
 		constantSources,
 		uiManager,
-		modules: moduleBindings.bindings(),
+		modules: createApkAppPluginSharedNativeModuleBindings({
+			appState,
+			appSys,
+			appearance,
+			asyncStorage,
+			darkMode,
+			deviceFirmware,
+			devices,
+			exceptionsManager,
+			gestureHandler,
+			i18nManager,
+			intent,
+			localization,
+			nativeAnimated,
+			netInfo,
+			orientation,
+			platformServices,
+			pluginAnalytics,
+			pluginDevice,
+			pluginHttp,
+			pluginPermissions,
+			pluginSdkEnvironment,
+			pluginSdkPreferences,
+			pluginSdkRpc,
+			skiaModule: { install: () => true },
+			soundManager,
+			statusBar,
+			timing,
+			onLanguageChanged: () => {
+				revision += 1;
+			},
+		}),
 		bootstrapSuffix: options.reactStateProbe ? createReactStateProbeBootstrap() : "",
 		hostExecutablePath: options.hostExecutablePath,
 		bundlePath: options.bundlePath,
