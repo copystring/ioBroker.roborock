@@ -101,10 +101,15 @@ sichtbare Root-Tags innerhalb derselben Modell-Runtime gleichzeitig starten.
 Start und Unmount werden pro Root bestätigt; ein Tag bleibt bis zur Bestätigung
 von `unmountApplicationComponentAtRootTag` belegt. Bootstrap und nativer
 Hermes-Host rufen dafür die vorhandenen `AppRegistry`-Methoden des unveränderten
-Bundles über denselben JSONL-Kanal auf. Der Supervisor startet trotzdem noch
-keinen Produktionsprozess, weil die gemeinsame native Runtime-Composition noch
-aus dem Probe-Skript in eine produktive Modell-Runtime-Factory extrahiert und
-mit den sichtbaren Root-Leases verbunden werden muss.
+Bundles über denselben JSONL-Kanal auf. Der gerätekategorieneutrale Provider
+`createApkAppPluginNativeRuntimeComposition` erzeugt inzwischen aus dem
+APK-Vertrag gemeinsam Native-Registry, Teilkonstanten, Remote-Definitionen,
+Bootstrap, Dispatcher, Skia-Brücke und Hermes-Sitzung. Er bindet dabei zwingend
+exakt den gemeinsamen UIManager der Modell-Runtime; Java-Klassennamen bleiben
+im zentralen APK-Vertrag und dringen nicht mehr in den aufrufenden Probeweg.
+Der Supervisor startet trotzdem noch keinen Produktionsprozess, weil die
+konkreten APK-Modulimplementierungen und Adapterports weiterhin im Probe-Skript
+erzeugt werden und erst in eine produktive Modell-Runtime-Factory gehören.
 
 Auch der native UI-Vertrag ist pro Modell-Runtime geteilt. Die APK erzeugt den
 Root-Tag in `UIManagerModule.addRootView` aus einem pro Prozess gemeinsamen
@@ -123,10 +128,15 @@ wird erst das bestätigte AppRegistry-Unmount abgewartet und anschließend der
 native Root-Besitz beendet; ein fehlgeschlagener Mount hinterlässt keinen
 halben Root. Der generische Supervisor erhält den konkreten Runtime-Typ, sodass
 diese Root-Lease ohne Casts über den modellbezogenen Drei-Host-Cache erreichbar
-ist. Noch nicht extrahiert ist die umfangreiche Erzeugung und Registrierung der
-Native-Module selbst; sie liegt weiterhin im Probe-Skript und muss als
-gerätekategorieneutrale Composition-Factory an diese Grenze angeschlossen
-werden.
+ist. Registrierung und Hostkomposition sind nun zentral extrahiert. Die
+unveränderten Q7-L5- und Q7-M5-Hermes-Pfade bestehen darüber den vollständigen
+semantischen Szenenbeweis und ihren jeweiligen pixelgenauen
+360×800-Goldenvergleich; Q10 X5+ mountet über
+denselben Provider einen Root ohne fatale Ausnahme oder unerwartete native
+Ablehnung. Ohne echte Q10-Geräteantwort bleibt dieser Lauf korrekt auf
+`loading` und belegt keine Interaktions- oder Kartenparität. Noch zu extrahieren
+ist die umfangreiche Erzeugung der konkreten Modulimplementierungen aus dem
+Probe-Skript einschließlich ihrer produktiven Adapterports.
 
 Zusätzliche Belege:
 

@@ -61,7 +61,7 @@ import {
 	ApkI18nManagerRuntime,
 	ApkIntentRuntime,
 	ApkLocalizationRuntime,
-	ApkNativeModuleDispatcher,
+	ApkNativeModuleBindingBuilder,
 	ApkNativeAnimatedRuntime,
 	classifyApkNativeInvocationRejections,
 	ApkNetInfoRuntime,
@@ -97,7 +97,7 @@ import {
 	ApkHostServiceUnavailableError,
 	apkPluginSdkContextFromSession,
 	composeApkNativeModuleImplementation,
-	createApkBridgeBootstrap,
+	createApkAppPluginNativeRuntimeComposition,
 	createApkCanvasKitTextLayoutBackend,
 	decodeApkB01MqttFrameToSegment,
 	createApkDeviceInfoConstants,
@@ -106,16 +106,12 @@ import {
 	createApkPlatformConstants,
 	createApkSafeAreaConstants,
 	createApkPluginSdkConstants,
-	createApkRemoteModuleDefinitions,
 	createApkSourceCodeConstants,
 	createApkToastConstants,
 	createApkUiManagerConstants,
-	mergeApkNativeModuleConstants,
 	parseApkAppPluginSessionDescriptor,
-	resolveEffectiveApkNativeModules,
 	resolveApkAppPluginSession,
 	evaluateApkRuntimeReadiness,
-	StrictApkNativeModuleRegistry,
 	type ApkAppPluginSessionDescriptor,
 	type ApkAppPluginHostContract,
 	type ApkJsonRpcRequest,
@@ -454,12 +450,6 @@ function parseArgs(args: string[]): ProbeOptions {
 	}
 	options.deviceSn ??= "appplugin-runtime-probe-sn";
 	return options as ProbeOptions;
-}
-
-function installedModule(contract: ApkAppPluginHostContract, moduleName: string) {
-	const module = resolveEffectiveApkNativeModules(contract).find(candidate => candidate.moduleName === moduleName);
-	if (!module) throw new Error(`APK-Modul ${moduleName} fehlt im Hostvertrag`);
-	return module;
 }
 
 function createReactStateProbeBootstrap(): string {
@@ -1396,7 +1386,7 @@ async function main(): Promise<void> {
 		sendIntent: (action, extras) =>
 			appendBounded(platformServiceEvents, { type: "send-intent", action, extras }),
 	});
-	const constants = mergeApkNativeModuleConstants(
+	const constantSources = [
 		createApkDeviceInfoConstants(metrics, metrics),
 		createApkSafeAreaConstants({
 			insets: { top: 0, right: 0, bottom: 0, left: 0 },
@@ -1432,13 +1422,8 @@ async function main(): Promise<void> {
 		{ RRPluginDarkMode: darkMode.constants() },
 		createApkUiManagerConstants(contract),
 		createApkPluginSdkConstants(contract, pluginSdkContext),
-	);
-	fs.mkdirSync(path.dirname(options.bootstrapPath), { recursive: true });
-	const bridgeBootstrap = createApkBridgeBootstrap(contract, constants)
-		+ (options.reactStateProbe ? createReactStateProbeBootstrap() : "");
-	fs.writeFileSync(options.bootstrapPath, bridgeBootstrap, "utf8");
-
-	const registry = new StrictApkNativeModuleRegistry(contract);
+	] as const;
+	const moduleBindings = new ApkNativeModuleBindingBuilder();
 	for (const moduleName of [
 		"DeviceInfo",
 		"FrescoModule",
@@ -1446,23 +1431,23 @@ async function main(): Promise<void> {
 		"RNSModule",
 		"SourceCode",
 	]) {
-		registry.register(installedModule(contract, moduleName).javaClass, {});
+		moduleBindings.register(moduleName, {});
 	}
-	registry.register(installedModule(contract, "Clipboard").javaClass, {
+	moduleBindings.register("Clipboard", {
 		getString: () => platformServices.getString(),
 		setString: (value: string) => platformServices.setString(value),
 	});
-	registry.register(installedModule(contract, "DeviceEventManager").javaClass, {
+	moduleBindings.register("DeviceEventManager", {
 		invokeDefaultBackPressHandler: () => platformServices.invokeDefaultBackPressHandler(),
 	});
-	registry.register(
-		installedModule(contract, "IntentAndroid").javaClass,
+	moduleBindings.register(
+		"IntentAndroid",
 		intent as unknown as Record<string, unknown>,
 	);
-	registry.register(installedModule(contract, "PlatformConstants").javaClass, {
+	moduleBindings.register("PlatformConstants", {
 		getAndroidID: () => platformServices.getAndroidID(),
 	});
-	registry.register(installedModule(contract, "ToastAndroid").javaClass, {
+	moduleBindings.register("ToastAndroid", {
 		show: (message: string, duration: number) => platformServices.show(message, duration),
 		showWithGravity: (message: string, duration: number, gravity: number) =>
 			platformServices.showWithGravity(message, duration, gravity),
@@ -1480,7 +1465,7 @@ async function main(): Promise<void> {
 			yOffset,
 		),
 	});
-	registry.register(installedModule(contract, "Vibration").javaClass, {
+	moduleBindings.register("Vibration", {
 		cancel: () => platformServices.cancel(),
 		vibrate: (duration: number) => platformServices.vibrate(duration),
 		vibrateByPattern: (pattern: readonly unknown[], repeat: number) =>
@@ -1491,8 +1476,8 @@ async function main(): Promise<void> {
 		"app-data",
 		"RKStorage.json",
 	));
-	registry.register(
-		installedModule(contract, "RNCAsyncStorage").javaClass,
+	moduleBindings.register(
+		"RNCAsyncStorage",
 		asyncStorage as unknown as Record<string, unknown>,
 	);
 	const uiManager = new ApkUiManagerRuntime(contract);
@@ -1510,8 +1495,8 @@ async function main(): Promise<void> {
 			requestNativeAnimatedUiPump?.();
 		},
 	});
-	registry.register(
-		installedModule(contract, "NativeAnimatedModule").javaClass,
+	moduleBindings.register(
+		"NativeAnimatedModule",
 		nativeAnimated as unknown as Record<string, unknown>,
 	);
 	const i18nManager = new ApkI18nManagerRuntime({
@@ -1519,7 +1504,7 @@ async function main(): Promise<void> {
 		forceRTL: options.forceRTL,
 		doLeftAndRightSwapInRTL: options.doLeftAndRightSwapInRTL,
 	}, preferences => persistSessionState(preferences));
-	registry.register(installedModule(contract, "I18nManager").javaClass, {
+	moduleBindings.register("I18nManager", {
 		allowRTL: i18nManager.allowRTL,
 		forceRTL: i18nManager.forceRTL,
 		swapLeftAndRightInRTL: i18nManager.swapLeftAndRightInRTL,
@@ -1529,8 +1514,8 @@ async function main(): Promise<void> {
 		networkReachable: () => true,
 		writeLog: entry => appendBounded(appSysLogs, entry),
 	});
-	registry.register(
-		installedModule(contract, "RRAppSysTurboModule").javaClass,
+	moduleBindings.register(
+		"RRAppSysTurboModule",
 		appSys as unknown as Record<string, unknown>,
 	);
 	const requestedColorSchemeModes: number[] = [];
@@ -1540,30 +1525,26 @@ async function main(): Promise<void> {
 		requestColorScheme: mode => appendBounded(requestedColorSchemeModes, mode),
 		emitDeviceEvent: (eventName, payload) => appendBounded(appearanceEvents, { eventName, payload }),
 	});
-	registry.register(installedModule(contract, "Appearance").javaClass, {
+	moduleBindings.register("Appearance", {
 		addListener: appearance.addListener,
 		removeListeners: appearance.removeListeners,
 		getColorScheme: appearance.getColorScheme,
 		setColorScheme: appearance.setColorScheme,
 	});
-	registry.register(installedModule(contract, "RNSkiaModule").javaClass, {
+	moduleBindings.register("RNSkiaModule", {
 		install: () => true,
 	});
 	const gestureHandler = new ApkGestureHandlerRuntime();
-	registry.register(
-		installedModule(contract, "RNGestureHandlerModule").javaClass,
+	moduleBindings.register(
+		"RNGestureHandlerModule",
 		gestureHandler as unknown as Record<string, unknown>,
 	);
-	registry.register(
-		installedModule(contract, "Orientation").javaClass,
+	moduleBindings.register(
+		"Orientation",
 		orientation as unknown as Record<string, unknown>,
 	);
-	registry.register(
-		installedModule(contract, "UIManager").javaClass,
-		uiManager as unknown as Record<string, unknown>,
-	);
-	registry.register(
-		installedModule(contract, "RRPluginSDK").javaClass,
+	moduleBindings.register(
+		"RRPluginSDK",
 		composeApkNativeModuleImplementation(
 			pluginAnalytics,
 			pluginSdkEnvironment,
@@ -1571,54 +1552,54 @@ async function main(): Promise<void> {
 			pluginSdkRpc,
 		),
 	);
-	registry.register(
-		installedModule(contract, "RRDevicesModule").javaClass,
+	moduleBindings.register(
+		"RRDevicesModule",
 		devices as unknown as Record<string, unknown>,
 	);
-	registry.register(
-		installedModule(contract, "RRPluginHttpTurboModule").javaClass,
+	moduleBindings.register(
+		"RRPluginHttpTurboModule",
 		pluginHttp as unknown as Record<string, unknown>,
 	);
-	registry.register(
-		installedModule(contract, "RRPluginPermissions").javaClass,
+	moduleBindings.register(
+		"RRPluginPermissions",
 		pluginPermissions as unknown as Record<string, unknown>,
 	);
-	registry.register(
-		installedModule(contract, "RRPluginDarkMode").javaClass,
+	moduleBindings.register(
+		"RRPluginDarkMode",
 		darkMode as unknown as Record<string, unknown>,
 	);
-	registry.register(
-		installedModule(contract, "RNCNetInfo").javaClass,
+	moduleBindings.register(
+		"RNCNetInfo",
 		netInfo as unknown as Record<string, unknown>,
 	);
-	registry.register(
-		installedModule(contract, "RRPluginDevice").javaClass,
+	moduleBindings.register(
+		"RRPluginDevice",
 		pluginDevice as unknown as Record<string, unknown>,
 	);
 	const deviceFirmware = new ApkDeviceFirmwareRuntime();
-	registry.register(
-		installedModule(contract, "RRPluginDeviceFirmware").javaClass,
+	moduleBindings.register(
+		"RRPluginDeviceFirmware",
 		deviceFirmware as unknown as Record<string, unknown>,
 	);
 	const soundManager = new ApkSoundManagerRuntime();
-	registry.register(
-		installedModule(contract, "SoundManager").javaClass,
+	moduleBindings.register(
+		"SoundManager",
 		soundManager as unknown as Record<string, unknown>,
 	);
 	const statusBar = new ApkStatusBarRuntime();
-	registry.register(
-		installedModule(contract, "StatusBarManager").javaClass,
+	moduleBindings.register(
+		"StatusBarManager",
 		statusBar as unknown as Record<string, unknown>,
 	);
-	registry.register(
-		installedModule(contract, "AppState").javaClass,
+	moduleBindings.register(
+		"AppState",
 		appState as unknown as Record<string, unknown>,
 	);
-	registry.register(
-		installedModule(contract, "Timing").javaClass,
+	moduleBindings.register(
+		"Timing",
 		timing as unknown as Record<string, unknown>,
 	);
-	registry.register(installedModule(contract, "ReactLocalization").javaClass, {
+	moduleBindings.register("ReactLocalization", {
 		getLanguage: (callback: (...arguments_: unknown[]) => void) => localization.getLanguage(callback),
 		setLanguage: async (nextLanguage: string) => {
 			const previousLanguage = localization.snapshot().language;
@@ -1635,7 +1616,7 @@ async function main(): Promise<void> {
 			&& typeof details === "object"
 			&& (details as Readonly<Record<string, unknown>>).isFatal === true;
 	});
-	registry.register(installedModule(contract, "ExceptionsManager").javaClass, {
+	moduleBindings.register("ExceptionsManager", {
 		dismissRedbox: () => undefined,
 		reportException: (...arguments_: unknown[]) =>
 			appendBounded(reportedExceptions, { method: "reportException", arguments: arguments_ }),
@@ -1646,9 +1627,6 @@ async function main(): Promise<void> {
 		updateExceptionMessage: (...arguments_: unknown[]) =>
 			appendBounded(reportedExceptions, { method: "updateExceptionMessage", arguments: arguments_ }),
 	});
-	const nativeModuleImplementationCoverage = registry.implementationCoverage();
-
-	const definitions = createApkRemoteModuleDefinitions(contract, constants);
 	const nativeInvocations: Array<{ moduleName: string; methodName: string; argumentCount: number; arguments: readonly unknown[] }> = [];
 	const nativeInvocationRejections: Array<Readonly<Record<string, unknown>>> = [];
 	const runtimeNativeUsage = () => {
@@ -1666,24 +1644,26 @@ async function main(): Promise<void> {
 			unexpectedRejections: diagnostics.unexpectedRejections,
 		};
 	};
-	const session = new ApkHermesHostSession({
+	const nativeComposition = createApkAppPluginNativeRuntimeComposition({
+		contract,
+		constantSources,
+		uiManager,
+		modules: moduleBindings.bindings(),
+		bootstrapSuffix: options.reactStateProbe ? createReactStateProbeBootstrap() : "",
 		hostExecutablePath: options.hostExecutablePath,
 		bundlePath: options.bundlePath,
 		bootstrapPath: options.bootstrapPath,
-		definitions,
 		skiaRuntime,
 		onInvocationRejection: rejection => appendBounded(nativeInvocationRejections, rejection),
-		dispatcher: new ApkNativeModuleDispatcher(
-			contract,
-			registry,
-			(moduleName, methodName, arguments_) => appendBounded(nativeInvocations, {
-				moduleName,
-				methodName,
-				argumentCount: arguments_.length,
-				arguments: [...arguments_],
-			}),
-		),
+		onNativeInvocation: (moduleName, methodName, arguments_) => appendBounded(nativeInvocations, {
+			moduleName,
+			methodName,
+			argumentCount: arguments_.length,
+			arguments: [...arguments_],
+		}),
 	});
+	const session = nativeComposition.session;
+	const nativeModuleImplementationCoverage = nativeComposition.implementationCoverage;
 	sessionForTimers = session;
 	sessionForLocalization = session;
 	sessionForOrientation = session;

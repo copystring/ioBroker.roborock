@@ -1,7 +1,7 @@
 {
 	"version": 1,
 	"project": "ioBroker Roborock AppPlugin-first Rework",
-	"lastReviewed": "2026-07-21",
+	"lastReviewed": "2026-07-22",
 	"currentPhase": "0C",
 	"currentFocus": ["P0B-REACT-NATIVE-BRIDGE", "P0B-APK-HOST-SERVICES", "P0C-Q7-FULL-SCENE", "P0C-CROSS-FAMILY-MATRIX"],
 	"nextUp": ["P0B-DEVICE-BOOTSTRAP", "P0C-ANDROID-DIFFERENTIAL", "P0C-GOLDEN-HARNESS", "P0C-RESILIENCE"],
@@ -479,6 +479,7 @@
 			"dependsOn": ["P0B-HERMES-HOST", "P0B-METRO-HOST"],
 			"evidence": [
 				"src/apppluginHost/apkAppPluginModelRuntime.ts",
+				"src/apppluginHost/apkAppPluginNativeRuntimeComposition.ts",
 				"src/apppluginHost/apkAppPluginSessionSupervisor.ts",
 				"src/apppluginHost/apkBridgeBootstrap.ts",
 				"src/apppluginHost/apkHermesHostProtocol.ts",
@@ -486,12 +487,13 @@
 				"tools/hermes-appplugin-host/src/main.cpp",
 				"test/unit/appplugin_apk_session_supervisor.test.ts",
 				"test/unit/appplugin_apk_model_runtime.test.ts",
+				"test/unit/appplugin_apk_native_runtime_composition.test.ts",
 				"test/unit/appplugin_apk_bridge_bootstrap.test.ts",
 				"test/unit/appplugin_apk_hermes_host_protocol.test.ts",
 				"test/unit/appplugin_apk_hermes_host_session.test.ts",
 				"docs/APK_APPPLUGIN_EXECUTION_MODEL.md"
 			],
-			"nextAction": "Der APK-belegte, zugriffsgeordnete Drei-Modell-Cache ist mit expliziten Leases, deduplizierten Modellstarts, LRU-Verdrängung nur inaktiver Hosts, Wiederholbarkeit nach Startfehlern sowie vollständigem Shutdown trotz Einzelfehlern abgesichert. ApkHermesHostSession trägt mehrere Root-Tags gleichzeitig und bestätigt Start sowie AppRegistry-Unmount root-spezifisch über den bestehenden JSONL-Kanal. ApkAppPluginModelRuntime besitzt pro Modell genau einen gemeinsamen UIManager und koppelt dessen APK-Allocator, Root-Projektion, Layout, Touch, TextInput, runApplication und bestätigtes Unmount zu einer sichtbaren Root-Lease; fehlgeschlagene Mounts und Shutdown räumen den nativen Root-Besitz zentral auf. Der generische Supervisor erhält dabei den konkreten Runtime-Typ. Als Nächstes die noch im Probe-Skript liegende Native-Modul-, Konstanten-, Skia- und Hermes-Komposition in den gerätekategorieneutralen Composition-Provider dieser Modell-Runtime verschieben und den unveränderten Q7-/Q10-Probeweg darüber gegenlaufen lassen."
+			"nextAction": "Der APK-belegte, zugriffsgeordnete Drei-Modell-Cache ist mit expliziten Leases, deduplizierten Modellstarts, LRU-Verdrängung nur inaktiver Hosts, Wiederholbarkeit nach Startfehlern sowie vollständigem Shutdown trotz Einzelfehlern abgesichert. ApkHermesHostSession trägt mehrere Root-Tags gleichzeitig und bestätigt Start sowie AppRegistry-Unmount root-spezifisch über den bestehenden JSONL-Kanal. ApkAppPluginModelRuntime besitzt pro Modell genau einen gemeinsamen UIManager und koppelt dessen APK-Allocator, Root-Projektion, Layout, Touch, TextInput, runApplication und bestätigtes Unmount zu einer sichtbaren Root-Lease; fehlgeschlagene Mounts und Shutdown räumen den nativen Root-Besitz zentral auf. Der gerätekategorieneutrale Native-Composition-Provider bindet exakt diesen UIManager und erzeugt Registry, zusammengeführte Konstanten, Definitionen, Bootstrap, Dispatcher, Skia und Hermes-Sitzung zentral. Die unveränderten Q7-L5- und Q7-M5-Hermes-Bundles bestehen darüber ihre jeweiligen Semantik- und Pixel-Goldens; Q10 X5+ mountet ohne fatale Ausnahme oder unerwartete native Ablehnung einen Root, bleibt ohne echte Geräteantwort aber korrekt im Ladezustand. Als Nächstes die konkreten Native-Modulimplementierungen und ihre Adapterports aus dem Probe-Skript in eine produktive Modell-Runtime-Factory verschieben und diese über den Supervisor-Lebenszyklus starten und stoppen."
 		},
 		{
 			"id": "P0B-RESOURCE-LIMITS",
