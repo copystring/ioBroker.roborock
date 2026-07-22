@@ -16,6 +16,7 @@ export * from "./apkUiExecutionRuntime";
 export * from "./apkB01MqttFrameCodec";
 export * from "./apkAppearanceRuntime";
 export * from "./apkAppPluginSessionDescriptor";
+export * from "./apkAppPluginModelRuntime";
 export * from "./apkAppPluginSessionSupervisor";
 export * from "./apkBlobTransferAssembler";
 export * from "./apkBridgeBootstrap";

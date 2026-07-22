@@ -19,9 +19,11 @@ export interface ApkAppPluginManagedModelRuntime {
 	stop(): Promise<void>;
 }
 
-export type ApkAppPluginManagedModelRuntimeFactory = (
+export type ApkAppPluginManagedModelRuntimeFactory<
+	TRuntime extends ApkAppPluginManagedModelRuntime = ApkAppPluginManagedModelRuntime,
+> = (
 	model: string,
-) => ApkAppPluginManagedModelRuntime | Promise<ApkAppPluginManagedModelRuntime>;
+) => TRuntime | Promise<TRuntime>;
 
 export interface ApkAppPluginModelRuntimeStatus {
 	readonly activeLeases: number;
@@ -29,12 +31,12 @@ export interface ApkAppPluginModelRuntimeStatus {
 	readonly state: ApkAppPluginManagedRuntimeState;
 }
 
-interface RuntimeSlot {
+interface RuntimeSlot<TRuntime extends ApkAppPluginManagedModelRuntime> {
 	activeLeases: number;
 	lastAccess: number;
 	model: string;
-	runtime?: ApkAppPluginManagedModelRuntime;
-	start: Promise<ApkAppPluginManagedModelRuntime>;
+	runtime?: TRuntime;
+	start: Promise<TRuntime>;
 	state: ApkAppPluginManagedRuntimeState;
 	stop?: Promise<void>;
 }
@@ -55,9 +57,11 @@ function deferred<T>(): Deferred<T> {
 	return { promise, reject, resolve };
 }
 
-export interface ApkAppPluginModelRuntimeLease {
+export interface ApkAppPluginModelRuntimeLease<
+	TRuntime extends ApkAppPluginManagedModelRuntime = ApkAppPluginManagedModelRuntime,
+> {
 	readonly model: string;
-	readonly runtime: ApkAppPluginManagedModelRuntime;
+	readonly runtime: TRuntime;
 	release(): Promise<void>;
 }
 
@@ -70,14 +74,16 @@ export interface ApkAppPluginModelRuntimeLease {
  * Adapter shutdown stops every runtime, including leased and still-starting
  * ones, and rejects all future opens.
  */
-export class ApkAppPluginSessionSupervisor {
-	readonly #slots = new Map<string, RuntimeSlot>();
+export class ApkAppPluginSessionSupervisor<
+	TRuntime extends ApkAppPluginManagedModelRuntime = ApkAppPluginManagedModelRuntime,
+> {
+	readonly #slots = new Map<string, RuntimeSlot<TRuntime>>();
 	#accessRevision = 0;
 	#shutdownRequested = false;
 	#shutdown?: Promise<void>;
 
 	public constructor(
-		private readonly factory: ApkAppPluginManagedModelRuntimeFactory,
+		private readonly factory: ApkAppPluginManagedModelRuntimeFactory<TRuntime>,
 		private readonly cacheLimit = APK_APPPLUGIN_MODEL_RUNTIME_CACHE_LIMIT,
 	) {
 		if (!Number.isSafeInteger(cacheLimit) || cacheLimit < 1) {
@@ -85,7 +91,7 @@ export class ApkAppPluginSessionSupervisor {
 		}
 	}
 
-	public async open(modelValue: string): Promise<ApkAppPluginModelRuntimeLease> {
+	public async open(modelValue: string): Promise<ApkAppPluginModelRuntimeLease<TRuntime>> {
 		if (this.#shutdownRequested) {
 			throw new Error("Der AppPlugin-Sitzungssupervisor wurde bereits beendet");
 		}
@@ -164,9 +170,9 @@ export class ApkAppPluginSessionSupervisor {
 		return this.#shutdown;
 	}
 
-	#createSlot(model: string): RuntimeSlot {
-		const started = deferred<ApkAppPluginManagedModelRuntime>();
-		const slot: RuntimeSlot = {
+	#createSlot(model: string): RuntimeSlot<TRuntime> {
+		const started = deferred<TRuntime>();
+		const slot: RuntimeSlot<TRuntime> = {
 			activeLeases: 0,
 			lastAccess: ++this.#accessRevision,
 			model,
@@ -174,7 +180,7 @@ export class ApkAppPluginSessionSupervisor {
 			state: "starting",
 		};
 		void (async () => {
-			let runtime: ApkAppPluginManagedModelRuntime | undefined;
+			let runtime: TRuntime | undefined;
 			try {
 				runtime = await this.factory(model);
 				slot.runtime = runtime;
@@ -198,7 +204,7 @@ export class ApkAppPluginSessionSupervisor {
 	}
 
 	async #evictOverflow(): Promise<void> {
-		const evictions: RuntimeSlot[] = [];
+		const evictions: RuntimeSlot<TRuntime>[] = [];
 		while (this.#slots.size > this.cacheLimit) {
 			const candidate = [...this.#slots.values()]
 				.filter(slot => slot.activeLeases === 0 && slot.state === "running")
@@ -214,7 +220,7 @@ export class ApkAppPluginSessionSupervisor {
 		if (failure) throw failure.reason;
 	}
 
-	async #stopSlot(slot: RuntimeSlot): Promise<void> {
+	async #stopSlot(slot: RuntimeSlot<TRuntime>): Promise<void> {
 		try {
 			await slot.start;
 		} catch {
@@ -223,7 +229,7 @@ export class ApkAppPluginSessionSupervisor {
 		await this.#stopRuntime(slot);
 	}
 
-	#stopRuntime(slot: RuntimeSlot): Promise<void> {
+	#stopRuntime(slot: RuntimeSlot<TRuntime>): Promise<void> {
 		if (slot.stop) return slot.stop;
 		if (!slot.runtime) return Promise.resolve();
 		slot.state = "stopping";

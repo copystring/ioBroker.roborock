@@ -3,6 +3,12 @@ import { PassThrough } from "node:stream";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import contractJson from "../../src/apppluginHost/generated/apk-appplugin-host-contract.json";
+import {
+	ApkAppPluginModelRuntime,
+	type ApkAndroidTextLayoutBackend,
+	type ApkAppPluginHostContract,
+} from "../../src/apppluginHost";
 import type { ApkHermesHostMessage } from "../../src/apppluginHost/apkHermesHostProtocol";
 import type { ApkNativeModuleDispatcher } from "../../src/apppluginHost/apkNativeModuleDispatcher";
 
@@ -157,6 +163,44 @@ describe("APK Hermes application roots", () => {
 			"unmountApplication",
 			"runApplication",
 			"unmountApplication",
+			"unmountApplication",
+			"shutdown",
+		]);
+	});
+
+	it("connects the production model root lease to confirmed Hermes mount and unmount", async () => {
+		const textLayoutBackend: ApkAndroidTextLayoutBackend = {
+			intrinsicWidth: () => { throw new Error("Kein Text erwartet"); },
+			layout: () => { throw new Error("Kein Text erwartet"); },
+		};
+		const runtime = new ApkAppPluginModelRuntime({
+			contract: contractJson as ApkAppPluginHostContract,
+			textLayoutBackend,
+			createSession: () => new ApkHermesHostSession({
+				bootstrapPath: process.execPath,
+				bundlePath: process.execPath,
+				definitions: [],
+				dispatcher: {} as ApkNativeModuleDispatcher,
+				hostExecutablePath: process.execPath,
+				shutdownTimeoutMs: 100,
+				startupTimeoutMs: 100,
+			}),
+		});
+		await runtime.start();
+		const root = await runtime.openRoot({
+			initialProps: { colorMode: "light" },
+			width: 360,
+			height: 800,
+			density: 3,
+			fontScale: 1,
+		});
+
+		expect(root.rootTag).toBe(1);
+		await root.release();
+		await runtime.stop();
+
+		expect(fakeHost.commands.map(command => command.type)).toEqual([
+			"runApplication",
 			"unmountApplication",
 			"shutdown",
 		]);

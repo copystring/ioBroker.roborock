@@ -478,18 +478,20 @@
 			"priority": "P0",
 			"dependsOn": ["P0B-HERMES-HOST", "P0B-METRO-HOST"],
 			"evidence": [
+				"src/apppluginHost/apkAppPluginModelRuntime.ts",
 				"src/apppluginHost/apkAppPluginSessionSupervisor.ts",
 				"src/apppluginHost/apkBridgeBootstrap.ts",
 				"src/apppluginHost/apkHermesHostProtocol.ts",
 				"src/apppluginHost/apkHermesHostSession.ts",
 				"tools/hermes-appplugin-host/src/main.cpp",
 				"test/unit/appplugin_apk_session_supervisor.test.ts",
+				"test/unit/appplugin_apk_model_runtime.test.ts",
 				"test/unit/appplugin_apk_bridge_bootstrap.test.ts",
 				"test/unit/appplugin_apk_hermes_host_protocol.test.ts",
 				"test/unit/appplugin_apk_hermes_host_session.test.ts",
 				"docs/APK_APPPLUGIN_EXECUTION_MODEL.md"
 			],
-			"nextAction": "Der APK-belegte, zugriffsgeordnete Drei-Modell-Cache ist mit expliziten Leases, deduplizierten Modellstarts, LRU-Verdrängung nur inaktiver Hosts, Wiederholbarkeit nach Startfehlern sowie vollständigem Shutdown trotz Einzelfehlern abgesichert. ApkHermesHostSession trägt mehrere Root-Tags gleichzeitig und bestätigt Start sowie AppRegistry-Unmount root-spezifisch über den bestehenden JSONL-Kanal. Der gemeinsame UIManager verwendet nun wie APK UIManagerModule.addRootView die Folge 1, 11, 21 und isoliert Baum, Operationsstrom, Layout sowie Mess-Callbacks je Root; der Probe-Ausführungsweg nutzt bereits die sichtbare Root-Projektion. Als Nächstes die gemeinsame native Runtime-Composition aus dem Probe-Skript in eine produktive, gerätekategorienneutrale Modell-Runtime-Factory extrahieren und Root-Erzeugung, runApplication sowie bestätigtes Unmount als eine sichtbare Root-Lease koppeln."
+			"nextAction": "Der APK-belegte, zugriffsgeordnete Drei-Modell-Cache ist mit expliziten Leases, deduplizierten Modellstarts, LRU-Verdrängung nur inaktiver Hosts, Wiederholbarkeit nach Startfehlern sowie vollständigem Shutdown trotz Einzelfehlern abgesichert. ApkHermesHostSession trägt mehrere Root-Tags gleichzeitig und bestätigt Start sowie AppRegistry-Unmount root-spezifisch über den bestehenden JSONL-Kanal. ApkAppPluginModelRuntime besitzt pro Modell genau einen gemeinsamen UIManager und koppelt dessen APK-Allocator, Root-Projektion, Layout, Touch, TextInput, runApplication und bestätigtes Unmount zu einer sichtbaren Root-Lease; fehlgeschlagene Mounts und Shutdown räumen den nativen Root-Besitz zentral auf. Der generische Supervisor erhält dabei den konkreten Runtime-Typ. Als Nächstes die noch im Probe-Skript liegende Native-Modul-, Konstanten-, Skia- und Hermes-Komposition in den gerätekategorieneutralen Composition-Provider dieser Modell-Runtime verschieben und den unveränderten Q7-/Q10-Probeweg darüber gegenlaufen lassen."
 		},
 		{
 			"id": "P0B-RESOURCE-LIMITS",

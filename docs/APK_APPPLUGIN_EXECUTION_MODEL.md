@@ -114,8 +114,19 @@ einen einzelnen Root ab: Ein gemeinsamer UIManager besitzt mehrere isolierte
 Root-Bäume sowie je Root getrennte Operations-, Layout- und Messwarteschlangen.
 Der Hermes-Probeweg verwendet bereits diesen APK-Allocator und gibt Layout,
 TextInput und Rendering nur die Projektion des sichtbaren Roots. Die
-Produktions-Factory und Root-Lease-Kopplung bleiben weiterhin der nächste
-Schritt.
+Produktionsklasse `ApkAppPluginModelRuntime` erzwingt nun dieselbe Grenze: Sie
+erstellt pro Modell genau einen gemeinsamen UIManager und übergibt genau diese
+Instanz an die Native-Modul-/Hermes-Komposition. Eine sichtbare Root-Lease
+koppelt `addRootView`, die Root-Projektion, Layout, Touch, TextInput und den
+bestätigten Aufruf von `AppRegistry.runApplication("App", ...)`. Beim Freigeben
+wird erst das bestätigte AppRegistry-Unmount abgewartet und anschließend der
+native Root-Besitz beendet; ein fehlgeschlagener Mount hinterlässt keinen
+halben Root. Der generische Supervisor erhält den konkreten Runtime-Typ, sodass
+diese Root-Lease ohne Casts über den modellbezogenen Drei-Host-Cache erreichbar
+ist. Noch nicht extrahiert ist die umfangreiche Erzeugung und Registrierung der
+Native-Module selbst; sie liegt weiterhin im Probe-Skript und muss als
+gerätekategorieneutrale Composition-Factory an diese Grenze angeschlossen
+werden.
 
 Zusätzliche Belege:
 

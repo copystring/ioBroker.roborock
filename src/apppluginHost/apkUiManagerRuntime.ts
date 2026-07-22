@@ -265,6 +265,10 @@ export class ApkUiManagerRuntime {
 		return rootTag;
 	}
 
+	public hasRootView(rootTag: number): boolean {
+		return this.#roots.has(rootTag);
+	}
+
 	public root(rootTag: number): Readonly<ApkUiManagerRootRuntime> {
 		this.#rootState(rootTag);
 		return Object.freeze({
