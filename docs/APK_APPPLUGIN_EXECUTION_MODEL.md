@@ -597,12 +597,45 @@ nicht aus `deviceStatus` oder Featurestrings erfunden. Der angemeldete
 Cloud-Client stellt `rruid`, Land, Region und die rohen HomeData-/Produktdaten
 gemeinsam im Speicher bereit.
 
+### Login- und Kontositzung
+
+Der Login gehört damit ausdrücklich zur Produkt-Runtime, aber nicht in jedes
+Geräte-AppPlugin. Die APK trennt die Kontoanmeldung von der Geräteoberfläche:
+`AccountRepositoryRN.loginSuccess()` speichert `LoginResponse` und Server,
+übergibt das enthaltene Rriot-Konto an `RRHomeSdk` und startet anschließend den
+gemeinsamen `afterLogin`-Use-Case. Eigene React-Native-Anmeldeoberflächen rufen
+dafür das APK-Modul `RRAuthTurboModule` auf; ein normales Geräte-AppPlugin wird
+erst nach dieser Kontogrenze gestartet.
+
+Der Adapter verwendet deshalb seinen vorhandenen Passwort-/E-Mail-Code-Login
+weiter, erzeugt daraus aber nun nach erfolgreicher Hawk-Initialisierung,
+HomeData-Aktualisierung und V5-Produktauflösung genau eine unveränderliche
+`ApkAppPluginAuthenticatedAccountRuntime`. Sie koppelt `rruid`, Land, Region,
+rohe Geräte-/Produktdaten, Produktrollen und die bereits authentifizierten
+User-/IoT-Ports atomar. Gerätesitzungen für Staubsauger, Mäher und weitere
+Klassen werden ausschließlich daraus abgeleitet. Cloud-Token, Rriot-Schlüssel,
+Axios-Clients und Backend-Ursprünge sind weder Teil des Deskriptors noch
+serialisierbare Eigenschaften dieser Runtime. Fehlen Anmeldung, Region,
+HomeData, V5-Produkt oder HTTP-Port, bleibt der AppPlugin-Start geschlossen,
+während der bisherige Adapterbetrieb in Phase 0B weiterlaufen darf.
+
+Noch offen sind die produktive Reaktion auf eine während des Betriebs ungültig
+gewordene Kontositzung, das Stoppen und Neuaufbauen aller davon abhängigen
+Modell-Runtimes sowie die APK-genauen Methoden und Ereignisse von
+`RRAuthTurboModule` und `RRPluginStateSyncTurboModule` für spätere
+Anmelde-/Onboarding-Oberflächen. Die bereits bestehende Persistenz der
+vollständigen Adapter-`UserData` ist außerdem getrennt auf ioBroker-konformen
+Geheimnisschutz und eine rückwärtskompatible Migration zu prüfen; diese neue
+AppPlugin-Grenze erweitert ihre Sichtbarkeit ausdrücklich nicht.
+
 APK-Belege:
 
 - `com/roborock/smart/react/PluginSDKModule.java:2917-2928,2949-2998`
 - `com/roborock/smart/react/PluginSDKModule.java:3100-3129,3139-3142`
 - `com/roborock/smart/react/PluginSDKModule.java:3652-3660,4394-4398,4441-4449`
 - `com/roborock/smart/refactor/data/models/RRDeviceBeanV2.java`
+- `com/roborock/smart/refactor/data/repo/OooO0OO.java:65-105,119-205`
+- `com/roborock/smart/fbreact/NativeRRAuthTurboModuleSpec.java:14-64`
 
 Die installierte Haupt-Plugin-Version ist davon getrennt. Der Host besitzt
 dafür einen eigenen APK-abgeleiteten Installationskontext und gibt bei

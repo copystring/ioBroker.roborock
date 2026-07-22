@@ -5,6 +5,7 @@ import * as utils from "@iobroker/adapter-core";
 import { ChildProcess, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import go2rtcPath from "go2rtc-static";
+import { ApkAppPluginAuthenticatedAccountRuntime } from "./apppluginHost/apkAppPluginAuthenticatedAccountRuntime";
 import { ApkAppPluginPackageRuntime } from "./apppluginHost/apkPluginPackageRuntime";
 import { commitInfo } from "./lib/commitInfo";
 
@@ -118,6 +119,7 @@ export class Roborock extends utils.Adapter {
 	/** B01: FIFO queue of expected 301 map response types (classify + taskBeginDate match using this order). */
 	public b01MapResponseQueue: Map<string, Array<"get_map_v1" | "get_clean_record_map">> = new Map();
 	public appPluginManager: AppPluginManager;
+	public appPluginAccountRuntime: ApkAppPluginAuthenticatedAccountRuntime | undefined;
 	public appPluginPackageRuntime: ApkAppPluginPackageRuntime | undefined;
 
 	public isInitializing: boolean;
@@ -235,11 +237,15 @@ export class Roborock extends utils.Adapter {
 			// 1. Start Cloud Data Sync (Get Keys & DUIDs)
 			await this.http_api.updateHomeData();
 
-			// 1a. Prepare the instance-scoped APK package host. This performs
+			// 1a. Capture the complete APK post-login account generation only
+			// after authenticated HomeData and V5 product data are available.
+			await this.initializeAppPluginAuthenticatedAccountRuntime();
+
+			// 1b. Prepare the instance-scoped APK package host. This performs
 			// no download; acquisition remains an explicit later action.
 			await this.initializeAppPluginPackageRuntime();
 
-			// 1b. Asset download for account models (before device init)
+			// 1c. Asset download for account models (before device init)
 			await this.downloadAssetsForAccountModels();
 
 			// 2a. Start UDP Discovery (Essential for determining Local/Cloud mode before Init)
@@ -1375,6 +1381,7 @@ export class Roborock extends utils.Adapter {
 			this.mqtt_api.cleanup();
 			this.local_api.stopUdpDiscovery();
 			this.local_api.stopTcpKeepaliveInterval();
+			this.appPluginAccountRuntime = undefined;
 			this.appPluginPackageRuntime?.shutdown();
 			this.appPluginPackageRuntime = undefined;
 
@@ -1582,6 +1589,39 @@ export class Roborock extends utils.Adapter {
 		await this.ensureState("HomeData", { name: "HomeData string", write: false });
 		await this.ensureState("clientID", { name: "Client ID", write: false });
 		await this.ensureState("endpoint", { name: "MQTT endpoint", write: false });
+	}
+
+	/** Captures the complete authenticated APK account boundary in memory. */
+	private async initializeAppPluginAuthenticatedAccountRuntime(): Promise<void> {
+		if (this.appPluginAccountRuntime) {
+			return;
+		}
+		try {
+			await this.http_api.ensureProductInfo();
+			this.appPluginAccountRuntime = this.http_api.createAppPluginAuthenticatedAccountRuntime();
+			const summary = this.appPluginAccountRuntime.summary();
+			this.rLog(
+				"System",
+				null,
+				"Info",
+				undefined,
+				undefined,
+				`AppPlugin-Kontositzung bereit: Region=${summary.serverCode}, Geräte=${summary.deviceCount}, Produkte=${summary.productCount}, Rollen=${summary.roleCount}`,
+				"info",
+			);
+		} catch (error) {
+			// The account runtime is still Phase 0B and must not make the existing
+			// adapter unusable. A device runtime cannot start without this gate.
+			this.rLog(
+				"System",
+				null,
+				"Warn",
+				undefined,
+				undefined,
+				`AppPlugin-Kontositzung konnte nicht aufgebaut werden: ${this.errorMessage(error)}`,
+				"warn",
+			);
+		}
 	}
 
 	/** Prepares the opt-in APK package runtime without downloading a package. */

@@ -15,6 +15,7 @@ import {
 	createApkAppPluginCloudBootstrapContext,
 	createApkAppPluginHomeDataContext,
 } from "../apppluginHost/apkHomeDataContext";
+import { ApkAppPluginAuthenticatedAccountRuntime } from "../apppluginHost/apkAppPluginAuthenticatedAccountRuntime";
 import {
 	loadApkProductRoleDefinitions,
 	type ApkProductRoleDefinition,
@@ -900,6 +901,28 @@ export class http_api {
 			this.productInfo,
 			this.userData,
 		);
+	}
+
+	/**
+	 * Captures one complete post-login AppPlugin account generation. Tokens and
+	 * Axios clients remain private to the authenticated HTTP port closures.
+	 */
+	createAppPluginAuthenticatedAccountRuntime(): ApkAppPluginAuthenticatedAccountRuntime {
+		if (!this.userData?.token || !this.userData.rriot) {
+			throw new Error("Die Roborock-Cloud-Anmeldung ist für AppPlugins nicht vollständig");
+		}
+		if (!this.productInfo) {
+			throw new Error("Die V5-Produktdaten der angemeldeten AppPlugin-Sitzung fehlen");
+		}
+		const cloudBootstrap = this.getAppPluginCloudBootstrapContext();
+		if (!cloudBootstrap) {
+			throw new Error("Der angemeldete AppPlugin-Konto- und HomeData-Kontext ist unvollständig");
+		}
+		return new ApkAppPluginAuthenticatedAccountRuntime({
+			cloudBootstrap,
+			httpPorts: this.getAppPluginAuthenticatedHttpAdapterPorts(),
+			productRepository: this.getAppPluginProductRepositoryContext(),
+		});
 	}
 
 	/**

@@ -183,6 +183,18 @@ hostGlobal.__apkRunApplication = function runApplication(appKey, parameters) {
     "AppRegistry", "runApplication", [appKey, parameters]
   );
 };
+hostGlobal.__apkUnmountApplication = function unmountApplication(rootTag) {
+  if (typeof rootTag !== "number" || !Number.isSafeInteger(rootTag) || rootTag < 1) {
+    throw new Error("Invalid APK AppRegistry rootTag");
+  }
+  var bridge = hostGlobal.__fbBatchedBridge;
+  if (!bridge || typeof bridge.callFunctionReturnFlushedQueue !== "function") {
+    throw new Error("React Native BatchedBridge is not ready for APK AppRegistry unmount");
+  }
+  return bridge.callFunctionReturnFlushedQueue(
+    "AppRegistry", "unmountApplicationComponentAtRootTag", [rootTag]
+  );
+};
 function createTurboModule(moduleName) {
   var indexed = byName[moduleName];
   if (!indexed) return undefined;
