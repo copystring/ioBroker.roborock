@@ -23,6 +23,7 @@ import type {
 } from "./apkAppPluginDeviceRuntimeHostProvider";
 import type { ApkAppPluginModelRuntimeRequest } from "./apkAppPluginSessionSupervisor";
 import type { ApkHermesHostArtifact } from "./apkHermesHostArtifact";
+import type { ApkDeviceIngress } from "./apkDeviceIngress";
 import {
 	ApkSkiaHostRuntime,
 	type ApkHermesSkiaRuntime,
@@ -34,6 +35,7 @@ export type ApkAppPluginAdapterDeviceRuntimePorts = Omit<
 >;
 
 export interface ApkAppPluginAdapterDeviceHostLease {
+	readonly attachDeviceIngress?: (ingress: ApkDeviceIngress) => () => void | Promise<void>;
 	readonly initialState: ApkAppPluginDeviceNativeRuntimeInitialState;
 	readonly ports: ApkAppPluginAdapterDeviceRuntimePorts;
 	release(): void | Promise<void>;
@@ -246,6 +248,7 @@ export function createApkAppPluginAdapterHostLeaseFactory(
 			});
 			let release: Promise<void> | undefined;
 			return Object.freeze({
+				attachDeviceIngress: deviceHost.attachDeviceIngress,
 				composition,
 				dataDirectory: directories.state,
 				initialState,

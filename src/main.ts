@@ -6,6 +6,7 @@ import { ChildProcess, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import go2rtcPath from "go2rtc-static";
 import { ApkAppPluginAuthenticatedAccountRuntime } from "./apppluginHost/apkAppPluginAuthenticatedAccountRuntime";
+import { ApkDeviceIngressRouter } from "./apppluginHost/apkDeviceIngressRouter";
 import { ApkAppPluginPackageRuntime } from "./apppluginHost/apkPluginPackageRuntime";
 import { commitInfo } from "./lib/commitInfo";
 
@@ -120,6 +121,7 @@ export class Roborock extends utils.Adapter {
 	public b01MapResponseQueue: Map<string, Array<"get_map_v1" | "get_clean_record_map">> = new Map();
 	public appPluginManager: AppPluginManager;
 	public appPluginAccountRuntime: ApkAppPluginAuthenticatedAccountRuntime | undefined;
+	public appPluginDeviceIngressRouter: ApkDeviceIngressRouter;
 	public appPluginPackageRuntime: ApkAppPluginPackageRuntime | undefined;
 
 	public isInitializing: boolean;
@@ -141,6 +143,7 @@ export class Roborock extends utils.Adapter {
 		this.instance = options.instance || 0;
 		this.nonce = randomBytes(16);
 		this.pendingRequests = new Map();
+		this.appPluginDeviceIngressRouter = new ApkDeviceIngressRouter();
 		this.http_api = new http_api(this);
 		this.local_api = new local_api(this);
 		this.mqtt_api = new mqtt_api(this);

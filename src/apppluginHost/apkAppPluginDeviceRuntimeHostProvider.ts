@@ -6,6 +6,7 @@ import type {
 import type { ApkAppPluginNativeModelRuntimeCompositionOptions } from "./apkAppPluginNativeRuntimeComposition";
 import type { ApkAppPluginModelRuntimeRequest } from "./apkAppPluginSessionSupervisor";
 import type { ApkHermesHostArtifact } from "./apkHermesHostArtifact";
+import type { ApkDeviceIngress } from "./apkDeviceIngress";
 
 export type ApkAppPluginDeviceHostCompositionOptions = Omit<
 	ApkAppPluginNativeModelRuntimeCompositionOptions,
@@ -19,6 +20,7 @@ export type ApkAppPluginDeviceHostCompositionOptions = Omit<
 >;
 
 export interface ApkAppPluginDeviceRuntimeHostLease {
+	readonly attachDeviceIngress?: (ingress: ApkDeviceIngress) => () => void | Promise<void>;
 	readonly composition: Readonly<ApkAppPluginDeviceHostCompositionOptions>;
 	readonly dataDirectory: string;
 	readonly initialState: ApkAppPluginDeviceNativeRuntimeInitialState;

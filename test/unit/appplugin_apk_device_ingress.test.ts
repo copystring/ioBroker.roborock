@@ -82,6 +82,25 @@ describe("APK device ingress composition", () => {
 		broker.close();
 	});
 
+	it("keeps the wire event untouched while unwrapping string dps.102 only for the RPC table", () => {
+		const { broker, events, ingress } = createIngress(12);
+		const callback = vi.fn();
+		const event = vi.fn();
+		broker.callJson("get_status", [], "automatic", callback);
+		events.addListener("RRDeviceDpsUpdateEvent", event);
+		const payload = JSON.stringify({
+			"102": JSON.stringify({ id: 12, result: { battery: 91 } }),
+		});
+
+		expect(ingress.acceptJsonDps(duid, "1.0", payload)).toEqual({
+			eventEmitted: true,
+			rpcAccepted: true,
+		});
+		expect(event).toHaveBeenCalledWith({ dps: payload });
+		expect(callback).toHaveBeenCalledWith(true, { id: 12, result: { battery: 91 } });
+		broker.close();
+	});
+
 	it("emits only RobotToAppMsg.result and resolves only positive RPC messages", () => {
 		const { broker, events, ingress } = createIngress(10);
 		const callback = vi.fn();

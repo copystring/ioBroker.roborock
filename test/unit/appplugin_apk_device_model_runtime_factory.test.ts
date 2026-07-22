@@ -101,18 +101,23 @@ function context(
 
 function nativeRuntime() {
 	const sharedNativeModules = { marker: "shared" };
+	const deviceIngress = { marker: "device-ingress" };
 	const runtime = {
 		attachComposition: vi.fn(),
 		constantSources: vi.fn(() => [{ DeviceInfo: {} }]),
 		createSharedNativeModules: vi.fn(() => sharedNativeModules),
+		deviceIngress: vi.fn(() => deviceIngress),
 		dispose: vi.fn(async () => undefined),
 	} as unknown as ApkAppPluginDeviceNativeRuntimeEnvironment;
-	return { runtime, sharedNativeModules };
+	return { deviceIngress, runtime, sharedNativeModules };
 }
 
 function hostProvider(native: ReturnType<typeof nativeRuntime>) {
+	const detachDeviceIngress = vi.fn(async () => undefined);
+	const attachDeviceIngress = vi.fn(() => detachDeviceIngress);
 	const release = vi.fn(async () => undefined);
 	const lease = {
+		attachDeviceIngress,
 		composition: {
 			bootstrapPath: "C:\\adapter-data\\bridge.js",
 			textLayoutBackend: {
@@ -127,7 +132,7 @@ function hostProvider(native: ReturnType<typeof nativeRuntime>) {
 	};
 	const provider = { acquire: vi.fn(async () => lease) };
 	nativeEnvironmentConstructorMock.mockReturnValue(native.runtime);
-	return { lease, provider, release };
+	return { attachDeviceIngress, detachDeviceIngress, lease, provider, release };
 }
 
 describe("APK AppPlugin device model runtime factory", () => {
@@ -171,8 +176,10 @@ describe("APK AppPlugin device model runtime factory", () => {
 		expect(native.runtime.createSharedNativeModules).toHaveBeenCalledOnce();
 		expect(bindingMock).toHaveBeenCalledWith(native.sharedNativeModules);
 		expect(native.runtime.attachComposition).toHaveBeenCalledWith({ session: applicationSession });
+		expect(host.attachDeviceIngress).toHaveBeenCalledWith(native.deviceIngress);
 
 		await runtime.stop();
+		expect(host.detachDeviceIngress).toHaveBeenCalledOnce();
 		expect(native.runtime.dispose).toHaveBeenCalledOnce();
 		expect(host.release).toHaveBeenCalledOnce();
 	});

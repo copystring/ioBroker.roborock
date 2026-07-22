@@ -341,6 +341,7 @@ export class local_api {
 									this.adapter.rLog("TCP", duid, "Error", data.version, undefined, `Parse Error | ${e}`, "warn");
 									continue;
 								}
+								this.offerJsonDpsToAppPlugin(duid, data.version, parsedPayload);
 								if (data.version === "B01") {
 									const dps = parsedPayload.dps;
 									if (dps?.["10001"]) {
@@ -631,6 +632,31 @@ export class local_api {
 		return false;
 	}
 
+	/** Writes a frame and reports socket/callback failures to the caller. */
+	async sendMessageChecked(duid: string, message: Buffer): Promise<void> {
+		const client = this.deviceSockets[duid];
+		if (!client?.connected || client.destroyed || !client.writable) {
+			throw new Error(`TCP-Gerät ${duid} ist nicht verbunden`);
+		}
+		await new Promise<void>((resolve, reject) => {
+			try {
+				client.write(message, (error?: Error | null) => {
+					if (error) {
+						this.scheduleReconnect(duid, `write failed: ${error.message}`);
+						reject(error);
+						return;
+					}
+					client.lastSentAt = Date.now();
+					client.sentBytes += message.length;
+					resolve();
+				});
+			} catch (error: unknown) {
+				this.scheduleReconnect(duid, `write failed: ${this.adapter.errorMessage(error)}`);
+				reject(error);
+			}
+		});
+	}
+
 	isConnected(duid: string): boolean {
 		if (this.deviceSockets[duid] && this.deviceSockets[duid].connected) {
 			const dev = this.localDevices[duid];
@@ -668,6 +694,26 @@ export class local_api {
 
 		const result = Object.prototype.hasOwnProperty.call(content, "result") ? content.result : content.error;
 		this.adapter.requestsHandler.resolvePendingRequest(id, result, String(protocol), duid, "TCP");
+	}
+
+	private offerJsonDpsToAppPlugin(duid: string, version: string, parsedPayload: unknown): void {
+		try {
+			this.adapter.appPluginDeviceIngressRouter?.acceptJsonEnvelope(
+				duid,
+				version,
+				parsedPayload,
+			);
+		} catch (error) {
+			this.adapter.rLog(
+				"TCP",
+				duid,
+				"Error",
+				version,
+				undefined,
+				`AppPlugin-Ingress hat DPS abgelehnt: ${this.adapter.errorMessage(error)}`,
+				"warn",
+			);
+		}
 	}
 
 	private normalizeNetworkInfo(result: unknown): Record<string, unknown> | null {

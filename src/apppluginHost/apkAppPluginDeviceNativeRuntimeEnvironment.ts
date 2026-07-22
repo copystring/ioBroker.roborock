@@ -20,6 +20,7 @@ import {
 	type ApkRequestedColorSchemeMode,
 } from "./apkAppearanceRuntime";
 import { ApkAsyncStorageRuntime } from "./apkAsyncStorageRuntime";
+import { ApkBlobTransferAssembler } from "./apkBlobTransferAssembler";
 import type { ApkNativeModuleConstants } from "./apkBridgeBootstrap";
 import type { ApkAppPluginDeviceModelContext } from "./apkAppPluginDeviceSessionRuntime";
 import type { ApkAppPluginNativeRuntimeComposition } from "./apkAppPluginNativeRuntimeComposition";
@@ -44,6 +45,8 @@ import {
 	type ApkStoredColorModel,
 } from "./apkDarkModeRuntime";
 import { ApkDeviceFirmwareRuntime } from "./apkDeviceFirmwareRuntime";
+import { ApkDeviceIngress } from "./apkDeviceIngress";
+import { ApkPluginDeviceEventBridge } from "./apkDeviceEvents";
 import { ApkDevicesRuntime } from "./apkDevicesRuntime";
 import { ApkGestureHandlerRuntime } from "./apkGestureHandlerRuntime";
 import type { ApkHermesHostSession } from "./apkHermesHostSession";
@@ -284,6 +287,7 @@ export class ApkAppPluginDeviceNativeRuntimeEnvironment {
 	readonly #constantSources: readonly ApkNativeModuleConstants[];
 	readonly #deviceDirectory: string;
 	readonly #ports: ApkAppPluginDeviceNativeRuntimePorts;
+	readonly #deviceIngress: ApkDeviceIngress;
 	readonly #rpcBroker: ApkRpcRequestBroker;
 	readonly #sharedWithoutAnimated: Omit<ApkAppPluginSharedNativeModuleRuntimes, "nativeAnimated">;
 	readonly #timing: ApkTimingRuntime;
@@ -328,11 +332,33 @@ export class ApkAppPluginDeviceNativeRuntimeEnvironment {
 			pluginRootPath: descriptor.pluginRoot,
 			onDiagnostic: options.ports.onWorkerDiagnostic,
 		});
+		const rpcEndpoint = nonEmpty(options.ports.rpc.endpoint, "RPC-Endpunkt");
 		this.#rpcBroker = new ApkRpcRequestBroker(
 			options.ports.rpc.transport,
-			nonEmpty(options.ports.rpc.endpoint, "RPC-Endpunkt"),
+			rpcEndpoint,
 			nonEmpty(options.ports.rpc.nonce, "RPC-Nonce"),
 			options.ports.rpc.brokerOptions,
+		);
+		const deviceEvents = new ApkPluginDeviceEventBridge();
+		deviceEvents.addListener("RRDeviceAppClientConnectEvent", payload =>
+			emitBestEffort("RRDeviceAppClientConnectEvent", payload));
+		deviceEvents.addListener("RRDeviceBlobPayloadUpdateEvent", payload =>
+			emitBestEffort("RRDeviceBlobPayloadUpdateEvent", payload));
+		deviceEvents.addListener("RRDeviceBlueOfflineEvent", payload =>
+			emitBestEffort("RRDeviceBlueOfflineEvent", payload));
+		deviceEvents.addListener("RRDeviceBlueStatusEvent", payload =>
+			emitBestEffort("RRDeviceBlueStatusEvent", payload));
+		deviceEvents.addListener("RRDeviceDpsPbUpdateEvent", payload =>
+			emitBestEffort("RRDeviceDpsPbUpdateEvent", payload));
+		deviceEvents.addListener("RRDeviceDpsUpdateEvent", payload =>
+			emitBestEffort("RRDeviceDpsUpdateEvent", payload));
+		deviceEvents.addListener("RRDeviceOnlineChangeEvent", payload =>
+			emitBestEffort("RRDeviceOnlineChangeEvent", payload));
+		this.#deviceIngress = new ApkDeviceIngress(
+			device.deviceId,
+			new ApkBlobTransferAssembler(device.deviceId, rpcEndpoint),
+			this.#rpcBroker,
+			deviceEvents,
 		);
 		const pluginSdkRpc = new ApkPluginSdkRpcModule(
 			this.#rpcBroker,
@@ -558,6 +584,10 @@ export class ApkAppPluginDeviceNativeRuntimeEnvironment {
 
 	public rpcBroker(): ApkRpcRequestBroker {
 		return this.#rpcBroker;
+	}
+
+	public deviceIngress(): ApkDeviceIngress {
+		return this.#deviceIngress;
 	}
 
 	public dataDirectory(): string {

@@ -16,6 +16,21 @@ function isApkRpcProtocol(protocolVersion: string): boolean {
 	return protocolVersion === "L01" || protocolVersion === "1.0";
 }
 
+function normalizeJsonRpcDps(
+	dps: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> {
+	if (typeof dps["102"] !== "string") return dps;
+	try {
+		const response = JSON.parse(dps["102"]);
+		if (response !== null && typeof response === "object" && !Array.isArray(response)) {
+			return { ...dps, "102": response };
+		}
+	} catch {
+		// The untouched payload was already emitted to the AppPlugin event path.
+	}
+	return dps;
+}
+
 /**
  * Composes the APK's independent RRDeviceModule and RRRpcManager listeners.
  *
@@ -46,7 +61,7 @@ export class ApkDeviceIngress {
 			return { eventEmitted: true, rpcAccepted: false };
 		}
 		const rpcAccepted = parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
-			? this.broker.acceptJsonDps(parsed as Readonly<Record<string, unknown>>)
+			? this.broker.acceptJsonDps(normalizeJsonRpcDps(parsed as Readonly<Record<string, unknown>>))
 			: false;
 		return { eventEmitted: true, rpcAccepted };
 	}

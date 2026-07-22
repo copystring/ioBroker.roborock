@@ -231,8 +231,10 @@ describe("APK AppPlugin adapter host lease factory", () => {
 		const requested = request(root);
 		const state = initialState();
 		const ports = devicePorts();
+		const attachDeviceIngress = vi.fn(() => vi.fn());
 		const releaseDeviceHost = vi.fn(async () => undefined);
 		const acquireDeviceHost = vi.fn(async () => ({
+			attachDeviceIngress,
 			initialState: state,
 			ports,
 			release: releaseDeviceHost,
@@ -274,6 +276,7 @@ describe("APK AppPlugin adapter host lease factory", () => {
 			width: 1200,
 		});
 		expect(lease.initialState).not.toBe(state);
+		expect(lease.attachDeviceIngress).toBe(attachDeviceIngress);
 		expect(lease.ports.deviceTransport).toBe(ports.deviceTransport);
 		expect(lease.ports.installSkia()).toBe(true);
 		expect(lease.composition).toMatchObject({

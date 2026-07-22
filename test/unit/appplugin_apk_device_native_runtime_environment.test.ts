@@ -283,6 +283,22 @@ describe("APK AppPlugin device native runtime environment", () => {
 
 		await runtimes.localization.setLanguage("en");
 		expect(emitDeviceEvent).toHaveBeenCalledWith("langDidChange", "en");
+		const callback = vi.fn();
+		const messageId = environment.rpcBroker().callJson("get_status", [], "automatic", callback);
+		const ingressResult = environment.deviceIngress().acceptJsonDps(
+			"device/with unsafe path",
+			"1.0",
+			JSON.stringify({ "102": { id: messageId, result: { state: 8 } } }),
+		);
+		expect(ingressResult).toEqual({ eventEmitted: true, rpcAccepted: true });
+		expect(callback).toHaveBeenCalledWith(true, {
+			id: messageId,
+			result: { state: 8 },
+		});
+		await vi.waitFor(() => expect(emitDeviceEvent).toHaveBeenCalledWith(
+			"RRDeviceDpsUpdateEvent",
+			{ dps: JSON.stringify({ "102": { id: messageId, result: { state: 8 } } }) },
+		));
 		expect(hostErrors).toEqual([]);
 		expect(() => environment.attachComposition({
 			session: { emitDeviceEvent },

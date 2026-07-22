@@ -23,15 +23,24 @@ export interface ApkAppPluginDeviceModelRuntimeFactoryOptions {
 async function disposeRuntimeResources(
 	nativeRuntime: ApkAppPluginDeviceNativeRuntimeEnvironment | undefined,
 	hostLease: Readonly<ApkAppPluginDeviceRuntimeHostLease>,
+	detachDeviceIngress: (() => void | Promise<void>) | undefined,
 ): Promise<void> {
+	const errors: unknown[] = [];
+	if (detachDeviceIngress) {
+		try {
+			await detachDeviceIngress();
+		} catch (error) {
+			errors.push(error);
+		}
+	}
 	const operations = [Promise.resolve().then(() => hostLease.release())];
 	if (nativeRuntime) {
 		operations.unshift(Promise.resolve().then(() => nativeRuntime.dispose()));
 	}
 	const results = await Promise.allSettled(operations);
-	const errors = results
+	errors.push(...results
 		.filter((result): result is PromiseRejectedResult => result.status === "rejected")
-		.map(result => result.reason);
+		.map(result => result.reason));
 	if (errors.length > 0) {
 		throw new AggregateError(errors, "APK-Modellkomposition konnte nicht sauber beendet werden");
 	}
@@ -55,9 +64,10 @@ export function createApkAppPluginDeviceModelRuntimeFactory(
 		const artifact = resolveApkHermesHostArtifact();
 		const hostLease = await options.hostProvider.acquire(request, artifact);
 		let nativeRuntime: ApkAppPluginDeviceNativeRuntimeEnvironment | undefined;
+		let detachDeviceIngress: (() => void | Promise<void>) | undefined;
 		let disposal: Promise<void> | undefined;
 		const disposeComposition = (): Promise<void> => {
-			disposal ??= disposeRuntimeResources(nativeRuntime, hostLease);
+			disposal ??= disposeRuntimeResources(nativeRuntime, hostLease, detachDeviceIngress);
 			return disposal;
 		};
 		try {
@@ -81,6 +91,9 @@ export function createApkAppPluginDeviceModelRuntimeFactory(
 				hostExecutablePath: artifact.executablePath,
 				onCompositionCreated: composition => {
 					createdNativeRuntime.attachComposition(composition);
+					detachDeviceIngress ??= hostLease.attachDeviceIngress?.(
+						createdNativeRuntime.deviceIngress(),
+					);
 				},
 			}));
 		} catch (error) {

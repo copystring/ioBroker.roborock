@@ -390,6 +390,7 @@ export class mqtt_api {
 		try {
 			const payloadStr = Buffer.isBuffer(data.payload) ? data.payload.toString("utf8") : String(data.payload ?? "");
 			const parsedPayload = JSON.parse(payloadStr);
+			this.offerJsonDpsToAppPlugin(duid, data.version, parsedPayload);
 			if (data.version === "B01") {
 				await this.dispatchB01Message(duid, parsedPayload);
 			} else {
@@ -427,6 +428,7 @@ export class mqtt_api {
 		try {
 			const payloadStr = Buffer.isBuffer(data.payload) ? data.payload.toString("utf8") : String(data.payload ?? "");
 			const parsed = JSON.parse(payloadStr);
+			this.offerJsonDpsToAppPlugin(duid, data.version, parsed);
 
 			if (data.version === "B01" && parsed.dps?.["10001"]) {
 				await this.dispatchB01Message(duid, parsed);
@@ -483,6 +485,7 @@ export class mqtt_api {
 		try {
 			const payloadStr = Buffer.isBuffer(data.payload) ? data.payload.toString("utf8") : String(data.payload ?? "");
 			const parsed = JSON.parse(payloadStr);
+			this.offerJsonDpsToAppPlugin(duid, data.version, parsed);
 			const dps101 = parsed.dps?.["101"] ?? (typeof parsed.id !== "undefined" ? parsed : null);
 			const inner = typeof dps101 === "string" ? (() => {
 				try {
@@ -499,6 +502,26 @@ export class mqtt_api {
 			}
 		} catch (e) {
 			this.adapter.rLog("MQTT", duid, "Error", "101", undefined, `Failed to parse Protocol 101 response: ${e}`, "error");
+		}
+	}
+
+	private offerJsonDpsToAppPlugin(duid: string, version: unknown, parsedPayload: unknown): void {
+		try {
+			this.adapter.appPluginDeviceIngressRouter?.acceptJsonEnvelope(
+				duid,
+				typeof version === "string" ? version : "",
+				parsedPayload,
+			);
+		} catch (error) {
+			this.adapter.rLog(
+				"MQTT",
+				duid,
+				"Error",
+				typeof version === "string" ? version : undefined,
+				undefined,
+				`AppPlugin-Ingress hat DPS abgelehnt: ${this.adapter.errorMessage(error)}`,
+				"warn",
+			);
 		}
 	}
 
@@ -903,6 +926,23 @@ export class mqtt_api {
 			const topic = `rr/m/i/${rriot.u}/${this.mqttUser}/${duid}`;
 			this.client.publish(topic, roborockMessage, { qos: 1 });
 		}
+	}
+
+	/** Publishes a QoS-1 frame and fails if MQTT cannot acknowledge queuing it. */
+	async sendMessageChecked(duid: string, roborockMessage: Buffer): Promise<void> {
+		if (!this.client || !this.connected) throw new Error("MQTT ist nicht verbunden");
+		const rriot = this.adapter.http_api.get_rriot();
+		const topic = `rr/m/i/${rriot.u}/${this.mqttUser}/${duid}`;
+		await new Promise<void>((resolve, reject) => {
+			try {
+				this.client.publish(topic, roborockMessage, { qos: 1 }, (error?: Error | null) => {
+					if (error) reject(error);
+					else resolve();
+				});
+			} catch (error) {
+				reject(error);
+			}
+		});
 	}
 
 	isConnected(): boolean {
