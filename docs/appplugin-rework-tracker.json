@@ -298,7 +298,10 @@
 				"src/apppluginHost/apkAppPluginSessionDescriptor.ts",
 				"src/apppluginHost/apkAppPluginSessionSupervisor.ts",
 				"src/apppluginHost/apkAppPluginModelRuntime.ts",
+				"src/apppluginHost/apkAppPluginDeviceModelRuntimeFactory.ts",
 				"src/apppluginHost/apkAppPluginDeviceSessionRuntime.ts",
+				"src/apppluginHost/apkHermesHostArtifact.ts",
+				"src/apppluginHost/generated/hermes-host-artifact-contract.json",
 				"src/apppluginHost/apkHomeDataContext.ts",
 				"src/apppluginHost/apkHomeDataLookup.ts",
 				"src/apppluginHost/apkMainPluginEntry.ts",
@@ -328,7 +331,12 @@
 				"test/unit/appplugin_apk_session_descriptor.test.ts",
 				"test/unit/appplugin_apk_session_supervisor.test.ts",
 				"test/unit/appplugin_apk_model_runtime.test.ts",
+				"test/unit/appplugin_apk_hermes_host_artifact.test.ts",
+				"test/unit/appplugin_apk_device_model_runtime_factory.test.ts",
 				"test/unit/appplugin_apk_device_session_runtime.test.ts",
+				"scripts/build_hermes_appplugin_host.js",
+				"tools/hermes-appplugin-host/CMakeLists.txt",
+				"tools/hermes-appplugin-host/README.md",
 				"test/unit/appplugin_desktop_launcher.test.ts",
 				"test/unit/appplugin_desktop_fixture_sessions.test.ts",
 				"test/unit/appplugin_session_descriptor_transport.test.ts",
@@ -336,7 +344,7 @@
 				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/OooO.java",
 				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/PluginSDKModule.java"
 			],
-			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Ein geräteklassenneutraler Rriot-Builder leitet daraus die statischen RRPluginSDK-Werte für die Ziel-DUID ab. Paketakquisition und Installation bleiben signiert, atomar und modellneutral. Der APK-Hostcache ist nachweislich nach device.model organisiert und der TypeScript-Supervisor erzwingt dieselbe Geräteidentität. Die produktive Device-Session-Grenze verbindet nun Kontogeneration, HomeData-Gerät, installierte Originaldateien und Modell-Supervisor; Öffnen und Paketersetzung sind vollständig pro Modell serialisiert, sodass kein altes Bundle während eines Downloads neu startet und kein aktiver Host ersetzt wird. Das gilt identisch für Staubsauger, Mäher, Waschmaschinen und weitere AppPlugin-Kategorien. Als Nächstes den plattformaufgelösten, mit dem Adapter ausgelieferten Hermes-Host sowie die gemeinsamen APK-Native-Module in die konkrete Modell-Runtime-Factory komponieren. Erst danach wird diese Runtime an ready/unload und die Web-Sitzungen angeschlossen; der aktuelle Adapterstart erzeugt weiterhin keinen Hermes-Prozess. RockMow bleibt bis zu echter Mäher-HomeData und vollständiger Bedarfsdeckung eine Bootstrap-Gegenprobe."
+			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Paketakquisition, Installation, Modellcache und Paketersetzung bleiben signiert, atomar, serialisiert und geräteklassenneutral. Ein gemeinsamer Artefaktvertrag beschreibt die sechs vorgesehenen Windows-, Linux- und macOS-Zieltripel. Der TypeScript-Resolver prüft Ziel, Dateityp, Pfadgrenze, Größe, SHA-256, Hermes-Commit, HBC- und Protokollversion und verweigert jede unvollständige Auslieferung. Die konkrete Device-Modell-Factory erhält das unveränderte Bundle ausschließlich aus dem aktivierten AppPlugin-Paket und die Host-EXE ausschließlich aus diesem Resolver. Der MinGW-Windows-Host bindet libc++ und libunwind nun statisch; Neubuild, direkter Start und PE-Importprüfung sind lokal erfolgt. Noch sind keine Native-Artefakte in den Adapter eingecheckt oder an ready/unload angeschlossen. Als Nächstes die reproduzierbare Build- und Laufzeitmatrix für alle Zieltripel erstellen und die gemeinsamen APK-Native-Module in der neuen Factory komponieren. Erst bei vollständiger Bedarfsdeckung wird der Adapter-Lifecycle aktiviert. RockMow bleibt bis zu echter Mäher-HomeData eine Bootstrap-Gegenprobe."
 		},
 		{
 			"id": "P0B-APK-HOST-SERVICES",

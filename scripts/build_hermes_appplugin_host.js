@@ -1,14 +1,23 @@
 #!/usr/bin/env node
 
 const childProcess = require("node:child_process");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 
 const HERMES_REPOSITORY = "https://github.com/facebook/hermes.git";
 const HERMES_REF = "v0.13.0";
-const HERMES_COMMIT = "4b3bf912cc0f705b51b71ce1a5b8bd79b93a451b";
 const repositoryRoot = path.resolve(__dirname, "..");
 const hostSourceDir = path.join(repositoryRoot, "tools", "hermes-appplugin-host");
+const artifactContractPath = path.join(
+	repositoryRoot,
+	"src",
+	"apppluginHost",
+	"generated",
+	"hermes-host-artifact-contract.json",
+);
+const artifactContract = JSON.parse(fs.readFileSync(artifactContractPath, "utf8"));
+const HERMES_COMMIT = artifactContract.hermesCommit;
 
 function parseArgs(args) {
 	const options = {
@@ -25,6 +34,8 @@ function parseArgs(args) {
 			options.buildDir = path.resolve(args[++index]);
 		} else if (args[index] === "--configuration" && args[index + 1]) {
 			options.configuration = args[++index];
+		} else if (args[index] === "--stage-dir" && args[index + 1]) {
+			options.stageDir = path.resolve(args[++index]);
 		} else if (args[index] === "--fetch") {
 			options.fetch = true;
 		} else if (args[index] === "--check") {
@@ -61,9 +72,25 @@ function commandVersion(command) {
 	return (execution.stdout || execution.stderr || "").split(/\r?\n/u)[0].trim();
 }
 
-function currentCommit(sourceDir) {
+function sourceRepository(sourceDir) {
 	try {
-		return run("git", ["-C", sourceDir, "rev-parse", "HEAD"], { capture: true });
+		const repositoryPath = path.resolve(run("git", ["-C", sourceDir, "rev-parse", "--show-toplevel"], {
+			capture: true,
+		}));
+		const sourcePath = fs.realpathSync(sourceDir);
+		const repositoryRealPath = fs.realpathSync(repositoryPath);
+		const normalizedSource = process.platform === "win32" ? sourcePath.toLowerCase() : sourcePath;
+		const normalizedRepository = process.platform === "win32"
+			? repositoryRealPath.toLowerCase()
+			: repositoryRealPath;
+		if (normalizedSource !== normalizedRepository) return undefined;
+		return {
+			commit: run("git", ["-C", sourceDir, "rev-parse", "HEAD"], { capture: true }),
+			clean: run("git", ["-C", sourceDir, "status", "--porcelain", "--untracked-files=no"], {
+				capture: true,
+			}).length === 0,
+			repositoryPath: repositoryRealPath,
+		};
 	} catch {
 		return undefined;
 	}
@@ -79,25 +106,54 @@ function fetchHermes(sourceDir) {
 	run("git", ["-C", sourceDir, "checkout", "--detach", HERMES_COMMIT]);
 }
 
-function findHostBinary(buildDir) {
+function hostBinaryPath(buildDir) {
 	const expectedName = process.platform === "win32"
 		? "roborock-hermes-appplugin-host.exe"
 		: "roborock-hermes-appplugin-host";
-	const pending = [buildDir];
-	while (pending.length > 0) {
-		const current = pending.pop();
-		if (!fs.existsSync(current)) continue;
-		for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-			const entryPath = path.join(current, entry.name);
-			if (entry.isDirectory() && entry.name !== "CMakeFiles") pending.push(entryPath);
-			if (entry.isFile() && entry.name === expectedName) return entryPath;
-		}
+	return path.join(buildDir, "appplugin-host", expectedName);
+}
+
+function hostTarget() {
+	const target = `${process.platform}-${process.arch}`;
+	if (!artifactContract.supportedTargets.includes(target)) {
+		throw new Error(`No packaged Hermes AppPlugin host target is defined for ${target}`);
 	}
-	return undefined;
+	return target;
+}
+
+function sha256File(filePath) {
+	return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
+}
+
+function stageHostBinary(hostBinary, stageRoot) {
+	const target = hostTarget();
+	const executable = process.platform === "win32"
+		? "roborock-hermes-appplugin-host.exe"
+		: "roborock-hermes-appplugin-host";
+	const targetDirectory = path.join(stageRoot, target);
+	const executablePath = path.join(targetDirectory, executable);
+	fs.mkdirSync(targetDirectory, { recursive: true });
+	fs.copyFileSync(hostBinary, executablePath);
+	if (process.platform !== "win32") fs.chmodSync(executablePath, 0o755);
+	const stats = fs.statSync(executablePath);
+	const manifest = {
+		schemaVersion: artifactContract.schemaVersion,
+		target,
+		executable,
+		sha256: sha256File(executablePath),
+		size: stats.size,
+		hermesCommit: artifactContract.hermesCommit,
+		hbcVersion: artifactContract.hbcVersion,
+		protocolVersion: artifactContract.protocolVersion,
+	};
+	const manifestPath = path.join(targetDirectory, "artifact.json");
+	fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+	return { executablePath, manifestPath, target };
 }
 
 function environmentReport(options) {
-	const sourceCommit = currentCommit(options.sourceDir);
+	const sourceRepositoryDetails = sourceRepository(options.sourceDir);
+	const sourceCommit = sourceRepositoryDetails?.commit;
 	return {
 		platform: process.platform,
 		architecture: process.arch,
@@ -105,6 +161,9 @@ function environmentReport(options) {
 		git: commandVersion("git"),
 		sourceDir: options.sourceDir,
 		sourceExists: fs.existsSync(path.join(options.sourceDir, "CMakeLists.txt")),
+		sourceRepositoryPath: sourceRepositoryDetails?.repositoryPath,
+		sourceRepositoryMatches: sourceRepositoryDetails !== undefined,
+		sourceClean: sourceRepositoryDetails?.clean ?? false,
 		sourceCommit,
 		expectedHermesRef: HERMES_REF,
 		expectedHermesCommit: HERMES_COMMIT,
@@ -115,7 +174,7 @@ function environmentReport(options) {
 function main() {
 	const options = parseArgs(process.argv.slice(2));
 	if (options.help) {
-		console.log("Usage: node scripts/build_hermes_appplugin_host.js [--check] [--fetch] [--source <dir>] [--build-dir <dir>] [--configuration <name>]");
+		console.log("Usage: node scripts/build_hermes_appplugin_host.js [--check] [--fetch] [--source <dir>] [--build-dir <dir>] [--configuration <name>] [--stage-dir <dir>]");
 		return;
 	}
 
@@ -123,12 +182,23 @@ function main() {
 	const report = environmentReport(options);
 	if (options.check) {
 		console.log(JSON.stringify(report, null, 2));
-		if (!report.cmake || !report.git || !report.sourceExists || !report.commitMatches) process.exitCode = 1;
+		if (
+			!report.cmake
+			|| !report.git
+			|| !report.sourceExists
+			|| !report.sourceRepositoryMatches
+			|| !report.sourceClean
+			|| !report.commitMatches
+		) process.exitCode = 1;
 		return;
 	}
 
 	if (!report.cmake) throw new Error("CMake 3.18 or newer is required");
 	if (!report.sourceExists) throw new Error(`Hermes source missing at ${options.sourceDir}; pass --source or --fetch`);
+	if (!report.sourceRepositoryMatches) {
+		throw new Error(`Hermes source must itself be a Git repository root: ${options.sourceDir}`);
+	}
+	if (!report.sourceClean) throw new Error(`Hermes source contains tracked modifications: ${options.sourceDir}`);
 	if (!report.commitMatches) {
 		throw new Error(`Hermes source must be pinned to ${HERMES_COMMIT}, found ${report.sourceCommit ?? "no Git commit"}`);
 	}
@@ -148,9 +218,13 @@ function main() {
 		"--parallel",
 	]);
 
-	const hostBinary = findHostBinary(options.buildDir);
-	if (!hostBinary) throw new Error(`Build completed but host binary was not found below ${options.buildDir}`);
-	console.log(JSON.stringify({ ...report, hostBinary }, null, 2));
+	const hostBinary = hostBinaryPath(options.buildDir);
+	const hostStats = fs.statSync(hostBinary);
+	if (!hostStats.isFile() || hostStats.size < 1) {
+		throw new Error(`Build completed but the deterministic host output is invalid: ${hostBinary}`);
+	}
+	const stagedArtifact = options.stageDir ? stageHostBinary(hostBinary, options.stageDir) : undefined;
+	console.log(JSON.stringify({ ...report, hostBinary, stagedArtifact }, null, 2));
 }
 
 try {

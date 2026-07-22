@@ -164,6 +164,7 @@
     "poc:appplugin-q7-m5-merge-proof": "npm run poc:appplugin-q7-full-scene-fixture && esbuild scripts/appplugin_hermes_runtime_probe.ts --bundle --platform=node --format=cjs --packages=external --outfile=artifacts/appplugin-poc/appplugin_hermes_runtime_probe-full-scene.cjs && esbuild scripts/prove_q7_appplugin_merge.ts --bundle --platform=node --format=cjs --packages=external --outfile=artifacts/appplugin-poc/prove_q7_appplugin_merge.cjs && esbuild scripts/run_q7_appplugin_merge_suite.ts --bundle --platform=node --format=cjs --packages=external --outfile=artifacts/appplugin-poc/run_q7_appplugin_merge_suite.cjs && node artifacts/appplugin-poc/run_q7_appplugin_merge_suite.cjs --profile m5",
     "poc:hermes-host:check": "node scripts/build_hermes_appplugin_host.js --check",
     "poc:hermes-host:build": "node scripts/build_hermes_appplugin_host.js",
+    "poc:hermes-host:package": "node scripts/build_hermes_appplugin_host.js --stage-dir src/apppluginHost/native",
     "poc:extract-rrcodec": "node scripts/extract_rrcodec.js",
     "poc:rrcodec-oracle": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run_rrcodec_oracle.ps1",
     "copy:protocols": "shx mkdir -p build/lib/protocols && shx cp lib/protocols/*.json build/lib/protocols/",

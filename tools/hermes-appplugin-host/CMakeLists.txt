@@ -56,9 +56,22 @@ endif()
 add_executable(roborock-hermes-appplugin-host src/main.cpp)
 target_compile_features(roborock-hermes-appplugin-host PRIVATE cxx_std_17)
 target_link_libraries(roborock-hermes-appplugin-host PRIVATE libhermes)
+set(HERMES_APPPLUGIN_HOST_OUTPUT_DIR "${CMAKE_BINARY_DIR}/appplugin-host")
+set_target_properties(roborock-hermes-appplugin-host PROPERTIES
+	RUNTIME_OUTPUT_DIRECTORY "${HERMES_APPPLUGIN_HOST_OUTPUT_DIR}"
+)
+foreach(CONFIGURATION IN LISTS CMAKE_CONFIGURATION_TYPES)
+	string(TOUPPER "${CONFIGURATION}" CONFIGURATION_UPPER)
+	set_target_properties(roborock-hermes-appplugin-host PROPERTIES
+		"RUNTIME_OUTPUT_DIRECTORY_${CONFIGURATION_UPPER}" "${HERMES_APPPLUGIN_HOST_OUTPUT_DIR}"
+	)
+endforeach()
 if(MINGW)
 	target_sources(roborock-hermes-appplugin-host PRIVATE src/llvh_mingw_compat.cpp)
 	target_include_directories(roborock-hermes-appplugin-host PRIVATE "${HERMES_SOURCE_DIR}/external/llvh/include")
+	# The adapter package must not depend on compiler-runtime DLLs being present
+	# on the ioBroker host. Windows system libraries remain dynamically linked.
+	target_link_options(roborock-hermes-appplugin-host PRIVATE -static)
 endif()
 
 if(MSVC)
