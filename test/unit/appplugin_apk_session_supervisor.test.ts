@@ -26,6 +26,10 @@ function runtime() {
 	} satisfies ApkAppPluginManagedModelRuntime;
 }
 
+function request(model: string, deviceId = `${model}.device`, activeTime = 1) {
+	return { activeTime, context: { deviceId }, deviceId, model };
+}
+
 describe("APK AppPlugin session supervisor", () => {
 	it("deduplicates concurrent starts and retains the runtime until leases are released", async () => {
 		const created = runtime();
@@ -33,15 +37,17 @@ describe("APK AppPlugin session supervisor", () => {
 		const supervisor = new ApkAppPluginSessionSupervisor(factory);
 
 		const [first, second] = await Promise.all([
-			supervisor.open("roborock.vacuum.shared"),
-			supervisor.open("roborock.vacuum.shared"),
+			supervisor.open(request("roborock.vacuum.shared", "vacuum-1", 100)),
+			supervisor.open(request("roborock.vacuum.shared", "vacuum-1", 100)),
 		]);
 
 		expect(factory).toHaveBeenCalledOnce();
 		expect(created.start).toHaveBeenCalledOnce();
 		expect(first.runtime).toBe(second.runtime);
 		expect(supervisor.status()).toEqual([{
+			activeTime: 100,
 			activeLeases: 2,
+			deviceId: "vacuum-1",
 			model: "roborock.vacuum.shared",
 			state: "running",
 		}]);
@@ -57,21 +63,21 @@ describe("APK AppPlugin session supervisor", () => {
 
 	it("uses the APK's three-model access-ordered cache and evicts only inactive runtimes", async () => {
 		const runtimes = new Map<string, ReturnType<typeof runtime>>();
-		const supervisor = new ApkAppPluginSessionSupervisor(model => {
+		const supervisor = new ApkAppPluginSessionSupervisor(({ model }) => {
 			const created = runtime();
 			runtimes.set(model, created);
 			return created;
 		});
-		const first = await supervisor.open("model.one");
+		const first = await supervisor.open(request("model.one"));
 		await first.release();
-		const second = await supervisor.open("model.two");
+		const second = await supervisor.open(request("model.two"));
 		await second.release();
-		const third = await supervisor.open("model.three");
+		const third = await supervisor.open(request("model.three"));
 		await third.release();
 
-		const touchFirst = await supervisor.open("model.one");
+		const touchFirst = await supervisor.open(request("model.one"));
 		await touchFirst.release();
-		const fourth = await supervisor.open("model.four");
+		const fourth = await supervisor.open(request("model.four"));
 		await fourth.release();
 
 		expect(APK_APPPLUGIN_MODEL_RUNTIME_CACHE_LIMIT).toBe(3);
@@ -89,7 +95,7 @@ describe("APK AppPlugin session supervisor", () => {
 		const firstStart = deferred();
 		const secondStart = deferred();
 		const starts: string[] = [];
-		const supervisor = new ApkAppPluginSessionSupervisor(model => ({
+		const supervisor = new ApkAppPluginSessionSupervisor(({ model }) => ({
 			start: async () => {
 				starts.push(model);
 				await (model === "model.one" ? firstStart.promise : secondStart.promise);
@@ -97,8 +103,8 @@ describe("APK AppPlugin session supervisor", () => {
 			stop: async () => undefined,
 		}));
 
-		const first = supervisor.open("model.one");
-		const second = supervisor.open("model.two");
+		const first = supervisor.open(request("model.one"));
+		const second = supervisor.open(request("model.two"));
 		await vi.waitFor(() => expect(starts).toEqual(["model.one", "model.two"]));
 		firstStart.resolve();
 		secondStart.resolve();
@@ -116,9 +122,9 @@ describe("APK AppPlugin session supervisor", () => {
 			.mockResolvedValueOnce(recovered);
 		const supervisor = new ApkAppPluginSessionSupervisor(factory);
 
-		await expect(supervisor.open("model.retry")).rejects.toThrow("start failed");
+		await expect(supervisor.open(request("model.retry"))).rejects.toThrow("start failed");
 		expect(failed.stop).toHaveBeenCalledOnce();
-		const lease = await supervisor.open("model.retry");
+		const lease = await supervisor.open(request("model.retry"));
 		expect(lease.runtime).toBe(recovered);
 		await lease.release();
 		await supervisor.shutdown();
@@ -127,7 +133,7 @@ describe("APK AppPlugin session supervisor", () => {
 	it("rejects invalidation with active leases and stops an inactive cached runtime", async () => {
 		const created = runtime();
 		const supervisor = new ApkAppPluginSessionSupervisor(() => created);
-		const lease = await supervisor.open("model.invalidate");
+		const lease = await supervisor.open(request("model.invalidate"));
 
 		await expect(supervisor.invalidate("model.invalidate"))
 			.rejects.toThrow(/aktive Sitzungen/u);
@@ -145,7 +151,7 @@ describe("APK AppPlugin session supervisor", () => {
 		const created = runtime();
 		created.start.mockImplementationOnce(async () => startGate.promise);
 		const supervisor = new ApkAppPluginSessionSupervisor(() => created);
-		const opening = supervisor.open("model.shutdown");
+		const opening = supervisor.open(request("model.shutdown"));
 		await vi.waitFor(() => expect(created.start).toHaveBeenCalledOnce());
 
 		const shutdown = supervisor.shutdown();
@@ -154,7 +160,7 @@ describe("APK AppPlugin session supervisor", () => {
 		await shutdown;
 		await expect(opening).rejects.toThrow(/beendet/u);
 		expect(created.stop).toHaveBeenCalledOnce();
-		await expect(supervisor.open("model.new")).rejects.toThrow(/bereits beendet/u);
+		await expect(supervisor.open(request("model.new"))).rejects.toThrow(/bereits beendet/u);
 	});
 
 	it("attempts to stop every runtime and aggregates shutdown failures", async () => {
@@ -162,8 +168,8 @@ describe("APK AppPlugin session supervisor", () => {
 		runtimes[0].stop.mockRejectedValueOnce(new Error("first stop failed"));
 		let index = 0;
 		const supervisor = new ApkAppPluginSessionSupervisor(() => runtimes[index++]);
-		const first = await supervisor.open("model.one");
-		const second = await supervisor.open("model.two");
+		const first = await supervisor.open(request("model.one"));
+		const second = await supervisor.open(request("model.two"));
 		await first.release();
 		await second.release();
 
@@ -176,9 +182,75 @@ describe("APK AppPlugin session supervisor", () => {
 		const factory = vi.fn();
 		const supervisor = new ApkAppPluginSessionSupervisor(factory);
 
-		await expect(supervisor.open("../outside"))
+		await expect(supervisor.open(request("../outside")))
 			.rejects.toThrow(/kein sicherer Verzeichnisname/u);
 		expect(factory).not.toHaveBeenCalled();
+		await supervisor.shutdown();
+	});
+
+	it("rejects incomplete device identities before creating a runtime", async () => {
+		const factory = vi.fn();
+		const supervisor = new ApkAppPluginSessionSupervisor(factory);
+
+		await expect(supervisor.open(request("model.invalid", "")))
+			.rejects.toThrow(/Geräte-ID darf nicht leer sein/u);
+		await expect(supervisor.open(request("model.invalid", "device-1", Number.NaN)))
+			.rejects.toThrow(/Aktivierungszeit muss eine nichtnegative Zahl sein/u);
+		await expect(supervisor.open(request("model.invalid", "device-1", -1)))
+			.rejects.toThrow(/Aktivierungszeit muss eine nichtnegative Zahl sein/u);
+		expect(factory).not.toHaveBeenCalled();
+		await supervisor.shutdown();
+	});
+
+	it("recreates an inactive model host when the APK device identity changes", async () => {
+		const runtimes = [runtime(), runtime(), runtime()];
+		const factory = vi.fn()
+			.mockReturnValueOnce(runtimes[0])
+			.mockReturnValueOnce(runtimes[1])
+			.mockReturnValueOnce(runtimes[2]);
+		const supervisor = new ApkAppPluginSessionSupervisor(factory);
+
+		const first = await supervisor.open(request("roborock.vacuum.same", "vacuum-1", 100));
+		await first.release();
+		const second = await supervisor.open(request("roborock.vacuum.same", "vacuum-2", 100));
+
+		expect(runtimes[0].stop).toHaveBeenCalledOnce();
+		expect(second.runtime).toBe(runtimes[1]);
+		expect(factory).toHaveBeenNthCalledWith(2, expect.objectContaining({
+			activeTime: 100,
+			deviceId: "vacuum-2",
+			model: "roborock.vacuum.same",
+		}));
+		await second.release();
+
+		const reactivated = await supervisor.open(request(
+			"roborock.vacuum.same",
+			"vacuum-2",
+			101,
+		));
+		expect(runtimes[1].stop).toHaveBeenCalledOnce();
+		expect(reactivated.runtime).toBe(runtimes[2]);
+		await reactivated.release();
+		await supervisor.shutdown();
+	});
+
+	it("never exposes one starting model host to a concurrent device identity", async () => {
+		const created = runtime();
+		const startGate = deferred();
+		created.start.mockImplementationOnce(async () => startGate.promise);
+		const factory = vi.fn(() => created);
+		const supervisor = new ApkAppPluginSessionSupervisor(factory);
+		const firstOpening = supervisor.open(request("roborock.mower.same", "mower-1", 5));
+		await vi.waitFor(() => expect(created.start).toHaveBeenCalledOnce());
+
+		await expect(supervisor.open(request("roborock.mower.same", "mower-2", 5)))
+			.rejects.toThrow(/noch für Gerät mower-1 geöffnet/u);
+		expect(factory).toHaveBeenCalledOnce();
+		expect(created.stop).not.toHaveBeenCalled();
+
+		startGate.resolve();
+		const active = await firstOpening;
+		await active.release();
 		await supervisor.shutdown();
 	});
 });

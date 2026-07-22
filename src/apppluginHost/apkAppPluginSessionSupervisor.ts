@@ -1,8 +1,8 @@
 import { apkMainPluginPackageKey } from "./apkPluginPackageInstaller";
 
 /**
- * The APK's `AbstractC5374o0000O00` keeps production React hosts in an
- * access-ordered model cache and evicts entries above three. A visible
+ * The APK's `com.roborock.smart.react.o0000O00` keeps production React hosts
+ * in an access-ordered model cache and evicts entries above three. A visible
  * activity temporarily owns a root, while the model runtime may remain cached.
  */
 export const APK_APPPLUGIN_MODEL_RUNTIME_CACHE_LIMIT = 3;
@@ -19,22 +19,35 @@ export interface ApkAppPluginManagedModelRuntime {
 	stop(): Promise<void>;
 }
 
+export interface ApkAppPluginModelRuntimeRequest<TContext = unknown> {
+	readonly activeTime: number;
+	readonly context: TContext;
+	readonly deviceId: string;
+	readonly model: string;
+}
+
 export type ApkAppPluginManagedModelRuntimeFactory<
 	TRuntime extends ApkAppPluginManagedModelRuntime = ApkAppPluginManagedModelRuntime,
+	TContext = unknown,
 > = (
-	model: string,
+	request: Readonly<ApkAppPluginModelRuntimeRequest<TContext>>,
 ) => TRuntime | Promise<TRuntime>;
 
 export interface ApkAppPluginModelRuntimeStatus {
+	readonly activeTime: number;
 	readonly activeLeases: number;
+	readonly deviceId: string;
 	readonly model: string;
 	readonly state: ApkAppPluginManagedRuntimeState;
 }
 
-interface RuntimeSlot<TRuntime extends ApkAppPluginManagedModelRuntime> {
+interface RuntimeSlot<
+	TRuntime extends ApkAppPluginManagedModelRuntime,
+	TContext,
+> {
 	activeLeases: number;
 	lastAccess: number;
-	model: string;
+	request: Readonly<ApkAppPluginModelRuntimeRequest<TContext>>;
 	runtime?: TRuntime;
 	start: Promise<TRuntime>;
 	state: ApkAppPluginManagedRuntimeState;
@@ -60,9 +73,36 @@ function deferred<T>(): Deferred<T> {
 export interface ApkAppPluginModelRuntimeLease<
 	TRuntime extends ApkAppPluginManagedModelRuntime = ApkAppPluginManagedModelRuntime,
 > {
+	readonly activeTime: number;
+	readonly deviceId: string;
 	readonly model: string;
 	readonly runtime: TRuntime;
 	release(): Promise<void>;
+}
+
+function runtimeRequest<TContext>(
+	value: Readonly<ApkAppPluginModelRuntimeRequest<TContext>>,
+): Readonly<ApkAppPluginModelRuntimeRequest<TContext>> {
+	const model = apkMainPluginPackageKey(value.model);
+	if (typeof value.deviceId !== "string" || value.deviceId.trim().length === 0) {
+		throw new Error("Die AppPlugin-Geräte-ID darf nicht leer sein");
+	}
+	if (!Number.isFinite(value.activeTime) || value.activeTime < 0) {
+		throw new Error("Die AppPlugin-Aktivierungszeit muss eine nichtnegative Zahl sein");
+	}
+	return Object.freeze({
+		activeTime: value.activeTime,
+		context: value.context,
+		deviceId: value.deviceId,
+		model,
+	});
+}
+
+function sameDeviceContext<TContext>(
+	left: Readonly<ApkAppPluginModelRuntimeRequest<TContext>>,
+	right: Readonly<ApkAppPluginModelRuntimeRequest<TContext>>,
+): boolean {
+	return left.deviceId === right.deviceId && left.activeTime === right.activeTime;
 }
 
 /**
@@ -76,14 +116,16 @@ export interface ApkAppPluginModelRuntimeLease<
  */
 export class ApkAppPluginSessionSupervisor<
 	TRuntime extends ApkAppPluginManagedModelRuntime = ApkAppPluginManagedModelRuntime,
+	TContext = unknown,
 > {
-	readonly #slots = new Map<string, RuntimeSlot<TRuntime>>();
+	readonly #slots = new Map<string, RuntimeSlot<TRuntime, TContext>>();
+	readonly #modelOperations = new Map<string, Promise<void>>();
 	#accessRevision = 0;
 	#shutdownRequested = false;
 	#shutdown?: Promise<void>;
 
 	public constructor(
-		private readonly factory: ApkAppPluginManagedModelRuntimeFactory<TRuntime>,
+		private readonly factory: ApkAppPluginManagedModelRuntimeFactory<TRuntime, TContext>,
 		private readonly cacheLimit = APK_APPPLUGIN_MODEL_RUNTIME_CACHE_LIMIT,
 	) {
 		if (!Number.isSafeInteger(cacheLimit) || cacheLimit < 1) {
@@ -91,18 +133,36 @@ export class ApkAppPluginSessionSupervisor<
 		}
 	}
 
-	public async open(modelValue: string): Promise<ApkAppPluginModelRuntimeLease<TRuntime>> {
-		if (this.#shutdownRequested) {
-			throw new Error("Der AppPlugin-Sitzungssupervisor wurde bereits beendet");
-		}
-		const model = apkMainPluginPackageKey(modelValue);
-		let slot = this.#slots.get(model);
-		if (!slot) {
-			slot = this.#createSlot(model);
-			this.#slots.set(model, slot);
-		}
-		slot.lastAccess = ++this.#accessRevision;
-		slot.activeLeases += 1;
+	public async open(
+		requestValue: Readonly<ApkAppPluginModelRuntimeRequest<TContext>>,
+	): Promise<ApkAppPluginModelRuntimeLease<TRuntime>> {
+		const request = runtimeRequest(requestValue);
+		const slot = await this.#withModelOperation(request.model, async () => {
+			if (this.#shutdownRequested) {
+				throw new Error("Der AppPlugin-Sitzungssupervisor wurde bereits beendet");
+			}
+			let selected = this.#slots.get(request.model);
+			if (selected && !sameDeviceContext(selected.request, request)) {
+				if (selected.activeLeases > 0) {
+					throw new Error(
+						`AppPlugin-Modell ${request.model} ist noch für Gerät ${selected.request.deviceId} geöffnet`,
+					);
+				}
+				this.#slots.delete(request.model);
+				await this.#stopSlot(selected);
+				selected = undefined;
+				if (this.#shutdownRequested) {
+					throw new Error("Der AppPlugin-Sitzungssupervisor wurde während des Gerätewechsels beendet");
+				}
+			}
+			if (!selected) {
+				selected = this.#createSlot(request);
+				this.#slots.set(request.model, selected);
+			}
+			selected.lastAccess = ++this.#accessRevision;
+			selected.activeLeases += 1;
+			return selected;
+		});
 		try {
 			const runtime = await slot.start;
 			if (this.#shutdownRequested || slot.state !== "running") {
@@ -114,17 +174,19 @@ export class ApkAppPluginSessionSupervisor<
 			}
 			let released = false;
 			return {
-				model,
+				activeTime: slot.request.activeTime,
+				deviceId: slot.request.deviceId,
+				model: slot.request.model,
 				runtime,
 				release: async () => {
 					if (released) return;
 					released = true;
-					slot.activeLeases -= 1;
+					await this.#releaseReservation(slot);
 					await this.#evictOverflow();
 				},
 			};
 		} catch (error) {
-			slot.activeLeases -= 1;
+			await this.#releaseReservation(slot);
 			throw error;
 		}
 	}
@@ -133,8 +195,10 @@ export class ApkAppPluginSessionSupervisor<
 		return [...this.#slots.values()]
 			.sort((left, right) => right.lastAccess - left.lastAccess)
 			.map(slot => ({
+				activeTime: slot.request.activeTime,
 				activeLeases: slot.activeLeases,
-				model: slot.model,
+				deviceId: slot.request.deviceId,
+				model: slot.request.model,
 				state: slot.state,
 			}));
 	}
@@ -170,26 +234,28 @@ export class ApkAppPluginSessionSupervisor<
 		return this.#shutdown;
 	}
 
-	#createSlot(model: string): RuntimeSlot<TRuntime> {
+	#createSlot(
+		request: Readonly<ApkAppPluginModelRuntimeRequest<TContext>>,
+	): RuntimeSlot<TRuntime, TContext> {
 		const started = deferred<TRuntime>();
-		const slot: RuntimeSlot<TRuntime> = {
+		const slot: RuntimeSlot<TRuntime, TContext> = {
 			activeLeases: 0,
 			lastAccess: ++this.#accessRevision,
-			model,
+			request,
 			start: started.promise,
 			state: "starting",
 		};
 		void (async () => {
 			let runtime: TRuntime | undefined;
 			try {
-				runtime = await this.factory(model);
+				runtime = await this.factory(request);
 				slot.runtime = runtime;
 				await runtime.start();
 				slot.state = "running";
 				started.resolve(runtime);
 			} catch (error) {
 				slot.state = "failed";
-				if (this.#slots.get(model) === slot) this.#slots.delete(model);
+				if (this.#slots.get(request.model) === slot) this.#slots.delete(request.model);
 				if (runtime && !slot.stop) {
 					try {
 						await this.#stopRuntime(slot);
@@ -204,13 +270,13 @@ export class ApkAppPluginSessionSupervisor<
 	}
 
 	async #evictOverflow(): Promise<void> {
-		const evictions: RuntimeSlot<TRuntime>[] = [];
+		const evictions: RuntimeSlot<TRuntime, TContext>[] = [];
 		while (this.#slots.size > this.cacheLimit) {
 			const candidate = [...this.#slots.values()]
 				.filter(slot => slot.activeLeases === 0 && slot.state === "running")
 				.sort((left, right) => left.lastAccess - right.lastAccess)[0];
 			if (!candidate) break;
-			this.#slots.delete(candidate.model);
+			this.#slots.delete(candidate.request.model);
 			evictions.push(candidate);
 		}
 		const results = await Promise.allSettled(evictions.map(slot => this.#stopSlot(slot)));
@@ -220,7 +286,7 @@ export class ApkAppPluginSessionSupervisor<
 		if (failure) throw failure.reason;
 	}
 
-	async #stopSlot(slot: RuntimeSlot<TRuntime>): Promise<void> {
+	async #stopSlot(slot: RuntimeSlot<TRuntime, TContext>): Promise<void> {
 		try {
 			await slot.start;
 		} catch {
@@ -229,7 +295,7 @@ export class ApkAppPluginSessionSupervisor<
 		await this.#stopRuntime(slot);
 	}
 
-	#stopRuntime(slot: RuntimeSlot<TRuntime>): Promise<void> {
+	#stopRuntime(slot: RuntimeSlot<TRuntime, TContext>): Promise<void> {
 		if (slot.stop) return slot.stop;
 		if (!slot.runtime) return Promise.resolve();
 		slot.state = "stopping";
@@ -243,5 +309,25 @@ export class ApkAppPluginSessionSupervisor<
 			},
 		);
 		return slot.stop;
+	}
+
+	#releaseReservation(slot: RuntimeSlot<TRuntime, TContext>): Promise<void> {
+		return this.#withModelOperation(slot.request.model, async () => {
+			if (slot.activeLeases > 0) slot.activeLeases -= 1;
+		});
+	}
+
+	async #withModelOperation<T>(model: string, operation: () => Promise<T>): Promise<T> {
+		const previous = this.#modelOperations.get(model) ?? Promise.resolve();
+		const result = previous.catch(() => undefined).then(operation);
+		const tail = result.then(() => undefined, () => undefined);
+		this.#modelOperations.set(model, tail);
+		try {
+			return await result;
+		} finally {
+			if (this.#modelOperations.get(model) === tail) {
+				this.#modelOperations.delete(model);
+			}
+		}
 	}
 }

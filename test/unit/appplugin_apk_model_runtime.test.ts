@@ -141,14 +141,19 @@ describe("APK AppPlugin model runtime", () => {
 
 	it("exposes the concrete runtime type through the model supervisor factory", async () => {
 		const disposedModels: string[] = [];
-		const factory = createApkAppPluginModelRuntimeFactory(async model => ({
+		const factory = createApkAppPluginModelRuntimeFactory(async request => ({
 			contract,
 			textLayoutBackend,
 			createSession: uiManager => fakeSession(uiManager),
-			dispose: () => { disposedModels.push(model); },
+			dispose: () => { disposedModels.push(request.model); },
 		}));
 		const supervisor = new ApkAppPluginSessionSupervisor(factory);
-		const model = await supervisor.open("roborock.vacuum.generic");
+		const model = await supervisor.open({
+			activeTime: 42,
+			context: { targetDuid: "generic-1" },
+			deviceId: "generic-1",
+			model: "roborock.vacuum.generic",
+		});
 		const root = await model.runtime.openRoot(rootOptions);
 
 		expect(root.rootTag).toBe(1);

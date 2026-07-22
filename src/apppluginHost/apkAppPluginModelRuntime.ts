@@ -1,5 +1,8 @@
 import type { ApkAndroidTextLayoutBackend } from "./apkAndroidTextMeasureRuntime";
-import type { ApkAppPluginManagedModelRuntimeFactory } from "./apkAppPluginSessionSupervisor";
+import type {
+	ApkAppPluginManagedModelRuntimeFactory,
+	ApkAppPluginModelRuntimeRequest,
+} from "./apkAppPluginSessionSupervisor";
 import type { ApkAppPluginHostContract } from "./apkContract";
 import {
 	ApkPointerInputBridge,
@@ -271,13 +274,13 @@ export class ApkAppPluginModelRuntime {
 	}
 }
 
-export type ApkAppPluginModelRuntimeCompositionFactory = (
-	model: string,
+export type ApkAppPluginModelRuntimeCompositionFactory<TContext = unknown> = (
+	request: Readonly<ApkAppPluginModelRuntimeRequest<TContext>>,
 ) => ApkAppPluginModelRuntimeComposition | Promise<ApkAppPluginModelRuntimeComposition>;
 
 /** Creates the concrete factory consumed by ApkAppPluginSessionSupervisor. */
-export function createApkAppPluginModelRuntimeFactory(
-	compose: ApkAppPluginModelRuntimeCompositionFactory,
-): ApkAppPluginManagedModelRuntimeFactory<ApkAppPluginModelRuntime> {
-	return async model => new ApkAppPluginModelRuntime(await compose(model));
+export function createApkAppPluginModelRuntimeFactory<TContext = unknown>(
+	compose: ApkAppPluginModelRuntimeCompositionFactory<TContext>,
+): ApkAppPluginManagedModelRuntimeFactory<ApkAppPluginModelRuntime, TContext> {
+	return async request => new ApkAppPluginModelRuntime(await compose(request));
 }

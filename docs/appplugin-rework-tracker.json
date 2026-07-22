@@ -3,8 +3,8 @@
 	"project": "ioBroker Roborock AppPlugin-first Rework",
 	"lastReviewed": "2026-07-22",
 	"currentPhase": "0C",
-	"currentFocus": ["P0B-ACCOUNT-SESSION", "P0B-REACT-NATIVE-BRIDGE", "P0B-APK-HOST-SERVICES", "P0C-Q7-FULL-SCENE", "P0C-CROSS-FAMILY-MATRIX"],
-	"nextUp": ["P0B-DEVICE-BOOTSTRAP", "P0C-ANDROID-DIFFERENTIAL", "P0C-GOLDEN-HARNESS", "P0C-RESILIENCE"],
+	"currentFocus": ["P0B-DEVICE-BOOTSTRAP", "P0B-REACT-NATIVE-BRIDGE", "P0B-APK-HOST-SERVICES", "P0C-Q7-FULL-SCENE", "P0C-CROSS-FAMILY-MATRIX"],
+	"nextUp": ["P0C-ANDROID-DIFFERENTIAL", "P0C-GOLDEN-HARNESS", "P0C-RESILIENCE"],
 	"phases": [
 		{
 			"id": "0A",
@@ -279,7 +279,7 @@
 				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/fbreact/NativeRRAuthTurboModuleSpec.java",
 				"docs/APK_APPPLUGIN_EXECUTION_MODEL.md"
 			],
-			"nextAction": "Der vorhandene Passwort-/E-Mail-Code-Login bleibt die einzige Zugangsdatenquelle. Nach Rriot/Hawk-Aufbau, HomeData und V5-Produkten erzeugt der Adapter nun einen unveränderlichen, geräteklassenneutralen Kontosnapshot mit rruid, Land, Region, Produktrollen und authentifizierten User-/IoT-Ports; Cloud-Token und Hawk-Schlüssel gelangen nicht in Bundle oder Sitzungsdeskriptor. Staubsauger- und Mäherdeskriptoren werden aus derselben Grenze abgeleitet und ein fehlendes V5-Zielprodukt stoppt den Start. Als Nächstes Kontoinvalidierung und erneute Anmeldung als Generationswechsel an den Sitzungssupervisor koppeln, die bestehende vollständige UserData-Persistenz auf ioBroker-konformen Geheimnisschutz und Migration prüfen und danach die APK-genauen RRAuthTurboModule-/RRPluginStateSyncTurboModule-Ereignisse für optionale Login- und Onboarding-Oberflächen implementieren."
+			"nextAction": "Der vorhandene Node.js-Passwort-/E-Mail-Code-Login bleibt die einzige Zugangsdatenquelle und wird in der aktuellen Phase weder als zweite AppPlugin-Anmeldung noch als Web-Login nachgebaut. Nach Rriot/Hawk-Aufbau, HomeData und V5-Produkten erzeugt der Adapter einen unveränderlichen, geräteklassenneutralen Kontosnapshot; Cloud-Token und Hawk-Schlüssel gelangen nicht in Bundle oder Sitzungsdeskriptor. Ein APK-artiges Login-/Onboarding-UI über RRAuthTurboModule und RRPluginStateSyncTurboModule ist ausdrücklich auf später verschoben. Die bestehende vollständige UserData-Persistenz bleibt separat auf ioBroker-konformen Geheimnisschutz und Migration zu prüfen; ein späterer echter Kontowechsel muss den Sitzungssupervisor vollständig neu aufbauen."
 		},
 		{
 			"id": "P0B-DEVICE-BOOTSTRAP",
@@ -296,6 +296,8 @@
 				"scripts/lib/appPluginSessionDescriptorTransport.ts",
 				"scripts/appplugin_hermes_runtime_probe.ts",
 				"src/apppluginHost/apkAppPluginSessionDescriptor.ts",
+				"src/apppluginHost/apkAppPluginSessionSupervisor.ts",
+				"src/apppluginHost/apkAppPluginModelRuntime.ts",
 				"src/apppluginHost/apkHomeDataContext.ts",
 				"src/apppluginHost/apkHomeDataLookup.ts",
 				"src/apppluginHost/apkMainPluginEntry.ts",
@@ -323,11 +325,16 @@
 				"test/unit/appplugin_package_message_handling.test.ts",
 				"test/unit/appplugin_apk_rriot_session_descriptor.test.ts",
 				"test/unit/appplugin_apk_session_descriptor.test.ts",
+				"test/unit/appplugin_apk_session_supervisor.test.ts",
+				"test/unit/appplugin_apk_model_runtime.test.ts",
 				"test/unit/appplugin_desktop_launcher.test.ts",
 				"test/unit/appplugin_desktop_fixture_sessions.test.ts",
-				"test/unit/appplugin_session_descriptor_transport.test.ts"
+				"test/unit/appplugin_session_descriptor_transport.test.ts",
+				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/o0000O00.java",
+				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/OooO.java",
+				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/PluginSDKModule.java"
 			],
-			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Ein geräteklassenneutraler Rriot-Builder leitet daraus die statischen RRPluginSDK-Werte für die Ziel-DUID ab. Supervisor und Laufzeit akzeptieren den validierten Deskriptor jeweils über einen begrenzten Einmal-Pipeeingang. Der generische Akquisitionspfad fragt die APK-Parameter apilevel 10042, type 2 und numerische Produkt-ID über die angemeldete Metadatensitzung ab, prüft Plugin- und API-Level und lädt die Paket-URL separat ohne Cloud-Token mit begrenztem Range-Resume. Der Paketinstaller prüft beide APK-RSA-Signaturformen, entpackt über _tmp und _READY, aktiviert mit modellbezogenem Rollback und persistiert die sichtbare Version atomar erst danach; Q7, Q10, RockMow und Saros bestehen den lokalen Herstellerartefakt-Nachweis. Ein netzwerk-inaktiver Composition Root wird nach HomeData im offiziellen ioBroker-Instanzdatenverzeichnis vorbereitet, stellt den Versionsstand nach Neustart wieder her und wird beim unload abgebrochen. Die explizite Geräteoperation löst DUID, Modell und numerische V5-Produkt-ID generisch auf; der normale APK-Geräteklick besitzt kein leastLevel, während spezielle Einstiege ausschließlich den exakt benannten requirePlugin-ProductTag verwenden. Bewusste Messagebox-Aktionen lesen den lokalen Status oder beschaffen erst mit confirm=true; ihre Antworten enthalten keine HomeData, URLs oder Pfade. Modellgleiche Beschaffungen sind vor allen gemeinsamen Paketpfaden serialisiert, und unsichere Modellnamen scheitern vor jedem Netzwerkzugriff. Als Nächstes die bestätigte Operation mit einer echten angemeldeten Cloud-Antwort belegen und den Hermes-Supervisor aus dem Adapter-Lebenszyklus starten und stoppen. RockMow bleibt bis zu echter Mäher-HomeData und vollständiger Bedarfsdeckung eine Bootstrap-Gegenprobe."
+			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Ein geräteklassenneutraler Rriot-Builder leitet daraus die statischen RRPluginSDK-Werte für die Ziel-DUID ab. Paketakquisition und Installation bleiben signiert, atomar und modellneutral. Der APK-Hostcache ist nachweislich nach device.model organisiert, übergibt beim Wiederverwenden aber das konkrete Gerät an den Host und erstellt den React-Kontext bei geänderter DUID oder activeTime neu. Der TypeScript-Supervisor erzwingt jetzt dieselbe Geräteidentität: Inaktive Hosts werden bei einem Gerätewechsel vollständig neu erzeugt; ein paralleler Wechsel bei aktiver Root-Lease scheitert geschlossen, damit niemals Native-Aufrufe an die falsche DUID gelangen. Das gilt identisch für Staubsauger, Mäher, Waschmaschinen und weitere AppPlugin-Kategorien. Als Nächstes die bereits extrahierten authentifizierten Repository-Ports und Native-Module in eine produktive Modell-Runtime-Factory verschieben und diesen Hermes-Supervisor aus dem Adapter-Lebenszyklus starten und stoppen. RockMow bleibt bis zu echter Mäher-HomeData und vollständiger Bedarfsdeckung eine Bootstrap-Gegenprobe."
 		},
 		{
 			"id": "P0B-APK-HOST-SERVICES",

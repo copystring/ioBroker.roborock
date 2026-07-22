@@ -88,7 +88,13 @@ Native. Beim Ablösen eines klassischen React-Roots ruft React Native
 werden getrennt davon in einer zugriffsgeordneten Map nach Modell
 wiederverwendet; nach dem Einfügen eines vierten Modells wird der älteste Host
 freigegeben. Der Cache-Schlüssel ist nachweislich `device.model`, während der
-RPC-Manager nach DUID referenzgezählt wird.
+RPC-Manager nach DUID referenzgezählt wird. Der Cacheeintrag besteht allerdings
+aus Gerät und Host: Beim erneuten Öffnen desselben Modells übergibt die APK das
+neue Gerät an den vorhandenen Host. Unterscheiden sich DUID oder `activeTime`,
+markiert dieser den React-Kontext zur Neuerstellung. `PluginSDKModule` übernimmt
+das Gerät anschließend beim Initialisieren des neuen React-Kontexts; eine bloße
+Wiederverwendung des alten statischen Gerätekontexts wäre daher nicht
+APK-konform.
 
 `ApkAppPluginSessionSupervisor` bildet diesen
 gerätekategorienneutralen Besitz- und Cachevertrag ab: gleichzeitige Öffnungen
@@ -96,7 +102,15 @@ desselben Modells teilen einen Start, sichtbare Nutzer erhalten explizite
 Leases, nur inaktive Hosts dürfen per LRU verdrängt werden und Adapter-Shutdown
 wartet einen bereits laufenden, begrenzten Start ab, bevor jede Runtime genau
 einmal gestoppt wird. Fehlgeschlagene Starts werden aus dem Cache entfernt und
-können sauber neu versucht werden. `ApkHermesHostSession` kann nun mehrere
+können sauber neu versucht werden. Eine Öffnung enthält jetzt zwingend Modell,
+DUID und `activeTime`: Nur dieselbe Geräteidentität teilt einen Host. Wechselt
+die Identität bei inaktivem Host, wird die alte Runtime vollständig gestoppt
+und mit dem neuen, opaken Gerätekontext neu erzeugt. Solange noch eine Root-Lease
+des alten Geräts aktiv ist, lehnt der Webhost den parallelen Wechsel geschlossen
+ab, statt Native-Aufrufe an die falsche DUID zu leiten. Diese zusätzliche
+Parallelitätssicherung ist für den Webbetrieb nötig; die untersuchte Android-
+Navigation besitzt normalerweise nur die jeweils sichtbare Geräte-Activity.
+`ApkHermesHostSession` kann nun mehrere
 sichtbare Root-Tags innerhalb derselben Modell-Runtime gleichzeitig starten.
 Start und Unmount werden pro Root bestätigt; ein Tag bleibt bis zur Bestätigung
 von `unmountApplicationComponentAtRootTag` belegt. Bootstrap und nativer
@@ -141,9 +155,10 @@ Probe-Skript einschließlich ihrer produktiven Adapterports.
 Zusätzliche Belege:
 
 - `com/roborock/smart/react/RNActivity.java:124-261`
-- `com/roborock/smart/react/AbstractC5374o0000O00.java:20-112`
-- `com/roborock/smart/react/RunnableC5116OooO.java:91-144`
-- `com/roborock/smart/sdk/C6213OooO0OO.java:133-147`
+- `com/roborock/smart/react/o0000O00.java:17-109`
+- `com/roborock/smart/react/OooO.java:144-185`
+- `com/roborock/smart/react/OooO0o.java:15-21`
+- `com/roborock/smart/react/PluginSDKModule.java:4607-4633`
 - `com/facebook/react/C2850o00oO0o.java:231-237,276-281,444-455`
 - `com/facebook/react/uimanager/UIManagerModule.java:122-151`
 - `com/facebook/react/uimanager/AbstractC2971o00Oo0.java:112-116`
