@@ -745,6 +745,7 @@ const char *probeSource = R"JS(
     turboModuleProxyConfigured: typeof global.__turboModuleProxy === "function",
     ipcInvokeConfigured: typeof global.__apkNativeInvoke === "function",
     ipcQueueConfigured: typeof global.__apkNativeFlushQueue === "function",
+    smokeMarker: global.__hermesHostSmokeMarker || null,
     appKeys: [],
     batchedBridgePresent: !!global.__fbBatchedBridge
   };

@@ -30,12 +30,21 @@ set(HERMES_ENABLE_DEBUGGER OFF CACHE BOOL "" FORCE)
 set(HERMES_MEMORY_INSTRUMENTATION OFF CACHE BOOL "" FORCE)
 set(HERMES_ENABLE_INTL OFF CACHE BOOL "" FORCE)
 set(HERMES_UNICODE_LITE ON CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(HERMES_BUILD_SHARED_JSI OFF CACHE BOOL "" FORCE)
 set(HERMES_BUILD_APPLE_FRAMEWORK OFF CACHE BOOL "" FORCE)
 
 # Hermes 0.13 uses _WINDOWS rather than the compiler-provided _WIN32 guard.
 if(MINGW)
 	add_compile_definitions(_WINDOWS _USE_MATH_DEFINES)
+	# Hermes' Windows fallback names Microsoft's split icuuc/icuin import
+	# libraries. LLVM-MinGW intentionally exposes the same Windows ICU API as
+	# one combined libicu.a, so describe that toolchain contract before adding
+	# the pristine Hermes source tree. This keeps the pinned checkout untouched.
+	set(ICU_FOUND 1)
+	set(ICU_INCLUDE_DIRS "${HERMES_SOURCE_DIR}/external/icu_decls")
+	set(ICU_LIBRARIES icu)
+	add_compile_definitions(USE_WIN10_ICU)
 endif()
 
 add_subdirectory("${HERMES_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/hermes" EXCLUDE_FROM_ALL)

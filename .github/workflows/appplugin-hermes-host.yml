@@ -1,0 +1,309 @@
+name: AppPlugin Hermes host matrix
+
+on:
+  workflow_dispatch: {}
+  pull_request:
+    paths:
+      - ".github/workflows/appplugin-hermes-host.yml"
+      - "package.json"
+      - "scripts/build_hermes_appplugin_host.js"
+      - "scripts/verify_hermes_host_matrix.js"
+      - "src/apppluginHost/generated/hermes-host-artifact-contract.json"
+      - "tools/hermes-appplugin-host/**"
+  push:
+    branches:
+      - "main"
+    paths:
+      - ".github/workflows/appplugin-hermes-host.yml"
+      - "package.json"
+      - "scripts/build_hermes_appplugin_host.js"
+      - "scripts/verify_hermes_host_matrix.js"
+      - "src/apppluginHost/generated/hermes-host-artifact-contract.json"
+      - "tools/hermes-appplugin-host/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: appplugin-hermes-host-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HERMES_HOST_JOBS: "2"
+
+jobs:
+  linux:
+    name: Build ${{ matrix.target }}
+    timeout-minutes: 90
+    runs-on: ${{ matrix.runner }}
+    container: ubuntu:22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x64
+            runner: ubuntu-24.04
+            cmake_asset: cmake-3.31.12-linux-x86_64.tar.gz
+            cmake_sha256: 0dc2e9a6860f06bf10bd8fadc03e35d9eeb4df46e33763a7e480e987758f385c
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+            cmake_asset: cmake-3.31.12-linux-aarch64.tar.gz
+            cmake_sha256: 83f8fd91d2038a56556e1400390fcfe42f79602940c494f6c6f1cdae7f9e7f40
+    steps:
+      - name: Install deterministic build prerequisites
+        shell: bash
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
+            ca-certificates clang curl git make python3
+
+      - name: Install pinned CMake
+        shell: bash
+        run: |
+          archive="$RUNNER_TEMP/${{ matrix.cmake_asset }}"
+          destination="$RUNNER_TEMP/cmake-3.31.12"
+          curl --location --fail --retry 3 \
+            --output "$archive" \
+            "https://github.com/Kitware/CMake/releases/download/v3.31.12/${{ matrix.cmake_asset }}"
+          echo "${{ matrix.cmake_sha256 }}  $archive" | sha256sum --check --strict
+          mkdir --parents "$destination"
+          tar --extract --gzip --file "$archive" --directory "$destination"
+          cmake_executable="$(find "$destination" -type f -path '*/bin/cmake' -print -quit)"
+          test -n "$cmake_executable"
+          dirname "$cmake_executable" >> "$GITHUB_PATH"
+
+      - name: Check out adapter
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "22.x"
+
+      - name: Assert native runner target
+        shell: bash
+        run: node -e 'const actual=`${process.platform}-${process.arch}`; if (actual !== process.argv[1]) throw new Error(`expected ${process.argv[1]}, got ${actual}`)' "${{ matrix.target }}"
+
+      - name: Build and smoke-test pinned Hermes host
+        shell: bash
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          node scripts/build_hermes_appplugin_host.js \
+            --fetch \
+            --smoke \
+            --jobs "$HERMES_HOST_JOBS" \
+            --source "$RUNNER_TEMP/hermes-${{ matrix.target }}" \
+            --build-dir "$RUNNER_TEMP/hermes-build-${{ matrix.target }}" \
+            --stage-dir "$GITHUB_WORKSPACE/artifacts/hermes-host"
+
+      - name: Upload verified host
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: hermes-host-${{ matrix.target }}
+          path: artifacts/hermes-host
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  windows:
+    name: Build ${{ matrix.target }}
+    timeout-minutes: 90
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: win32-x64
+            runner: windows-2025
+            cmake_asset: cmake-3.31.12-windows-x86_64.zip
+            cmake_sha256: 0c4baa40f28b3f8225eb3fdf6946c987b4fe901403b4eaf2fbbd9378100aaa0c
+            toolchain_asset: llvm-mingw-20260407-ucrt-x86_64.zip
+            toolchain_sha256: 3fc6e54b5f1102089d4d37095ba49f7b24e22290da78178b514a86b3126c6d9e
+          - target: win32-arm64
+            runner: windows-11-arm
+            cmake_asset: cmake-3.31.12-windows-arm64.zip
+            cmake_sha256: e4160c1842dea858ad376ff2ec17587104515b51714eca5963b8bdd798105553
+            toolchain_asset: llvm-mingw-20260407-ucrt-aarch64.zip
+            toolchain_sha256: 0d2839944f1e0538502cb2d2dbf89e344c6a0af2a444a62bb066ca0cfb5ea01c
+    steps:
+      - name: Check out adapter
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "22.x"
+
+      - name: Install pinned CMake
+        shell: pwsh
+        run: |
+          $asset = "${{ matrix.cmake_asset }}"
+          $archive = Join-Path $env:RUNNER_TEMP $asset
+          $destination = Join-Path $env:RUNNER_TEMP "cmake-3.31.12"
+          $url = "https://github.com/Kitware/CMake/releases/download/v3.31.12/$asset"
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected = "${{ matrix.cmake_sha256 }}"
+          if ($actual -ne $expected) {
+            throw "CMake SHA-256 mismatch: expected $expected, got $actual"
+          }
+          Expand-Archive -LiteralPath $archive -DestinationPath $destination
+          $cmake = Get-ChildItem -LiteralPath $destination -Recurse -Filter "cmake.exe" -File |
+            Where-Object { $_.Directory.Name -eq "bin" } |
+            Select-Object -First 1
+          if ($null -eq $cmake) {
+            throw "cmake.exe is missing from $asset"
+          }
+          $cmake.Directory.FullName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install pinned native LLVM-MinGW toolchain
+        shell: pwsh
+        run: |
+          $asset = "${{ matrix.toolchain_asset }}"
+          $archive = Join-Path $env:RUNNER_TEMP $asset
+          $destination = Join-Path $env:RUNNER_TEMP "llvm-mingw"
+          $url = "https://github.com/mstorsjo/llvm-mingw/releases/download/20260407/$asset"
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected = "${{ matrix.toolchain_sha256 }}"
+          if ($actual -ne $expected) {
+            throw "LLVM-MinGW SHA-256 mismatch: expected $expected, got $actual"
+          }
+          Expand-Archive -LiteralPath $archive -DestinationPath $destination
+          $compiler = Get-ChildItem -LiteralPath $destination -Recurse -Filter "clang++.exe" -File |
+            Where-Object { $_.Directory.Name -eq "bin" } |
+            Select-Object -First 1
+          if ($null -eq $compiler) {
+            throw "clang++.exe is missing from $asset"
+          }
+          $compiler.Directory.FullName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Assert native runner target
+        shell: pwsh
+        run: node -e 'const actual=`${process.platform}-${process.arch}`; if (actual !== process.argv[1]) throw new Error(`expected ${process.argv[1]}, got ${actual}`)' "${{ matrix.target }}"
+
+      - name: Build and smoke-test pinned Hermes host
+        shell: pwsh
+        env:
+          CC: clang
+          CXX: clang++
+          CMAKE_GENERATOR: MinGW Makefiles
+        run: |
+          node scripts/build_hermes_appplugin_host.js `
+            --fetch `
+            --smoke `
+            --jobs 1 `
+            --source "$env:RUNNER_TEMP\hermes-${{ matrix.target }}" `
+            --build-dir "$env:RUNNER_TEMP\hermes-build-${{ matrix.target }}" `
+            --stage-dir "$env:GITHUB_WORKSPACE\artifacts\hermes-host"
+
+      - name: Upload verified host
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: hermes-host-${{ matrix.target }}
+          path: artifacts/hermes-host
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  macos:
+    name: Build ${{ matrix.target }}
+    timeout-minutes: 90
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: darwin-x64
+            runner: macos-15-intel
+            cmake_asset: cmake-3.31.12-macos-universal.tar.gz
+            cmake_sha256: 799af7fd545db9bf1b9cfe72f8095880e727a2d4e0df0e3dffc3bc7b95c2d3b0
+          - target: darwin-arm64
+            runner: macos-15
+            cmake_asset: cmake-3.31.12-macos-universal.tar.gz
+            cmake_sha256: 799af7fd545db9bf1b9cfe72f8095880e727a2d4e0df0e3dffc3bc7b95c2d3b0
+    steps:
+      - name: Check out adapter
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "22.x"
+
+      - name: Install pinned CMake
+        shell: bash
+        run: |
+          archive="$RUNNER_TEMP/${{ matrix.cmake_asset }}"
+          destination="$RUNNER_TEMP/cmake-3.31.12"
+          curl --location --fail --retry 3 \
+            --output "$archive" \
+            "https://github.com/Kitware/CMake/releases/download/v3.31.12/${{ matrix.cmake_asset }}"
+          echo "${{ matrix.cmake_sha256 }}  $archive" | shasum --algorithm 256 --check
+          mkdir -p "$destination"
+          tar --extract --gzip --file "$archive" --directory "$destination"
+          cmake_executable="$(find "$destination" -type f -path '*/bin/cmake' -print -quit)"
+          test -n "$cmake_executable"
+          dirname "$cmake_executable" >> "$GITHUB_PATH"
+
+      - name: Assert native runner target
+        shell: bash
+        run: node -e 'const actual=`${process.platform}-${process.arch}`; if (actual !== process.argv[1]) throw new Error(`expected ${process.argv[1]}, got ${actual}`)' "${{ matrix.target }}"
+
+      - name: Build and smoke-test pinned Hermes host
+        shell: bash
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          node scripts/build_hermes_appplugin_host.js \
+            --fetch \
+            --smoke \
+            --jobs "$HERMES_HOST_JOBS" \
+            --source "$RUNNER_TEMP/hermes-${{ matrix.target }}" \
+            --build-dir "$RUNNER_TEMP/hermes-build-${{ matrix.target }}" \
+            --stage-dir "$GITHUB_WORKSPACE/artifacts/hermes-host"
+
+      - name: Upload verified host
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: hermes-host-${{ matrix.target }}
+          path: artifacts/hermes-host
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  verify-matrix:
+    name: Verify and assemble package matrix
+    needs: [linux, windows, macos]
+    timeout-minutes: 15
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out adapter
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "22.x"
+
+      - name: Download complete native matrix
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          pattern: hermes-host-*
+          path: src/apppluginHost/native
+          merge-multiple: true
+
+      - name: Verify manifests, binary integrity, native startup and npm contents
+        run: node scripts/verify_hermes_host_matrix.js --execute-current --verify-package
+
+      - name: Upload complete verified matrix
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: hermes-host-matrix
+          path: src/apppluginHost/native
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7

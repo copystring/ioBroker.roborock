@@ -19,6 +19,13 @@ interface ApkHermesHostArtifactContract {
 	readonly hermesCommit: string;
 	readonly hbcVersion: number;
 	readonly protocolVersion: number;
+	readonly build: {
+		readonly cmakeVersion: string;
+		readonly windows: {
+			readonly llvmMingwRelease: string;
+			readonly clangVersion: string;
+		};
+	};
 	readonly supportedTargets: readonly string[];
 }
 

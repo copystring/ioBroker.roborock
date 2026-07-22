@@ -22,6 +22,9 @@ const HERMES_COMMIT = artifactContract.hermesCommit;
 function parseArgs(args) {
 	const options = {
 		configuration: "Release",
+		jobs: process.env.CMAKE_BUILD_PARALLEL_LEVEL
+			? Number(process.env.CMAKE_BUILD_PARALLEL_LEVEL)
+			: process.platform === "win32" ? 1 : 2,
 		sourceDir: process.env.HERMES_SOURCE_DIR
 			? path.resolve(process.env.HERMES_SOURCE_DIR)
 			: path.join(hostSourceDir, ".cache", `hermes-${HERMES_COMMIT.slice(0, 12)}`),
@@ -34,10 +37,14 @@ function parseArgs(args) {
 			options.buildDir = path.resolve(args[++index]);
 		} else if (args[index] === "--configuration" && args[index + 1]) {
 			options.configuration = args[++index];
+		} else if (args[index] === "--jobs" && args[index + 1]) {
+			options.jobs = Number(args[++index]);
 		} else if (args[index] === "--stage-dir" && args[index + 1]) {
 			options.stageDir = path.resolve(args[++index]);
 		} else if (args[index] === "--fetch") {
 			options.fetch = true;
+		} else if (args[index] === "--smoke") {
+			options.smoke = true;
 		} else if (args[index] === "--check") {
 			options.check = true;
 		} else if (args[index] === "--help" || args[index] === "-h") {
@@ -45,6 +52,12 @@ function parseArgs(args) {
 		} else {
 			throw new Error(`Unknown argument: ${args[index]}`);
 		}
+	}
+	if (!Number.isSafeInteger(options.jobs) || options.jobs < 1 || options.jobs > 64) {
+		throw new Error(`--jobs must be an integer between 1 and 64, received ${String(options.jobs)}`);
+	}
+	if (options.stageDir && !options.smoke) {
+		throw new Error("--stage-dir requires --smoke so unverified native artifacts cannot be packaged");
 	}
 	return options;
 }
@@ -70,6 +83,43 @@ function commandVersion(command) {
 	});
 	if (execution.error || execution.status !== 0) return undefined;
 	return (execution.stdout || execution.stderr || "").split(/\r?\n/u)[0].trim();
+}
+
+function cmakeCacheValue(buildDir, name) {
+	const cachePath = path.join(buildDir, "CMakeCache.txt");
+	if (!fs.existsSync(cachePath)) return undefined;
+	const prefix = `${name}:`;
+	const entry = fs.readFileSync(cachePath, "utf8")
+		.split(/\r?\n/u)
+		.find((line) => line.startsWith(prefix));
+	if (!entry) return undefined;
+	const separator = entry.indexOf("=");
+	return separator < 0 ? undefined : entry.slice(separator + 1);
+}
+
+function prepareMingwInternalBytecodeSource(sourceDir, buildDir) {
+	if (process.platform !== "win32") return undefined;
+	const generator = cmakeCacheValue(buildDir, "CMAKE_GENERATOR");
+	if (generator !== "MinGW Makefiles") return undefined;
+
+	const internalBytecodeDirectory = path.join(sourceDir, "lib", "InternalBytecode");
+	const sourceNames = [
+		"00-header.js",
+		"01-Promise.js",
+		"02-AsyncFn.js",
+		"03-ES6Class.js",
+		"99-footer.js",
+	];
+	const sourcePaths = sourceNames.map((name) => path.join(internalBytecodeDirectory, name));
+	for (const sourcePath of sourcePaths) {
+		if (!fs.statSync(sourcePath).isFile()) {
+			throw new Error(`Pinned Hermes internal bytecode input is missing: ${sourcePath}`);
+		}
+	}
+	const outputPath = path.join(buildDir, "hermes", "lib", "InternalBytecode", "InternalBytecode.js");
+	fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+	fs.writeFileSync(outputPath, Buffer.concat(sourcePaths.map((sourcePath) => fs.readFileSync(sourcePath))));
+	return outputPath;
 }
 
 function sourceRepository(sourceDir) {
@@ -113,6 +163,86 @@ function hostBinaryPath(buildDir) {
 	return path.join(buildDir, "appplugin-host", expectedName);
 }
 
+function hermesCompilerPath(buildDir, configuration) {
+	if (process.env.HERMESC_EXECUTABLE) return path.resolve(process.env.HERMESC_EXECUTABLE);
+	const executable = process.platform === "win32" ? "hermesc.exe" : "hermesc";
+	const candidates = [
+		path.join(buildDir, "bin", executable),
+		path.join(buildDir, "bin", configuration, executable),
+	];
+	const compiler = candidates.find((candidate) => fs.existsSync(candidate) && fs.statSync(candidate).isFile());
+	if (!compiler) {
+		throw new Error(`Matching hermesc output is missing; checked ${candidates.join(", ")}`);
+	}
+	return compiler;
+}
+
+function smokeHostBinary(hostBinary, buildDir, configuration) {
+	const compiler = hermesCompilerPath(buildDir, configuration);
+	const smokeDirectory = path.join(buildDir, "appplugin-host-smoke");
+	const smokeSource = path.join(hostSourceDir, "smoke_bundle.js");
+	const smokeBundle = path.join(smokeDirectory, "smoke.hbc");
+	fs.mkdirSync(smokeDirectory, { recursive: true });
+	run(compiler, ["-O", "-emit-binary", `-out=${smokeBundle}`, smokeSource]);
+	run(hostBinary, ["--help"], { capture: true });
+	const output = run(hostBinary, [
+		"--bundle", smokeBundle,
+		"--bootstrap", path.join(hostSourceDir, "bridge_bootstrap.js"),
+	], { capture: true });
+	const result = JSON.parse(output);
+	if (
+		result.hostProtocol !== artifactContract.protocolVersion
+		|| result.bytecodeAccepted !== true
+		|| result.bootstrapCompleted !== true
+		|| result.evaluationCompleted !== true
+		|| result.probe?.smokeMarker !== `hbc-${artifactContract.hbcVersion}`
+	) {
+		throw new Error(`Hermes AppPlugin host smoke test returned an invalid result: ${output}`);
+	}
+	return {
+		bundleSha256: sha256File(smokeBundle),
+		bytecodeAccepted: true,
+		bootstrapCompleted: true,
+		evaluationCompleted: true,
+		smokeMarker: result.probe.smokeMarker,
+	};
+}
+
+function inspectHostDependencies(hostBinary) {
+	let tool;
+	let output;
+	let entries;
+	if (process.platform === "win32") {
+		tool = "llvm-readobj --coff-imports";
+		output = run("llvm-readobj", ["--coff-imports", hostBinary], { capture: true });
+		entries = [...output.matchAll(/^\s*Name:\s*(.+?)\s*$/gmu)].map((match) => match[1]);
+	} else if (process.platform === "linux") {
+		tool = "ldd";
+		output = run("ldd", [hostBinary], { capture: true });
+		entries = output.split(/\r?\n/u)
+			.map((line) => line.trim().split(/\s+(?:=>\s+)?/u)[0])
+			.filter((entry) => entry.length > 0);
+	} else if (process.platform === "darwin") {
+		tool = "otool -L";
+		output = run("otool", ["-L", hostBinary], { capture: true });
+		entries = output.split(/\r?\n/u)
+			.slice(1)
+			.map((line) => line.trim().split(/\s+/u)[0])
+			.filter((entry) => entry.length > 0);
+	} else {
+		throw new Error(`Dependency inspection is not implemented for ${process.platform}`);
+	}
+	if (entries.length === 0) throw new Error(`${tool} returned no host dependencies`);
+	const forbiddenPattern = process.platform === "win32"
+		? /(?:libc\+\+|libunwind|libgcc|libstdc\+\+|libwinpthread|libhermes)/iu
+		: /(?:^|[/\\])libhermes(?:\.|$)/iu;
+	const forbidden = entries.filter((entry) => forbiddenPattern.test(entry));
+	if (forbidden.length > 0) {
+		throw new Error(`Hermes AppPlugin host has forbidden dynamic dependencies: ${forbidden.join(", ")}`);
+	}
+	return { tool, entries };
+}
+
 function hostTarget() {
 	const target = `${process.platform}-${process.arch}`;
 	if (!artifactContract.supportedTargets.includes(target)) {
@@ -125,7 +255,7 @@ function sha256File(filePath) {
 	return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
 }
 
-function stageHostBinary(hostBinary, stageRoot) {
+function stageHostBinary(hostBinary, stageRoot, buildProvenance) {
 	const target = hostTarget();
 	const executable = process.platform === "win32"
 		? "roborock-hermes-appplugin-host.exe"
@@ -145,6 +275,7 @@ function stageHostBinary(hostBinary, stageRoot) {
 		hermesCommit: artifactContract.hermesCommit,
 		hbcVersion: artifactContract.hbcVersion,
 		protocolVersion: artifactContract.protocolVersion,
+		build: buildProvenance,
 	};
 	const manifestPath = path.join(targetDirectory, "artifact.json");
 	fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
@@ -154,10 +285,12 @@ function stageHostBinary(hostBinary, stageRoot) {
 function environmentReport(options) {
 	const sourceRepositoryDetails = sourceRepository(options.sourceDir);
 	const sourceCommit = sourceRepositoryDetails?.commit;
+	const cmake = commandVersion("cmake");
 	return {
 		platform: process.platform,
 		architecture: process.arch,
-		cmake: commandVersion("cmake"),
+		cmake,
+		cmakeMatches: cmake === `cmake version ${artifactContract.build.cmakeVersion}`,
 		git: commandVersion("git"),
 		sourceDir: options.sourceDir,
 		sourceExists: fs.existsSync(path.join(options.sourceDir, "CMakeLists.txt")),
@@ -174,7 +307,7 @@ function environmentReport(options) {
 function main() {
 	const options = parseArgs(process.argv.slice(2));
 	if (options.help) {
-		console.log("Usage: node scripts/build_hermes_appplugin_host.js [--check] [--fetch] [--source <dir>] [--build-dir <dir>] [--configuration <name>] [--stage-dir <dir>]");
+		console.log("Usage: node scripts/build_hermes_appplugin_host.js [--check] [--fetch] [--smoke] [--source <dir>] [--build-dir <dir>] [--configuration <name>] [--jobs <1..64>] [--stage-dir <dir>]");
 		return;
 	}
 
@@ -183,7 +316,7 @@ function main() {
 	if (options.check) {
 		console.log(JSON.stringify(report, null, 2));
 		if (
-			!report.cmake
+			!report.cmakeMatches
 			|| !report.git
 			|| !report.sourceExists
 			|| !report.sourceRepositoryMatches
@@ -193,7 +326,10 @@ function main() {
 		return;
 	}
 
-	if (!report.cmake) throw new Error("CMake 3.18 or newer is required");
+	const expectedCmake = `cmake version ${artifactContract.build.cmakeVersion}`;
+	if (!report.cmakeMatches) {
+		throw new Error(`${expectedCmake} is required, found ${report.cmake ?? "no CMake"}`);
+	}
 	if (!report.sourceExists) throw new Error(`Hermes source missing at ${options.sourceDir}; pass --source or --fetch`);
 	if (!report.sourceRepositoryMatches) {
 		throw new Error(`Hermes source must itself be a Git repository root: ${options.sourceDir}`);
@@ -211,11 +347,12 @@ function main() {
 	];
 	if (process.env.HERMESC_EXECUTABLE) configureArgs.push(`-DHERMESC_EXECUTABLE=${path.resolve(process.env.HERMESC_EXECUTABLE)}`);
 	run("cmake", configureArgs);
+	const mingwInternalBytecodeSource = prepareMingwInternalBytecodeSource(options.sourceDir, options.buildDir);
 	run("cmake", [
 		"--build", options.buildDir,
 		"--config", options.configuration,
 		"--target", "roborock-hermes-appplugin-host",
-		"--parallel",
+		"--parallel", String(options.jobs),
 	]);
 
 	const hostBinary = hostBinaryPath(options.buildDir);
@@ -223,13 +360,47 @@ function main() {
 	if (!hostStats.isFile() || hostStats.size < 1) {
 		throw new Error(`Build completed but the deterministic host output is invalid: ${hostBinary}`);
 	}
-	const stagedArtifact = options.stageDir ? stageHostBinary(hostBinary, options.stageDir) : undefined;
-	console.log(JSON.stringify({ ...report, hostBinary, stagedArtifact }, null, 2));
+	const smoke = options.smoke
+		? smokeHostBinary(hostBinary, options.buildDir, options.configuration)
+		: undefined;
+	const dependencies = inspectHostDependencies(hostBinary);
+	const compiler = commandVersion(process.env.CXX || (process.platform === "win32" ? "cl" : "c++"));
+	if (
+		process.platform === "win32"
+		&& !compiler?.includes(`clang version ${artifactContract.build.windows.clangVersion}`)
+	) {
+		throw new Error(`Windows hosts require LLVM-MinGW ${artifactContract.build.windows.llvmMingwRelease} with Clang ${artifactContract.build.windows.clangVersion}, found ${compiler ?? "no compiler"}`);
+	}
+	const buildProvenance = {
+		target: hostTarget(),
+		sourceRepository: HERMES_REPOSITORY,
+		sourceRef: HERMES_REF,
+		sourceCommit: report.sourceCommit,
+		sourceClean: report.sourceClean,
+		cmake: report.cmake,
+		compiler,
+		toolchainRelease: process.platform === "win32"
+			? artifactContract.build.windows.llvmMingwRelease
+			: undefined,
+		generator: cmakeCacheValue(options.buildDir, "CMAKE_GENERATOR"),
+		configuration: options.configuration,
+		jobs: options.jobs,
+		dependencies,
+		smoke,
+	};
+	const stagedArtifact = options.stageDir
+		? stageHostBinary(hostBinary, options.stageDir, buildProvenance)
+		: undefined;
+	console.log(JSON.stringify({ ...report, mingwInternalBytecodeSource, hostBinary, smoke, stagedArtifact }, null, 2));
 }
 
-try {
-	main();
-} catch (error) {
-	console.error(error instanceof Error ? error.message : error);
-	process.exitCode = 1;
+if (require.main === module) {
+	try {
+		main();
+	} catch (error) {
+		console.error(error instanceof Error ? error.message : error);
+		process.exitCode = 1;
+	}
 }
+
+module.exports = { inspectHostDependencies, parseArgs };
