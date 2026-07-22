@@ -14,6 +14,11 @@ import {
 	createApkRriotSessionDescriptor,
 	type ApkRriotSessionDescriptorInput,
 } from "./apkRriotSessionDescriptor";
+import {
+	resolveApkMainPluginDeviceAcquisition,
+	type ApkMainPluginDeviceAcquisitionRequest,
+	type ApkMainPluginEntry,
+} from "./apkMainPluginEntry";
 
 export interface ApkAppPluginAuthenticatedAccountRuntimeOptions {
 	readonly cloudBootstrap: ApkAppPluginCloudBootstrapContext;
@@ -144,5 +149,13 @@ export class ApkAppPluginAuthenticatedAccountRuntime {
 			productRepository: this.#productRepository,
 			userId: this.#userId,
 		});
+	}
+
+	/** Resolves the APK's package request without exposing the captured HomeData. */
+	public resolveDevicePackage(
+		targetDuid: string,
+		entry: ApkMainPluginEntry = { kind: "device" },
+	): ApkMainPluginDeviceAcquisitionRequest {
+		return resolveApkMainPluginDeviceAcquisition(this.#homeData, targetDuid, entry);
 	}
 }

@@ -119,6 +119,12 @@ describe("APK AppPlugin package runtime", () => {
 			downloadVersion: 7,
 			pluginLevel: 4,
 		});
+		expect(runtime.getInstalledPackage("roborock.mower.a01")).toEqual({
+			activeDirectory: acquired.installation.activeDirectory,
+			bundlePath: acquired.installation.bundlePath,
+			installation: { downloadVersion: 7, pluginLevel: 4 },
+			model: "roborock.mower.a01",
+		});
 		runtime.shutdown();
 
 		const restored = await ApkAppPluginPackageRuntime.create({
@@ -133,6 +139,8 @@ describe("APK AppPlugin package runtime", () => {
 				"roborock.mower.a01": 7,
 			},
 		});
+		expect(restored.getInstalledPackage("roborock.mower.a01")?.bundlePath)
+			.toBe(acquired.installation.bundlePath);
 		restored.shutdown();
 	});
 

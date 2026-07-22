@@ -43,6 +43,13 @@ export interface ApkAppPluginPackageRuntimeOptions {
 	readonly signatureVerifier?: ApkPluginPackageSignatureVerifier;
 }
 
+export interface ApkInstalledMainPluginPackage {
+	readonly activeDirectory: string;
+	readonly bundlePath: string;
+	readonly installation: ApkMainPluginInstallation;
+	readonly model: string;
+}
+
 /**
  * Instance-scoped composition root for the APK package lifecycle.
  *
@@ -52,6 +59,7 @@ export interface ApkAppPluginPackageRuntimeOptions {
 export class ApkAppPluginPackageRuntime {
 	readonly #store: ApkMainPluginInstallationStore;
 	readonly #service: ApkMainPluginAcquisitionService;
+	readonly #pluginRoot: string;
 	readonly #shutdownController = new AbortController();
 	readonly #modelAcquisitionTails = new Map<string, Promise<void>>();
 	#stopped = false;
@@ -59,9 +67,11 @@ export class ApkAppPluginPackageRuntime {
 	private constructor(
 		store: ApkMainPluginInstallationStore,
 		service: ApkMainPluginAcquisitionService,
+		pluginRoot: string,
 	) {
 		this.#store = store;
 		this.#service = service;
+		this.#pluginRoot = pluginRoot;
 	}
 
 	public static async create(
@@ -81,10 +91,11 @@ export class ApkAppPluginPackageRuntime {
 			path.join(runtimeRoot, "installations.json"),
 		);
 		const store = await persistence.loadStore();
+		const pluginRoot = path.join(runtimeRoot, "plugin_v3");
 		const installer = new ApkMainPluginPackageInstaller({
 			installationPersistence: persistence,
 			installationStore: store,
-			pluginRoot: path.join(runtimeRoot, "plugin_v3"),
+			pluginRoot,
 			signatureVerifier: options.signatureVerifier,
 		});
 		const downloader = new ApkPluginArtifactDownloader({
@@ -102,6 +113,7 @@ export class ApkAppPluginPackageRuntime {
 				installer,
 				resolver,
 			}),
+			pluginRoot,
 		);
 	}
 
@@ -168,6 +180,24 @@ export class ApkAppPluginPackageRuntime {
 
 	public getInstalled(model: string): ApkMainPluginInstallation | undefined {
 		return this.#store.getInstalled(model);
+	}
+
+	/**
+	 * Resolves the active original package directory from committed installation
+	 * state. Bundle readability and compatibility are checked by the session
+	 * resolver immediately before a model host is opened.
+	 */
+	public getInstalledPackage(modelValue: string): ApkInstalledMainPluginPackage | undefined {
+		const model = apkMainPluginPackageKey(modelValue);
+		const installation = this.#store.getInstalled(model);
+		if (!installation) return undefined;
+		const activeDirectory = path.join(this.#pluginRoot, model);
+		return Object.freeze({
+			activeDirectory,
+			bundlePath: path.join(activeDirectory, "index.android.bundle"),
+			installation: Object.freeze({ ...installation }),
+			model,
+		});
 	}
 
 	public getInstallationContext(): ReturnType<

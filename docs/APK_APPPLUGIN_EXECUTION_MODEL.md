@@ -125,6 +125,17 @@ Der Supervisor startet trotzdem noch keinen Produktionsprozess, weil die
 konkreten APK-Modulimplementierungen und Adapterports weiterhin im Probe-Skript
 erzeugt werden und erst in eine produktive Modell-Runtime-Factory gehören.
 
+`ApkAppPluginDeviceSessionRuntime` schließt davor die bislang getrennten
+Produktionsgrenzen zusammen: Sie löst das konkrete HomeData-Gerät und dessen
+V5-Produkt aus der unveränderlichen Kontogeneration auf, verlangt ein bereits
+signiert aktiviertes Originalpaket, liest dessen `project.json`, prüft das
+unveränderte `index.android.bundle` gegen den APK-Hostvertrag und übergibt erst
+dann den vollständigen Gerätekontext an den Modell-Supervisor. Öffnen und
+Paketersetzung sind über die gesamte Operation pro Modell serialisiert. Ein
+Paket kann daher weder unter einer aktiven Geräte-Lease ausgetauscht werden
+noch während eines Downloads parallel noch einmal aus dem alten Verzeichnis
+gestartet werden; verschiedene Modelle bleiben unabhängig.
+
 Auch der native UI-Vertrag ist pro Modell-Runtime geteilt. Die APK erzeugt den
 Root-Tag in `UIManagerModule.addRootView` aus einem pro Prozess gemeinsamen
 Zähler (`1`, danach jeweils `+10`) und übergibt erst den so registrierten Tag an

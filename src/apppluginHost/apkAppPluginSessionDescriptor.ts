@@ -1,3 +1,4 @@
+import { readFileSync, readdirSync } from "node:fs";
 import * as path from "node:path";
 
 import type { ApkAppPluginHostContract } from "./apkContract";
@@ -331,6 +332,36 @@ export function parseApkAppPluginProjectMetadata(value: unknown): ApkAppPluginPa
 		minSdkApiLevel: value.min_sdk_api_level,
 		packagePath: value.package_path,
 	});
+}
+
+/**
+ * Reads the APK package metadata without recursively interpreting plugin
+ * assets. Official packages expose it either at the package root or as a
+ * flattened Android raw resource such as raw/projects_*_project.json.
+ */
+export function loadApkAppPluginProjectMetadata(pluginRootValue: string): ApkAppPluginPackageMetadata {
+	const pluginRoot = path.resolve(pluginRootValue);
+	const candidates = [path.join(pluginRoot, "project.json")];
+	try {
+		const rawDirectory = path.join(pluginRoot, "raw");
+		for (const entry of readdirSync(rawDirectory, { withFileTypes: true })
+			.filter(entry => entry.isFile() && /(?:^|_)project\.json$/iu.test(entry.name))
+			.sort((left, right) => left.name.localeCompare(right.name))) {
+			candidates.push(path.join(rawDirectory, entry.name));
+		}
+	} catch {
+		// A root project.json remains a valid package layout.
+	}
+	for (const candidate of candidates) {
+		try {
+			return parseApkAppPluginProjectMetadata(
+				JSON.parse(readFileSync(candidate, "utf8")) as unknown,
+			);
+		} catch {
+			// Only a valid project contract with models is authoritative.
+		}
+	}
+	throw new Error("Das installierte AppPlugin besitzt kein gültiges project.json");
 }
 
 function detectBundleKind(bytes: Buffer): ApkHermesBundleKind | undefined {

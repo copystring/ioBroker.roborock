@@ -6,7 +6,7 @@ import * as path from "node:path";
 import JSZip from "jszip";
 
 import {
-	parseApkAppPluginProjectMetadata,
+	loadApkAppPluginProjectMetadata,
 	type ApkAppPluginPackageMetadata,
 } from "../../src/apppluginHost/apkAppPluginSessionDescriptor";
 import { associateApkPackageWithDeviceModel } from "../../src/apppluginHost/apkRriotSessionDescriptor";
@@ -201,21 +201,11 @@ async function extractArchiveToCache(
 }
 
 function readProjectMetadata(pluginRoot: string): ApkAppPluginPackageMetadata | undefined {
-	const candidates = findFiles(
-		pluginRoot,
-		filePath => /(?:^|[\\/])(?:[^\\/]*_)?project\.json$/iu.test(filePath),
-	);
-	for (const candidate of candidates) {
-		try {
-			return parseApkAppPluginProjectMetadata(
-				JSON.parse(fs.readFileSync(candidate, "utf8")) as unknown,
-			);
-		} catch {
-			// Other project.json files are possible assets; only the APK package
-			// contract with a valid models field is authoritative here.
-		}
+	try {
+		return loadApkAppPluginProjectMetadata(pluginRoot);
+	} catch {
+		return undefined;
 	}
-	return undefined;
 }
 
 async function bundleRootsForPackage(packageRoot: string, cacheRoot: string): Promise<Array<{
