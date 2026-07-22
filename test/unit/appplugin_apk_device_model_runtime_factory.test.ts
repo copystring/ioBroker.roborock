@@ -6,9 +6,15 @@ import type { ApkAppPluginDeviceNativeRuntimeEnvironment } from "../../src/apppl
 import { ApkAppPluginModelRuntime } from "../../src/apppluginHost/apkAppPluginModelRuntime";
 import type { ApkAppPluginHostContract } from "../../src/apppluginHost/apkContract";
 
-const { bindingMock, compositionMock, resolverMock } = vi.hoisted(() => ({
+const {
+	bindingMock,
+	compositionMock,
+	nativeEnvironmentConstructorMock,
+	resolverMock,
+} = vi.hoisted(() => ({
 	bindingMock: vi.fn(),
 	compositionMock: vi.fn(),
+	nativeEnvironmentConstructorMock: vi.fn(),
 	resolverMock: vi.fn(),
 }));
 
@@ -27,6 +33,15 @@ vi.mock("../../src/apppluginHost/apkAppPluginSharedNativeModules", async importO
 	createApkAppPluginSharedNativeModuleBindings: bindingMock,
 }));
 
+vi.mock("../../src/apppluginHost/apkAppPluginDeviceNativeRuntimeEnvironment", async importOriginal => ({
+	...await importOriginal<typeof import("../../src/apppluginHost/apkAppPluginDeviceNativeRuntimeEnvironment")>(),
+	ApkAppPluginDeviceNativeRuntimeEnvironment: class {
+		public constructor(options: unknown) {
+			return nativeEnvironmentConstructorMock(options);
+		}
+	},
+}));
+
 import { createApkAppPluginDeviceModelRuntimeFactory } from "../../src/apppluginHost/apkAppPluginDeviceModelRuntimeFactory";
 
 const contract = contractJson as ApkAppPluginHostContract;
@@ -43,6 +58,7 @@ beforeEach(() => {
 	resolverMock.mockReset();
 	compositionMock.mockReset();
 	bindingMock.mockReset();
+	nativeEnvironmentConstructorMock.mockReset();
 	bindingMock.mockReturnValue([{ moduleName: "DeviceInfo", implementation: {} }]);
 	resolverMock.mockReturnValue({
 		executable: "roborock-hermes-appplugin-host.exe",
@@ -94,25 +110,39 @@ function nativeRuntime() {
 	return { runtime, sharedNativeModules };
 }
 
-describe("APK AppPlugin device model runtime factory", () => {
-	it("locks bundle and executable paths to the device session and packaged resolver", async () => {
-		const native = nativeRuntime();
-		const createCompositionOptions = vi.fn(() => ({
+function hostProvider(native: ReturnType<typeof nativeRuntime>) {
+	const release = vi.fn(async () => undefined);
+	const lease = {
+		composition: {
 			bootstrapPath: "C:\\adapter-data\\bridge.js",
-			nativeRuntime: native.runtime,
 			textLayoutBackend: {
 				intrinsicWidth: () => { throw new Error("Kein Text erwartet"); },
 				layout: () => { throw new Error("Kein Text erwartet"); },
 			},
-		}));
+		},
+		dataDirectory: "C:\\adapter-data\\runtime",
+		initialState: { marker: "initial-state" },
+		ports: { marker: "ports" },
+		release,
+	};
+	const provider = { acquire: vi.fn(async () => lease) };
+	nativeEnvironmentConstructorMock.mockReturnValue(native.runtime);
+	return { lease, provider, release };
+}
+
+describe("APK AppPlugin device model runtime factory", () => {
+	it("locks bundle and executable paths to the device session and packaged resolver", async () => {
+		const native = nativeRuntime();
+		const host = hostProvider(native);
 		const factory = createApkAppPluginDeviceModelRuntimeFactory({
 			contract,
-			createCompositionOptions,
+			hostProvider: host.provider,
 		});
+		const deviceContext = context("C:\\adapter-data\\plugins\\generic\\index.android.bundle");
 
 		const runtime = await factory({
 			activeTime: 1,
-			context: context("C:\\adapter-data\\plugins\\generic\\index.android.bundle"),
+			context: deviceContext,
 			deviceId: "generic-device",
 			model: "generic.model",
 		});
@@ -120,8 +150,19 @@ describe("APK AppPlugin device model runtime factory", () => {
 		expect(runtime).toBeInstanceOf(ApkAppPluginModelRuntime);
 		expect(resolverMock).toHaveBeenCalledOnce();
 		expect(resolverMock).toHaveBeenCalledWith();
-		expect(createCompositionOptions).toHaveBeenCalledOnce();
+		expect(host.provider.acquire).toHaveBeenCalledWith(
+			expect.objectContaining({ context: deviceContext, deviceId: "generic-device" }),
+			expect.objectContaining({ target: "win32-x64" }),
+		);
+		expect(nativeEnvironmentConstructorMock).toHaveBeenCalledWith({
+			context: deviceContext,
+			contract,
+			dataDirectory: host.lease.dataDirectory,
+			initialState: host.lease.initialState,
+			ports: host.lease.ports,
+		});
 		expect(compositionMock).toHaveBeenCalledWith(expect.objectContaining({
+			bootstrapPath: "C:\\adapter-data\\bridge.js",
 			bundlePath: "C:\\adapter-data\\plugins\\generic\\index.android.bundle",
 			constantSources: [{ DeviceInfo: {} }],
 			contract,
@@ -133,16 +174,17 @@ describe("APK AppPlugin device model runtime factory", () => {
 
 		await runtime.stop();
 		expect(native.runtime.dispose).toHaveBeenCalledOnce();
+		expect(host.release).toHaveBeenCalledOnce();
 	});
 
 	it("fails before composing modules when the packaged host is unavailable", async () => {
 		resolverMock.mockImplementationOnce(() => {
 			throw new Error("Native-Artefakt fehlt");
 		});
-		const createCompositionOptions = vi.fn();
+		const hostProvider = { acquire: vi.fn() };
 		const factory = createApkAppPluginDeviceModelRuntimeFactory({
 			contract,
-			createCompositionOptions,
+			hostProvider,
 		});
 
 		await expect(factory({
@@ -151,15 +193,15 @@ describe("APK AppPlugin device model runtime factory", () => {
 			deviceId: "device",
 			model: "model",
 		})).rejects.toThrow(/Native-Artefakt fehlt/u);
-		expect(createCompositionOptions).not.toHaveBeenCalled();
+		expect(hostProvider.acquire).not.toHaveBeenCalled();
 		expect(compositionMock).not.toHaveBeenCalled();
 	});
 
 	it("rejects a request that does not match the resolved APK device context", async () => {
-		const createCompositionOptions = vi.fn();
+		const hostProvider = { acquire: vi.fn() };
 		const factory = createApkAppPluginDeviceModelRuntimeFactory({
 			contract,
-			createCompositionOptions,
+			hostProvider,
 		});
 
 		await expect(factory({
@@ -169,6 +211,48 @@ describe("APK AppPlugin device model runtime factory", () => {
 			model: "generic.model",
 		})).rejects.toThrow(/stimmt nicht/u);
 		expect(resolverMock).not.toHaveBeenCalled();
-		expect(createCompositionOptions).not.toHaveBeenCalled();
+		expect(hostProvider.acquire).not.toHaveBeenCalled();
+	});
+
+	it("releases acquired host resources when native environment construction fails", async () => {
+		const native = nativeRuntime();
+		const host = hostProvider(native);
+		nativeEnvironmentConstructorMock.mockImplementationOnce(() => {
+			throw new Error("Ungültiger Plattformzustand");
+		});
+		const factory = createApkAppPluginDeviceModelRuntimeFactory({
+			contract,
+			hostProvider: host.provider,
+		});
+
+		await expect(factory({
+			activeTime: 1,
+			context: context("C:\\plugin\\index.android.bundle"),
+			deviceId: "generic-device",
+			model: "generic.model",
+		})).rejects.toThrow(/Ungültiger Plattformzustand/u);
+		expect(host.release).toHaveBeenCalledOnce();
+		expect(compositionMock).not.toHaveBeenCalled();
+	});
+
+	it("releases host resources when native environment disposal throws synchronously", async () => {
+		const native = nativeRuntime();
+		const dispose = vi.fn(() => { throw new Error("Native Dispose fehlgeschlagen"); });
+		Object.assign(native.runtime, { dispose });
+		const host = hostProvider(native);
+		const factory = createApkAppPluginDeviceModelRuntimeFactory({
+			contract,
+			hostProvider: host.provider,
+		});
+		const runtime = await factory({
+			activeTime: 1,
+			context: context("C:\\plugin\\index.android.bundle"),
+			deviceId: "generic-device",
+			model: "generic.model",
+		});
+
+		await expect(runtime.stop()).rejects.toThrow(/nicht sauber beendet/u);
+		expect(dispose).toHaveBeenCalledOnce();
+		expect(host.release).toHaveBeenCalledOnce();
 	});
 });
