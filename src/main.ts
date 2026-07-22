@@ -8,6 +8,7 @@ import go2rtcPath from "go2rtc-static";
 import { ApkAppPluginAuthenticatedAccountRuntime } from "./apppluginHost/apkAppPluginAuthenticatedAccountRuntime";
 import { ApkDeviceIngressRouter } from "./apppluginHost/apkDeviceIngressRouter";
 import { ApkAppPluginPackageRuntime } from "./apppluginHost/apkPluginPackageRuntime";
+import type { ApkReadOnlyProbeResult } from "./apppluginHost/apkReadOnlyProbeRuntime";
 import { commitInfo } from "./lib/commitInfo";
 
 // --- API & Helper Imports ---
@@ -20,6 +21,7 @@ import { Feature } from "./lib/features/features.enum";
 
 import { Device, http_api } from "./lib/httpApi";
 import { local_api } from "./lib/localApi";
+import { runIoBrokerReadOnlyAppPluginProbe } from "./lib/appplugin/IoBrokerReadOnlyAppPluginProbe";
 import { MapManager } from "./lib/map/MapManager";
 import { mqtt_api } from "./lib/mqttApi";
 import { PendingMapEntry, RequestPriority, RoborockRequest, requestsHandler } from "./lib/requestsHandler";
@@ -132,6 +134,9 @@ export class Roborock extends utils.Adapter {
 	private activeSceneQueueProcessors: Set<string> = new Set();
 	private ensuredSceneQueueStates: Set<string> = new Set();
 	private mqttReconnectInterval: ioBroker.Interval | undefined = undefined;
+	private readonly activeAppPluginReadOnlyProbes = new Set<Promise<ApkReadOnlyProbeResult>>();
+	private readonly activeAppPluginReadOnlyProbeDevices = new Set<string>();
+	private readonly appPluginProbeShutdownController = new AbortController();
 	public instance: number = 0;
 	private go2rtcProcess: ChildProcess | null = null;
 	// Bound exit handler to prevent memory leaks while allowing process.removeListener
@@ -1376,34 +1381,91 @@ export class Roborock extends utils.Adapter {
 	 * Is called when adapter shuts down.
 	 */
 	onUnload(callback: () => void) {
+		void (async () => {
+			try {
+				this.appPluginProbeShutdownController.abort(
+					new Error("Der Adapter wird beendet"),
+				);
+				await Promise.allSettled([...this.activeAppPluginReadOnlyProbes]);
+				if (this.mqttReconnectInterval) {
+					this.clearInterval(this.mqttReconnectInterval);
+				}
+				this.clearTimersAndIntervals();
+				this.mqtt_api.cleanup();
+				this.local_api.stopUdpDiscovery();
+				this.local_api.stopTcpKeepaliveInterval();
+				this.appPluginAccountRuntime = undefined;
+				this.appPluginPackageRuntime?.shutdown();
+				this.appPluginPackageRuntime = undefined;
+
+				// Remove the global process exit listener to prevent memory leaks
+				if (this.onExitBound) {
+					process.removeListener("exit", this.onExitBound);
+					this.onExitBound = null;
+				}
+
+				if (this.go2rtcProcess) {
+					this.rLog("Local", null, "Info", undefined, undefined, "Stopping go2rtc process...", "info");
+					this.go2rtcProcess.kill();
+					this.go2rtcProcess = null;
+				}
+				this.setState("info.connection", { val: false, ack: true });
+				callback();
+			} catch (e: unknown) {
+				this.rLog("System", null, "Error", undefined, undefined, `Failed to unload adapter: ${this.errorStack(e)}`, "error");
+				callback();
+			}
+		})();
+	}
+
+	/** Runs one explicitly confirmed, bounded original-AppPlugin read probe. */
+	public async runAppPluginReadOnlyProbe(targetDuidValue: string): Promise<ApkReadOnlyProbeResult> {
+		const targetDuid = targetDuidValue.trim();
+		if (targetDuid.length === 0) throw new Error("AppPlugin-Probe benötigt eine Geräte-ID");
+		if (this.appPluginProbeShutdownController.signal.aborted) {
+			throw new Error("Der Adapter wird bereits beendet");
+		}
+		if (this.activeAppPluginReadOnlyProbeDevices.has(targetDuid)) {
+			throw new Error(`Für Gerät ${targetDuid} läuft bereits eine AppPlugin-Probe`);
+		}
+		const account = this.appPluginAccountRuntime;
+		const packages = this.appPluginPackageRuntime;
+		if (!account) throw new Error("Die angemeldete AppPlugin-Kontositzung ist nicht bereit");
+		if (!packages) throw new Error("Die AppPlugin-Paketlaufzeit ist nicht bereit");
+		if (!this.mqtt_api.isConnected() && !this.local_api.isConnected(targetDuid)) {
+			throw new Error("Für die AppPlugin-Probe besteht weder eine MQTT- noch eine LAN-Verbindung");
+		}
+		const device = this.http_api.getDevices().find(candidate => candidate.duid === targetDuid);
+		if (!device) throw new Error(`HomeData enthält Gerät ${targetDuid} nicht`);
+		const clientIdState = await this.getStateAsync("clientID");
+		const clientId = typeof clientIdState?.val === "string" ? clientIdState.val.trim() : "";
+		if (clientId.length === 0) throw new Error("Die AppPlugin-Host-Client-ID fehlt");
+		const deviceProperties: Record<string, unknown> = {};
+		if (device.featureSet !== undefined) deviceProperties.featureSet = device.featureSet;
+		if (device.newFeatureSet !== undefined) deviceProperties.newFeatureSet = device.newFeatureSet;
+
+		this.activeAppPluginReadOnlyProbeDevices.add(targetDuid);
+		const operation = runIoBrokerReadOnlyAppPluginProbe({
+			account,
+			adapter: this,
+			allowedMethods: ["get_status"],
+			clientId,
+			deviceProperties,
+			ingressRouter: this.appPluginDeviceIngressRouter,
+			instanceDataDirectory: utils.getAbsoluteInstanceDataDir(this),
+			language: "de",
+			localeIdentifier: "de_DE",
+			packages,
+			signal: this.appPluginProbeShutdownController.signal,
+			targetDuid,
+			timeoutMilliseconds: 20_000,
+		});
+		this.activeAppPluginReadOnlyProbes.add(operation);
 		try {
-			if (this.mqttReconnectInterval) {
-				this.clearInterval(this.mqttReconnectInterval);
-			}
-			this.clearTimersAndIntervals();
-			this.mqtt_api.cleanup();
-			this.local_api.stopUdpDiscovery();
-			this.local_api.stopTcpKeepaliveInterval();
-			this.appPluginAccountRuntime = undefined;
-			this.appPluginPackageRuntime?.shutdown();
-			this.appPluginPackageRuntime = undefined;
-
-			// Remove the global process exit listener to prevent memory leaks
-			if (this.onExitBound) {
-				process.removeListener("exit", this.onExitBound);
-				this.onExitBound = null;
-			}
-
-			if (this.go2rtcProcess) {
-				this.rLog("Local", null, "Info", undefined, undefined, "Stopping go2rtc process...", "info");
-				this.go2rtcProcess.kill();
-				this.go2rtcProcess = null;
-			}
-			this.setState("info.connection", { val: false, ack: true });
-			callback();
-		} catch (e: unknown) {
-			this.rLog("System", null, "Error", undefined, undefined, `Failed to unload adapter: ${this.errorStack(e)}`, "error");
-			callback();
+			return await operation;
+		} finally {
+			this.activeAppPluginReadOnlyProbes.delete(operation);
+			this.activeAppPluginReadOnlyProbeDevices.delete(targetDuid);
 		}
 	}
 

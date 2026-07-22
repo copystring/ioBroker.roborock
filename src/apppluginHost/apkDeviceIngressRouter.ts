@@ -10,6 +10,18 @@ export interface ApkDeviceIngressRegistration {
 	readonly ingress: ApkDeviceIngress;
 }
 
+export interface ApkJsonDeviceIngressObservation {
+	readonly activeTime: number;
+	readonly deviceId: string;
+	readonly protocolVersion: string;
+	readonly result: ApkDeviceIngressResult;
+	readonly serializedDps: string;
+}
+
+export type ApkJsonDeviceIngressObserver = (
+	observation: Readonly<ApkJsonDeviceIngressObservation>,
+) => void;
+
 interface ActiveIngress extends ApkDeviceIngressRegistration {
 	readonly token: symbol;
 }
@@ -22,6 +34,7 @@ interface ActiveIngress extends ApkDeviceIngressRegistration {
  */
 export class ApkDeviceIngressRouter {
 	readonly #active = new Map<string, ActiveIngress>();
+	readonly #jsonObservers = new Set<ApkJsonDeviceIngressObserver>();
 
 	public get activeDeviceCount(): number {
 		return this.#active.size;
@@ -52,16 +65,43 @@ export class ApkDeviceIngressRouter {
 		};
 	}
 
+	public subscribeJson(observer: ApkJsonDeviceIngressObserver): () => void {
+		this.#jsonObservers.add(observer);
+		let released = false;
+		return () => {
+			if (released) return;
+			released = true;
+			this.#jsonObservers.delete(observer);
+		};
+	}
+
 	public acceptJsonDps(
 		deviceId: string,
 		protocolVersion: string,
 		serializedDps: string,
 	): ApkDeviceIngressResult | undefined {
-		return this.#active.get(deviceId)?.ingress.acceptJsonDps(
+		const active = this.#active.get(deviceId);
+		if (!active) return undefined;
+		const result = active.ingress.acceptJsonDps(
 			deviceId,
 			protocolVersion,
 			serializedDps,
 		);
+		const observation = Object.freeze({
+			activeTime: active.activeTime,
+			deviceId,
+			protocolVersion,
+			result,
+			serializedDps,
+		});
+		for (const observer of this.#jsonObservers) {
+			try {
+				observer(observation);
+			} catch {
+				// Diagnostics must never alter the APK response path.
+			}
+		}
+		return result;
 	}
 
 	public acceptJsonEnvelope(

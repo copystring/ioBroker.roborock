@@ -71,4 +71,30 @@ describe("APK device ingress router", () => {
 			ingress: ingress(),
 		})).not.toThrow();
 	});
+
+	it("observes only traffic accepted by an active generation without affecting routing", () => {
+		const router = new ApkDeviceIngressRouter();
+		const observations: unknown[] = [];
+		const unsubscribe = router.subscribeJson(observation => observations.push(observation));
+		const throwingObserver = router.subscribeJson(() => { throw new Error("diagnostic failed"); });
+		const release = router.register({ activeTime: 9, deviceId: "device-1", ingress: ingress() });
+
+		expect(router.acceptJsonDps("other-device", "1.0", "{}"))
+			.toBeUndefined();
+		expect(router.acceptJsonDps("device-1", "1.0", "{\"102\":{\"id\":7}}"))
+			.toEqual({ eventEmitted: true, rpcAccepted: true });
+		expect(observations).toEqual([{
+			activeTime: 9,
+			deviceId: "device-1",
+			protocolVersion: "1.0",
+			result: { eventEmitted: true, rpcAccepted: true },
+			serializedDps: "{\"102\":{\"id\":7}}",
+		}]);
+
+		unsubscribe();
+		throwingObserver();
+		router.acceptJsonDps("device-1", "1.0", "{}");
+		expect(observations).toHaveLength(1);
+		release();
+	});
 });

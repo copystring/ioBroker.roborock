@@ -28,6 +28,11 @@ interface AppPluginPackageStatus {
 	readonly runtimeReady: true;
 }
 
+interface AppPluginReadOnlyProbeMessage {
+	readonly confirm?: boolean;
+	readonly duid?: unknown;
+}
+
 export class socketHandler {
 	private adapter: Roborock;
 
@@ -47,6 +52,10 @@ export class socketHandler {
 		this.commandHandlers.set(
 			"appplugin_package_acquire",
 			msg => this.handleAppPluginPackageAcquire(msg),
+		);
+		this.commandHandlers.set(
+			"appplugin_read_only_probe",
+			msg => this.handleAppPluginReadOnlyProbe(msg),
 		);
 
 		this.commandHandlers.set("app_start", (msg, id) => this.handleSimpleCommand(msg.duid, "app_start", id));
@@ -357,6 +366,18 @@ export class socketHandler {
 			pluginLevel: installation.pluginLevel,
 			runtimeReady: true,
 		};
+	}
+
+	private async handleAppPluginReadOnlyProbe(
+		message: AppPluginReadOnlyProbeMessage,
+	): ReturnType<Roborock["runAppPluginReadOnlyProbe"]> {
+		if (message?.confirm !== true) {
+			throw new Error("AppPlugin-Read-only-Probe benötigt confirm=true");
+		}
+		if (typeof message.duid !== "string" || message.duid.trim().length === 0) {
+			throw new Error("AppPlugin-Read-only-Probe benötigt eine Geräte-ID");
+		}
+		return this.adapter.runAppPluginReadOnlyProbe(message.duid);
 	}
 
 	/**

@@ -23,6 +23,15 @@ function harness(options?: {
 	};
 }) {
 	const sendTo = vi.fn();
+	const runAppPluginReadOnlyProbe = vi.fn(async (duid: string) => ({
+		activeTime: 17,
+		deviceId: duid,
+		elapsedMilliseconds: 25,
+		model: "roborock.mower.generic",
+		parsedDps: { "102": { id: 7, result: { state: 8 } } },
+		protocolVersion: "1.0",
+		serializedDps: "{\"102\":{\"id\":7,\"result\":{\"state\":8}}}",
+	}));
 	const acquireForDevice = vi.fn(async () => {
 		if (options?.acquisitionError) {
 			throw options.acquisitionError;
@@ -66,12 +75,14 @@ function harness(options?: {
 			getAppPluginHomeDataContext: vi.fn(() => homeData),
 		},
 		rLog: vi.fn(),
+		runAppPluginReadOnlyProbe,
 		sendTo,
 	};
 	return {
 		acquireForDevice,
 		adapter,
 		handler: new socketHandler(adapter as never),
+		runAppPluginReadOnlyProbe,
 		sendTo,
 	};
 }
@@ -168,5 +179,28 @@ describe("AppPlugin package message handling", () => {
 		});
 		expect(JSON.stringify(sendTo.mock.calls)).not.toContain(secret);
 		expect(JSON.stringify(adapter.rLog.mock.calls)).not.toContain(secret);
+	});
+
+	it("requires explicit confirmation before starting the bounded read-only probe", async () => {
+		const { handler, runAppPluginReadOnlyProbe, sendTo } = harness();
+		await handler.handleMessage(message(
+			"appplugin_read_only_probe",
+			{ duid: "mower-1" },
+		));
+		expect(runAppPluginReadOnlyProbe).not.toHaveBeenCalled();
+		expect(sendTo.mock.calls.at(-1)?.[2]).toEqual({
+			error: "AppPlugin-Read-only-Probe benötigt confirm=true",
+		});
+
+		await handler.handleMessage(message(
+			"appplugin_read_only_probe",
+			{ confirm: true, duid: "mower-1" },
+		));
+		expect(runAppPluginReadOnlyProbe).toHaveBeenCalledWith("mower-1");
+		expect(sendTo.mock.calls.at(-1)?.[2]).toMatchObject({
+			deviceId: "mower-1",
+			model: "roborock.mower.generic",
+			parsedDps: { "102": { id: 7, result: { state: 8 } } },
+		});
 	});
 });

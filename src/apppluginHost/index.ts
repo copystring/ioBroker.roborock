@@ -65,6 +65,7 @@ export * from "./apkPluginAcquisition";
 export * from "./apkPluginPackageRuntime";
 export * from "./apkProductRoleCatalog";
 export * from "./apkReadOnlyDeviceRepository";
+export * from "./apkReadOnlyProbeRuntime";
 export * from "./apkPluginSdkRpcModule";
 export * from "./apkRriotSessionDescriptor";
 export * from "./apkRobotToAppMessage";
