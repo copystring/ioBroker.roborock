@@ -2,8 +2,8 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import contractJson from "../../src/apppluginHost/generated/apk-appplugin-host-contract.json";
 import type { ApkAppPluginDeviceModelContext } from "../../src/apppluginHost/apkAppPluginDeviceSessionRuntime";
+import type { ApkAppPluginDeviceNativeRuntimeEnvironment } from "../../src/apppluginHost/apkAppPluginDeviceNativeRuntimeEnvironment";
 import { ApkAppPluginModelRuntime } from "../../src/apppluginHost/apkAppPluginModelRuntime";
-import type { ApkAppPluginSharedNativeModuleRuntimes } from "../../src/apppluginHost/apkAppPluginSharedNativeModules";
 import type { ApkAppPluginHostContract } from "../../src/apppluginHost/apkContract";
 
 const { bindingMock, compositionMock, resolverMock } = vi.hoisted(() => ({
@@ -58,26 +58,48 @@ beforeEach(() => {
 	});
 	compositionMock.mockImplementation(options => ({
 		contract: options.contract,
-		createSession: () => applicationSession,
+		createSession: (uiManager: unknown) => {
+			options.createModules(uiManager);
+			options.onCompositionCreated?.({ session: applicationSession });
+			return applicationSession;
+		},
 		textLayoutBackend: options.textLayoutBackend,
+		dispose: options.dispose,
 	}));
 });
 
-function context(bundlePath: string): ApkAppPluginDeviceModelContext {
+function context(
+	bundlePath: string,
+	deviceId = "generic-device",
+	model = "generic.model",
+	activeTime = 1,
+): ApkAppPluginDeviceModelContext {
 	return {
 		authenticatedHttpPorts: {},
-		session: { bundle: { bundlePath } },
+		session: {
+			bundle: { bundlePath },
+			descriptor: { device: { activeTime, deviceId, model } },
+		},
 	} as unknown as ApkAppPluginDeviceModelContext;
+}
+
+function nativeRuntime() {
+	const sharedNativeModules = { marker: "shared" };
+	const runtime = {
+		attachComposition: vi.fn(),
+		constantSources: vi.fn(() => [{ DeviceInfo: {} }]),
+		createSharedNativeModules: vi.fn(() => sharedNativeModules),
+		dispose: vi.fn(async () => undefined),
+	} as unknown as ApkAppPluginDeviceNativeRuntimeEnvironment;
+	return { runtime, sharedNativeModules };
 }
 
 describe("APK AppPlugin device model runtime factory", () => {
 	it("locks bundle and executable paths to the device session and packaged resolver", async () => {
-		const sharedNativeModules = { marker: "shared" } as unknown as ApkAppPluginSharedNativeModuleRuntimes;
-		const createSharedNativeModules = vi.fn(() => sharedNativeModules);
+		const native = nativeRuntime();
 		const createCompositionOptions = vi.fn(() => ({
 			bootstrapPath: "C:\\adapter-data\\bridge.js",
-			constantSources: [],
-			createSharedNativeModules,
+			nativeRuntime: native.runtime,
 			textLayoutBackend: {
 				intrinsicWidth: () => { throw new Error("Kein Text erwartet"); },
 				layout: () => { throw new Error("Kein Text erwartet"); },
@@ -101,21 +123,19 @@ describe("APK AppPlugin device model runtime factory", () => {
 		expect(createCompositionOptions).toHaveBeenCalledOnce();
 		expect(compositionMock).toHaveBeenCalledWith(expect.objectContaining({
 			bundlePath: "C:\\adapter-data\\plugins\\generic\\index.android.bundle",
+			constantSources: [{ DeviceInfo: {} }],
 			contract,
 			hostExecutablePath: "C:\\adapter\\native\\roborock-hermes-appplugin-host.exe",
 		}));
-		const compositionOptions = compositionMock.mock.calls[0]?.[0] as {
-			createModules(uiManager: unknown): unknown;
-		};
-		const uiManager = { marker: "ui-manager" };
-		expect(compositionOptions.createModules(uiManager)).toEqual([
-			{ moduleName: "DeviceInfo", implementation: {} },
-		]);
-		expect(createSharedNativeModules).toHaveBeenCalledWith(uiManager);
-		expect(bindingMock).toHaveBeenCalledWith(sharedNativeModules);
+		expect(native.runtime.createSharedNativeModules).toHaveBeenCalledOnce();
+		expect(bindingMock).toHaveBeenCalledWith(native.sharedNativeModules);
+		expect(native.runtime.attachComposition).toHaveBeenCalledWith({ session: applicationSession });
+
+		await runtime.stop();
+		expect(native.runtime.dispose).toHaveBeenCalledOnce();
 	});
 
-	it("fails before composing modules when the packaged host is unavailable", () => {
+	it("fails before composing modules when the packaged host is unavailable", async () => {
 		resolverMock.mockImplementationOnce(() => {
 			throw new Error("Native-Artefakt fehlt");
 		});
@@ -125,13 +145,30 @@ describe("APK AppPlugin device model runtime factory", () => {
 			createCompositionOptions,
 		});
 
-		expect(() => factory({
+		await expect(factory({
 			activeTime: 1,
-			context: context("C:\\plugin\\index.android.bundle"),
+			context: context("C:\\plugin\\index.android.bundle", "device", "model"),
 			deviceId: "device",
 			model: "model",
-		})).toThrow(/Native-Artefakt fehlt/u);
+		})).rejects.toThrow(/Native-Artefakt fehlt/u);
 		expect(createCompositionOptions).not.toHaveBeenCalled();
 		expect(compositionMock).not.toHaveBeenCalled();
+	});
+
+	it("rejects a request that does not match the resolved APK device context", async () => {
+		const createCompositionOptions = vi.fn();
+		const factory = createApkAppPluginDeviceModelRuntimeFactory({
+			contract,
+			createCompositionOptions,
+		});
+
+		await expect(factory({
+			activeTime: 1,
+			context: context("C:\\plugin\\index.android.bundle", "other-device"),
+			deviceId: "device",
+			model: "generic.model",
+		})).rejects.toThrow(/stimmt nicht/u);
+		expect(resolverMock).not.toHaveBeenCalled();
+		expect(createCompositionOptions).not.toHaveBeenCalled();
 	});
 });

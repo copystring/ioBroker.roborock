@@ -3,6 +3,7 @@ import {
 	type ApkHermesHostArtifact,
 } from "./apkHermesHostArtifact";
 import type { ApkAppPluginDeviceModelContext } from "./apkAppPluginDeviceSessionRuntime";
+import type { ApkAppPluginDeviceNativeRuntimeEnvironment } from "./apkAppPluginDeviceNativeRuntimeEnvironment";
 import { ApkAppPluginModelRuntime } from "./apkAppPluginModelRuntime";
 import {
 	createApkAppPluginNativeModelRuntimeComposition,
@@ -10,7 +11,6 @@ import {
 } from "./apkAppPluginNativeRuntimeComposition";
 import {
 	createApkAppPluginSharedNativeModuleBindings,
-	type ApkAppPluginSharedNativeModuleRuntimes,
 } from "./apkAppPluginSharedNativeModules";
 import type {
 	ApkAppPluginManagedModelRuntimeFactory,
@@ -20,11 +20,13 @@ import type { ApkAppPluginHostContract } from "./apkContract";
 
 type DeviceNativeCompositionOptions = Omit<
 	ApkAppPluginNativeModelRuntimeCompositionOptions,
-	"bundlePath" | "contract" | "createModules" | "hostExecutablePath"
+	| "bundlePath"
+	| "constantSources"
+	| "contract"
+	| "createModules"
+	| "hostExecutablePath"
 > & {
-	readonly createSharedNativeModules: (
-		uiManager: Parameters<ApkAppPluginNativeModelRuntimeCompositionOptions["createModules"]>[0],
-	) => Readonly<ApkAppPluginSharedNativeModuleRuntimes>;
+	readonly nativeRuntime: ApkAppPluginDeviceNativeRuntimeEnvironment;
 };
 
 export interface ApkAppPluginDeviceModelRuntimeFactoryOptions {
@@ -43,18 +45,59 @@ export interface ApkAppPluginDeviceModelRuntimeFactoryOptions {
 export function createApkAppPluginDeviceModelRuntimeFactory(
 	options: Readonly<ApkAppPluginDeviceModelRuntimeFactoryOptions>,
 ): ApkAppPluginManagedModelRuntimeFactory<ApkAppPluginModelRuntime, ApkAppPluginDeviceModelContext> {
-	return request => {
+	return async request => {
+		const descriptor = request.context.session.descriptor.device;
+		if (descriptor.deviceId !== request.deviceId
+			|| descriptor.model !== request.model
+			|| descriptor.activeTime !== request.activeTime) {
+			throw new Error("AppPlugin-Modellanforderung stimmt nicht mit dem APK-Gerätekontext überein");
+		}
 		const artifact = resolveApkHermesHostArtifact();
 		const compositionOptions = options.createCompositionOptions(request, artifact);
-		const { createSharedNativeModules, ...nativeOptions } = compositionOptions;
-		return new ApkAppPluginModelRuntime(createApkAppPluginNativeModelRuntimeComposition({
-			...nativeOptions,
-			bundlePath: request.context.session.bundle.bundlePath,
-			contract: options.contract,
-			createModules: uiManager => createApkAppPluginSharedNativeModuleBindings(
-				createSharedNativeModules(uiManager),
-			),
-			hostExecutablePath: artifact.executablePath,
-		}));
+		const {
+			nativeRuntime,
+			onCompositionCreated,
+			dispose,
+			...nativeOptions
+		} = compositionOptions;
+		const disposeComposition = async (): Promise<void> => {
+			const results = await Promise.allSettled([
+				nativeRuntime.dispose(),
+				Promise.resolve().then(() => dispose?.()),
+			]);
+			const errors = results
+				.filter((result): result is PromiseRejectedResult => result.status === "rejected")
+				.map(result => result.reason);
+			if (errors.length > 0) {
+				throw new AggregateError(errors, "APK-Modellkomposition konnte nicht sauber beendet werden");
+			}
+		};
+		try {
+			return new ApkAppPluginModelRuntime(createApkAppPluginNativeModelRuntimeComposition({
+				...nativeOptions,
+				bundlePath: request.context.session.bundle.bundlePath,
+				constantSources: nativeRuntime.constantSources(),
+				contract: options.contract,
+				createModules: uiManager => createApkAppPluginSharedNativeModuleBindings(
+					nativeRuntime.createSharedNativeModules(uiManager),
+				),
+				dispose: disposeComposition,
+				hostExecutablePath: artifact.executablePath,
+				onCompositionCreated: composition => {
+					nativeRuntime.attachComposition(composition);
+					onCompositionCreated?.(composition);
+				},
+			}));
+		} catch (error) {
+			try {
+				await disposeComposition();
+			} catch (disposeError) {
+				throw new AggregateError(
+					[error, disposeError],
+					"APK-Modellkomposition ist beim Aufbau und Aufräumen fehlgeschlagen",
+				);
+			}
+			throw error;
+		}
 	};
 }

@@ -17,6 +17,7 @@ export * from "./apkB01MqttFrameCodec";
 export * from "./apkAppearanceRuntime";
 export * from "./apkAppPluginAuthenticatedAccountRuntime";
 export * from "./apkAppPluginDeviceModelRuntimeFactory";
+export * from "./apkAppPluginDeviceNativeRuntimeEnvironment";
 export * from "./apkAppPluginSharedNativeModules";
 export * from "./apkAppPluginDeviceSessionRuntime";
 export * from "./apkAppPluginSessionDescriptor";
