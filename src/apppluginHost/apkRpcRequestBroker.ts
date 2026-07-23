@@ -41,7 +41,14 @@ export interface ApkRpcBrokerOptions {
 
 interface PendingRequest {
 	callback: ApkReactCallback;
+	method?: string;
+	params?: Readonly<Record<string, unknown>> | readonly unknown[];
 	timer: ReturnType<typeof setTimeout>;
+}
+
+export interface ApkAcceptedJsonRpcResponse {
+	readonly method: string;
+	readonly params: Readonly<Record<string, unknown>> | readonly unknown[];
 }
 
 function callbackError(callback: ApkReactCallback, error: string | null): void {
@@ -101,7 +108,7 @@ export class ApkRpcRequestBroker {
 		callback: ApkReactCallback,
 	): number {
 		const id = this.#allocateMessageId();
-		this.#register(this.#normalRequests, id, callback);
+		this.#register(this.#normalRequests, id, callback, method, params);
 		this.#send(this.#normalRequests, id, () => this.transport.sendJson({ id, method, params }, route));
 		return id;
 	}
@@ -113,7 +120,7 @@ export class ApkRpcRequestBroker {
 		callback: ApkReactCallback,
 	): number {
 		const id = this.#allocateMessageId();
-		this.#register(this.#blobRequests, id, callback);
+		this.#register(this.#blobRequests, id, callback, method, params);
 		this.#send(this.#blobRequests, id, () => this.transport.sendJson({
 			id,
 			method,
@@ -163,15 +170,32 @@ export class ApkRpcRequestBroker {
 	}
 
 	public acceptJsonDps(dps: Readonly<Record<string, unknown>>): boolean {
+		return this.acceptJsonDpsWithMetadata(dps) !== undefined;
+	}
+
+	public acceptJsonDpsWithMetadata(
+		dps: Readonly<Record<string, unknown>>,
+	): ApkAcceptedJsonRpcResponse | undefined {
 		const response = dps["102"];
-		if (!response || typeof response !== "object" || Array.isArray(response)) return false;
+		if (!response || typeof response !== "object" || Array.isArray(response)) return undefined;
 		const id = (response as Record<string, unknown>).id;
-		if (typeof id !== "number" || !Number.isSafeInteger(id) || id < 1 || id > 0x7fff_ffff) return false;
-		if (this.#blobRequests.has(id)) return true;
+		if (typeof id !== "number" || !Number.isSafeInteger(id) || id < 1 || id > 0x7fff_ffff) {
+			return undefined;
+		}
+		const blobPending = this.#blobRequests.get(id);
+		if (blobPending?.method && blobPending.params) {
+			return {
+				method: blobPending.method,
+				params: structuredClone(blobPending.params),
+			};
+		}
 		const pending = this.#take(this.#normalRequests, id);
-		if (!pending) return false;
+		if (!pending?.method || !pending.params) return undefined;
 		pending.callback(true, response);
-		return true;
+		return {
+			method: pending.method,
+			params: structuredClone(pending.params),
+		};
 	}
 
 	public acceptProtobufRpc(id: number, result: Uint8Array): boolean {
@@ -223,7 +247,13 @@ export class ApkRpcRequestBroker {
 		throw new Error("Keine freie RPC-Nachrichten-ID verfügbar");
 	}
 
-	#register(table: Map<number, PendingRequest>, id: number, callback: ApkReactCallback): void {
+	#register(
+		table: Map<number, PendingRequest>,
+		id: number,
+		callback: ApkReactCallback,
+		method?: string,
+		params?: Readonly<Record<string, unknown>> | readonly unknown[],
+	): void {
 		if (typeof callback !== "function") throw new Error("RPC-Aufruf benötigt einen Callback");
 		if (table.has(id) || this.#normalRequests.has(id) || this.#blobRequests.has(id)) {
 			throw new Error(`RPC-Nachrichten-ID ${id} ist bereits ausstehend`);
@@ -232,7 +262,12 @@ export class ApkRpcRequestBroker {
 			const pending = this.#take(table, id);
 			if (pending) callbackError(pending.callback, "timeout");
 		}, this.#timeoutMilliseconds);
-		table.set(id, { callback, timer });
+		table.set(id, {
+			callback,
+			method,
+			params: params === undefined ? undefined : structuredClone(params),
+			timer,
+		});
 	}
 
 	#take(table: Map<number, PendingRequest>, id: number): PendingRequest | undefined {

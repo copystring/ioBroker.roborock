@@ -89,12 +89,32 @@ describe("Roborock Cloud API Specification", () => {
 		expect(adapter.rLog).toHaveBeenCalledWith("HTTP", null, "Error", "Cloud", undefined, expect.stringContaining("Error updating HomeData"), "error");
 	});
 
-	it("refreshes and detaches the APK product-role repository context", async () => {
+	it("refreshes and detaches the APK product repository context", async () => {
 		const adapter = {
 			rLog: vi.fn(),
 			errorMessage: (error: unknown) => error instanceof Error ? error.message : String(error),
 		};
 		const api = new http_api(adapter as any);
+		api.productInfo = {
+			code: 200,
+			msg: "ok",
+			data: {
+				categoryDetailList: [{
+					category: {} as never,
+					productList: [{
+						id: 7,
+						name: "Q7",
+						model: "roborock.vacuum.test",
+						picurl: "",
+						productTags: [],
+						agreements: [
+							{ type: "USER_AGREEMENT", version: 1, minorVersion: 0 },
+							{ type: "PRIVACY_POLICY", version: 19, minorVersion: 0 },
+						],
+					}],
+				}],
+			},
+		};
 		const roles = [{
 			role: "owner",
 			products: [{ prodModel: "all", catCode: "robot.mower" }],
@@ -106,11 +126,20 @@ describe("Roborock Cloud API Specification", () => {
 		await api.refreshAppPluginProductRoles();
 		const first = api.getAppPluginProductRepositoryContext();
 		(first.userRoles[0]!.products as Array<{ prodModel: string }>)[0]!.prodModel = "mutated";
+		expect(Object.isFrozen(first.agreementsByModel["roborock.vacuum.test"])).toBe(true);
 		(api as any).loginApi.get = vi.fn().mockRejectedValue(new Error("offline"));
 
-		expect(api.getAppPluginProductRepositoryContext()).toEqual({ userRoles: roles });
+		expect(api.getAppPluginProductRepositoryContext()).toEqual({
+			agreementsByModel: {
+				"roborock.vacuum.test": [
+					{ type: "USER_AGREEMENT", version: 1, minorVersion: 0 },
+					{ type: "PRIVACY_POLICY", version: 19, minorVersion: 0 },
+				],
+			},
+			userRoles: roles,
+		});
 		await expect(api.refreshAppPluginProductRoles()).rejects.toThrow("offline");
-		expect(api.getAppPluginProductRepositoryContext()).toEqual({ userRoles: roles });
+		expect(api.getAppPluginProductRepositoryContext().userRoles).toEqual(roles);
 	});
 
 	it("binds AppPlugin User and IoT repositories to their distinct authenticated clients", async () => {

@@ -46,10 +46,34 @@ export interface ApkMobileOperatorInfo {
 	countryCode: string;
 }
 
+export interface ApkAgreementDiagnostic {
+	readonly method: "getPluginAgreements" | "getPluginAgreementsV2" | "getProductAgreements";
+	readonly outcome: "rejected" | "resolved";
+	readonly value: Readonly<{
+		kind: "array" | "bigint" | "boolean" | "function" | "null" | "number"
+			| "object" | "string" | "symbol" | "undefined";
+		count?: number;
+		keys?: readonly string[];
+	}>;
+}
+
 function record(value: unknown): Record<string, unknown> | undefined {
 	return value !== null && typeof value === "object" && !Array.isArray(value)
 		? value as Record<string, unknown>
 		: undefined;
+}
+
+function summarizeAgreementValue(value: unknown): ApkAgreementDiagnostic["value"] {
+	if (value === null) return { kind: "null" };
+	if (value === undefined) return { kind: "undefined" };
+	if (Array.isArray(value)) return { kind: "array", count: value.length };
+	if (typeof value === "object") {
+		return {
+			kind: "object",
+			keys: Object.keys(value).sort().slice(0, 32),
+		};
+	}
+	return { kind: typeof value };
 }
 
 /** Extracts IUserPreferenceApi.checkAppAgreement without assuming one HTTP envelope variant. */
@@ -91,6 +115,17 @@ export function selectApkPluginAgreementsForDevice(
 	});
 }
 
+/** Mirrors getPluginAgreementsV2: retain complete JSON entries for one device. */
+export function selectApkPluginAgreementsV2ForDevice(
+	agreements: readonly unknown[],
+	deviceId: string,
+): readonly unknown[] {
+	return agreements.flatMap(value => {
+		const agreement = record(value);
+		return agreement?.deviceId === deviceId ? [structuredClone(value)] : [];
+	});
+}
+
 export class ApkHostServiceUnavailableError extends Error {
 	public override readonly name = "ApkHostServiceUnavailableError";
 
@@ -115,6 +150,8 @@ export interface ApkPluginSdkEnvironmentRuntimeOptions {
 	loadAgreementAndPolicy(): Promise<ApkAgreementAndPolicy>;
 	loadProductAgreements?(): unknown | Promise<unknown>;
 	loadPluginAgreements(): Promise<readonly unknown[]>;
+	loadPluginAgreementsV2?(): Promise<readonly unknown[]>;
+	onAgreementDiagnostic?(diagnostic: Readonly<ApkAgreementDiagnostic>): void;
 	workerRuntime: ApkV8WorkerRuntime;
 }
 
@@ -221,21 +258,48 @@ export class ApkPluginSdkEnvironmentRuntime {
 	public async getProductAgreements(): Promise<unknown | null> {
 		if (!this.options.hasActivity()) throw new Error("activity has finished");
 		const agreements = await this.options.loadProductAgreements?.();
-		return agreements === undefined || agreements === null
+		const result = agreements === undefined || agreements === null
 			? null
 			: structuredClone(agreements);
+		this.#reportAgreement("getProductAgreements", "resolved", result);
+		return result;
 	}
 
 	public async getPluginAgreements(): Promise<unknown[]> {
 		try {
-			return structuredClone([...(await this.options.loadPluginAgreements())]);
+			const result = structuredClone([...(await this.options.loadPluginAgreements())]);
+			this.#reportAgreement("getPluginAgreements", "resolved", result);
+			return result;
 		} catch {
-			return [];
+			const result: unknown[] = [];
+			this.#reportAgreement("getPluginAgreements", "resolved", result);
+			return result;
 		}
 	}
 
 	public async getPluginAgreementsV2(): Promise<unknown[]> {
-		return this.getPluginAgreements();
+		try {
+			const loader = this.options.loadPluginAgreementsV2;
+			if (!loader) throw new Error("V2 agreement loader unavailable");
+			const result = structuredClone([...(await loader())]);
+			this.#reportAgreement("getPluginAgreementsV2", "resolved", result);
+			return result;
+		} catch (error) {
+			this.#reportAgreement("getPluginAgreementsV2", "rejected", undefined);
+			throw new Error("fetch data failed", { cause: error });
+		}
+	}
+
+	#reportAgreement(
+		method: ApkAgreementDiagnostic["method"],
+		outcome: ApkAgreementDiagnostic["outcome"],
+		value: unknown,
+	): void {
+		this.options.onAgreementDiagnostic?.({
+			method,
+			outcome,
+			value: summarizeAgreementValue(value),
+		});
 	}
 
 	/**

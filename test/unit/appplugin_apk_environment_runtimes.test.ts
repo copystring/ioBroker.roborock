@@ -12,6 +12,7 @@ import {
 	ApkPluginSdkEnvironmentRuntime,
 	parseApkUserPluginAgreementsResponse,
 	selectApkPluginAgreementsForDevice,
+	selectApkPluginAgreementsV2ForDevice,
 } from "../../src/apppluginHost/apkPluginSdkEnvironmentRuntime";
 import { ApkPluginSdkPreferencesRuntime } from "../../src/apppluginHost/apkPluginSdkPreferencesRuntime";
 import { ApkStatusBarRuntime } from "../../src/apppluginHost/apkStatusBarRuntime";
@@ -28,6 +29,15 @@ describe("APK AppPlugin environment runtimes", () => {
 			...agreements,
 			{ deviceId: "device-2", type: "terms", version: "9" },
 		], "device-1")).toEqual([{ type: "privacy", version: 3 }]);
+		expect(selectApkPluginAgreementsV2ForDevice([
+			{ ...agreements[0], nested: { accepted: true } },
+			{ deviceId: "device-2", type: "terms", version: "9" },
+		], "device-1")).toEqual([{
+			deviceId: "device-1",
+			type: "privacy",
+			version: "3",
+			nested: { accepted: true },
+		}]);
 		expect(() => parseApkUserPluginAgreementsResponse("{}"))
 			.toThrow(/userPluginAgreementList/u);
 	});
@@ -114,6 +124,8 @@ describe("APK AppPlugin environment runtimes", () => {
 			userAgreement: { version: "2", langUrl: "https://example.test/terms" },
 		};
 		const productAgreements = { privacy: { version: "3" } };
+		const agreementDiagnostics: unknown[] = [];
+		const pluginAgreementsV2 = [{ deviceId: "device-1", type: "privacy", nested: { value: true } }];
 		const runtime = new ApkPluginSdkEnvironmentRuntime({
 			hasActivity: () => true,
 			firmwareVersion: "02.24.90",
@@ -123,12 +135,59 @@ describe("APK AppPlugin environment runtimes", () => {
 			loadAgreementAndPolicy: async () => agreementAndPolicy,
 			loadProductAgreements: async () => productAgreements,
 			loadPluginAgreements: async () => { throw new Error("Lesefehler"); },
+			loadPluginAgreementsV2: async () => pluginAgreementsV2,
+			onAgreementDiagnostic: diagnostic => agreementDiagnostics.push(diagnostic),
 			workerRuntime: new ApkV8WorkerRuntime({ pluginRootPath: root }),
 		});
 
 		expect(await runtime.agreementAndPolicy()).toEqual(agreementAndPolicy);
 		expect(await runtime.getProductAgreements()).toEqual(productAgreements);
 		expect(await runtime.getPluginAgreements()).toEqual([]);
+		expect(await runtime.getPluginAgreementsV2()).toEqual(pluginAgreementsV2);
+		expect(agreementDiagnostics).toEqual([
+			{
+				method: "getProductAgreements",
+				outcome: "resolved",
+				value: { kind: "object", keys: ["privacy"] },
+			},
+			{
+				method: "getPluginAgreements",
+				outcome: "resolved",
+				value: { kind: "array", count: 0 },
+			},
+			{
+				method: "getPluginAgreementsV2",
+				outcome: "resolved",
+				value: { kind: "array", count: 1 },
+			},
+		]);
+	});
+
+	it("rejects V2 agreement failures like the APK instead of resolving a V1 fallback", async () => {
+		const root = mkdtempSync(path.join(tmpdir(), "apk-environment-"));
+		const agreementDiagnostics: unknown[] = [];
+		const runtime = new ApkPluginSdkEnvironmentRuntime({
+			hasActivity: () => true,
+			firmwareVersion: "02.24.90",
+			storageBasePath: root,
+			loadDeviceExtraInfo: async () => ({}),
+			loadOtaInfo: async () => null,
+			loadAgreementAndPolicy: async () => ({
+				privacyProtocol: { version: null, langUrl: null },
+				userAgreement: { version: null, langUrl: null },
+			}),
+			loadPluginAgreements: async () => [],
+			loadPluginAgreementsV2: async () => { throw new Error("Lesefehler"); },
+			onAgreementDiagnostic: diagnostic => agreementDiagnostics.push(diagnostic),
+			workerRuntime: new ApkV8WorkerRuntime({ pluginRootPath: root }),
+		});
+
+		await expect(runtime.getPluginAgreementsV2()).rejects.toThrow("fetch data failed");
+		expect(agreementDiagnostics).toEqual([{
+			method: "getPluginAgreementsV2",
+			outcome: "rejected",
+			value: { kind: "undefined" },
+		}]);
 	});
 
 	it("loads device properties only through the APK asynchronous methods", async () => {

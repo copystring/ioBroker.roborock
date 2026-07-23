@@ -64,6 +64,7 @@ export * from "./apkPluginPackageInstaller";
 export * from "./apkPluginAcquisition";
 export * from "./apkPluginPackageRuntime";
 export * from "./apkProductRoleCatalog";
+export * from "./apkProductAgreementCatalog";
 export * from "./apkReadOnlyDeviceRepository";
 export * from "./apkReadOnlyProbeRuntime";
 export * from "./apkPluginSdkRpcModule";

@@ -11,6 +11,9 @@ import {
 	parseApkProductRoleDefinitions,
 } from "./apkProductRoleCatalog";
 import {
+	parseApkProductAgreementsByModel,
+} from "./apkProductAgreementCatalog";
+import {
 	createApkRriotSessionDescriptor,
 	type ApkRriotSessionDescriptorInput,
 } from "./apkRriotSessionDescriptor";
@@ -121,6 +124,9 @@ export class ApkAppPluginAuthenticatedAccountRuntime {
 		}
 		this.#packageProductIdsByModel = packageProductIdsByModel;
 		this.#productRepository = Object.freeze({
+			agreementsByModel: parseApkProductAgreementsByModel(
+				options.productRepository.agreementsByModel,
+			),
 			userRoles: Object.freeze(parseApkProductRoleDefinitions(
 				options.productRepository.userRoles,
 				"productRepository.userRoles",

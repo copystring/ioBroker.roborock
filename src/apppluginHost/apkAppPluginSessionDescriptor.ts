@@ -15,6 +15,10 @@ import {
 	parseApkProductRoleDefinitions,
 	type ApkProductRoleDefinition,
 } from "./apkProductRoleCatalog";
+import {
+	parseApkProductAgreementsByModel,
+	type ApkProductAgreementsByModel,
+} from "./apkProductAgreementCatalog";
 
 export interface ApkAppPluginPackageMetadata {
 	models: readonly string[];
@@ -81,6 +85,8 @@ export interface ApkAppPluginInstallationContext {
 }
 
 export interface ApkAppPluginProductRepositoryContext {
+	/** Raw ProductEntity.agreements values indexed by exact product model. */
+	agreementsByModel: ApkProductAgreementsByModel;
 	/** Parsed RoleBean values cached by the APK product repository. */
 	userRoles: readonly ApkProductRoleDefinition[];
 }
@@ -293,6 +299,9 @@ function parseProductRepositoryContext(
 	if (value === undefined) return undefined;
 	if (!isRecord(value)) throw new Error("productRepository muss ein Objekt sein");
 	return {
+		agreementsByModel: parseApkProductAgreementsByModel(
+			value.agreementsByModel,
+		),
 		userRoles: parseApkProductRoleDefinitions(
 			value.userRoles,
 			"productRepository.userRoles",

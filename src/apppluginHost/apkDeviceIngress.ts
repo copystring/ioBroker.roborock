@@ -10,6 +10,8 @@ import { ApkRpcRequestBroker } from "./apkRpcRequestBroker";
 export interface ApkDeviceIngressResult {
 	eventEmitted: boolean;
 	rpcAccepted: boolean;
+	rpcMethod?: string;
+	rpcParameters?: Readonly<Record<string, unknown>> | readonly unknown[];
 }
 
 function isApkRpcProtocol(protocolVersion: string): boolean {
@@ -60,10 +62,21 @@ export class ApkDeviceIngress {
 		} catch {
 			return { eventEmitted: true, rpcAccepted: false };
 		}
-		const rpcAccepted = parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
-			? this.broker.acceptJsonDps(normalizeJsonRpcDps(parsed as Readonly<Record<string, unknown>>))
-			: false;
-		return { eventEmitted: true, rpcAccepted };
+		const accepted = parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+			? this.broker.acceptJsonDpsWithMetadata(
+				normalizeJsonRpcDps(parsed as Readonly<Record<string, unknown>>),
+			)
+			: undefined;
+		return {
+			eventEmitted: true,
+			rpcAccepted: accepted !== undefined,
+			...(accepted
+				? {
+					rpcMethod: accepted.method,
+					rpcParameters: accepted.params,
+				}
+				: {}),
+		};
 	}
 
 	public acceptProtobufDps(

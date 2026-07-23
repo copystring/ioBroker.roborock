@@ -6,9 +6,11 @@ import {
 	type ApkAppPluginAdapterDeviceHostLeaseFactory,
 	type ApkAppPluginAdapterDeviceRuntimePorts,
 	type ApkAppPluginDeviceNativeRuntimeInitialState,
+	type ApkAgreementDiagnostic,
 	type ApkDeviceIngress,
 	type ApkDeviceIngressRouter,
 	type ApkReadOnlyDeviceTransportObserver,
+	type ApkTimingDiagnostic,
 	type ApkV8WorkerDiagnostic,
 } from "../../apppluginHost";
 import { IoBrokerAppPluginDeviceWire } from "./IoBrokerAppPluginDeviceWire";
@@ -29,7 +31,10 @@ export interface IoBrokerReadOnlyAppPluginDeviceHostOptions {
 	readonly language?: string;
 	readonly localeIdentifier?: string;
 	readonly loadPluginAgreements?: () => Promise<readonly unknown[]>;
+	readonly loadPluginAgreementsV2?: () => Promise<readonly unknown[]>;
+	readonly observeAgreements?: (diagnostic: Readonly<ApkAgreementDiagnostic>) => void;
 	readonly observeTransport?: ApkReadOnlyDeviceTransportObserver;
+	readonly observeTiming?: (diagnostic: Readonly<ApkTimingDiagnostic>) => void;
 	readonly observeWorker?: (diagnostic: ApkV8WorkerDiagnostic) => void;
 }
 
@@ -191,6 +196,8 @@ export function createIoBrokerReadOnlyAppPluginDeviceHostLeaseFactory(
 				showToast: () => undefined,
 				vibrate: () => undefined,
 			},
+			onAgreementDiagnostic: options.observeAgreements,
+			onTimingDiagnostic: options.observeTiming,
 			onWorkerDiagnostic: options.observeWorker,
 			rpc: {
 				endpoint,
@@ -214,6 +221,7 @@ export function createIoBrokerReadOnlyAppPluginDeviceHostLeaseFactory(
 					userAgreement: { version: null, langUrl: null },
 				}),
 				loadPluginAgreements: options.loadPluginAgreements ?? (async () => []),
+				loadPluginAgreementsV2: options.loadPluginAgreementsV2 ?? (async () => []),
 			},
 			emitAnalytics: () => undefined,
 			reportException: (method, arguments_) => options.adapter.rLog(

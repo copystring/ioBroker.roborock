@@ -20,6 +20,7 @@ import {
 	loadApkProductRoleDefinitions,
 	type ApkProductRoleDefinition,
 } from "../apppluginHost/apkProductRoleCatalog";
+import { createApkProductAgreementsByModel } from "../apppluginHost/apkProductAgreementCatalog";
 import { LoginV4Response, ProductV5Response } from "./apiTypes";
 import { cryptoEngine } from "./cryptoEngine";
 
@@ -875,6 +876,7 @@ export class http_api {
 	 */
 	getAppPluginProductRepositoryContext(): ApkAppPluginProductRepositoryContext {
 		return {
+			agreementsByModel: createApkProductAgreementsByModel(this.productInfo),
 			userRoles: structuredClone(this.appPluginProductRoles),
 		};
 	}

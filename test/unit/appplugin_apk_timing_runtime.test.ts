@@ -9,7 +9,11 @@ describe("APK Timing runtime", () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(10_000);
 		const emitTimers = vi.fn();
-		const runtime = new ApkTimingRuntime({ emitTimers });
+		const diagnostics: unknown[] = [];
+		const runtime = new ApkTimingRuntime({
+			emitTimers,
+			onDiagnostic: diagnostic => diagnostics.push(diagnostic),
+		});
 
 		runtime.createTimer(7, 200, 9_950, false);
 		expect(runtime.activeTimerIds()).toEqual([7]);
@@ -25,8 +29,35 @@ describe("APK Timing runtime", () => {
 		expect(emitTimers).not.toHaveBeenCalled();
 		await vi.advanceTimersByTimeAsync(1);
 		expect(emitTimers).toHaveBeenCalledWith([7]);
+		expect(diagnostics).toEqual([
+			{ phase: "fired", timerIds: [7] },
+			{ phase: "delivered", timerIds: [7] },
+		]);
 		expect(runtime.activeTimerIds()).toEqual([]);
 		expect(runtime.nextOneShotDelayMs(1_000)).toBeUndefined();
+	});
+
+	it("reports a rejected JSTimers delivery without losing the timer error", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(15_000);
+		const diagnostics: unknown[] = [];
+		const errors: Error[] = [];
+		const runtime = new ApkTimingRuntime({
+			emitTimers: async () => {
+				throw new Error("Hermes rejected timer");
+			},
+			onDiagnostic: diagnostic => diagnostics.push(diagnostic),
+			onError: error => errors.push(error),
+		});
+
+		runtime.createTimer(8, 10, 15_000, false);
+		await vi.advanceTimersByTimeAsync(10);
+
+		expect(diagnostics).toEqual([
+			{ phase: "fired", timerIds: [8] },
+			{ phase: "failed", timerIds: [8], error: "Hermes rejected timer" },
+		]);
+		expect(errors.map(error => error.message)).toEqual(["Hermes rejected timer"]);
 	});
 
 	it("fires zero-delay one-shot timers immediately and supports deletion", async () => {

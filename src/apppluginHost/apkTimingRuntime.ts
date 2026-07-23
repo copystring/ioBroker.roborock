@@ -1,7 +1,14 @@
 export interface ApkTimingRuntimeOptions {
 	emitTimers(timerIds: readonly number[]): void | Promise<void>;
 	nowWallClockMs?(): number;
+	onDiagnostic?(diagnostic: Readonly<ApkTimingDiagnostic>): void;
 	onError?(error: Error): void;
+}
+
+export interface ApkTimingDiagnostic {
+	readonly phase: "fired" | "delivered" | "failed";
+	readonly timerIds: readonly number[];
+	readonly error?: string;
 }
 
 interface ScheduledTimer {
@@ -138,10 +145,37 @@ export class ApkTimingRuntime {
 	}
 
 	#emit(timerIds: readonly number[]): void {
+		const observedTimerIds = Object.freeze([...timerIds]);
+		this.options.onDiagnostic?.({ phase: "fired", timerIds: observedTimerIds });
 		try {
-			const result = this.options.emitTimers(timerIds);
-			if (result instanceof Promise) result.catch(error => this.#report(error));
+			const result = this.options.emitTimers(observedTimerIds);
+			if (result instanceof Promise) {
+				void result.then(
+					() => this.options.onDiagnostic?.({
+						phase: "delivered",
+						timerIds: observedTimerIds,
+					}),
+					error => {
+						this.options.onDiagnostic?.({
+							phase: "failed",
+							timerIds: observedTimerIds,
+							error: error instanceof Error ? error.message : String(error),
+						});
+						this.#report(error);
+					},
+				);
+			} else {
+				this.options.onDiagnostic?.({
+					phase: "delivered",
+					timerIds: observedTimerIds,
+				});
+			}
 		} catch (error) {
+			this.options.onDiagnostic?.({
+				phase: "failed",
+				timerIds: observedTimerIds,
+				error: error instanceof Error ? error.message : String(error),
+			});
 			this.#report(error);
 		}
 	}

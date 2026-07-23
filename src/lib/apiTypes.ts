@@ -72,6 +72,7 @@ export interface ProductInfo {
 	model: string;
 	picurl: string;
 	productTags: ProductTag[];
+	agreements?: unknown;
 }
 
 export interface CategoryDetail {

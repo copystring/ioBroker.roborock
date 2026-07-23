@@ -48,7 +48,6 @@ import { ApkDeviceFirmwareRuntime } from "./apkDeviceFirmwareRuntime";
 import { ApkDeviceIngress } from "./apkDeviceIngress";
 import { ApkPluginDeviceEventBridge } from "./apkDeviceEvents";
 import { ApkDevicesRuntime } from "./apkDevicesRuntime";
-import { resolveApkHomeDataDeviceProduct } from "./apkHomeDataLookup";
 import { ApkGestureHandlerRuntime } from "./apkGestureHandlerRuntime";
 import type { ApkHermesHostSession } from "./apkHermesHostSession";
 import { ApkI18nManagerRuntime } from "./apkI18nManagerRuntime";
@@ -94,6 +93,7 @@ import {
 import {
 	ApkHostServiceUnavailableError,
 	ApkPluginSdkEnvironmentRuntime,
+	type ApkAgreementDiagnostic,
 	type ApkAgreementAndPolicy,
 	type ApkMobileOperatorInfo,
 	type ApkOtaInfo,
@@ -106,7 +106,7 @@ import {
 import { ApkSoundManagerRuntime } from "./apkSoundManagerRuntime";
 import { createApkSourceCodeConstants } from "./apkSourceCodeConstants";
 import { ApkStatusBarRuntime } from "./apkStatusBarRuntime";
-import { ApkTimingRuntime } from "./apkTimingRuntime";
+import { ApkTimingRuntime, type ApkTimingDiagnostic } from "./apkTimingRuntime";
 import {
 	createApkUiManagerConstants,
 	type ApkUiManagerRuntime,
@@ -159,6 +159,7 @@ export interface ApkAppPluginDeviceSdkEnvironmentPorts {
 	readonly loadOtaProgress?: () => Promise<Readonly<{ status: string }> | null>;
 	readonly loadAgreementAndPolicy: () => Promise<ApkAgreementAndPolicy>;
 	readonly loadPluginAgreements: () => Promise<readonly unknown[]>;
+	readonly loadPluginAgreementsV2: () => Promise<readonly unknown[]>;
 }
 
 export interface ApkAppPluginDeviceHttpPorts {
@@ -207,6 +208,8 @@ export interface ApkAppPluginDeviceNativeRuntimePorts {
 	readonly onNativeAnimatedViewUpdate?: () => void;
 	readonly onOrientationRequest?: NonNullable<ApkOrientationRuntimeOptions["requestHostOrientation"]>;
 	readonly onStoredColorModelRequest?: (mode: ApkStoredColorModel) => void;
+	readonly onAgreementDiagnostic?: (diagnostic: Readonly<ApkAgreementDiagnostic>) => void;
+	readonly onTimingDiagnostic?: (diagnostic: Readonly<ApkTimingDiagnostic>) => void;
 	readonly onWorkerDiagnostic?: (diagnostic: ApkV8WorkerDiagnostic) => void;
 	readonly applyActivityStyle?: (isDark: boolean) => void;
 	readonly playTouchSound?: () => void;
@@ -407,10 +410,11 @@ export class ApkAppPluginDeviceNativeRuntimeEnvironment {
 				]),
 			),
 			loadAgreementAndPolicy: options.ports.sdkEnvironment.loadAgreementAndPolicy,
-			loadProductAgreements: () => descriptor.homeData
-				? resolveApkHomeDataDeviceProduct(descriptor.homeData, device.deviceId).product?.agreements ?? null
-				: null,
+			loadProductAgreements: () =>
+				descriptor.productRepository?.agreementsByModel[device.model] ?? null,
 			loadPluginAgreements: options.ports.sdkEnvironment.loadPluginAgreements,
+			loadPluginAgreementsV2: options.ports.sdkEnvironment.loadPluginAgreementsV2,
+			onAgreementDiagnostic: options.ports.onAgreementDiagnostic,
 			workerRuntime: this.#workerRuntime,
 		});
 		const pluginSdkPreferences = new ApkPluginSdkPreferencesRuntime(
@@ -433,6 +437,7 @@ export class ApkAppPluginDeviceNativeRuntimeEnvironment {
 		const pluginPermissions = new ApkPluginPermissionsRuntime(options.ports.permissions);
 		this.#timing = new ApkTimingRuntime({
 			emitTimers: timerIds => this.#session().callJsFunction("JSTimers", "callTimers", [timerIds]),
+			onDiagnostic: options.ports.onTimingDiagnostic,
 			onError: error => this.#report(error),
 		});
 		const localization = new ApkLocalizationRuntime({

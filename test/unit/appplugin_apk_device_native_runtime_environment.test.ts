@@ -95,7 +95,15 @@ function options(): {
 				installation: {
 					mainPluginDownloadVersions: { "roborock.test.model": 42 },
 				},
-				productRepository: { userRoles: [] },
+				productRepository: {
+					agreementsByModel: {
+						"roborock.test.model": [{
+							type: "USER_AGREEMENT",
+							version: 3,
+						}],
+					},
+					userRoles: [],
+				},
 			},
 		},
 	} as unknown as ApkAppPluginDeviceModelContext;
@@ -261,6 +269,10 @@ describe("APK AppPlugin device native runtime environment", () => {
 		const countryCallback = vi.fn();
 		runtimes.pluginSdkEnvironment.getCurrentCountryInfoCallback(countryCallback);
 		expect(countryCallback).toHaveBeenCalledWith(true, { countryCode: "de", serverCode: "eu" });
+		await expect(runtimes.pluginSdkEnvironment.getProductAgreements()).resolves.toEqual([{
+			type: "USER_AGREEMENT",
+			version: 3,
+		}]);
 
 		expect(() => environment.createSharedNativeModules(uiManager())).toThrow(/bereits einen UIManager/u);
 		await environment.dispose();
@@ -290,7 +302,12 @@ describe("APK AppPlugin device native runtime environment", () => {
 			"1.0",
 			JSON.stringify({ "102": { id: messageId, result: { state: 8 } } }),
 		);
-		expect(ingressResult).toEqual({ eventEmitted: true, rpcAccepted: true });
+		expect(ingressResult).toEqual({
+			eventEmitted: true,
+			rpcAccepted: true,
+			rpcMethod: "get_status",
+			rpcParameters: [],
+		});
 		expect(callback).toHaveBeenCalledWith(true, {
 			id: messageId,
 			result: { state: 8 },

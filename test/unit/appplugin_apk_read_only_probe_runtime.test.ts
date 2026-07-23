@@ -26,19 +26,42 @@ function request(overrides: Partial<ApkReadOnlyProbeRequest> = {}): ApkReadOnlyP
 	};
 }
 
-function ingress(rpcAccepted = true): ApkDeviceIngress {
+function ingress(
+	rpcAccepted = true,
+	rpcMethods: readonly string[] = [],
+	rpcParameters: readonly (Readonly<Record<string, unknown>> | readonly unknown[])[] = [],
+): ApkDeviceIngress {
+	let responseIndex = 0;
 	return {
-		acceptJsonDps: vi.fn(() => ({ eventEmitted: true, rpcAccepted })),
+		acceptJsonDps: vi.fn(() => {
+			const rpcMethod = rpcMethods[responseIndex];
+			const parameters = rpcParameters[responseIndex];
+			responseIndex += 1;
+			return {
+				eventEmitted: true,
+				rpcAccepted,
+				...(rpcMethod ? { rpcMethod } : {}),
+				...(parameters ? { rpcParameters: parameters } : {}),
+			};
+		}),
 	} as unknown as ApkDeviceIngress;
 }
 
 function harness(options: {
 	readonly cleanupFailure?: boolean;
 	readonly emitAcceptedResponse?: boolean;
+	readonly rpcMethods?: readonly string[];
+	readonly rpcParameters?: readonly (
+		Readonly<Record<string, unknown>> | readonly unknown[]
+	)[];
 } = {}) {
 	const order: string[] = [];
 	const router = new ApkDeviceIngressRouter();
-	const releaseIngress = router.register({ activeTime: 17, deviceId: "device-1", ingress: ingress() });
+	const releaseIngress = router.register({
+		activeTime: 17,
+		deviceId: "device-1",
+		ingress: ingress(true, options.rpcMethods, options.rpcParameters),
+	});
 	const rootRelease = vi.fn(async () => {
 		order.push("root-release");
 		if (options.cleanupFailure) throw new Error("root cleanup failed");
@@ -46,7 +69,15 @@ function harness(options: {
 	const modelRelease = vi.fn(async () => { order.push("model-release"); });
 	const openRoot = vi.fn(async () => {
 		if (options.emitAcceptedResponse !== false) {
-			router.acceptJsonDps("device-1", "1.0", "{\"102\":{\"id\":7,\"result\":{\"state\":8}}}");
+			for (const [index] of (options.rpcMethods?.length
+				? options.rpcMethods
+				: [undefined]).entries()) {
+				router.acceptJsonDps(
+					"device-1",
+					"1.0",
+					JSON.stringify({ "102": { id: 7 + index, result: { state: 8 } } }),
+				);
+			}
 		}
 		return { release: rootRelease };
 	});
@@ -87,6 +118,45 @@ describe("APK read-only probe runtime", () => {
 			initialProps: { colorMode: "light", concurrentRoot: true },
 		}));
 		expect(fixture.order).toEqual(["root-release", "model-release", "session-shutdown"]);
+	});
+
+	it("waits through bootstrap reads for the requested AppPlugin status method", async () => {
+		const fixture = harness({
+			rpcMethods: ["app_get_init_status", "app_get_status"],
+		});
+		const result = await runApkReadOnlyProbeSession(
+			fixture.session,
+			fixture.router,
+			request({ expectedRpcMethods: ["app_get_status", "get_status"] }),
+		);
+
+		expect(result).toMatchObject({
+			parsedDps: { "102": { id: 8, result: { state: 8 } } },
+			rpcMethod: "app_get_status",
+		});
+	});
+
+	it("selects get_prop only when the AppPlugin requested get_status", async () => {
+		const fixture = harness({
+			rpcMethods: ["get_prop", "get_prop"],
+			rpcParameters: [["get_dnd_timer"], ["get_status", "get_consumable"]],
+		});
+		const result = await runApkReadOnlyProbeSession(
+			fixture.session,
+			fixture.router,
+			request({
+				acceptRpcResponse: response =>
+					response.rpcMethod === "get_prop"
+					&& Array.isArray(response.rpcParameters)
+					&& response.rpcParameters.includes("get_status"),
+			}),
+		);
+
+		expect(result).toMatchObject({
+			parsedDps: { "102": { id: 8, result: { state: 8 } } },
+			rpcMethod: "get_prop",
+			rpcParameters: ["get_status", "get_consumable"],
+		});
 	});
 
 	it("times out when no AppPlugin request receives a correlated response", async () => {

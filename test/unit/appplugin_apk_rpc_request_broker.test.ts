@@ -64,6 +64,22 @@ describe("APK RRRpcManager request broker", () => {
 		broker.close();
 	});
 
+	it("reports the exact AppPlugin method correlated to a JSON response", () => {
+		const broker = new ApkRpcRequestBroker(
+			new RecordingTransport(),
+			"ENDPOINT",
+			"00112233445566778899AABBCCDDEEFF",
+			{ initialMessageId: 17 },
+		);
+		broker.callJson("app_get_status", [], "automatic", vi.fn());
+
+		expect(broker.acceptJsonDpsWithMetadata({
+			"102": { id: 17, result: { state: 8 } },
+		})).toEqual({ method: "app_get_status", params: [] });
+		expect(broker.pendingNormalRequestCount).toBe(0);
+		broker.close();
+	});
+
 	it("returns protobuf results in the APK pbResult wrapper", () => {
 		const transport = new RecordingTransport();
 		const broker = new ApkRpcRequestBroker(transport, "ENDPOINT", "00112233445566778899AABBCCDDEEFF", {

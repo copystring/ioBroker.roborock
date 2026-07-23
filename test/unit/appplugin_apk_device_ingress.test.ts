@@ -76,6 +76,8 @@ describe("APK device ingress composition", () => {
 		expect(ingress.acceptJsonDps(duid, "1.0", payload)).toEqual({
 			eventEmitted: true,
 			rpcAccepted: true,
+			rpcMethod: "get_status",
+			rpcParameters: {},
 		});
 		expect(event).toHaveBeenCalledTimes(2);
 		expect(callback).toHaveBeenCalledWith(true, { id: 9, result: "ok" });
@@ -95,6 +97,8 @@ describe("APK device ingress composition", () => {
 		expect(ingress.acceptJsonDps(duid, "1.0", payload)).toEqual({
 			eventEmitted: true,
 			rpcAccepted: true,
+			rpcMethod: "get_status",
+			rpcParameters: [],
 		});
 		expect(event).toHaveBeenCalledWith({ dps: payload });
 		expect(callback).toHaveBeenCalledWith(true, { id: 12, result: { battery: 91 } });

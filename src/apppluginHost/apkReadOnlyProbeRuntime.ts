@@ -3,6 +3,7 @@ import type {
 } from "./apkAppPluginDeviceSessionRuntime";
 import type { ApkAppPluginModelRuntime } from "./apkAppPluginModelRuntime";
 import type { ApkAppPluginModelRuntimeLease } from "./apkAppPluginSessionSupervisor";
+import type { ApkDeviceIngressResult } from "./apkDeviceIngress";
 import type {
 	ApkJsonDeviceIngressObservation,
 	ApkDeviceIngressRouter,
@@ -33,7 +34,11 @@ export interface ApkReadOnlyProbeRootOptions {
 }
 
 export interface ApkReadOnlyProbeRequest extends ApkAppPluginDeviceOpenRequest {
+	readonly acceptRpcResponse?: (
+		result: Readonly<ApkDeviceIngressResult>,
+	) => boolean;
 	readonly describeDiagnostics?: () => string;
+	readonly expectedRpcMethods?: ReadonlySet<string> | readonly string[];
 	readonly root: Readonly<ApkReadOnlyProbeRootOptions>;
 	readonly signal?: AbortSignal;
 	readonly timeoutMilliseconds?: number;
@@ -46,6 +51,8 @@ export interface ApkReadOnlyProbeResult {
 	readonly model: string;
 	readonly parsedDps: unknown;
 	readonly protocolVersion: string;
+	readonly rpcMethod?: string;
+	readonly rpcParameters?: Readonly<Record<string, unknown>> | readonly unknown[];
 	readonly serializedDps: string;
 }
 
@@ -95,6 +102,9 @@ export async function runApkReadOnlyProbeSession(
 		"AppPlugin-Probe-Timeout",
 	);
 	const startedAt = Date.now();
+	const expectedRpcMethods = request.expectedRpcMethods
+		? new Set(request.expectedRpcMethods)
+		: undefined;
 	const observation = deferred<ApkJsonDeviceIngressObservation>();
 	const terminalFailure = deferred<never>();
 	let expectedActiveTime: number | undefined;
@@ -110,7 +120,18 @@ export async function runApkReadOnlyProbeSession(
 			|| observationResolved
 			|| value.deviceId !== request.targetDuid
 			|| value.activeTime !== expectedActiveTime
-			|| !value.result.rpcAccepted) return;
+			|| !value.result.rpcAccepted
+			|| (
+				request.acceptRpcResponse
+				&& !request.acceptRpcResponse(value.result)
+			)
+			|| (
+				expectedRpcMethods
+				&& (
+					value.result.rpcMethod === undefined
+					|| !expectedRpcMethods.has(value.result.rpcMethod)
+				)
+			)) return;
 		observationResolved = true;
 		observation.resolve(value);
 	});
@@ -157,6 +178,8 @@ export async function runApkReadOnlyProbeSession(
 			model: modelLease.model,
 			parsedDps: parseDps(accepted.serializedDps),
 			protocolVersion: accepted.protocolVersion,
+			rpcMethod: accepted.result.rpcMethod,
+			rpcParameters: accepted.result.rpcParameters,
 			serializedDps: accepted.serializedDps,
 		});
 		finished = true;

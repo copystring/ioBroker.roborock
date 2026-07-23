@@ -5,13 +5,16 @@ import {
 	createApkAppPluginAdapterHostLeaseFactory,
 	parseApkUserPluginAgreementsResponse,
 	selectApkPluginAgreementsForDevice,
+	selectApkPluginAgreementsV2ForDevice,
 	runApkReadOnlyProbeSession,
+	type ApkAgreementDiagnostic,
 	type ApkAppPluginAuthenticatedAccountRuntime,
 	type ApkAppPluginHostContract,
 	type ApkAppPluginPackageRuntime,
 	type ApkDeviceIngressRouter,
 	type ApkReadOnlyDeviceTransportObservation,
 	type ApkReadOnlyProbeResult,
+	type ApkTimingDiagnostic,
 	type ApkV8WorkerDiagnostic,
 } from "../../apppluginHost";
 import type { Roborock } from "../../main";
@@ -58,8 +61,18 @@ export async function runIoBrokerReadOnlyAppPluginProbe(
 	const observations: ApkReadOnlyDeviceTransportObservation[] = [];
 	const nativeInvocations = new Map<string, number>();
 	const nativeInvocationDetails = new Set<string>();
+	const agreementDiagnostics: Readonly<ApkAgreementDiagnostic>[] = [];
+	const timingDiagnostics: Readonly<ApkTimingDiagnostic>[] = [];
 	const workerDiagnostics: ApkV8WorkerDiagnostic[] = [];
 	let pluginAgreementCount: number | undefined;
+	let pluginAgreementV2Count: number | undefined;
+	let rawPluginAgreementsPromise: Promise<readonly unknown[]> | undefined;
+	const loadRawPluginAgreements = (): Promise<readonly unknown[]> => {
+		rawPluginAgreementsPromise ??= options.account.authenticatedHttpPorts().user
+			.get("/api/v1/checkAppAgreement", null)
+			.then(parseApkUserPluginAgreementsResponse);
+		return rawPluginAgreementsPromise;
+	};
 	const acquireDeviceHost = createIoBrokerReadOnlyAppPluginDeviceHostLeaseFactory({
 		adapter: options.adapter,
 		allowedMethods: options.allowedMethods,
@@ -69,15 +82,23 @@ export async function runIoBrokerReadOnlyAppPluginProbe(
 		localeIdentifier: options.localeIdentifier,
 		loadPluginAgreements: async () => {
 			const agreements = selectApkPluginAgreementsForDevice(
-				parseApkUserPluginAgreementsResponse(
-					await options.account.authenticatedHttpPorts().user.get("/api/v1/checkAppAgreement", null),
-				),
+				await loadRawPluginAgreements(),
 				options.targetDuid,
 			);
 			pluginAgreementCount = agreements.length;
 			return agreements;
 		},
+		loadPluginAgreementsV2: async () => {
+			const agreements = selectApkPluginAgreementsV2ForDevice(
+				await loadRawPluginAgreements(),
+				options.targetDuid,
+			);
+			pluginAgreementV2Count = agreements.length;
+			return agreements;
+		},
+		observeAgreements: diagnostic => agreementDiagnostics.push(structuredClone(diagnostic)),
 		observeTransport: observation => observations.push(structuredClone(observation)),
+		observeTiming: diagnostic => timingDiagnostics.push(structuredClone(diagnostic)),
 		observeWorker: diagnostic => workerDiagnostics.push(structuredClone(diagnostic)),
 	});
 	const hostProvider = new ApkAppPluginManagedDeviceRuntimeHostProvider(
@@ -119,6 +140,12 @@ export async function runIoBrokerReadOnlyAppPluginProbe(
 								})`,
 							);
 						}
+					} else if (
+						key === "RRPluginSDK.getPluginAgreements"
+						|| key === "RRPluginSDK.getPluginAgreementsV2"
+						|| key === "RRPluginSDK.getProductAgreements"
+					) {
+						nativeInvocationDetails.add(key);
 					}
 				},
 				shutdownTimeoutMs: 5_000,
@@ -144,6 +171,14 @@ export async function runIoBrokerReadOnlyAppPluginProbe(
 	});
 
 	return runApkReadOnlyProbeSession(session, options.ingressRouter, {
+		acceptRpcResponse: result =>
+			result.rpcMethod === "app_get_status"
+			|| result.rpcMethod === "get_status"
+			|| (
+				result.rpcMethod === "get_prop"
+				&& Array.isArray(result.rpcParameters)
+				&& result.rpcParameters.includes("get_status")
+			),
 		describeDiagnostics: () => {
 			const deviceOperations = observations.length === 0
 				? "keine RRPluginDevice-Transportoperation beobachtet"
@@ -170,6 +205,13 @@ export async function runIoBrokerReadOnlyAppPluginProbe(
 			const nativeDetails = nativeInvocationDetails.size === 0
 				? "keine ausgewählten Aufrufdetails"
 				: [...nativeInvocationDetails].sort().join(", ");
+			const timers = timingDiagnostics.length === 0
+				? "keine Timer-Rückwegdiagnose"
+				: timingDiagnostics.map(diagnostic =>
+					`${diagnostic.phase}(${diagnostic.timerIds.join(",")})${
+						diagnostic.error ? `:${diagnostic.error}` : ""
+					}`)
+					.join(", ");
 			const workers = workerDiagnostics.length === 0
 				? "keine Worker-Diagnose"
 				: workerDiagnostics.map(diagnostic => [
@@ -179,8 +221,23 @@ export async function runIoBrokerReadOnlyAppPluginProbe(
 					diagnostic.resultSummary ? JSON.stringify(diagnostic.resultSummary) : undefined,
 				].filter(Boolean).join("/"))
 					.join(", ");
-			return `${deviceOperations}; Native: ${nativeOperations}; Details: ${nativeDetails}; Worker: ${workers}; `
-				+ `Geräte-Einwilligungen: ${pluginAgreementCount ?? "nicht geladen"}`;
+			const agreements = agreementDiagnostics.length === 0
+				? "keine Agreement-Rückgabediagnose"
+				: agreementDiagnostics.map(diagnostic => {
+					const shape = [
+						diagnostic.value.kind,
+						diagnostic.value.count === undefined ? undefined : `Anzahl=${diagnostic.value.count}`,
+						diagnostic.value.keys?.length
+							? `Schlüssel=${diagnostic.value.keys.join("|")}`
+							: undefined,
+					].filter(Boolean).join(",");
+					return `${diagnostic.method}(${diagnostic.outcome},${shape})`;
+				}).join(", ");
+			return `${deviceOperations}; Native: ${nativeOperations}; Details: ${nativeDetails}; Timer: ${timers}; `
+				+ `Worker: ${workers}; `
+				+ `Agreements: ${agreements}; `
+				+ `Geräte-Einwilligungen: V1=${pluginAgreementCount ?? "nicht geladen"}, `
+				+ `V2=${pluginAgreementV2Count ?? "nicht geladen"}`;
 		},
 		deviceProperties: options.deviceProperties,
 		root: {

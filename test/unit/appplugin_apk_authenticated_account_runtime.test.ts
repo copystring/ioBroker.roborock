@@ -89,6 +89,10 @@ describe("APK AppPlugin authenticated account runtime", () => {
 			},
 			httpPorts: ports,
 			productRepository: {
+				agreementsByModel: {
+					"roborock.vacuum.test": [{ type: "USER_AGREEMENT", version: 1 }],
+					"roborock.mower.test": [{ type: "PRIVACY_POLICY", version: 2 }],
+				},
 				userRoles: [{
 					role: "owner",
 					products: [
@@ -127,6 +131,8 @@ describe("APK AppPlugin authenticated account runtime", () => {
 			productId: 8,
 		});
 		expect(descriptor.account).toEqual({ countryCode: "DE", serverCode: "eu" });
+		expect(descriptor.productRepository?.agreementsByModel["roborock.mower.test"])
+			.toEqual([{ type: "PRIVACY_POLICY", version: 2 }]);
 		expect(descriptor.productRepository?.userRoles[0]?.role).toBe("owner");
 		expect(JSON.stringify({ descriptor, summary: runtime.summary() }))
 			.not.toContain("cloud-access-token");
@@ -136,7 +142,7 @@ describe("APK AppPlugin authenticated account runtime", () => {
 		expect(() => new ApkAppPluginAuthenticatedAccountRuntime({
 			cloudBootstrap: { userId: "rr-user", homeData: homeData() },
 			httpPorts: httpPorts(),
-			productRepository: { userRoles: [] },
+			productRepository: { agreementsByModel: {}, userRoles: [] },
 		})).toThrow(/Land oder Serverregion/u);
 
 		const incomplete = new ApkAppPluginAuthenticatedAccountRuntime({
@@ -152,7 +158,7 @@ describe("APK AppPlugin authenticated account runtime", () => {
 				},
 			},
 			httpPorts: httpPorts(),
-			productRepository: { userRoles: [] },
+			productRepository: { agreementsByModel: {}, userRoles: [] },
 		});
 		expect(() => incomplete.createSessionDescriptor({
 			pluginRoot: pluginRoot(),
@@ -199,8 +205,16 @@ describe("APK AppPlugin authenticated account runtime", () => {
 			data: {
 				categoryDetailList: [{
 					productList: [
-						{ id: 7, model: "roborock.vacuum.test" },
-						{ id: 8, model: "roborock.mower.test" },
+						{
+							id: 7,
+							model: "roborock.vacuum.test",
+							agreements: [{ type: "USER_AGREEMENT", version: 1 }],
+						},
+						{
+							id: 8,
+							model: "roborock.mower.test",
+							agreements: [{ type: "PRIVACY_POLICY", version: 2 }],
+						},
 					],
 				}],
 			},
@@ -209,6 +223,19 @@ describe("APK AppPlugin authenticated account runtime", () => {
 		const runtime = api.createAppPluginAuthenticatedAccountRuntime();
 
 		expect(runtime.summary()).toMatchObject({ deviceCount: 2, productCount: 2 });
+		expect(runtime.createSessionDescriptor({
+			pluginRoot: pluginRoot(),
+			package: { models: ["generic.main.plugin"], versionCode: 42 },
+			targetDuid: "vacuum-1",
+			host: {
+				mobileModel: "ioBroker",
+				androidRelease: "APK contract",
+				clientId: "client-id",
+				memoryMiB: 512,
+			},
+			deviceProperties: {},
+		}).productRepository?.agreementsByModel["roborock.vacuum.test"])
+			.toEqual([{ type: "USER_AGREEMENT", version: 1 }]);
 		await expect(runtime.authenticatedHttpPorts().user.get("api/user", null))
 			.resolves.toBe("user-response");
 		await expect(runtime.authenticatedHttpPorts().iot.get("api/iot", null))

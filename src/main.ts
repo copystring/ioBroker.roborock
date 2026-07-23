@@ -1448,7 +1448,15 @@ export class Roborock extends utils.Adapter {
 		const operation = runIoBrokerReadOnlyAppPluginProbe({
 			account,
 			adapter: this,
-			allowedMethods: ["get_status"],
+			// The unchanged B01 AppPlugin uses this parameterless GetInitStatus
+			// query as its read-only status bootstrap before rendering device UI.
+			allowedMethods: [
+				"app_get_init_status",
+				"app_get_status",
+				"get_prop",
+				"get_serial_number",
+				"get_status",
+			],
 			clientId,
 			deviceProperties,
 			ingressRouter: this.appPluginDeviceIngressRouter,

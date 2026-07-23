@@ -88,7 +88,7 @@ function account(ports = httpPorts()): ApkAppPluginAuthenticatedAccountRuntime {
 			userId: "rr-user",
 		},
 		httpPorts: ports,
-		productRepository: { userRoles: [] },
+		productRepository: { agreementsByModel: {}, userRoles: [] },
 	});
 }
 

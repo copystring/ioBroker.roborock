@@ -82,7 +82,7 @@ function context(root: string): ApkAppPluginDeviceModelContext {
 				account: { countryCode: "DE", serverCode: "eu" },
 				homeData: { deviceJsonStrings: [], productJsonStrings: [] },
 				installation: { mainPluginDownloadVersions: { "roborock.generic.model": 7 } },
-				productRepository: { userRoles: [] },
+				productRepository: { agreementsByModel: {}, userRoles: [] },
 			},
 		},
 	} as unknown as ApkAppPluginDeviceModelContext;

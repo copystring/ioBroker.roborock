@@ -75,7 +75,7 @@ function account() {
 			iot: { delete: call, get: call, post: call, postJson: call, put: call, putJson: call },
 			user: { delete: call, get: call, post: call, postJson: call, put: call, putJson: call },
 		},
-		productRepository: { userRoles: [] },
+		productRepository: { agreementsByModel: {}, userRoles: [] },
 	});
 }
 

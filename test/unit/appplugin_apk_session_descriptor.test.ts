@@ -75,6 +75,12 @@ function descriptor(root = pluginRoot()) {
 			mainPluginDownloadVersions: { "roborock.vacuum.sc01": 42 },
 		},
 		productRepository: {
+			agreementsByModel: {
+				"roborock.vacuum.sc01": [{
+					type: "PRIVACY_POLICY",
+					version: 19,
+				}],
+			},
 			userRoles: [{
 				role: "owner",
 				products: [{
@@ -142,6 +148,8 @@ describe("APK AppPlugin session descriptor", () => {
 				catCode: "robot.vacuum.cleaner",
 			}],
 		}]);
+		expect(source.productRepository?.agreementsByModel["roborock.vacuum.sc01"])
+			.toEqual([{ type: "PRIVACY_POLICY", version: 19 }]);
 	});
 
 	it("keeps the APK installation registry separate from HomeData", () => {
