@@ -38,7 +38,7 @@ function homeData(): ApkAppPluginHomeDataContext {
 				productId: 8,
 				name: "Garten",
 				activeTime: 1_710_000_000,
-				timeZone: "Australia/Adelaide",
+				timeZoneId: "Australia/Adelaide",
 				fv: "03.00",
 				pv: "A01",
 			}),

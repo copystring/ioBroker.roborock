@@ -116,7 +116,12 @@ export function createApkRriotDeviceContext(
 	if (!model) {
 		throw new Error(`HomeData-Gerät ${duid} besitzt kein auflösbares Modell`);
 	}
-	const timeZone = nonEmptyString(device.timeZone, `HomeData-Gerät ${duid}.timeZone`);
+	// The cloud HomeData DeviceBean names this field timeZoneId. The APK maps it
+	// into RRDeviceBeanV2.timeZone before creating the native device context.
+	const timeZone = nonEmptyString(
+		device.timeZone ?? device.timeZoneId,
+		`HomeData-Gerät ${duid}.timeZoneId`,
+	);
 	const name = device.name === undefined || device.name === null
 		? null
 		: nonEmptyString(device.name, `HomeData-Gerät ${duid}.name`);
