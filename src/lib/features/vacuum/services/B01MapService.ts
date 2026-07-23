@@ -180,6 +180,7 @@ export class B01MapService {
 	}
 
 	protected static readonly MAPPED_CLEAN_SUMMARY: Record<string, string> = { 0: "clean_time", 1: "clean_area", 2: "clean_count", 3: "records", record_list: "records" };
+	private static readonly CLEAN_SUMMARY_RECORD_LIMIT = 20;
 
 	/**
 	 * B01: Load floor list via service.get_map_list and create Devices.<duid>.floors.<mapId> (name, mapFlag).
@@ -235,8 +236,9 @@ export class B01MapService {
 			await this.updateSummaryState("clean_count", sd.total_count);
 
 			await this.deps.ensureFolder(`Devices.${this.duid}.cleaningInfo.records`);
+			await this.clearObsoleteCleaningRecords();
 			const recordList = sd.record_list;
-			const limit = 20;
+			const limit = B01MapService.CLEAN_SUMMARY_RECORD_LIMIT;
 
 			recordList.sort((a: unknown, b: unknown) => {
 				const timeA = this.extractStartTime(a);
@@ -285,6 +287,14 @@ export class B01MapService {
 		} catch (e: any) {
 			this.deps.adapter.rLog("System", this.duid, "Error", "B01", undefined, `Error processing B01 clean summary: ${e.message}`, "error");
 		}
+	}
+
+	private async clearObsoleteCleaningRecords(): Promise<void> {
+		const recordsPath = this.stateWriter.path("cleaningInfo.records");
+		await this.deps.adapter.delObjectAsync(recordsPath, { recursive: true }).catch(() => {
+			// Ignore missing-object race conditions.
+		});
+		await this.stateWriter.ensureFolder("cleaningInfo.records");
 	}
 
 	private async updateSummaryState(attr: string, value: number): Promise<void> {
