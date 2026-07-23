@@ -50,30 +50,23 @@ function harness(options?: {
 			},
 		};
 	});
-	const homeData = options && "homeData" in options
-		? options.homeData
+	const account = options && "homeData" in options && options.homeData === undefined
+		? undefined
 		: {
-			deviceJsonStrings: [JSON.stringify({
-				duid: "mower-1",
+			resolveDevicePackage: vi.fn(() => ({
 				model: "roborock.mower.generic",
-				productId: "123",
-			})],
-			productJsonStrings: [JSON.stringify({
-				id: 123,
-				model: "roborock.mower.generic",
-				productTags: [],
-			})],
+				productId: 123,
+			})),
 		};
 	const adapter = {
+		appPluginAccountRuntime: account,
 		appPluginPackageRuntime: {
-			acquireForDevice,
+			acquire: acquireForDevice,
 			getInstalled: vi.fn(() => options?.installed),
 		},
 		errorMessage: (error: unknown) =>
 			error instanceof Error ? error.message : String(error),
-		http_api: {
-			getAppPluginHomeDataContext: vi.fn(() => homeData),
-		},
+		http_api: {},
 		rLog: vi.fn(),
 		runAppPluginReadOnlyProbe,
 		sendTo,
@@ -142,7 +135,7 @@ describe("AppPlugin package message handling", () => {
 		expect(JSON.stringify(response)).not.toMatch(/url|path|productTags/u);
 	});
 
-	it("fails closed when the runtime or APK HomeData context is unavailable", async () => {
+	it("fails closed when the runtime or authenticated account context is unavailable", async () => {
 		const unavailableRuntime = harness();
 		unavailableRuntime.adapter.appPluginPackageRuntime = undefined;
 		await unavailableRuntime.handler.handleMessage(message(
@@ -159,7 +152,7 @@ describe("AppPlugin package message handling", () => {
 			{ duid: "mower-1" },
 		));
 		expect(unavailableHomeData.sendTo.mock.calls.at(-1)?.[2]).toEqual({
-			error: "Der APK-HomeData-Kontext ist nicht verfügbar",
+			error: "Die AppPlugin-Kontositzung ist nicht bereit",
 		});
 	});
 

@@ -1,9 +1,6 @@
 // /lib/socketHandler.ts
 
 import { Roborock } from "../main"; // Import main adapter type
-import {
-	resolveApkMainPluginDeviceAcquisition,
-} from "../apppluginHost/apkMainPluginEntry";
 
 // Robot object definition
 interface Robot {
@@ -286,10 +283,8 @@ export class socketHandler {
 	}
 
 	private appPluginPackageContext(message: AppPluginPackageMessage): {
+		readonly account: NonNullable<Roborock["appPluginAccountRuntime"]>;
 		readonly duid: string;
-		readonly homeData: NonNullable<ReturnType<
-			Roborock["http_api"]["getAppPluginHomeDataContext"]
-		>>;
 		readonly runtime: NonNullable<Roborock["appPluginPackageRuntime"]>;
 	} {
 		if (typeof message?.duid !== "string" || message.duid.length === 0) {
@@ -299,13 +294,13 @@ export class socketHandler {
 		if (!runtime) {
 			throw new Error("Die AppPlugin-Paketlaufzeit ist nicht bereit");
 		}
-		const homeData = this.adapter.http_api.getAppPluginHomeDataContext();
-		if (!homeData) {
-			throw new Error("Der APK-HomeData-Kontext ist nicht verfügbar");
+		const account = this.adapter.appPluginAccountRuntime;
+		if (!account) {
+			throw new Error("Die AppPlugin-Kontositzung ist nicht bereit");
 		}
 		return {
+			account,
 			duid: message.duid,
-			homeData,
 			runtime,
 		};
 	}
@@ -313,8 +308,8 @@ export class socketHandler {
 	private async handleAppPluginPackageStatus(
 		message: AppPluginPackageMessage,
 	): Promise<AppPluginPackageStatus> {
-		const { duid, homeData, runtime } = this.appPluginPackageContext(message);
-		const request = resolveApkMainPluginDeviceAcquisition(homeData, duid);
+		const { account, duid, runtime } = this.appPluginPackageContext(message);
+		const request = account.resolveDevicePackage(duid);
 		const installed = runtime.getInstalled(request.model);
 		return {
 			duid,
@@ -336,13 +331,10 @@ export class socketHandler {
 		if (message?.confirm !== true) {
 			throw new Error("AppPlugin-Paketdownload benötigt confirm=true");
 		}
-		const { duid, homeData, runtime } = this.appPluginPackageContext(message);
-		let result: Awaited<ReturnType<typeof runtime.acquireForDevice>>;
+		const { account, duid, runtime } = this.appPluginPackageContext(message);
+		let result: Awaited<ReturnType<typeof runtime.acquire>>;
 		try {
-			result = await runtime.acquireForDevice({
-				homeData,
-				targetDuid: duid,
-			});
+			result = await runtime.acquire(account.resolveDevicePackage(duid));
 		} catch {
 			throw new Error(
 				"Das signierte AppPlugin-Paket konnte nicht beschafft oder aktiviert werden",

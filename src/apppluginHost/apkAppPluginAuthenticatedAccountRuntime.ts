@@ -99,6 +99,7 @@ export class ApkAppPluginAuthenticatedAccountRuntime {
 	readonly #account: ApkAppPluginAccountContext;
 	readonly #homeData: ApkAppPluginHomeDataContext;
 	readonly #httpPorts: ApkAuthenticatedHttpAdapterPorts;
+	readonly #packageProductIdsByModel: ReadonlyMap<string, number>;
 	readonly #productRepository: ApkAppPluginProductRepositoryContext;
 	readonly #userId: string;
 
@@ -106,6 +107,19 @@ export class ApkAppPluginAuthenticatedAccountRuntime {
 		this.#userId = nonEmptyString(options.cloudBootstrap.userId, "cloudBootstrap.userId");
 		this.#account = cloneAccount(options.cloudBootstrap.account);
 		this.#homeData = cloneHomeData(options.cloudBootstrap.homeData);
+		const packageProductIdsByModel = new Map<string, number>();
+		for (const product of options.cloudBootstrap.packageProducts ?? []) {
+			const model = nonEmptyString(product.model, "packageProducts.model");
+			if (!Number.isSafeInteger(product.id) || product.id <= 0) {
+				throw new Error(`V5-Paketprodukt ${model} besitzt keine positive numerische ID`);
+			}
+			const existing = packageProductIdsByModel.get(model);
+			if (existing !== undefined && existing !== product.id) {
+				throw new Error(`V5-Paketkatalog enthält widersprüchliche IDs für ${model}`);
+			}
+			packageProductIdsByModel.set(model, product.id);
+		}
+		this.#packageProductIdsByModel = packageProductIdsByModel;
 		this.#productRepository = Object.freeze({
 			userRoles: Object.freeze(parseApkProductRoleDefinitions(
 				options.productRepository.userRoles,
@@ -139,7 +153,7 @@ export class ApkAppPluginAuthenticatedAccountRuntime {
 		const resolved = resolveApkHomeDataDeviceProduct(this.#homeData, input.targetDuid);
 		if (!resolved.product) {
 			throw new Error(
-				`HomeData-Gerät ${input.targetDuid} besitzt kein zugeordnetes V5-Produkt`,
+				`HomeData-Gerät ${input.targetDuid} besitzt kein zugeordnetes Produkt`,
 			);
 		}
 		return createApkRriotSessionDescriptor({
@@ -156,6 +170,23 @@ export class ApkAppPluginAuthenticatedAccountRuntime {
 		targetDuid: string,
 		entry: ApkMainPluginEntry = { kind: "device" },
 	): ApkMainPluginDeviceAcquisitionRequest {
-		return resolveApkMainPluginDeviceAcquisition(this.#homeData, targetDuid, entry);
+		const resolved = resolveApkHomeDataDeviceProduct(this.#homeData, targetDuid);
+		if (!resolved.product || !resolved.productId) {
+			throw new Error(`HomeData-Gerät ${targetDuid} besitzt kein zugeordnetes Produkt`);
+		}
+		const model = nonEmptyString(
+			resolved.product.model,
+			`HomeData-Produkt ${resolved.productId}.model`,
+		);
+		const packageProductId = this.#packageProductIdsByModel.get(model);
+		if (packageProductId === undefined) {
+			throw new Error(`V5-Paketkatalog enthält das Gerätemodell ${model} nicht`);
+		}
+		return resolveApkMainPluginDeviceAcquisition(
+			this.#homeData,
+			targetDuid,
+			entry,
+			packageProductId,
+		);
 	}
 }

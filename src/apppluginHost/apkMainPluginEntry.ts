@@ -90,25 +90,22 @@ export function resolveApkMainPluginDeviceAcquisition(
 	homeData: ApkAppPluginHomeDataContext,
 	targetDuid: string,
 	entry: ApkMainPluginEntry = { kind: "device" },
+	packageProductId?: number,
 ): ApkMainPluginDeviceAcquisitionRequest {
-	const { device, product, productId } = resolveApkHomeDataDeviceProduct(
+	const { product, productId } = resolveApkHomeDataDeviceProduct(
 		homeData,
 		nonEmptyString(targetDuid, "targetDuid"),
 	);
 	if (!product || !productId) {
-		throw new Error(`HomeData-Gerät ${targetDuid} besitzt kein zugeordnetes V5-Produkt`);
+		throw new Error(`HomeData-Gerät ${targetDuid} besitzt kein zugeordnetes Produkt`);
 	}
 	const model = nonEmptyString(
-		device.model,
-		`HomeData-Gerät ${targetDuid}.model`,
-	);
-	nonEmptyString(
 		product.model,
 		`HomeData-Produkt ${productId}.model`,
 	);
 	const base = {
 		model,
-		productId: positiveProductId(product.id),
+		productId: positiveProductId(packageProductId ?? product.id),
 	};
 	if (entry.kind === "device") {
 		return base;

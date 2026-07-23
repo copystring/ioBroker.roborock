@@ -866,7 +866,7 @@ export class http_api {
 	 * it to persistent adapter states, documentation, or repository fixtures.
 	 */
 	getAppPluginHomeDataContext(): ApkAppPluginHomeDataContext | undefined {
-		return createApkAppPluginHomeDataContext(this.homeData, this.productInfo);
+		return createApkAppPluginHomeDataContext(this.homeData);
 	}
 
 	/**

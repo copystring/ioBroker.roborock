@@ -44,7 +44,7 @@ function homeData(): ApkAppPluginHomeDataContext {
 }
 
 describe("APK main-plugin entry resolution", () => {
-	it("uses the device model and numeric V5 product without inventing a normal-click level", () => {
+	it("uses the HomeData product model and numeric V5 package ID without inventing a normal-click level", () => {
 		expect(resolveApkMainPluginDeviceAcquisition(
 			homeData(),
 			"mower-1",
@@ -71,7 +71,7 @@ describe("APK main-plugin entry resolution", () => {
 		expect(() => resolveApkMainPluginDeviceAcquisition({
 			...context,
 			productJsonStrings: [],
-		}, "vacuum-1")).toThrow("kein zugeordnetes V5-Produkt");
+		}, "vacuum-1")).toThrow("kein zugeordnetes Produkt");
 		expect(() => resolveApkMainPluginDeviceAcquisition({
 			...context,
 			productJsonStrings: [JSON.stringify({

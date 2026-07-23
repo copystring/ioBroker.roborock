@@ -34,14 +34,9 @@ describe("APK AppPlugin HomeData context", () => {
 		};
 
 		const result = createApkAppPluginHomeDataContext({
+			products: [product7, product8],
 			devices: [owned],
 			receivedDevices: [shared, other],
-		}, {
-			data: {
-				categoryDetailList: [{
-					productList: [product7, product8],
-				}],
-			},
 		});
 
 		expect(result).toEqual({
@@ -70,20 +65,21 @@ describe("APK AppPlugin HomeData context", () => {
 	});
 
 	it("does not invent HomeData when no home object exists", () => {
-		expect(createApkAppPluginHomeDataContext(undefined, {})).toBeUndefined();
-		expect(createApkAppPluginHomeDataContext(null, {})).toBeUndefined();
+		expect(createApkAppPluginHomeDataContext(undefined)).toBeUndefined();
+		expect(createApkAppPluginHomeDataContext(null)).toBeUndefined();
 	});
 
 	it("binds the exact V4 rruid, country and region without using transport IDs", () => {
 		const context = createApkAppPluginCloudBootstrapContext(
 			{
+				products: [{ id: "product-a", model: "roborock.mower.test" }],
 				devices: [{ duid: "one", productId: "product-a" }],
 				receivedDevices: [],
 			},
 			{
 				data: {
 					categoryDetailList: [{
-						productList: [{ id: "product-a", model: "roborock.mower.test" }],
+					productList: [{ id: 90210, model: "roborock.mower.test" }],
 					}],
 				},
 			},
@@ -104,6 +100,7 @@ describe("APK AppPlugin HomeData context", () => {
 					model: "roborock.mower.test",
 				})],
 			},
+			packageProducts: [{ id: 90210, model: "roborock.mower.test" }],
 		});
 		expect(createApkAppPluginCloudBootstrapContext({}, {}, {
 			rriot: { u: "transport-only" },

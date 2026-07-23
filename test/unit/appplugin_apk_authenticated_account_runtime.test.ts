@@ -31,8 +31,7 @@ function homeData() {
 		deviceJsonStrings: [
 			JSON.stringify({
 				duid: "vacuum-1",
-				productId: 7,
-				model: "roborock.vacuum.test",
+				productId: "opaque-vacuum-product",
 				activeTime: 1,
 				timeZone: "Europe/Berlin",
 				pv: "B01",
@@ -40,16 +39,15 @@ function homeData() {
 			}),
 			JSON.stringify({
 				duid: "mower-1",
-				productId: 8,
-				model: "roborock.mower.test",
+				productId: "opaque-mower-product",
 				activeTime: 2,
 				timeZone: "UTC",
 				pv: "A01",
 			}),
 		],
 		productJsonStrings: [
-			JSON.stringify({ id: 7, model: "roborock.vacuum.test" }),
-			JSON.stringify({ id: 8, model: "roborock.mower.test" }),
+			JSON.stringify({ id: "opaque-vacuum-product", model: "roborock.vacuum.test" }),
+			JSON.stringify({ id: "opaque-mower-product", model: "roborock.mower.test" }),
 		],
 	};
 }
@@ -84,6 +82,10 @@ describe("APK AppPlugin authenticated account runtime", () => {
 				userId: "rr-user",
 				account: { countryCode: "DE", serverCode: "eu" },
 				homeData: homeData(),
+				packageProducts: [
+					{ id: 7, model: "roborock.vacuum.test" },
+					{ id: 8, model: "roborock.mower.test" },
+				],
 			},
 			httpPorts: ports,
 			productRepository: {
@@ -120,13 +122,17 @@ describe("APK AppPlugin authenticated account runtime", () => {
 			userId: "rr-user",
 		});
 		expect(descriptor.device.model).toBe("roborock.mower.test");
+		expect(runtime.resolveDevicePackage("mower-1")).toEqual({
+			model: "roborock.mower.test",
+			productId: 8,
+		});
 		expect(descriptor.account).toEqual({ countryCode: "DE", serverCode: "eu" });
 		expect(descriptor.productRepository?.userRoles[0]?.role).toBe("owner");
 		expect(JSON.stringify({ descriptor, summary: runtime.summary() }))
 			.not.toContain("cloud-access-token");
 	});
 
-	it("rejects incomplete login data and devices without their V5 product", () => {
+	it("rejects incomplete login data and devices without their HomeData product", () => {
 		expect(() => new ApkAppPluginAuthenticatedAccountRuntime({
 			cloudBootstrap: { userId: "rr-user", homeData: homeData() },
 			httpPorts: httpPorts(),
@@ -137,9 +143,12 @@ describe("APK AppPlugin authenticated account runtime", () => {
 			cloudBootstrap: {
 				userId: "rr-user",
 				account: { countryCode: "DE", serverCode: "eu" },
-				homeData: {
-					...homeData(),
-					productJsonStrings: [JSON.stringify({ id: 7, model: "roborock.vacuum.test" })],
+					homeData: {
+						...homeData(),
+						productJsonStrings: [JSON.stringify({
+							id: "opaque-vacuum-product",
+							model: "roborock.vacuum.test",
+						})],
 				},
 			},
 			httpPorts: httpPorts(),
@@ -156,7 +165,7 @@ describe("APK AppPlugin authenticated account runtime", () => {
 				memoryMiB: 512,
 			},
 			deviceProperties: {},
-		})).toThrow(/kein zugeordnetes V5-Produkt/u);
+		})).toThrow(/kein zugeordnetes Produkt/u);
 	});
 
 	it("captures the adapter's live login clients atomically instead of exposing credentials", async () => {
@@ -180,7 +189,7 @@ describe("APK AppPlugin authenticated account runtime", () => {
 		};
 		api.homeData = {
 			rrHomeId: 1,
-			products: [],
+			products: homeData().productJsonStrings.map(value => JSON.parse(value)),
 			devices: homeData().deviceJsonStrings.map(value => JSON.parse(value)),
 			receivedDevices: [],
 			rooms: [],
@@ -189,7 +198,10 @@ describe("APK AppPlugin authenticated account runtime", () => {
 			code: 200,
 			data: {
 				categoryDetailList: [{
-					productList: homeData().productJsonStrings.map(value => JSON.parse(value)),
+					productList: [
+						{ id: 7, model: "roborock.vacuum.test" },
+						{ id: 8, model: "roborock.mower.test" },
+					],
 				}],
 			},
 		} as never;

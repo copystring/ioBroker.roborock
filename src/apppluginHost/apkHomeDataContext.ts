@@ -7,6 +7,13 @@ export interface ApkAppPluginCloudBootstrapContext {
 	readonly userId: string;
 	readonly account?: ApkAppPluginAccountContext;
 	readonly homeData: ApkAppPluginHomeDataContext;
+	/** Numeric V5 products are used only to acquire a signed plugin package. */
+	readonly packageProducts?: readonly ApkAppPluginPackageProduct[];
+}
+
+export interface ApkAppPluginPackageProduct {
+	readonly id: number;
+	readonly model: string;
 }
 
 interface DeviceEntry {
@@ -51,19 +58,38 @@ function deviceEntries(homeData: Readonly<Record<string, unknown>>): DeviceEntry
 		}));
 }
 
-function productEntries(productResponse: unknown): ReadonlyMap<string, Readonly<Record<string, unknown>>> {
+function homeProductEntries(homeData: Readonly<Record<string, unknown>>): ReadonlyMap<string, Readonly<Record<string, unknown>>> {
+	const products = new Map<string, Readonly<Record<string, unknown>>>();
+	for (const productValue of array(homeData.products)) {
+		const product = record(productValue);
+		const id = identifier(product?.id);
+		if (product && id && !products.has(id)) products.set(id, product);
+	}
+	return products;
+}
+
+function packageProductEntries(productResponse: unknown): readonly ApkAppPluginPackageProduct[] {
 	const response = record(productResponse);
 	const data = record(response?.data) ?? response;
-	const products = new Map<string, Readonly<Record<string, unknown>>>();
+	const products = new Map<string, ApkAppPluginPackageProduct>();
 	for (const detailValue of array(data?.categoryDetailList)) {
 		const detail = record(detailValue);
 		for (const productValue of array(detail?.productList)) {
 			const product = record(productValue);
-			const id = identifier(product?.id);
-			if (product && id && !products.has(id)) products.set(id, product);
+			const id = Number(product?.id);
+			const model = product?.model;
+			if (
+				Number.isSafeInteger(id)
+				&& id > 0
+				&& typeof model === "string"
+				&& model.length > 0
+				&& !products.has(model)
+			) {
+				products.set(model, Object.freeze({ id, model }));
+			}
 		}
 	}
-	return products;
+	return Object.freeze([...products.values()]);
 }
 
 /**
@@ -80,13 +106,12 @@ function productEntries(productResponse: unknown): ReadonlyMap<string, Readonly<
  */
 export function createApkAppPluginHomeDataContext(
 	homeData: unknown,
-	productResponse?: unknown,
 ): ApkAppPluginHomeDataContext | undefined {
 	const homeDataRecord = record(homeData);
 	if (!homeDataRecord) return undefined;
 
 	const devices = deviceEntries(homeDataRecord);
-	const products = productEntries(productResponse);
+	const products = homeProductEntries(homeDataRecord);
 	const productJsonStrings: string[] = [];
 	const seenProductJson = new Set<string>();
 	for (const device of devices) {
@@ -115,7 +140,7 @@ export function createApkAppPluginCloudBootstrapContext(
 	productResponse: unknown,
 	loginResult: unknown,
 ): ApkAppPluginCloudBootstrapContext | undefined {
-	const context = createApkAppPluginHomeDataContext(homeData, productResponse);
+	const context = createApkAppPluginHomeDataContext(homeData);
 	const login = record(loginResult);
 	const userId = login?.rruid;
 	if (!context || typeof userId !== "string") return undefined;
@@ -130,5 +155,6 @@ export function createApkAppPluginCloudBootstrapContext(
 			? { countryCode, serverCode }
 			: undefined,
 		homeData: context,
+		packageProducts: packageProductEntries(productResponse),
 	};
 }
