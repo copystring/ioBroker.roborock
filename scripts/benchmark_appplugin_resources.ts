@@ -8,6 +8,8 @@ import { resolveApkHermesHostArtifact } from "../src/apppluginHost";
 import {
 	aggregateAppPluginProcessTreeResources,
 	captureAppPluginProcessSnapshot,
+	startWindowsAppPluginProcessCounterSampler,
+	type AppPluginProcessCounterSampler,
 	type AppPluginProcessResourceEntry,
 } from "../src/lib/appplugin/IoBrokerAppPluginProcessTreeResources";
 import {
@@ -29,6 +31,7 @@ interface BenchmarkOptions {
 	readonly outputPath: string;
 	readonly sampleIntervalMs: number;
 	readonly timeoutMs: number;
+	readonly runCount: number;
 }
 
 interface ResourceSample {
@@ -43,6 +46,13 @@ interface ResourceSample {
 interface PhaseTransition {
 	readonly phase: string;
 	readonly offsetMs: number;
+}
+
+interface NumericRunSummary {
+	readonly minimum: number;
+	readonly median: number;
+	readonly average: number;
+	readonly maximum: number;
 }
 
 function parsePositiveInteger(value: string | undefined, option: string): number {
@@ -81,7 +91,8 @@ function parseArgs(args: readonly string[]): BenchmarkOptions {
 			"q7-l5-process-tree-resources.json",
 		),
 		sampleIntervalMs: 250,
-		timeoutMs: 180_000,
+		timeoutMs: 30_000,
+		runCount: 3,
 	};
 	const mutable = { ...defaults };
 	const paths: Readonly<Record<string, keyof Pick<
@@ -104,6 +115,10 @@ function parseArgs(args: readonly string[]): BenchmarkOptions {
 			mutable.timeoutMs = parsePositiveInteger(args[++index], option);
 			continue;
 		}
+		if (option === "--runs") {
+			mutable.runCount = parsePositiveInteger(args[++index], option);
+			continue;
+		}
 		const property = paths[option];
 		const value = args[++index];
 		if (!property || !value) throw new Error(`Unbekannte oder unvollständige Option: ${option}`);
@@ -111,6 +126,9 @@ function parseArgs(args: readonly string[]): BenchmarkOptions {
 	}
 	if (mutable.sampleIntervalMs < 100 || mutable.sampleIntervalMs > 5_000) {
 		throw new Error("--sample-ms muss zwischen 100 und 5000 liegen");
+	}
+	if (mutable.runCount > 5) {
+		throw new Error("--runs darf höchstens 5 sein");
 	}
 	for (const [label, filePath] of Object.entries({
 		Probe: mutable.probePath,
@@ -171,8 +189,22 @@ async function runBenchmark(options: Readonly<BenchmarkOptions>): Promise<Readon
 	const storagePath = path.join(temporaryDirectory, "device-data", Q7_FULL_SCENE_MODEL);
 	fs.mkdirSync(storagePath, { recursive: true });
 	fs.writeFileSync(path.join(storagePath, "GuideConfigFilePath"), '{"showGuidePage":true}\n', "utf8");
+	const collectorErrors: string[] = [];
+	let counterSampler: AppPluginProcessCounterSampler | undefined;
+	let handleCounterSnapshot = (snapshot: readonly AppPluginProcessResourceEntry[]): void => {
+		void snapshot;
+	};
 
 	try {
+	if (process.platform === "win32") {
+		counterSampler = startWindowsAppPluginProcessCounterSampler({
+			sampleIntervalMs: options.sampleIntervalMs,
+			targetFilePath: path.join(temporaryDirectory, "process-counter-targets.json"),
+			onSnapshot: snapshot => handleCounterSnapshot(snapshot),
+			onError: error => collectorErrors.push(error.message),
+		});
+		await counterSampler.ready;
+	}
 	const startedAt = Date.now();
 	let phase = "startup";
 	const transitions: PhaseTransition[] = [{ phase, offsetMs: 0 }];
@@ -183,13 +215,15 @@ async function runBenchmark(options: Readonly<BenchmarkOptions>): Promise<Readon
 	}>>();
 	const lastCpuByPid = new Map<number, number>();
 	const processNames = new Set<string>();
-	const collectorErrors: string[] = [];
 	let finalProbeStatus: string | undefined;
 	let stderr = "";
 	let closed = false;
 	let timedOut = false;
 	let exitOffsetMs: number | undefined;
 	let rootStartedAtEpochMs: number | undefined;
+	let counterSnapshotCount = 0;
+	let counterRootMissingCount = 0;
+	const counterRootNames = new Set<string>();
 
 	const args = [
 		options.probePath,
@@ -277,7 +311,63 @@ async function runBenchmark(options: Readonly<BenchmarkOptions>): Promise<Readon
 	}, options.timeoutMs);
 	timeout.unref();
 
-	const collect = async (): Promise<void> => {
+	const recordSnapshot = (
+		snapshot: readonly AppPluginProcessResourceEntry[],
+		samplePhase: string = phase,
+	): void => {
+		const aggregate = aggregateAppPluginProcessTreeResources(rootPid, snapshot);
+		const rootEntry = aggregate.entries.find(entry => entry.pid === rootPid);
+		if (!rootEntry || rootEntry.name.toLowerCase() !== expectedRootName.toLowerCase()) return;
+		if (
+			rootStartedAtEpochMs !== undefined
+			&& rootEntry.startedAtEpochMs !== undefined
+			&& rootEntry.startedAtEpochMs !== rootStartedAtEpochMs
+		) {
+			return;
+		}
+		rootStartedAtEpochMs ??= rootEntry.startedAtEpochMs;
+		let cpuDeltaMicroseconds = 0;
+		for (const entry of aggregate.entries) {
+			knownProcessIdentities.set(entry.pid, {
+				name: entry.name,
+				startedAtEpochMs: entry.startedAtEpochMs,
+			});
+			if (entry.name.length > 0) processNames.add(entry.name);
+			const currentCpu = processCpuMicroseconds(entry);
+			const previousCpu = lastCpuByPid.get(entry.pid);
+			cpuDeltaMicroseconds += previousCpu === undefined
+				? currentCpu
+				: Math.max(0, currentCpu - previousCpu);
+			lastCpuByPid.set(entry.pid, currentCpu);
+		}
+		samples.push(Object.freeze({
+			offsetMs: Date.now() - startedAt,
+			phase: samplePhase,
+			processCount: aggregate.processCount,
+			residentSetBytes: aggregate.residentSetBytes,
+			cpuDeltaMicroseconds,
+			processNames: aggregate.processNames,
+		}));
+	};
+	if (counterSampler) {
+		handleCounterSnapshot = snapshot => {
+				counterSnapshotCount += 1;
+				const rootEntry = snapshot.find(entry => entry.pid === rootPid);
+				if (rootEntry) counterRootNames.add(rootEntry.name);
+				else counterRootMissingCount += 1;
+				recordSnapshot(snapshot);
+			};
+		counterSampler.updateTargets([{
+			pid: rootPid,
+			parentPid: 0,
+			name: expectedRootName,
+			residentSetBytes: 0,
+			cpuUserMicroseconds: 0,
+			cpuKernelMicroseconds: 0,
+		}]);
+	}
+	const topologyIntervalMs = Math.max(1_000, options.sampleIntervalMs * 4);
+	const collectTopology = async (): Promise<void> => {
 		try {
 			const samplePhase = phase;
 			const snapshot = await captureAppPluginProcessSnapshot();
@@ -292,36 +382,23 @@ async function runBenchmark(options: Readonly<BenchmarkOptions>): Promise<Readon
 				return;
 			}
 			rootStartedAtEpochMs ??= rootEntry.startedAtEpochMs;
-			let cpuDeltaMicroseconds = 0;
-			for (const entry of aggregate.entries) {
-				knownProcessIdentities.set(entry.pid, {
-					name: entry.name,
-					startedAtEpochMs: entry.startedAtEpochMs,
-				});
-				if (entry.name.length > 0) processNames.add(entry.name);
-				const currentCpu = processCpuMicroseconds(entry);
-				const previousCpu = lastCpuByPid.get(entry.pid);
-				cpuDeltaMicroseconds += previousCpu === undefined
-					? currentCpu
-					: Math.max(0, currentCpu - previousCpu);
-				lastCpuByPid.set(entry.pid, currentCpu);
+			if (counterSampler) {
+				counterSampler.updateTargets(aggregate.entries);
+			} else {
+				recordSnapshot(snapshot, samplePhase);
 			}
-			samples.push(Object.freeze({
-				offsetMs: Date.now() - startedAt,
-				phase: samplePhase,
-				processCount: aggregate.processCount,
-				residentSetBytes: aggregate.residentSetBytes,
-				cpuDeltaMicroseconds,
-				processNames: aggregate.processNames,
-			}));
 		} catch (error) {
 			collectorErrors.push(error instanceof Error ? error.message : String(error));
 		}
 	};
 	const monitor = (async (): Promise<void> => {
 		while (!closed) {
-			await collect();
-			if (!closed) await delay(options.sampleIntervalMs);
+			const refreshStartedAt = Date.now();
+			await collectTopology();
+			if (!closed) {
+				const interval = counterSampler ? topologyIntervalMs : options.sampleIntervalMs;
+				await delay(Math.max(1, interval - (Date.now() - refreshStartedAt)));
+			}
 		}
 	})();
 
@@ -331,6 +408,7 @@ async function runBenchmark(options: Readonly<BenchmarkOptions>): Promise<Readon
 	} finally {
 		clearTimeout(timeout);
 		await monitor;
+		await counterSampler?.stop();
 	}
 	await delay(Math.min(500, options.sampleIntervalMs));
 	const finalSnapshot = await captureAppPluginProcessSnapshot();
@@ -354,11 +432,16 @@ async function runBenchmark(options: Readonly<BenchmarkOptions>): Promise<Readon
 	if (finalProbeStatus !== "root-mounted") {
 		throw new Error(`AppPlugin-Probe endete mit unerwartetem Status ${finalProbeStatus ?? "ohne Status"}`);
 	}
-	if (samples.length === 0 || samples.every(sample => sample.processCount < 2)) {
-		throw new Error("Ressourcenbenchmark erfasste den Node-/Hermes-Prozessbaum nicht gemeinsam");
-	}
 	if (collectorErrors.length > 0) {
 		throw new Error(`Ressourcensammlung meldete Fehler: ${collectorErrors.join(" | ")}`);
+	}
+	if (samples.length === 0 || samples.every(sample => sample.processCount < 2)) {
+		throw new Error(
+			"Ressourcenbenchmark erfasste den Node-/Hermes-Prozessbaum nicht gemeinsam: "
+			+ `${samples.length} gültige Samples, ${counterSnapshotCount} Zähler-Snapshots, `
+			+ `${counterRootMissingCount} ohne Root, Root-Namen ${JSON.stringify([...counterRootNames])}, `
+			+ `maximal ${Math.max(0, ...samples.map(sample => sample.processCount))} Prozesse`,
+		);
 	}
 	if (leakedProcesses.length > 0) {
 		throw new Error(`AppPlugin-Prozesse blieben nach Cleanup aktiv: ${JSON.stringify(leakedProcesses)}`);
@@ -401,6 +484,10 @@ async function runBenchmark(options: Readonly<BenchmarkOptions>): Promise<Readon
 			rootProcess: "node",
 			descendantProcessesIncluded: true,
 			collectorProcessExcluded: true,
+			counterSampler: counterSampler
+				? "persistent-targeted-windows-process-counter"
+				: "full-process-snapshot",
+			topologyRefreshIntervalMs: counterSampler ? topologyIntervalMs : options.sampleIntervalMs,
 			sampleIntervalMs: options.sampleIntervalMs,
 			sampleCount: samples.length,
 			effectiveAverageSampleIntervalMs: sampleGaps.length > 0
@@ -424,13 +511,99 @@ async function runBenchmark(options: Readonly<BenchmarkOptions>): Promise<Readon
 		phases,
 	});
 	} finally {
+		await counterSampler?.stop();
 		fs.rmSync(temporaryDirectory, { recursive: true, force: true });
 	}
 }
 
+function numericRunSummary(values: readonly number[]): NumericRunSummary {
+	if (values.length === 0) throw new Error("Messwertreihe darf nicht leer sein");
+	const sorted = [...values].sort((left, right) => left - right);
+	const middle = Math.floor(sorted.length / 2);
+	const median = sorted.length % 2 === 0
+		? Math.round((sorted[middle - 1] + sorted[middle]) / 2)
+		: sorted[middle];
+	return Object.freeze({
+		minimum: sorted[0],
+		median,
+		average: Math.round(sorted.reduce((sum, value) => sum + value, 0) / sorted.length),
+		maximum: sorted.at(-1)!,
+	});
+}
+
+function measurementFromReport(report: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
+	const measurement = report.measurement;
+	if (measurement === null || typeof measurement !== "object" || Array.isArray(measurement)) {
+		throw new Error("Benchmarklauf enthält keine Messung");
+	}
+	return measurement as Readonly<Record<string, unknown>>;
+}
+
+function numericMeasurement(
+	measurement: Readonly<Record<string, unknown>>,
+	property: string,
+): number {
+	const value = measurement[property];
+	if (typeof value !== "number" || !Number.isFinite(value)) {
+		throw new Error(`Benchmarkmessung enthält keinen Zahlenwert ${property}`);
+	}
+	return value;
+}
+
+function aggregateBenchmarkRuns(
+	reports: readonly Readonly<Record<string, unknown>>[],
+): Readonly<Record<string, unknown>> {
+	if (reports.length === 0) throw new Error("Benchmark benötigt mindestens einen Lauf");
+	const measurements = reports.map(measurementFromReport);
+	const summarize = (property: string): NumericRunSummary =>
+		numericRunSummary(measurements.map(measurement => numericMeasurement(measurement, property)));
+	const processNames = new Set<string>();
+	for (const measurement of measurements) {
+		const names = measurement.processNames;
+		if (!Array.isArray(names) || names.some(name => typeof name !== "string")) {
+			throw new Error("Benchmarkmessung enthält ungültige Prozessnamen");
+		}
+		for (const name of names as string[]) processNames.add(name);
+	}
+	const first = reports[0];
+	return Object.freeze({
+		schemaVersion: 2,
+		status: "passed",
+		generatedAt: new Date().toISOString(),
+		platform: first.platform,
+		architecture: first.architecture,
+		nodeVersion: first.nodeVersion,
+		runtime: first.runtime,
+		bundle: first.bundle,
+		runCount: reports.length,
+		summary: {
+			requestedSampleIntervalMs: numericMeasurement(measurements[0], "sampleIntervalMs"),
+			sampleCount: summarize("sampleCount"),
+			effectiveAverageSampleIntervalMs: summarize("effectiveAverageSampleIntervalMs"),
+			maximumSampleGapMs: summarize("maximumSampleGapMs"),
+			durationMs: summarize("durationMs"),
+			peakResidentSetBytes: summarize("peakResidentSetBytes"),
+			cpuMicroseconds: summarize("cpuMicroseconds"),
+			peakProcessCount: summarize("peakProcessCount"),
+			processTreeCleanupDurationMs: summarize("processTreeCleanupDurationMs"),
+			leakedProcessCount: measurements.reduce(
+				(sum, measurement) => sum + numericMeasurement(measurement, "leakedProcessCount"),
+				0,
+			),
+			processNames: [...processNames].sort(),
+		},
+		runs: reports,
+	});
+}
+
 async function main(): Promise<void> {
 	const options = parseArgs(process.argv.slice(2));
-	const report = await runBenchmark(options);
+	const reports: Readonly<Record<string, unknown>>[] = [];
+	for (let run = 0; run < options.runCount; run += 1) {
+		reports.push(await runBenchmark(options));
+		if (run + 1 < options.runCount) await delay(500);
+	}
+	const report = aggregateBenchmarkRuns(reports);
 	fs.mkdirSync(path.dirname(options.outputPath), { recursive: true });
 	fs.writeFileSync(options.outputPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
 	process.stdout.write(`${JSON.stringify(report)}\n`);

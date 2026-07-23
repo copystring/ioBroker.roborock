@@ -1,4 +1,6 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import fs from "node:fs";
+import readline from "node:readline";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -21,6 +23,19 @@ export interface AppPluginProcessTreeResourceAggregate {
 	readonly residentSetBytes: number;
 	readonly cpuMicroseconds: number;
 	readonly entries: readonly AppPluginProcessResourceEntry[];
+}
+
+export interface AppPluginProcessCounterSampler {
+	readonly ready: Promise<void>;
+	updateTargets(entries: readonly AppPluginProcessResourceEntry[]): void;
+	stop(): Promise<void>;
+}
+
+export interface AppPluginProcessCounterSamplerOptions {
+	readonly sampleIntervalMs: number;
+	readonly targetFilePath: string;
+	readonly onSnapshot: (snapshot: readonly AppPluginProcessResourceEntry[]) => void;
+	readonly onError: (error: Error) => void;
 }
 
 function safeNonNegativeInteger(value: unknown, label: string): number {
@@ -289,4 +304,213 @@ export async function captureAppPluginProcessSnapshot(
 		return parsePosixAppPluginProcessSnapshot(stdout);
 	}
 	throw new Error(`Prozessbaum-Ressourcenmessung unterstützt ${platform} noch nicht`);
+}
+
+function powershellSingleQuoted(value: string): string {
+	return `'${value.replaceAll("'", "''")}'`;
+}
+
+export function createWindowsAppPluginProcessCounterCommand(
+	targetFilePath: string,
+	sampleIntervalMs: number,
+): string {
+	if (!pathIsAbsoluteWindowsOrPosix(targetFilePath)) {
+		throw new Error("targetFilePath muss absolut sein");
+	}
+	const interval = safeNonNegativeInteger(sampleIntervalMs, "sampleIntervalMs");
+	if (interval < 50 || interval > 5_000) {
+		throw new Error("sampleIntervalMs muss zwischen 50 und 5000 liegen");
+	}
+	const targetPath = powershellSingleQuoted(targetFilePath);
+	return [
+		"$ErrorActionPreference = 'Stop'",
+		`$targetPath = ${targetPath}`,
+		`$sampleIntervalMs = ${interval}`,
+		"[Console]::Out.WriteLine('[]')",
+		"while (Test-Path -LiteralPath $targetPath) {",
+		"  $started = [Environment]::TickCount64",
+		"  try {",
+		"    $parsedTargets = Get-Content -LiteralPath $targetPath -Raw -Encoding UTF8 | ConvertFrom-Json",
+		"    $targets = @()",
+		"    $targets += $parsedTargets",
+		"    $records = @()",
+		"    foreach ($target in $targets) {",
+		"      $process = $null",
+		"      try {",
+		"        $process = [Diagnostics.Process]::GetProcessById([int]$target.pid)",
+		"        $actualStartedAt = [DateTimeOffset]$process.StartTime.ToUniversalTime()",
+		"        $actualStartedAtEpochMs = $actualStartedAt.ToUnixTimeMilliseconds()",
+		"        if ($null -ne $target.startedAtEpochMs -and [math]::Abs($actualStartedAtEpochMs - [double]$target.startedAtEpochMs) -gt 1) { continue }",
+		"        $actualName = $process.ProcessName + '.exe'",
+		"        if ($actualName -ine [string]$target.name) { continue }",
+		"        $records += [pscustomobject]@{",
+		"          ProcessId = $process.Id",
+		"          ParentProcessId = [int]$target.parentPid",
+		"          Name = $actualName",
+		"          WorkingSetSize = $process.WorkingSet64",
+		"          KernelModeTime = $process.PrivilegedProcessorTime.Ticks",
+		"          UserModeTime = $process.UserProcessorTime.Ticks",
+		"          CreationDate = $process.StartTime.ToUniversalTime().ToString('o')",
+		"        }",
+		"      } catch [ArgumentException] {",
+		"      } catch [InvalidOperationException] {",
+		"      } catch [System.ComponentModel.Win32Exception] {",
+		"        $fallbackCreationDate = if ($null -eq $target.startedAtEpochMs) { $null } else { [DateTimeOffset]::FromUnixTimeMilliseconds([long]$target.startedAtEpochMs).UtcDateTime.ToString('o') }",
+		"        $records += [pscustomobject]@{",
+		"          ProcessId = [int]$target.pid",
+		"          ParentProcessId = [int]$target.parentPid",
+		"          Name = [string]$target.name",
+		"          WorkingSetSize = [long]$target.residentSetBytes",
+		"          KernelModeTime = [long]$target.cpuKernelMicroseconds * 10",
+		"          UserModeTime = [long]$target.cpuUserMicroseconds * 10",
+		"          CreationDate = $fallbackCreationDate",
+		"        }",
+		"      } finally {",
+		"        if ($null -ne $process) { $process.Dispose() }",
+		"      }",
+		"    }",
+		"    [Console]::Out.WriteLine((ConvertTo-Json -InputObject @($records) -Compress))",
+		"  } catch {",
+		"    if (Test-Path -LiteralPath $targetPath) { [Console]::Error.WriteLine($_.Exception.Message) }",
+		"  }",
+		"  $elapsed = [Environment]::TickCount64 - $started",
+		"  $remaining = [math]::Max(1, $sampleIntervalMs - $elapsed)",
+		"  Start-Sleep -Milliseconds $remaining",
+		"}",
+	].join("\n");
+}
+
+function pathIsAbsoluteWindowsOrPosix(filePath: string): boolean {
+	return /^[a-zA-Z]:[\\/]/u.test(filePath) || filePath.startsWith("/");
+}
+
+function samplerTargets(entries: readonly AppPluginProcessResourceEntry[]): readonly Readonly<{
+	readonly pid: number;
+	readonly parentPid: number;
+	readonly name: string;
+	readonly startedAtEpochMs?: number;
+	readonly residentSetBytes: number;
+	readonly cpuUserMicroseconds: number;
+	readonly cpuKernelMicroseconds: number;
+}>[] {
+	return entries
+		.filter(entry => entry.pid > 0 && entry.name.length > 0)
+		.map(entry => Object.freeze({
+			pid: entry.pid,
+			parentPid: entry.parentPid,
+			name: entry.name,
+			startedAtEpochMs: entry.startedAtEpochMs,
+			residentSetBytes: entry.residentSetBytes,
+			cpuUserMicroseconds: entry.cpuUserMicroseconds,
+			cpuKernelMicroseconds: entry.cpuKernelMicroseconds,
+		}));
+}
+
+export function startWindowsAppPluginProcessCounterSampler(
+	options: Readonly<AppPluginProcessCounterSamplerOptions>,
+): AppPluginProcessCounterSampler {
+	const command = createWindowsAppPluginProcessCounterCommand(
+		options.targetFilePath,
+		options.sampleIntervalMs,
+	);
+	fs.writeFileSync(options.targetFilePath, "[]\n", "utf8");
+	const child = spawn("powershell.exe", [
+		"-NoLogo",
+		"-NoProfile",
+		"-NonInteractive",
+		"-Command",
+		command,
+	], {
+		stdio: ["ignore", "pipe", "pipe"],
+		windowsHide: true,
+		shell: false,
+	});
+	if (!child.stdout || !child.stderr) {
+		child.kill();
+		throw new Error("Windows-Prozesszähler besitzt keine Ausgabekanäle");
+	}
+	let stopped = false;
+	let stderr = "";
+	let readySettled = false;
+	let resolveReady!: () => void;
+	let rejectReady!: (error: Error) => void;
+	const ready = new Promise<void>((resolve, reject) => {
+		resolveReady = resolve;
+		rejectReady = reject;
+	});
+	const lines = readline.createInterface({ input: child.stdout });
+	lines.on("line", line => {
+		if (line.trim().length === 0) return;
+		try {
+			const snapshot = parseWindowsAppPluginProcessSnapshot(line);
+			if (!readySettled) {
+				readySettled = true;
+				resolveReady();
+			}
+			options.onSnapshot(snapshot);
+		} catch (error) {
+			const normalized = error instanceof Error ? error : new Error(String(error));
+			if (!readySettled) {
+				readySettled = true;
+				rejectReady(normalized);
+			}
+			options.onError(normalized);
+		}
+	});
+	child.stderr.on("data", (chunk: Buffer) => {
+		const message = chunk.toString("utf8").trim();
+		stderr = `${stderr}${message}\n`.slice(-16 * 1024);
+		if (!stopped && message.length > 0) {
+			options.onError(new Error(`Windows-Prozesszähler: ${message}`));
+		}
+	});
+	child.on("error", error => {
+		if (!readySettled) {
+			readySettled = true;
+			rejectReady(error);
+		}
+		if (!stopped) options.onError(error);
+	});
+	child.on("close", code => {
+		if (!stopped) {
+			const error = new Error(
+				`Windows-Prozesszähler endete vorzeitig mit Code ${code ?? "null"}: ${stderr.trim()}`,
+			);
+			if (!readySettled) {
+				readySettled = true;
+				rejectReady(error);
+			}
+			options.onError(error);
+		}
+	});
+
+	return Object.freeze({
+		ready,
+		updateTargets(entries: readonly AppPluginProcessResourceEntry[]): void {
+			if (stopped) throw new Error("Windows-Prozesszähler ist bereits gestoppt");
+			fs.writeFileSync(
+				options.targetFilePath,
+				`${JSON.stringify(samplerTargets(entries))}\n`,
+				"utf8",
+			);
+		},
+		async stop(): Promise<void> {
+			if (stopped) return;
+			stopped = true;
+			fs.rmSync(options.targetFilePath, { force: true });
+			if (child.exitCode !== null || child.signalCode !== null) {
+				lines.close();
+				return;
+			}
+			await new Promise<void>(resolve => {
+				const force = setTimeout(() => child.kill(), Math.max(1_000, options.sampleIntervalMs * 4));
+				force.unref();
+				child.once("close", () => {
+					clearTimeout(force);
+					resolve();
+				});
+			});
+			lines.close();
+		},
+	});
 }

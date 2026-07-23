@@ -63,35 +63,47 @@ den vollständigen Geräte- und Sitzungszustand erwartet. Der Status ist deshalb
 weder ein Beleg für eine vollständig bedienbare Oberfläche noch für eine
 Inkompatibilität des Plugins.
 
-## Erste Prozessbaum-Baseline
+## Wiederholte Prozessbaum-Baseline
 
 `npm run poc:appplugin-resource-benchmark` startet keinen Server. Der Befehl
 führt das unveränderte Q7-L5-Hermes-Bundle mit der synthetischen vollständigen
-Kartenszene und einer Raumwahl aus. Gemessen wird der vollständige Unterbaum
-des Probe-Node-Prozesses einschließlich Hermes und Windows-Console-Host; der
-Messhelfer selbst ist ein Geschwisterprozess und wird nicht mitgezählt.
+Kartenszene und einer Raumwahl standardmäßig dreimal nacheinander aus. Gemessen
+wird der vollständige Unterbaum des Probe-Node-Prozesses einschließlich Hermes
+und Windows-Console-Host; der Messhelfer selbst ist ein Geschwisterprozess und
+wird nicht mitgezählt.
 
-Aktuelle Windows-x64-Beobachtung mit Node.js 24.18.0:
+Eine vollständige WMI-Topologie aktualisiert Eltern-Kind-Beziehungen. Dazwischen
+misst ein vorgewärmter, dauerhafter `Diagnostics.Process`-Zähler nur die
+bestätigten PIDs. Ein einzelner geschützter Prozess behält bei fehlendem
+Zählerzugriff seinen letzten sicheren WMI-Wert, statt das gesamte Sample zu
+verwerfen.
 
-| Messwert | Beobachtung |
-| --- | ---: |
-| Spitzen-RSS des Prozessbaums | 272.535.552 Bytes (259,9 MiB) |
-| CPU-Zeit des Prozessbaums | 2.015.625 µs |
-| Spitzen-Prozessanzahl | 4 |
-| Vollständige Laufdauer einschließlich zweier passiver Leerlauffenster | 9.384 ms |
-| Cleanup bis zum Ende des Prozessbaums | 20 ms |
-| Nach Cleanup verbliebene Prozesse | 0 |
+Aktuelle Windows-x64-Beobachtung aus drei Läufen mit Node.js 24.18.0:
+
+| Messwert | Minimum | Median | Maximum |
+| --- | ---: | ---: | ---: |
+| Spitzen-RSS des Prozessbaums | 251.981.824 Bytes | 257.683.456 Bytes | 269.615.104 Bytes |
+| CPU-Zeit des Prozessbaums | 1.890.625 µs | 2.031.250 µs | 2.406.250 µs |
+| Effektiver mittlerer Sampleabstand | 300 ms | 301 ms | 302 ms |
+| Größter Sampleabstand | 314 ms | 318 ms | 320 ms |
+| Vollständige Laufdauer | 9.893 ms | 9.919 ms | 9.925 ms |
+| Cleanup bis zum Ende des Prozessbaums | 15 ms | 21 ms | 29 ms |
+
+Alle drei Läufe beobachteten maximal vier Prozesse und hinterließen nach dem
+Cleanup keinen Prozess.
 
 Die maschinenlesbare Aufzeichnung liegt in
-`docs/generated/appplugin-resource-baseline.win32-x64.json`. Windows-WMI
-erreichte in diesem Lauf trotz angeforderter 250 ms nur durchschnittlich
-935 ms und maximal 972 ms zwischen zwei Samples. Der beobachtete Spitzenwert
-ist deshalb eine Baseline, noch keine bewiesene Obergrenze.
+`docs/generated/appplugin-resource-baseline.win32-x64.json`. Die angeforderten
+250 ms werden nun wesentlich enger angenähert als mit einem neuen WMI-Prozess
+je Sample. Auch diese drei Läufe sind eine Baseline und noch keine bewiesene
+Obergrenze.
 
 ## Noch offen
 
 Die Prozessbaumlogik bereinigt PID-Wiederverwendung über Prozessstartzeiten und
 unterstützt Windows sowie denselben `ps`-Datenvertrag für Linux und macOS.
-Vor harten Alarm-, Kill- oder Neustartwerten fehlen Wiederholungsläufe, ein
-höher aufgelöster Windows-Sampler, echte Linux-/macOS-Ausführung sowie
-mindestens ein Vertreter jeder technisch unterschiedlichen Pluginfamilie.
+Vor harten Alarm-, Kill- oder Neustartwerten fehlen längere Wiederholungsserien,
+echte Linux-/macOS-Ausführung und mindestens ein Vertreter jeder technisch
+unterschiedlichen Pluginfamilie. Da lokal derzeit kein Linux-System verfügbar
+ist, wird dessen Lauf erst später auf einem ausdrücklich freigegebenen
+CI-Runner ausgeführt.

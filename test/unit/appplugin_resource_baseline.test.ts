@@ -8,25 +8,53 @@ interface ResourceBaseline {
 	readonly status: string;
 	readonly platform: string;
 	readonly architecture: string;
+	readonly runCount: number;
 	readonly bundle: {
 		readonly kind: string;
 		readonly unchanged: boolean;
 		readonly sha256: string;
 	};
-	readonly measurement: {
+	readonly summary: {
+		readonly requestedSampleIntervalMs: number;
+		readonly effectiveAverageSampleIntervalMs: {
+			readonly minimum: number;
+			readonly median: number;
+			readonly average: number;
+			readonly maximum: number;
+		};
+		readonly maximumSampleGapMs: {
+			readonly maximum: number;
+		};
+		readonly peakResidentSetBytes: {
+			readonly maximum: number;
+		};
+		readonly cpuMicroseconds: {
+			readonly maximum: number;
+		};
+		readonly peakProcessCount: {
+			readonly minimum: number;
+		};
+		readonly processTreeCleanupDurationMs: {
+			readonly maximum: number;
+		};
+		readonly leakedProcessCount: number;
+		readonly processNames: readonly string[];
+	};
+	readonly runs: readonly {
+		readonly status: string;
+		readonly measurement: {
 		readonly descendantProcessesIncluded: boolean;
 		readonly collectorProcessExcluded: boolean;
+		readonly counterSampler: string;
 		readonly sampleCount: number;
-		readonly peakResidentSetBytes: number;
-		readonly cpuMicroseconds: number;
-		readonly peakProcessCount: number;
-		readonly processNames: readonly string[];
-		readonly processTreeCleanupDurationMs: number;
+		readonly effectiveAverageSampleIntervalMs: number;
+		readonly maximumSampleGapMs: number;
 		readonly leakedProcessCount: number;
-	};
-	readonly transitions: readonly {
+		};
+		readonly transitions: readonly {
 		readonly phase: string;
 		readonly offsetMs: number;
+		}[];
 	}[];
 }
 
@@ -45,46 +73,62 @@ describe("AppPlugin process-tree resource baseline", () => {
 		const baseline = readBaseline();
 
 		expect(baseline).toMatchObject({
-			schemaVersion: 1,
+			schemaVersion: 2,
 			status: "passed",
 			platform: "win32",
 			architecture: "x64",
+			runCount: 3,
 			bundle: {
 				kind: "hermes-bytecode",
 				unchanged: true,
 			},
-			measurement: {
-				descendantProcessesIncluded: true,
-				collectorProcessExcluded: true,
+			summary: {
 				leakedProcessCount: 0,
 			},
 		});
 		expect(baseline.bundle.sha256).toMatch(/^[a-f0-9]{64}$/u);
-		expect(baseline.measurement.sampleCount).toBeGreaterThan(1);
-		expect(baseline.measurement.peakResidentSetBytes).toBeGreaterThan(0);
-		expect(baseline.measurement.cpuMicroseconds).toBeGreaterThan(0);
-		expect(baseline.measurement.peakProcessCount).toBeGreaterThanOrEqual(2);
-		expect(baseline.measurement.processTreeCleanupDurationMs).toBeGreaterThanOrEqual(0);
-		expect(baseline.measurement.processNames).toContain("node.exe");
-		expect(baseline.measurement.processNames).toContain("roborock-hermes-appplugin-host.exe");
+		expect(baseline.runs).toHaveLength(3);
+		expect(baseline.summary.peakResidentSetBytes.maximum).toBeGreaterThan(0);
+		expect(baseline.summary.cpuMicroseconds.maximum).toBeGreaterThan(0);
+		expect(baseline.summary.peakProcessCount.minimum).toBeGreaterThanOrEqual(2);
+		expect(baseline.summary.processTreeCleanupDurationMs.maximum).toBeGreaterThanOrEqual(0);
+		expect(baseline.summary.processNames).toContain("node.exe");
+		expect(baseline.summary.processNames).toContain("roborock-hermes-appplugin-host.exe");
+		expect(baseline.runs.every(run =>
+			run.status === "passed"
+			&& run.measurement.descendantProcessesIncluded
+			&& run.measurement.collectorProcessExcluded
+			&& run.measurement.counterSampler === "persistent-targeted-windows-process-counter"
+			&& run.measurement.sampleCount > 1
+			&& run.measurement.leakedProcessCount === 0
+		)).toBe(true);
+	});
+
+	it("proves that the persistent Windows counter stays close to the requested interval", () => {
+		const baseline = readBaseline();
+
+		expect(baseline.summary.requestedSampleIntervalMs).toBe(250);
+		expect(baseline.summary.effectiveAverageSampleIntervalMs.maximum).toBeLessThanOrEqual(400);
+		expect(baseline.summary.maximumSampleGapMs.maximum).toBeLessThanOrEqual(500);
 	});
 
 	it("observes startup, passive idle, device replay, interaction and cleanup boundaries", () => {
-		const transitions = readBaseline().transitions;
-		const phases = transitions.map(transition => transition.phase);
+		for (const run of readBaseline().runs) {
+			const phases = run.transitions.map(transition => transition.phase);
 
-		expect(phases).toEqual(expect.arrayContaining([
-			"startup",
-			"bundle-ready",
-			"root-idle",
-			"device-replay",
-			"interaction",
-			"interaction-idle",
-			"cleanup",
-			"hermes-stopped",
-		]));
-		expect(transitions.every((transition, index) =>
-			index === 0 || transition.offsetMs >= transitions[index - 1].offsetMs
-		)).toBe(true);
+			expect(phases).toEqual(expect.arrayContaining([
+				"startup",
+				"bundle-ready",
+				"root-idle",
+				"device-replay",
+				"interaction",
+				"interaction-idle",
+				"cleanup",
+				"hermes-stopped",
+			]));
+			expect(run.transitions.every((transition, index) =>
+				index === 0 || transition.offsetMs >= run.transitions[index - 1].offsetMs
+			)).toBe(true);
+		}
 	});
 });

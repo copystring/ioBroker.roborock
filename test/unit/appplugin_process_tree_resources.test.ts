@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	aggregateAppPluginProcessTreeResources,
+	createWindowsAppPluginProcessCounterCommand,
 	parsePosixAppPluginProcessSnapshot,
 	parseWindowsAppPluginProcessSnapshot,
 	parseWindowsWmicAppPluginProcessSnapshot,
@@ -115,5 +116,26 @@ describe("AppPlugin process-tree resources", () => {
 
 		expect(aggregate.processIds).toEqual([100, 110]);
 		expect(aggregate.residentSetBytes).toBe(3_000);
+	});
+
+	it("builds a targeted persistent Windows counter without WMI polling", () => {
+		const command = createWindowsAppPluginProcessCounterCommand(
+			"C:\\temp\\appplugin targets.json",
+			125,
+		);
+
+		expect(command).toContain("[Diagnostics.Process]::GetProcessById");
+		expect(command).toContain("$sampleIntervalMs = 125");
+		expect(command).toContain("'C:\\temp\\appplugin targets.json'");
+		expect(command).toContain("WorkingSetSize = $process.WorkingSet64");
+		expect(command).toContain("$targets += $parsedTargets");
+		expect(command).toContain("catch [System.ComponentModel.Win32Exception]");
+		expect(command).toContain("[Console]::Out.WriteLine('[]')");
+		expect(command).not.toContain("Get-CimInstance");
+		expect(command).not.toContain("wmic");
+		expect(() => createWindowsAppPluginProcessCounterCommand("relative.json", 125))
+			.toThrow(/absolut/u);
+		expect(() => createWindowsAppPluginProcessCounterCommand("C:\\temp\\targets.json", 20))
+			.toThrow(/zwischen 50 und 5000/u);
 	});
 });
