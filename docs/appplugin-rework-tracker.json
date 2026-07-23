@@ -326,6 +326,10 @@
 				"src/apppluginHost/apkPluginSdkRpcModule.ts",
 				"src/lib/httpApi.ts",
 				"src/lib/socketHandler.ts",
+				"src/lib/appplugin/IoBrokerAppPluginDeviceWire.ts",
+				"src/lib/appplugin/IoBrokerReadOnlyAppPluginDeviceHost.ts",
+				"src/lib/appplugin/IoBrokerReadOnlyAppPluginProbe.ts",
+				"docs/APPPLUGIN_LIVE_READ_PROOF.md",
 				"test/unit/appplugin_apk_home_data_context.test.ts",
 				"test/unit/appplugin_apk_main_plugin_entry.test.ts",
 				"test/unit/appplugin_apk_native_invocation_diagnostics.test.ts",
@@ -341,6 +345,9 @@
 				"test/unit/appplugin_apk_model_runtime.test.ts",
 				"test/unit/appplugin_apk_adapter_runtime_service.test.ts",
 				"test/unit/appplugin_apk_adapter_host_lease_factory.test.ts",
+				"test/unit/appplugin_iobroker_device_wire.test.ts",
+				"test/unit/appplugin_iobroker_read_only_device_host.test.ts",
+				"test/unit/appplugin_apk_read_only_probe_runtime.test.ts",
 				"test/unit/appplugin_apk_hermes_host_artifact.test.ts",
 				"test/unit/appplugin_apk_device_model_runtime_factory.test.ts",
 				"test/unit/appplugin_apk_device_native_runtime_environment.test.ts",
@@ -363,7 +370,7 @@
 				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/PluginSDKModule.java",
 				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/o00oOoo.java"
 			],
-			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Paketakquisition, Installation, Modellcache und Paketersetzung bleiben signiert, atomar, serialisiert und geräteklassenneutral. Der gepinnte Hermes-Host wird über eine eigene native Sechs-Ziel-Matrix gebaut: Staging verlangt einen erfolgreichen HBC-v96-Smoke-Lauf; der Abschlussjob verweigert fehlende, zusätzliche, manipulierte oder nur kompilierte Artefakte und kontrolliert zusätzlich den npm-Paketinhalt. Windows-x64 ist lokal mit exakt der in CI festgelegten LLVM-MinGW-Version gebaut und ausgeführt; die übrigen fünf nativen Runner sind erst nach einem erlaubten GitHub-Lauf bestätigt. Noch sind keine Native-Artefakte eingecheckt, in den bestehenden Release-Workflow übernommen oder an ready/unload angeschlossen. Probe und Produktions-Factory verwenden dieselbe streng typisierte, geräteklassenneutrale Zuordnung der gemeinsamen APK-Module. Der produktive Environment-Owner erzeugt pro geprüfter Gerätesitzung genau einmal Konto-, HTTP-, RPC-, Geräte-, Plattform-, Locale-, Theme-, Speicher-, Timer- und Worker-Laufzeiten. Die Factory konstruiert ihn selbst; ein Hostprovider kann Bundle, Konto, Gerätekontext, APK-Vertrag oder Hermes-Artefakt deshalb nicht ersetzen. Der verwaltete Provider serialisiert Shutdown gegen laufende Akquisitionen, macht Releases idempotent und räumt alle verbliebenen Hostressourcen trotz Einzelfehlern auf. Ein einziger Adapter-Runtime-Service besitzt nun Konto-/Paketsitzung, Modell-Supervisor, Factory und Provider und erzwingt beim unload die Reihenfolge Modell-Runtimes vor Hostressourcen. Die konkrete Adapter-Hostlease-Fabrik besitzt sichere Instanz- und Sitzungsverzeichnisse, unveränderten Bootstrap, CanvasKit/Skia, Textlayout und Hermes-Ressourcenrichtlinien; ein realer CanvasKit-Lease wurde von der produktiven Native-Environment akzeptiert und vollständig freigegeben. Die APK-belegte Device-Repository-Brücke hält RRPluginDevice und RRRpcManager auf derselben Transportinstanz, legt JSON-RPC unverändert in dps.101 und bewahrt automatische, lokale sowie MQTT-Routen auch für Protobuf. Als Nächstes diese neun geräteklassenneutralen Repository-Operationen an den bestehenden ioBroker-Wire-Transport binden und danach Aktivität, Plattform sowie optionale Mall-/Bilddienste ergänzen. RockMow bleibt bis zu echter Mäher-HomeData eine Bootstrap-Gegenprobe."
+			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Paketakquisition, Installation, Modellcache und Paketersetzung bleiben signiert, atomar, serialisiert und geräteklassenneutral. Der gepinnte Hermes-Host wird über eine eigene native Sechs-Ziel-Matrix gebaut: Windows-x64 ist lokal gebaut und ausgeführt; die übrigen fünf Zielrunner benötigen weiterhin einen erlaubten GitHub-Lauf. Probe und Produktions-Factory verwenden dieselbe streng typisierte, geräteklassenneutrale Zuordnung der gemeinsamen APK-Module. Die neun geräteklassenneutralen Device-Repository-Operationen sind an den bestehenden ioBroker-Wire-Port gebunden; die Read-only-Grenze lässt ausschließlich explizit erlaubte, vom Bundle erzeugte JSON-RPCs passieren und blockiert beliebige DPS sowie Protobuf. Zwei getrennte reale Geräte des Modells roborock.vacuum.a147 haben mit dem unveränderten signierten Plugin 6006/3001 selbst get_prop([\"get_status\"]) erzeugt und eine korrelierte L01-Antwort erhalten. Als Nächstes die zeitlich begrenzte Probe in einen weiterhin standardmäßig deaktivierten, langlebigen Read-only-Dienst mit sauberem Start, Leerlauf, Sitzungsersetzung und unload überführen; danach denselben Nachweis mit einer zweiten Modell- oder Protokollfamilie führen. RockMow bleibt bis zu echter Mäher-HomeData eine Bootstrap-Gegenprobe."
 		},
 		{
 			"id": "P0B-APK-HOST-SERVICES",
@@ -401,7 +408,7 @@
 				"test/unit/appplugin_apk_device_runtime_host_provider.test.ts",
 				"test/unit/appplugin_apk_adapter_host_lease_factory.test.ts"
 			],
-			"nextAction": "RRPluginHttpTurboModule bildet alle 22 APK-Methoden ab und hält IoT-, User-, Mall-, Header- und Bildvorbereitungsdienste getrennt. Die belegten User- und IoT-Repository-Aufrufe sind an die vorhandenen, getrennt authentifizierten Axios-Clients gebunden; GET und DELETE übertragen skalare Querywerte, POST und PUT skalare Formwerte und JSON-Pfade unverändert als JSON. Die APK-Rollenliste wird vor dem Hermes-Prozess einmal über die Login-API geladen und als strikt typisierter Produktkatalog in den Sitzungsdeskriptor gegeben. Die produktive Geräteumgebung hängt diese Konto-, Rollen-, HomeData-, RPC- und Geräteports nun gemeinsam in die Native-Modul-Composition ein; fehlende optionale Dienste bleiben explizite Hostfehler und erzeugen keine erfundenen Antworten. Die neue Device-Repository-Brücke bildet die sechs APK-Routen für JSON- und Protobuf-RPC sowie die drei gemeinsamen Geräteoperationen ohne Befehls- oder Produktmapping ab. Als Nächstes deren ioBroker-Wire-Port implementieren und Mall-, Header- sowie Bildvorbereitungsports mit erlaubten Dateitypen, Größen- und Zeitgrenzen an die vorhandenen Adapterdienste binden."
+			"nextAction": "RRPluginHttpTurboModule bildet alle 22 APK-Methoden ab und hält IoT-, User-, Mall-, Header- und Bildvorbereitungsdienste getrennt. Die belegten User- und IoT-Repository-Aufrufe sind an die vorhandenen, getrennt authentifizierten Axios-Clients gebunden; GET und DELETE übertragen skalare Querywerte, POST und PUT skalare Formwerte und JSON-Pfade unverändert als JSON. Die APK-Rollenliste wird vor dem Hermes-Prozess einmal über die Login-API geladen und als strikt typisierter Produktkatalog in den Sitzungsdeskriptor gegeben. Die produktive Geräteumgebung hängt Konto-, Rollen-, HomeData-, RPC- und Geräteports gemeinsam in die Native-Modul-Composition ein; fehlende optionale Dienste bleiben explizite Hostfehler und erzeugen keine erfundenen Antworten. Die sechs APK-Routen für JSON- und Protobuf-RPC sowie die drei gemeinsamen Geräteoperationen sind an den bestehenden ioBroker-Wire-Port gebunden; eine echte, vom a147-Bundle erzeugte JSON-Statusabfrage hat den Hin- und Rückweg bestanden. Protobuf bleibt im Read-only-Gate mangels sicherer Klassifikation blockiert. Als Nächstes Mall-, Header- sowie Bildvorbereitungsports mit erlaubten Dateitypen, Größen- und Zeitgrenzen an die vorhandenen Adapterdienste binden."
 		},
 		{
 			"id": "P0B-INPUT-LAYOUT",
@@ -1240,6 +1247,25 @@
 			"nextAction": "Saros 20 und Z70 mit echten Kartenereignissen getrennt protokollieren und den hybriden Hostvertrag ableiten."
 		},
 		{
+			"id": "P0C-LIVE-STATUS-READ",
+			"phase": "0C",
+			"area": "Gerätetransport",
+			"title": "Original-AppPlugin-Statusabruf über echte Geräte Ende zu Ende nachweisen",
+			"status": "completed",
+			"priority": "P0",
+			"dependsOn": ["P0B-DEVICE-BOOTSTRAP", "P0B-DEVICE-INGRESS", "P0B-SESSION-LIFECYCLE"],
+			"evidence": [
+				"docs/APPPLUGIN_LIVE_READ_PROOF.md",
+				"src/lib/appplugin/IoBrokerAppPluginDeviceWire.ts",
+				"src/lib/appplugin/IoBrokerReadOnlyAppPluginDeviceHost.ts",
+				"src/lib/appplugin/IoBrokerReadOnlyAppPluginProbe.ts",
+				"test/unit/appplugin_iobroker_device_wire.test.ts",
+				"test/unit/appplugin_iobroker_read_only_device_host.test.ts",
+				"test/unit/appplugin_apk_read_only_probe_runtime.test.ts"
+			],
+			"nextAction": "Denselben unveränderten Bundle-zu-Wire-zu-Callback-Nachweis für jede neue Modell- oder Protokollfamilie wiederholen; aus zwei a147-Geräten keine familienübergreifende Freigabe ableiten."
+		},
+		{
 			"id": "P0C-CROSS-FAMILY-MATRIX",
 			"phase": "0C",
 			"area": "Abnahme",
@@ -1253,9 +1279,10 @@
 				"scripts/lib/appplugin_bundle_inventory.js",
 				"test/unit/appplugin_bundle_conformance.test.ts",
 				"docs/APPPLUGIN_MAP_COMPATIBILITY.md",
+				"docs/APPPLUGIN_LIVE_READ_PROOF.md",
 				"`npm run poc:appplugin-contract-audit`"
 			],
-			"nextAction": "Der endliche Startaudit deckt alle 16 lokalen Bundlepfade beziehungsweise 14 unterschiedlichen Bundle-Hashes ab: 14 Berichte wurden abgeschlossen, zehn Bundles erzeugen einen Root, vier ältere Bundles scheitern reproduzierbar am nicht zu APK 4.54.02 passenden AsyncStorage-Namen, kein Lauf endet vor dem Bericht oder durch Zeitüberschreitung. Neun Root-Bundles warten ausschließlich auf ein beobachtbares Interaktionsziel; Saros 20 erreicht den Root und verlangt danach die echten Hostdienste user-http und Produktrolle. APK-dokumentierte Ablehnungen für noch nicht vorhandene Dateiverzeichnisse gelten nicht mehr als Hostdefekt. Als Nächstes für die zehn Root-Bundles echte Gerätesitzungen und Interaktionsziele ergänzen und die Stufen Root, Hostbedarfsdeckung, benutzbar, Verhaltensparität und Produktionsfreigabe weiter getrennt halten. Waschmaschine bleibt mangels lokalem Plugin offen."
+			"nextAction": "Der endliche Startaudit deckt alle 16 lokalen Bundlepfade beziehungsweise 14 unterschiedlichen Bundle-Hashes ab: 14 Berichte wurden abgeschlossen, zehn Bundles erzeugen einen Root, vier ältere Bundles scheitern reproduzierbar am nicht zu APK 4.54.02 passenden AsyncStorage-Namen. Für a147 ist zusätzlich der echte Status-Leseweg mit zwei physischen Geräten belegt; beide Geräte gehören jedoch derselben Hermes-, Modell- und L01-Familie. Als Nächstes für die übrigen Root-Bundles echte Gerätesitzungen und Interaktionsziele ergänzen und eine zweite Modell- oder Protokollfamilie durch denselben Live-Read-Gate führen. Die Stufen Root, Hostbedarfsdeckung, benutzbar, Verhaltensparität und Produktionsfreigabe bleiben getrennt; Waschmaschine bleibt mangels lokalem Plugin offen."
 		},
 		{
 			"id": "P0C-GOLDEN-HARNESS",

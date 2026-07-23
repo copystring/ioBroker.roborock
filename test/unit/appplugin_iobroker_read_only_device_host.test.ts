@@ -38,16 +38,16 @@ function adapter() {
 	return { buildRoborockMessage, ensureEndpoint, sendMessageChecked, value: value as unknown as Roborock };
 }
 
-function request(): ApkAppPluginModelRuntimeRequest<ApkAppPluginDeviceModelContext> {
+function request(deviceId = "device-1"): ApkAppPluginModelRuntimeRequest<ApkAppPluginDeviceModelContext> {
 	return {
 		activeTime: 17,
-		deviceId: "device-1",
+		deviceId,
 		model: "roborock.generic.model",
 		context: {
 			session: {
 				descriptor: {
 					device: {
-						deviceId: "device-1",
+						deviceId,
 						firmwareVersion: "02.01.00",
 					},
 					host: { clientId: "client-1" },
@@ -152,6 +152,51 @@ describe("ioBroker read-only AppPlugin device host", () => {
 		await lease.release();
 		expect(router.activeDeviceCount).toBe(0);
 		expect(() => lease.attachDeviceIngress?.(deviceIngress)).toThrow(/bereits freigegeben/u);
+	});
+
+	it("keeps wire targets and ingress ownership isolated for two devices sharing one model", async () => {
+		const fixture = adapter();
+		const router = new ApkDeviceIngressRouter();
+		const factory = createIoBrokerReadOnlyAppPluginDeviceHostLeaseFactory({
+			adapter: fixture.value,
+			allowedMethods: ["get_status"],
+			ingressRouter: router,
+		});
+		const artifact = { target: "win32-x64" } as ApkHermesHostArtifact;
+		const first = await factory(request("device-1"), artifact);
+		const second = await factory(request("device-2"), artifact);
+		const firstIngress = ingress();
+		const secondIngress = ingress();
+		first.attachDeviceIngress?.(firstIngress);
+		second.attachDeviceIngress?.(secondIngress);
+
+		await first.ports.rpc.transport.sendJson({
+			id: 51,
+			method: "get_status",
+			params: [],
+		}, "automatic");
+		await second.ports.rpc.transport.sendJson({
+			id: 52,
+			method: "get_status",
+			params: [],
+		}, "automatic");
+
+		expect(fixture.buildRoborockMessage.mock.calls.map(call => call[0]))
+			.toEqual(["device-1", "device-2"]);
+		expect(router.activeDeviceCount).toBe(2);
+		expect(router.acceptJsonDps("device-1", "1.0", "{}"))
+			.toEqual({ eventEmitted: true, rpcAccepted: true });
+		expect(firstIngress.acceptJsonDps).toHaveBeenCalledOnce();
+		expect(secondIngress.acceptJsonDps).not.toHaveBeenCalled();
+
+		await first.release();
+		expect(router.activeDeviceCount).toBe(1);
+		expect(router.acceptJsonDps("device-2", "L01", "{}"))
+			.toEqual({ eventEmitted: true, rpcAccepted: true });
+		expect(secondIngress.acceptJsonDps).toHaveBeenCalledOnce();
+
+		await second.release();
+		expect(router.activeDeviceCount).toBe(0);
 	});
 
 	it("rejects invalid display metrics before acquiring an endpoint", async () => {
