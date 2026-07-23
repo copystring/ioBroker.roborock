@@ -126,10 +126,14 @@ gemeinsame Zuordnung der bereits implementierten APK-Module zu ihren
 plattformneutralen Laufzeiten. Probe und produktive Modell-Runtime-Factory
 verwenden exakt dieselbe Zuordnung; ein Geräte- oder Modellpfad kann weder
 Modulnamen erfinden noch eines dieser gemeinsamen Module still auslassen. Der
-Supervisor startet trotzdem noch keinen Produktionsprozess, weil die konkreten
-Laufzeitinstanzen und ihre Adapterports weiterhin im Probe-Skript erzeugt
-werden. Deren produktive Erzeugung aus Sitzung, Transporten und Plattformports
-bleibt die nächste Kompositionsgrenze.
+produktive Pfad erzeugt die konkreten Laufzeitinstanzen inzwischen zentral in
+`ApkAppPluginDeviceNativeRuntimeEnvironment` aus Sitzung, Transport-, Konto-,
+Plattform- und Dateisystemports. `createApkAppPluginAdapterHostLeaseFactory`
+besitzt die ioBroker-Verzeichnisse, CanvasKit/Skia und Prozessgrenzen;
+`createApkAppPluginDeviceModelRuntimeFactory` verbindet beides mit dem
+unveränderten Bundle. Das große Probe-Skript besitzt weiterhin zusätzliche
+Diagnose- und Replayfunktionen, ist aber nicht mehr die einzige ausführbare
+Komposition des APK-Hosts.
 
 `ApkAppPluginDeviceSessionRuntime` schließt davor die bislang getrennten
 Produktionsgrenzen zusammen: Sie löst das konkrete HomeData-Gerät und dessen
@@ -166,11 +170,17 @@ semantischen Szenenbeweis und ihren jeweiligen pixelgenauen
 360×800-Goldenvergleich; Q10 X5+ mountet über
 denselben Provider einen Root ohne fatale Ausnahme oder unerwartete native
 Ablehnung. Ohne echte Q10-Geräteantwort bleibt dieser Lauf korrekt auf
-`loading` und belegt keine Interaktions- oder Kartenparität. Noch zu extrahieren
-ist die umfangreiche Erzeugung der konkreten Laufzeitinstanzen aus dem
-Probe-Skript einschließlich ihrer produktiven Adapterports; die Zuordnung
-dieser Instanzen zu den APK-Modulnamen ist bereits gemeinsam und
-gerätekategorieneutral.
+`loading` und belegt keine Interaktions- oder Kartenparität. Ein zusätzlicher
+Produktpfad-Nachweis startet dasselbe unveränderte Q10-X5+-Metro-Bundle ohne
+die manuelle Probe-Komposition direkt über
+`ApkAppPluginDeviceNativeRuntimeEnvironment`,
+`createApkAppPluginAdapterHostLeaseFactory` und
+`createApkAppPluginDeviceModelRuntimeFactory`. Er erzeugt Root-Tag `1`, ruft
+die zentralen APK-Module auf und beendet Hermes, Skia sowie Hostlease
+vollständig. Dabei gefundene Hostlücken bleiben harte Fehler: So wurde
+`RRPluginSDK.openPrivacyLicense` nach APK-Quellabgleich als generischer,
+standardmäßig nicht zustimmender Hostdialog-Port ergänzt. Die eigentliche
+Einwilligungsoberfläche bleibt Eigentum der PC-/Hosthülle.
 
 Zusätzliche Belege:
 

@@ -201,11 +201,15 @@
 			"dependsOn": ["P0A-BUNDLE-INVENTORY", "P0A-APK-CONTRACT-INVENTORY"],
 			"evidence": [
 				"scripts/appplugin_hermes_runtime_probe.ts",
+				"scripts/prove_q10_product_host.ts",
+				"scripts/lib/appPluginProductHostProof.ts",
 				"src/apppluginHost/apkHermesHostSession.ts",
 				"scripts/lib/appplugin_bundle_inventory.js",
-				"test/unit/appplugin_bundle_conformance.test.ts"
+				"test/unit/appplugin_bundle_conformance.test.ts",
+				"test/unit/appplugin_q10_product_host.test.ts",
+				"`npm run poc:appplugin-q10-product-host`"
 			],
-			"nextAction": "Weitere Metro-Generationen mit echten Gerätesitzungsdeskriptoren über denselben nativen APK-Host starten; der alte DirectMetroBundleRuntime-Simulator ist kein Freigabepfad."
+			"nextAction": "Q10 X5+ startet als unverändertes Metro-Bundle nun auch über die produktive DeviceNativeRuntimeEnvironment-, AdapterHostLease- und DeviceModelRuntimeFactory-Komposition: Root erzeugt, Bundle-Hash unverändert, keine fehlende native Methode und vollständiges Cleanup. Dieser Offline-Bootstrap ist keine Geräte-, Karten- oder Interaktionsfreigabe. Als Nächstes weitere Metro-Generationen mit echten Gerätesitzungsdeskriptoren über denselben produktiven Host starten; der alte DirectMetroBundleRuntime-Simulator ist kein Freigabepfad."
 		},
 		{
 			"id": "P0B-HERMES-HOST",
@@ -297,6 +301,8 @@
 				"scripts/lib/appPluginDesktopFixtureSessions.ts",
 				"scripts/lib/appPluginSessionDescriptorTransport.ts",
 				"scripts/appplugin_hermes_runtime_probe.ts",
+				"scripts/prove_q10_product_host.ts",
+				"scripts/lib/appPluginProductHostProof.ts",
 				"src/apppluginHost/apkAppPluginSessionDescriptor.ts",
 				"src/apppluginHost/apkAppPluginSessionSupervisor.ts",
 				"src/apppluginHost/apkAppPluginModelRuntime.ts",
@@ -360,6 +366,7 @@
 				"test/unit/appplugin_apk_device_runtime_host_provider.test.ts",
 				"test/unit/appplugin_apk_shared_native_modules.test.ts",
 				"test/unit/appplugin_apk_device_session_runtime.test.ts",
+				"test/unit/appplugin_q10_product_host.test.ts",
 				".github/workflows/appplugin-hermes-host.yml",
 				"scripts/build_hermes_appplugin_host.js",
 				"scripts/verify_hermes_host_matrix.js",
@@ -375,7 +382,7 @@
 				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/PluginSDKModule.java",
 				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/o00oOoo.java"
 			],
-			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Paketakquisition, Installation, Modellcache und Paketersetzung bleiben signiert, atomar, serialisiert und geräteklassenneutral. Der gepinnte Hermes-Host wird über eine eigene native Sechs-Ziel-Matrix gebaut: Windows-x64 ist lokal gebaut und ausgeführt; die übrigen fünf Zielrunner benötigen weiterhin einen erlaubten GitHub-Lauf. Probe und langlebiger Dienst verwenden dieselbe streng typisierte ioBroker-Komposition der gemeinsamen APK-Module, denselben Gerätekontext und dieselbe Read-only-Allowlist. Der Dienst bleibt beim Adapterstart aus, startet nur nach confirm=true, hält den Original-Bundle-Root nach der ersten korrelierten Antwort aktiv, übernimmt weitere vom Bundle ausgelöste Statusantworten, verwendet dieselbe Sitzung erneut und verwirft beim Wechsel zwischen zwei Geräten desselben Modells zuerst Root, Modelllease und gecachte Modell-Runtime. Die adapterweite Lifecycle-Operation serialisiert nun zusätzlich Einmal-Probe, langlebigen Start beziehungsweise Neustart und Paketaktivierung; ein aktiver oder gerade wechselnder Root blockiert die Paketersetzung vor jedem Netzwerkzugriff. Dieser Ablauf bestand live mit beiden a147-Geräten; ein Adapter-Unload beendete die zweite noch aktive Sitzung ohne AppPlugin-Fehler. Als Nächstes denselben Nachweis mit einer zweiten Modell- oder Protokollfamilie führen und die beabsichtigte Mehrgeräte-/Mehrmodell-Parallelität samt Ressourcenbudgets festlegen. RockMow bleibt bis zu echter Mäher-HomeData eine Bootstrap-Gegenprobe."
+			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Paketakquisition, Installation, Modellcache und Paketersetzung bleiben signiert, atomar, serialisiert und geräteklassenneutral. Der gepinnte Hermes-Host wird über eine eigene native Sechs-Ziel-Matrix gebaut: Windows-x64 ist lokal gebaut und ausgeführt; die übrigen fünf Zielrunner benötigen weiterhin einen erlaubten GitHub-Lauf. Probe und langlebiger Dienst verwenden dieselbe streng typisierte ioBroker-Komposition der gemeinsamen APK-Module, denselben Gerätekontext und dieselbe Read-only-Allowlist. Der Dienst bleibt beim Adapterstart aus, startet nur nach confirm=true, hält den Original-Bundle-Root nach der ersten korrelierten Antwort aktiv, übernimmt weitere vom Bundle ausgelöste Statusantworten, verwendet dieselbe Sitzung erneut und verwirft beim Wechsel zwischen zwei Geräten desselben Modells zuerst Root, Modelllease und gecachte Modell-Runtime. Die adapterweite Lifecycle-Operation serialisiert nun zusätzlich Einmal-Probe, langlebigen Start beziehungsweise Neustart und Paketaktivierung; ein aktiver oder gerade wechselnder Root blockiert die Paketersetzung vor jedem Netzwerkzugriff. Dieser Ablauf bestand live mit beiden a147-Geräten; ein Adapter-Unload beendete die zweite noch aktive Sitzung ohne AppPlugin-Fehler. Q10 X5+ besteht außerdem den Offline-Bootstrap direkt über dieselbe produktive Native-Environment-, Hostlease- und Modell-Runtime-Komposition; der Lauf verändert das Metro-Bundle nicht, meldet keine fehlende APK-Methode und räumt vollständig auf. Als Nächstes diesen zweiten Modell-/Protokollpfad mit echter Q10-HomeData und korrelierter Geräteantwort belegen und danach die beabsichtigte Mehrgeräte-/Mehrmodell-Parallelität festlegen. RockMow bleibt bis zu echter Mäher-HomeData eine Bootstrap-Gegenprobe."
 		},
 		{
 			"id": "P0B-APK-HOST-SERVICES",

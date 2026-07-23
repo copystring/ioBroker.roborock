@@ -97,6 +97,7 @@ import {
 	type ApkAgreementAndPolicy,
 	type ApkMobileOperatorInfo,
 	type ApkOtaInfo,
+	type ApkPluginSdkEnvironmentRuntimeOptions,
 } from "./apkPluginSdkEnvironmentRuntime";
 import { ApkPluginSdkPreferencesRuntime } from "./apkPluginSdkPreferencesRuntime";
 import {
@@ -155,6 +156,7 @@ export interface ApkAppPluginDeviceSdkEnvironmentPorts {
 	readonly isSharedDevice?: () => boolean;
 	readonly mobileOperatorInfo?: () => ApkMobileOperatorInfo | null;
 	readonly systemTimeZoneName?: () => string;
+	readonly requestPrivacyLicense?: ApkPluginSdkEnvironmentRuntimeOptions["requestPrivacyLicense"];
 	readonly loadOtaInfo: () => Promise<ApkOtaInfo | null>;
 	readonly loadOtaProgress?: () => Promise<Readonly<{ status: string }> | null>;
 	readonly loadAgreementAndPolicy: () => Promise<ApkAgreementAndPolicy>;
@@ -398,6 +400,7 @@ export class ApkAppPluginDeviceNativeRuntimeEnvironment {
 			currentCountryInfo: () => descriptor.account ?? null,
 			mobileOperatorInfo: options.ports.sdkEnvironment.mobileOperatorInfo,
 			systemTimeZoneName: options.ports.sdkEnvironment.systemTimeZoneName,
+			requestPrivacyLicense: options.ports.sdkEnvironment.requestPrivacyLicense,
 			productRoles: descriptor.productRepository?.userRoles,
 			firmwareVersion,
 			storageBasePath,

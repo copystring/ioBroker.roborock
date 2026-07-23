@@ -184,6 +184,36 @@ describe("APK AppPlugin device model runtime factory", () => {
 		expect(host.release).toHaveBeenCalledOnce();
 	});
 
+	it("allows a package launcher to provide the same verified artifact boundary explicitly", async () => {
+		const native = nativeRuntime();
+		const host = hostProvider(native);
+		const explicitArtifact = {
+			...resolverMock(),
+			executablePath: "C:\\packaged-host\\roborock-hermes-appplugin-host.exe",
+		};
+		resolverMock.mockClear();
+		const resolveHostArtifact = vi.fn(() => explicitArtifact);
+		const factory = createApkAppPluginDeviceModelRuntimeFactory({
+			contract,
+			hostProvider: host.provider,
+			resolveHostArtifact,
+		});
+		const runtime = await factory({
+			activeTime: 1,
+			context: context("C:\\adapter-data\\plugins\\generic\\index.android.bundle"),
+			deviceId: "generic-device",
+			model: "generic.model",
+		});
+
+		expect(resolveHostArtifact).toHaveBeenCalledOnce();
+		expect(resolverMock).not.toHaveBeenCalled();
+		expect(compositionMock).toHaveBeenCalledWith(expect.objectContaining({
+			hostExecutablePath: explicitArtifact.executablePath,
+		}));
+
+		await runtime.stop();
+	});
+
 	it("fails before composing modules when the packaged host is unavailable", async () => {
 		resolverMock.mockImplementationOnce(() => {
 			throw new Error("Native-Artefakt fehlt");

@@ -1,4 +1,7 @@
-import { resolveApkHermesHostArtifact } from "./apkHermesHostArtifact";
+import {
+	resolveApkHermesHostArtifact,
+	type ApkHermesHostArtifact,
+} from "./apkHermesHostArtifact";
 import type { ApkAppPluginDeviceModelContext } from "./apkAppPluginDeviceSessionRuntime";
 import { ApkAppPluginDeviceNativeRuntimeEnvironment } from "./apkAppPluginDeviceNativeRuntimeEnvironment";
 import type {
@@ -18,6 +21,12 @@ import type { ApkAppPluginHostContract } from "./apkContract";
 export interface ApkAppPluginDeviceModelRuntimeFactoryOptions {
 	readonly contract: ApkAppPluginHostContract;
 	readonly hostProvider: ApkAppPluginDeviceRuntimeHostProvider;
+	/**
+	 * Packaging boundary only. Product callers normally use the pinned default;
+	 * bundled proof and package launchers may supply the same verified resolver
+	 * with an explicit native artifact root.
+	 */
+	readonly resolveHostArtifact?: () => Readonly<ApkHermesHostArtifact>;
 }
 
 async function disposeRuntimeResources(
@@ -54,6 +63,7 @@ async function disposeRuntimeResources(
 export function createApkAppPluginDeviceModelRuntimeFactory(
 	options: Readonly<ApkAppPluginDeviceModelRuntimeFactoryOptions>,
 ): ApkAppPluginManagedModelRuntimeFactory<ApkAppPluginModelRuntime, ApkAppPluginDeviceModelContext> {
+	const resolveHostArtifact = options.resolveHostArtifact ?? resolveApkHermesHostArtifact;
 	return async request => {
 		const descriptor = request.context.session.descriptor.device;
 		if (descriptor.deviceId !== request.deviceId
@@ -61,7 +71,7 @@ export function createApkAppPluginDeviceModelRuntimeFactory(
 			|| descriptor.activeTime !== request.activeTime) {
 			throw new Error("AppPlugin-Modellanforderung stimmt nicht mit dem APK-Gerätekontext überein");
 		}
-		const artifact = resolveApkHermesHostArtifact();
+		const artifact = resolveHostArtifact();
 		const hostLease = await options.hostProvider.acquire(request, artifact);
 		let nativeRuntime: ApkAppPluginDeviceNativeRuntimeEnvironment | undefined;
 		let detachDeviceIngress: (() => void | Promise<void>) | undefined;

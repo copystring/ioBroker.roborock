@@ -340,6 +340,52 @@ describe("APK AppPlugin environment runtimes", () => {
 		expect(closeCurrentPage).toHaveBeenCalledOnce();
 	});
 
+	it("forwards the APK privacy-license dialog to the host and fails closed without one", async () => {
+		const root = mkdtempSync(path.join(tmpdir(), "apk-environment-"));
+		const closeCurrentPage = vi.fn();
+		const requestPrivacyLicense = vi.fn(async () => false);
+		const baseOptions = {
+			hasActivity: () => true,
+			closeCurrentPage,
+			firmwareVersion: "02.24.90",
+			storageBasePath: root,
+			loadDeviceExtraInfo: async () => ({}),
+			loadOtaInfo: async () => null,
+			loadAgreementAndPolicy: async () => ({
+				privacyProtocol: { version: null, langUrl: null },
+				userAgreement: { version: null, langUrl: null },
+			}),
+			loadPluginAgreements: async () => [],
+			workerRuntime: new ApkV8WorkerRuntime({ pluginRootPath: root }),
+		};
+		const runtime = new ApkPluginSdkEnvironmentRuntime({
+			...baseOptions,
+			requestPrivacyLicense,
+		});
+		const callback = vi.fn();
+		runtime.openPrivacyLicense(
+			"Nutzungsbedingungen",
+			"https://example.invalid/agreement",
+			"Datenschutz",
+			"https://example.invalid/privacy",
+			callback,
+		);
+		await vi.waitFor(() => expect(callback).toHaveBeenCalledWith(false));
+		expect(requestPrivacyLicense).toHaveBeenCalledWith({
+			firstTitle: "Nutzungsbedingungen",
+			firstPath: "https://example.invalid/agreement",
+			secondTitle: "Datenschutz",
+			secondPath: "https://example.invalid/privacy",
+		});
+		expect(closeCurrentPage).toHaveBeenCalledOnce();
+
+		const unavailable = new ApkPluginSdkEnvironmentRuntime(baseOptions);
+		const unavailableCallback = vi.fn();
+		unavailable.openPrivacyLicense("A", "a", "B", "b", unavailableCallback);
+		expect(unavailableCallback).toHaveBeenCalledWith(false);
+		expect(closeCurrentPage).toHaveBeenCalledOnce();
+	});
+
 	it("matches APK firmware lookup, fallback, and rejection behavior", async () => {
 		const root = mkdtempSync(path.join(tmpdir(), "apk-environment-"));
 		const loadOtaInfo = vi.fn()

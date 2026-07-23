@@ -46,6 +46,13 @@ export interface ApkMobileOperatorInfo {
 	countryCode: string;
 }
 
+export interface ApkPrivacyLicenseRequest {
+	readonly firstTitle: string;
+	readonly firstPath: string;
+	readonly secondTitle: string;
+	readonly secondPath: string;
+}
+
 export interface ApkAgreementDiagnostic {
 	readonly method: "getPluginAgreements" | "getPluginAgreementsV2" | "getProductAgreements";
 	readonly outcome: "rejected" | "resolved";
@@ -141,6 +148,7 @@ export interface ApkPluginSdkEnvironmentRuntimeOptions {
 	currentCountryInfo?(): ApkCurrentCountryInfo | null;
 	mobileOperatorInfo?(): ApkMobileOperatorInfo | null;
 	systemTimeZoneName?(): string;
+	requestPrivacyLicense?(request: Readonly<ApkPrivacyLicenseRequest>): boolean | Promise<boolean>;
 	productRoles?: readonly ApkProductRoleDefinition[];
 	firmwareVersion: string;
 	storageBasePath: string;
@@ -359,6 +367,45 @@ export class ApkPluginSdkEnvironmentRuntime {
 	public closeCurrentPage(): void {
 		if (!this.options.hasActivity()) return;
 		this.options.closeCurrentPage?.();
+	}
+
+	/**
+	 * Mirrors PluginSDKModule.openPrivacyLicense(). The APK owns the Android
+	 * dialog, while a desktop embedding owns its surrounding consent surface.
+	 * Without such a surface the callback fails closed and never accepts legal
+	 * terms on behalf of the user.
+	 */
+	public openPrivacyLicense(
+		firstTitle: string,
+		firstPath: string,
+		secondTitle: string,
+		secondPath: string,
+		callback: (...arguments_: unknown[]) => void,
+	): void {
+		if (!this.options.hasActivity()) {
+			callback(false);
+			return;
+		}
+		const requestPrivacyLicense = this.options.requestPrivacyLicense;
+		if (!requestPrivacyLicense) {
+			callback(false);
+			return;
+		}
+		void Promise.resolve().then(() => requestPrivacyLicense({
+			firstTitle,
+			firstPath,
+			secondTitle,
+			secondPath,
+		})).then(
+			accepted => {
+				callback(Boolean(accepted));
+				if (!accepted) this.closeCurrentPage();
+			},
+			() => {
+				callback(false);
+				this.closeCurrentPage();
+			},
+		);
 	}
 
 	public startBackgroundJsExecutor(jsFile: string, callback: ApkWorkerCallback): void {
