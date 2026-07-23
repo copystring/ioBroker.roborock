@@ -608,12 +608,17 @@
 				"src/apppluginHost/apkPluginAcquisition.ts",
 				"src/apppluginHost/apkPluginPackageInstaller.ts",
 				"scripts/lib/appplugin_map_inventory.js",
+				"scripts/benchmark_appplugin_resources.ts",
+				"src/lib/appplugin/IoBrokerAppPluginProcessTreeResources.ts",
 				"docs/generated/appplugin-map-inventory.json",
+				"docs/generated/appplugin-resource-baseline.win32-x64.json",
 				"docs/APPPLUGIN_RUNTIME_OPERATING_POLICY.md",
 				"test/unit/appplugin_iobroker_operating_policy.test.ts",
-				"test/unit/appplugin_map_inventory.test.ts"
+				"test/unit/appplugin_map_inventory.test.ts",
+				"test/unit/appplugin_process_tree_resources.test.ts",
+				"test/unit/appplugin_resource_baseline.test.ts"
 			],
-			"nextAction": "Der APK-belegte Drei-Modell-Cache, genau ein aktiver ioBroker-Geräte-Root, genau eine Lifecycle-Operation sowie die bereits erzwungenen Hermes-, Hostdienst-, Download- und ZIP-Grenzen sind in einer unveränderlichen Betriebs-Policy zusammengeführt und über den Dienststatus sichtbar. Die Inventur vermisst alle 13 lokalen Archive direkt und verhindert automatisch, dass ein neues Originalpaket unbemerkt an den Datei- oder Größenlimits scheitert. Aktuell liegen 55.397.196 Archivbytes, 1964 ZIP-Einträge, 12.179.304 Bytes für den größten Eintrag und 65.613.149 entpackte Bytes innerhalb der erzwungenen Hülle. Als Nächstes Spitzen-RSS, CPU-Zeit, Start, Leerlauf, Interaktion und Cleanup für den vollständigen Node- plus Kindprozessbaum messen und daraus belastbare Alarm-, Kill- und Neustartbudgets pro technischer Pluginfamilie ableiten."
+			"nextAction": "Der APK-belegte Drei-Modell-Cache, genau ein aktiver ioBroker-Geräte-Root, genau eine Lifecycle-Operation sowie die bereits erzwungenen Hermes-, Hostdienst-, Download- und ZIP-Grenzen sind in einer unveränderlichen Betriebs-Policy zusammengeführt und über den Dienststatus sichtbar. Die Inventur vermisst alle 13 lokalen Archive direkt und verhindert automatisch, dass ein neues Originalpaket unbemerkt an den Datei- oder Größenlimits scheitert. Aktuell liegen 55.397.196 Archivbytes, 1964 ZIP-Einträge, 12.179.304 Bytes für den größten Eintrag und 65.613.149 entpackte Bytes innerhalb der erzwungenen Hülle. Ein reproduzierbarer Windows-x64-Lauf misst nun den vollständigen Node-, Hermes- und Console-Host-Prozessbaum des unveränderten Q7-L5-Bundles über Start, Leerlauf, Kartenszene, Raumwahl und Cleanup. Die erste Baseline beobachtete 272.535.552 Bytes Spitzen-RSS, 2.015.625 µs CPU-Zeit, vier Prozesse, 20 ms Prozessbaum-Cleanup und keinen Leak. WMI erreichte jedoch nur 935 ms mittlere Abtastung; deshalb daraus noch keine harte Obergrenze ableiten. Als Nächstes den Windows-Sampler höher auflösen, Wiederholungsläufe aggregieren und dieselbe Messung auf Linux, macOS sowie mindestens eine zweite technische Pluginfamilie ausweiten."
 		},
 		{
 			"id": "P0B-CROSS-PLATFORM",

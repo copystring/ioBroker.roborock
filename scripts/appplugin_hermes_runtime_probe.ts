@@ -148,6 +148,8 @@ interface ProbeOptions {
 	reactStateProbe: boolean;
 	finiteStartupAudit: boolean;
 	settleStartupAnimations: boolean;
+	resourcePhaseMarkers: boolean;
+	resourceIdleHoldMs: number;
 	servePort?: number;
 	serveFullRoot: boolean;
 	sessionStatePath?: string;
@@ -170,6 +172,13 @@ interface ProbeOptions {
 	deviceSn: string;
 	firmwareVersion?: string;
 	activeTime: number;
+}
+
+const APPPLUGIN_RESOURCE_PHASE_PREFIX = "APPPLUGIN_RESOURCE_PHASE:";
+
+function emitResourcePhase(options: Readonly<ProbeOptions>, phase: string): void {
+	if (!options.resourcePhaseMarkers) return;
+	process.stderr.write(`${APPPLUGIN_RESOURCE_PHASE_PREFIX}${phase}\n`);
 }
 
 function parsePositiveNumber(value: string | undefined, option: string): number {
@@ -226,6 +235,8 @@ function parseArgs(args: string[]): ProbeOptions {
 		reactStateProbe: false,
 		finiteStartupAudit: false,
 		settleStartupAnimations: false,
+		resourcePhaseMarkers: false,
+		resourceIdleHoldMs: 0,
 		serveFullRoot: false,
 		fixtureMapFamily: "unknown",
 		availableProfiles: [],
@@ -273,6 +284,10 @@ function parseArgs(args: string[]): ProbeOptions {
 		else if (option === "--react-state-probe") options.reactStateProbe = true;
 		else if (option === "--finite-startup-audit") options.finiteStartupAudit = true;
 		else if (option === "--settle-startup-animations") options.settleStartupAnimations = true;
+		else if (option === "--resource-phase-markers") options.resourcePhaseMarkers = true;
+		else if (option === "--resource-idle-hold-ms") {
+			options.resourceIdleHoldMs = parseNonNegativeNumber(args[++index], option);
+		}
 		else if (option === "--b01-frame" && value) options.b01FramePath = path.resolve(args[++index]);
 		else if (option === "--b01-local-key" && value) {
 			throw new Error("--b01-local-key ist aus Sicherheitsgründen deaktiviert; verwende --b01-local-key-file");
@@ -1737,7 +1752,9 @@ async function main(): Promise<void> {
 		return timerUiPump;
 	};
 	try {
+		emitResourcePhase(options, "startup");
 		await session.start();
+		emitResourcePhase(options, "bundle-ready");
 		let runtimeIdleRounds = 0;
 		let timerRuntimeIdleRounds = 0;
 		let b01Ingress: Readonly<Record<string, unknown>> | undefined;
@@ -1926,6 +1943,11 @@ async function main(): Promise<void> {
 				}
 			}
 		}
+		emitResourcePhase(options, "root-idle");
+		if (options.resourceIdleHoldMs > 0) {
+			await new Promise(resolve => setTimeout(resolve, options.resourceIdleHoldMs));
+		}
+		if (deviceReplay.events.length > 0) emitResourcePhase(options, "device-replay");
 		for (const [eventIndex, event] of deviceReplay.events.entries()) {
 			replayEvents.push(await emitReplayEvent(event, {
 				source: "startup-replay",
@@ -1936,6 +1958,7 @@ async function main(): Promise<void> {
 		// oder Interaktionsreplays beginnen, muss die beim Mount ausgelöste
 		// Antwort einschließlich ihrer AppPlugin-UI-Stabilisierung abgeschlossen sein.
 		await waitForOperationQueueIdle();
+		emitResourcePhase(options, "root-idle");
 		const observedInteractionRawText = new Set<string>();
 		const observeInteractionRawText = (): void => {
 			for (const text of collectAppPluginRawText(uiRoot.snapshot())) observedInteractionRawText.add(text);
@@ -1991,6 +2014,9 @@ async function main(): Promise<void> {
 			await settleReplayEvent(event.waitAfterMs);
 		};
 		const pointerEvents: Array<Readonly<Record<string, unknown>>> = [];
+		if ((pointerReplay?.events.length ?? 0) > 0 || (interactionReplay?.events.length ?? 0) > 0) {
+			emitResourcePhase(options, "interaction");
+		}
 		for (const [eventIndex, event] of (pointerReplay?.events ?? []).entries()) {
 			await dispatchPointerReplayEvent(event, eventIndex, pointerEvents);
 		}
@@ -2108,6 +2134,12 @@ async function main(): Promise<void> {
 				replacementRange: dispatch.textInputPayload.range,
 			});
 			await settleReplayEvent(event.waitAfterMs);
+		}
+		if ((pointerReplay?.events.length ?? 0) > 0 || (interactionReplay?.events.length ?? 0) > 0) {
+			emitResourcePhase(options, "interaction-idle");
+			if (options.resourceIdleHoldMs > 0) {
+				await new Promise(resolve => setTimeout(resolve, options.resourceIdleHoldMs));
+			}
 		}
 		const skiaDiagnostics = skiaHost.getDiagnostics();
 		let skiaPng: unknown;
@@ -3024,7 +3056,9 @@ async function main(): Promise<void> {
 		nativeAnimated.dispose();
 		timing.dispose();
 		rpcBroker.close();
+		emitResourcePhase(options, "cleanup");
 		await session.stop();
+		emitResourcePhase(options, "hermes-stopped");
 		workerRuntime.stopAll();
 		disposeSkiaHost();
 		if (options.runApplication && !rootMounted) {
@@ -3036,7 +3070,11 @@ async function main(): Promise<void> {
 		nativeAnimated.dispose();
 		timing.dispose();
 		rpcBroker.close();
-		if (session.state === "running") await session.stop();
+		if (session.state === "running") {
+			emitResourcePhase(options, "cleanup-after-error");
+			await session.stop();
+			emitResourcePhase(options, "hermes-stopped-after-error");
+		}
 		workerRuntime.stopAll();
 		disposeSkiaHost();
 		process.stderr.write(`${session.stderr}${session.stderr.endsWith("\n") || session.stderr.length === 0 ? "" : "\n"}`);

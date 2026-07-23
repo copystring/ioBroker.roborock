@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "generatedAt": "2026-07-23T10:22:22.263Z",
+  "platform": "win32",
+  "architecture": "x64",
+  "nodeVersion": "v24.18.0",
+  "runtime": "unchanged Q7 L5 Hermes AppPlugin with synthetic full-scene and room-selection replay",
+  "bundle": {
+    "kind": "hermes-bytecode",
+    "sha256": "9dfd8cc4c3020fe8e2428b3be4ca237b65ba536a4730addcfc29300885361a35",
+    "unchanged": true
+  },
+  "measurement": {
+    "rootProcess": "node",
+    "descendantProcessesIncluded": true,
+    "collectorProcessExcluded": true,
+    "sampleIntervalMs": 250,
+    "sampleCount": 9,
+    "effectiveAverageSampleIntervalMs": 935,
+    "maximumSampleGapMs": 972,
+    "durationMs": 9384,
+    "peakResidentSetBytes": 272535552,
+    "cpuMicroseconds": 2015625,
+    "peakProcessCount": 4,
+    "processNames": [
+      "conhost.exe",
+      "node.exe",
+      "roborock-hermes-appplugin-host.exe"
+    ],
+    "hermesCleanupDurationMs": 0,
+    "processTreeCleanupDurationMs": 20,
+    "leakedProcessCount": 0
+  },
+  "transitions": [
+    {
+      "phase": "startup",
+      "offsetMs": 0
+    },
+    {
+      "phase": "bundle-ready",
+      "offsetMs": 478
+    },
+    {
+      "phase": "root-idle",
+      "offsetMs": 879
+    },
+    {
+      "phase": "device-replay",
+      "offsetMs": 2394
+    },
+    {
+      "phase": "root-idle",
+      "offsetMs": 2992
+    },
+    {
+      "phase": "interaction",
+      "offsetMs": 2992
+    },
+    {
+      "phase": "interaction-idle",
+      "offsetMs": 6670
+    },
+    {
+      "phase": "cleanup",
+      "offsetMs": 8333
+    },
+    {
+      "phase": "hermes-stopped",
+      "offsetMs": 8333
+    }
+  ],
+  "phases": [
+    {
+      "phase": "startup",
+      "sampleCount": 1,
+      "peakResidentSetBytes": 188444672,
+      "cpuMicroseconds": 484375,
+      "peakProcessCount": 4
+    },
+    {
+      "phase": "bundle-ready",
+      "sampleCount": 0,
+      "peakResidentSetBytes": 0,
+      "cpuMicroseconds": 0,
+      "peakProcessCount": 0
+    },
+    {
+      "phase": "root-idle",
+      "sampleCount": 2,
+      "peakResidentSetBytes": 233627648,
+      "cpuMicroseconds": 546875,
+      "peakProcessCount": 4
+    },
+    {
+      "phase": "device-replay",
+      "sampleCount": 1,
+      "peakResidentSetBytes": 239554560,
+      "cpuMicroseconds": 343750,
+      "peakProcessCount": 4
+    },
+    {
+      "phase": "interaction",
+      "sampleCount": 4,
+      "peakResidentSetBytes": 272535552,
+      "cpuMicroseconds": 640625,
+      "peakProcessCount": 4
+    },
+    {
+      "phase": "interaction-idle",
+      "sampleCount": 1,
+      "peakResidentSetBytes": 272535552,
+      "cpuMicroseconds": 0,
+      "peakProcessCount": 4
+    },
+    {
+      "phase": "cleanup",
+      "sampleCount": 0,
+      "peakResidentSetBytes": 0,
+      "cpuMicroseconds": 0,
+      "peakProcessCount": 0
+    },
+    {
+      "phase": "hermes-stopped",
+      "sampleCount": 0,
+      "peakResidentSetBytes": 0,
+      "cpuMicroseconds": 0,
+      "peakProcessCount": 0
+    }
+  ]
+}

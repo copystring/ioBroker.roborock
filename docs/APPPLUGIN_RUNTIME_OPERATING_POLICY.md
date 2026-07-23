@@ -63,10 +63,35 @@ den vollständigen Geräte- und Sitzungszustand erwartet. Der Status ist deshalb
 weder ein Beleg für eine vollständig bedienbare Oberfläche noch für eine
 Inkompatibilität des Plugins.
 
+## Erste Prozessbaum-Baseline
+
+`npm run poc:appplugin-resource-benchmark` startet keinen Server. Der Befehl
+führt das unveränderte Q7-L5-Hermes-Bundle mit der synthetischen vollständigen
+Kartenszene und einer Raumwahl aus. Gemessen wird der vollständige Unterbaum
+des Probe-Node-Prozesses einschließlich Hermes und Windows-Console-Host; der
+Messhelfer selbst ist ein Geschwisterprozess und wird nicht mitgezählt.
+
+Aktuelle Windows-x64-Beobachtung mit Node.js 24.18.0:
+
+| Messwert | Beobachtung |
+| --- | ---: |
+| Spitzen-RSS des Prozessbaums | 272.535.552 Bytes (259,9 MiB) |
+| CPU-Zeit des Prozessbaums | 2.015.625 µs |
+| Spitzen-Prozessanzahl | 4 |
+| Vollständige Laufdauer einschließlich zweier passiver Leerlauffenster | 9.384 ms |
+| Cleanup bis zum Ende des Prozessbaums | 20 ms |
+| Nach Cleanup verbliebene Prozesse | 0 |
+
+Die maschinenlesbare Aufzeichnung liegt in
+`docs/generated/appplugin-resource-baseline.win32-x64.json`. Windows-WMI
+erreichte in diesem Lauf trotz angeforderter 250 ms nur durchschnittlich
+935 ms und maximal 972 ms zwischen zwei Samples. Der beobachtete Spitzenwert
+ist deshalb eine Baseline, noch keine bewiesene Obergrenze.
+
 ## Noch offen
 
-Diese Hülle beweist Datei-, Timeout-, Heap- und Parallelitätsgrenzen. Sie ist
-noch kein CPU-/RSS-Benchmark des vollständigen Node- plus Kindprozessbaums.
-Als Nächstes müssen Spitzen-RSS, CPU-Zeit, Start, Leerlauf, Interaktion und
-Cleanup des nativen Hosts pro technischer Pluginfamilie gemessen werden. Erst
-danach können belastbare Alarm-, Kill- und Neustartwerte festgelegt werden.
+Die Prozessbaumlogik bereinigt PID-Wiederverwendung über Prozessstartzeiten und
+unterstützt Windows sowie denselben `ps`-Datenvertrag für Linux und macOS.
+Vor harten Alarm-, Kill- oder Neustartwerten fehlen Wiederholungsläufe, ein
+höher aufgelöster Windows-Sampler, echte Linux-/macOS-Ausführung sowie
+mindestens ein Vertreter jeder technisch unterschiedlichen Pluginfamilie.
