@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 
@@ -37,12 +37,6 @@ function installedPackage(model: string): ApkInstalledMainPluginPackage {
 	temporaryDirectories.push(activeDirectory);
 	const bundlePath = path.join(activeDirectory, "index.android.bundle");
 	writeFileSync(bundlePath, "var unchangedOriginalBundle = true;", "utf8");
-	const rawDirectory = path.join(activeDirectory, "raw");
-	mkdirSync(rawDirectory);
-	writeFileSync(path.join(rawDirectory, "projects_comroborocktanos_project.json"), JSON.stringify({
-		models: "generic.main.plugin",
-		versionCode: 7,
-	}), "utf8");
 	return {
 		activeDirectory,
 		bundlePath,
@@ -87,6 +81,10 @@ function account(ports = httpPorts()): ApkAppPluginAuthenticatedAccountRuntime {
 					JSON.stringify({ id: 8, model: "roborock.mower.a01" }),
 				],
 			},
+			packageProducts: [
+				{ id: 7, model: "roborock.vacuum.same" },
+				{ id: 8, model: "roborock.mower.a01" },
+			],
 			userId: "rr-user",
 		},
 		httpPorts: ports,

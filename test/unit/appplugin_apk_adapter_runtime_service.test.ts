@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 
@@ -44,12 +44,6 @@ function installedPackage(): ApkInstalledMainPluginPackage {
 	temporaryDirectories.push(activeDirectory);
 	const bundlePath = path.join(activeDirectory, "index.android.bundle");
 	writeFileSync(bundlePath, "var originalBundle = true;", "utf8");
-	const rawDirectory = path.join(activeDirectory, "raw");
-	mkdirSync(rawDirectory);
-	writeFileSync(path.join(rawDirectory, "projects_comroborocktanos_project.json"), JSON.stringify({
-		models: "roborock.generic.model",
-		versionCode: 7,
-	}), "utf8");
 	return {
 		activeDirectory,
 		bundlePath,
@@ -74,6 +68,7 @@ function account() {
 				})],
 				productJsonStrings: [JSON.stringify({ id: 7, model: "roborock.generic.model" })],
 			},
+			packageProducts: [{ id: 7, model: "roborock.generic.model" }],
 			userId: "user-1",
 		},
 		httpPorts: {

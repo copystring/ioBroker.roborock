@@ -1,7 +1,6 @@
 import type { ApkAuthenticatedHttpAdapterPorts } from "./apkAxiosRestfulHttpService";
 import { ApkAppPluginAuthenticatedAccountRuntime } from "./apkAppPluginAuthenticatedAccountRuntime";
 import {
-	loadApkAppPluginProjectMetadata,
 	resolveApkAppPluginSession,
 	type ApkAppPluginHostIdentity,
 	type ResolvedApkAppPluginSession,
@@ -112,7 +111,10 @@ export class ApkAppPluginDeviceSessionRuntime<
 				deviceProperties: request.deviceProperties,
 				host: this.#host,
 				installation: this.#packages.getInstallationContext(),
-				package: loadApkAppPluginProjectMetadata(installed.activeDirectory),
+				package: {
+					models: [installed.model],
+					versionCode: installed.installation.downloadVersion,
+				},
 				pluginRoot: installed.activeDirectory,
 				targetDuid: request.targetDuid,
 				timestampMs: request.timestampMs,
