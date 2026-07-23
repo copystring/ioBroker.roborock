@@ -93,6 +93,12 @@ export class ApkDeviceIngress {
 		};
 	}
 
+	public acceptBlobPayload(duid: string, payload: Uint8Array): ApkDeviceIngressResult {
+		if (duid !== this.duid) return { eventEmitted: false, rpcAccepted: false };
+		this.events.emitBlobPayload(payload);
+		return { eventEmitted: true, rpcAccepted: false };
+	}
+
 	public acceptBlobSegment(segment: ApkBlobTransferSegment): ApkAssembledBlobPayload | undefined {
 		const assembled = this.assembler.accept(segment);
 		if (assembled?.kind === "b01-payload") this.events.emitBlobPayload(assembled.payload);

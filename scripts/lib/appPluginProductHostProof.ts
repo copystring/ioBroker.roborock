@@ -34,8 +34,10 @@ export interface AppPluginProductHostProofOptions {
 	readonly nativeRootPath?: string;
 	readonly pluginAgreements?: readonly unknown[];
 	readonly pluginAgreementsV2?: readonly unknown[];
+	readonly publishResponses?: readonly AppPluginProductHostPublishResponse[];
 	readonly replayEvents?: readonly AppPluginProductHostReplayEvent[];
 	readonly settleMilliseconds?: number;
+	readonly shadowDps?: Readonly<Record<string, unknown>>;
 }
 
 interface AppPluginProductHostReplayTiming {
@@ -54,6 +56,10 @@ export type AppPluginProductHostReplayEvent =
 		protocolVersion: string;
 		payload: Uint8Array;
 		nonce?: number;
+	}>
+	| Readonly<AppPluginProductHostReplayTiming & {
+		kind: "blob-payload";
+		payload: Uint8Array;
 	}>;
 
 export type AppPluginProductHostReplayResult =
@@ -64,7 +70,26 @@ export type AppPluginProductHostReplayResult =
 	| Readonly<{
 		kind: "blob";
 		assembled?: Readonly<ApkAssembledBlobPayload>;
+	}>
+	| Readonly<{
+		kind: "blob-payload";
+		ingress: Readonly<ApkDeviceIngressResult>;
 	}>;
+
+export interface AppPluginProductHostPublishResponse {
+	readonly match: Readonly<{
+		dpsKey: string;
+		payload: Readonly<Record<string, unknown>>;
+	}>;
+	readonly maximumMatches?: number;
+	readonly replayEvents: readonly AppPluginProductHostReplayEvent[];
+}
+
+export interface AppPluginProductHostPublishResponseMatch {
+	readonly dpsKey: string;
+	readonly matchCount: number;
+	readonly maximumMatches: number;
+}
 
 export interface AppPluginProductHostProofReport {
 	readonly schemaVersion: 1;
@@ -77,14 +102,22 @@ export interface AppPluginProductHostProofReport {
 	readonly rootTag: number;
 	readonly rootChildCount: number;
 	readonly nodeCount: number;
+	readonly rootRawTexts: readonly string[];
+	readonly rootViewNames: readonly string[];
 	readonly operationCount: number;
 	readonly nativeInvocationCount: number;
 	readonly nativeModules: readonly string[];
+	readonly nativeInvocations: readonly Readonly<{
+		moduleName: string;
+		methodName: string;
+		argumentCount: number;
+	}>[];
 	readonly publishedDps: readonly Readonly<Record<string, unknown>>[];
 	readonly rpcTransmissions: readonly Readonly<Record<string, unknown>>[];
 	readonly hostErrors: readonly string[];
 	readonly invocationRejections: readonly Readonly<ApkHermesNativeInvocationRejection>[];
 	readonly replayResults: readonly AppPluginProductHostReplayResult[];
+	readonly publishResponseMatches: readonly AppPluginProductHostPublishResponseMatch[];
 	readonly workerDiagnostics: readonly Readonly<ApkV8WorkerDiagnostic>[];
 	readonly cleanupComplete: boolean;
 }
@@ -97,12 +130,68 @@ function nodeCount(node: Readonly<ApkUiManagerNodeSnapshot>): number {
 	return 1 + node.children.reduce((sum, child) => sum + nodeCount(child), 0);
 }
 
+function rootSummary(node: Readonly<ApkUiManagerNodeSnapshot>): Readonly<{
+	rawTexts: readonly string[];
+	viewNames: readonly string[];
+}> {
+	const rawTexts: string[] = [];
+	const viewNames = new Set<string>();
+	const visit = (current: Readonly<ApkUiManagerNodeSnapshot>): void => {
+		viewNames.add(current.viewName);
+		if (current.viewName === "RCTRawText" && typeof current.props.text === "string") {
+			rawTexts.push(current.props.text);
+		}
+		for (const child of current.children) visit(child);
+	};
+	visit(node);
+	return {
+		rawTexts: Object.freeze(rawTexts.slice(0, 256)),
+		viewNames: Object.freeze([...viewNames].sort()),
+	};
+}
+
 async function waitReplayDelay(value: number | undefined, label: string): Promise<void> {
 	if (value === undefined || value === 0) return;
 	if (!Number.isSafeInteger(value) || value < 0 || value > 10_000) {
 		throw new Error(`${label} muss zwischen 0 und 10000 Millisekunden liegen`);
 	}
 	await new Promise(resolve => setTimeout(resolve, value));
+}
+
+function readableRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+	return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseJsonValue(value: unknown): unknown {
+	if (typeof value !== "string") return value;
+	try {
+		return JSON.parse(value) as unknown;
+	} catch {
+		return value;
+	}
+}
+
+function matchesSubset(actual: unknown, expected: unknown): boolean {
+	const normalizedActual = parseJsonValue(actual);
+	if (Array.isArray(expected)) {
+		return Array.isArray(normalizedActual)
+			&& expected.length === normalizedActual.length
+			&& expected.every((item, index) => matchesSubset(normalizedActual[index], item));
+	}
+	if (readableRecord(expected)) {
+		if (!readableRecord(normalizedActual)) return false;
+		return Object.entries(expected).every(([key, value]) =>
+			Object.hasOwn(normalizedActual, key) && matchesSubset(normalizedActual[key], value)
+		);
+	}
+	return Object.is(normalizedActual, expected);
+}
+
+function matchesPublishedDps(
+	dps: Readonly<Record<string, unknown>>,
+	match: Readonly<AppPluginProductHostPublishResponse["match"]>,
+): boolean {
+	return Object.hasOwn(dps, match.dpsKey) && matchesSubset(dps[match.dpsKey], match.payload);
 }
 
 function initialState(): ApkAppPluginDeviceNativeRuntimeInitialState {
@@ -187,14 +276,86 @@ export async function runAppPluginProductHostProof(
 	const invocationRejections: ApkHermesNativeInvocationRejection[] = [];
 	const replayResults: AppPluginProductHostReplayResult[] = [];
 	const workerDiagnostics: ApkV8WorkerDiagnostic[] = [];
+	const publishResponseStates = (options.publishResponses ?? []).map(response => {
+		const maximumMatches = response.maximumMatches ?? 1;
+		if (!Number.isSafeInteger(maximumMatches) || maximumMatches < 1 || maximumMatches > 100) {
+			throw new Error("Maximale Publish-Replay-Trefferzahl muss zwischen 1 und 100 liegen");
+		}
+		return { response, maximumMatches, matchCount: 0 };
+	});
 	const nativeModules = new Set<string>();
+	const nativeInvocations: Array<Readonly<{
+		moduleName: string;
+		methodName: string;
+		argumentCount: number;
+	}>> = [];
 	let nativeInvocationCount = 0;
+	let nextBlobNonce = 1;
 	let active = true;
 	let deviceIngress: ApkDeviceIngress | undefined;
 	let rootLease: Readonly<ApkAppPluginRootLease> | undefined;
 	let runtime: Awaited<ReturnType<ReturnType<typeof createApkAppPluginDeviceModelRuntimeFactory>>>
 		| undefined;
 	let cleanupComplete = false;
+	let replayFailure: unknown;
+	let replayQueue: Promise<void> = Promise.resolve();
+
+	const emitReplayEvent = async (event: Readonly<AppPluginProductHostReplayEvent>): Promise<void> => {
+		const ingress = deviceIngress;
+		const activeRuntime = runtime;
+		if (!ingress || !activeRuntime) {
+			throw new Error("Produktiver AppPlugin-Host stellte noch keinen Geräte-Ingress bereit");
+		}
+		await waitReplayDelay(event.waitBeforeMilliseconds, "Replay-Wartezeit vor dem Ereignis");
+		if (event.kind === "dps") {
+			replayResults.push({
+				kind: "dps",
+				ingress: structuredClone(ingress.acceptJsonDps(
+					options.descriptor.device.deviceId,
+					event.protocolVersion,
+					JSON.stringify(event.dps),
+				)),
+			});
+		} else if (event.kind === "blob-payload") {
+			replayResults.push({
+				kind: "blob-payload",
+				ingress: structuredClone(ingress.acceptBlobPayload(
+					options.descriptor.device.deviceId,
+					event.payload,
+				)),
+			});
+		} else {
+			const assembled = ingress.acceptBlobSegment({
+				duid: options.descriptor.device.deviceId,
+				pv: event.protocolVersion,
+				nonce: event.nonce ?? nextBlobNonce++,
+				sequenceId: 1,
+				isFirst: true,
+				isLast: true,
+				data: Buffer.from(event.payload),
+			});
+			replayResults.push({
+				kind: "blob",
+				...(assembled ? { assembled: structuredClone(assembled) } : {}),
+			});
+		}
+		await activeRuntime.session.waitForRuntimeBoundaryIdle(128);
+		if (rootLease) await rootLease.uiExecution.stabilize();
+		await waitReplayDelay(event.waitAfterMilliseconds, "Replay-Wartezeit nach dem Ereignis");
+	};
+	const enqueueReplayEvents = (events: readonly AppPluginProductHostReplayEvent[]): void => {
+		replayQueue = replayQueue
+			.then(async () => {
+				for (const event of events) await emitReplayEvent(event);
+			})
+			.catch(error => {
+				replayFailure ??= error;
+			});
+	};
+	const drainReplayQueue = async (): Promise<void> => {
+		await replayQueue;
+		if (replayFailure !== undefined) throw replayFailure;
+	};
 
 	const http = offlineHttpService();
 	const context: ApkAppPluginDeviceModelContext = Object.freeze({
@@ -209,9 +370,15 @@ export async function runAppPluginProductHostProof(
 		deviceTransport: {
 			connectLocalDeviceIfNeeded: () => 0,
 			deviceOnline: async () => true,
-			loadShadowDps: async () => "{}",
+			loadShadowDps: async () => JSON.stringify(options.shadowDps ?? {}),
 			publishDps: async dps => {
 				publishedDps.push(structuredClone(dps));
+				for (const state of publishResponseStates) {
+					if (state.matchCount >= state.maximumMatches) continue;
+					if (!matchesPublishedDps(dps, state.response.match)) continue;
+					state.matchCount += 1;
+					enqueueReplayEvents(state.response.replayEvents);
+				}
 			},
 		},
 		hasActivity: () => active,
@@ -294,9 +461,16 @@ export async function runAppPluginProductHostProof(
 				onInvocationRejection: rejection => {
 					invocationRejections.push(structuredClone(rejection));
 				},
-				onNativeInvocation: moduleName => {
+				onNativeInvocation: (moduleName, methodName, arguments_) => {
 					nativeInvocationCount += 1;
 					nativeModules.add(moduleName);
+					if (nativeInvocations.length < 512) {
+						nativeInvocations.push({
+							moduleName,
+							methodName,
+							argumentCount: arguments_.length,
+						});
+					}
 				},
 			},
 			createSkiaHost: skiaOptions => createCanvasKitSkiaHost({
@@ -339,43 +513,15 @@ export async function runAppPluginProductHostProof(
 			},
 		});
 		await runtime.session.waitForRuntimeBoundaryIdle(128);
-		const ingress = deviceIngress;
-		if (options.replayEvents && !ingress) {
-			throw new Error("Produktiver AppPlugin-Host stellte keinen Geräte-Ingress bereit");
-		}
-		let nextBlobNonce = 1;
-		for (const event of options.replayEvents ?? []) {
-			await waitReplayDelay(event.waitBeforeMilliseconds, "Replay-Wartezeit vor dem Ereignis");
-			if (event.kind === "dps") {
-				replayResults.push({
-					kind: "dps",
-					ingress: structuredClone(ingress!.acceptJsonDps(
-						options.descriptor.device.deviceId,
-						event.protocolVersion,
-						JSON.stringify(event.dps),
-					)),
-				});
-			} else {
-				const assembled = ingress!.acceptBlobSegment({
-					duid: options.descriptor.device.deviceId,
-					pv: event.protocolVersion,
-					nonce: event.nonce ?? nextBlobNonce++,
-					sequenceId: 1,
-					isFirst: true,
-					isLast: true,
-					data: Buffer.from(event.payload),
-				});
-				replayResults.push({
-					kind: "blob",
-					...(assembled ? { assembled: structuredClone(assembled) } : {}),
-				});
-			}
-			await runtime.session.waitForRuntimeBoundaryIdle(128);
-			await waitReplayDelay(event.waitAfterMilliseconds, "Replay-Wartezeit nach dem Ereignis");
-		}
+		for (const event of options.replayEvents ?? []) await emitReplayEvent(event);
+		await drainReplayQueue();
 		await new Promise(resolve => setTimeout(resolve, options.settleMilliseconds ?? 350));
+		await drainReplayQueue();
+		await runtime.session.waitForRuntimeBoundaryIdle(128);
+		await rootLease.uiExecution.stabilize();
 		await runtime.session.waitForRuntimeBoundaryIdle(128);
 		const snapshot = rootLease.uiManager.snapshot();
+		const summary = rootSummary(snapshot);
 		report = {
 			schemaVersion: 1,
 			pipeline: "productive-device-model-runtime",
@@ -387,14 +533,22 @@ export async function runAppPluginProductHostProof(
 			rootTag: rootLease.rootTag,
 			rootChildCount: snapshot.children.length,
 			nodeCount: nodeCount(snapshot),
+			rootRawTexts: summary.rawTexts,
+			rootViewNames: summary.viewNames,
 			operationCount: rootLease.uiManager.operationCount(),
 			nativeInvocationCount: 0,
 			nativeModules: [],
+			nativeInvocations: [],
 			publishedDps,
 			rpcTransmissions,
 			hostErrors,
 			invocationRejections,
 			replayResults,
+			publishResponseMatches: publishResponseStates.map(state => ({
+				dpsKey: state.response.match.dpsKey,
+				matchCount: state.matchCount,
+				maximumMatches: state.maximumMatches,
+			})),
 			workerDiagnostics,
 			cleanupComplete: false,
 		};
@@ -438,11 +592,17 @@ export async function runAppPluginProductHostProof(
 		bundleUnchanged: bundleSha256Before === bundleSha256After,
 		nativeInvocationCount,
 		nativeModules: Object.freeze([...nativeModules].sort()),
+		nativeInvocations: Object.freeze([...nativeInvocations]),
 		publishedDps: Object.freeze([...publishedDps]),
 		rpcTransmissions: Object.freeze([...rpcTransmissions]),
 		hostErrors: Object.freeze([...hostErrors]),
 		invocationRejections: Object.freeze([...invocationRejections]),
 		replayResults: Object.freeze([...replayResults]),
+		publishResponseMatches: Object.freeze(publishResponseStates.map(state => Object.freeze({
+			dpsKey: state.response.match.dpsKey,
+			matchCount: state.matchCount,
+			maximumMatches: state.maximumMatches,
+		}))),
 		workerDiagnostics: Object.freeze([...workerDiagnostics]),
 		cleanupComplete,
 	});

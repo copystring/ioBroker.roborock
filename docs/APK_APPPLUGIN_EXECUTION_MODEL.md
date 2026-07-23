@@ -192,6 +192,20 @@ originalen `.jx`-Worker `packageMap` auf und liefert `success: true` sowie
 124 × 238 Rasterpunkte. Dieser Test erzeugt keine Zustimmung und bleibt wegen
 des Blob-Typs `3` ein Historien-, kein Livekartenbeleg.
 
+Der produktive Geräte-Ingress besitzt zusätzlich den von der APK belegten
+Direktpfad für bereits zusammengesetzte SDK-Blobs. Er emittiert die Bytes
+unverändert als Base64-Feld `blob` im
+`RRDeviceBlobPayloadUpdateEvent`; er interpretiert weder Kartenformat noch
+Geräteklasse. Damit läuft die deterministische Q7-L5-SCMap-Vollszene nun durch
+dieselbe produktive Modell-Runtime: Das unveränderte Bundle erzeugt seine
+Start-Publishes selbst, fordert `service.upload_by_maptype` an und führt nach dem
+Blob-Ereignis seinen originalen `transform`-Worker mit 96.000 Kartenwerten
+erfolgreich aus. Der persistierte `GuideConfigFilePath` enthält dabei wie nach
+dem originalen `GuidePageFinished`-Ereignis `showGuidePage: true`; der
+irreführende Schlüssel bedeutet im Q7-Bundle „Guide abgeschlossen“. Dieser
+Fixture-Lauf ist ein hardwareunabhängiger Produktpfad-Nachweis, keine Aussage
+über reale Q7-Daten oder Android-Pixelparität.
+
 Der Replay deckte außerdem eine gemeinsame Shutdown-Invariante auf: Nach dem
 Hermes-Stopp dürfen weder Timer noch verspätete Native-/Worker-Callbacks erneut
 in JavaScript schreiben. Die Modell-Runtime schließt deshalb zuerst ihre

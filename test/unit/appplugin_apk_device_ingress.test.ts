@@ -153,4 +153,23 @@ describe("APK device ingress composition", () => {
 		expect(blobEvent).toHaveBeenCalledTimes(1);
 		broker.close();
 	});
+
+	it("forwards direct SDK blob payloads through the APK RRDevice event shape", () => {
+		const { broker, events, ingress } = createIngress(30);
+		const blobEvent = vi.fn();
+		events.addListener("RRDeviceBlobPayloadUpdateEvent", blobEvent);
+		const payload = Buffer.from("direct-q7-map");
+
+		expect(ingress.acceptBlobPayload("other-device", payload)).toEqual({
+			eventEmitted: false,
+			rpcAccepted: false,
+		});
+		expect(blobEvent).not.toHaveBeenCalled();
+		expect(ingress.acceptBlobPayload(duid, payload)).toEqual({
+			eventEmitted: true,
+			rpcAccepted: false,
+		});
+		expect(blobEvent).toHaveBeenCalledWith({ blob: payload.toString("base64") });
+		broker.close();
+	});
 });

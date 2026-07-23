@@ -488,9 +488,10 @@
 			"evidence": [
 				"src/apppluginHost",
 				"test/unit/appplugin_apk_device_ingress.test.ts",
-				"test/unit/appplugin_apk_device_blob_path.test.ts"
+				"test/unit/appplugin_apk_device_blob_path.test.ts",
+				"test/unit/appplugin_q7_product_host.test.ts"
 			],
-			"nextAction": "Live-, Historien-, segmentierte und inkrementelle Ereignisse pro Familie mit Reihenfolge- und Deduplizierungsinvarianten prüfen."
+			"nextAction": "Q10-Typ-3-Historie und der direkte Q7-SDK-Blob laufen durch denselben produktiven Ingress; der Q7-L5-Lauf erreicht den originalen 96.000-Werte-Worker. Als Nächstes segmentierte und inkrementelle Live-Ereignisse pro Familie mit Reihenfolge- und Deduplizierungsinvarianten prüfen."
 		},
 		{
 			"id": "P0B-CODEC-RUNTIME",
@@ -722,10 +723,11 @@
 				"test/fixtures/appplugin/q7-l5-full-scene-golden.json",
 				"test/fixtures/appplugin/q7-l5-full-scene-golden.png",
 				"test/unit/appplugin_q7_full_scene_gate.test.ts",
+				"test/unit/appplugin_q7_product_host.test.ts",
 				"docs/APPPLUGIN_MAP_BEHAVIOR_GATES.md",
 				"`npm run poc:appplugin-q7-full-scene-proof`"
 			],
-			"nextAction": "Die vorhandenen Host-Regressionsgoldens nicht als Originalpixel behandeln, sondern mit identischem Bundle, Fixture, Viewport, Theme und Locale gegen einen externen Android-Capture vergleichen."
+			"nextAction": "Die synthetische Q7-L5-Vollszene läuft zusätzlich über die produktive Modell-Runtime, erzeugt ihre Startaufrufe im unveränderten Bundle und beendet den originalen 96.000-Werte-Worker erfolgreich. Die vorhandenen Host-Regressionsgoldens weiterhin nicht als Originalpixel behandeln, sondern mit identischem Bundle, Fixture, Viewport, Theme und Locale gegen einen externen Android-Capture vergleichen."
 		},
 		{
 			"id": "P0C-Q7-ACTOR-SCALING",
@@ -1323,11 +1325,12 @@
 				"scripts/audit_appplugin_runtime_contracts.ts",
 				"scripts/lib/appplugin_bundle_inventory.js",
 				"test/unit/appplugin_bundle_conformance.test.ts",
+				"test/unit/appplugin_q7_product_host.test.ts",
 				"docs/APPPLUGIN_MAP_COMPATIBILITY.md",
 				"docs/APPPLUGIN_LIVE_READ_PROOF.md",
 				"`npm run poc:appplugin-contract-audit`"
 			],
-			"nextAction": "Der endliche Startaudit deckt alle 16 lokalen Bundlepfade beziehungsweise 14 unterschiedlichen Bundle-Hashes ab: 14 Berichte wurden abgeschlossen, zehn Bundles erzeugen einen Root, vier ältere Bundles scheitern reproduzierbar am nicht zu APK 4.54.02 passenden AsyncStorage-Namen. Für a147 ist zusätzlich der echte Status-Leseweg mit zwei physischen Geräten belegt; beide Geräte gehören jedoch derselben Hermes-, Modell- und L01-Familie. Als Nächstes für die übrigen Root-Bundles echte Gerätesitzungen und Interaktionsziele ergänzen und eine zweite Modell- oder Protokollfamilie durch denselben Live-Read-Gate führen. Die Stufen Root, Hostbedarfsdeckung, benutzbar, Verhaltensparität und Produktionsfreigabe bleiben getrennt; Waschmaschine bleibt mangels lokalem Plugin offen."
+			"nextAction": "Der endliche Startaudit deckt alle 16 lokalen Bundlepfade beziehungsweise 14 unterschiedlichen Bundle-Hashes ab: 14 Berichte wurden abgeschlossen, zehn Bundles erzeugen einen Root, vier ältere Bundles scheitern reproduzierbar am nicht zu APK 4.54.02 passenden AsyncStorage-Namen. Für a147 ist zusätzlich der echte Status-Leseweg mit zwei physischen Geräten belegt. Q7 L5 besteht nun als zweite Modell- und Protokollfamilie denselben produktiven Hostpfad mit synthetischem SDK-Blob und originalem Map-Worker, jedoch noch ohne physisches Gerät. Als Nächstes für die übrigen Root-Bundles echte Gerätesitzungen und Interaktionsziele ergänzen und den Q7-Pfad später mit Nutzerhardware bestätigen. Die Stufen Root, Hostbedarfsdeckung, benutzbar, Verhaltensparität und Produktionsfreigabe bleiben getrennt; Waschmaschine bleibt mangels lokalem Plugin offen."
 		},
 		{
 			"id": "P0C-GOLDEN-HARNESS",
