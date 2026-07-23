@@ -12,6 +12,14 @@ import {
 	type IoBrokerReadOnlyAppPluginServiceRuntime,
 } from "../../src/lib/appplugin/IoBrokerReadOnlyAppPluginService";
 
+function deferred() {
+	let resolve!: () => void;
+	const promise = new Promise<void>(resolvePromise => {
+		resolve = resolvePromise;
+	});
+	return { promise, resolve };
+}
+
 function rootOptions() {
 	return {
 		density: 1,
@@ -60,6 +68,27 @@ function statusObservation(
 
 function harness(timeoutMilliseconds = 200) {
 	const events: string[] = [];
+	const acquisitionResult = {
+		download: {
+			destinationPath: "download.zip",
+			downloadedBytes: 1,
+			resumedBytes: 0,
+		},
+		installation: {
+			activeDirectory: "active",
+			bundlePath: "active/index.android.bundle",
+			installation: { downloadVersion: 7, pluginLevel: 4 },
+			model: "roborock.vacuum.same",
+		},
+		metadata: {
+			apiLevel: 10042,
+			pluginLevel: 4,
+			productId: 7,
+			url: "https://cdn.example.test/plugin.zip",
+			version: 7,
+		},
+	};
+	const acquirePackageForDevice = vi.fn(async () => acquisitionResult);
 	const roots = new Map<string, {
 		openRoot: ReturnType<typeof vi.fn>;
 		releaseModel: ReturnType<typeof vi.fn>;
@@ -98,6 +127,7 @@ function harness(timeoutMilliseconds = 200) {
 		events.push("runtime-shutdown");
 	});
 	const runtime: IoBrokerReadOnlyAppPluginServiceRuntime = {
+		acquirePackageForDevice,
 		invalidateModel,
 		openDevice,
 		shutdown,
@@ -108,7 +138,17 @@ function harness(timeoutMilliseconds = 200) {
 		root: rootOptions(),
 		timeoutMilliseconds,
 	});
-	return { events, invalidateModel, openDevice, roots, router, runtime, service, shutdown };
+	return {
+		acquirePackageForDevice,
+		events,
+		invalidateModel,
+		openDevice,
+		roots,
+		router,
+		runtime,
+		service,
+		shutdown,
+	};
 }
 
 describe("ioBroker persistent read-only AppPlugin service", () => {
@@ -191,6 +231,88 @@ describe("ioBroker persistent read-only AppPlugin service", () => {
 		]);
 		expect(service.status().active?.deviceId).toBe("device-2");
 		await service.shutdown();
+	});
+
+	it("rejects package replacement before network access while a root is active", async () => {
+		const { acquirePackageForDevice, roots, router, service } = harness();
+		const started = service.start({ deviceProperties: {}, targetDuid: "device-1" });
+		await vi.waitFor(() => expect(roots.get("device-1")?.openRoot).toHaveBeenCalledOnce());
+		router.emit(statusObservation("device-1", 10));
+		await started;
+
+		await expect(service.acquirePackageForDevice({ targetDuid: "device-1" }))
+			.rejects.toThrow(/Sitzung aktiv/u);
+
+		expect(acquirePackageForDevice).not.toHaveBeenCalled();
+		await service.shutdown();
+	});
+
+	it("finishes an accepted package replacement before starting a new root", async () => {
+		const { acquirePackageForDevice, events, openDevice, roots, router, service } = harness();
+		const acquisitionGate = deferred();
+		acquirePackageForDevice.mockImplementationOnce(async () => {
+			events.push("package-start");
+			await acquisitionGate.promise;
+			events.push("package-end");
+			return {
+				download: {
+					destinationPath: "download.zip",
+					downloadedBytes: 1,
+					resumedBytes: 0,
+				},
+				installation: {
+					activeDirectory: "active",
+					bundlePath: "active/index.android.bundle",
+					installation: { downloadVersion: 7, pluginLevel: 4 },
+					model: "roborock.vacuum.same",
+				},
+				metadata: {
+					apiLevel: 10042,
+					pluginLevel: 4,
+					productId: 7,
+					url: "https://cdn.example.test/plugin.zip",
+					version: 7,
+				},
+			};
+		});
+		const acquisition = service.acquirePackageForDevice({ targetDuid: "device-1" });
+		const started = service.start({ deviceProperties: {}, targetDuid: "device-1" });
+		await vi.waitFor(() => expect(events).toEqual(["package-start"]));
+		expect(openDevice).not.toHaveBeenCalled();
+
+		acquisitionGate.resolve();
+		await acquisition;
+		await vi.waitFor(() => expect(roots.get("device-1")?.openRoot).toHaveBeenCalledOnce());
+		router.emit(statusObservation("device-1", 10));
+		await started;
+
+		expect(events.slice(0, 2)).toEqual(["package-start", "package-end"]);
+		await service.shutdown();
+	});
+
+	it("lets the adapter abort an accepted package replacement before runtime shutdown", async () => {
+		const { acquirePackageForDevice, events, service, shutdown } = harness();
+		const controller = new AbortController();
+		acquirePackageForDevice.mockImplementationOnce(request => new Promise((_, reject) => {
+			request.signal?.addEventListener("abort", () => {
+				events.push("package-abort");
+				reject(request.signal?.reason);
+			}, { once: true });
+		}));
+
+		const acquisition = service.acquirePackageForDevice({
+			signal: controller.signal,
+			targetDuid: "device-1",
+		});
+		await vi.waitFor(() => expect(acquirePackageForDevice).toHaveBeenCalledOnce());
+
+		controller.abort(new Error("Adapter wird beendet"));
+		const stopped = service.shutdown();
+
+		await expect(acquisition).rejects.toThrow(/Adapter wird beendet/u);
+		await stopped;
+		expect(events).toEqual(["package-abort", "runtime-shutdown"]);
+		expect(shutdown).toHaveBeenCalledOnce();
 	});
 
 	it("aborts a pending start and tears all resources down on adapter shutdown", async () => {

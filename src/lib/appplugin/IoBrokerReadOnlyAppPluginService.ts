@@ -3,6 +3,8 @@ import type {
 	ApkAppPluginModelRuntimeLease,
 	ApkAppPluginModelRuntimeStatus,
 	ApkAppPluginRootLease,
+	ApkAppPluginDevicePackageRequest,
+	ApkAppPluginPackageRuntime,
 	ApkDeviceIngressRouter,
 	ApkJsonDeviceIngressObservation,
 	ApkReadOnlyProbeResult,
@@ -42,6 +44,9 @@ export interface IoBrokerReadOnlyAppPluginServiceStatus {
 }
 
 export interface IoBrokerReadOnlyAppPluginServiceRuntime {
+	acquirePackageForDevice(
+		request: Readonly<ApkAppPluginDevicePackageRequest>,
+	): ReturnType<ApkAppPluginPackageRuntime["acquire"]>;
 	invalidateModel(model: string): Promise<void>;
 	openDevice(request: Readonly<{
 		deviceProperties: Readonly<Record<string, unknown>>;
@@ -168,6 +173,25 @@ export class IoBrokerReadOnlyAppPluginService {
 				...requestValue,
 				targetDuid,
 			});
+		});
+	}
+
+	public acquirePackageForDevice(
+		request: Readonly<ApkAppPluginDevicePackageRequest>,
+	): ReturnType<ApkAppPluginPackageRuntime["acquire"]> {
+		if (this.#shutdownRequested) {
+			return Promise.reject(new Error("Der AppPlugin-Dienst wurde bereits beendet"));
+		}
+		return this.#enqueue(async () => {
+			if (this.#shutdownRequested) {
+				throw new Error("Der AppPlugin-Dienst wurde bereits beendet");
+			}
+			if (this.#active || this.#state === "starting" || this.#state === "stopping") {
+				throw new Error(
+					"Ein AppPlugin-Paket kann nicht ersetzt werden, solange eine AppPlugin-Sitzung aktiv ist",
+				);
+			}
+			return this.#runtime.acquirePackageForDevice(request);
 		});
 	}
 

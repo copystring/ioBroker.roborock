@@ -78,7 +78,12 @@ function harness(options?: {
 				productId: 123,
 			})),
 		};
+	const acquireAppPluginPackageForDevice = vi.fn(async (duid: string) => {
+		if (!account) throw new Error("Kontositzung fehlt");
+		return acquireForDevice(account.resolveDevicePackage(duid));
+	});
 	const adapter = {
+		acquireAppPluginPackageForDevice,
 		appPluginAccountRuntime: account,
 		appPluginPackageRuntime: {
 			acquire: acquireForDevice,
@@ -95,6 +100,7 @@ function harness(options?: {
 		stopAppPluginReadOnlyService,
 	};
 	return {
+		acquireAppPluginPackageForDevice,
 		acquireForDevice,
 		adapter,
 		handler: new socketHandler(adapter as never),
@@ -134,7 +140,12 @@ describe("AppPlugin package message handling", () => {
 	});
 
 	it("requires explicit confirmation and returns no URL, path or HomeData", async () => {
-		const { acquireForDevice, handler, sendTo } = harness();
+		const {
+			acquireAppPluginPackageForDevice,
+			acquireForDevice,
+			handler,
+			sendTo,
+		} = harness();
 		await handler.handleMessage(message(
 			"appplugin_package_acquire",
 			{ duid: "mower-1" },
@@ -148,6 +159,7 @@ describe("AppPlugin package message handling", () => {
 			"appplugin_package_acquire",
 			{ confirm: true, duid: "mower-1" },
 		));
+		expect(acquireAppPluginPackageForDevice).toHaveBeenCalledWith("mower-1");
 		expect(acquireForDevice).toHaveBeenCalledOnce();
 		const response = sendTo.mock.calls.at(-1)?.[2];
 		expect(response).toEqual({

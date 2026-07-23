@@ -352,10 +352,10 @@ export class socketHandler {
 		if (message?.confirm !== true) {
 			throw new Error("AppPlugin-Paketdownload benötigt confirm=true");
 		}
-		const { account, duid, runtime } = this.appPluginPackageContext(message);
-		let result: Awaited<ReturnType<typeof runtime.acquire>>;
+		const { duid } = this.appPluginPackageContext(message);
+		let result: Awaited<ReturnType<Roborock["acquireAppPluginPackageForDevice"]>>;
 		try {
-			result = await runtime.acquire(account.resolveDevicePackage(duid));
+			result = await this.adapter.acquireAppPluginPackageForDevice(duid);
 		} catch {
 			throw new Error(
 				"Das signierte AppPlugin-Paket konnte nicht beschafft oder aktiviert werden",

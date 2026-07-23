@@ -331,6 +331,7 @@
 				"src/lib/appplugin/IoBrokerReadOnlyAppPluginProbe.ts",
 				"src/lib/appplugin/IoBrokerReadOnlyAppPluginRuntime.ts",
 				"src/lib/appplugin/IoBrokerReadOnlyAppPluginService.ts",
+				"src/lib/appplugin/IoBrokerAppPluginLifecycleCoordinator.ts",
 				"docs/APPPLUGIN_LIVE_READ_PROOF.md",
 				"test/unit/appplugin_apk_home_data_context.test.ts",
 				"test/unit/appplugin_apk_main_plugin_entry.test.ts",
@@ -350,6 +351,7 @@
 				"test/unit/appplugin_iobroker_device_wire.test.ts",
 				"test/unit/appplugin_iobroker_read_only_device_host.test.ts",
 				"test/unit/appplugin_iobroker_read_only_service.test.ts",
+				"test/unit/appplugin_iobroker_lifecycle_coordinator.test.ts",
 				"test/unit/appplugin_apk_read_only_probe_runtime.test.ts",
 				"test/unit/appplugin_apk_hermes_host_artifact.test.ts",
 				"test/unit/appplugin_apk_device_model_runtime_factory.test.ts",
@@ -373,7 +375,7 @@
 				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/PluginSDKModule.java",
 				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/o00oOoo.java"
 			],
-			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Paketakquisition, Installation, Modellcache und Paketersetzung bleiben signiert, atomar, serialisiert und geräteklassenneutral. Der gepinnte Hermes-Host wird über eine eigene native Sechs-Ziel-Matrix gebaut: Windows-x64 ist lokal gebaut und ausgeführt; die übrigen fünf Zielrunner benötigen weiterhin einen erlaubten GitHub-Lauf. Probe und langlebiger Dienst verwenden dieselbe streng typisierte ioBroker-Komposition der gemeinsamen APK-Module, denselben Gerätekontext und dieselbe Read-only-Allowlist. Der Dienst bleibt beim Adapterstart aus, startet nur nach confirm=true, hält den Original-Bundle-Root nach der ersten korrelierten Antwort aktiv, übernimmt weitere vom Bundle ausgelöste Statusantworten, verwendet dieselbe Sitzung erneut und verwirft beim Wechsel zwischen zwei Geräten desselben Modells zuerst Root, Modelllease und gecachte Modell-Runtime. Dieser Ablauf bestand live mit beiden a147-Geräten; ein Adapter-Unload beendete die zweite noch aktive Sitzung ohne AppPlugin-Fehler. Als Nächstes denselben Nachweis mit einer zweiten Modell- oder Protokollfamilie führen und Paketwechsel gegenüber aktiven beziehungsweise gerade startenden Sitzungen über dieselbe zentrale Operation serialisieren. RockMow bleibt bis zu echter Mäher-HomeData eine Bootstrap-Gegenprobe."
+			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Paketakquisition, Installation, Modellcache und Paketersetzung bleiben signiert, atomar, serialisiert und geräteklassenneutral. Der gepinnte Hermes-Host wird über eine eigene native Sechs-Ziel-Matrix gebaut: Windows-x64 ist lokal gebaut und ausgeführt; die übrigen fünf Zielrunner benötigen weiterhin einen erlaubten GitHub-Lauf. Probe und langlebiger Dienst verwenden dieselbe streng typisierte ioBroker-Komposition der gemeinsamen APK-Module, denselben Gerätekontext und dieselbe Read-only-Allowlist. Der Dienst bleibt beim Adapterstart aus, startet nur nach confirm=true, hält den Original-Bundle-Root nach der ersten korrelierten Antwort aktiv, übernimmt weitere vom Bundle ausgelöste Statusantworten, verwendet dieselbe Sitzung erneut und verwirft beim Wechsel zwischen zwei Geräten desselben Modells zuerst Root, Modelllease und gecachte Modell-Runtime. Die adapterweite Lifecycle-Operation serialisiert nun zusätzlich Einmal-Probe, langlebigen Start beziehungsweise Neustart und Paketaktivierung; ein aktiver oder gerade wechselnder Root blockiert die Paketersetzung vor jedem Netzwerkzugriff. Dieser Ablauf bestand live mit beiden a147-Geräten; ein Adapter-Unload beendete die zweite noch aktive Sitzung ohne AppPlugin-Fehler. Als Nächstes denselben Nachweis mit einer zweiten Modell- oder Protokollfamilie führen und die beabsichtigte Mehrgeräte-/Mehrmodell-Parallelität samt Ressourcenbudgets festlegen. RockMow bleibt bis zu echter Mäher-HomeData eine Bootstrap-Gegenprobe."
 		},
 		{
 			"id": "P0B-APK-HOST-SERVICES",
@@ -569,6 +571,7 @@
 				"tools/hermes-appplugin-host/src/main.cpp",
 				"src/lib/appplugin/IoBrokerReadOnlyAppPluginRuntime.ts",
 				"src/lib/appplugin/IoBrokerReadOnlyAppPluginService.ts",
+				"src/lib/appplugin/IoBrokerAppPluginLifecycleCoordinator.ts",
 				"src/main.ts",
 				"src/lib/socketHandler.ts",
 				"test/unit/appplugin_apk_session_supervisor.test.ts",
@@ -576,6 +579,7 @@
 				"test/unit/appplugin_apk_adapter_runtime_service.test.ts",
 				"test/unit/appplugin_apk_device_session_runtime.test.ts",
 				"test/unit/appplugin_iobroker_read_only_service.test.ts",
+				"test/unit/appplugin_iobroker_lifecycle_coordinator.test.ts",
 				"test/unit/appplugin_package_message_handling.test.ts",
 				"test/unit/appplugin_apk_adapter_host_lease_factory.test.ts",
 				"test/unit/appplugin_apk_native_runtime_composition.test.ts",
@@ -586,7 +590,7 @@
 				"test/unit/appplugin_apk_hermes_host_session.test.ts",
 				"docs/APK_APPPLUGIN_EXECUTION_MODEL.md"
 			],
-			"nextAction": "Der APK-belegte, zugriffsgeordnete Drei-Modell-Cache ist mit expliziten Leases, deduplizierten Modellstarts, LRU-Verdrängung nur inaktiver Hosts, Wiederholbarkeit nach Startfehlern sowie vollständigem Shutdown trotz Einzelfehlern abgesichert. Der nun produktiv zusammengesetzte Read-only-Dienst bleibt standardmäßig deaktiviert und serialisiert Start, Wiederverwendung, Stop, Neustart, Gerätewechsel und Shutdown für genau einen aktiven Geräte-Root. Nach der ersten korrelierten Original-Bundle-Antwort bleiben Root, Hermes-Runtime und Ingress bestehen; weitere Bundle-Abfragen aktualisieren denselben Sitzungszustand. Ein Wechsel zwischen zwei realen Geräten desselben Modells gibt Root und Modelllease frei, invalidiert die gerätegebundene Cache-Runtime und startet danach eine neue Generation. Timeout, Abbruch während des Starts, Cleanupfehler und Adapter-Unload sind automatisiert abgesichert; Start, Wiederverwendung, derselbe Modellwechsel und Unload bestanden zusätzlich live. Als Nächstes Paketakquisition und Sitzungsstart über dieselbe zentrale Operation serialisieren, die beabsichtigte Mehrgeräte-/Mehrmodell-Parallelität festlegen und anschließend Laufzeit- sowie Ressourcenbudgets gegen eine zweite technische Pluginfamilie messen."
+			"nextAction": "Der APK-belegte, zugriffsgeordnete Drei-Modell-Cache ist mit expliziten Leases, deduplizierten Modellstarts, LRU-Verdrängung nur inaktiver Hosts, Wiederholbarkeit nach Startfehlern sowie vollständigem Shutdown trotz Einzelfehlern abgesichert. Der produktiv zusammengesetzte Read-only-Dienst bleibt standardmäßig deaktiviert und serialisiert Start, Wiederverwendung, Stop, Neustart, Gerätewechsel und Shutdown für genau einen aktiven Geräte-Root. Eine adapterweite Lifecycle-Operation ordnet nun zusätzlich Einmal-Probe, langlebigen Start beziehungsweise Neustart und signierte Paketaktivierung. Der Dienst blockiert eine Paketersetzung bei aktivem oder wechselndem Root vor jedem Netzwerkzugriff; ein zuerst angenommener Paketvorgang schließt ab, bevor eine neue Sitzung startet, Fehler vergiften die Warteschlange nicht, und Unload sperrt neue Vorgänge, bricht den angenommenen Vorgang ab und wartet dessen Abschluss. Nach der ersten korrelierten Original-Bundle-Antwort bleiben Root, Hermes-Runtime und Ingress bestehen; weitere Bundle-Abfragen aktualisieren denselben Sitzungszustand. Ein Wechsel zwischen zwei realen Geräten desselben Modells gibt Root und Modelllease frei, invalidiert die gerätegebundene Cache-Runtime und startet danach eine neue Generation. Timeout, Abbruch während des Starts oder Paketvorgangs, Cleanupfehler und Adapter-Unload sind automatisiert abgesichert; Start, Wiederverwendung, derselbe Modellwechsel und Unload bestanden zusätzlich live. Nach der Lifecycle-Änderung lieferte der unveränderte a147-Bundle-Statusweg erneut nach 770 ms und ließ sich sauber stoppen. Als Nächstes die beabsichtigte Mehrgeräte-/Mehrmodell-Parallelität festlegen und anschließend Laufzeit- sowie Ressourcenbudgets gegen eine zweite technische Pluginfamilie messen."
 		},
 		{
 			"id": "P0B-RESOURCE-LIMITS",

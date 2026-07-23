@@ -69,6 +69,20 @@ Schreibbefehl freigegeben. „Langlebig“ bezeichnet hier die wiederverwendete
 Sitzung über mehrere Bundle-Abfragen hinweg, nicht bereits einen mehrstündigen
 Stabilitäts- oder Ressourcenbenchmark.
 
+### Regression nach zentraler Lifecycle-Serialisierung
+
+Nachdem Einmal-Probe, langlebige Sitzung und signierte Paketaktivierung unter
+eine gemeinsame adapterweite Lifecycle-Operation gestellt wurden, lieferte der
+unveränderte a147-Bundle-Statusweg erneut eine korrelierte Antwort nach 770 ms:
+Zustand 8, Akku 100 %, kein Fehler und Docktyp 18. Der bestätigte Dienststopp
+wechselte anschließend ohne hängende Runtime in `idle`.
+
+Ein echter Paketdownload wurde für diese Regression bewusst nicht wiederholt.
+Der sicherheitsrelevante Fall – keine Paketersetzung neben einem aktiven Root
+und kein Start vor Abschluss einer bereits angenommenen Aktivierung – ist
+deterministisch über automatisierte Netzwerkgrenzen- und Reihenfolgetests
+belegt.
+
 ## Belegte Ausführungskette
 
 ```text
