@@ -75,6 +75,14 @@ function account(ports = httpPorts()): ApkAppPluginAuthenticatedAccountRuntime {
 						timeZone: "UTC",
 						pv: "A01",
 					}),
+					JSON.stringify({
+						duid: "mower-2",
+						productId: 8,
+						model: "roborock.mower.a01",
+						activeTime: 21,
+						timeZone: "UTC",
+						pv: "A01",
+					}),
 				],
 				productJsonStrings: [
 					JSON.stringify({ id: 7, model: "roborock.vacuum.same" }),
@@ -223,6 +231,44 @@ describe("APK AppPlugin device session runtime", () => {
 			signal: undefined,
 		});
 		await runtime.shutdown();
+	});
+
+	it("invalidates an inactive cached model before another device context is opened", async () => {
+		const mowerPackage = installedPackage("roborock.mower.a01");
+		const packages = packageRepository([mowerPackage]);
+		const first = managedRuntime();
+		const second = managedRuntime();
+		const factory = vi.fn()
+			.mockReturnValueOnce(first)
+			.mockReturnValueOnce(second);
+		const runtime = new ApkAppPluginDeviceSessionRuntime({
+			account: account(),
+			contract,
+			factory,
+			host: host(),
+			packages,
+		});
+		const firstLease = await runtime.openDevice({
+			deviceProperties: {},
+			targetDuid: "mower-1",
+		});
+		await firstLease.release();
+
+		await runtime.invalidateModel("roborock.mower.a01");
+		const secondLease = await runtime.openDevice({
+			deviceProperties: {},
+			targetDuid: "mower-2",
+		});
+
+		expect(first.stop).toHaveBeenCalledOnce();
+		expect(factory).toHaveBeenCalledTimes(2);
+		expect(secondLease).toMatchObject({
+			activeTime: 21,
+			deviceId: "mower-2",
+		});
+		await secondLease.release();
+		await runtime.shutdown();
+		expect(second.stop).toHaveBeenCalledOnce();
 	});
 
 	it("rejects package replacement before network access while a root lease is active", async () => {

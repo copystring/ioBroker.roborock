@@ -47,6 +47,28 @@ nicht, dass zusätzlich der Kategorie-Bundle-Prüfpfad gelaufen ist.
 Die Werte sind Momentaufnahmen des Live-Tests. Sie sind kein Fixture und kein
 Beleg für dauerhaft gleiche Gerätezustände.
 
+## Langlebiger Read-only-Dienst
+
+Die gleiche Ausführungskette wurde anschließend in der echten Adapterinstanz
+als weiterhin standardmäßig deaktivierter Dienst geprüft:
+
+- Vor der Bestätigung meldete der Dienst `idle` und besaß keine Modell-Runtime.
+- Nach `confirm=true` lieferte Gerät A nach 656 ms eine korrelierte
+  `get_prop(["get_status"])`-Antwort. Root und Modelllease blieben danach aktiv.
+- Weitere, vom unveränderten Bundle ausgelöste Statusantworten aktualisierten
+  dieselbe Sitzung. Ein erneuter Start für Gerät A verwendete sie wieder und
+  erzeugte keinen zweiten Root.
+- Der Wechsel auf Gerät B desselben Modells gab den bisherigen Root und die
+  Modelllease frei, invalidierte die gerätegebundene Modell-Runtime und
+  lieferte nach 523 ms eine Antwort der neuen Generation.
+- Der Adapter wurde mit dieser zweiten Sitzung noch im Zustand `running`
+  gestoppt. Der Unload endete regulär ohne AppPlugin-Cleanupfehler.
+
+Dabei war ausschließlich die Status-Read-only-Allowlist aktiv. Es wurde kein
+Schreibbefehl freigegeben. „Langlebig“ bezeichnet hier die wiederverwendete
+Sitzung über mehrere Bundle-Abfragen hinweg, nicht bereits einen mehrstündigen
+Stabilitäts- oder Ressourcenbenchmark.
+
 ## Belegte Ausführungskette
 
 ```text
@@ -64,8 +86,8 @@ angemeldete HomeData
 
 - Eine zweite Modell- oder Protokollfamilie: Das verwendete Konto enthält
   derzeit zwei Geräte desselben Modells.
-- Dauerbetrieb einer produktiven AppPlugin-Sitzung: Der Nachweis ist weiterhin
-  eine explizit bestätigte, zeitlich begrenzte Read-only-Probe.
+- Mehrstündiger Dauerbetrieb und belastbare CPU-/RAM-Budgets der nun
+  wiederverwendbaren Sitzung.
 - Schreibbefehle und undurchsichtige Protobuf-Aufrufe: Sie bleiben
   standardmäßig blockiert.
 - Plattformfreigabe für Linux und macOS sowie belastbare Ressourcenbudgets.

@@ -30,8 +30,8 @@ export interface IoBrokerReadOnlyAppPluginDeviceHostOptions {
 	readonly ingressRouter: ApkDeviceIngressRouter;
 	readonly language?: string;
 	readonly localeIdentifier?: string;
-	readonly loadPluginAgreements?: () => Promise<readonly unknown[]>;
-	readonly loadPluginAgreementsV2?: () => Promise<readonly unknown[]>;
+	readonly loadPluginAgreements?: (deviceId: string) => Promise<readonly unknown[]>;
+	readonly loadPluginAgreementsV2?: (deviceId: string) => Promise<readonly unknown[]>;
 	readonly observeAgreements?: (diagnostic: Readonly<ApkAgreementDiagnostic>) => void;
 	readonly observeTransport?: ApkReadOnlyDeviceTransportObserver;
 	readonly observeTiming?: (diagnostic: Readonly<ApkTimingDiagnostic>) => void;
@@ -220,8 +220,12 @@ export function createIoBrokerReadOnlyAppPluginDeviceHostLeaseFactory(
 					privacyProtocol: { version: null, langUrl: null },
 					userAgreement: { version: null, langUrl: null },
 				}),
-				loadPluginAgreements: options.loadPluginAgreements ?? (async () => []),
-				loadPluginAgreementsV2: options.loadPluginAgreementsV2 ?? (async () => []),
+				loadPluginAgreements: options.loadPluginAgreements
+					? () => options.loadPluginAgreements!(request.deviceId)
+					: async () => [],
+				loadPluginAgreementsV2: options.loadPluginAgreementsV2
+					? () => options.loadPluginAgreementsV2!(request.deviceId)
+					: async () => [],
 			},
 			emitAnalytics: () => undefined,
 			reportException: (method, arguments_) => options.adapter.rLog(

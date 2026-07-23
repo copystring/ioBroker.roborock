@@ -64,6 +64,10 @@ export class ApkAppPluginAdapterRuntimeService {
 		return this.#deviceSessions.status();
 	}
 
+	public invalidateModel(model: string): Promise<void> {
+		return this.#deviceSessions.invalidateModel(model);
+	}
+
 	public shutdown(): Promise<void> {
 		if (this.#shutdown) return this.#shutdown;
 		this.#shutdown = (async () => {

@@ -1,15 +1,7 @@
-import contractJson from "../../apppluginHost/generated/apk-appplugin-host-contract.json";
 import {
-	ApkAppPluginAdapterRuntimeService,
-	ApkAppPluginManagedDeviceRuntimeHostProvider,
-	createApkAppPluginAdapterHostLeaseFactory,
-	parseApkUserPluginAgreementsResponse,
-	selectApkPluginAgreementsForDevice,
-	selectApkPluginAgreementsV2ForDevice,
 	runApkReadOnlyProbeSession,
 	type ApkAgreementDiagnostic,
 	type ApkAppPluginAuthenticatedAccountRuntime,
-	type ApkAppPluginHostContract,
 	type ApkAppPluginPackageRuntime,
 	type ApkDeviceIngressRouter,
 	type ApkReadOnlyDeviceTransportObservation,
@@ -18,12 +10,11 @@ import {
 	type ApkV8WorkerDiagnostic,
 } from "../../apppluginHost";
 import type { Roborock } from "../../main";
-import { createCanvasKitSkiaHost } from "./CanvasKitSkiaHost";
 import {
-	createIoBrokerReadOnlyAppPluginDeviceHostLeaseFactory,
-} from "./IoBrokerReadOnlyAppPluginDeviceHost";
-
-const contract = contractJson as ApkAppPluginHostContract;
+	createIoBrokerReadOnlyAppPluginRuntime,
+	createIoBrokerReadOnlyAppPluginRootOptions,
+	isIoBrokerAppPluginStatusResponse,
+} from "./IoBrokerReadOnlyAppPluginRuntime";
 
 export interface IoBrokerReadOnlyAppPluginProbeOptions {
 	readonly account: ApkAppPluginAuthenticatedAccountRuntime;
@@ -40,14 +31,6 @@ export interface IoBrokerReadOnlyAppPluginProbeOptions {
 	readonly targetDuid: string;
 	readonly timeoutMilliseconds?: number;
 }
-
-const DISPLAY = Object.freeze({
-	densityDpi: 96,
-	fontScale: 1,
-	height: 800,
-	scale: 1,
-	width: 1_200,
-});
 
 /**
  * Composes and runs one real, bounded ioBroker AppPlugin read probe. Package
@@ -66,119 +49,70 @@ export async function runIoBrokerReadOnlyAppPluginProbe(
 	const workerDiagnostics: ApkV8WorkerDiagnostic[] = [];
 	let pluginAgreementCount: number | undefined;
 	let pluginAgreementV2Count: number | undefined;
-	let rawPluginAgreementsPromise: Promise<readonly unknown[]> | undefined;
-	const loadRawPluginAgreements = (): Promise<readonly unknown[]> => {
-		rawPluginAgreementsPromise ??= options.account.authenticatedHttpPorts().user
-			.get("/api/v1/checkAppAgreement", null)
-			.then(parseApkUserPluginAgreementsResponse);
-		return rawPluginAgreementsPromise;
-	};
-	const acquireDeviceHost = createIoBrokerReadOnlyAppPluginDeviceHostLeaseFactory({
+	const session = createIoBrokerReadOnlyAppPluginRuntime({
+		account: options.account,
 		adapter: options.adapter,
 		allowedMethods: options.allowedMethods,
-		display: DISPLAY,
+		clientId: options.clientId,
 		ingressRouter: options.ingressRouter,
+		instanceDataDirectory: options.instanceDataDirectory,
 		language: options.language,
 		localeIdentifier: options.localeIdentifier,
-		loadPluginAgreements: async () => {
-			const agreements = selectApkPluginAgreementsForDevice(
-				await loadRawPluginAgreements(),
-				options.targetDuid,
-			);
-			pluginAgreementCount = agreements.length;
-			return agreements;
+		onAgreementCount: (_deviceId, version, count) => {
+			if (version === "v1") pluginAgreementCount = count;
+			else pluginAgreementV2Count = count;
 		},
-		loadPluginAgreementsV2: async () => {
-			const agreements = selectApkPluginAgreementsV2ForDevice(
-				await loadRawPluginAgreements(),
-				options.targetDuid,
-			);
-			pluginAgreementV2Count = agreements.length;
-			return agreements;
+		onAgreementDiagnostic: diagnostic =>
+			agreementDiagnostics.push(structuredClone(diagnostic)),
+		onNativeInvocation: (moduleName, methodName, arguments_) => {
+			const key = `${moduleName}.${methodName}`;
+			nativeInvocations.set(key, (nativeInvocations.get(key) ?? 0) + 1);
+			if (key === "Timing.createTimer") {
+				const [, duration, , repeats] = arguments_;
+				nativeInvocationDetails.add(
+					`Timing.createTimer(Dauer=${String(duration)}ms,wiederholt=${String(repeats)})`,
+				);
+			} else if (key === "UIManager.createView") {
+				const [, viewName] = arguments_;
+				if (typeof viewName === "string") {
+					nativeInvocationDetails.add(`UIManager.createView(${viewName})`);
+				}
+			} else if (key === "RRPluginSDK.getValue") {
+				const [preferenceKey] = arguments_;
+				if (typeof preferenceKey === "string") {
+					nativeInvocationDetails.add(`RRPluginSDK.getValue(${preferenceKey})`);
+				}
+			} else if (key === "RRPluginSDK.readFileListAtPath") {
+				const [directory] = arguments_;
+				if (typeof directory === "string") {
+					const leaf = directory.replace(/[\\/]+$/u, "").split(/[\\/]/u).at(-1) ?? "";
+					nativeInvocationDetails.add(`RRPluginSDK.readFileListAtPath(${leaf || "leer"})`);
+				}
+			} else if (key === "RRPluginSDK.callJsExecutorWithArray") {
+				const [, functionName, workerArguments] = arguments_;
+				if (typeof functionName === "string") {
+					nativeInvocationDetails.add(
+						`RRPluginSDK.callJsExecutorWithArray(${functionName},Argumente=${
+							Array.isArray(workerArguments) ? workerArguments.length : "kein Array"
+						})`,
+					);
+				}
+			} else if (
+				key === "RRPluginSDK.getPluginAgreements"
+				|| key === "RRPluginSDK.getPluginAgreementsV2"
+				|| key === "RRPluginSDK.getProductAgreements"
+			) {
+				nativeInvocationDetails.add(key);
+			}
 		},
-		observeAgreements: diagnostic => agreementDiagnostics.push(structuredClone(diagnostic)),
-		observeTransport: observation => observations.push(structuredClone(observation)),
-		observeTiming: diagnostic => timingDiagnostics.push(structuredClone(diagnostic)),
-		observeWorker: diagnostic => workerDiagnostics.push(structuredClone(diagnostic)),
-	});
-	const hostProvider = new ApkAppPluginManagedDeviceRuntimeHostProvider(
-		createApkAppPluginAdapterHostLeaseFactory({
-			instanceDataDirectory: options.instanceDataDirectory,
-			acquireDeviceHost,
-			composition: {
-				maxHeapMegabytes: 256,
-				onNativeInvocation: (moduleName, methodName, arguments_) => {
-					const key = `${moduleName}.${methodName}`;
-					nativeInvocations.set(key, (nativeInvocations.get(key) ?? 0) + 1);
-					if (key === "Timing.createTimer") {
-						const [, duration, , repeats] = arguments_;
-						nativeInvocationDetails.add(
-							`Timing.createTimer(Dauer=${String(duration)}ms,wiederholt=${String(repeats)})`,
-						);
-					} else if (key === "UIManager.createView") {
-						const [, viewName] = arguments_;
-						if (typeof viewName === "string") {
-							nativeInvocationDetails.add(`UIManager.createView(${viewName})`);
-						}
-					} else if (key === "RRPluginSDK.getValue") {
-						const [preferenceKey] = arguments_;
-						if (typeof preferenceKey === "string") {
-							nativeInvocationDetails.add(`RRPluginSDK.getValue(${preferenceKey})`);
-						}
-					} else if (key === "RRPluginSDK.readFileListAtPath") {
-						const [directory] = arguments_;
-						if (typeof directory === "string") {
-							const leaf = directory.replace(/[\\/]+$/u, "").split(/[\\/]/u).at(-1) ?? "";
-							nativeInvocationDetails.add(`RRPluginSDK.readFileListAtPath(${leaf || "leer"})`);
-						}
-					} else if (key === "RRPluginSDK.callJsExecutorWithArray") {
-						const [, functionName, workerArguments] = arguments_;
-						if (typeof functionName === "string") {
-							nativeInvocationDetails.add(
-								`RRPluginSDK.callJsExecutorWithArray(${functionName},Argumente=${
-									Array.isArray(workerArguments) ? workerArguments.length : "kein Array"
-								})`,
-							);
-						}
-					} else if (
-						key === "RRPluginSDK.getPluginAgreements"
-						|| key === "RRPluginSDK.getPluginAgreementsV2"
-						|| key === "RRPluginSDK.getProductAgreements"
-					) {
-						nativeInvocationDetails.add(key);
-					}
-				},
-				shutdownTimeoutMs: 5_000,
-				startupTimeoutMs: 15_000,
-			},
-			createSkiaHost: skiaOptions => createCanvasKitSkiaHost({
-				...skiaOptions,
-				fontPaths: skiaOptions.fontPaths ? [...skiaOptions.fontPaths] : undefined,
-			}),
-		}),
-	);
-	const session = new ApkAppPluginAdapterRuntimeService({
-		account: options.account,
-		contract,
-		host: {
-			androidRelease: "15",
-			clientId: options.clientId,
-			memoryMiB: 512,
-			mobileModel: "ioBroker AppPlugin Host",
-		},
-		hostProvider,
+		onTimingDiagnostic: diagnostic => timingDiagnostics.push(structuredClone(diagnostic)),
+		onTransportObservation: observation => observations.push(structuredClone(observation)),
+		onWorkerDiagnostic: diagnostic => workerDiagnostics.push(structuredClone(diagnostic)),
 		packages: options.packages,
 	});
 
 	return runApkReadOnlyProbeSession(session, options.ingressRouter, {
-		acceptRpcResponse: result =>
-			result.rpcMethod === "app_get_status"
-			|| result.rpcMethod === "get_status"
-			|| (
-				result.rpcMethod === "get_prop"
-				&& Array.isArray(result.rpcParameters)
-				&& result.rpcParameters.includes("get_status")
-			),
+		acceptRpcResponse: isIoBrokerAppPluginStatusResponse,
 		describeDiagnostics: () => {
 			const deviceOperations = observations.length === 0
 				? "keine RRPluginDevice-Transportoperation beobachtet"
@@ -240,21 +174,7 @@ export async function runIoBrokerReadOnlyAppPluginProbe(
 				+ `V2=${pluginAgreementV2Count ?? "nicht geladen"}`;
 		},
 		deviceProperties: options.deviceProperties,
-		root: {
-			androidApiLevel: 35,
-			density: DISPLAY.scale,
-			direction: /^(?:ar|fa|he|ur)(?:_|-|$)/iu.test(options.localeIdentifier ?? "de_DE")
-				? "rtl"
-				: "ltr",
-			doLeftAndRightSwapInRTL: true,
-			fontScale: DISPLAY.fontScale,
-			height: DISPLAY.height,
-			initialProps: {
-				colorMode: "light",
-			},
-			safeAreaInsets: { top: 0, right: 0, bottom: 0, left: 0 },
-			width: DISPLAY.width,
-		},
+		root: createIoBrokerReadOnlyAppPluginRootOptions(options.localeIdentifier),
 		signal: options.signal,
 		targetDuid: options.targetDuid,
 		timeoutMilliseconds: options.timeoutMilliseconds,

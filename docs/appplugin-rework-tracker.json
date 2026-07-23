@@ -329,6 +329,8 @@
 				"src/lib/appplugin/IoBrokerAppPluginDeviceWire.ts",
 				"src/lib/appplugin/IoBrokerReadOnlyAppPluginDeviceHost.ts",
 				"src/lib/appplugin/IoBrokerReadOnlyAppPluginProbe.ts",
+				"src/lib/appplugin/IoBrokerReadOnlyAppPluginRuntime.ts",
+				"src/lib/appplugin/IoBrokerReadOnlyAppPluginService.ts",
 				"docs/APPPLUGIN_LIVE_READ_PROOF.md",
 				"test/unit/appplugin_apk_home_data_context.test.ts",
 				"test/unit/appplugin_apk_main_plugin_entry.test.ts",
@@ -347,6 +349,7 @@
 				"test/unit/appplugin_apk_adapter_host_lease_factory.test.ts",
 				"test/unit/appplugin_iobroker_device_wire.test.ts",
 				"test/unit/appplugin_iobroker_read_only_device_host.test.ts",
+				"test/unit/appplugin_iobroker_read_only_service.test.ts",
 				"test/unit/appplugin_apk_read_only_probe_runtime.test.ts",
 				"test/unit/appplugin_apk_hermes_host_artifact.test.ts",
 				"test/unit/appplugin_apk_device_model_runtime_factory.test.ts",
@@ -370,7 +373,7 @@
 				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/PluginSDKModule.java",
 				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/o00oOoo.java"
 			],
-			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Paketakquisition, Installation, Modellcache und Paketersetzung bleiben signiert, atomar, serialisiert und geräteklassenneutral. Der gepinnte Hermes-Host wird über eine eigene native Sechs-Ziel-Matrix gebaut: Windows-x64 ist lokal gebaut und ausgeführt; die übrigen fünf Zielrunner benötigen weiterhin einen erlaubten GitHub-Lauf. Probe und Produktions-Factory verwenden dieselbe streng typisierte, geräteklassenneutrale Zuordnung der gemeinsamen APK-Module. Die neun geräteklassenneutralen Device-Repository-Operationen sind an den bestehenden ioBroker-Wire-Port gebunden; die Read-only-Grenze lässt ausschließlich explizit erlaubte, vom Bundle erzeugte JSON-RPCs passieren und blockiert beliebige DPS sowie Protobuf. Zwei getrennte reale Geräte des Modells roborock.vacuum.a147 haben mit dem unveränderten signierten Plugin 6006/3001 selbst get_prop([\"get_status\"]) erzeugt und eine korrelierte L01-Antwort erhalten. Als Nächstes die zeitlich begrenzte Probe in einen weiterhin standardmäßig deaktivierten, langlebigen Read-only-Dienst mit sauberem Start, Leerlauf, Sitzungsersetzung und unload überführen; danach denselben Nachweis mit einer zweiten Modell- oder Protokollfamilie führen. RockMow bleibt bis zu echter Mäher-HomeData eine Bootstrap-Gegenprobe."
+			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Paketakquisition, Installation, Modellcache und Paketersetzung bleiben signiert, atomar, serialisiert und geräteklassenneutral. Der gepinnte Hermes-Host wird über eine eigene native Sechs-Ziel-Matrix gebaut: Windows-x64 ist lokal gebaut und ausgeführt; die übrigen fünf Zielrunner benötigen weiterhin einen erlaubten GitHub-Lauf. Probe und langlebiger Dienst verwenden dieselbe streng typisierte ioBroker-Komposition der gemeinsamen APK-Module, denselben Gerätekontext und dieselbe Read-only-Allowlist. Der Dienst bleibt beim Adapterstart aus, startet nur nach confirm=true, hält den Original-Bundle-Root nach der ersten korrelierten Antwort aktiv, übernimmt weitere vom Bundle ausgelöste Statusantworten, verwendet dieselbe Sitzung erneut und verwirft beim Wechsel zwischen zwei Geräten desselben Modells zuerst Root, Modelllease und gecachte Modell-Runtime. Dieser Ablauf bestand live mit beiden a147-Geräten; ein Adapter-Unload beendete die zweite noch aktive Sitzung ohne AppPlugin-Fehler. Als Nächstes denselben Nachweis mit einer zweiten Modell- oder Protokollfamilie führen und Paketwechsel gegenüber aktiven beziehungsweise gerade startenden Sitzungen über dieselbe zentrale Operation serialisieren. RockMow bleibt bis zu echter Mäher-HomeData eine Bootstrap-Gegenprobe."
 		},
 		{
 			"id": "P0B-APK-HOST-SERVICES",
@@ -554,6 +557,7 @@
 			"evidence": [
 				"src/apppluginHost/apkAppPluginModelRuntime.ts",
 				"src/apppluginHost/apkAppPluginAdapterRuntimeService.ts",
+				"src/apppluginHost/apkAppPluginDeviceSessionRuntime.ts",
 				"src/apppluginHost/apkAppPluginAdapterHostLeaseFactory.ts",
 				"src/apppluginHost/apkAppPluginNativeRuntimeComposition.ts",
 				"src/apppluginHost/apkAppPluginSessionSupervisor.ts",
@@ -563,9 +567,16 @@
 				"src/apppluginHost/apkHermesHostProtocol.ts",
 				"src/apppluginHost/apkHermesHostSession.ts",
 				"tools/hermes-appplugin-host/src/main.cpp",
+				"src/lib/appplugin/IoBrokerReadOnlyAppPluginRuntime.ts",
+				"src/lib/appplugin/IoBrokerReadOnlyAppPluginService.ts",
+				"src/main.ts",
+				"src/lib/socketHandler.ts",
 				"test/unit/appplugin_apk_session_supervisor.test.ts",
 				"test/unit/appplugin_apk_model_runtime.test.ts",
 				"test/unit/appplugin_apk_adapter_runtime_service.test.ts",
+				"test/unit/appplugin_apk_device_session_runtime.test.ts",
+				"test/unit/appplugin_iobroker_read_only_service.test.ts",
+				"test/unit/appplugin_package_message_handling.test.ts",
 				"test/unit/appplugin_apk_adapter_host_lease_factory.test.ts",
 				"test/unit/appplugin_apk_native_runtime_composition.test.ts",
 				"test/unit/appplugin_apk_device_native_runtime_environment.test.ts",
@@ -575,7 +586,7 @@
 				"test/unit/appplugin_apk_hermes_host_session.test.ts",
 				"docs/APK_APPPLUGIN_EXECUTION_MODEL.md"
 			],
-			"nextAction": "Der APK-belegte, zugriffsgeordnete Drei-Modell-Cache ist mit expliziten Leases, deduplizierten Modellstarts, LRU-Verdrängung nur inaktiver Hosts, Wiederholbarkeit nach Startfehlern sowie vollständigem Shutdown trotz Einzelfehlern abgesichert. ApkHermesHostSession trägt mehrere Root-Tags gleichzeitig und bestätigt Start sowie AppRegistry-Unmount root-spezifisch über den bestehenden JSONL-Kanal. ApkAppPluginModelRuntime besitzt pro Modell genau einen gemeinsamen UIManager und koppelt dessen APK-Allocator, Root-Projektion, Layout, Touch, TextInput, runApplication und bestätigtes Unmount zu einer sichtbaren Root-Lease; fehlgeschlagene Mounts und Shutdown räumen den nativen Root-Besitz zentral auf. Die Produktions-Factory validiert den angeforderten Geräteschlüssel gegen den aufgelösten Sitzungsdeskriptor, konstruiert die Native-Umgebung selbst und beendet Environment sowie Hostlease auch bei Teilfehlern. Der adapterweite Hostprovider verhindert neue Akquisitionen ab Shutdown-Beginn, wartet bereits laufende Akquisitionen ab, gibt gleichzeitig fertig gewordene Leases sofort frei und versucht alle aktiven Releases trotz Einzelfehlern. Der neue Adapter-Runtime-Service kapselt Factory, Supervisor und Provider und beweist die Shutdown-Reihenfolge selbst dann, wenn eine Modell-Runtime fehlschlägt. Die konkrete Adapter-Hostlease-Fabrik bindet reale CanvasKit-/Skia-Ressourcen an sichere, kollisionsfreie Sitzungsverzeichnisse und akzeptiert ausschließlich Ressourcenlimits sowie Diagnose-Callbacks statt Probe-Bootstrap-Injektionen. Aufbaufehler und unabhängige Cleanupfehler werden vollständig freigegeben beziehungsweise aggregiert. Als Nächstes die deaktivierte Servicekette mit dieser Fabrik und echten Environment-Instanzen durch Start, Leerlauf, Sitzungsersetzung und unload führen."
+			"nextAction": "Der APK-belegte, zugriffsgeordnete Drei-Modell-Cache ist mit expliziten Leases, deduplizierten Modellstarts, LRU-Verdrängung nur inaktiver Hosts, Wiederholbarkeit nach Startfehlern sowie vollständigem Shutdown trotz Einzelfehlern abgesichert. Der nun produktiv zusammengesetzte Read-only-Dienst bleibt standardmäßig deaktiviert und serialisiert Start, Wiederverwendung, Stop, Neustart, Gerätewechsel und Shutdown für genau einen aktiven Geräte-Root. Nach der ersten korrelierten Original-Bundle-Antwort bleiben Root, Hermes-Runtime und Ingress bestehen; weitere Bundle-Abfragen aktualisieren denselben Sitzungszustand. Ein Wechsel zwischen zwei realen Geräten desselben Modells gibt Root und Modelllease frei, invalidiert die gerätegebundene Cache-Runtime und startet danach eine neue Generation. Timeout, Abbruch während des Starts, Cleanupfehler und Adapter-Unload sind automatisiert abgesichert; Start, Wiederverwendung, derselbe Modellwechsel und Unload bestanden zusätzlich live. Als Nächstes Paketakquisition und Sitzungsstart über dieselbe zentrale Operation serialisieren, die beabsichtigte Mehrgeräte-/Mehrmodell-Parallelität festlegen und anschließend Laufzeit- sowie Ressourcenbudgets gegen eine zweite technische Pluginfamilie messen."
 		},
 		{
 			"id": "P0B-RESOURCE-LIMITS",
@@ -1259,9 +1270,12 @@
 				"src/lib/appplugin/IoBrokerAppPluginDeviceWire.ts",
 				"src/lib/appplugin/IoBrokerReadOnlyAppPluginDeviceHost.ts",
 				"src/lib/appplugin/IoBrokerReadOnlyAppPluginProbe.ts",
+				"src/lib/appplugin/IoBrokerReadOnlyAppPluginRuntime.ts",
+				"src/lib/appplugin/IoBrokerReadOnlyAppPluginService.ts",
 				"test/unit/appplugin_iobroker_device_wire.test.ts",
 				"test/unit/appplugin_iobroker_read_only_device_host.test.ts",
-				"test/unit/appplugin_apk_read_only_probe_runtime.test.ts"
+				"test/unit/appplugin_apk_read_only_probe_runtime.test.ts",
+				"test/unit/appplugin_iobroker_read_only_service.test.ts"
 			],
 			"nextAction": "Denselben unveränderten Bundle-zu-Wire-zu-Callback-Nachweis für jede neue Modell- oder Protokollfamilie wiederholen; aus zwei a147-Geräten keine familienübergreifende Freigabe ableiten."
 		},

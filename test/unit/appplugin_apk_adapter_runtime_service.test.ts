@@ -145,6 +145,25 @@ describe("APK AppPlugin adapter runtime service", () => {
 			.rejects.toThrow(/bereits beendet/u);
 	});
 
+	it("exposes model invalidation for an inactive persistent session", async () => {
+		const runtime = {
+			start: vi.fn(async () => undefined),
+			stop: vi.fn(async () => undefined),
+		};
+		const adapterRuntime = service(runtime, hostProvider(vi.fn(async () => undefined)));
+		const lease = await adapterRuntime.openDevice({
+			deviceProperties: {},
+			targetDuid: "device-1",
+		});
+		await lease.release();
+
+		await adapterRuntime.invalidateModel("roborock.generic.model");
+
+		expect(runtime.stop).toHaveBeenCalledOnce();
+		expect(adapterRuntime.status()).toEqual([]);
+		await adapterRuntime.shutdown();
+	});
+
 	it("still shuts down host resources when a model runtime fails to stop", async () => {
 		const order: string[] = [];
 		const runtime = {

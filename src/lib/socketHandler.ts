@@ -30,6 +30,11 @@ interface AppPluginReadOnlyProbeMessage {
 	readonly duid?: unknown;
 }
 
+interface AppPluginReadOnlyServiceMessage {
+	readonly confirm?: boolean;
+	readonly duid?: unknown;
+}
+
 export class socketHandler {
 	private adapter: Roborock;
 
@@ -53,6 +58,22 @@ export class socketHandler {
 		this.commandHandlers.set(
 			"appplugin_read_only_probe",
 			msg => this.handleAppPluginReadOnlyProbe(msg),
+		);
+		this.commandHandlers.set(
+			"appplugin_read_only_service_status",
+			() => this.adapter.getAppPluginReadOnlyServiceStatus(),
+		);
+		this.commandHandlers.set(
+			"appplugin_read_only_service_start",
+			msg => this.handleAppPluginReadOnlyServiceStart(msg, false),
+		);
+		this.commandHandlers.set(
+			"appplugin_read_only_service_restart",
+			msg => this.handleAppPluginReadOnlyServiceStart(msg, true),
+		);
+		this.commandHandlers.set(
+			"appplugin_read_only_service_stop",
+			msg => this.handleAppPluginReadOnlyServiceStop(msg),
 		);
 
 		this.commandHandlers.set("app_start", (msg, id) => this.handleSimpleCommand(msg.duid, "app_start", id));
@@ -370,6 +391,28 @@ export class socketHandler {
 			throw new Error("AppPlugin-Read-only-Probe benötigt eine Geräte-ID");
 		}
 		return this.adapter.runAppPluginReadOnlyProbe(message.duid);
+	}
+
+	private async handleAppPluginReadOnlyServiceStart(
+		message: AppPluginReadOnlyServiceMessage,
+		restart: boolean,
+	): ReturnType<Roborock["startAppPluginReadOnlyService"]> {
+		if (message?.confirm !== true) {
+			throw new Error("Langlebiger AppPlugin-Read-only-Dienst benötigt confirm=true");
+		}
+		if (typeof message.duid !== "string" || message.duid.trim().length === 0) {
+			throw new Error("Langlebiger AppPlugin-Read-only-Dienst benötigt eine Geräte-ID");
+		}
+		return this.adapter.startAppPluginReadOnlyService(message.duid, restart);
+	}
+
+	private async handleAppPluginReadOnlyServiceStop(
+		message: AppPluginReadOnlyServiceMessage,
+	): ReturnType<Roborock["stopAppPluginReadOnlyService"]> {
+		if (message?.confirm !== true) {
+			throw new Error("Stoppen des AppPlugin-Read-only-Dienstes benötigt confirm=true");
+		}
+		return this.adapter.stopAppPluginReadOnlyService();
 	}
 
 	/**

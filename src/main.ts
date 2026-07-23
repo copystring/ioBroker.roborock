@@ -22,6 +22,15 @@ import { Feature } from "./lib/features/features.enum";
 import { Device, http_api } from "./lib/httpApi";
 import { local_api } from "./lib/localApi";
 import { runIoBrokerReadOnlyAppPluginProbe } from "./lib/appplugin/IoBrokerReadOnlyAppPluginProbe";
+import {
+	createIoBrokerReadOnlyAppPluginRuntime,
+	createIoBrokerReadOnlyAppPluginRootOptions,
+	IOBROKER_APPPLUGIN_STATUS_READ_METHODS,
+} from "./lib/appplugin/IoBrokerReadOnlyAppPluginRuntime";
+import {
+	IoBrokerReadOnlyAppPluginService,
+	type IoBrokerReadOnlyAppPluginServiceStatus,
+} from "./lib/appplugin/IoBrokerReadOnlyAppPluginService";
 import { MapManager } from "./lib/map/MapManager";
 import { mqtt_api } from "./lib/mqttApi";
 import { PendingMapEntry, RequestPriority, RoborockRequest, requestsHandler } from "./lib/requestsHandler";
@@ -137,6 +146,8 @@ export class Roborock extends utils.Adapter {
 	private readonly activeAppPluginReadOnlyProbes = new Set<Promise<ApkReadOnlyProbeResult>>();
 	private readonly activeAppPluginReadOnlyProbeDevices = new Set<string>();
 	private readonly appPluginProbeShutdownController = new AbortController();
+	private appPluginReadOnlyService: IoBrokerReadOnlyAppPluginService | undefined;
+	private appPluginReadOnlyServiceCreation: Promise<IoBrokerReadOnlyAppPluginService> | undefined;
 	public instance: number = 0;
 	private go2rtcProcess: ChildProcess | null = null;
 	// Bound exit handler to prevent memory leaks while allowing process.removeListener
@@ -1387,6 +1398,25 @@ export class Roborock extends utils.Adapter {
 					new Error("Der Adapter wird beendet"),
 				);
 				await Promise.allSettled([...this.activeAppPluginReadOnlyProbes]);
+				const persistentService = this.appPluginReadOnlyService
+					?? await this.appPluginReadOnlyServiceCreation?.catch(() => undefined);
+				if (persistentService) {
+					try {
+						await persistentService.shutdown();
+					} catch (error) {
+						this.rLog(
+							"System",
+							null,
+							"Warn",
+							undefined,
+							undefined,
+							`Langlebiger AppPlugin-Dienst konnte nicht sauber beendet werden: ${this.errorMessage(error)}`,
+							"warn",
+						);
+					}
+				}
+				this.appPluginReadOnlyService = undefined;
+				this.appPluginReadOnlyServiceCreation = undefined;
 				if (this.mqttReconnectInterval) {
 					this.clearInterval(this.mqttReconnectInterval);
 				}
@@ -1420,43 +1450,17 @@ export class Roborock extends utils.Adapter {
 
 	/** Runs one explicitly confirmed, bounded original-AppPlugin read probe. */
 	public async runAppPluginReadOnlyProbe(targetDuidValue: string): Promise<ApkReadOnlyProbeResult> {
-		const targetDuid = targetDuidValue.trim();
-		if (targetDuid.length === 0) throw new Error("AppPlugin-Probe benötigt eine Geräte-ID");
-		if (this.appPluginProbeShutdownController.signal.aborted) {
-			throw new Error("Der Adapter wird bereits beendet");
-		}
+		const context = await this.appPluginReadOnlyContext(targetDuidValue);
+		const { account, clientId, deviceProperties, packages, targetDuid } = context;
 		if (this.activeAppPluginReadOnlyProbeDevices.has(targetDuid)) {
 			throw new Error(`Für Gerät ${targetDuid} läuft bereits eine AppPlugin-Probe`);
 		}
-		const account = this.appPluginAccountRuntime;
-		const packages = this.appPluginPackageRuntime;
-		if (!account) throw new Error("Die angemeldete AppPlugin-Kontositzung ist nicht bereit");
-		if (!packages) throw new Error("Die AppPlugin-Paketlaufzeit ist nicht bereit");
-		if (!this.mqtt_api.isConnected() && !this.local_api.isConnected(targetDuid)) {
-			throw new Error("Für die AppPlugin-Probe besteht weder eine MQTT- noch eine LAN-Verbindung");
-		}
-		const device = this.http_api.getDevices().find(candidate => candidate.duid === targetDuid);
-		if (!device) throw new Error(`HomeData enthält Gerät ${targetDuid} nicht`);
-		const clientIdState = await this.getStateAsync("clientID");
-		const clientId = typeof clientIdState?.val === "string" ? clientIdState.val.trim() : "";
-		if (clientId.length === 0) throw new Error("Die AppPlugin-Host-Client-ID fehlt");
-		const deviceProperties: Record<string, unknown> = {};
-		if (device.featureSet !== undefined) deviceProperties.featureSet = device.featureSet;
-		if (device.newFeatureSet !== undefined) deviceProperties.newFeatureSet = device.newFeatureSet;
 
 		this.activeAppPluginReadOnlyProbeDevices.add(targetDuid);
 		const operation = runIoBrokerReadOnlyAppPluginProbe({
 			account,
 			adapter: this,
-			// The unchanged B01 AppPlugin uses this parameterless GetInitStatus
-			// query as its read-only status bootstrap before rendering device UI.
-			allowedMethods: [
-				"app_get_init_status",
-				"app_get_status",
-				"get_prop",
-				"get_serial_number",
-				"get_status",
-			],
+			allowedMethods: IOBROKER_APPPLUGIN_STATUS_READ_METHODS,
 			clientId,
 			deviceProperties,
 			ingressRouter: this.appPluginDeviceIngressRouter,
@@ -1475,6 +1479,113 @@ export class Roborock extends utils.Adapter {
 			this.activeAppPluginReadOnlyProbes.delete(operation);
 			this.activeAppPluginReadOnlyProbeDevices.delete(targetDuid);
 		}
+	}
+
+	/** Starts or reuses the explicitly enabled persistent original-AppPlugin root. */
+	public async startAppPluginReadOnlyService(
+		targetDuidValue: string,
+		restart = false,
+	): Promise<ApkReadOnlyProbeResult> {
+		const context = await this.appPluginReadOnlyContext(targetDuidValue);
+		const service = await this.ensureAppPluginReadOnlyService(context);
+		return service.start({
+			deviceProperties: context.deviceProperties,
+			restart,
+			targetDuid: context.targetDuid,
+		});
+	}
+
+	public async stopAppPluginReadOnlyService(): Promise<IoBrokerReadOnlyAppPluginServiceStatus> {
+		const service = this.appPluginReadOnlyService
+			?? await this.appPluginReadOnlyServiceCreation;
+		if (!service) return this.disabledAppPluginReadOnlyServiceStatus();
+		await service.stop();
+		return service.status();
+	}
+
+	public async getAppPluginReadOnlyServiceStatus(): Promise<IoBrokerReadOnlyAppPluginServiceStatus> {
+		const service = this.appPluginReadOnlyService
+			?? await this.appPluginReadOnlyServiceCreation;
+		return service?.status() ?? this.disabledAppPluginReadOnlyServiceStatus();
+	}
+
+	private async appPluginReadOnlyContext(targetDuidValue: string): Promise<{
+		readonly account: ApkAppPluginAuthenticatedAccountRuntime;
+		readonly clientId: string;
+		readonly deviceProperties: Readonly<Record<string, unknown>>;
+		readonly packages: ApkAppPluginPackageRuntime;
+		readonly targetDuid: string;
+	}> {
+		const targetDuid = targetDuidValue.trim();
+		if (targetDuid.length === 0) throw new Error("AppPlugin-Lesezugriff benötigt eine Geräte-ID");
+		if (this.appPluginProbeShutdownController.signal.aborted) {
+			throw new Error("Der Adapter wird bereits beendet");
+		}
+		const account = this.appPluginAccountRuntime;
+		const packages = this.appPluginPackageRuntime;
+		if (!account) throw new Error("Die angemeldete AppPlugin-Kontositzung ist nicht bereit");
+		if (!packages) throw new Error("Die AppPlugin-Paketlaufzeit ist nicht bereit");
+		if (!this.mqtt_api.isConnected() && !this.local_api.isConnected(targetDuid)) {
+			throw new Error("Für den AppPlugin-Lesezugriff besteht weder eine MQTT- noch eine LAN-Verbindung");
+		}
+		const device = this.http_api.getDevices().find(candidate => candidate.duid === targetDuid);
+		if (!device) throw new Error(`HomeData enthält Gerät ${targetDuid} nicht`);
+		const clientIdState = await this.getStateAsync("clientID");
+		const clientId = typeof clientIdState?.val === "string" ? clientIdState.val.trim() : "";
+		if (clientId.length === 0) throw new Error("Die AppPlugin-Host-Client-ID fehlt");
+		const deviceProperties: Record<string, unknown> = {};
+		if (device.featureSet !== undefined) deviceProperties.featureSet = device.featureSet;
+		if (device.newFeatureSet !== undefined) deviceProperties.newFeatureSet = device.newFeatureSet;
+		return { account, clientId, deviceProperties, packages, targetDuid };
+	}
+
+	private ensureAppPluginReadOnlyService(
+		context: Readonly<{
+			account: ApkAppPluginAuthenticatedAccountRuntime;
+			clientId: string;
+			packages: ApkAppPluginPackageRuntime;
+		}>,
+	): Promise<IoBrokerReadOnlyAppPluginService> {
+		if (this.appPluginReadOnlyService) return Promise.resolve(this.appPluginReadOnlyService);
+		if (this.appPluginReadOnlyServiceCreation) return this.appPluginReadOnlyServiceCreation;
+		this.appPluginReadOnlyServiceCreation = Promise.resolve().then(() => {
+			if (this.appPluginProbeShutdownController.signal.aborted) {
+				throw new Error("Der Adapter wird bereits beendet");
+			}
+			const runtime = createIoBrokerReadOnlyAppPluginRuntime({
+				account: context.account,
+				adapter: this,
+				allowedMethods: IOBROKER_APPPLUGIN_STATUS_READ_METHODS,
+				clientId: context.clientId,
+				ingressRouter: this.appPluginDeviceIngressRouter,
+				instanceDataDirectory: utils.getAbsoluteInstanceDataDir(this),
+				language: "de",
+				localeIdentifier: "de_DE",
+				packages: context.packages,
+			});
+			const service = new IoBrokerReadOnlyAppPluginService(
+				runtime,
+				this.appPluginDeviceIngressRouter,
+				{
+					root: createIoBrokerReadOnlyAppPluginRootOptions("de_DE"),
+					timeoutMilliseconds: 20_000,
+				},
+			);
+			this.appPluginReadOnlyService = service;
+			return service;
+		}).catch(error => {
+			this.appPluginReadOnlyServiceCreation = undefined;
+			throw error;
+		});
+		return this.appPluginReadOnlyServiceCreation;
+	}
+
+	private disabledAppPluginReadOnlyServiceStatus(): IoBrokerReadOnlyAppPluginServiceStatus {
+		return Object.freeze({
+			enabled: false,
+			models: Object.freeze([]),
+			state: "idle",
+		});
 	}
 
 	/**

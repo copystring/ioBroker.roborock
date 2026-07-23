@@ -32,6 +32,26 @@ function harness(options?: {
 		protocolVersion: "1.0",
 		serializedDps: "{\"102\":{\"id\":7,\"result\":{\"state\":8}}}",
 	}));
+	const startAppPluginReadOnlyService = vi.fn(async (duid: string, restart: boolean) => ({
+		activeTime: 17,
+		deviceId: duid,
+		elapsedMilliseconds: 25,
+		model: "roborock.mower.generic",
+		parsedDps: { "102": { id: 7, result: { state: 8 } } },
+		protocolVersion: "1.0",
+		restart,
+		serializedDps: "{\"102\":{\"id\":7,\"result\":{\"state\":8}}}",
+	}));
+	const getAppPluginReadOnlyServiceStatus = vi.fn(async () => ({
+		enabled: true,
+		models: [],
+		state: "running",
+	}));
+	const stopAppPluginReadOnlyService = vi.fn(async () => ({
+		enabled: false,
+		models: [],
+		state: "idle",
+	}));
 	const acquireForDevice = vi.fn(async () => {
 		if (options?.acquisitionError) {
 			throw options.acquisitionError;
@@ -67,16 +87,22 @@ function harness(options?: {
 		errorMessage: (error: unknown) =>
 			error instanceof Error ? error.message : String(error),
 		http_api: {},
+		getAppPluginReadOnlyServiceStatus,
 		rLog: vi.fn(),
 		runAppPluginReadOnlyProbe,
 		sendTo,
+		startAppPluginReadOnlyService,
+		stopAppPluginReadOnlyService,
 	};
 	return {
 		acquireForDevice,
 		adapter,
 		handler: new socketHandler(adapter as never),
+		getAppPluginReadOnlyServiceStatus,
 		runAppPluginReadOnlyProbe,
 		sendTo,
+		startAppPluginReadOnlyService,
+		stopAppPluginReadOnlyService,
 	};
 }
 
@@ -195,5 +221,52 @@ describe("AppPlugin package message handling", () => {
 			model: "roborock.mower.generic",
 			parsedDps: { "102": { id: 7, result: { state: 8 } } },
 		});
+	});
+
+	it("keeps persistent service lifecycle opt-in and exposes read-only status", async () => {
+		const {
+			getAppPluginReadOnlyServiceStatus,
+			handler,
+			sendTo,
+			startAppPluginReadOnlyService,
+			stopAppPluginReadOnlyService,
+		} = harness();
+
+		await handler.handleMessage(message("appplugin_read_only_service_status", {}));
+		expect(getAppPluginReadOnlyServiceStatus).toHaveBeenCalledOnce();
+		expect(sendTo.mock.calls.at(-1)?.[2]).toMatchObject({
+			enabled: true,
+			state: "running",
+		});
+
+		await handler.handleMessage(message(
+			"appplugin_read_only_service_start",
+			{ duid: "mower-1" },
+		));
+		expect(startAppPluginReadOnlyService).not.toHaveBeenCalled();
+		expect(sendTo.mock.calls.at(-1)?.[2]).toEqual({
+			error: "Langlebiger AppPlugin-Read-only-Dienst benötigt confirm=true",
+		});
+
+		await handler.handleMessage(message(
+			"appplugin_read_only_service_start",
+			{ confirm: true, duid: "mower-1" },
+		));
+		await handler.handleMessage(message(
+			"appplugin_read_only_service_restart",
+			{ confirm: true, duid: "mower-1" },
+		));
+		expect(startAppPluginReadOnlyService.mock.calls).toEqual([
+			["mower-1", false],
+			["mower-1", true],
+		]);
+
+		await handler.handleMessage(message("appplugin_read_only_service_stop", {}));
+		expect(stopAppPluginReadOnlyService).not.toHaveBeenCalled();
+		await handler.handleMessage(message(
+			"appplugin_read_only_service_stop",
+			{ confirm: true },
+		));
+		expect(stopAppPluginReadOnlyService).toHaveBeenCalledOnce();
 	});
 });

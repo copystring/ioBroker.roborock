@@ -18,6 +18,7 @@ import type {
 	ApkAppPluginPackageRuntime,
 	ApkInstalledMainPluginPackage,
 } from "./apkPluginPackageRuntime";
+import { apkMainPluginPackageKey } from "./apkPluginPackageInstaller";
 
 export interface ApkAppPluginDeviceModelContext {
 	readonly authenticatedHttpPorts: ApkAuthenticatedHttpAdapterPorts;
@@ -158,6 +159,23 @@ export class ApkAppPluginDeviceSessionRuntime<
 
 	public status(): readonly ApkAppPluginModelRuntimeStatus[] {
 		return this.#supervisor.status();
+	}
+
+	/**
+	 * Stops one inactive cached model runtime without touching its installed
+	 * package. A persistent UI session uses this after releasing its root and
+	 * model lease so another device of the same model cannot inherit stale
+	 * device identity or activeTime.
+	 */
+	public async invalidateModel(modelValue: string): Promise<void> {
+		if (this.#shutdownRequested) {
+			throw new Error("Die AppPlugin-Gerätelaufzeit wurde bereits beendet");
+		}
+		const model = apkMainPluginPackageKey(modelValue);
+		return this.#withModelOperation(model, async () => {
+			this.#assertRunning();
+			await this.#supervisor.invalidate(model);
+		});
 	}
 
 	public shutdown(): Promise<void> {
