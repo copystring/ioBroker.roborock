@@ -159,8 +159,15 @@ function packageNameFor(root, sourcePath) {
 
 async function inspectArchive(archivePath, root) {
 	try {
-		const zip = await JSZip.loadAsync(fs.readFileSync(archivePath));
-		const bundleEntries = Object.values(zip.files)
+		const archive = fs.readFileSync(archivePath);
+		const zip = await JSZip.loadAsync(archive);
+		const entries = Object.values(zip.files);
+		const fileEntries = entries.filter(entry => !entry.dir);
+		const uncompressedEntryBytes = fileEntries.map(entry => {
+			const bytes = entry?._data?.uncompressedSize;
+			return Number.isSafeInteger(bytes) && bytes >= 0 ? bytes : 0;
+		});
+		const bundleEntries = fileEntries
 			.filter(entry => !entry.dir && /(^|\/)index\.android\.bundle$/u.test(entry.name));
 		if (bundleEntries.length !== 1) {
 			return {
@@ -178,6 +185,11 @@ async function inspectArchive(archivePath, root) {
 			bundleEntry: bundleEntries[0].name,
 			packageName: packageNameFor(root, archivePath),
 			status: "inspected",
+			archiveBytes: archive.length,
+			archiveEntries: entries.length,
+			archiveFileEntries: fileEntries.length,
+			archiveUncompressedBytes: uncompressedEntryBytes.reduce((sum, bytes) => sum + bytes, 0),
+			largestArchiveEntryBytes: Math.max(0, ...uncompressedEntryBytes),
 			...inspectBundleBuffer(bundle)
 		};
 	} catch (error) {
@@ -234,6 +246,7 @@ function directInitStatus(sources) {
 		.map(source => source.runtimeStatus);
 	if (statuses.includes("failed")) return "failed";
 	if (statuses.includes("passed")) return "passed";
+	if (statuses.includes("device-session-required")) return "device-session-required";
 	if (statuses.includes("bridge-host-required")) return "bridge-host-required";
 	return "not-run";
 }
@@ -332,9 +345,10 @@ async function buildMapInventory(rootDir, options = {}) {
 	for (const bundle of uniqueBundles) familyCounts[bundle.classification.id] = (familyCounts[bundle.classification.id] ?? 0) + 1;
 	const failedArchiveSources = archiveSources.filter(source => source.status === "failed");
 	const unmatchedArchiveSources = archiveSources.filter(source => source.status === "inspected" && source.matchedExtractedPaths.length === 0);
+	const inspectedArchiveSources = archiveSources.filter(source => source.status === "inspected");
 
 	return {
-		schemaVersion: 1,
+		schemaVersion: 2,
 		root: path.basename(root),
 		summary: {
 			topLevelPackages: packages.length,
@@ -347,6 +361,11 @@ async function buildMapInventory(rootDir, options = {}) {
 			failedArchiveSources: failedArchiveSources.length,
 			unmatchedArchiveSources: unmatchedArchiveSources.length,
 			unresolvedMapFamilies: uniqueBundles.filter(bundle => bundle.classification.id.endsWith("unresolved") || bundle.classification.id === "unresolved").length,
+			largestArchiveBytes: Math.max(0, ...inspectedArchiveSources.map(source => source.archiveBytes)),
+			largestArchiveEntryCount: Math.max(0, ...inspectedArchiveSources.map(source => source.archiveEntries)),
+			largestArchiveFileCount: Math.max(0, ...inspectedArchiveSources.map(source => source.archiveFileEntries)),
+			largestArchiveEntryBytes: Math.max(0, ...inspectedArchiveSources.map(source => source.largestArchiveEntryBytes)),
+			largestArchiveUncompressedBytes: Math.max(0, ...inspectedArchiveSources.map(source => source.archiveUncompressedBytes)),
 			familyCounts
 		},
 		packages,
@@ -363,6 +382,7 @@ function runtimeLabel(status) {
 	return ({
 		passed: "Initialisierung bestanden",
 		failed: "Fehlgeschlagen",
+		"device-session-required": "Echte Gerätesitzung erforderlich",
 		"bridge-host-required": "Hermes-Host erforderlich",
 		"not-run": "Nicht ausgeführt"
 	})[status] ?? status;

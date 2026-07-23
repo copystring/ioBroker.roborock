@@ -3,7 +3,7 @@
 	"project": "ioBroker Roborock AppPlugin-first Rework",
 	"lastReviewed": "2026-07-23",
 	"currentPhase": "0C",
-	"currentFocus": ["P0B-DEVICE-BOOTSTRAP", "P0B-REACT-NATIVE-BRIDGE", "P0B-APK-HOST-SERVICES", "P0B-CROSS-PLATFORM", "P0C-Q7-FULL-SCENE", "P0C-CROSS-FAMILY-MATRIX"],
+	"currentFocus": ["P0B-DEVICE-BOOTSTRAP", "P0B-REACT-NATIVE-BRIDGE", "P0B-APK-HOST-SERVICES", "P0B-RESOURCE-LIMITS", "P0B-CROSS-PLATFORM", "P0C-Q7-FULL-SCENE", "P0C-CROSS-FAMILY-MATRIX"],
 	"nextUp": ["P0C-ANDROID-DIFFERENTIAL", "P0C-GOLDEN-HARNESS", "P0C-RESILIENCE"],
 	"phases": [
 		{
@@ -590,18 +590,30 @@
 				"test/unit/appplugin_apk_hermes_host_session.test.ts",
 				"docs/APK_APPPLUGIN_EXECUTION_MODEL.md"
 			],
-			"nextAction": "Der APK-belegte, zugriffsgeordnete Drei-Modell-Cache ist mit expliziten Leases, deduplizierten Modellstarts, LRU-Verdrängung nur inaktiver Hosts, Wiederholbarkeit nach Startfehlern sowie vollständigem Shutdown trotz Einzelfehlern abgesichert. Der produktiv zusammengesetzte Read-only-Dienst bleibt standardmäßig deaktiviert und serialisiert Start, Wiederverwendung, Stop, Neustart, Gerätewechsel und Shutdown für genau einen aktiven Geräte-Root. Eine adapterweite Lifecycle-Operation ordnet nun zusätzlich Einmal-Probe, langlebigen Start beziehungsweise Neustart und signierte Paketaktivierung. Der Dienst blockiert eine Paketersetzung bei aktivem oder wechselndem Root vor jedem Netzwerkzugriff; ein zuerst angenommener Paketvorgang schließt ab, bevor eine neue Sitzung startet, Fehler vergiften die Warteschlange nicht, und Unload sperrt neue Vorgänge, bricht den angenommenen Vorgang ab und wartet dessen Abschluss. Nach der ersten korrelierten Original-Bundle-Antwort bleiben Root, Hermes-Runtime und Ingress bestehen; weitere Bundle-Abfragen aktualisieren denselben Sitzungszustand. Ein Wechsel zwischen zwei realen Geräten desselben Modells gibt Root und Modelllease frei, invalidiert die gerätegebundene Cache-Runtime und startet danach eine neue Generation. Timeout, Abbruch während des Starts oder Paketvorgangs, Cleanupfehler und Adapter-Unload sind automatisiert abgesichert; Start, Wiederverwendung, derselbe Modellwechsel und Unload bestanden zusätzlich live. Nach der Lifecycle-Änderung lieferte der unveränderte a147-Bundle-Statusweg erneut nach 770 ms und ließ sich sauber stoppen. Als Nächstes die beabsichtigte Mehrgeräte-/Mehrmodell-Parallelität festlegen und anschließend Laufzeit- sowie Ressourcenbudgets gegen eine zweite technische Pluginfamilie messen."
+			"nextAction": "Der APK-belegte, zugriffsgeordnete Drei-Modell-Cache ist mit expliziten Leases, deduplizierten Modellstarts, LRU-Verdrängung nur inaktiver Hosts, Wiederholbarkeit nach Startfehlern sowie vollständigem Shutdown trotz Einzelfehlern abgesichert. Der produktiv zusammengesetzte Read-only-Dienst bleibt standardmäßig deaktiviert und serialisiert Start, Wiederverwendung, Stop, Neustart, Gerätewechsel und Shutdown für genau einen aktiven Geräte-Root. Eine adapterweite Lifecycle-Operation ordnet zusätzlich Einmal-Probe, langlebigen Start beziehungsweise Neustart und signierte Paketaktivierung. Der Dienst blockiert eine Paketersetzung bei aktivem oder wechselndem Root vor jedem Netzwerkzugriff; ein zuerst angenommener Paketvorgang schließt ab, bevor eine neue Sitzung startet, Fehler vergiften die Warteschlange nicht, und Unload sperrt neue Vorgänge, bricht den angenommenen Vorgang ab und wartet dessen Abschluss. APK-Cachegrenze, ioBroker-Rootgrenze und Host-Sicherheitsgrenzen sind nun als getrennte, unveränderliche und über den Dienststatus lesbare Policy erfasst. Nach der ersten korrelierten Original-Bundle-Antwort bleiben Root, Hermes-Runtime und Ingress bestehen; weitere Bundle-Abfragen aktualisieren denselben Sitzungszustand. Ein Wechsel zwischen zwei realen Geräten desselben Modells gibt Root und Modelllease frei, invalidiert die gerätegebundene Cache-Runtime und startet danach eine neue Generation. Timeout, Abbruch während des Starts oder Paketvorgangs, Cleanupfehler und Adapter-Unload sind automatisiert abgesichert; Start, Wiederverwendung, derselbe Modellwechsel und Unload bestanden zusätzlich live. Nach der Lifecycle-Änderung lieferte der unveränderte a147-Bundle-Statusweg erneut nach 770 ms und ließ sich sauber stoppen. Als Nächstes Spitzen-RSS und CPU-Zeit des vollständigen Node- plus Kindprozessbaums messen und dieselben Betriebsgrenzen gegen eine zweite technische Pluginfamilie ausführen."
 		},
 		{
 			"id": "P0B-RESOURCE-LIMITS",
 			"phase": "0B",
 			"area": "Betrieb",
 			"title": "Zeit-, RAM-, CPU-, Datei- und Netzwerkgrenzen des Hosts messen und erzwingen",
-			"status": "pending",
+			"status": "in_progress",
 			"priority": "P0",
 			"dependsOn": ["P0B-SESSION-LIFECYCLE"],
-			"evidence": [],
-			"nextAction": "Messbare Budgets, harte Timeouts und reproduzierbare Abbruchtests für jede Runtime festlegen."
+			"evidence": [
+				"src/lib/appplugin/IoBrokerAppPluginOperatingPolicy.ts",
+				"src/apppluginHost/apkAppPluginSessionSupervisor.ts",
+				"src/apppluginHost/apkHermesHostSession.ts",
+				"src/apppluginHost/apkHostServiceProtocol.ts",
+				"src/apppluginHost/apkPluginAcquisition.ts",
+				"src/apppluginHost/apkPluginPackageInstaller.ts",
+				"scripts/lib/appplugin_map_inventory.js",
+				"docs/generated/appplugin-map-inventory.json",
+				"docs/APPPLUGIN_RUNTIME_OPERATING_POLICY.md",
+				"test/unit/appplugin_iobroker_operating_policy.test.ts",
+				"test/unit/appplugin_map_inventory.test.ts"
+			],
+			"nextAction": "Der APK-belegte Drei-Modell-Cache, genau ein aktiver ioBroker-Geräte-Root, genau eine Lifecycle-Operation sowie die bereits erzwungenen Hermes-, Hostdienst-, Download- und ZIP-Grenzen sind in einer unveränderlichen Betriebs-Policy zusammengeführt und über den Dienststatus sichtbar. Die Inventur vermisst alle 13 lokalen Archive direkt und verhindert automatisch, dass ein neues Originalpaket unbemerkt an den Datei- oder Größenlimits scheitert. Aktuell liegen 55.397.196 Archivbytes, 1964 ZIP-Einträge, 12.179.304 Bytes für den größten Eintrag und 65.613.149 entpackte Bytes innerhalb der erzwungenen Hülle. Als Nächstes Spitzen-RSS, CPU-Zeit, Start, Leerlauf, Interaktion und Cleanup für den vollständigen Node- plus Kindprozessbaum messen und daraus belastbare Alarm-, Kill- und Neustartbudgets pro technischer Pluginfamilie ableiten."
 		},
 		{
 			"id": "P0B-CROSS-PLATFORM",

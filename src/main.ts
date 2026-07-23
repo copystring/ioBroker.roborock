@@ -22,6 +22,7 @@ import { Feature } from "./lib/features/features.enum";
 import { Device, http_api } from "./lib/httpApi";
 import { local_api } from "./lib/localApi";
 import { IoBrokerAppPluginLifecycleCoordinator } from "./lib/appplugin/IoBrokerAppPluginLifecycleCoordinator";
+import { IOBROKER_APPPLUGIN_OPERATING_POLICY } from "./lib/appplugin/IoBrokerAppPluginOperatingPolicy";
 import { runIoBrokerReadOnlyAppPluginProbe } from "./lib/appplugin/IoBrokerReadOnlyAppPluginProbe";
 import {
 	createIoBrokerReadOnlyAppPluginRuntime,
@@ -1483,7 +1484,8 @@ export class Roborock extends utils.Adapter {
 				packages,
 				signal: this.appPluginProbeShutdownController.signal,
 				targetDuid,
-				timeoutMilliseconds: 20_000,
+				timeoutMilliseconds:
+					IOBROKER_APPPLUGIN_OPERATING_POLICY.readOnly.responseTimeoutMilliseconds,
 			}),
 		);
 		this.activeAppPluginReadOnlyProbes.add(operation);
@@ -1606,7 +1608,8 @@ export class Roborock extends utils.Adapter {
 				this.appPluginDeviceIngressRouter,
 				{
 					root: createIoBrokerReadOnlyAppPluginRootOptions("de_DE"),
-					timeoutMilliseconds: 20_000,
+					timeoutMilliseconds:
+						IOBROKER_APPPLUGIN_OPERATING_POLICY.readOnly.responseTimeoutMilliseconds,
 				},
 			);
 			this.appPluginReadOnlyService = service;
@@ -1622,6 +1625,7 @@ export class Roborock extends utils.Adapter {
 		return Object.freeze({
 			enabled: false,
 			models: Object.freeze([]),
+			policy: IOBROKER_APPPLUGIN_OPERATING_POLICY,
 			state: "idle",
 		});
 	}

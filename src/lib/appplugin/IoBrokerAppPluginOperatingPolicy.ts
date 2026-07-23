@@ -1,0 +1,36 @@
+import {
+	APK_APPPLUGIN_MODEL_RUNTIME_CACHE_LIMIT,
+	APK_HERMES_HOST_DEFAULT_LIMITS,
+	APK_HOST_SERVICE_DEFAULT_MAX_PENDING_REQUESTS,
+	APK_HOST_SERVICE_DEFAULT_PROTOCOL_LIMITS,
+	APK_HOST_SERVICE_DEFAULT_TIMEOUT_MILLISECONDS,
+	APK_PLUGIN_DEFAULT_DOWNLOAD_TIMEOUT_MS,
+	APK_PLUGIN_DEFAULT_INSTALLER_LIMITS,
+	APK_PLUGIN_DEFAULT_MAX_DOWNLOAD_BYTES,
+} from "../../apppluginHost";
+
+export const IOBROKER_APPPLUGIN_OPERATING_POLICY = Object.freeze({
+	schemaVersion: 1,
+	concurrency: Object.freeze({
+		maxActiveDeviceRoots: 1,
+		maxConcurrentLifecycleOperations: 1,
+		maxCachedModelRuntimes: APK_APPPLUGIN_MODEL_RUNTIME_CACHE_LIMIT,
+	}),
+	hermes: Object.freeze({ ...APK_HERMES_HOST_DEFAULT_LIMITS }),
+	hostServices: Object.freeze({
+		...APK_HOST_SERVICE_DEFAULT_PROTOCOL_LIMITS,
+		maxPendingRequests: APK_HOST_SERVICE_DEFAULT_MAX_PENDING_REQUESTS,
+		timeoutMilliseconds: APK_HOST_SERVICE_DEFAULT_TIMEOUT_MILLISECONDS,
+	}),
+	package: Object.freeze({
+		downloadTimeoutMilliseconds: APK_PLUGIN_DEFAULT_DOWNLOAD_TIMEOUT_MS,
+		maxDownloadBytes: APK_PLUGIN_DEFAULT_MAX_DOWNLOAD_BYTES,
+		...APK_PLUGIN_DEFAULT_INSTALLER_LIMITS,
+	}),
+	readOnly: Object.freeze({
+		responseTimeoutMilliseconds: 20_000,
+	}),
+});
+
+export type IoBrokerAppPluginOperatingPolicy =
+	typeof IOBROKER_APPPLUGIN_OPERATING_POLICY;

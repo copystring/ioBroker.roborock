@@ -32,6 +32,14 @@ export interface ApkHermesHostSessionOptions {
 	onInvocationRejection?: (rejection: Readonly<ApkHermesNativeInvocationRejection>) => void;
 }
 
+export const APK_HERMES_HOST_DEFAULT_LIMITS = Object.freeze({
+	maxHeapMegabytes: 256,
+	maxProtocolLineBytes: 64 * 1024 * 1024,
+	maxStderrBytes: 64 * 1024,
+	shutdownTimeoutMs: 5_000,
+	startupTimeoutMs: 15_000,
+});
+
 interface Deferred<T> {
 	promise: Promise<T>;
 	resolve: (value: T) => void;
@@ -143,11 +151,12 @@ export class ApkHermesHostSession {
 	public constructor(options: ApkHermesHostSessionOptions) {
 		this.#options = {
 			...options,
-			startupTimeoutMs: options.startupTimeoutMs ?? 15_000,
-			shutdownTimeoutMs: options.shutdownTimeoutMs ?? 5_000,
-			maxProtocolLineBytes: options.maxProtocolLineBytes ?? 64 * 1024 * 1024,
-			maxStderrBytes: options.maxStderrBytes ?? 64 * 1024,
-			maxHeapMegabytes: options.maxHeapMegabytes ?? 256,
+			startupTimeoutMs: options.startupTimeoutMs ?? APK_HERMES_HOST_DEFAULT_LIMITS.startupTimeoutMs,
+			shutdownTimeoutMs: options.shutdownTimeoutMs ?? APK_HERMES_HOST_DEFAULT_LIMITS.shutdownTimeoutMs,
+			maxProtocolLineBytes: options.maxProtocolLineBytes
+				?? APK_HERMES_HOST_DEFAULT_LIMITS.maxProtocolLineBytes,
+			maxStderrBytes: options.maxStderrBytes ?? APK_HERMES_HOST_DEFAULT_LIMITS.maxStderrBytes,
+			maxHeapMegabytes: options.maxHeapMegabytes ?? APK_HERMES_HOST_DEFAULT_LIMITS.maxHeapMegabytes,
 		};
 		this.#decoder = new ApkHermesJsonLineDecoder(this.#options.maxProtocolLineBytes);
 		if (!Number.isSafeInteger(this.#options.maxHeapMegabytes) || this.#options.maxHeapMegabytes < 32) {

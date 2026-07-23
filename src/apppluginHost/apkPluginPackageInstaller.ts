@@ -114,12 +114,12 @@ export interface ApkPluginPackageInstallerLimits {
 	readonly maxExtractedBytes: number;
 }
 
-const DEFAULT_INSTALLER_LIMITS: ApkPluginPackageInstallerLimits = {
+export const APK_PLUGIN_DEFAULT_INSTALLER_LIMITS: Readonly<ApkPluginPackageInstallerLimits> = Object.freeze({
 	maxArchiveBytes: 128 * MEBIBYTE,
 	maxEntries: 4096,
 	maxEntryBytes: 128 * MEBIBYTE,
 	maxExtractedBytes: 512 * MEBIBYTE,
-};
+});
 
 interface PackagePaths {
 	readonly active: string;
@@ -153,7 +153,7 @@ function positiveLimit(value: number, name: string): number {
 function normalizedLimits(
 	limits?: Partial<ApkPluginPackageInstallerLimits>,
 ): ApkPluginPackageInstallerLimits {
-	const merged = { ...DEFAULT_INSTALLER_LIMITS, ...limits };
+	const merged = { ...APK_PLUGIN_DEFAULT_INSTALLER_LIMITS, ...limits };
 	return {
 		maxArchiveBytes: positiveLimit(merged.maxArchiveBytes, "Maximale Paketgröße"),
 		maxEntries: positiveLimit(merged.maxEntries, "Maximale Dateianzahl"),

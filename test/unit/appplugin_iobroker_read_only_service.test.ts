@@ -11,6 +11,7 @@ import {
 	IoBrokerReadOnlyAppPluginService,
 	type IoBrokerReadOnlyAppPluginServiceRuntime,
 } from "../../src/lib/appplugin/IoBrokerReadOnlyAppPluginService";
+import { IOBROKER_APPPLUGIN_OPERATING_POLICY } from "../../src/lib/appplugin/IoBrokerAppPluginOperatingPolicy";
 
 function deferred() {
 	let resolve!: () => void;
@@ -177,6 +178,7 @@ describe("ioBroker persistent read-only AppPlugin service", () => {
 				rootTag: 11,
 			},
 			enabled: true,
+			policy: IOBROKER_APPPLUGIN_OPERATING_POLICY,
 			state: "running",
 		});
 		await service.stop();

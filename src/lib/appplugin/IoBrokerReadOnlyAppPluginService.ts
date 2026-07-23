@@ -10,6 +10,10 @@ import type {
 	ApkReadOnlyProbeResult,
 	ApkReadOnlyProbeRootOptions,
 } from "../../apppluginHost";
+import {
+	IOBROKER_APPPLUGIN_OPERATING_POLICY,
+	type IoBrokerAppPluginOperatingPolicy,
+} from "./IoBrokerAppPluginOperatingPolicy";
 import { isIoBrokerAppPluginStatusResponse } from "./IoBrokerReadOnlyAppPluginRuntime";
 
 export type IoBrokerReadOnlyAppPluginServiceState =
@@ -40,6 +44,7 @@ export interface IoBrokerReadOnlyAppPluginServiceStatus {
 	readonly active?: IoBrokerReadOnlyAppPluginActiveSessionStatus;
 	readonly enabled: boolean;
 	readonly models: readonly ApkAppPluginModelRuntimeStatus[];
+	readonly policy: IoBrokerAppPluginOperatingPolicy;
 	readonly state: IoBrokerReadOnlyAppPluginServiceState;
 }
 
@@ -136,7 +141,8 @@ export class IoBrokerReadOnlyAppPluginService {
 		this.#runtime = runtime;
 		this.#root = Object.freeze({ ...options.root });
 		this.#timeoutMilliseconds = positiveInteger(
-			options.timeoutMilliseconds ?? 20_000,
+			options.timeoutMilliseconds
+				?? IOBROKER_APPPLUGIN_OPERATING_POLICY.readOnly.responseTimeoutMilliseconds,
 			"AppPlugin-Dienst-Timeout",
 		);
 		this.#unsubscribe = ingressRouter.subscribeJson(
@@ -221,6 +227,7 @@ export class IoBrokerReadOnlyAppPluginService {
 				|| this.#state === "running"
 				|| this.#state === "stopping",
 			models: this.#runtime.status(),
+			policy: IOBROKER_APPPLUGIN_OPERATING_POLICY,
 			state: this.#state,
 		});
 	}

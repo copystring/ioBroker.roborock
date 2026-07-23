@@ -78,19 +78,21 @@ export interface ApkHostServiceProtocolLimits {
 	maxStringBytes?: number;
 }
 
-interface ResolvedProtocolLimits {
+export interface ApkHostServiceResolvedProtocolLimits {
 	maxDepth: number;
 	maxLineBytes: number;
 	maxNodes: number;
 	maxStringBytes: number;
 }
 
-const DEFAULT_PROTOCOL_LIMITS: ResolvedProtocolLimits = {
+export const APK_HOST_SERVICE_DEFAULT_PROTOCOL_LIMITS: Readonly<ApkHostServiceResolvedProtocolLimits> = Object.freeze({
 	maxDepth: 32,
 	maxLineBytes: 32 * 1024 * 1024,
 	maxNodes: 100_000,
 	maxStringBytes: 16 * 1024 * 1024,
-};
+});
+export const APK_HOST_SERVICE_DEFAULT_MAX_PENDING_REQUESTS = 32;
+export const APK_HOST_SERVICE_DEFAULT_TIMEOUT_MILLISECONDS = 10_000;
 
 const SERVICE_OPERATION_SET = new Set<string>(APK_HOST_SERVICE_OPERATIONS);
 const ERROR_CODE_SET = new Set<ApkHostServiceErrorCode>([
@@ -111,12 +113,28 @@ function positiveInteger(value: number | undefined, fallback: number, name: stri
 	return resolved;
 }
 
-function resolveLimits(limits: ApkHostServiceProtocolLimits = {}): ResolvedProtocolLimits {
+function resolveLimits(limits: ApkHostServiceProtocolLimits = {}): ApkHostServiceResolvedProtocolLimits {
 	return {
-		maxDepth: positiveInteger(limits.maxDepth, DEFAULT_PROTOCOL_LIMITS.maxDepth, "maxDepth"),
-		maxLineBytes: positiveInteger(limits.maxLineBytes, DEFAULT_PROTOCOL_LIMITS.maxLineBytes, "maxLineBytes"),
-		maxNodes: positiveInteger(limits.maxNodes, DEFAULT_PROTOCOL_LIMITS.maxNodes, "maxNodes"),
-		maxStringBytes: positiveInteger(limits.maxStringBytes, DEFAULT_PROTOCOL_LIMITS.maxStringBytes, "maxStringBytes"),
+		maxDepth: positiveInteger(
+			limits.maxDepth,
+			APK_HOST_SERVICE_DEFAULT_PROTOCOL_LIMITS.maxDepth,
+			"maxDepth",
+		),
+		maxLineBytes: positiveInteger(
+			limits.maxLineBytes,
+			APK_HOST_SERVICE_DEFAULT_PROTOCOL_LIMITS.maxLineBytes,
+			"maxLineBytes",
+		),
+		maxNodes: positiveInteger(
+			limits.maxNodes,
+			APK_HOST_SERVICE_DEFAULT_PROTOCOL_LIMITS.maxNodes,
+			"maxNodes",
+		),
+		maxStringBytes: positiveInteger(
+			limits.maxStringBytes,
+			APK_HOST_SERVICE_DEFAULT_PROTOCOL_LIMITS.maxStringBytes,
+			"maxStringBytes",
+		),
 	};
 }
 
@@ -170,7 +188,10 @@ function assertRequestId(value: unknown): asserts value is number {
 	}
 }
 
-function assertWireValue(value: unknown, limits: ResolvedProtocolLimits): asserts value is ApkHostServiceWireValue {
+function assertWireValue(
+	value: unknown,
+	limits: ApkHostServiceResolvedProtocolLimits,
+): asserts value is ApkHostServiceWireValue {
 	let nodes = 0;
 	const visit = (candidate: unknown, depth: number): void => {
 		nodes += 1;
@@ -218,7 +239,10 @@ function assertEnvelope(value: unknown): asserts value is Record<string, unknown
 	}
 }
 
-function assertMessage(value: unknown, limits: ResolvedProtocolLimits): asserts value is ApkHostServiceMessage {
+function assertMessage(
+	value: unknown,
+	limits: ApkHostServiceResolvedProtocolLimits,
+): asserts value is ApkHostServiceMessage {
 	assertEnvelope(value);
 	assertRequestId(value.requestId);
 	if (value.type === "request") {
@@ -332,8 +356,16 @@ export class ApkHostServiceClient {
 		options: ApkHostServiceClientOptions = {},
 	) {
 		this.#limits = options;
-		this.#maxPendingRequests = positiveInteger(options.maxPendingRequests, 32, "maxPendingRequests");
-		this.#timeoutMilliseconds = positiveInteger(options.timeoutMilliseconds, 10_000, "timeoutMilliseconds");
+		this.#maxPendingRequests = positiveInteger(
+			options.maxPendingRequests,
+			APK_HOST_SERVICE_DEFAULT_MAX_PENDING_REQUESTS,
+			"maxPendingRequests",
+		);
+		this.#timeoutMilliseconds = positiveInteger(
+			options.timeoutMilliseconds,
+			APK_HOST_SERVICE_DEFAULT_TIMEOUT_MILLISECONDS,
+			"timeoutMilliseconds",
+		);
 		this.#nextRequestId = positiveInteger(options.initialRequestId, 1, "initialRequestId");
 		if (this.#nextRequestId > 0x7fff_ffff) throw new Error("initialRequestId überschreitet 2147483647");
 		this.#setTimer = options.setTimer ?? setTimeout;

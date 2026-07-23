@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { IOBROKER_APPPLUGIN_OPERATING_POLICY } from "../../src/lib/appplugin/IoBrokerAppPluginOperatingPolicy";
 import { socketHandler } from "../../src/lib/socketHandler";
 
 function message(
@@ -45,6 +46,7 @@ function harness(options?: {
 	const getAppPluginReadOnlyServiceStatus = vi.fn(async () => ({
 		enabled: true,
 		models: [],
+		policy: IOBROKER_APPPLUGIN_OPERATING_POLICY,
 		state: "running",
 	}));
 	const stopAppPluginReadOnlyService = vi.fn(async () => ({
@@ -248,6 +250,7 @@ describe("AppPlugin package message handling", () => {
 		expect(getAppPluginReadOnlyServiceStatus).toHaveBeenCalledOnce();
 		expect(sendTo.mock.calls.at(-1)?.[2]).toMatchObject({
 			enabled: true,
+			policy: IOBROKER_APPPLUGIN_OPERATING_POLICY,
 			state: "running",
 		});
 

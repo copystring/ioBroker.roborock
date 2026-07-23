@@ -21,8 +21,8 @@ export const APK_MAIN_PLUGIN_INCOMPATIBLE_ERROR_CODE = -21023;
 export const APK_MAIN_PLUGIN_URL_ERROR_CODE = -21024;
 
 const MEBIBYTE = 1024 * 1024;
-const DEFAULT_MAX_DOWNLOAD_BYTES = 128 * MEBIBYTE;
-const DEFAULT_DOWNLOAD_TIMEOUT_MS = 60_000;
+export const APK_PLUGIN_DEFAULT_MAX_DOWNLOAD_BYTES = 128 * MEBIBYTE;
+export const APK_PLUGIN_DEFAULT_DOWNLOAD_TIMEOUT_MS = 60_000;
 
 export interface ApkMainPluginVersionRequestBody {
 	readonly apilevel: typeof APK_MAIN_PLUGIN_REQUEST_API_LEVEL;
@@ -290,11 +290,11 @@ export class ApkPluginArtifactDownloader {
 	} = {}) {
 		this.#fetch = options.fetch ?? globalThis.fetch;
 		this.#maxBytes = positiveOption(
-			options.maxBytes ?? DEFAULT_MAX_DOWNLOAD_BYTES,
+			options.maxBytes ?? APK_PLUGIN_DEFAULT_MAX_DOWNLOAD_BYTES,
 			"Maximale AppPlugin-Downloadgröße",
 		);
 		this.#timeoutMs = positiveOption(
-			options.timeoutMs ?? DEFAULT_DOWNLOAD_TIMEOUT_MS,
+			options.timeoutMs ?? APK_PLUGIN_DEFAULT_DOWNLOAD_TIMEOUT_MS,
 			"AppPlugin-Download-Timeout",
 		);
 	}

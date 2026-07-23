@@ -2,6 +2,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { IOBROKER_APPPLUGIN_OPERATING_POLICY } from "../../src/lib/appplugin/IoBrokerAppPluginOperatingPolicy";
+
 const {
 	buildMapInventory,
 	classifyMapFamily,
@@ -66,5 +68,15 @@ describe("all locally available AppPlugin map sources", () => {
 		expect(incompletePackages).toHaveLength(inventory.summary.unmatchedArchiveSources);
 		expect(inventory.uniqueBundles.every((bundle: { mapBehaviorStatus: string }) =>
 			bundle.mapBehaviorStatus === "not-tested")).toBe(true);
+		expect(inventory.summary.largestArchiveBytes)
+			.toBeLessThanOrEqual(IOBROKER_APPPLUGIN_OPERATING_POLICY.package.maxArchiveBytes);
+		expect(inventory.summary.largestArchiveBytes)
+			.toBeLessThanOrEqual(IOBROKER_APPPLUGIN_OPERATING_POLICY.package.maxDownloadBytes);
+		expect(inventory.summary.largestArchiveEntryCount)
+			.toBeLessThanOrEqual(IOBROKER_APPPLUGIN_OPERATING_POLICY.package.maxEntries);
+		expect(inventory.summary.largestArchiveEntryBytes)
+			.toBeLessThanOrEqual(IOBROKER_APPPLUGIN_OPERATING_POLICY.package.maxEntryBytes);
+		expect(inventory.summary.largestArchiveUncompressedBytes)
+			.toBeLessThanOrEqual(IOBROKER_APPPLUGIN_OPERATING_POLICY.package.maxExtractedBytes);
 	}, 120_000);
 });

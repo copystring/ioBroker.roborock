@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "root": ".AppPlugins",
   "summary": {
     "topLevelPackages": 15,
@@ -12,6 +12,11 @@
     "failedArchiveSources": 0,
     "unmatchedArchiveSources": 1,
     "unresolvedMapFamilies": 0,
+    "largestArchiveBytes": 55397196,
+    "largestArchiveEntryCount": 1964,
+    "largestArchiveFileCount": 1958,
+    "largestArchiveEntryBytes": 12179304,
+    "largestArchiveUncompressedBytes": 65613149,
     "familyCounts": {
       "yx-skia": 2,
       "scmap-skia": 2,
@@ -387,7 +392,7 @@
       "sourcePaths": [
         "Q10/019bdf41f583723bb937ccc99bbd7541/index.android.bundle"
       ],
-      "directInitStatus": "passed",
+      "directInitStatus": "device-session-required",
       "mapBehaviorStatus": "not-tested"
     },
     {
@@ -434,7 +439,7 @@
         "Roborock Q10 X5+/0.zip",
         "Roborock Q10 X5+/0/index.android.bundle"
       ],
-      "directInitStatus": "passed",
+      "directInitStatus": "device-session-required",
       "mapBehaviorStatus": "not-tested"
     },
     {
@@ -473,7 +478,7 @@
         "Q7 L5/019a00a9af4b7b8e894080040a2793a5.zip",
         "Q7 L5/019a00a9af4b7b8e894080040a2793a5/index.android.bundle"
       ],
-      "directInitStatus": "bridge-host-required",
+      "directInitStatus": "passed",
       "mapBehaviorStatus": "not-tested"
     },
     {
@@ -512,7 +517,7 @@
         "Q7 M5/019b4e09d7ce7c6abedbb789d2be681d.zip",
         "Q7 M5/019b4e09d7ce7c6abedbb789d2be681d/index.android.bundle"
       ],
-      "directInitStatus": "bridge-host-required",
+      "directInitStatus": "passed",
       "mapBehaviorStatus": "not-tested"
     },
     {
@@ -549,7 +554,7 @@
         "Qrevo Curv/2e158bfb3b5d454d8d9b6d8fb6136308.zip",
         "Qrevo Curv/2e158bfb3b5d454d8d9b6d8fb6136308/index.android.bundle"
       ],
-      "directInitStatus": "passed",
+      "directInitStatus": "device-session-required",
       "mapBehaviorStatus": "not-tested"
     },
     {
@@ -586,7 +591,7 @@
         "Qrevo Master/cb10d98a59c8436ebfaeacccbedb885d.zip",
         "Qrevo Master/cb10d98a59c8436ebfaeacccbedb885d/index.android.bundle"
       ],
-      "directInitStatus": "passed",
+      "directInitStatus": "device-session-required",
       "mapBehaviorStatus": "not-tested"
     },
     {
@@ -623,7 +628,7 @@
         "Qrevo MaxV/af7bd4f6f79544da9247344ea65d06b4.zip",
         "Qrevo MaxV/af7bd4f6f79544da9247344ea65d06b4/index.android.bundle"
       ],
-      "directInitStatus": "passed",
+      "directInitStatus": "device-session-required",
       "mapBehaviorStatus": "not-tested"
     },
     {
@@ -661,7 +666,7 @@
         "S6 MaxV/0.zip",
         "S6 MaxV/0/index.android.bundle"
       ],
-      "directInitStatus": "bridge-host-required",
+      "directInitStatus": "device-session-required",
       "mapBehaviorStatus": "not-tested"
     },
     {
@@ -699,7 +704,7 @@
         "S7 MaxV/8328da4abbd14f0f99d6c32e17af5a8b/index.android.bundle",
         "S7 MaxV/extracted/index.android.bundle"
       ],
-      "directInitStatus": "passed",
+      "directInitStatus": "device-session-required",
       "mapBehaviorStatus": "not-tested"
     },
     {
@@ -736,7 +741,7 @@
       "sourcePaths": [
         "S8 MaxV Ultra/d701602b488943168fde708bbe245131/index.android.bundle"
       ],
-      "directInitStatus": "bridge-host-required",
+      "directInitStatus": "device-session-required",
       "mapBehaviorStatus": "not-tested"
     },
     {
@@ -774,7 +779,7 @@
         "S8 Pro Ultra/f81b7ea821f2483aae6910d60ec9ed10.zip",
         "S8 Pro Ultra/f81b7ea821f2483aae6910d60ec9ed10/index.android.bundle"
       ],
-      "directInitStatus": "bridge-host-required",
+      "directInitStatus": "device-session-required",
       "mapBehaviorStatus": "not-tested"
     },
     {
@@ -812,7 +817,7 @@
         "Saros 10/1f88b45ca1084da6bce5872eff687a36.zip",
         "Saros 10/extracted/index.android.bundle"
       ],
-      "directInitStatus": "bridge-host-required",
+      "directInitStatus": "device-session-required",
       "mapBehaviorStatus": "not-tested"
     },
     {
@@ -852,7 +857,7 @@
         "Saros 20/475871b56a554d49bac45d07f315289c.zip",
         "Saros 20/475871b56a554d49bac45d07f315289c/index.android.bundle"
       ],
-      "directInitStatus": "bridge-host-required",
+      "directInitStatus": "device-session-required",
       "mapBehaviorStatus": "not-tested"
     },
     {
@@ -891,7 +896,7 @@
       "sourcePaths": [
         "Saros Z70/4d3ae9e297c84a7e80a23ffe4f78a59e/index.android.bundle"
       ],
-      "directInitStatus": "bridge-host-required",
+      "directInitStatus": "device-session-required",
       "mapBehaviorStatus": "not-tested"
     }
   ],
@@ -902,6 +907,11 @@
       "bundleEntry": "index.android.bundle",
       "packageName": "Q10 X5+",
       "status": "inspected",
+      "archiveBytes": 16298092,
+      "archiveEntries": 588,
+      "archiveFileEntries": 582,
+      "archiveUncompressedBytes": 20399636,
+      "largestArchiveEntryBytes": 5139682,
       "format": "metro",
       "bytes": 5139682,
       "sha256": "a7239ce29a1e3088f6a97bbc1c9aaeda37a02fea9501a2ef9c08f833e2f5a764",
@@ -942,7 +952,7 @@
       "sourcePath": "Q10 X5+/019bdf41f583723bb937ccc99bbd7541/index.android.bundle",
       "packageName": "Q10 X5+",
       "status": "inspected",
-      "runtimeStatus": "passed",
+      "runtimeStatus": "device-session-required",
       "format": "metro",
       "bytes": 5139682,
       "sha256": "a7239ce29a1e3088f6a97bbc1c9aaeda37a02fea9501a2ef9c08f833e2f5a764",
@@ -981,6 +991,11 @@
       "bundleEntry": "index.android.bundle",
       "packageName": "Q10",
       "status": "inspected",
+      "archiveBytes": 16298092,
+      "archiveEntries": 588,
+      "archiveFileEntries": 582,
+      "archiveUncompressedBytes": 20399636,
+      "largestArchiveEntryBytes": 5139682,
       "format": "metro",
       "bytes": 5139682,
       "sha256": "a7239ce29a1e3088f6a97bbc1c9aaeda37a02fea9501a2ef9c08f833e2f5a764",
@@ -1019,7 +1034,7 @@
       "sourcePath": "Q10/019bdf41f583723bb937ccc99bbd7541/index.android.bundle",
       "packageName": "Q10",
       "status": "inspected",
-      "runtimeStatus": "passed",
+      "runtimeStatus": "device-session-required",
       "format": "metro",
       "bytes": 7799025,
       "sha256": "46294ae7c632d1c6dbb3119483b290f5c51e97448b3fa1350e559df0e27c4c6f",
@@ -1058,6 +1073,11 @@
       "bundleEntry": "index.android.bundle",
       "packageName": "Q7 L5",
       "status": "inspected",
+      "archiveBytes": 17499458,
+      "archiveEntries": 647,
+      "archiveFileEntries": 641,
+      "archiveUncompressedBytes": 20595847,
+      "largestArchiveEntryBytes": 4804220,
       "format": "hermes",
       "bytes": 4804220,
       "sha256": "9dfd8cc4c3020fe8e2428b3be4ca237b65ba536a4730addcfc29300885361a35",
@@ -1095,7 +1115,7 @@
       "sourcePath": "Q7 L5/019a00a9af4b7b8e894080040a2793a5/index.android.bundle",
       "packageName": "Q7 L5",
       "status": "inspected",
-      "runtimeStatus": "bridge-host-required",
+      "runtimeStatus": "passed",
       "format": "hermes",
       "bytes": 4804220,
       "sha256": "9dfd8cc4c3020fe8e2428b3be4ca237b65ba536a4730addcfc29300885361a35",
@@ -1131,6 +1151,11 @@
       "bundleEntry": "index.android.bundle",
       "packageName": "Q7 M5",
       "status": "inspected",
+      "archiveBytes": 17507749,
+      "archiveEntries": 647,
+      "archiveFileEntries": 641,
+      "archiveUncompressedBytes": 20611315,
+      "largestArchiveEntryBytes": 4819688,
       "format": "hermes",
       "bytes": 4819688,
       "sha256": "c4136ce753609838415d14264c39e661792c83949f3e9e86d9c463b9bbd19205",
@@ -1168,7 +1193,7 @@
       "sourcePath": "Q7 M5/019b4e09d7ce7c6abedbb789d2be681d/index.android.bundle",
       "packageName": "Q7 M5",
       "status": "inspected",
-      "runtimeStatus": "bridge-host-required",
+      "runtimeStatus": "passed",
       "format": "hermes",
       "bytes": 4819688,
       "sha256": "c4136ce753609838415d14264c39e661792c83949f3e9e86d9c463b9bbd19205",
@@ -1204,6 +1229,11 @@
       "bundleEntry": "index.android.bundle",
       "packageName": "Qrevo Curv",
       "status": "inspected",
+      "archiveBytes": 36687947,
+      "archiveEntries": 1604,
+      "archiveFileEntries": 1598,
+      "archiveUncompressedBytes": 52673893,
+      "largestArchiveEntryBytes": 11674491,
       "format": "metro",
       "bytes": 11674491,
       "sha256": "8e314c37d8a0d4ccd27f65b7cd1c9ccef6a7634d3c59ca247bcf7e184f0a5b88",
@@ -1239,7 +1269,7 @@
       "sourcePath": "Qrevo Curv/2e158bfb3b5d454d8d9b6d8fb6136308/index.android.bundle",
       "packageName": "Qrevo Curv",
       "status": "inspected",
-      "runtimeStatus": "passed",
+      "runtimeStatus": "device-session-required",
       "format": "metro",
       "bytes": 11674491,
       "sha256": "8e314c37d8a0d4ccd27f65b7cd1c9ccef6a7634d3c59ca247bcf7e184f0a5b88",
@@ -1273,6 +1303,11 @@
       "bundleEntry": "index.android.bundle",
       "packageName": "Qrevo Master",
       "status": "inspected",
+      "archiveBytes": 35097613,
+      "archiveEntries": 1493,
+      "archiveFileEntries": 1487,
+      "archiveUncompressedBytes": 50957041,
+      "largestArchiveEntryBytes": 11434688,
       "format": "metro",
       "bytes": 11434688,
       "sha256": "c64509fc29ff3f6a19d43daeea769925df8fd8443ccfe007045e38c93188d05c",
@@ -1308,7 +1343,7 @@
       "sourcePath": "Qrevo Master/cb10d98a59c8436ebfaeacccbedb885d/index.android.bundle",
       "packageName": "Qrevo Master",
       "status": "inspected",
-      "runtimeStatus": "passed",
+      "runtimeStatus": "device-session-required",
       "format": "metro",
       "bytes": 11434688,
       "sha256": "c64509fc29ff3f6a19d43daeea769925df8fd8443ccfe007045e38c93188d05c",
@@ -1342,6 +1377,11 @@
       "bundleEntry": "index.android.bundle",
       "packageName": "Qrevo MaxV",
       "status": "inspected",
+      "archiveBytes": 34965364,
+      "archiveEntries": 1493,
+      "archiveFileEntries": 1487,
+      "archiveUncompressedBytes": 50364259,
+      "largestArchiveEntryBytes": 11087881,
       "format": "metro",
       "bytes": 11087881,
       "sha256": "bc7339c0c28d2ec211eed5c869e174c5648dbc77eac84be292cae7e0527b2ce8",
@@ -1377,7 +1417,7 @@
       "sourcePath": "Qrevo MaxV/af7bd4f6f79544da9247344ea65d06b4/index.android.bundle",
       "packageName": "Qrevo MaxV",
       "status": "inspected",
-      "runtimeStatus": "passed",
+      "runtimeStatus": "device-session-required",
       "format": "metro",
       "bytes": 11087881,
       "sha256": "bc7339c0c28d2ec211eed5c869e174c5648dbc77eac84be292cae7e0527b2ce8",
@@ -1411,6 +1451,11 @@
       "bundleEntry": "index.android.bundle",
       "packageName": "Roborock Q10 X5+",
       "status": "inspected",
+      "archiveBytes": 16298092,
+      "archiveEntries": 588,
+      "archiveFileEntries": 582,
+      "archiveUncompressedBytes": 20399636,
+      "largestArchiveEntryBytes": 5139682,
       "format": "metro",
       "bytes": 5139682,
       "sha256": "a7239ce29a1e3088f6a97bbc1c9aaeda37a02fea9501a2ef9c08f833e2f5a764",
@@ -1451,7 +1496,7 @@
       "sourcePath": "Roborock Q10 X5+/0/index.android.bundle",
       "packageName": "Roborock Q10 X5+",
       "status": "inspected",
-      "runtimeStatus": "passed",
+      "runtimeStatus": "device-session-required",
       "format": "metro",
       "bytes": 5139682,
       "sha256": "a7239ce29a1e3088f6a97bbc1c9aaeda37a02fea9501a2ef9c08f833e2f5a764",
@@ -1490,6 +1535,11 @@
       "bundleEntry": "index.android.bundle",
       "packageName": "S6 MaxV",
       "status": "inspected",
+      "archiveBytes": 32094612,
+      "archiveEntries": 1535,
+      "archiveFileEntries": 1529,
+      "archiveUncompressedBytes": 40197706,
+      "largestArchiveEntryBytes": 8134592,
       "format": "hermes",
       "bytes": 8134592,
       "sha256": "c87fecc73e060e34d56f858c4fcd4e71cca2e583f0f7b1f63510b4ed4cb21190",
@@ -1526,7 +1576,7 @@
       "sourcePath": "S6 MaxV/0/index.android.bundle",
       "packageName": "S6 MaxV",
       "status": "inspected",
-      "runtimeStatus": "bridge-host-required",
+      "runtimeStatus": "device-session-required",
       "format": "hermes",
       "bytes": 8134592,
       "sha256": "c87fecc73e060e34d56f858c4fcd4e71cca2e583f0f7b1f63510b4ed4cb21190",
@@ -1561,6 +1611,11 @@
       "bundleEntry": "index.android.bundle",
       "packageName": "S7 MaxV",
       "status": "inspected",
+      "archiveBytes": 17216744,
+      "archiveEntries": 1184,
+      "archiveFileEntries": 1178,
+      "archiveUncompressedBytes": 32440690,
+      "largestArchiveEntryBytes": 10867041,
       "format": "metro",
       "bytes": 10867041,
       "sha256": "6d0540ab12b6978adca055ca4b1e9e1a85cd4a4981096b1538b287996da5d7fc",
@@ -1597,7 +1652,7 @@
       "sourcePath": "S7 MaxV/8328da4abbd14f0f99d6c32e17af5a8b/index.android.bundle",
       "packageName": "S7 MaxV",
       "status": "inspected",
-      "runtimeStatus": "passed",
+      "runtimeStatus": "device-session-required",
       "format": "metro",
       "bytes": 10867041,
       "sha256": "6d0540ab12b6978adca055ca4b1e9e1a85cd4a4981096b1538b287996da5d7fc",
@@ -1630,7 +1685,7 @@
       "sourcePath": "S7 MaxV/extracted/index.android.bundle",
       "packageName": "S7 MaxV",
       "status": "inspected",
-      "runtimeStatus": "passed",
+      "runtimeStatus": "device-session-required",
       "format": "metro",
       "bytes": 10867041,
       "sha256": "6d0540ab12b6978adca055ca4b1e9e1a85cd4a4981096b1538b287996da5d7fc",
@@ -1663,7 +1718,7 @@
       "sourcePath": "S8 MaxV Ultra/d701602b488943168fde708bbe245131/index.android.bundle",
       "packageName": "S8 MaxV Ultra",
       "status": "inspected",
-      "runtimeStatus": "bridge-host-required",
+      "runtimeStatus": "device-session-required",
       "format": "hermes",
       "bytes": 10526044,
       "sha256": "13251964e06ab7129d22ee8d9628a8e004d97603e278f5853f3af19ec4a9a38b",
@@ -1698,6 +1753,11 @@
       "bundleEntry": "index.android.bundle",
       "packageName": "S8 Pro Ultra",
       "status": "inspected",
+      "archiveBytes": 55397196,
+      "archiveEntries": 1828,
+      "archiveFileEntries": 1822,
+      "archiveUncompressedBytes": 65613149,
+      "largestArchiveEntryBytes": 10680496,
       "format": "hermes",
       "bytes": 10680496,
       "sha256": "417674ebb06e175f436d65d5e69d9bb5fd6a861897fa0db22ba56f8174b79fd2",
@@ -1734,7 +1794,7 @@
       "sourcePath": "S8 Pro Ultra/f81b7ea821f2483aae6910d60ec9ed10/index.android.bundle",
       "packageName": "S8 Pro Ultra",
       "status": "inspected",
-      "runtimeStatus": "bridge-host-required",
+      "runtimeStatus": "device-session-required",
       "format": "hermes",
       "bytes": 10680496,
       "sha256": "417674ebb06e175f436d65d5e69d9bb5fd6a861897fa0db22ba56f8174b79fd2",
@@ -1769,6 +1829,11 @@
       "bundleEntry": "index.android.bundle",
       "packageName": "Saros 10",
       "status": "inspected",
+      "archiveBytes": 32103352,
+      "archiveEntries": 1535,
+      "archiveFileEntries": 1529,
+      "archiveUncompressedBytes": 40224129,
+      "largestArchiveEntryBytes": 8161204,
       "format": "hermes",
       "bytes": 8161204,
       "sha256": "7beb615ea0cb80b9fc325956e0e17dde5dab9814b5c3cf3e7cede46a13ba4269",
@@ -1805,7 +1870,7 @@
       "sourcePath": "Saros 10/extracted/index.android.bundle",
       "packageName": "Saros 10",
       "status": "inspected",
-      "runtimeStatus": "bridge-host-required",
+      "runtimeStatus": "device-session-required",
       "format": "hermes",
       "bytes": 8161204,
       "sha256": "7beb615ea0cb80b9fc325956e0e17dde5dab9814b5c3cf3e7cede46a13ba4269",
@@ -1840,6 +1905,11 @@
       "bundleEntry": "index.android.bundle",
       "packageName": "Saros 20",
       "status": "inspected",
+      "archiveBytes": 46859044,
+      "archiveEntries": 1964,
+      "archiveFileEntries": 1958,
+      "archiveUncompressedBytes": 58022352,
+      "largestArchiveEntryBytes": 12179304,
       "format": "hermes",
       "bytes": 12179304,
       "sha256": "7219368d7a1d0a3dc3c87d21df6bbab14f9ace734e11f12e4243d2cf2b4bd72d",
@@ -1878,7 +1948,7 @@
       "sourcePath": "Saros 20/475871b56a554d49bac45d07f315289c/index.android.bundle",
       "packageName": "Saros 20",
       "status": "inspected",
-      "runtimeStatus": "bridge-host-required",
+      "runtimeStatus": "device-session-required",
       "format": "hermes",
       "bytes": 12179304,
       "sha256": "7219368d7a1d0a3dc3c87d21df6bbab14f9ace734e11f12e4243d2cf2b4bd72d",
@@ -1914,7 +1984,7 @@
       "sourcePath": "Saros Z70/4d3ae9e297c84a7e80a23ffe4f78a59e/index.android.bundle",
       "packageName": "Saros Z70",
       "status": "inspected",
-      "runtimeStatus": "bridge-host-required",
+      "runtimeStatus": "device-session-required",
       "format": "hermes",
       "bytes": 11679068,
       "sha256": "786b464f8754c7a98bf649b1467d637759207a6ffecdb4308b1d7ed1513fbafd",
