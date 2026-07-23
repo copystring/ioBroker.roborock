@@ -33,6 +33,7 @@ export interface ApkReadOnlyProbeRootOptions {
 }
 
 export interface ApkReadOnlyProbeRequest extends ApkAppPluginDeviceOpenRequest {
+	readonly describeDiagnostics?: () => string;
 	readonly root: Readonly<ApkReadOnlyProbeRootOptions>;
 	readonly signal?: AbortSignal;
 	readonly timeoutMilliseconds?: number;
@@ -116,9 +117,11 @@ export async function runApkReadOnlyProbeSession(
 	const timeout = setTimeout(() => {
 		if (finished) return;
 		finished = true;
-		terminalFailure.reject(new Error(
+		const diagnostics = request.describeDiagnostics?.().trim();
+		terminalFailure.reject(new Error([
 			`AppPlugin-Read-only-Probe erhielt innerhalb von ${timeoutMilliseconds} ms keine korrelierte Antwort`,
-		));
+			diagnostics ? `Diagnose: ${diagnostics}` : undefined,
+		].filter(Boolean).join("; ")));
 	}, timeoutMilliseconds);
 	const abort = (): void => {
 		if (finished) return;

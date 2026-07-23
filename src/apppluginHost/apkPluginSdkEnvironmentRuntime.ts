@@ -46,6 +46,51 @@ export interface ApkMobileOperatorInfo {
 	countryCode: string;
 }
 
+function record(value: unknown): Record<string, unknown> | undefined {
+	return value !== null && typeof value === "object" && !Array.isArray(value)
+		? value as Record<string, unknown>
+		: undefined;
+}
+
+/** Extracts IUserPreferenceApi.checkAppAgreement without assuming one HTTP envelope variant. */
+export function parseApkUserPluginAgreementsResponse(serialized: string): readonly unknown[] {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(serialized) as unknown;
+	} catch (error) {
+		throw new Error("APK-Einwilligungsantwort ist kein gültiges JSON", { cause: error });
+	}
+	const root = record(parsed);
+	const result = record(root?.result);
+	const data = record(root?.data);
+	const resultData = record(result?.data);
+	for (const candidate of [root, result, data, resultData]) {
+		if (Array.isArray(candidate?.userPluginAgreementList)) {
+			return structuredClone(candidate.userPluginAgreementList);
+		}
+	}
+	throw new Error("APK-Einwilligungsantwort enthält keine userPluginAgreementList");
+}
+
+/** Mirrors legacy getPluginAgreements filtering and WritableMap projection for one device. */
+export function selectApkPluginAgreementsForDevice(
+	agreements: readonly unknown[],
+	deviceId: string,
+): readonly Readonly<Record<string, unknown>>[] {
+	return agreements.flatMap(value => {
+		const agreement = record(value);
+		if (agreement?.deviceId !== deviceId) return [];
+		const selected: Record<string, unknown> = {};
+		if (typeof agreement.type === "string") selected.type = agreement.type;
+		const version = typeof agreement.version === "number"
+			? agreement.version
+			: typeof agreement.version === "string" ? Number.parseInt(agreement.version, 10) : undefined;
+		if (Number.isSafeInteger(version)) selected.version = version;
+		if (typeof agreement.extra === "string") selected.extra = agreement.extra;
+		return [Object.freeze(selected)];
+	});
+}
+
 export class ApkHostServiceUnavailableError extends Error {
 	public override readonly name = "ApkHostServiceUnavailableError";
 
@@ -68,6 +113,7 @@ export interface ApkPluginSdkEnvironmentRuntimeOptions {
 	loadOtaProgress?(): Promise<Readonly<{ status: string }> | null>;
 	loadDeviceExtraInfo(): Promise<Readonly<Record<string, string>> | null>;
 	loadAgreementAndPolicy(): Promise<ApkAgreementAndPolicy>;
+	loadProductAgreements?(): unknown | Promise<unknown>;
 	loadPluginAgreements(): Promise<readonly unknown[]>;
 	workerRuntime: ApkV8WorkerRuntime;
 }
@@ -169,6 +215,15 @@ export class ApkPluginSdkEnvironmentRuntime {
 	public async agreementAndPolicy(): Promise<ApkAgreementAndPolicy> {
 		if (!this.options.hasActivity()) throw new Error("activity has finished");
 		return structuredClone(await this.options.loadAgreementAndPolicy());
+	}
+
+	/** Mirrors PluginSDKModule.getProductAgreements(): product cache lookup by current model. */
+	public async getProductAgreements(): Promise<unknown | null> {
+		if (!this.options.hasActivity()) throw new Error("activity has finished");
+		const agreements = await this.options.loadProductAgreements?.();
+		return agreements === undefined || agreements === null
+			? null
+			: structuredClone(agreements);
 	}
 
 	public async getPluginAgreements(): Promise<unknown[]> {

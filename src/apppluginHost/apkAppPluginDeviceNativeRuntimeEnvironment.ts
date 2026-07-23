@@ -48,6 +48,7 @@ import { ApkDeviceFirmwareRuntime } from "./apkDeviceFirmwareRuntime";
 import { ApkDeviceIngress } from "./apkDeviceIngress";
 import { ApkPluginDeviceEventBridge } from "./apkDeviceEvents";
 import { ApkDevicesRuntime } from "./apkDevicesRuntime";
+import { resolveApkHomeDataDeviceProduct } from "./apkHomeDataLookup";
 import { ApkGestureHandlerRuntime } from "./apkGestureHandlerRuntime";
 import type { ApkHermesHostSession } from "./apkHermesHostSession";
 import { ApkI18nManagerRuntime } from "./apkI18nManagerRuntime";
@@ -406,6 +407,9 @@ export class ApkAppPluginDeviceNativeRuntimeEnvironment {
 				]),
 			),
 			loadAgreementAndPolicy: options.ports.sdkEnvironment.loadAgreementAndPolicy,
+			loadProductAgreements: () => descriptor.homeData
+				? resolveApkHomeDataDeviceProduct(descriptor.homeData, device.deviceId).product?.agreements ?? null
+				: null,
 			loadPluginAgreements: options.ports.sdkEnvironment.loadPluginAgreements,
 			workerRuntime: this.#workerRuntime,
 		});

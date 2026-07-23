@@ -73,6 +73,27 @@ describe("APK V8 worker runtime", () => {
 		expect(stoppedCallback).toHaveBeenCalledWith(false);
 	});
 
+	it("never exposes worker string contents through diagnostics", async () => {
+		const root = mkdtempSync(path.join(tmpdir(), "apk-worker-"));
+		const workerPath = path.join(root, "secret.jx");
+		const secret = "private-key-material-that-must-never-enter-diagnostics";
+		writeFileSync(workerPath, `function reveal() { return { secret: ${JSON.stringify(secret)} }; }`);
+		const diagnostics: ApkV8WorkerDiagnostic[] = [];
+		const runtime = new ApkV8WorkerRuntime({
+			pluginRootPath: root,
+			onDiagnostic: diagnostic => diagnostics.push(diagnostic),
+		});
+		const executorId = start(runtime, workerPath);
+
+		runtime.callJsExecutorWithArray(executorId, "reveal", [], vi.fn());
+		await vi.waitFor(() => expect(diagnostics).toHaveLength(2));
+
+		expect(JSON.stringify(diagnostics)).not.toContain(secret);
+		expect(diagnostics[1]?.resultSummary).toMatchObject({
+			fields: { secret: { type: "string", length: secret.length } },
+		});
+	});
+
 	it("rejects worker paths outside the current AppPlugin root", () => {
 		const root = mkdtempSync(path.join(tmpdir(), "apk-worker-root-"));
 		const outside = mkdtempSync(path.join(tmpdir(), "apk-worker-outside-"));

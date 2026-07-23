@@ -8,6 +8,8 @@ import {
 	type ApkAppPluginDeviceNativeRuntimeInitialState,
 	type ApkDeviceIngress,
 	type ApkDeviceIngressRouter,
+	type ApkReadOnlyDeviceTransportObserver,
+	type ApkV8WorkerDiagnostic,
 } from "../../apppluginHost";
 import { IoBrokerAppPluginDeviceWire } from "./IoBrokerAppPluginDeviceWire";
 
@@ -26,6 +28,9 @@ export interface IoBrokerReadOnlyAppPluginDeviceHostOptions {
 	readonly ingressRouter: ApkDeviceIngressRouter;
 	readonly language?: string;
 	readonly localeIdentifier?: string;
+	readonly loadPluginAgreements?: () => Promise<readonly unknown[]>;
+	readonly observeTransport?: ApkReadOnlyDeviceTransportObserver;
+	readonly observeWorker?: (diagnostic: ApkV8WorkerDiagnostic) => void;
 }
 
 function positive(value: number | undefined, fallback: number, label: string): number {
@@ -122,6 +127,7 @@ export function createIoBrokerReadOnlyAppPluginDeviceHostLeaseFactory(
 		const repository = new ApkReadOnlyDeviceRepository(
 			wire,
 			requestValue => active && authorize(requestValue),
+			options.observeTransport,
 		);
 		const transports = createApkDeviceRepositoryRuntimePorts(repository);
 		const endpoint = await options.adapter.mqtt_api.ensureEndpoint();
@@ -185,6 +191,7 @@ export function createIoBrokerReadOnlyAppPluginDeviceHostLeaseFactory(
 				showToast: () => undefined,
 				vibrate: () => undefined,
 			},
+			onWorkerDiagnostic: options.observeWorker,
 			rpc: {
 				endpoint,
 				nonce,
@@ -206,7 +213,7 @@ export function createIoBrokerReadOnlyAppPluginDeviceHostLeaseFactory(
 					privacyProtocol: { version: null, langUrl: null },
 					userAgreement: { version: null, langUrl: null },
 				}),
-				loadPluginAgreements: async () => [],
+				loadPluginAgreements: options.loadPluginAgreements ?? (async () => []),
 			},
 			emitAnalytics: () => undefined,
 			reportException: (method, arguments_) => options.adapter.rLog(

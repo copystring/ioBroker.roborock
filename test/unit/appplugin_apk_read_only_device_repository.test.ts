@@ -63,4 +63,26 @@ describe("APK read-only device repository", () => {
 		await expect(repository.publishDpsMqtt(request())).rejects.toThrow(/nicht verbunden/u);
 		expect(transport.sendJsonDps).not.toHaveBeenCalled();
 	});
+
+	it("reports only safe transport metadata for a bounded real-device probe", async () => {
+		const transport = wire({ loadShadowDps: vi.fn(async () => "{\"102\":{}}") });
+		const observations: unknown[] = [];
+		const repository = new ApkReadOnlyDeviceRepository(
+			transport,
+			createApkReadOnlyMethodAuthorizer(["get_status"]),
+			observation => observations.push(observation),
+		);
+
+		await expect(repository.deviceOnline()).resolves.toBe(true);
+		await expect(repository.loadShadowDps()).resolves.toBe("{\"102\":{}}");
+		await repository.publishDpsMqtt(request());
+
+		expect(observations).toEqual([
+			{ online: true, operation: "device-online" },
+			{ available: true, operation: "load-shadow" },
+			{ method: "get_status", operation: "json-rpc", outcome: "attempted", route: "cloud" },
+			{ method: "get_status", operation: "json-rpc", outcome: "authorized", route: "cloud" },
+			{ method: "get_status", operation: "json-rpc", outcome: "sent", route: "cloud" },
+		]);
+	});
 });

@@ -73,7 +73,6 @@ const WORKER_SUMMARY_MAX_DEPTH = 3;
 const WORKER_SUMMARY_MAX_ITEMS = 4;
 const WORKER_SUMMARY_MAX_KEYS = 20;
 const WORKER_SUMMARY_MAX_NODES = 160;
-const WORKER_SUMMARY_MAX_STRING_LENGTH = 160;
 
 interface WorkerSummaryBudget {
 	remainingNodes: number;
@@ -83,7 +82,7 @@ function workerSummaryPriority(value: unknown): number {
 	if (value === null || value === undefined) return 0;
 	const type = typeof value;
 	if (type === "boolean" || type === "number") return 0;
-	if (type === "string") return (value as string).length <= WORKER_SUMMARY_MAX_STRING_LENGTH ? 1 : 2;
+	if (type === "string") return 1;
 	if (value instanceof Uint8Array) return 3;
 	return 4;
 }
@@ -106,9 +105,7 @@ function summarizeWorkerValue(
 		const stringValue = value as string;
 		return {
 			type: "string",
-			value: stringValue.slice(0, WORKER_SUMMARY_MAX_STRING_LENGTH),
 			length: stringValue.length,
-			truncated: stringValue.length > WORKER_SUMMARY_MAX_STRING_LENGTH || undefined,
 		};
 	}
 	if (value instanceof Uint8Array) {

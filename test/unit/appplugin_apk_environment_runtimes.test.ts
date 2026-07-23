@@ -8,12 +8,30 @@ import { ApkDarkModeRuntime } from "../../src/apppluginHost/apkDarkModeRuntime";
 import { createApkGestureHandlerConstants } from "../../src/apppluginHost/apkCoreRuntimeConstants";
 import { ApkGestureHandlerRuntime } from "../../src/apppluginHost/apkGestureHandlerRuntime";
 import { ApkNetInfoRuntime } from "../../src/apppluginHost/apkNetInfoRuntime";
-import { ApkPluginSdkEnvironmentRuntime } from "../../src/apppluginHost/apkPluginSdkEnvironmentRuntime";
+import {
+	ApkPluginSdkEnvironmentRuntime,
+	parseApkUserPluginAgreementsResponse,
+	selectApkPluginAgreementsForDevice,
+} from "../../src/apppluginHost/apkPluginSdkEnvironmentRuntime";
 import { ApkPluginSdkPreferencesRuntime } from "../../src/apppluginHost/apkPluginSdkPreferencesRuntime";
 import { ApkStatusBarRuntime } from "../../src/apppluginHost/apkStatusBarRuntime";
 import { ApkV8WorkerRuntime } from "../../src/apppluginHost/apkV8WorkerRuntime";
 
 describe("APK AppPlugin environment runtimes", () => {
+	it("extracts plugin agreements from the authenticated APK response envelope", () => {
+		const agreements = [{ deviceId: "device-1", type: "privacy", version: "3" }];
+
+		expect(parseApkUserPluginAgreementsResponse(JSON.stringify({ result: {
+			userPluginAgreementList: agreements,
+		} }))).toEqual(agreements);
+		expect(selectApkPluginAgreementsForDevice([
+			...agreements,
+			{ deviceId: "device-2", type: "terms", version: "9" },
+		], "device-1")).toEqual([{ type: "privacy", version: 3 }]);
+		expect(() => parseApkUserPluginAgreementsResponse("{}"))
+			.toThrow(/userPluginAgreementList/u);
+	});
+
 	it("reproduces RRPluginSDK device SharedPreferences and callback shapes", () => {
 		const root = mkdtempSync(path.join(tmpdir(), "apk-plugin-preferences-"));
 		const filePath = path.join(root, "device.json");
@@ -95,6 +113,7 @@ describe("APK AppPlugin environment runtimes", () => {
 			privacyProtocol: { version: "1", langUrl: "https://example.test/privacy" },
 			userAgreement: { version: "2", langUrl: "https://example.test/terms" },
 		};
+		const productAgreements = { privacy: { version: "3" } };
 		const runtime = new ApkPluginSdkEnvironmentRuntime({
 			hasActivity: () => true,
 			firmwareVersion: "02.24.90",
@@ -102,11 +121,13 @@ describe("APK AppPlugin environment runtimes", () => {
 			loadDeviceExtraInfo: async () => ({}),
 			loadOtaInfo: async () => null,
 			loadAgreementAndPolicy: async () => agreementAndPolicy,
+			loadProductAgreements: async () => productAgreements,
 			loadPluginAgreements: async () => { throw new Error("Lesefehler"); },
 			workerRuntime: new ApkV8WorkerRuntime({ pluginRootPath: root }),
 		});
 
 		expect(await runtime.agreementAndPolicy()).toEqual(agreementAndPolicy);
+		expect(await runtime.getProductAgreements()).toEqual(productAgreements);
 		expect(await runtime.getPluginAgreements()).toEqual([]);
 	});
 
