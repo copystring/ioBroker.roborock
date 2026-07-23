@@ -162,6 +162,7 @@ export interface ApkAppPluginNativeModelRuntimeCompositionOptions extends Omit<
 	onCompositionCreated?: (
 		composition: Readonly<ApkAppPluginNativeRuntimeComposition>,
 	) => void;
+	prepareStop?(): void | Promise<void>;
 	dispose?(): void | Promise<void>;
 }
 
@@ -173,6 +174,7 @@ export function createApkAppPluginNativeModelRuntimeComposition(
 		textLayoutBackend,
 		createModules,
 		onCompositionCreated,
+		prepareStop,
 		dispose,
 		...nativeOptions
 	} = options;
@@ -188,6 +190,7 @@ export function createApkAppPluginNativeModelRuntimeComposition(
 			onCompositionCreated?.(composition);
 			return composition.session;
 		},
+		prepareStop,
 		dispose,
 	});
 }

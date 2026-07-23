@@ -17,6 +17,7 @@ export type ApkAppPluginDeviceHostCompositionOptions = Omit<
 	| "dispose"
 	| "hostExecutablePath"
 	| "onCompositionCreated"
+	| "prepareStop"
 >;
 
 export interface ApkAppPluginDeviceRuntimeHostLease {

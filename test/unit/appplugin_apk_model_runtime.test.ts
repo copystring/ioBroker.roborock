@@ -166,11 +166,13 @@ describe("APK AppPlugin model runtime", () => {
 
 	it("stops roots before process resources and rejects future roots", async () => {
 		let session!: ReturnType<typeof fakeSession>;
+		const prepareStop = vi.fn(() => { session.calls.push("prepare-stop"); });
 		const dispose = vi.fn(() => { session.calls.push("dispose"); });
 		const runtime = new ApkAppPluginModelRuntime({
 			contract,
 			textLayoutBackend,
 			createSession: uiManager => session = fakeSession(uiManager),
+			prepareStop,
 			dispose,
 		});
 		await runtime.start();
@@ -179,7 +181,8 @@ describe("APK AppPlugin model runtime", () => {
 		await runtime.stop();
 		await runtime.stop();
 
-		expect(session.calls).toEqual(["mount:1", "unmount:1", "stop", "dispose"]);
+		expect(session.calls).toEqual(["mount:1", "unmount:1", "prepare-stop", "stop", "dispose"]);
+		expect(prepareStop).toHaveBeenCalledOnce();
 		expect(dispose).toHaveBeenCalledOnce();
 		await expect(runtime.openRoot(rootOptions)).rejects.toThrow(/bereits beendet/u);
 	});

@@ -75,7 +75,33 @@ export function createApkAppPluginDeviceModelRuntimeFactory(
 		const hostLease = await options.hostProvider.acquire(request, artifact);
 		let nativeRuntime: ApkAppPluginDeviceNativeRuntimeEnvironment | undefined;
 		let detachDeviceIngress: (() => void | Promise<void>) | undefined;
+		let preparation: Promise<void> | undefined;
 		let disposal: Promise<void> | undefined;
+		const prepareRuntimeStop = (): Promise<void> => {
+			preparation ??= (async () => {
+				const errors: unknown[] = [];
+				const detach = detachDeviceIngress;
+				detachDeviceIngress = undefined;
+				if (detach) {
+					try {
+						await detach();
+					} catch (error) {
+						errors.push(error);
+					}
+				}
+				if (nativeRuntime) {
+					try {
+						await nativeRuntime.prepareStop();
+					} catch (error) {
+						errors.push(error);
+					}
+				}
+				if (errors.length > 0) {
+					throw new AggregateError(errors, "APK-Modellkomposition konnte den Stopp nicht vorbereiten");
+				}
+			})();
+			return preparation;
+		};
 		const disposeComposition = (): Promise<void> => {
 			disposal ??= disposeRuntimeResources(nativeRuntime, hostLease, detachDeviceIngress);
 			return disposal;
@@ -97,6 +123,7 @@ export function createApkAppPluginDeviceModelRuntimeFactory(
 				createModules: uiManager => createApkAppPluginSharedNativeModuleBindings(
 					createdNativeRuntime.createSharedNativeModules(uiManager),
 				),
+				prepareStop: prepareRuntimeStop,
 				dispose: disposeComposition,
 				hostExecutablePath: artifact.executablePath,
 				onCompositionCreated: composition => {

@@ -193,6 +193,39 @@ describe("APK Hermes host protocol", () => {
 		});
 	});
 
+	it("closes pending callback groups before shutdown and ignores callbacks arriving afterwards", async () => {
+		let complete: ((...arguments_: unknown[]) => void) | undefined;
+		const callMethod = vi.fn((
+			_method: string,
+			_args: unknown,
+			_unused: unknown,
+			callback: (...arguments_: unknown[]) => void,
+		) => {
+			complete = callback;
+		});
+		const { controller, messages } = createController({ callMethod });
+
+		await controller.handle(invokeMessage());
+		expect(controller.pendingNativeCallbackCount).toBe(1);
+		const callbacksSettled = controller.waitForPendingNativeCallbacks();
+
+		await controller.shutdown();
+		await callbacksSettled;
+		expect(controller.pendingNativeCallbackCount).toBe(0);
+		const messageCountAfterShutdown = messages.length;
+
+		complete?.(true, { source: "late-worker" });
+		await Promise.resolve();
+		await controller.shutdown();
+
+		expect(messages).toHaveLength(messageCountAfterShutdown);
+		expect(messages).not.toContainEqual(expect.objectContaining({
+			type: "invokeCallback",
+			callbackId: 41,
+		}));
+		expect(messages.filter(message => message.type === "shutdown")).toHaveLength(1);
+	});
+
 	it("dispatches classic BatchedBridge callbacks by APK module and method index", async () => {
 		const callMethod = vi.fn((_method: string, _args: unknown, _unused: unknown, callback: (...args: unknown[]) => void) => {
 			callback(false, { error: "null" });

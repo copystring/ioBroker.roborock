@@ -325,6 +325,7 @@ export class ApkHermesHostProtocolController {
 	readonly #pendingNativeCallbackWaiters = new Set<() => void>();
 	#nextNativeCallbackGroupId = 1;
 	#nativeCallbackActivityRevision = 0;
+	#shuttingDown = false;
 
 	public constructor(
 		definitions: readonly ApkRemoteModuleDefinition[],
@@ -390,6 +391,14 @@ export class ApkHermesHostProtocolController {
 	}
 
 	public async shutdown(): Promise<void> {
+		if (this.#shuttingDown) return;
+		this.#shuttingDown = true;
+		if (this.#pendingNativeCallbackGroups.size > 0) {
+			this.#pendingNativeCallbackGroups.clear();
+			this.#nativeCallbackActivityRevision += 1;
+		}
+		for (const resolve of this.#pendingNativeCallbackWaiters) resolve();
+		this.#pendingNativeCallbackWaiters.clear();
 		await this.sink({ protocol: "roborock-appplugin-host", version: 1, type: "shutdown" });
 	}
 
@@ -615,12 +624,17 @@ export class ApkHermesHostProtocolController {
 			callbackId,
 			(...arguments_: unknown[]): void => {
 				if (settled) {
+					if (this.#shuttingDown) return;
 					void this.#sendHostError(new Error(`APK-Callback-Gruppe ${groupId} wurde mehrfach aufgelöst`));
 					return;
 				}
 				settled = true;
+				if (this.#shuttingDown) {
+					finish();
+					return;
+				}
 				void this.#sendCallback(target, callbackId, arguments_)
-					.catch(error => this.#sendHostError(error))
+					.catch(error => this.#sendHostError(error).catch(() => undefined))
 					.finally(finish);
 			},
 		] as const));
@@ -635,6 +649,7 @@ export class ApkHermesHostProtocolController {
 	}
 
 	async #sendCallback(target: "turbo" | "batched", callbackId: number, arguments_: readonly unknown[]): Promise<void> {
+		if (this.#shuttingDown) return;
 		if (!Number.isInteger(callbackId) || callbackId < 0) {
 			await this.#sendHostError(new Error(`Ungültige APK-Callback-ID: ${callbackId}`));
 			return;
@@ -650,6 +665,7 @@ export class ApkHermesHostProtocolController {
 	}
 
 	async #sendHostError(error: unknown, moduleName?: string, methodName?: string): Promise<void> {
+		if (this.#shuttingDown) return;
 		await this.sink({
 			protocol: "roborock-appplugin-host",
 			version: 1,

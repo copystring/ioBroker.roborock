@@ -209,7 +209,7 @@
 				"test/unit/appplugin_q10_product_host.test.ts",
 				"`npm run poc:appplugin-q10-product-host`"
 			],
-			"nextAction": "Q10 X5+ startet als unverändertes Metro-Bundle nun auch über die produktive DeviceNativeRuntimeEnvironment-, AdapterHostLease- und DeviceModelRuntimeFactory-Komposition: Root erzeugt, Bundle-Hash unverändert, keine fehlende native Methode und vollständiges Cleanup. Dieser Offline-Bootstrap ist keine Geräte-, Karten- oder Interaktionsfreigabe. Als Nächstes weitere Metro-Generationen mit echten Gerätesitzungsdeskriptoren über denselben produktiven Host starten; der alte DirectMetroBundleRuntime-Simulator ist kein Freigabepfad."
+			"nextAction": "Q10 X5+ startet als unverändertes Metro-Bundle über die produktive DeviceNativeRuntimeEnvironment-, AdapterHostLease- und DeviceModelRuntimeFactory-Komposition. Zusätzlich durchläuft die vorhandene echte Typ-3-Historienaufnahme nach Entschlüsselung den produktiven Geräte-Ingress; das Bundle ruft selbst packageMap auf und liefert success=true sowie 124 × 238 Rasterpunkte. Bundle-Hash und Cleanup-Invarianten bleiben erfüllt. Dies ist ein produktiver Historien-Replay, aber keine Typ-1-Livekarten-, Geräte- oder Interaktionsfreigabe. Als Nächstes denselben Replayvertrag auf weitere vorhandene Gerätefamilien anwenden; der alte DirectMetroBundleRuntime-Simulator ist kein Freigabepfad."
 		},
 		{
 			"id": "P0B-HERMES-HOST",
@@ -382,7 +382,7 @@
 				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/PluginSDKModule.java",
 				".apk/com.roborock.smart_4.54.02-100820_minAPI24(arm64-v8a)(nodpi)_apkmirror.com_decompiled/com/roborock/smart/react/o00oOoo.java"
 			],
-			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Paketakquisition, Installation, Modellcache und Paketersetzung bleiben signiert, atomar, serialisiert und geräteklassenneutral. Der gepinnte Hermes-Host wird über eine eigene native Sechs-Ziel-Matrix gebaut: Windows-x64 ist lokal gebaut und ausgeführt; die übrigen fünf Zielrunner benötigen weiterhin einen erlaubten GitHub-Lauf. Probe und langlebiger Dienst verwenden dieselbe streng typisierte ioBroker-Komposition der gemeinsamen APK-Module, denselben Gerätekontext und dieselbe Read-only-Allowlist. Der Dienst bleibt beim Adapterstart aus, startet nur nach confirm=true, hält den Original-Bundle-Root nach der ersten korrelierten Antwort aktiv, übernimmt weitere vom Bundle ausgelöste Statusantworten, verwendet dieselbe Sitzung erneut und verwirft beim Wechsel zwischen zwei Geräten desselben Modells zuerst Root, Modelllease und gecachte Modell-Runtime. Die adapterweite Lifecycle-Operation serialisiert nun zusätzlich Einmal-Probe, langlebigen Start beziehungsweise Neustart und Paketaktivierung; ein aktiver oder gerade wechselnder Root blockiert die Paketersetzung vor jedem Netzwerkzugriff. Dieser Ablauf bestand live mit beiden a147-Geräten; ein Adapter-Unload beendete die zweite noch aktive Sitzung ohne AppPlugin-Fehler. Q10 X5+ besteht außerdem den Offline-Bootstrap direkt über dieselbe produktive Native-Environment-, Hostlease- und Modell-Runtime-Komposition; der Lauf verändert das Metro-Bundle nicht, meldet keine fehlende APK-Methode und räumt vollständig auf. Als Nächstes diesen zweiten Modell-/Protokollpfad mit echter Q10-HomeData und korrelierter Geräteantwort belegen und danach die beabsichtigte Mehrgeräte-/Mehrmodell-Parallelität festlegen. RockMow bleibt bis zu echter Mäher-HomeData eine Bootstrap-Gegenprobe."
+			"nextAction": "Der angemeldete Cloud-Datenfluss erzeugt Geräte- und zugehörige V5-Produkt-JSONs in APK-Reihenfolge und stellt rruid, Land sowie Region gemeinsam im Speicher bereit. Paketakquisition, Installation, Modellcache und Paketersetzung bleiben signiert, atomar, serialisiert und geräteklassenneutral. Der gepinnte Hermes-Host wird über eine eigene native Sechs-Ziel-Matrix gebaut: Windows-x64 ist lokal gebaut und ausgeführt; die übrigen fünf Zielrunner benötigen weiterhin einen erlaubten GitHub-Lauf. Probe und langlebiger Dienst verwenden dieselbe streng typisierte ioBroker-Komposition der gemeinsamen APK-Module, denselben Gerätekontext und dieselbe Read-only-Allowlist. Der Dienst bleibt beim Adapterstart aus, startet nur nach confirm=true, hält den Original-Bundle-Root nach der ersten korrelierten Antwort aktiv, übernimmt weitere vom Bundle ausgelöste Statusantworten, verwendet dieselbe Sitzung erneut und verwirft beim Wechsel zwischen zwei Geräten desselben Modells zuerst Root, Modelllease und gecachte Modell-Runtime. Die adapterweite Lifecycle-Operation serialisiert nun zusätzlich Einmal-Probe, langlebigen Start beziehungsweise Neustart und Paketaktivierung; ein aktiver oder gerade wechselnder Root blockiert die Paketersetzung vor jedem Netzwerkzugriff. Dieser Ablauf bestand live mit beiden a147-Geräten; ein Adapter-Unload beendete die zweite noch aktive Sitzung ohne AppPlugin-Fehler. Q10 X5+ startet ebenfalls über dieselbe produktive Native-Environment-, Hostlease- und Modell-Runtime-Komposition. Die vorhandene echte Typ-3-Historienaufnahme durchläuft nach Entschlüsselung zusätzlich den produktiven Geräte-Ingress und ruft im unveränderten Bundle erfolgreich packageMap mit 124 × 238 Rasterpunkten auf. Damit ist der hardwareunabhängige Historien-Replay belegt; Typ-1-Livekarte und echte Q10-HomeData bleiben bis zu einem Nutzertest offen. Als Nächstes denselben Replayvertrag auf weitere vorhandene Gerätefamilien anwenden und danach die beabsichtigte Mehrgeräte-/Mehrmodell-Parallelität festlegen. RockMow bleibt bis zu echter Mäher-HomeData eine Bootstrap-Gegenprobe."
 		},
 		{
 			"id": "P0B-APK-HOST-SERVICES",
@@ -1165,6 +1165,7 @@
 			"evidence": [
 				"docs/APPPLUGIN_Q10_MAP_EVENT_POC.md",
 				"test/unit/appplugin_q10_map_event_poc.test.ts",
+				"test/unit/appplugin_q10_product_host.test.ts",
 				"test/unit/appplugin_q10_full_scene.test.ts",
 				"`npm run poc:appplugin-q10-history-boundary`"
 			],
@@ -1218,9 +1219,11 @@
 			"dependsOn": ["P0C-Q10-FULL-SCENE", "P0B-DEVICE-INGRESS"],
 			"evidence": [
 				"docs/APPPLUGIN_Q10_MAP_EVENT_POC.md",
-				"test/unit/appplugin_q10_map_event_poc.test.ts"
+				"test/unit/appplugin_q10_map_event_poc.test.ts",
+				"test/unit/appplugin_q10_product_host.test.ts",
+				"scripts/lib/appPluginProductHostProof.ts"
 			],
-			"nextAction": "Die belegte Typ-3-Historie getrennt halten und echte Typ-1-, Typ-2- und Typ-4-Datensätze mit konsistenten Karten-IDs und Updatefolgen erfassen."
+			"nextAction": "Die belegte Typ-3-Historie läuft nun auch durch den produktiven Geräte-Ingress und originalen Worker. Sie weiterhin strikt von Livekarten trennen; echte Typ-1-, Typ-2- und Typ-4-Datensätze mit konsistenten Karten-IDs und Updatefolgen erfassen."
 		},
 		{
 			"id": "P0C-V1-PROVENANCE",

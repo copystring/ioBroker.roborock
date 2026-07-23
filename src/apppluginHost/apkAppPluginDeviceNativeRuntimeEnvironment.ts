@@ -300,6 +300,7 @@ export class ApkAppPluginDeviceNativeRuntimeEnvironment {
 	readonly #workerRuntime: ApkV8WorkerRuntime;
 	#composition?: Readonly<ApkAppPluginNativeRuntimeComposition>;
 	#eventQueue: Promise<void> = Promise.resolve();
+	#prepareStop?: Promise<void>;
 	#shared?: Readonly<ApkAppPluginSharedNativeModuleRuntimes>;
 	#disposed = false;
 
@@ -588,10 +589,19 @@ export class ApkAppPluginDeviceNativeRuntimeEnvironment {
 	public async dispose(): Promise<void> {
 		if (this.#disposed) return;
 		this.#disposed = true;
-		this.#timing.dispose();
-		this.#workerRuntime.stopAll();
+		await this.prepareStop();
 		this.#rpcBroker.close();
-		await this.#eventQueue.catch(() => undefined);
+	}
+
+	public prepareStop(): Promise<void> {
+		if (!this.#prepareStop) {
+			this.#prepareStop = (async () => {
+				this.#timing.dispose();
+				this.#workerRuntime.stopAll();
+				await this.#eventQueue.catch(() => undefined);
+			})();
+		}
+		return this.#prepareStop;
 	}
 
 	public rpcBroker(): ApkRpcRequestBroker {

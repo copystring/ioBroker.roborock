@@ -182,6 +182,24 @@ vollständig. Dabei gefundene Hostlücken bleiben harte Fehler: So wurde
 standardmäßig nicht zustimmender Hostdialog-Port ergänzt. Die eigentliche
 Einwilligungsoberfläche bleibt Eigentum der PC-/Hosthülle.
 
+Der produktive Q10-Nachweis kann inzwischen außerdem eine aufgezeichnete
+Gerätesequenz über denselben `ApkDeviceIngress` einspielen, den später MQTT und
+lokale Verbindungen bedienen. Der bestehende Codec-/Transportpfad entschlüsselt
+die echte Typ-3-Historienaufnahme; danach erhält ausschließlich das
+unveränderte AppPlugin die DPS- und Blob-Ereignisse. Mit einem explizit
+vorbelegten, bereits akzeptierten Vereinbarungszustand ruft das Bundle seinen
+originalen `.jx`-Worker `packageMap` auf und liefert `success: true` sowie
+124 × 238 Rasterpunkte. Dieser Test erzeugt keine Zustimmung und bleibt wegen
+des Blob-Typs `3` ein Historien-, kein Livekartenbeleg.
+
+Der Replay deckte außerdem eine gemeinsame Shutdown-Invariante auf: Nach dem
+Hermes-Stopp dürfen weder Timer noch verspätete Native-/Worker-Callbacks erneut
+in JavaScript schreiben. Die Modell-Runtime schließt deshalb zuerst ihre
+Roots, trennt anschließend den Geräte-Ingress, stoppt Timer und Worker, leert
+die Ereigniswarteschlange und beendet erst danach Hermes. Der
+Protokollcontroller verwirft zusätzlich Callbacks, die erst nach begonnenem
+Shutdown eintreffen.
+
 Zusätzliche Belege:
 
 - `com/roborock/smart/react/RNActivity.java:124-261`

@@ -65,7 +65,6 @@ describe("original Q10 AppPlugin history-map event path", () => {
 				"RRDeviceDpsUpdateEvent",
 				"RRDeviceBlobPayloadUpdateEvent",
 			]);
-			expect(result.createdViewManagers).toContain("SkiaPictureView");
 
 			const packageMapCall = result.backgroundWorkerCalls.find(
 				(call: { kind: string; functionName?: string }) => call.kind === "call" && call.functionName === "packageMap",

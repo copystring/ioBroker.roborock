@@ -36,6 +36,19 @@ entfernt.
 7. Der Typ-3-Pfad liefert weder ein erfasstes Live-Skia-Bild noch ein
    PNG-Artefakt.
 
+`test/unit/appplugin_q10_product_host.test.ts` führt dieselbe Aufnahme
+zusätzlich durch die produktive
+`DeviceNativeRuntimeEnvironment`-/Hostlease-/Modell-Runtime-Komposition. Dabei
+entschlüsselt der vorhandene Transportpfad nur den aufgezeichneten B01-Rahmen.
+Der produktive Geräte-Ingress emittiert anschließend DPS und Blob unverändert,
+und das Original-AppPlugin ruft selbst `packageMap` auf. Der Test verlangt
+`success: true`, 124 × 238 Rasterpunkte, ein unverändertes Bundle, keine
+Hostablehnung und vollständiges Cleanup.
+
+Der hierfür verwendete Vereinbarungszustand ist explizite Testeingabe und
+repräsentiert eine zuvor erfolgte Zustimmung. Ohne vorhandenen
+Einwilligungszustand stimmt der Host weiterhin niemals automatisch zu.
+
 ## Begründung aus dem Originalcode
 
 Das unveränderte Q10-Modul ordnet die Blob-Typen getrennten Abläufen zu:

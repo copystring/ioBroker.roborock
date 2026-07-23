@@ -15,19 +15,56 @@ import {
 	type ApkAppPluginHostContract,
 	type ApkAppPluginSessionDescriptor,
 	type ApkAppPluginRootLease,
+	type ApkAgreementAndPolicy,
+	type ApkAssembledBlobPayload,
+	type ApkDeviceIngress,
+	type ApkDeviceIngressResult,
 	type ApkHermesNativeInvocationRejection,
 	type ApkUiManagerNodeSnapshot,
+	type ApkV8WorkerDiagnostic,
 } from "../../src/apppluginHost";
 import { createCanvasKitSkiaHost } from "../../src/lib/appplugin/CanvasKitSkiaHost";
 
 const contract = contractJson as ApkAppPluginHostContract;
 
 export interface AppPluginProductHostProofOptions {
+	readonly agreementAndPolicy?: Readonly<ApkAgreementAndPolicy>;
 	readonly descriptor: ApkAppPluginSessionDescriptor;
 	readonly instanceDataDirectory: string;
 	readonly nativeRootPath?: string;
+	readonly pluginAgreements?: readonly unknown[];
+	readonly pluginAgreementsV2?: readonly unknown[];
+	readonly replayEvents?: readonly AppPluginProductHostReplayEvent[];
 	readonly settleMilliseconds?: number;
 }
+
+interface AppPluginProductHostReplayTiming {
+	readonly waitBeforeMilliseconds?: number;
+	readonly waitAfterMilliseconds?: number;
+}
+
+export type AppPluginProductHostReplayEvent =
+	| Readonly<AppPluginProductHostReplayTiming & {
+		kind: "dps";
+		protocolVersion: string;
+		dps: Readonly<Record<string, unknown>>;
+	}>
+	| Readonly<AppPluginProductHostReplayTiming & {
+		kind: "blob";
+		protocolVersion: string;
+		payload: Uint8Array;
+		nonce?: number;
+	}>;
+
+export type AppPluginProductHostReplayResult =
+	| Readonly<{
+		kind: "dps";
+		ingress: Readonly<ApkDeviceIngressResult>;
+	}>
+	| Readonly<{
+		kind: "blob";
+		assembled?: Readonly<ApkAssembledBlobPayload>;
+	}>;
 
 export interface AppPluginProductHostProofReport {
 	readonly schemaVersion: 1;
@@ -47,6 +84,8 @@ export interface AppPluginProductHostProofReport {
 	readonly rpcTransmissions: readonly Readonly<Record<string, unknown>>[];
 	readonly hostErrors: readonly string[];
 	readonly invocationRejections: readonly Readonly<ApkHermesNativeInvocationRejection>[];
+	readonly replayResults: readonly AppPluginProductHostReplayResult[];
+	readonly workerDiagnostics: readonly Readonly<ApkV8WorkerDiagnostic>[];
 	readonly cleanupComplete: boolean;
 }
 
@@ -56,6 +95,14 @@ function sha256(path: string): string {
 
 function nodeCount(node: Readonly<ApkUiManagerNodeSnapshot>): number {
 	return 1 + node.children.reduce((sum, child) => sum + nodeCount(child), 0);
+}
+
+async function waitReplayDelay(value: number | undefined, label: string): Promise<void> {
+	if (value === undefined || value === 0) return;
+	if (!Number.isSafeInteger(value) || value < 0 || value > 10_000) {
+		throw new Error(`${label} muss zwischen 0 und 10000 Millisekunden liegen`);
+	}
+	await new Promise(resolve => setTimeout(resolve, value));
 }
 
 function initialState(): ApkAppPluginDeviceNativeRuntimeInitialState {
@@ -138,9 +185,12 @@ export async function runAppPluginProductHostProof(
 	const rpcTransmissions: Array<Readonly<Record<string, unknown>>> = [];
 	const hostErrors: string[] = [];
 	const invocationRejections: ApkHermesNativeInvocationRejection[] = [];
+	const replayResults: AppPluginProductHostReplayResult[] = [];
+	const workerDiagnostics: ApkV8WorkerDiagnostic[] = [];
 	const nativeModules = new Set<string>();
 	let nativeInvocationCount = 0;
 	let active = true;
+	let deviceIngress: ApkDeviceIngress | undefined;
 	let rootLease: Readonly<ApkAppPluginRootLease> | undefined;
 	let runtime: Awaited<ReturnType<ReturnType<typeof createApkAppPluginDeviceModelRuntimeFactory>>>
 		| undefined;
@@ -202,12 +252,15 @@ export async function runAppPluginProductHostProof(
 		sdkEnvironment: {
 			firmwareVersion: options.descriptor.device.firmwareVersion,
 			loadOtaInfo: async () => null,
-			loadAgreementAndPolicy: async () => ({
+			loadAgreementAndPolicy: async () => options.agreementAndPolicy ?? ({
 				privacyProtocol: { version: null, langUrl: null },
 				userAgreement: { version: null, langUrl: null },
 			}),
-			loadPluginAgreements: async () => [],
-			loadPluginAgreementsV2: async () => [],
+			loadPluginAgreements: async () => options.pluginAgreements ?? [],
+			loadPluginAgreementsV2: async () => options.pluginAgreementsV2 ?? [],
+		},
+		onWorkerDiagnostic: diagnostic => {
+			workerDiagnostics.push(structuredClone(diagnostic));
 		},
 		emitAnalytics: () => undefined,
 		reportException: (method, arguments_) => {
@@ -221,6 +274,15 @@ export async function runAppPluginProductHostProof(
 			acquireDeviceHost: async () => ({
 				initialState: initialState(),
 				ports,
+				attachDeviceIngress: ingress => {
+					if (deviceIngress && deviceIngress !== ingress) {
+						throw new Error("Produktiver Hostnachweis erhielt mehr als einen Geräte-Ingress");
+					}
+					deviceIngress = ingress;
+					return () => {
+						if (deviceIngress === ingress) deviceIngress = undefined;
+					};
+				},
 				release: () => {
 					active = false;
 				},
@@ -277,6 +339,40 @@ export async function runAppPluginProductHostProof(
 			},
 		});
 		await runtime.session.waitForRuntimeBoundaryIdle(128);
+		const ingress = deviceIngress;
+		if (options.replayEvents && !ingress) {
+			throw new Error("Produktiver AppPlugin-Host stellte keinen Geräte-Ingress bereit");
+		}
+		let nextBlobNonce = 1;
+		for (const event of options.replayEvents ?? []) {
+			await waitReplayDelay(event.waitBeforeMilliseconds, "Replay-Wartezeit vor dem Ereignis");
+			if (event.kind === "dps") {
+				replayResults.push({
+					kind: "dps",
+					ingress: structuredClone(ingress!.acceptJsonDps(
+						options.descriptor.device.deviceId,
+						event.protocolVersion,
+						JSON.stringify(event.dps),
+					)),
+				});
+			} else {
+				const assembled = ingress!.acceptBlobSegment({
+					duid: options.descriptor.device.deviceId,
+					pv: event.protocolVersion,
+					nonce: event.nonce ?? nextBlobNonce++,
+					sequenceId: 1,
+					isFirst: true,
+					isLast: true,
+					data: Buffer.from(event.payload),
+				});
+				replayResults.push({
+					kind: "blob",
+					...(assembled ? { assembled: structuredClone(assembled) } : {}),
+				});
+			}
+			await runtime.session.waitForRuntimeBoundaryIdle(128);
+			await waitReplayDelay(event.waitAfterMilliseconds, "Replay-Wartezeit nach dem Ereignis");
+		}
 		await new Promise(resolve => setTimeout(resolve, options.settleMilliseconds ?? 350));
 		await runtime.session.waitForRuntimeBoundaryIdle(128);
 		const snapshot = rootLease.uiManager.snapshot();
@@ -298,6 +394,8 @@ export async function runAppPluginProductHostProof(
 			rpcTransmissions,
 			hostErrors,
 			invocationRejections,
+			replayResults,
+			workerDiagnostics,
 			cleanupComplete: false,
 		};
 		if (report.rootChildCount === 0) {
@@ -344,6 +442,8 @@ export async function runAppPluginProductHostProof(
 		rpcTransmissions: Object.freeze([...rpcTransmissions]),
 		hostErrors: Object.freeze([...hostErrors]),
 		invocationRejections: Object.freeze([...invocationRejections]),
+		replayResults: Object.freeze([...replayResults]),
+		workerDiagnostics: Object.freeze([...workerDiagnostics]),
 		cleanupComplete,
 	});
 }

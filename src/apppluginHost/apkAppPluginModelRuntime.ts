@@ -55,6 +55,7 @@ export interface ApkAppPluginModelRuntimeComposition {
 	 * different UIManager than the roots exposed to the desktop host.
 	 */
 	createSession(uiManager: ApkUiManagerRuntime): ApkAppPluginApplicationSession;
+	prepareStop?(): void | Promise<void>;
 	dispose?(): void | Promise<void>;
 }
 
@@ -221,6 +222,14 @@ export class ApkAppPluginModelRuntime {
 				for (const slot of [...this.#roots.values()]) {
 					this.#roots.delete(slot.rootTag);
 					this.#removeNativeRoot(slot.rootTag);
+				}
+			}
+			if (stopSession && this.composition.prepareStop) {
+				try {
+					await this.composition.prepareStop();
+					await this.#session.waitForRuntimeBoundaryIdle();
+				} catch (error) {
+					errors.push(error);
 				}
 			}
 			if (stopSession) {
