@@ -23,7 +23,7 @@
     "node": ">= 22"
   },
   "dependencies": {
-    "@iobroker/adapter-core": "^3.4.1",
+    "@iobroker/adapter-core": "^3.4.3",
     "@napi-rs/canvas": "^1.0.1",
     "axios": "^1.18.1",
     "binary-parser": "^2.3.0",
