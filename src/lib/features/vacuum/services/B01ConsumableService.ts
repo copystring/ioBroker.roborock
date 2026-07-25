@@ -20,6 +20,12 @@ export class B01ConsumableService {
 		filter_element: "filter_element_work_time"
 	};
 
+	private readonly LIFE_STATE_MAP: Record<string, string> = {
+		main_brush: "main_brush_life",
+		side_brush: "side_brush_life",
+		filter: "filter_life"
+	};
+
 	public async updateConsumables(data?: unknown): Promise<void> {
 		let resultObj: Record<string, any> | undefined;
 
@@ -67,13 +73,25 @@ export class B01ConsumableService {
 				unit = "cycles";
 				suffix = " cycles";
 			} else if (key.endsWith("_work_time") || key.endsWith("_dirty_time")) {
-				const totalSeconds = this.getConsumableLifeSpan(deviceName) * 3600;
+				const totalHours = this.getConsumableLifeSpan(deviceName);
+				const totalMinutes = totalHours * 60;
+				const usedMinutes = this.normalizeConsumableUsedMinutes(val, totalMinutes);
+				if (!Number.isFinite(usedMinutes)) continue;
 
-				if (totalSeconds > 0) {
-					// Convert seconds used to remaining hours
-					val = Math.max(0, Math.round((totalSeconds - val) / 3600));
+				if (totalMinutes > 0) {
+					val = Math.max(0, Math.round((totalMinutes - usedMinutes) / 60));
 					unit = "h";
 					suffix = " remaining time";
+
+					const lifeState = this.LIFE_STATE_MAP[deviceName];
+					if (lifeState) {
+						const remainingPercent = Math.max(0, Math.min(100, Math.ceil(((totalMinutes - usedMinutes) / totalMinutes) * 100)));
+						const common = VACUUM_CONSTANTS.consumables[lifeState as keyof typeof VACUUM_CONSTANTS.consumables];
+						await this.stateWriter.ensureAndSetValueState(`consumables.${lifeState}`, {
+							name: `${localizedName} remaining life`,
+							...common
+						}, remainingPercent);
+					}
 				} else {
 					unit = "s";
 					suffix = " work time";
@@ -99,6 +117,13 @@ export class B01ConsumableService {
 				def: false
 			}, { resetParam: key });
 		}
+	}
+
+	private normalizeConsumableUsedMinutes(value: unknown, totalMinutes: number): number {
+		const numericValue = Number(value);
+		if (!Number.isFinite(numericValue)) return Number.NaN;
+
+		return totalMinutes > 0 && numericValue > totalMinutes ? numericValue / 60 : numericValue;
 	}
 
 	private getConsumableLifeSpan(deviceName: string): number {
