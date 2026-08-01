@@ -512,24 +512,37 @@ export class DeviceManager {
 	}
 
 	/**
-	 * Applies numeric device.status values from cloud HomeData.
+	 * Applies all scalar device.status values from cloud HomeData.
+	 *
+	 * HomeData is the only status source for some product categories. Preserve its
+	 * raw keys under deviceStatus so unknown devices do not silently lose values;
+	 * named device and consumable states remain supplemental compatibility aliases.
 	 */
 	public async updateHomeDataDeviceStatus(duid: string, devices = this.adapter.http_api.getDevices()): Promise<void> {
 		const handler = this.deviceFeatureHandlers.get(duid);
 		if (!handler) return;
 
 		const device = devices.find((d) => d.duid === duid);
-		if (!device?.deviceStatus) return; // 'deviceStatus' exists on Device type
+		if (!device?.deviceStatus) return;
 		const status = device.deviceStatus as Record<string, unknown>;
+		const statusPath = `Devices.${duid}.deviceStatus`;
+
+		await this.adapter.ensureFolder(statusPath);
 
 		for (const [attribute, value] of Object.entries(status)) {
+			if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+				const path = `${statusPath}.${attribute}`;
+				await this.adapter.ensureState(path, { name: attribute, type: typeof value, read: true, write: false });
+				await this.adapter.setStateChanged(path, { val: value, ack: true });
+			}
+
 			const statusName = DeviceManager.HOME_DATA_DEVICE_STATUS_MAP[attribute];
 			if (statusName) {
 				if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 100) continue;
 				const common = handler.getCommonDeviceStates(statusName);
 
-				await this.adapter.ensureState(`Devices.${duid}.deviceStatus.${statusName}`, common || {});
-				await this.adapter.setStateChanged(`Devices.${duid}.deviceStatus.${statusName}`, { val: value, ack: true });
+				await this.adapter.ensureState(`${statusPath}.${statusName}`, common || {});
+				await this.adapter.setStateChanged(`${statusPath}.${statusName}`, { val: value, ack: true });
 				continue;
 			}
 
@@ -539,7 +552,7 @@ export class DeviceManager {
 			if (typeof value !== "number" || !Number.isInteger(value)) continue;
 			if (value < 0 || value > 100) continue;
 
-			const common = handler.getCommonConsumable(mappedName); // Use mapped name
+			const common = handler.getCommonConsumable(mappedName);
 
 			await this.adapter.ensureState(`Devices.${duid}.consumables.${mappedName}`, common || {});
 			await this.adapter.setStateChanged(`Devices.${duid}.consumables.${mappedName}`, { val: value, ack: true });
