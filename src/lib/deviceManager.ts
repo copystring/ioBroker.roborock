@@ -532,7 +532,8 @@ export class DeviceManager {
 		for (const [attribute, value] of Object.entries(status)) {
 			if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
 				const path = `${statusPath}.${attribute}`;
-				await this.adapter.ensureState(path, { name: attribute, type: typeof value, read: true, write: false });
+				const type: ioBroker.CommonType = typeof value === "string" ? "string" : typeof value === "number" ? "number" : "boolean";
+				await this.adapter.ensureState(path, { name: attribute, type, read: true, write: false });
 				await this.adapter.setStateChanged(path, { val: value, ack: true });
 			}
 
