@@ -113,8 +113,37 @@ function mergeUnique(target, values) {
 }
 
 function selectLabelKeys(code, definition) {
-	if (code >= 100 && code < 600 && definition.detailKeys.length > 0) return [...definition.detailKeys].reverse();
-	return [...definition.titleKeys].reverse();
+	const primaryKeys = code >= 100 && code < 600 && definition.detailKeys.length > 0
+		? definition.detailKeys
+		: definition.titleKeys;
+	if (primaryKeys.length > 0) return [...primaryKeys].reverse();
+	return [definition.descriptionKeys, definition.detailKeys, definition.subtitleKeys].flatMap((keys) => [...keys].reverse());
+}
+
+function addTranslationFallbackDefinitions(definitions, translations) {
+	const structuredCodes = new Set(definitions.keys());
+	for (const locale of Object.values(translations)) {
+		if (!locale || typeof locale !== "object") continue;
+		for (const key of Object.keys(locale)) {
+			const match = key.match(/^error_(\d+)_(title|desc|detail)$/);
+			if (!match) continue;
+
+			const code = Number(match[1]);
+			if (structuredCodes.has(code)) continue;
+			let definition = definitions.get(code);
+			if (!definition) {
+				definition = { types: ["TranslationFallback"], titleKeys: [], subtitleKeys: [], descriptionKeys: [], detailKeys: [] };
+				definitions.set(code, definition);
+			}
+
+			const fieldName = {
+				title: "titleKeys",
+				desc: "descriptionKeys",
+				detail: "detailKeys",
+			}[match[2]];
+			mergeUnique(definition[fieldName], [key]);
+		}
+	}
 }
 
 function buildErrorCodeDataset(rootDir, translationsPath, pluginFilter = null) {
@@ -145,6 +174,7 @@ function buildErrorCodeDataset(rootDir, translationsPath, pluginFilter = null) {
 	}
 
 	const translations = JSON.parse(fs.readFileSync(translationsPath, "utf8"));
+	addTranslationFallbackDefinitions(definitions, translations);
 	const english = translations.en || {};
 	const codes = {};
 	for (const code of [...definitions.keys()].sort((left, right) => left - right)) {
@@ -159,6 +189,9 @@ function buildErrorCodeDataset(rootDir, translationsPath, pluginFilter = null) {
 			description: "Roborock AppPlugin error definitions. Translation keys resolve through roborock_strings.json.",
 			pluginFilter,
 			sources: [...new Set(sources)].sort(),
+			translationFallbackCodes: Object.entries(codes)
+				.filter(([, definition]) => definition.types.includes("TranslationFallback"))
+				.map(([code]) => Number(code)),
 		},
 		codes,
 	};
@@ -174,4 +207,11 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { buildErrorCodeDataset, extractTranslationKeys, parseErrorEntries, parseReminderEntries, splitTopLevelFields };
+module.exports = {
+	addTranslationFallbackDefinitions,
+	buildErrorCodeDataset,
+	extractTranslationKeys,
+	parseErrorEntries,
+	parseReminderEntries,
+	splitTopLevelFields,
+};

@@ -7,6 +7,37 @@
       "S7 MaxV/8328da4abbd14f0f99d6c32e17af5a8b/metro_bundle_split/modules/module_1639.js",
       "S7 MaxV/extracted/index.android.bundle",
       "S7 MaxV/extracted/metro_bundle_split/modules/module_1639.js"
+    ],
+    "translationFallbackCodes": [
+      31,
+      56,
+      57,
+      59,
+      60,
+      61,
+      62,
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+      70,
+      71,
+      74,
+      76,
+      77,
+      78,
+      79,
+      80,
+      81,
+      82,
+      83,
+      84,
+      85,
+      86,
+      95,
+      97
     ]
   },
   "codes": {
@@ -577,6 +608,25 @@
       "labelKeys": [],
       "fallback": "ImageFPSError"
     },
+    "31": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_31_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_31_desc"
+      ],
+      "detailKeys": [
+        "error_31_detail"
+      ],
+      "labelKeys": [
+        "error_31_title"
+      ],
+      "fallback": "Front and Rear Sensors Error"
+    },
     "32": {
       "types": [
         "CollectDustError1",
@@ -957,6 +1007,532 @@
         "error_water_carriage_drop_title"
       ],
       "fallback": "The mop mount fell off. "
+    },
+    "56": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_56_desc"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_56_desc"
+      ],
+      "fallback": "###"
+    },
+    "57": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_57_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_57_desc"
+      ],
+      "detailKeys": [
+        "error_57_detail"
+      ],
+      "labelKeys": [
+        "error_57_title"
+      ],
+      "fallback": "Cleaning tank maintenance brush error"
+    },
+    "59": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_59_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_59_desc"
+      ],
+      "detailKeys": [
+        "error_59_detail"
+      ],
+      "labelKeys": [
+        "error_59_title"
+      ],
+      "fallback": "###"
+    },
+    "60": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_60_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_60_desc"
+      ],
+      "detailKeys": [
+        "error_60_detail"
+      ],
+      "labelKeys": [
+        "error_60_title"
+      ],
+      "fallback": "###"
+    },
+    "61": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_61_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_61_desc"
+      ],
+      "detailKeys": [
+        "error_61_detail"
+      ],
+      "labelKeys": [
+        "error_61_title"
+      ],
+      "fallback": "请检查激光雷达升降模组"
+    },
+    "62": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_62_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_62_desc"
+      ],
+      "detailKeys": [
+        "error_62_detail"
+      ],
+      "labelKeys": [
+        "error_62_title"
+      ],
+      "fallback": "请检查清洗槽滤网"
+    },
+    "64": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_64_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_64_desc"
+      ],
+      "detailKeys": [
+        "error_64_detail"
+      ],
+      "labelKeys": [
+        "error_64_title"
+      ],
+      "fallback": "机械手压力开关触发"
+    },
+    "65": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_65_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_65_desc"
+      ],
+      "detailKeys": [
+        "error_65_detail"
+      ],
+      "labelKeys": [
+        "error_65_title"
+      ],
+      "fallback": "机械手边缘防夹传感器触发"
+    },
+    "66": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_66_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_66_desc"
+      ],
+      "detailKeys": [
+        "error_66_detail"
+      ],
+      "labelKeys": [
+        "error_66_title"
+      ],
+      "fallback": "舱门开关失败"
+    },
+    "67": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_67_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_67_desc"
+      ],
+      "detailKeys": [
+        "error_67_detail"
+      ],
+      "labelKeys": [
+        "error_67_title"
+      ],
+      "fallback": "机械手卡住"
+    },
+    "68": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_68_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_68_desc"
+      ],
+      "detailKeys": [
+        "error_68_detail"
+      ],
+      "labelKeys": [
+        "error_68_title"
+      ],
+      "fallback": "机械手过流"
+    },
+    "69": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_69_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_69_desc"
+      ],
+      "detailKeys": [
+        "error_69_detail"
+      ],
+      "labelKeys": [
+        "error_69_title"
+      ],
+      "fallback": "机械手状态异常"
+    },
+    "70": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_70_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_70_desc"
+      ],
+      "detailKeys": [
+        "error_70_detail"
+      ],
+      "labelKeys": [
+        "error_70_title"
+      ],
+      "fallback": "机械手温度异常"
+    },
+    "71": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_71_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_71_desc"
+      ],
+      "detailKeys": [
+        "error_71_detail"
+      ],
+      "labelKeys": [
+        "error_71_title"
+      ],
+      "fallback": "机械手被困住"
+    },
+    "74": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_74_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_74_desc"
+      ],
+      "detailKeys": [
+        "error_74_detail"
+      ],
+      "labelKeys": [
+        "error_74_title"
+      ],
+      "fallback": "顶面感知传感器可能脏污"
+    },
+    "76": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_76_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_76_desc"
+      ],
+      "detailKeys": [
+        "error_76_detail"
+      ],
+      "labelKeys": [
+        "error_76_title"
+      ],
+      "fallback": "滚筒未安装"
+    },
+    "77": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_77_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_77_desc"
+      ],
+      "detailKeys": [
+        "error_77_detail"
+      ],
+      "labelKeys": [
+        "error_77_title"
+      ],
+      "fallback": "导水槽未安装"
+    },
+    "78": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_78_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_78_desc"
+      ],
+      "detailKeys": [
+        "error_78_detail"
+      ],
+      "labelKeys": [
+        "error_78_title"
+      ],
+      "fallback": "污水盒未安装"
+    },
+    "79": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_79_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_79_desc"
+      ],
+      "detailKeys": [
+        "error_79_detail"
+      ],
+      "labelKeys": [
+        "error_79_title"
+      ],
+      "fallback": "滚筒掉落"
+    },
+    "80": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_80_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_80_desc"
+      ],
+      "detailKeys": [
+        "error_80_detail"
+      ],
+      "labelKeys": [
+        "error_80_title"
+      ],
+      "fallback": "导水槽掉落"
+    },
+    "81": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_81_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_81_desc"
+      ],
+      "detailKeys": [
+        "error_81_detail"
+      ],
+      "labelKeys": [
+        "error_81_title"
+      ],
+      "fallback": "污水盒掉落"
+    },
+    "82": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_82_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_82_desc"
+      ],
+      "detailKeys": [
+        "error_82_detail"
+      ],
+      "labelKeys": [
+        "error_82_title"
+      ],
+      "fallback": "滚筒罩异常"
+    },
+    "83": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_83_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_83_desc"
+      ],
+      "detailKeys": [
+        "error_83_detail"
+      ],
+      "labelKeys": [
+        "error_83_title"
+      ],
+      "fallback": "基站顶出机构异常"
+    },
+    "84": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_84_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_84_desc"
+      ],
+      "detailKeys": [
+        "error_84_detail"
+      ],
+      "labelKeys": [
+        "error_84_title"
+      ],
+      "fallback": "主机污水盒排水异常"
+    },
+    "85": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_85_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_85_desc"
+      ],
+      "detailKeys": [
+        "error_85_detail"
+      ],
+      "labelKeys": [
+        "error_85_title"
+      ],
+      "fallback": "拖布支架未安装"
+    },
+    "86": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_86_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_86_desc"
+      ],
+      "detailKeys": [
+        "error_86_detail"
+      ],
+      "labelKeys": [
+        "error_86_title"
+      ],
+      "fallback": "支撑臂可能卡入异物"
+    },
+    "95": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_95_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_95_desc"
+      ],
+      "detailKeys": [
+        "error_95_detail"
+      ],
+      "labelKeys": [
+        "error_95_title"
+      ],
+      "fallback": "拖布支架安装失败"
+    },
+    "97": {
+      "types": [
+        "TranslationFallback"
+      ],
+      "titleKeys": [
+        "error_97_title"
+      ],
+      "subtitleKeys": [],
+      "descriptionKeys": [
+        "error_97_desc"
+      ],
+      "detailKeys": [],
+      "labelKeys": [
+        "error_97_title"
+      ],
+      "fallback": "清洁液余量低"
     },
     "100": {
       "types": [

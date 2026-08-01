@@ -11,8 +11,8 @@ vi.mock("../../src/lib/map/MapManager", () => ({
 }));
 
 describe("AppPlugin error mapping", () => {
-	it("contains the complete extracted AppPlugin union", () => {
-		expect(Object.keys(errorCodeDataset.codes)).toHaveLength(107);
+	it("contains the AppPlugin union and translation-defined fallback codes", () => {
+		expect(Object.keys(errorCodeDataset.codes)).toHaveLength(136);
 		expect(errorCodeDataset.codes["29"].titleKeys).not.toContain("DMM");
 		expect(errorCodeDataset.codes["38"]).toMatchObject({
 			types: ["ClearWaterboxHoare"],
@@ -21,16 +21,24 @@ describe("AppPlugin error mapping", () => {
 		});
 		expect(errorCodeDataset.codes["33"].titleKeys).toContain("collecting_dusk_error33_title");
 		expect(errorCodeDataset.codes["159"].detailKeys).toContain("inner_error_desc_159");
+		expect(errorCodeDataset.codes["95"]).toMatchObject({
+			types: ["TranslationFallback"],
+			labelKeys: ["error_95_title"],
+		});
+		expect(errorCodeDataset.codes["95"].fallback).toBeTruthy();
+		expect(errorCodeDataset._meta.translationFallbackCodes).toContain(95);
 	});
 
 	it("resolves states in the configured adapter language", () => {
 		const states = getLocalizedErrorStates({
-			get: (key, fallback) => key === "error_clear_waterbox_hoare_title"
-				? "Bitte den Reinwassertank überprüfen"
-				: fallback || key,
+			get: (key, fallback) => ({
+				error_clear_waterbox_hoare_title: "Bitte den Reinwassertank überprüfen",
+				error_95_title: "Installation der Wischtuschhalterung fehlgeschlagen",
+			}[key] || fallback || key),
 		});
 
 		expect(states["38"]).toBe("Bitte den Reinwassertank überprüfen");
+		expect(states["95"]).toBe("Installation der Wischtuschhalterung fehlgeschlagen");
 		expect(states["33"]).toBe("Auto-Empty Dock fan error");
 	});
 
@@ -42,9 +50,10 @@ describe("AppPlugin error mapping", () => {
 			setStateChanged,
 			requestsHandler: { sendRequest: vi.fn(), command: vi.fn() },
 			translationManager: {
-				get: (key: string, fallback?: string) => key === "error_clear_waterbox_hoare_title"
-					? "Bitte den Reinwassertank überprüfen"
-					: fallback || key,
+				get: (key: string, fallback?: string) => ({
+					error_clear_waterbox_hoare_title: "Bitte den Reinwassertank überprüfen",
+					error_95_title: "Installation der Wischtuschhalterung fehlgeschlagen",
+				}[key] || fallback || key),
 			},
 			rLog: vi.fn(),
 		} as any;
@@ -63,5 +72,34 @@ describe("AppPlugin error mapping", () => {
 		expect(errorObject?.[1].states["38"]).toBe("Bitte den Reinwassertank überprüfen");
 		expect(dockErrorObject?.[1].states).toEqual(errorObject?.[1].states);
 		expect(setStateChanged).toHaveBeenCalledWith("Devices.a62-duid.deviceStatus.dock_error_status", { val: 38, ack: true });
+	});
+
+	it("exposes the observed mop-cloth-mount error through error_code", async () => {
+		const ensureState = vi.fn().mockResolvedValue(undefined);
+		const setStateChanged = vi.fn().mockResolvedValue(undefined);
+		const adapter = {
+			log: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() },
+			setStateChanged,
+			requestsHandler: { sendRequest: vi.fn(), command: vi.fn() },
+			translationManager: {
+				get: (key: string, fallback?: string) => key === "error_95_title"
+					? "Installation der Wischtuschhalterung fehlgeschlagen"
+					: fallback || key,
+			},
+			rLog: vi.fn(),
+		} as any;
+		const dependencies = {
+			adapter,
+			ensureState,
+			ensureFolder: vi.fn().mockResolvedValue(undefined),
+			log: adapter.log,
+		} as unknown as FeatureDependencies;
+		const vacuum = new A62Features(dependencies, "a62-duid");
+
+		await vacuum.processStatus({ error_code: 95 });
+
+		const errorObject = ensureState.mock.calls.find(([id]) => id.endsWith("deviceStatus.error_code"));
+		expect(errorObject?.[1].states["95"]).toBe("Installation der Wischtuschhalterung fehlgeschlagen");
+		expect(setStateChanged).toHaveBeenCalledWith("Devices.a62-duid.deviceStatus.error_code", { val: 95, ack: true });
 	});
 });
