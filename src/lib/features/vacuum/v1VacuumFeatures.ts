@@ -832,6 +832,7 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			dock_error_status: async (val) => {
 				await this.deps.ensureState(`Devices.${this.duid}.deviceStatus.dock_error_status`, { type: "number", states: localizedErrorStates });
 				await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.dock_error_status`, { val, ack: true });
+				await this.afterDockErrorStatusUpdated(val);
 			},
     		fan_power: async (val) => {
     			await this.deps.ensureState(`Devices.${this.duid}.deviceStatus.fan_power`, { type: "number", states: this.profile.mappings.fan_power });
@@ -868,7 +869,12 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
     		}
     	}
 
-    	await Promise.all(promises);
+		await Promise.all(promises);
+	}
+
+	/** Allows device-specific profiles to derive states from dock_error_status. */
+	protected async afterDockErrorStatusUpdated(_dockErrorStatus: unknown): Promise<void> {
+		// Default profiles do not derive additional states.
 	}
 
 	protected getDynamicFeatures(): Set<Feature> {

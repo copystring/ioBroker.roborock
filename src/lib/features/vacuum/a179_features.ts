@@ -2007,7 +2007,7 @@ export class A179Features extends V1VacuumFeatures {
 		}
 
 		if (key === "dock_error_status") {
-			await this.updateDerivedDockErrorStatus(val);
+			await this.afterDockErrorStatusUpdated(val);
 			return;
 		}
 
@@ -3799,7 +3799,7 @@ export class A179Features extends V1VacuumFeatures {
 		}
 	}
 
-	private async updateDerivedDockErrorStatus(rawDockErrorStatus: unknown): Promise<void> {
+	protected override async afterDockErrorStatusUpdated(rawDockErrorStatus: unknown): Promise<void> {
 		const dockErrorStatus = Number(rawDockErrorStatus);
 		if (!Number.isFinite(dockErrorStatus)) {
 			return;
