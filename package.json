@@ -118,6 +118,7 @@
     "appplugins:extract": "node scripts/appplugins.js extract translations",
     "prepare:appplugin-bundles": "node scripts/prepare_appplugin_bundles.js",
     "extract:appplugin-translations": "node scripts/extract_appplugin_translations.js",
+    "extract:appplugin-error-codes": "node scripts/extract_appplugin_error_codes.js --plugin \"S7 MaxV\"",
     "copy:protocols": "shx mkdir -p build/lib/protocols && shx cp lib/protocols/*.json build/lib/protocols/",
     "build:git": "npm run clean && npm run copy:protocols && tsc -b tsconfig.json && npm run build:www",
     "release": "release-script"
