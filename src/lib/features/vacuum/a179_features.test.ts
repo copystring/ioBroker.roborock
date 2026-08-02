@@ -1443,6 +1443,21 @@ describe("A179Features", () => {
 		});
 	});
 
+	it("derives the dock error flag when processing a status payload", async () => {
+		const feature = new A179Features(depsMock, "duid1");
+
+		await feature.processStatus({ dock_error_status: 38 });
+
+		expect(adapterMock.setStateChanged).toHaveBeenCalledWith("Devices.duid1.deviceStatus.dock_error_status", {
+			val: 38,
+			ack: true,
+		});
+		expect(adapterMock.setStateChanged).toHaveBeenCalledWith("Devices.duid1.deviceStatus.hasDockError", {
+			val: true,
+			ack: true,
+		});
+	});
+
 	it("derives Home Security and monitor flags from source-backed status fields", async () => {
 		const feature = new A179Features(depsMock, "duid1");
 

@@ -1515,7 +1515,7 @@
       "labelKeys": [
         "error_95_title"
       ],
-      "fallback": "拖布支架安装失败"
+      "fallback": "Mop cloth mount installation failed"
     },
     "97": {
       "types": [
