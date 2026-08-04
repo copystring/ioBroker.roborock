@@ -31,7 +31,6 @@ describe("device online state sync from HomeData", () => {
 			http_api: {
 				updateHomeData: vi.fn().mockResolvedValue(undefined),
 				getDevices: () => devices,
-				getRobotModel: vi.fn(() => "roborock.vacuum.sc01"),
 			},
 			updateDeviceInfo: vi.fn().mockResolvedValue(undefined),
 			getDeviceProtocolVersion: vi.fn().mockResolvedValue("B01"),
@@ -91,7 +90,6 @@ describe("device online state sync from HomeData", () => {
 			config: { updateInterval: 5 },
 			http_api: {
 				getDevices: () => devices,
-				getRobotModel: vi.fn(() => "roborock.wm.a102"),
 			},
 			ensureState: vi.fn().mockResolvedValue(undefined),
 			ensureFolder: vi.fn().mockResolvedValue(undefined),
@@ -106,10 +104,8 @@ describe("device online state sync from HomeData", () => {
 		expect(adapter.ensureFolder).toHaveBeenCalledWith("Devices.duid-1.deviceStatus");
 		expect(adapter.ensureState).toHaveBeenCalledWith("Devices.duid-1.deviceStatus.200", expect.objectContaining({ type: "number" }));
 		expect(adapter.ensureState).toHaveBeenCalledWith("Devices.duid-1.deviceStatus.10005", expect.objectContaining({ type: "string" }));
-		expect(adapter.ensureState).toHaveBeenCalledWith("Devices.duid-1.deviceStatus.app_program", expect.objectContaining({ name: "App Program ID", type: "number", read: true, write: false }));
 		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.deviceStatus.200", { val: 1, ack: true });
 		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.deviceStatus.222", { val: 936449, ack: true });
-		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.deviceStatus.app_program", { val: 936449, ack: true });
 		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.deviceStatus.10005", { val: "{\\\"ssid\\\":\\\"MagicSignal\\\"}", ack: true });
 		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.consumables.main_brush_life", { val: 91, ack: true });
 		expect(adapter.setStateChanged).not.toHaveBeenCalledWith("Devices.duid-1.deviceStatus.nested", expect.anything());
