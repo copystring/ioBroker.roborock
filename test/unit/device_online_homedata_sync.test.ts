@@ -110,4 +110,48 @@ describe("device online state sync from HomeData", () => {
 		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.consumables.main_brush_life", { val: 91, ack: true });
 		expect(adapter.setStateChanged).not.toHaveBeenCalledWith("Devices.duid-1.deviceStatus.nested", expect.anything());
 	});
+
+	it("decodes Zeo One custom-program DP 222 without replacing its raw HomeData value", async () => {
+		const handler = {
+			getCommonConsumable: vi.fn(),
+			getCommonDeviceStates: vi.fn(),
+		};
+		const devices = [{
+			duid: "zeo-one",
+			online: true,
+			deviceStatus: {
+				"222": 994818,
+				"239": 75,
+			},
+		}];
+		const adapter = {
+			language: "de",
+			http_api: {
+				getDevices: () => devices,
+				getRobotModel: vi.fn().mockReturnValue("roborock.wm.a102"),
+			},
+			ensureState: vi.fn().mockResolvedValue(undefined),
+			ensureFolder: vi.fn().mockResolvedValue(undefined),
+			setStateChanged: vi.fn().mockResolvedValue(undefined),
+		};
+
+		const manager = new DeviceManager(adapter as any);
+		manager.deviceFeatureHandlers.set("zeo-one", handler as any);
+
+		await manager.updateHomeDataDeviceStatus("zeo-one");
+
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.222", { val: 994818, ack: true });
+		expect(adapter.ensureState).toHaveBeenCalledWith(
+			"Devices.zeo-one.deviceStatus.custom_program.temperature",
+			expect.objectContaining({ name: { en: "Temperature", de: "Temperatur" }, type: "number", unit: "°C" }),
+		);
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.custom_program.program", { val: 2, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.custom_program.program_name", { val: "Schnell", ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.custom_program.mode", { val: 2, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.custom_program.temperature", { val: 40, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.custom_program.rinse_cycles", { val: 1, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.custom_program.spin_speed", { val: 1400, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.custom_program.drying_degree", { val: 2, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.custom_program.total_time", { val: 75, ack: true });
+	});
 });

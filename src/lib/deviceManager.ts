@@ -91,6 +91,7 @@ function createFeaturesForModel(adapter: Roborock, duid: string, robotModel: str
 }
 
 export class DeviceManager {
+	private static readonly ZEO_ONE_MODEL = "roborock.wm.a102";
 	private adapter: Roborock;
 	private static readonly HOME_DATA_DEVICE_STATUS_MAP: Record<string, string> = {
 		"122": "battery",
@@ -559,5 +560,116 @@ export class DeviceManager {
 			await this.adapter.ensureState(`Devices.${duid}.consumables.${mappedName}`, common || {});
 			await this.adapter.setStateChanged(`Devices.${duid}.consumables.${mappedName}`, { val: value, ack: true });
 		}
+
+		await this.updateZeoOneCustomProgram(duid, status, statusPath);
+	}
+
+	/**
+	 * The Zeo One AppPlugin encodes its custom-program selection in HomeData DP 222.
+	 * Keep DP 222 as the lossless source and expose the same decoded fields the app uses.
+	 */
+	private async updateZeoOneCustomProgram(duid: string, status: Record<string, unknown>, statusPath: string): Promise<void> {
+		if (this.adapter.http_api.getRobotModel?.(duid) !== DeviceManager.ZEO_ONE_MODEL) return;
+
+		const rawProgram = status["222"];
+		if (typeof rawProgram !== "number" || !Number.isSafeInteger(rawProgram) || rawProgram < 0) return;
+
+		const rawTotalTime = status["239"];
+		const totalTime = typeof rawTotalTime === "number" && Number.isFinite(rawTotalTime) && rawTotalTime >= 0
+			? rawTotalTime
+			: undefined;
+		const program = rawProgram & 0xff;
+		const mode = (rawProgram & 0x300) >> 8;
+		const temperatureLevel = (rawProgram & 0x1c00) >> 10;
+		const rinse = (rawProgram & 0xe000) >> 13;
+		const spinLevel = (rawProgram & 0x70000) >> 16;
+		const dryingMode = (rawProgram & 0x380000) >> 19;
+		const soakLevel = (rawProgram & 0x1c00000) >> 22;
+		const dryCareMode = (rawProgram & 0xe000000) >> 25;
+		const customProgramPath = `${statusPath}.custom_program`;
+
+		const localized = (en: string, de: string): string | ioBroker.StringOrTranslated => ({ en, de });
+		const valueText = (en: string, de: string): string => this.adapter.language?.toLowerCase().startsWith("de") ? de : en;
+		const programNames: Record<number, { en: string; de: string }> = {
+			2: { en: "Quick", de: "Schnell" },
+			23: { en: "Cotton/Linen", de: "Baumwolle/Leinen" },
+		};
+		const programName = programNames[program] ?? { en: `Program ${program}`, de: `Programm ${program}` };
+		const temperatureByLevel: Record<number, number> = { 1: 0, 2: 30, 3: 40, 4: 60, 5: 90, 6: 20 };
+		const spinByLevel: Record<number, number> = { 1: 0, 2: 400, 3: 600, 4: 800, 5: 1000, 6: 1200, 7: 1400 };
+		const soakByLevel: Record<number, number> = { 0: 0, 1: 5, 2: 10, 3: 15, 4: 20 };
+		const dryingDegreeByMode: Record<number, number> = { 0: 0, 1: 2, 2: 1, 3: 3 };
+
+		await this.adapter.ensureFolder(customProgramPath);
+		const states: Array<{ id: string; common: Partial<ioBroker.StateCommon>; value: ioBroker.StateValue }> = [
+			{
+				id: "program",
+				common: { name: localized("Custom program", "Benutzerdefiniertes Programm"), type: "number", read: true, write: false },
+				value: program,
+			},
+			{
+				id: "program_name",
+				common: { name: localized("Custom program name", "Name des benutzerdefinierten Programms"), type: "string", read: true, write: false },
+				value: valueText(programName.en, programName.de),
+			},
+			{
+				id: "mode",
+				common: {
+					name: localized("Mode", "Modus"), type: "number", read: true, write: false,
+					states: { 1: valueText("Wash", "Waschen"), 2: valueText("Wash and dry", "Waschen und Trocknen"), 3: valueText("Dry", "Trocknen") },
+				},
+				value: mode,
+			},
+			{
+				id: "temperature",
+				common: { name: localized("Temperature", "Temperatur"), type: "number", unit: "°C", read: true, write: false },
+				value: temperatureByLevel[temperatureLevel] ?? temperatureLevel,
+			},
+			{
+				id: "rinse_cycles",
+				common: { name: localized("Rinse cycles", "Spülzyklen"), type: "number", read: true, write: false },
+				value: rinse,
+			},
+			{
+				id: "spin_speed",
+				common: { name: localized("Spin speed", "Schleuderdrehzahl"), type: "number", unit: "rpm", read: true, write: false },
+				value: spinByLevel[spinLevel] ?? spinLevel,
+			},
+			{
+				id: "drying_degree",
+				common: {
+					name: localized("Drying degree", "Trocknungsgrad"), type: "number", read: true, write: false,
+					states: { 0: valueText("Off", "Aus"), 1: valueText("Low", "Niedrig"), 2: valueText("Medium", "Mittel"), 3: valueText("High", "Hoch") },
+				},
+				value: dryingDegreeByMode[dryingMode] ?? dryingMode,
+			},
+			{
+				id: "soak_duration",
+				common: { name: localized("Soak duration", "Dauer des Einweichens"), type: "number", unit: "min", read: true, write: false },
+				value: soakByLevel[soakLevel] ?? soakLevel,
+			},
+			{
+				id: "dry_care_mode",
+				common: {
+					name: localized("Dry care", "Pflege beim Trocknen"), type: "number", read: true, write: false,
+					states: { 0: valueText("Off", "Aus"), 1: valueText("Soft", "Sanft"), 2: valueText("Normal", "Normal") },
+				},
+				value: dryCareMode,
+			},
+		];
+
+		if (totalTime !== undefined) {
+			states.push({
+				id: "total_time",
+				common: { name: localized("Total program time", "Gesamtdauer des Programms"), type: "number", unit: "min", read: true, write: false },
+				value: totalTime,
+			});
+		}
+
+		await Promise.all(states.map(async ({ id, common, value }) => {
+			const path = `${customProgramPath}.${id}`;
+			await this.adapter.ensureState(path, common);
+			await this.adapter.setStateChanged(path, { val: value, ack: true });
+		}));
 	}
 }
