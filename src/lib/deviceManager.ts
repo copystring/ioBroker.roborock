@@ -90,21 +90,10 @@ function createFeaturesForModel(adapter: Roborock, duid: string, robotModel: str
 	return handler;
 }
 
-type HomeDataStatusDefinition = {
-	name: string;
-	common?: Partial<ioBroker.StateCommon>;
-};
-
 export class DeviceManager {
 	private adapter: Roborock;
 	private static readonly HOME_DATA_DEVICE_STATUS_MAP: Record<string, string> = {
 		"122": "battery",
-	};
-	private static readonly MODEL_HOME_DATA_DEVICE_STATUS_MAP: Record<string, Record<string, HomeDataStatusDefinition>> = {
-		"roborock.wm.a102": {
-			// The cloud reports an opaque numeric identifier for the saved app-program shortcut.
-			"222": { name: "app_program", common: { name: "App Program ID", type: "number", role: "value", read: true, write: false } },
-		},
 	};
 	private static readonly HOME_DATA_CONSUMABLE_MAP: Record<string, string> = {
 		"125": "main_brush_life",
@@ -130,14 +119,6 @@ export class DeviceManager {
 			: DeviceManager.HOME_DATA_CONSUMABLE_MAP;
 	}
 
-	private getHomeDataStatusDefinition(duid: string, attribute: string): HomeDataStatusDefinition | undefined {
-		const model = this.adapter.http_api.getRobotModel(duid);
-		const modelSpecificDefinition = model ? DeviceManager.MODEL_HOME_DATA_DEVICE_STATUS_MAP[model]?.[attribute] : undefined;
-		if (modelSpecificDefinition) return modelSpecificDefinition;
-
-		const genericName = DeviceManager.HOME_DATA_DEVICE_STATUS_MAP[attribute];
-		return genericName ? { name: genericName } : undefined;
-	}
 
 	/**
 	 * Initializes devices from HTTP API.
@@ -557,15 +538,13 @@ export class DeviceManager {
 				await this.adapter.setStateChanged(path, { val: value, ack: true });
 			}
 
-			const statusDefinition = this.getHomeDataStatusDefinition(duid, attribute);
-			if (statusDefinition) {
-				if (typeof value !== "number" || !Number.isInteger(value) || value < 0) continue;
-				// Generic status aliases are percentages; model-specific definitions may use larger opaque IDs.
-				if (!statusDefinition.common && value > 100) continue;
-				const common = statusDefinition.common || handler.getCommonDeviceStates(statusDefinition.name);
+			const statusName = DeviceManager.HOME_DATA_DEVICE_STATUS_MAP[attribute];
+			if (statusName) {
+				if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 100) continue;
+				const common = handler.getCommonDeviceStates(statusName);
 
-				await this.adapter.ensureState(`${statusPath}.${statusDefinition.name}`, common || {});
-				await this.adapter.setStateChanged(`${statusPath}.${statusDefinition.name}`, { val: value, ack: true });
+				await this.adapter.ensureState(`${statusPath}.${statusName}`, common || {});
+				await this.adapter.setStateChanged(`${statusPath}.${statusName}`, { val: value, ack: true });
 				continue;
 			}
 
