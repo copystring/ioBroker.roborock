@@ -36,6 +36,7 @@ describe("device online state sync from HomeData", () => {
 			getDeviceProtocolVersion: vi.fn().mockResolvedValue("B01"),
 			catchError: vi.fn(),
 			ensureState: vi.fn().mockResolvedValue(undefined),
+			ensureFolder: vi.fn().mockResolvedValue(undefined),
 			setStateChanged: vi.fn().mockResolvedValue(undefined),
 			setInterval: vi.fn((callback: () => Promise<void>) => {
 				tick = callback;
@@ -55,15 +56,18 @@ describe("device online state sync from HomeData", () => {
 
 		expect(adapter.http_api.updateHomeData).toHaveBeenCalledTimes(1);
 		expect(adapter.updateDeviceInfo).toHaveBeenCalledWith("duid-1", devices);
+		expect(adapter.ensureFolder).toHaveBeenCalledWith("Devices.duid-1.deviceStatus");
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.deviceStatus.122", { val: 100, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.deviceStatus.125", { val: 98, ack: true });
 		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.deviceStatus.battery", { val: 100, ack: true });
 		expect(adapter.setStateChanged).not.toHaveBeenCalledWith("Devices.duid-1.consumables.side_brush_life", expect.anything());
 		expect(adapter.setStateChanged).not.toHaveBeenCalledWith("Devices.duid-1.consumables.filter_life", expect.anything());
 		expect(adapter.setStateChanged).not.toHaveBeenCalledWith("Devices.duid-1.consumables.main_brush_life", expect.anything());
-		expect(adapter.setStateChanged).toHaveBeenCalledTimes(1);
+		expect(adapter.setStateChanged).toHaveBeenCalledTimes(5);
 		expect(handler.updateStatus).not.toHaveBeenCalled();
 	});
 
-	it("ignores textual and out-of-range HomeData status attributes because only valid numeric percentages are mapped", async () => {
+	it("preserves every scalar HomeData status field while keeping validated aliases", async () => {
 		const handler = {
 			b01Variant: "Q10",
 			getCommonConsumable: vi.fn((id: string) => ({ type: "number", unit: "%", name: id })),
@@ -73,14 +77,12 @@ describe("device online state sync from HomeData", () => {
 			duid: "duid-1",
 			online: true,
 			deviceStatus: {
-				main_brush_life: "91",
-				side_brush_life: 72,
-				filter_life: "65%",
-				ignored_life: 12,
+				"200": 1,
+				"222": 936449,
+				"10005": "{\\\"ssid\\\":\\\"MagicSignal\\\"}",
 				"122": 101,
 				"125": 91,
-				"126": 4294967249,
-				"127": 101,
+				nested: { ignored: true },
 			},
 		}];
 
@@ -90,6 +92,7 @@ describe("device online state sync from HomeData", () => {
 				getDevices: () => devices,
 			},
 			ensureState: vi.fn().mockResolvedValue(undefined),
+			ensureFolder: vi.fn().mockResolvedValue(undefined),
 			setStateChanged: vi.fn().mockResolvedValue(undefined),
 		};
 
@@ -98,7 +101,57 @@ describe("device online state sync from HomeData", () => {
 
 		await manager.updateHomeDataDeviceStatus("duid-1");
 
+		expect(adapter.ensureFolder).toHaveBeenCalledWith("Devices.duid-1.deviceStatus");
+		expect(adapter.ensureState).toHaveBeenCalledWith("Devices.duid-1.deviceStatus.200", expect.objectContaining({ type: "number" }));
+		expect(adapter.ensureState).toHaveBeenCalledWith("Devices.duid-1.deviceStatus.10005", expect.objectContaining({ type: "string" }));
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.deviceStatus.200", { val: 1, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.deviceStatus.222", { val: 936449, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.deviceStatus.10005", { val: "{\\\"ssid\\\":\\\"MagicSignal\\\"}", ack: true });
 		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.duid-1.consumables.main_brush_life", { val: 91, ack: true });
-		expect(adapter.setStateChanged).toHaveBeenCalledTimes(1);
+		expect(adapter.setStateChanged).not.toHaveBeenCalledWith("Devices.duid-1.deviceStatus.nested", expect.anything());
+	});
+
+	it("decodes Zeo One custom-program DP 222 without replacing its raw HomeData value", async () => {
+		const handler = {
+			getCommonConsumable: vi.fn(),
+			getCommonDeviceStates: vi.fn(),
+		};
+		const devices = [{
+			duid: "zeo-one",
+			online: true,
+			deviceStatus: {
+				"222": 994818,
+				"239": 75,
+			},
+		}];
+		const adapter = {
+			language: "de",
+			http_api: {
+				getDevices: () => devices,
+				getRobotModel: vi.fn().mockReturnValue("roborock.wm.a102"),
+			},
+			ensureState: vi.fn().mockResolvedValue(undefined),
+			ensureFolder: vi.fn().mockResolvedValue(undefined),
+			setStateChanged: vi.fn().mockResolvedValue(undefined),
+		};
+
+		const manager = new DeviceManager(adapter as any);
+		manager.deviceFeatureHandlers.set("zeo-one", handler as any);
+
+		await manager.updateHomeDataDeviceStatus("zeo-one");
+
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.222", { val: 994818, ack: true });
+		expect(adapter.ensureState).toHaveBeenCalledWith(
+			"Devices.zeo-one.deviceStatus.custom_program.temperature",
+			expect.objectContaining({ name: { en: "Temperature", de: "Temperatur" }, type: "number", unit: "°C" }),
+		);
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.custom_program.program", { val: 2, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.custom_program.program_name", { val: "Schnell", ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.custom_program.mode", { val: 2, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.custom_program.temperature", { val: 40, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.custom_program.rinse_cycles", { val: 1, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.custom_program.spin_speed", { val: 1400, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.custom_program.drying_degree", { val: 2, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.custom_program.total_time", { val: 75, ack: true });
 	});
 });
