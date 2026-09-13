@@ -36,7 +36,7 @@
     "p-queue": "^9.3.3",
     "ping": "^1.0.0",
     "protobufjs": "^8.8.0",
-    "zod": "^4.5.2"
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@alcalzone/release-script": "^5.2.1",
