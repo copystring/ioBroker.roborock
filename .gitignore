@@ -1,5 +1,11 @@
-# No dot-files/dot-dirs except github/vscode/husky
+# Ignore untracked dot-files/dot-dirs except repository configuration
 .*
+!.create-adapter.json
+!.editorconfig
+!.gitattributes
+!.gitignore
+!.lintstagedrc.json
+!.releaseconfig.json
 !.vscode/
 !.github/
 !.husky/
