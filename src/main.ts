@@ -2061,6 +2061,8 @@ export class Roborock extends utils.Adapter {
 				await this.setStateChanged(path, { val: parsedValue as ioBroker.StateValue, ack: true });
 			}
 		}
+
+		await this.deviceManager.updateZeoOneStatus(duid, response.dps);
 	}
 
 	/**

@@ -10,6 +10,7 @@ import { ProductHelper } from "./productHelper";
 import { Feature } from "./features/features.enum";
 import { getB01VariantFromModel } from "./b01Variant";
 import { isB01ParkedState } from "./map/b01/B01StateSemantics";
+import { ZEO_ONE_STATUS_LABELS } from "./zeoOneStatusLabels";
 
 // Import indices to trigger decorators
 import "./features/vacuum/index";
@@ -119,7 +120,6 @@ export class DeviceManager {
 			? DeviceManager.Q7_HOME_DATA_CONSUMABLE_MAP
 			: DeviceManager.HOME_DATA_CONSUMABLE_MAP;
 	}
-
 
 	/**
 	 * Initializes devices from HTTP API.
@@ -561,21 +561,45 @@ export class DeviceManager {
 			await this.adapter.setStateChanged(`Devices.${duid}.consumables.${mappedName}`, { val: value, ack: true });
 		}
 
-		await this.updateZeoOneCustomProgram(duid, status, statusPath);
+		await this.updateZeoOneStatus(duid, status);
 	}
 
 	/**
-	 * The Zeo One AppPlugin encodes its custom-program selection in HomeData DP 222.
-	 * Keep DP 222 as the lossless source and expose the same decoded fields the app uses.
+	 * Apply Zeo One read-only interpretations from either HomeData or A01.
+	 * Raw numeric DP states are written by the source path before this method.
 	 */
-	private async updateZeoOneCustomProgram(duid: string, status: Record<string, unknown>, statusPath: string): Promise<void> {
+	public async updateZeoOneStatus(duid: string, status: Record<string, unknown>): Promise<void> {
 		if (this.adapter.http_api.getRobotModel?.(duid) !== DeviceManager.ZEO_ONE_MODEL) return;
 
-		const rawProgram = status["222"];
-		if (typeof rawProgram !== "number" || !Number.isSafeInteger(rawProgram) || rawProgram < 0) return;
+		const statusPath = `Devices.${duid}.deviceStatus`;
+		for (const [dp, { alias, values }] of Object.entries(ZEO_ONE_STATUS_LABELS)) {
+			if (!(dp in status)) continue;
+			const value = status[dp];
+			const numeric = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
+			const label = typeof numeric === "number" && Number.isSafeInteger(numeric)
+				? values[numeric] ?? `Unknown (${numeric})`
+				: null;
+			const path = `${statusPath}.${alias}`;
+			await this.adapter.ensureState(path, { name: alias.replace("_", " "), type: "string", read: true, write: false });
+			await this.adapter.setStateChanged(path, { val: label, ack: true });
+		}
 
-		const rawTotalTime = status["239"];
-		const totalTime = typeof rawTotalTime === "number" && Number.isFinite(rawTotalTime) && rawTotalTime >= 0
+		await this.updateZeoOneCustomProgram(status, statusPath);
+	}
+
+	/**
+	 * Decode Zeo One DP 222. Only use DP 239 when it arrived with DP 222,
+	 * so an old time cannot be attributed to a new program.
+	 */
+	private async updateZeoOneCustomProgram(status: Record<string, unknown>, statusPath: string): Promise<void> {
+		if (!("222" in status)) return;
+		const programValue = status["222"];
+		const rawProgram = typeof programValue === "string" && /^\d+$/.test(programValue) ? Number(programValue) : programValue;
+		if (typeof rawProgram !== "number" || !Number.isSafeInteger(rawProgram) || rawProgram < 0 || rawProgram > 0x0fffffff) return;
+
+		const timeValue = status["239"];
+		const rawTotalTime = typeof timeValue === "string" && /^\d+$/.test(timeValue) ? Number(timeValue) : timeValue;
+		const totalTime = typeof rawTotalTime === "number" && Number.isSafeInteger(rawTotalTime) && rawTotalTime >= 0
 			? rawTotalTime
 			: undefined;
 		const program = rawProgram & 0xff;
@@ -596,6 +620,7 @@ export class DeviceManager {
 		};
 		const programName = programNames[program] ?? { en: `Program ${program}`, de: `Programm ${program}` };
 		const temperatureByLevel: Record<number, number> = { 1: 0, 2: 30, 3: 40, 4: 60, 5: 90, 6: 20 };
+		const temperature = temperatureByLevel[temperatureLevel];
 		const spinByLevel: Record<number, number> = { 1: 0, 2: 400, 3: 600, 4: 800, 5: 1000, 6: 1200, 7: 1400 };
 		const soakByLevel: Record<number, number> = { 0: 0, 1: 5, 2: 10, 3: 15, 4: 20 };
 		const dryingDegreeByMode: Record<number, number> = { 0: 0, 1: 2, 2: 1, 3: 3 };
@@ -622,8 +647,11 @@ export class DeviceManager {
 			},
 			{
 				id: "temperature",
-				common: { name: localized("Temperature", "Temperatur"), type: "number", unit: "°C", read: true, write: false },
-				value: temperatureByLevel[temperatureLevel] ?? temperatureLevel,
+				common: {
+					name: temperature === undefined ? localized("Temperature level", "Temperaturstufe") : localized("Temperature", "Temperatur"),
+					type: "number", unit: temperature === undefined ? undefined : "°C", read: true, write: false,
+				},
+				value: temperature ?? temperatureLevel,
 			},
 			{
 				id: "rinse_cycles",
@@ -658,13 +686,11 @@ export class DeviceManager {
 			},
 		];
 
-		if (totalTime !== undefined) {
-			states.push({
-				id: "total_time",
-				common: { name: localized("Total program time", "Gesamtdauer des Programms"), type: "number", unit: "min", read: true, write: false },
-				value: totalTime,
-			});
-		}
+		states.push({
+			id: "total_time",
+			common: { name: localized("Total program time", "Gesamtdauer des Programms"), type: "number", unit: "min", read: true, write: false },
+			value: totalTime ?? null,
+		});
 
 		await Promise.all(states.map(async ({ id, common, value }) => {
 			const path = `${customProgramPath}.${id}`;
