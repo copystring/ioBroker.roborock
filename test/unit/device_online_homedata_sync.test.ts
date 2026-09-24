@@ -123,6 +123,12 @@ describe("device online state sync from HomeData", () => {
 				"203": 4,
 				"204": 2,
 				"205": 23,
+				"206": 1,
+				"207": 3,
+				"209": 6,
+				"217": 90,
+				"218": 47,
+				"232": 1,
 				"222": 994818,
 				"239": 75,
 			},
@@ -147,6 +153,12 @@ describe("device online state sync from HomeData", () => {
 		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.status_name", { val: "Washing", ack: true });
 		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.mode_name", { val: "WashAndDry", ack: true });
 		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.program_name", { val: "CottonOrLinen", ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.207", { val: 3, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.temperature_celsius", { val: 40, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.spin_speed_rpm", { val: 1200, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.preset_minutes", { val: 90, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.time_left_minutes", { val: 47, ack: true });
+		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.remote_control_authorized", { val: true, ack: true });
 		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.222", { val: 994818, ack: true });
 		expect(adapter.ensureState).toHaveBeenCalledWith(
 			"Devices.zeo-one.deviceStatus.custom_program.temperature",

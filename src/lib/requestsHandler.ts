@@ -188,7 +188,7 @@ export class RoborockRequest {
 			version = "1.0";
 		}
 
-		if (this.adapter.local_api.isConnected(this.duid) && version != "B01" && !["service.upload_by_maptype", "service.upload_record_by_url", "get_photo"].includes(this.method)) {
+		if (this.adapter.local_api.isConnected(this.duid) && version !== "A01" && version !== "B01" && !["service.upload_by_maptype", "service.upload_record_by_url", "get_photo"].includes(this.method)) {
 			protocol = 4;
 		}
 
@@ -231,9 +231,15 @@ export class RoborockRequest {
 			return this.promise;
 		}
 
-		if (version == "A01") {
-			this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage);
-			this.resolve(null);
+		if (version === "A01") {
+			try {
+				// A01 has no correlated RPC result. Completion means MQTT accepted the publish,
+				// while the requested DPs arrive separately through the A01 listener.
+				await this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage);
+				this.resolve(null);
+			} catch (error) {
+				this.reject(error);
+			}
 			return this.promise;
 		}
 
@@ -267,7 +273,7 @@ export class RoborockRequest {
 
 		// Use the forced connectionType logic for decision making
 		if (protocol == 101) {
-			this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage);
+			void this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage).catch(error => this.reject(error));
 		} else {
 			const lengthBuffer = Buffer.alloc(4);
 			lengthBuffer.writeUInt32BE(roborockMessage.length, 0);
@@ -475,7 +481,7 @@ export class requestsHandler {
 			try {
 				const result = await manager.add(taskId, (signal) => req.send(signal), priority);
 
-				if (Array.isArray(result) && result[0] === "retry" && retryCount < MAX_REQUEST_RETRIES) {
+				if (version !== "A01" && Array.isArray(result) && result[0] === "retry" && retryCount < MAX_REQUEST_RETRIES) {
 					this.adapter.rLog("System", duid, "Debug", "Retry", undefined, `[sendRequest] Received 'retry' for ${method} on ${duid}. Retrying (${retryCount + 1}/${MAX_REQUEST_RETRIES + 1})...`, "debug");
 					await new Promise((resolve) => {
 						const timeout = this.adapter.setTimeout(() => resolve(undefined), 1000);
@@ -485,7 +491,12 @@ export class requestsHandler {
 				}
 				return result;
 			} catch (error) {
-				if (retryCount < MAX_REQUEST_RETRIES && isRetryableError(error)) {
+				// A pre-send failure (for example payload construction) can throw after
+				// RoborockRequest registered its ID but before it returned its promise.
+				if (this.adapter.pendingRequests.get(req.messageID) === req) {
+					req.reject(error);
+				}
+				if (version !== "A01" && retryCount < MAX_REQUEST_RETRIES && isRetryableError(error)) {
 					this.adapter.rLog("System", duid, "Warn", "Retry", undefined, `[sendRequest] ${method} failed (${(error as Error).message}). Retrying (${retryCount + 1}/${MAX_REQUEST_RETRIES + 1})...`, "warn");
 					await new Promise((resolve) => {
 						const timeout = this.adapter.setTimeout(() => resolve(undefined), 1000);

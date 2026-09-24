@@ -10,10 +10,11 @@ import { ProductHelper } from "./productHelper";
 import { Feature } from "./features/features.enum";
 import { getB01VariantFromModel } from "./b01Variant";
 import { isB01ParkedState } from "./map/b01/B01StateSemantics";
-import { ZEO_ONE_STATUS_LABELS } from "./zeoOneStatusLabels";
+import { ZEO_ONE_BOOLEAN_STATES, ZEO_ONE_DRYING_MODES, ZEO_ONE_NUMERIC_STATES, ZEO_ONE_STATUS_LABELS } from "./zeoOneStatusLabels";
 
 // Import indices to trigger decorators
 import "./features/vacuum/index";
+import "./features/washer/ZeoOneFeatures";
 
 import { Q7VacuumFeatures } from "./features/vacuum/b01/Q7VacuumFeatures";
 import { Q10VacuumFeatures } from "./features/vacuum/b01/Q10VacuumFeatures";
@@ -584,6 +585,37 @@ export class DeviceManager {
 			await this.adapter.setStateChanged(path, { val: label, ack: true });
 		}
 
+		for (const [dp, { alias, unit, values, max }] of Object.entries(ZEO_ONE_NUMERIC_STATES)) {
+			if (!(dp in status)) continue;
+			const raw = status[dp];
+			const numeric = typeof raw === "string" && /^\d+$/.test(raw) ? Number(raw) : raw;
+			const valid = typeof numeric === "number" && Number.isSafeInteger(numeric) && numeric >= 0;
+			const value = valid && (max === undefined || numeric <= max)
+				? values ? values[numeric] ?? null : numeric
+				: null;
+			const path = `${statusPath}.${alias}`;
+			await this.adapter.ensureState(path, { name: alias.replaceAll("_", " "), type: "number", unit, read: true, write: false });
+			await this.adapter.setStateChanged(path, { val: value, ack: true });
+		}
+
+		for (const [dp, alias] of Object.entries(ZEO_ONE_BOOLEAN_STATES)) {
+			if (!(dp in status)) continue;
+			const raw = status[dp];
+			const value = raw === 0 || raw === "0" ? false : raw === 1 || raw === "1" ? true : null;
+			const path = `${statusPath}.${alias}`;
+			await this.adapter.ensureState(path, { name: alias.replaceAll("_", " "), type: "boolean", read: true, write: false });
+			await this.adapter.setStateChanged(path, { val: value, ack: true });
+		}
+
+		if ("210" in status) {
+			const raw = status["210"];
+			const numeric = typeof raw === "string" && /^\d+$/.test(raw) ? Number(raw) : raw;
+			const value = typeof numeric === "number" && Number.isSafeInteger(numeric) ? ZEO_ONE_DRYING_MODES[numeric] ?? null : null;
+			const path = `${statusPath}.drying_mode_name`;
+			await this.adapter.ensureState(path, { name: "drying mode name", type: "string", read: true, write: false });
+			await this.adapter.setStateChanged(path, { val: value, ack: true });
+		}
+
 		await this.updateZeoOneCustomProgram(status, statusPath);
 	}
 
@@ -618,7 +650,11 @@ export class DeviceManager {
 			2: { en: "Quick", de: "Schnell" },
 			23: { en: "Cotton/Linen", de: "Baumwolle/Leinen" },
 		};
-		const programName = programNames[program] ?? { en: `Program ${program}`, de: `Programm ${program}` };
+		const pluginProgramName = ZEO_ONE_STATUS_LABELS["205"].values[program];
+		const programName = programNames[program] ?? {
+			en: pluginProgramName ?? `Program ${program}`,
+			de: pluginProgramName ?? `Programm ${program}`,
+		};
 		const temperatureByLevel: Record<number, number> = { 1: 0, 2: 30, 3: 40, 4: 60, 5: 90, 6: 20 };
 		const temperature = temperatureByLevel[temperatureLevel];
 		const spinByLevel: Record<number, number> = { 1: 0, 2: 400, 3: 600, 4: 800, 5: 1000, 6: 1200, 7: 1400 };
@@ -660,7 +696,7 @@ export class DeviceManager {
 			},
 			{
 				id: "spin_speed",
-				common: { name: localized("Spin speed", "Schleuderdrehzahl"), type: "number", unit: "rpm", read: true, write: false },
+				common: { name: localized("Spin speed", "Schleuderdrehzahl"), type: "number", unit: spinByLevel[spinLevel] === undefined ? undefined : "rpm", read: true, write: false },
 				value: spinByLevel[spinLevel] ?? spinLevel,
 			},
 			{
@@ -673,7 +709,7 @@ export class DeviceManager {
 			},
 			{
 				id: "soak_duration",
-				common: { name: localized("Soak duration", "Dauer des Einweichens"), type: "number", unit: "min", read: true, write: false },
+				common: { name: localized("Soak duration", "Dauer des Einweichens"), type: "number", unit: soakByLevel[soakLevel] === undefined ? undefined : "min", read: true, write: false },
 				value: soakByLevel[soakLevel] ?? soakLevel,
 			},
 			{

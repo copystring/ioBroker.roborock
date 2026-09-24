@@ -61,3 +61,36 @@ export const ZEO_ONE_STATUS_LABELS: Record<string, { alias: string; values: Reco
 		39: "Mixing",
 	} },
 };
+
+/** Numeric read-only interpretations supported by the a102 AppPlugin. */
+export const ZEO_ONE_NUMERIC_STATES: Record<string, {
+	alias: string;
+	unit?: string;
+	values?: Record<number, number | null>;
+	max?: number;
+}> = {
+	// Level 1 is the plugin's "Normal"/cold setting, not a measured 0 °C.
+	"207": { alias: "temperature_celsius", unit: "°C", values: { 1: null, 2: 30, 3: 40, 4: 60, 5: 90, 6: 20 } },
+	"208": { alias: "rinse_cycles", max: 5 },
+	"209": { alias: "spin_speed_rpm", unit: "rpm", values: { 1: 0, 2: 400, 3: 600, 4: 800, 5: 1000, 6: 1200, 7: 1400 } },
+	"217": { alias: "preset_minutes", unit: "min" },
+	"218": { alias: "time_left_minutes", unit: "min" },
+	"224": { alias: "self_clean_times" },
+};
+
+export const ZEO_ONE_BOOLEAN_STATES: Record<string, string> = {
+	"206": "child_lock",
+	"211": "auto_detergent",
+	"212": "auto_softener",
+	"223": "sound",
+	"226": "detergent_empty",
+	"227": "softener_empty",
+	"232": "remote_control_authorized",
+};
+
+export const ZEO_ONE_DRYING_MODES: Record<number, string> = {
+	0: "None",
+	1: "Quick",
+	2: "Iron",
+	3: "Store",
+};

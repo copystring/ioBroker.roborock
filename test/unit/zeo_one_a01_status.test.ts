@@ -69,6 +69,49 @@ describe("Zeo One incremental A01 status", () => {
         expect(values.get("Devices.zeo-one.deviceStatus.custom_program.temperature")).toBe(40);
     });
 
+    it("derives supported read-only settings without changing A01 raw values", async () => {
+        const { Roborock } = await import("../../src/main");
+        const values = new Map<string, unknown>();
+        const common = new Map<string, Record<string, unknown>>();
+        const adapter = {
+            http_api: { getRobotModel: vi.fn().mockReturnValue("roborock.wm.a102") },
+            ensureState: vi.fn(async (id: string, state: Record<string, unknown>) => { common.set(id, state); }),
+            setStateChanged: vi.fn(async (id: string, state: { val: unknown }) => { values.set(id, state.val); }),
+            tryParseJson: Roborock.prototype.tryParseJson,
+            rLog: vi.fn(),
+        };
+        (adapter as any).deviceManager = new DeviceManager(adapter as any);
+        const status = { "206": 1, "207": 3, "208": 2, "209": 6, "210": 2, "211": 0, "212": 1,
+            "217": 90, "218": 47, "223": 0, "224": 31, "226": 1, "227": 0, "232": 1 };
+
+        await Roborock.prototype.processA01.call(adapter as any, "zeo-one", { dps: status });
+
+        const base = "Devices.zeo-one.deviceStatus.";
+        for (const [dp, raw] of Object.entries(status)) expect(values.get(base + dp)).toBe(raw);
+        expect(values.get(base + "temperature_celsius")).toBe(40);
+        expect(common.get(base + "temperature_celsius")).toMatchObject({ type: "number", unit: "°C", read: true, write: false });
+        expect(values.get(base + "rinse_cycles")).toBe(2);
+        expect(values.get(base + "spin_speed_rpm")).toBe(1200);
+        expect(values.get(base + "drying_mode_name")).toBe("Iron");
+        expect(values.get(base + "preset_minutes")).toBe(90);
+        expect(values.get(base + "time_left_minutes")).toBe(47);
+        expect(values.get(base + "self_clean_times")).toBe(31);
+        expect(values.get(base + "child_lock")).toBe(true);
+        expect(values.get(base + "auto_detergent")).toBe(false);
+        expect(values.get(base + "auto_softener")).toBe(true);
+        expect(values.get(base + "sound")).toBe(false);
+        expect(values.get(base + "detergent_empty")).toBe(true);
+        expect(values.get(base + "softener_empty")).toBe(false);
+        expect(values.get(base + "remote_control_authorized")).toBe(true);
+        expect(common.get(base + "remote_control_authorized")).toMatchObject({ type: "boolean", read: true, write: false });
+
+        await Roborock.prototype.processA01.call(adapter as any, "zeo-one", { dps: { "207": 1, "209": 9, "206": 2, "210": 9 } });
+        expect(values.get(base + "temperature_celsius")).toBeNull();
+        expect(values.get(base + "spin_speed_rpm")).toBeNull();
+        expect(values.get(base + "child_lock")).toBeNull();
+        expect(values.get(base + "drying_mode_name")).toBeNull();
+    });
+
     it("clears a previous program time when a new DP 222 arrives without DP 239", async () => {
         const values = new Map<string, unknown>();
         const adapter = {
@@ -84,6 +127,19 @@ describe("Zeo One incremental A01 status", () => {
         expect(values.get(timePath)).toBe(75);
         await manager.updateZeoOneStatus("zeo-one", { "222": 1003031 });
         expect(values.get(timePath)).toBeNull();
+    });
+
+    it("uses the plugin program enum for custom programs beyond the two localized names", async () => {
+        const values = new Map<string, unknown>();
+        const adapter = {
+            language: "de",
+            http_api: { getRobotModel: vi.fn().mockReturnValue("roborock.wm.a102") },
+            ensureFolder: vi.fn().mockResolvedValue(undefined),
+            ensureState: vi.fn().mockResolvedValue(undefined),
+            setStateChanged: vi.fn(async (id: string, state: { val: unknown }) => { values.set(id, state.val); }),
+        };
+        await new DeviceManager(adapter as any).updateZeoOneStatus("zeo-one", { "222": 33 });
+        expect(values.get("Devices.zeo-one.deviceStatus.custom_program.program_name")).toBe("Eco");
     });
 
     it("retains raw A01 data for another model without Zeo One interpretations", async () => {
