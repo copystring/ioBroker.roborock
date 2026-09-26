@@ -11,6 +11,7 @@ import { B01ChunkAssembler } from "./B01ChunkAssembler";
 import { PhotoManager } from "./PhotoManager";
 
 let cachedB01RobotMapType: protobuf.Type | null = null;
+const MQTT_PUBLISH_TIMEOUT_MS = 10000;
 
 export class mqtt_api {
 	adapter: Roborock;
@@ -916,11 +917,27 @@ export class mqtt_api {
 	 * Publishes a message to the MQTT broker.
 	 */
 	async sendMessage(duid: string, roborockMessage: Buffer): Promise<void> {
-		if (this.client && this.connected) {
-			const rriot = this.adapter.http_api.get_rriot();
-			const topic = `rr/m/i/${rriot.u}/${this.mqttUser}/${duid}`;
-			this.client.publish(topic, roborockMessage, { qos: 1 });
+		if (!this.client || !this.connected) {
+			throw new Error("MQTT connection not available for publish.");
 		}
+		const rriot = this.adapter.http_api.get_rriot();
+		const topic = `rr/m/i/${rriot.u}/${this.mqttUser}/${duid}`;
+		await new Promise<void>((resolve, reject) => {
+			let settled = false;
+			const timeout = setTimeout(() => finish(new Error(`MQTT publish timed out after ${MQTT_PUBLISH_TIMEOUT_MS}ms.`)), MQTT_PUBLISH_TIMEOUT_MS);
+			const finish = (error?: Error) => {
+				if (settled) return;
+				settled = true;
+				clearTimeout(timeout);
+				if (error) reject(error);
+				else resolve();
+			};
+			try {
+				this.client.publish(topic, roborockMessage, { qos: 1 }, finish);
+			} catch (error) {
+				finish(error instanceof Error ? error : new Error(String(error)));
+			}
+		});
 	}
 
 	isConnected(): boolean {
