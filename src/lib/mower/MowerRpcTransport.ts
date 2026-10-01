@@ -92,8 +92,13 @@ export class MowerRpcTransport {
 
 	public stop(): void {
 		this.stopped = true;
+		this.cancelPending("Mower transport stopped");
+	}
+
+	public cancelPending(reason: string, deviceId?: string): void {
 		for (const [duid, requests] of this.pending) {
-			for (const id of requests.keys()) this.take(duid, id)?.reject(new Error("Mower transport stopped"));
+			if (deviceId !== undefined && duid !== deviceId) continue;
+			for (const id of requests.keys()) this.take(duid, id)?.reject(new Error(reason));
 		}
 	}
 

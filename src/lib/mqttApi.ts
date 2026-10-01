@@ -86,6 +86,7 @@ export class mqtt_api {
 		client.on("error", (err: Error) => {
 			this.adapter.rLog("MQTT", null, "Error", "Info", undefined, `MQTT Client Error: ${err.message}`, "error");
 			this.connected = false;
+			this.adapter.deviceManager?.mowerRuntime?.cancelPending();
 		});
 
 		// Set up persistent listeners early
@@ -140,7 +141,7 @@ export class mqtt_api {
 	async subscribe_mqtt_events(client: any): Promise<void> {
 		const rriot = this.adapter.http_api.get_rriot();
 
-		return new Promise((resolveSubscription, rejectSubscription) => {
+		const subscription = new Promise<void>((resolveSubscription, rejectSubscription) => {
 			let initialSubscriptionHandled = false;
 
 			const doSubscribe = () => {
@@ -184,16 +185,19 @@ export class mqtt_api {
 		client.on("disconnect", () => {
 			this.adapter.rLog("MQTT", null, "Info", undefined, undefined, `MQTT disconnected.`, "info");
 			this.connected = false;
+			this.adapter.deviceManager?.mowerRuntime?.cancelPending();
 		});
 
 		client.on("error", (error: Error) => {
 			this.adapter.rLog("MQTT", null, "Error", "Info", undefined, `MQTT connection error: ${error.message}. Broker: ${rriot.r.m}`, "error");
 			this.connected = false;
+			this.adapter.deviceManager?.mowerRuntime?.cancelPending();
 		});
 
 		client.on("close", () => {
 			this.adapter.rLog("MQTT", null, "Info", undefined, undefined, `MQTT connection closed. Reconnecting in 60 seconds...`, "info");
 			this.connected = false;
+			this.adapter.deviceManager?.mowerRuntime?.cancelPending();
 		});
 
 		client.on("reconnect", () => {
@@ -209,7 +213,9 @@ export class mqtt_api {
 		client.on("offline", () => {
 			this.adapter.rLog("MQTT", null, "Info", undefined, undefined, "MQTT connection went offline.", "warn");
 			this.connected = false;
+			this.adapter.deviceManager?.mowerRuntime?.cancelPending();
 		});
+		return subscription;
 	}
 
 	/**
@@ -248,11 +254,15 @@ export class mqtt_api {
 						}
 					}
 				}
-				if (!knownDevices.some(d => d.duid === finalDuid) || !isLegacyVacuumDuid(this.adapter.http_api, finalDuid)) return;
+				if (!knownDevices.some(d => d.duid === finalDuid)) return;
+				const mower = this.adapter.deviceManager?.mowerRuntime;
+				const isMower = mower?.isRegistered(finalDuid) === true;
+				if (!isMower && !isLegacyVacuumDuid(this.adapter.http_api, finalDuid)) return;
 				const allMessages = this.adapter.requestsHandler.messageParser.decodeMsg(message, finalDuid);
 
 				for (const data of allMessages) {
-					await this.handleDecodedMessage(finalDuid, data);
+					if (mower?.isRegistered(finalDuid)) await mower.handleFrame(finalDuid, data);
+					else if (isLegacyVacuumDuid(this.adapter.http_api, finalDuid)) await this.handleDecodedMessage(finalDuid, data);
 				}
 			} catch (error: unknown) {
 				this.adapter.rLog("MQTT", null, "Error", "MQTT", undefined, `Error processing MQTT message on ${topic}: ${this.adapter.errorStack(error)}`, "error");
@@ -963,6 +973,7 @@ export class mqtt_api {
 	}
 
 	cleanup(): void {
+		this.adapter.deviceManager?.mowerRuntime?.cancelPending();
 		if (this.client) {
 			this.client.removeAllListeners();
 			this.client.end();

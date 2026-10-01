@@ -18,6 +18,7 @@ import "./features/vacuum/index";
 
 import { Q7VacuumFeatures } from "./features/vacuum/b01/Q7VacuumFeatures";
 import { Q10VacuumFeatures } from "./features/vacuum/b01/Q10VacuumFeatures";
+import { MowerRuntime } from "./mower/MowerRuntime";
 function createFeaturesForModel(adapter: Roborock, duid: string, robotModel: string, productCategory: string | null, protocolVersion: string | null): BaseDeviceFeatures {
 	if (!isLegacyVacuumDevice(robotModel, productCategory)) {
 		throw new Error("Vacuum feature handler requested for a non-vacuum device");
@@ -110,9 +111,11 @@ export class DeviceManager {
 	private pollingDevices = new Set<string>();
 	private unsupportedNoticeLogged = new Set<string>();
 	public deviceFeatureHandlers = new Map<string, BaseDeviceFeatures>();
+	public readonly mowerRuntime: MowerRuntime;
 
 	constructor(adapter: Roborock) {
 		this.adapter = adapter;
+		this.mowerRuntime = new MowerRuntime(adapter);
 	}
 
 	/** Publish only non-secret HomeData metadata for device classes without vacuum support. */
@@ -158,6 +161,7 @@ export class DeviceManager {
 					// Ensure model exists
 					if (!model) {
 						this.deviceFeatureHandlers.delete(duid);
+						await this.mowerRuntime.syncDevice(device);
 						this.adapter.rLog("System", duid, "Warn", undefined, undefined, "Could not find model. Skipping init.", "warn");
 						return;
 					}
@@ -169,10 +173,11 @@ export class DeviceManager {
 						},
 						native: { duid, model, category },
 					});
+					await this.mowerRuntime.syncDevice(device);
 					if (!isLegacyVacuumDevice(model, category)) {
 						this.deviceFeatureHandlers.delete(duid);
 						await this.updatePassiveDeviceInfo(device);
-						if (!this.unsupportedNoticeLogged.has(duid)) {
+						if (!this.mowerRuntime.isRegistered(duid) && !this.unsupportedNoticeLogged.has(duid)) {
 							this.unsupportedNoticeLogged.add(duid);
 							this.adapter.rLog("System", duid, "Info", undefined, undefined, `Model "${model}" (category: ${category || "unknown"}) is visible but vacuum control is not supported for this device class.`, "info");
 						}
@@ -203,6 +208,7 @@ export class DeviceManager {
 		}
 
 		await Promise.all(initPromises);
+		this.mowerRuntime.retainDevices(new Set(devices.map(device => device.duid)));
 		const deviceSummaries: string[] = [];
 		for (const [duid, handler] of this.deviceFeatureHandlers) {
 			const model = (handler as any).robotModel || "Unknown";
@@ -320,8 +326,16 @@ export class DeviceManager {
 			}
 
 			const cloudDevices = this.adapter.http_api.getDevices();
+			if (isSlowTick) this.mowerRuntime.retainDevices(new Set(cloudDevices.map(device => device.duid)));
 			for (const device of cloudDevices) {
 				const duid = device.duid;
+				if (isSlowTick) {
+					try {
+						await this.mowerRuntime.syncDevice(device);
+					} catch (error: unknown) {
+						this.adapter.catchError(error, "mower initialization", duid);
+					}
+				}
 				if (!isLegacyVacuumDuid(this.adapter.http_api, duid)) {
 					if (isSlowTick) {
 						this.deviceFeatureHandlers.delete(duid);
@@ -329,6 +343,13 @@ export class DeviceManager {
 							await this.updatePassiveDeviceInfo(device);
 						} catch (error: unknown) {
 							this.adapter.rLog("System", duid, "Warn", undefined, undefined, `Failed to update passive device info: ${this.adapter.errorMessage(error)}`, "warn");
+						}
+						if (this.mowerRuntime.isRegistered(duid)) {
+							try {
+								await this.mowerRuntime.poll(duid);
+							} catch (error: unknown) {
+								this.adapter.catchError(error, "mower status poll", duid);
+							}
 						}
 					}
 					continue;

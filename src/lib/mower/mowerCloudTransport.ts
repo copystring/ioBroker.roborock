@@ -6,6 +6,7 @@ export interface MowerCloudDependencies {
 	getCategory: (duid: string) => string | null;
 	getProtocol: (duid: string) => Promise<string | null>;
 	isConnected: () => boolean;
+	isDeviceOnline: (duid: string) => boolean;
 	buildFrame: (duid: string, protocol: number, timestamp: number, payload: string, version: string, sequenceId: number) => Promise<Buffer | false>;
 	publishFrame: (duid: string, frame: Buffer) => Promise<void>;
 }
@@ -21,6 +22,7 @@ export function createMowerCloudTransport(dependencies: MowerCloudDependencies):
 			// The source-mapped device is verified as L01. Do not upgrade arbitrary protocols/classes.
 			if (pv !== "L01" && pv !== "1.0") throw new Error("Unsupported mower device protocol");
 			if (!dependencies.isConnected()) throw new Error("Mower MQTT connection unavailable");
+			if (!dependencies.isDeviceOnline(duid)) throw new Error("Mower is offline");
 			const timestamp = Math.floor(Date.now() / 1000);
 			const payload = JSON.stringify({ dps: { "101": JSON.stringify(rpc) }, t: timestamp });
 			const frame = await dependencies.buildFrame(duid, 101, timestamp, payload, "1.0", rpc.id);
@@ -29,7 +31,7 @@ export function createMowerCloudTransport(dependencies: MowerCloudDependencies):
 			const currentPv = await dependencies.getProtocol(duid);
 			signal.throwIfAborted();
 			if (currentPv !== "L01" && currentPv !== "1.0") throw new Error("Mower device protocol changed before publish");
-			if (!supported() || !dependencies.isConnected()) throw new Error("Mower cloud device or connection changed before publish");
+			if (!supported() || !dependencies.isConnected() || !dependencies.isDeviceOnline(duid)) throw new Error("Mower cloud device or connection changed before publish");
 			await dependencies.publishFrame(duid, frame);
 		},
 	});

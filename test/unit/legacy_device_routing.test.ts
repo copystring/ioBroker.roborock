@@ -54,16 +54,18 @@ describe("legacy vacuum device boundary", () => {
 		const manager = new DeviceManager(adapter as never);
 		await manager.initializeDevices();
 		expect(manager.deviceFeatureHandlers.has("mower")).toBe(false);
+		expect(manager.mowerRuntime.isRegistered("mower")).toBe(pv === "L01");
 		expect(manager.deviceFeatureHandlers.has("vacuum")).toBe(true);
 		expect(adapter.getDeviceProtocolVersion).not.toHaveBeenCalledWith("mower");
 		expect(adapter.extendObject).toHaveBeenCalledWith("Devices.mower", expect.objectContaining({ native: { duid: "mower", model: products.mower.model, category: products.mower.category } }));
 		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.mower.deviceInfo.online", { val: true, ack: true });
 		expect(adapter.updateDeviceInfo).not.toHaveBeenCalledWith("mower", devices);
 		await manager.initializeDevices();
-		expect(adapter.rLog.mock.calls.filter(call => String(call[5]).includes("vacuum control is not supported"))).toHaveLength(1);
+		expect(adapter.rLog.mock.calls.filter(call => String(call[5]).includes("vacuum control is not supported"))).toHaveLength(pv === "B01" ? 1 : 0);
+		manager.mowerRuntime.stop();
 	});
 
-	it("drops mower MQTT frames before the vacuum decoder while retaining vacuum frames", async () => {
+	it("drops unregistered mower MQTT frames before the vacuum decoder while retaining vacuum frames", async () => {
 		const decodeMsg = vi.fn(() => []);
 		const adapter = {
 			http_api: { ...catalog(), getDevices: () => [{ duid: "mower" }, { duid: "vacuum" }] },
@@ -110,12 +112,13 @@ describe("legacy vacuum device boundary", () => {
 			config: { updateInterval: 5 }, rLog: vi.fn(), errorMessage: String,
 			http_api: { ...catalog(), getDevices: () => devices, updateHomeData: vi.fn(async () => {}) },
 			local_api: { refreshStaleLocalEndpoints: vi.fn(async () => {}) },
-			setInterval: vi.fn((callback: () => Promise<void>) => { tick = callback; return 1; }),
+			setInterval: vi.fn((callback: () => Promise<void>) => { tick = callback; return 1; }), catchError: vi.fn(),
 			getDeviceProtocolVersion: vi.fn(async () => "L01"),
 			updateDeviceInfo: vi.fn(async () => {}),
-			ensureState: vi.fn(async () => {}), setStateChanged: vi.fn(async () => {}),
+			ensureFolder: vi.fn(async () => {}), ensureState: vi.fn(async () => {}), setStateChanged: vi.fn(async () => {}),
 		};
 		const manager = new DeviceManager(adapter as never);
+		vi.spyOn(manager.mowerRuntime, "poll").mockResolvedValue(undefined);
 		manager.deviceFeatureHandlers.set("vacuum", { getCommonConsumable: () => ({ unit: "%" }), getCommonDeviceStates: () => ({ unit: "%" }) } as never);
 		manager.startPolling();
 		await tick!();
@@ -136,8 +139,9 @@ describe("legacy vacuum device boundary", () => {
 			config: { updateInterval: 5 }, rLog: vi.fn(), errorMessage: String,
 			http_api: { ...catalog(), getDevices: () => devices, updateHomeData: vi.fn(async () => {}) },
 			local_api: { refreshStaleLocalEndpoints: vi.fn(async () => {}) },
-			setInterval: vi.fn((callback: () => Promise<void>) => { tick = callback; return 1; }),
+			setInterval: vi.fn((callback: () => Promise<void>) => { tick = callback; return 1; }), catchError: vi.fn(),
 			updateDeviceInfo: vi.fn(async () => {}),
+			ensureFolder: vi.fn(async () => {}),
 			setStateChanged: vi.fn(async () => {}),
 			ensureState: vi.fn(async (path: string) => { if (path.startsWith("Devices.mower.")) throw new Error("storage unavailable"); }),
 		};

@@ -296,6 +296,7 @@ export class Roborock extends utils.Adapter {
 				...Array.from(writableFolders).map((folder) => this.subscribeStatesAsync(`Devices.*.${folder}.*`)),
 				this.subscribeStatesAsync("Devices.*.resetConsumables.*"),
 				this.subscribeStatesAsync("Devices.*.programs.*"),
+				this.subscribeStatesAsync("Devices.*.mowerCommands.*"),
 				this.subscribeStatesAsync("Devices.*.deviceStatus.state"),
 				this.subscribeStatesAsync("Devices.*.deviceStatus.status"),
 				this.subscribeStatesAsync("loginCode")
@@ -1430,6 +1431,15 @@ export class Roborock extends utils.Adapter {
 		const duid = idParts[3];
 		const folder = idParts[4];
 		const command = idParts[5];
+		if (folder === "mowerCommands") {
+			if (idParts.length !== 6) return;
+			try {
+				await this.deviceManager.mowerRuntime.handleCommand(duid, command, state, id);
+			} catch (error: unknown) {
+				this.catchError(error, `mower command (${command})`, duid);
+			}
+			return;
+		}
 
 		// Special handling for floors (deeply nested: Devices.duid.floors.mapFlag.load)
 		if (folder === "floors" && idParts.length >= 7) {
@@ -1661,6 +1671,7 @@ export class Roborock extends utils.Adapter {
 		this.commandTimeouts.clear();
 
 		this.deviceManager.stopPolling();
+		this.deviceManager.mowerRuntime.stop();
 		this.requestsHandler.clearQueue();
 	}
 

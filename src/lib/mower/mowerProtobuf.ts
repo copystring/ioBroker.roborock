@@ -7,10 +7,18 @@ syntax = "proto3";
 message RemoteMsg { uint64 id = 1; int32 type = 2; int32 app_button = 5; }
 message Battery { uint32 percent = 2; }
 message HardwareMsg { Battery battery = 1; }
-message RobotMsg { uint64 id = 1; int32 type = 2; Battery battery = 10; HardwareMsg hardware = 13; }
+message RobotTask { int32 working_state = 1; int32 robot_detail_state = 2; }
+message CheckResults { repeated int32 ignorable = 1; repeated int32 recoverable = 2; repeated int32 unrecoverable = 3; repeated int32 critical = 4; repeated int32 to_dock = 5; repeated int32 debounce = 6; }
+message RobotMsg {
+ uint64 id = 1; int32 type = 2; Battery battery = 10; HardwareMsg hardware = 13;
+ int32 fsm_charge_state = 19; CheckResults fsm_errors = 46; repeated int32 user_errors = 52;
+ CheckResults scheduler_errors = 62; CheckResults charge_errors = 63; RobotTask robot_task = 71;
+}
+message RobotToAppMsg { bytes result = 5; }
 `, { keepCase: true }).root;
 const remoteMsg = root.lookupType("RemoteMsg");
 const robotMsg = root.lookupType("RobotMsg");
+const robotToAppMsg = root.lookupType("RobotToAppMsg");
 const buttonValues = { MOW_GLOBAL: 14, MOW_PAUSE: 20, MOW_RESUME: 22, MOW_END: 24, CHARGE: 5 } as const;
 
 /** Encode the same RemoteMsg as the JSON path; this is not the SDK's outer PB RPC envelope. */
@@ -32,4 +40,12 @@ export function encodeMowerRemoteMessage(request: MowerRequest): Buffer {
 /** Decode the known status fields from the manufacturer's raw RobotMsg push payload. */
 export function decodeMowerRobotMessage(bytes: Uint8Array): Record<string, unknown> {
 	return robotMsg.toObject(robotMsg.decode(bytes), { longs: String, defaults: false }) as Record<string, unknown>;
+}
+
+/** MQTT protocol 702 carries ASCII PB followed by RobotToAppMsg; the event decodes only result. */
+export function decodeMowerPbPush(payload: Uint8Array): Record<string, unknown> | undefined {
+	if (payload.length < 2 || payload[0] !== 0x50 || payload[1] !== 0x42) return undefined;
+	const envelope = robotToAppMsg.decode(payload.subarray(2)) as protobuf.Message & { result?: Uint8Array };
+	if (!envelope.result?.length) return undefined;
+	return decodeMowerRobotMessage(envelope.result);
 }

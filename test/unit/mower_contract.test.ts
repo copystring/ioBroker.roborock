@@ -28,6 +28,23 @@ describe("original mower RemoteMsg JSON contract", () => {
 });
 
 describe("per-device mower RobotMsg status", () => {
+	it("normalizes source JSON enums and preserves unknown numeric states independently of charge", () => {
+		const store = new MowerStatusStore();
+		store.acceptRobotMessage({ id: 1, type: 38, robot_task: { robot_detail_state: "MOW_ZIG_ZAG", working_state: "MOW_GLOBAL" }, fsm_charge_state: "CHARGING" });
+		expect(store.getSnapshot()).toEqual({ messageId: "1", detailState: 55, workingState: 18, chargeState: 4 });
+		store.acceptRobotMessage({ id: 2, type: 38, robot_task: { robot_detail_state: 999 }, fsm_charge_state: null });
+		expect(store.getSnapshot()).toEqual({ messageId: "2", detailState: 999, workingState: 18, chargeState: 4 });
+	});
+
+	it("keeps error categories separate, preserves incomplete fields and accepts explicit clearing", () => {
+		const store = new MowerStatusStore();
+		store.acceptRobotMessage({ id: 1, type: 38, fsm_errors: { recoverable: [300], critical: ["SOME_ERROR"] }, charge_errors: { ignorable: [1] }, user_errors: [7, 8] });
+		const before = store.getSnapshot();
+		store.acceptRobotMessage({ id: 2, type: 38, fsm_errors: { recoverable: "invalid" }, user_errors: null });
+		expect(store.getSnapshot()).toEqual({ ...before, messageId: "2" });
+		store.acceptRobotMessage({ id: 3, type: 38, fsm_errors: {}, user_errors: [] });
+		expect(store.getSnapshot()).toMatchObject({ fsmErrors: "{}", userErrors: "[]", chargeErrors: '{"ignorable":[1]}' });
+	});
 	it("uses hardware.battery.percent and rejects older or duplicate status updates", () => {
 		const store = new MowerStatusStore();
 		expect(store.acceptRobotMessage({ id: "1700000000123", type: "ROBOT_STATUS_UPDATE", hardware: { battery: { percent: 81 } } })).toBe(true);

@@ -7,6 +7,7 @@ function dependencies(): MowerCloudDependencies {
 	return {
 		getModel: () => "roborock.mower.a266", getCategory: () => "roborock.mower",
 		getProtocol: async () => "L01", isConnected: () => true,
+		isDeviceOnline: () => true,
 		buildFrame: async () => Buffer.from("frame"), publishFrame: async () => {},
 	};
 }
@@ -45,6 +46,7 @@ describe("manufacturer mower MQTT frame contract", () => {
 		{ getProtocol: async () => "B01" },
 		{ getProtocol: async () => null },
 		{ isConnected: () => false },
+		{ isDeviceOnline: () => false },
 	])("rejects unsupported identity/protocol or a disconnected broker before encoding", async overrides => {
 		const buildFrame = vi.fn(async () => Buffer.from("frame"));
 		const publishFrame = vi.fn(async () => {});
@@ -72,12 +74,13 @@ describe("manufacturer mower MQTT frame contract", () => {
 		expect(publishFrame).not.toHaveBeenCalled();
 	});
 
-	it.each(["identity", "connection"])("rechecks %s after asynchronous encoding", async change => {
+	it.each(["identity", "connection", "online"])("rechecks %s after asynchronous encoding", async change => {
 		let valid = true;
 		const publishFrame = vi.fn(async () => {});
 		const transport = createMowerCloudTransport({ ...dependencies(), publishFrame,
 			getModel: () => valid || change !== "identity" ? "roborock.mower.a266" : "roborock.vacuum.a288",
 			isConnected: () => valid || change !== "connection",
+			isDeviceOnline: () => valid || change !== "online",
 			buildFrame: async () => { valid = false; return Buffer.from("frame"); },
 		});
 		await expect(transport.request("s108", {})).rejects.toThrow("changed");

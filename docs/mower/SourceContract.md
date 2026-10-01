@@ -1,8 +1,6 @@
 # RockMow S108 implementation preparation
 
-This branch prepares a mower runtime independently of the vacuum feature handlers.
-It does not yet attach the mower modules to adapter startup, MQTT or writable ioBroker states.
-The existing vacuum boundary remains in force while the remaining status and adapter integration is prepared.
+This branch attaches an independent mower runtime to discovery, MQTT, polling and writable ioBroker buttons for `roborock.mower.a266` with L01/1.0 transport. It creates `mowerCommands` (start, pause, resume, stop, charge, refresh) and read-only `mowerStatus` objects. Vacuum consumables, maps and scenes remain outside this runtime.
 
 ## Source provenance
 
@@ -52,7 +50,13 @@ The plugin decodes a RobotMsg and emits `OnReceiveRobotMessage`. ROBOT_STATUS_UP
 
 `MowerStatusStore` accepts decoded status objects, isolates each device, compares decimal ids without losing integer precision and publishes only validated known fields. Missing battery values preserve the previous reading. It does not interpret vacuum HomeData keys or DP 102 acknowledgements as mower status.
 
-The APK's separate protobuf push event carries Base64 RobotMsg data in `RRDeviceDpsPbUpdateEvent`; the bundle decodes it before emitting `OnReceiveRobotMessage`. The decompiled JSON event bridge is incomplete, so its DP/container mapping is not inferred.
+The APK's protobuf push event uses MQTT protocol 702. Decrypted payload starts with ASCII `PB`, then RobotToAppMsg: t=1/int64, dp=2/string, id=3/int32, type=4/enum, result=5/bytes. The SDK emits result as Base64 in `RRDeviceDpsPbUpdateEvent`; the bundle decodes those bytes as RobotMsg. The runtime extracts result independently of the outer RPC id/type. This container never resolves pending JSON commands.
+
+The JSON listener parses the first DP value as JSON and then its string `result` as RobotMsg JSON. The runtime follows this convention without assuming a fixed status DP. DP 102 RPC acknowledgements remain separate from status acceptance.
+
+Activity comes from RobotMsg `robot_task` (71), RobotTask `working_state` (1) / `robot_detail_state` (2), and RobotMsg `fsm_charge_state` (19). Source-derived RobotDetailStateType/FsmStateType symbols supply ioBroker labels; unknown numeric states are preserved. Errors come from `fsm_errors` (46), `user_errors` (52), `scheduler_errors` (62), and `charge_errors` (63). CheckResults retains separate ignorable, recoverable, unrecoverable, critical, to_dock and debounce arrays, rather than using vacuum error codes.
+
+Publication is serialized per device. Removed, reclassified or stopped sessions cannot publish subsequent fields or send pending commands. Offline devices and broker disconnects cancel pending requests; asynchronous encoding rechecks identity, online state, protocol and connection before publication.
 
 ## HTTP IoT
 
@@ -61,6 +65,8 @@ Shadow is read through `GET devices/<deviceId>/shadow` (741369–741426). The AP
 ## Remaining integration gates
 
 1. Confirm the existing adapter 1.0 codec against an S108 response. The APK establishes the cloud version, header and key contract; the cipher implementation is behind native `rrcodec` and the prepared composition has only been exercised locally.
-2. Decode the actual RobotMsg push container, extend source-derived activity/error fields and connect the session to its own DeviceManager and MQTT routes.
-3. Create mower-specific ioBroker states and command handling; keep vacuum consumables, maps and scene handling separate.
-4. Test the wired implementation locally with source fixtures, then verify status and commands on the reporter's S108. Hardware tests confirm the source-derived implementation; logs do not serve as command discovery.
+2. Verify the supported JSON `remote_pb` path and status delivery on the reporter's S108. Local integration tests exercise discovery, actual adapter button dispatch, encrypted protocol 101 publication, independent protocol 102 acknowledgement and protocol 702 status reception, plus offline/reclassification/shutdown paths.
+3. Verify activity and categorized errors against the physical device. Source-derived fields, labels and fixed wire fixtures do not substitute for device validation.
+4. Maps, areas, schedules and full app feature parity are not implemented. The separate BATTERY_PERCENT event and its UI override rules are not projected; battery currently comes from ROBOT_STATUS_UPDATE.
+
+Hardware tests confirm the source-derived implementation; logs do not serve as command discovery. The original routing-fix test PR is separate from this runtime branch.

@@ -4,6 +4,25 @@ import { MowerRpcTransport, type MowerRpcEnvelope } from "../../src/lib/mower/Mo
 afterEach(() => vi.useRealTimers());
 
 describe("mower cloud RPC correlation", () => {
+	it("cancels an offline device independently and allows new requests after a connection reset", async () => {
+		vi.useFakeTimers();
+		const transport = new MowerRpcTransport({ publish: async () => {} });
+		const first = transport.request("a", {});
+		const second = transport.request("b", {});
+		const firstRejected = expect(first).rejects.toThrow("offline");
+		transport.cancelPending("offline", "a");
+		await firstRejected;
+		expect(transport.acceptDps("a", { "102": { id: 1 } })).toBe(false);
+		const secondRejected = expect(second).rejects.toThrow("reset");
+		transport.cancelPending("reset");
+		await secondRejected;
+		expect(vi.getTimerCount()).toBe(0);
+		const afterReconnect = transport.request("a", {});
+		transport.acceptDps("a", { "102": { id: 3 } });
+		await expect(afterReconnect).resolves.toEqual({ id: 3 });
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
 	it("matches device and RPC id, independently of the protobuf id", async () => {
 		const publish = vi.fn(async () => {});
 		const transport = new MowerRpcTransport({ publish });
