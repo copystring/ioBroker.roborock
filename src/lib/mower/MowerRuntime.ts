@@ -1,7 +1,8 @@
 import type { Roborock } from "../../main";
 import type { Device } from "../httpApi";
 import { createMowerCloudTransport } from "./mowerCloudTransport";
-import { isSourceSupportedMower, parseMowerRainfallSetting, parseMowerNotDisturbSetting, type MowerCommand } from "./mowerContract";
+import { isSourceSupportedMower, parseMowerRainfallSetting, parseMowerNotDisturbSetting } from "./mowerContract";
+import type { MowerCommand } from "./mowerContract";
 import { MowerSession } from "./MowerSession";
 import { decodeMowerJsonMessage, decodeMowerRpcResult } from "./mowerJsonMessage";
 import { decodeMowerPbPush } from "./mowerProtobuf";

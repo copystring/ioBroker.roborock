@@ -1,6 +1,8 @@
-import { buildMowerButton, buildMowerInfoRequest, buildMowerSettingsRequest, buildMowerRainfallRequest, buildMowerNotDisturbRequest, isSourceSupportedMower, type MowerCommand, type MowerRainfallSetting, type MowerNotDisturbSetting } from "./mowerContract";
+import { buildMowerButton, buildMowerInfoRequest, buildMowerSettingsRequest, buildMowerRainfallRequest, buildMowerNotDisturbRequest, isSourceSupportedMower } from "./mowerContract";
+import type { MowerCommand, MowerRainfallSetting, MowerNotDisturbSetting } from "./mowerContract";
 import type { MowerRpcTransport, MowerRpcResponse } from "./MowerRpcTransport";
-import { MowerStatusStore, type MowerStatusSnapshot } from "./MowerStatusStore";
+import { MowerStatusStore } from "./MowerStatusStore";
+import type { MowerStatusSnapshot } from "./MowerStatusStore";
 
 /** Source-derived device behavior; transport wiring remains separate from the vacuum handlers. */
 export class MowerSession {
