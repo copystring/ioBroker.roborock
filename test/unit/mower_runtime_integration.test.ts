@@ -59,6 +59,30 @@ async function setup() {
 afterEach(() => vi.restoreAllMocks());
 
 describe("S108 mower runtime integration", () => {
+	it("sends an atomic overnight not-disturb setting and publishes only validated subsequent readback", async () => {
+		const { adapter, published, onStateChange, onMessage } = await setup();
+		try {
+			const pending = onStateChange("setNotDisturb", '{"enable":true,"start":"19:00","end":"07:00"}');
+			await vi.waitFor(() => expect(published).toHaveLength(1));
+			const [frame] = adapter.requestsHandler.messageParser.decodeMsg(published[0].frame, "mower");
+			const rpc = JSON.parse(JSON.parse(frame.payload.toString("utf8")).dps["101"]);
+			expect(rpc.params).toMatchObject({ type: "SET_NOT_DISTURB", not_disturb_config: { enable: true, time: [{ start: { hour: 19, minute: 0 }, end: { hour: 7, minute: 0 } }] } });
+			const sendAck = async (id: number, result: unknown) => {
+				const encoded = await adapter.requestsHandler.messageParser.buildRoborockMessage("mower", 102, Math.floor(Date.now() / 1000), JSON.stringify({ dps: { "102": JSON.stringify({ id, result }) } }), "1.0");
+				await onMessage(encoded as Buffer);
+			};
+			await sendAck(rpc.id, "ok");
+			expect(adapter.states["Devices.mower.mowerStatus.dndEnabled"]).toBeUndefined();
+			await vi.waitFor(() => expect(published).toHaveLength(2));
+			const [query] = adapter.requestsHandler.messageParser.decodeMsg(published[1].frame, "mower");
+			const queryRpc = JSON.parse(JSON.parse(query.payload.toString("utf8")).dps["101"]);
+			await sendAck(queryRpc.id, { type: "USER_MODE_CONFIG", user_mode_config: { not_disturb_config: { enable: true, time: [{ start: { hour: 19 }, end: { hour: 7 } }] } } });
+			await pending;
+			expect(adapter.states["Devices.mower.mowerStatus.dndEnabled"]).toBe(true);
+			expect(adapter.states["Devices.mower.mowerStatus.dndWindows"]).toBe('[{"start":"19:00","end":"07:00"}]');
+		} finally { adapter.mowerRuntime.stop(); }
+	});
+
 	it("validates rainfall input before publishing and keeps settings readback independent of ACK", async () => {
 		const { adapter, published, onStateChange, onMessage } = await setup();
 		try {

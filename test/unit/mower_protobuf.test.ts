@@ -1,9 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { buildMowerButton, buildMowerInfoRequest, buildMowerRainfallRequest, buildMowerSettingsRequest } from "../../src/lib/mower/mowerContract";
+import { buildMowerButton, buildMowerInfoRequest, buildMowerRainfallRequest, buildMowerNotDisturbRequest, buildMowerSettingsRequest } from "../../src/lib/mower/mowerContract";
 import { decodeMowerPbPush, decodeMowerRobotMessage, encodeMowerRemoteMessage } from "../../src/lib/mower/mowerProtobuf";
 import { MowerStatusStore } from "../../src/lib/mower/MowerStatusStore";
 
 describe("source-derived mower protobuf wire fields", () => {
+	it("encodes not-disturb source tags and reads canonical zero-minute defaults only in present time points", () => {
+		expect(encodeMowerRemoteMessage(buildMowerNotDisturbRequest({ enable: true, start: "19:00", end: "07:00" }, 123)).toString("hex")).toBe("087b101b8a010c080112080a02081312020807");
+		const store = new MowerStatusStore();
+		store.acceptRobotMessage(decodeMowerRobotMessage(Buffer.from("101992020e120c080112080a02081312020807", "hex")));
+		expect(store.getSnapshot()).toEqual({ dndEnabled: true, dndWindows: '[{"start":"19:00","end":"07:00"}]' });
+		store.acceptRobotMessage(decodeMowerRobotMessage(Buffer.from("10199202021200", "hex")));
+		expect(store.getSnapshot()).toEqual({ dndEnabled: false, dndWindows: "[]" });
+	});
 	it("decodes progress float fields and navigation fallback independently from fixed source-tag fixtures", () => {
 		const store = new MowerStatusStore();
 		const primary = decodeMowerRobotMessage(Buffer.from("087b1026ea010f4d0000c84355000016445d0000c841", "hex"));

@@ -1,7 +1,7 @@
 import type { Roborock } from "../../main";
 import type { Device } from "../httpApi";
 import { createMowerCloudTransport } from "./mowerCloudTransport";
-import { isSourceSupportedMower, parseMowerRainfallSetting, type MowerCommand } from "./mowerContract";
+import { isSourceSupportedMower, parseMowerRainfallSetting, parseMowerNotDisturbSetting, type MowerCommand } from "./mowerContract";
 import { MowerSession } from "./MowerSession";
 import { decodeMowerJsonMessage, decodeMowerRpcResult } from "./mowerJsonMessage";
 import { decodeMowerPbPush } from "./mowerProtobuf";
@@ -76,11 +76,14 @@ export class MowerRuntime {
 			await this.adapter.ensureState(`${prefix}.mowerCommands.${command}`, { name, type: "boolean", role: "button", read: true, write: true, def: false });
 		}
 		await this.adapter.ensureState(`${prefix}.mowerCommands.setRainfall`, { name: "Set rainfall configuration: JSON enable and delayHours (0, 3, 8)", type: "string", role: "json", read: true, write: true, def: "" });
+		await this.adapter.ensureState(`${prefix}.mowerCommands.setNotDisturb`, { name: "Set not-disturb: JSON enable, start and end (app clock HH:MM, five-minute steps)", type: "string", role: "json", read: true, write: true, def: "" });
 		await this.adapter.ensureState(`${prefix}.mowerStatus.battery`, { name: "Battery", type: "number", role: "value.battery", min: 0, max: 100, unit: "%", read: true, write: false });
 		await this.adapter.ensureState(`${prefix}.mowerStatus.batteryBroadcast`, { name: "Battery from separate battery event", type: "number", role: "value.battery", min: 0, max: 100, unit: "%", read: true, write: false });
 		await this.adapter.ensureState(`${prefix}.mowerStatus.messageId`, { name: "Status message ID", type: "string", role: "text", read: true, write: false });
 		await this.adapter.ensureState(`${prefix}.mowerStatus.rainEnabled`, { name: "Rainfall delay enabled (device readback)", type: "boolean", role: "indicator", read: true, write: false });
 		await this.adapter.ensureState(`${prefix}.mowerStatus.rainDelayHours`, { name: "Rainfall delay (device readback)", type: "number", role: "value", unit: "h", min: 0, read: true, write: false });
+		await this.adapter.ensureState(`${prefix}.mowerStatus.dndEnabled`, { name: "Not-disturb enabled (device readback)", type: "boolean", role: "indicator", read: true, write: false });
+		await this.adapter.ensureState(`${prefix}.mowerStatus.dndWindows`, { name: "Not-disturb intervals (app clock readback)", type: "string", role: "json", read: true, write: false });
 		for (const [field, name, unit] of [["mowingProgress", "Mowing progress", "%"], ["navigationProgress", "Navigation task progress", "%"], ["totalArea", "Mowing task area", "m²"], ["mowedArea", "Mowed area (derived)", "m²"], ["expectedDuration", "Expected mowing duration", "s"], ["remainingTime", "Remaining mowing time (derived)", "s"]]) {
 			await this.adapter.ensureState(`${prefix}.mowerStatus.${field}`, { name, type: "number", role: "value", unit, min: 0, ...(unit === "%" ? { max: 100 } : {}), read: true, write: false });
 		}
@@ -125,17 +128,21 @@ export class MowerRuntime {
 		const entry = this.devices.get(duid);
 		if (!entry || !this.isRegistered(duid) || state.ack) return;
 		const rainfall = command === "setRainfall";
-		if (!rainfall && (!Object.hasOwn(COMMAND_NAMES, command) || state.val !== true)) return;
-		if (rainfall && (typeof state.val !== "string" || state.val === "")) return;
+		const notDisturb = command === "setNotDisturb";
+		const jsonCommand = rainfall || notDisturb;
+		if (!jsonCommand && (!Object.hasOwn(COMMAND_NAMES, command) || state.val !== true)) return;
+		if (jsonCommand && (typeof state.val !== "string" || state.val === "")) return;
 		if (id !== `${this.adapter.namespace}.Devices.${duid}.mowerCommands.${command}`) return;
 		const object = await this.adapter.getObjectAsync(id);
-		if (object?.type !== "state" || object.common.write !== true || object.common.type !== (rainfall ? "string" : "boolean") || object.common.role !== (rainfall ? "json" : "button")) return;
+		if (object?.type !== "state" || object.common.write !== true || object.common.type !== (jsonCommand ? "string" : "boolean") || object.common.role !== (jsonCommand ? "json" : "button")) return;
 		if (this.devices.get(duid) !== entry || !this.isRegistered(duid)) return;
 		const setting = rainfall ? parseMowerRainfallSetting(JSON.parse(state.val as string)) : undefined;
+		const dnd = notDisturb ? parseMowerNotDisturbSetting(JSON.parse(state.val as string)) : undefined;
 		// Acknowledge the button event; the separate RobotMsg stream is the source of device state.
-		await this.adapter.setState(id, { val: rainfall ? "" : false, ack: true });
-		if (setting) {
-			await entry.session.setRainfall(setting);
+		await this.adapter.setState(id, { val: jsonCommand ? "" : false, ack: true });
+		if (setting || dnd) {
+			if (setting) await entry.session.setRainfall(setting);
+			else await entry.session.setNotDisturb(dnd!);
 			if (this.devices.get(duid) !== entry || !this.isRegistered(duid)) return;
 			const response = await entry.session.requestSettings();
 			if (this.devices.get(duid) === entry) await this.acceptRobotMessage(duid, decodeMowerRpcResult(response));

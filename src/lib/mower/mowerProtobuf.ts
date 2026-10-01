@@ -5,8 +5,11 @@ import type { MowerRequest } from "./mowerContract";
 const root = protobuf.parse(`
 syntax = "proto3";
 message RainFall { bool enable = 2; float delay_time = 3; }
-message UserModeConfig { RainFall rainfall_config = 1; }
-message RemoteMsg { uint64 id = 1; int32 type = 2; int32 app_button = 5; RainFall rainfall_config = 18; }
+message TimePoint { uint32 hour = 1; uint32 minute = 2; }
+message TimeSlot { TimePoint start = 1; TimePoint end = 2; }
+message NotDisturb { bool enable = 1; repeated TimeSlot time = 2; }
+message UserModeConfig { RainFall rainfall_config = 1; NotDisturb not_disturb_config = 2; }
+message RemoteMsg { uint64 id = 1; int32 type = 2; int32 app_button = 5; NotDisturb not_disturb_config = 17; RainFall rainfall_config = 18; }
 message Battery { uint32 percent = 2; }
 message HardwareMsg { Battery battery = 1; }
 message MowProgress { float mow_all_area = 9; float expected_time = 10; float cur_mow_progress = 11; }
@@ -42,6 +45,9 @@ export function encodeMowerRemoteMessage(request: MowerRequest): Buffer {
 	} else if (request.type === "SET_RAINFALL") {
 		fields.type = 28;
 		fields.rainfall_config = request.rainfall_config;
+	} else if (request.type === "SET_NOT_DISTURB") {
+		fields.type = 27;
+		fields.not_disturb_config = request.not_disturb_config;
 	} else {
 		throw new Error("Unsupported mower protobuf request");
 	}

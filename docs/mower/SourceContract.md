@@ -76,6 +76,12 @@ Rain configuration uses `RemoteMsg{type:SET_RAINFALL,rainfall_config:{enable,del
 
 Readback is `RobotMsg.Type.USER_MODE_CONFIG=25`, `user_mode_config` field 34 → `rainfall_config` field 1 (486090–486093, 448886–448912, 437939–437966). The app reads it without a status-ID freshness gate. A present RainFall container has proto3 defaults enable=false/delay_time=0; a missing container stays unknown (342395–342403, 437895–437899, 1102339–1102410). Validated readback is published independently of the command ACK. After setting, the runtime queries settings; `refreshSettings` can also request them explicitly. Correlated RPC results accept the decoded RobotMsg object or its JSON string, while a plain ACK does not change settings.
 
+## Not-disturb interval
+
+SET_NOT_DISTURB=27 builds `not_disturb_config{enable,time:[{start:{hour,minute},end:{hour,minute}}]}` (743811–743903). The UI sends a single HH:MM-HH:MM interval (1059290–1059312) and its picker offers five-minute steps from 00:00 to 24:00, normalizing 24:00 to 00:00 (1059801–1059833, 1059995–1060036). Its displayed fallback 19:00–07:00 establishes an overnight interval; that UI fallback is not a reported device setting (1059169–1059177). The source sends plain clock components without a date or offset. The adapter follows that clock representation without inventing a timezone conversion, equality restriction or maximum duration.
+
+The atomic `setNotDisturb` JSON input is `{enable:boolean,start:"HH:MM",end:"HH:MM"}`. RemoteMsg.not_disturb_config is field 17, UserModeConfig.not_disturb_config field 2; NotDisturb.enable is field 1/bool and time field 2/repeated TimeSlot. TimeSlot.start/end are fields 1/2; TimePoint.hour/minute fields 1/2/uint32. Present NotDisturb defaults are enable=false and time=[] (343031–343044); present TimePoint defaults hour=0/minute=0 (341454–341459). Missing containers are not converted into a fabricated 19:00–07:00 window. USER_MODE_CONFIG readback publishes `dndEnabled` and `dndWindows`; malformed explicit windows preserve previous readback. The shared post-command settings query follows the ACK.
+
 ## Remaining integration gates
 
 1. Confirm the existing adapter 1.0 codec against an S108 response. The APK establishes the cloud version, header and key contract; the cipher implementation is behind native `rrcodec` and the prepared composition has only been exercised locally.

@@ -6,6 +6,8 @@ export interface MowerStatusSnapshot {
 	batteryBroadcast?: number;
 	rainEnabled?: boolean;
 	rainDelayHours?: number;
+	dndEnabled?: boolean;
+	dndWindows?: string;
 	mowingProgress?: number;
 	navigationProgress?: number;
 	totalArea?: number;
@@ -69,6 +71,28 @@ function firstFinite(...values: unknown[]): number | undefined {
 	return values.find(finite) as number | undefined;
 }
 
+function timePoint(value: unknown): string | undefined {
+	const point = record(value);
+	if (!point) return undefined;
+	const hour = Object.hasOwn(point, "hour") ? point.hour : 0;
+	const minute = Object.hasOwn(point, "minute") ? point.minute : 0;
+	if (typeof hour !== "number" || !Number.isInteger(hour) || hour < 0 || hour > 23 || typeof minute !== "number" || !Number.isInteger(minute) || minute < 0 || minute > 59) return undefined;
+	return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function timeWindows(value: unknown): string | undefined {
+	if (!Array.isArray(value)) return undefined;
+	const windows: Array<{ start: string; end: string }> = [];
+	for (const slot of value) {
+		const fields = record(slot);
+		const start = timePoint(fields?.start);
+		const end = timePoint(fields?.end);
+		if (start === undefined || end === undefined) return undefined;
+		windows.push({ start, end });
+	}
+	return JSON.stringify(windows);
+}
+
 /** One store per device. Input is a decoded RobotMsg, never a DP 102 transport ACK. */
 export class MowerStatusStore {
 	private lastId = 0n;
@@ -77,21 +101,37 @@ export class MowerStatusStore {
 	public acceptRobotMessage(value: unknown): boolean {
 		const message = record(value);
 		if (message?.type === 25 || message?.type === "USER_MODE_CONFIG") {
-			const rain = record(record(message.user_mode_config)?.rainfall_config);
-			if (!rain) return false;
+			const mode = record(message.user_mode_config);
+			const rain = record(mode?.rainfall_config);
+			const dnd = record(mode?.not_disturb_config);
+			if (!rain && !dnd) return false;
 			const next = { ...this.snapshot };
 			let accepted = false;
+			if (rain) {
 			// A present RainFall has source-proven proto3 defaults false/0. A missing
 			// container is unknown; malformed explicit values never overwrite readback.
-			const enable = Object.hasOwn(rain, "enable") ? rain.enable : false;
-			const delay = Object.hasOwn(rain, "delay_time") ? rain.delay_time : 0;
-			if (typeof enable === "boolean") {
-				next.rainEnabled = enable;
-				accepted = true;
+				const enable = Object.hasOwn(rain, "enable") ? rain.enable : false;
+				const delay = Object.hasOwn(rain, "delay_time") ? rain.delay_time : 0;
+				if (typeof enable === "boolean") {
+					next.rainEnabled = enable;
+					accepted = true;
+				}
+				if (typeof delay === "number" && Number.isFinite(delay) && delay >= 0) {
+					next.rainDelayHours = delay;
+					accepted = true;
+				}
 			}
-			if (typeof delay === "number" && Number.isFinite(delay) && delay >= 0) {
-				next.rainDelayHours = delay;
-				accepted = true;
+			if (dnd) {
+				const enabled = Object.hasOwn(dnd, "enable") ? dnd.enable : false;
+				if (typeof enabled === "boolean") {
+					next.dndEnabled = enabled;
+					accepted = true;
+				}
+				const windows = timeWindows(Object.hasOwn(dnd, "time") ? dnd.time : []);
+				if (windows !== undefined) {
+					next.dndWindows = windows;
+					accepted = true;
+				}
 			}
 			if (accepted) this.snapshot = next;
 			return accepted;

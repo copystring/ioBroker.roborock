@@ -16,7 +16,11 @@ Write `true` to `mowerCommands.refreshSettings` and compare `mowerStatus.rainEna
 
 Write a JSON string to `mowerCommands.setRainfall`, for example `{"enable":true,"delayHours":3}`. Supported delay values are 0, 3 and 8 hours. Zero means immediate resumption, independently of enable/disable. The input clears after ingestion; a separate settings query follows the command acknowledgement. Only the actual USER_MODE_CONFIG response changes the read-only rainfall values. Verify the app's setting and then restore the saved original values with another complete JSON input.
 
-## Command sequence
+## Not-disturb configuration
+
+Read the original `dndEnabled` and `dndWindows` via `refreshSettings`. Write a JSON string such as `{"enable":true,"start":"19:00","end":"07:00"}` to `mowerCommands.setNotDisturb`. A single interval is supported, using the clock values shown by the app, in five-minute steps; 24:00 normalizes to 00:00. No timezone conversion is applied. Verify the queried readback and the app, then restore the original configuration. An empty/missing device window does not mean the app's display fallback 19:00–07:00 is configured.
+
+## Movement commands
 
 Use the mower's normal operating conditions and observe each action before proceeding:
 

@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { buildMowerButton, buildMowerInfoRequest, buildMowerRainfallRequest, buildMowerSettingsRequest, parseMowerRainfallSetting, isSourceSupportedMower } from "../../src/lib/mower/mowerContract";
+import { buildMowerButton, buildMowerInfoRequest, buildMowerRainfallRequest, buildMowerNotDisturbRequest, buildMowerSettingsRequest, parseMowerRainfallSetting, parseMowerNotDisturbSetting, isSourceSupportedMower } from "../../src/lib/mower/mowerContract";
 import { MowerStatusStore } from "../../src/lib/mower/MowerStatusStore";
 
 describe("original mower RemoteMsg JSON contract", () => {
+	it("sends source clock components for overnight not-disturb and normalizes the picker endpoint 24:00", () => {
+		expect(buildMowerNotDisturbRequest({ enable: true, start: "19:00", end: "07:00" }, 123)).toEqual({ id: "123", type: "SET_NOT_DISTURB", not_disturb_config: { enable: true, time: [{ start: { hour: 19, minute: 0 }, end: { hour: 7, minute: 0 } }] } });
+		expect(parseMowerNotDisturbSetting({ enable: false, start: "24:00", end: "00:05" })).toEqual({ enable: false, start: "00:00", end: "00:05" });
+	});
+	it.each([{}, { enable: true, start: "19:00" }, { enable: true, start: "25:00", end: "07:00" }, { enable: true, start: "19:01", end: "07:00" }, { enable: "true", start: "19:00", end: "07:00" }])("rejects not-disturb input outside the source picker contract %j", value => {
+		expect(() => parseMowerNotDisturbSetting(value)).toThrow("Not-disturb setting");
+	});
 	it.each([0, 3, 8] as const)("builds atomic rainfall configuration with source delay %s hours", delayHours => {
 		expect(buildMowerRainfallRequest({ enable: true, delayHours }, 123)).toEqual({ id: "123", type: "SET_RAINFALL", rainfall_config: { enable: true, delay_time: delayHours } });
 		expect(buildMowerSettingsRequest(124)).toEqual({ id: "124", type: "GET_USER_MODE_CONFIG" });
@@ -35,6 +42,16 @@ describe("original mower RemoteMsg JSON contract", () => {
 });
 
 describe("per-device mower RobotMsg status", () => {
+	it("reads not-disturb separately with present-container defaults and preserves malformed windows", () => {
+		const store = new MowerStatusStore();
+		expect(store.acceptRobotMessage({ type: 25, user_mode_config: {} })).toBe(false);
+		store.acceptRobotMessage({ type: 25, user_mode_config: { not_disturb_config: { enable: true, time: [{ start: { hour: 19 }, end: { hour: 7 } }] } } });
+		expect(store.getSnapshot()).toEqual({ dndEnabled: true, dndWindows: '[{"start":"19:00","end":"07:00"}]' });
+		store.acceptRobotMessage({ type: 25, user_mode_config: { not_disturb_config: { enable: "false", time: [{ start: {}, end: { hour: 25 } }] } } });
+		expect(store.getSnapshot()).toEqual({ dndEnabled: true, dndWindows: '[{"start":"19:00","end":"07:00"}]' });
+		store.acceptRobotMessage({ type: 25, user_mode_config: { not_disturb_config: {} } });
+		expect(store.getSnapshot()).toEqual({ dndEnabled: false, dndWindows: "[]" });
+	});
 	it("preserves partial progress values without deriving across tasks and honors primary source priority", () => {
 		const store = new MowerStatusStore();
 		store.acceptRobotMessage({ id: 1, type: 38, mow_progress: { cur_mow_progress: 25, mow_all_area: 400, expected_time: 600 } });

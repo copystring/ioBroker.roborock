@@ -1,4 +1,4 @@
-import { buildMowerButton, buildMowerInfoRequest, buildMowerSettingsRequest, buildMowerRainfallRequest, isSourceSupportedMower, type MowerCommand, type MowerRainfallSetting } from "./mowerContract";
+import { buildMowerButton, buildMowerInfoRequest, buildMowerSettingsRequest, buildMowerRainfallRequest, buildMowerNotDisturbRequest, isSourceSupportedMower, type MowerCommand, type MowerRainfallSetting, type MowerNotDisturbSetting } from "./mowerContract";
 import type { MowerRpcTransport, MowerRpcResponse } from "./MowerRpcTransport";
 import { MowerStatusStore, type MowerStatusSnapshot } from "./MowerStatusStore";
 
@@ -39,6 +39,11 @@ export class MowerSession {
 	public setRainfall(setting: MowerRainfallSetting): Promise<MowerRpcResponse> {
 		this.assertOpen();
 		return this.rpc.request(this.duid, buildMowerRainfallRequest(setting, this.nextId()), this.lifetime.signal);
+	}
+
+	public setNotDisturb(setting: MowerNotDisturbSetting): Promise<MowerRpcResponse> {
+		this.assertOpen();
+		return this.rpc.request(this.duid, buildMowerNotDisturbRequest(setting, this.nextId()), this.lifetime.signal);
 	}
 
 	public acceptRobotMessage(message: unknown): boolean {
