@@ -1,9 +1,30 @@
 import { describe, expect, it } from "vitest";
 import { buildMowerButton, buildMowerInfoRequest, buildMowerRainfallRequest, buildMowerNotDisturbRequest, buildMowerSettingsRequest } from "../../src/lib/mower/mowerContract";
-import { decodeMowerPbPush, decodeMowerRobotMessage, encodeMowerRemoteMessage } from "../../src/lib/mower/mowerProtobuf";
+import { decodeMowerPbPush, decodeMowerRobotMessage, encodeMowerRemoteMessage, encodeMowerPbRequest } from "../../src/lib/mower/mowerProtobuf";
 import { MowerStatusStore } from "../../src/lib/mower/MowerStatusStore";
 
 describe("source-derived mower protobuf wire fields", () => {
+	it("keeps native envelope correlation and inner RemoteMsg ids separate", () => {
+		const context = { timestampSeconds: 1, correlationId: 7, endpoint: "Abcdef12", nonce: "0".repeat(32) };
+		expect(encodeMowerPbRequest({ id: "100", type: "GET_HEIGHT_MOTOR_PARAMETER" }, context).toString("hex")).toBe(`504208011807220841626364656631322a20${"30".repeat(32)}320408641022`);
+		expect(encodeMowerPbRequest({ id: "100", type: "GET_HEIGHT_MOTOR_PARAMETER" }, { ...context, timestampSeconds: undefined }).toString("hex")).toBe(`50421807220841626364656631322a20${"30".repeat(32)}320408641022`);
+		expect(() => encodeMowerPbRequest({ id: "100", type: "GET_MAP_NAMES" }, { ...context, correlationId: 0x80000000 })).toThrow("correlation ID");
+		expect(() => encodeMowerPbRequest({ id: "100", type: "GET_MAP_NAMES" }, { ...context, nonce: "unknown" })).toThrow("nonce");
+	});
+	it("matches source area, map and BLE-height fields against independent wire fixtures", () => {
+		expect(encodeMowerRemoteMessage({ id: "100", type: "APP_BUTTON", app_button: "MOW_SELECT", modify_map: { boundaries: [{ id: 7, name: "Lawn" }] } }).toString("hex")).toBe("086410062810420a520808072a044c61776e");
+		expect(encodeMowerRemoteMessage({ id: "100", type: "GET_FULL_MAP", modify_map: { name: "current" } }).toString("hex")).toBe("08641002420a8a010763757272656e74");
+		expect(encodeMowerRemoteMessage({ id: "100", type: "REMOTE_CMD", remote_cmd: { type: "MAIN_CUTTER_HEIGHT", main_cutter_height: 55 } }).toString("hex")).toBe("086410116a0408032837");
+		expect(decodeMowerRobotMessage(Buffer.from("1004320763757272656e74", "hex"))).toEqual({ type: 4, map_names: ["current"] });
+	});
+	it("encodes source schedule and height queries and decodes their separate response types", () => {
+		expect(encodeMowerRemoteMessage({ id: "1", type: "GET_MOW_SCHEDULE" }).toString("hex")).toBe("08011027");
+		expect(encodeMowerRemoteMessage({ id: "1", type: "GET_HEIGHT_MOTOR_PARAMETER" }).toString("hex")).toBe("08011022");
+		expect(encodeMowerRemoteMessage({ id: "1", type: "GET_MOW_PREFERENCE_CONFIG" }).toString("hex")).toBe("0801101a");
+		expect(decodeMowerRobotMessage(Buffer.from("101eba02060846101e1805", "hex"))).toEqual({ type: 30, height_motor_parameter: { max: 70, min: 30, step: 5 } });
+		expect(decodeMowerRobotMessage(Buffer.from("10188a02040a022032", "hex"))).toEqual({ type: 24, preference_config: { global: { height: 50 } } });
+		expect(decodeMowerRobotMessage(Buffer.from("1022ca0200", "hex"))).toEqual({ type: 34, mow_schedule: {} });
+	});
 	it("encodes not-disturb source tags and reads canonical zero-minute defaults only in present time points", () => {
 		expect(encodeMowerRemoteMessage(buildMowerNotDisturbRequest({ enable: true, start: "19:00", end: "07:00" }, 123)).toString("hex")).toBe("087b101b8a010c080112080a02081312020807");
 		const store = new MowerStatusStore();

@@ -15,6 +15,10 @@ export interface MowerCloudDependencies {
 export function createMowerCloudTransport(dependencies: MowerCloudDependencies): MowerRpcTransport {
 	return new MowerRpcTransport({
 		publish: async (duid, rpc, signal) => {
+			const params = rpc.params && typeof rpc.params === "object" ? rpc.params as Record<string, unknown> : undefined;
+			if (params?.type === "REMOTE_CMD" || params?.type === "GET_FULL_MAP") {
+				throw new Error("Mower request requires its native BLE or blob transport");
+			}
 			const supported = () => isSourceSupportedMower(dependencies.getModel(duid), dependencies.getCategory(duid));
 			if (!supported()) throw new Error("Unsupported mower cloud device");
 			const pv = await dependencies.getProtocol(duid);

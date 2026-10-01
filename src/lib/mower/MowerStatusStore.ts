@@ -1,6 +1,19 @@
 import statusEnums from "./statusEnums.json";
 
 export interface MowerStatusSnapshot {
+	schedules?: string;
+	robotTimeZone?: string;
+	cuttingHeightMin?: number;
+	cuttingHeightMax?: number;
+	cuttingHeightStep?: number;
+	cuttingHeight?: number | null;
+	areaCuttingHeights?: string;
+	bluetoothAvailable?: boolean;
+	mapDownloadAvailable?: boolean;
+	mapData?: string | null;
+	currentMap?: string | null;
+	mowingAreas?: string | null;
+	mapNames?: string;
 	messageId?: string;
 	battery?: number;
 	batteryBroadcast?: number;
@@ -100,6 +113,17 @@ export class MowerStatusStore {
 
 	public acceptRobotMessage(value: unknown): boolean {
 		const message = record(value);
+		if (message?.type === 4 || message?.type === "MAP_NAMES") {
+			const names = Object.hasOwn(message, "map_names") ? message.map_names : [];
+			if (!Array.isArray(names) || names.some(name => typeof name !== "string")) return false;
+			this.snapshot = { ...this.snapshot, mapNames: JSON.stringify(names) };
+			return true;
+		}
+		if (message?.type === 35 || message?.type === "ROBOT_TIME_ZONE") {
+			if (typeof message.time_zone !== "string") return false;
+			this.snapshot = { ...this.snapshot, robotTimeZone: message.time_zone };
+			return true;
+		}
 		if (message?.type === 25 || message?.type === "USER_MODE_CONFIG") {
 			const mode = record(message.user_mode_config);
 			const rain = record(mode?.rainfall_config);

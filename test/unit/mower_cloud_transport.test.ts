@@ -15,6 +15,15 @@ function dependencies(): MowerCloudDependencies {
 afterEach(() => vi.useRealTimers());
 
 describe("manufacturer mower MQTT frame contract", () => {
+	it.each(["REMOTE_CMD", "GET_FULL_MAP"])("rejects native-only %s requests before cloud encoding", async type => {
+		const buildFrame = vi.fn(async () => Buffer.from("frame"));
+		const publishFrame = vi.fn(async () => {});
+		const transport = createMowerCloudTransport({ ...dependencies(), buildFrame, publishFrame });
+		await expect(transport.request("s108", { id: "100", type })).rejects.toThrow("native BLE or blob transport");
+		expect(buildFrame).not.toHaveBeenCalled();
+		expect(publishFrame).not.toHaveBeenCalled();
+		transport.stop();
+	});
 	it("uses the existing 1.0 codec for an L01 mower without a TCP handshake or endpoint", async () => {
 		const parser = new messageParser({
 			http_api: { getMatchedLocalKeys: () => new Map([["s108", "0011223344556677"]]) },

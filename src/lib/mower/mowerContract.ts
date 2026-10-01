@@ -1,4 +1,7 @@
 /** Source: original shared RockMow bundle, RemoteMsg.toJSON, not the vacuum RPC contract. */
+import type { MowerScheduleRequest } from "./mowerScheduleContract";
+import type { MowerMapRequest } from "./MowerMapStore";
+
 export const MOWER_BUTTONS = {
 	start: "MOW_GLOBAL",
 	pause: "MOW_PAUSE",
@@ -8,7 +11,7 @@ export const MOWER_BUTTONS = {
 } as const;
 
 export type MowerCommand = keyof typeof MOWER_BUTTONS;
-export type MowerRequest = {
+export type MowerRequest = MowerScheduleRequest | MowerMapRequest | {
 	id: string;
 	type: "APP_BUTTON";
 	app_button: typeof MOWER_BUTTONS[MowerCommand];
@@ -26,6 +29,13 @@ export type MowerRequest = {
 	id: string;
 	type: "SET_NOT_DISTURB";
 	not_disturb_config: { enable: boolean; time: Array<{ start: { hour: number; minute: number }; end: { hour: number; minute: number } }> };
+} | {
+	id: string;
+	type: "GET_HEIGHT_MOTOR_PARAMETER" | "GET_MOW_PREFERENCE_CONFIG";
+} | {
+	id: string;
+	type: "REMOTE_CMD";
+	remote_cmd: { type: "MAIN_CUTTER_HEIGHT"; main_cutter_height: number };
 };
 
 export interface MowerRainfallSetting { enable: boolean; delayHours: 0 | 3 | 8; }

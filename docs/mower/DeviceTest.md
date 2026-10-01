@@ -44,4 +44,18 @@ Buttons acknowledge input immediately. They do not report completion. The next s
 
 Provide the exact test commit, mower firmware, which step failed, whether the physical action happened, the relevant state values, and the debug log from startup through that step. Mask credentials, local keys, account/device IDs, MQTT topics, network addresses and serial numbers consistently. Do not upload raw HomeData or raw shadow bodies.
 
-Local source-fixture and encrypted-frame tests are not hardware verification. Areas, maps, schedules and full app feature parity require separate contracts and tests.
+Local source-fixture and encrypted-frame tests are not hardware verification. Native BLE/map services and full app feature parity remain separate integration gates.
+
+## Extended read-only checks
+
+Write `true` to `refreshSchedules`, `refreshTimeZone`, `refreshCuttingHeight` and `refreshMapNames` separately. Compare `schedules`, `robotTimeZone`, `cuttingHeightMin`, `cuttingHeightMax`, `cuttingHeightStep`, `cuttingHeight`, `areaCuttingHeights` and `mapNames` with the official app. An ACK alone must not populate them. An empty confirmed schedule list is valid; missing data remains unknown. Height values describe configuration preferences, not measured motor position.
+
+The default adapter reports `bluetoothAvailable=false` and `mapDownloadAvailable=false`. Its height setter, map refresh and selected-area/edge commands are not writable until an actual native service is implemented. Device testing of cloud status cannot make those services available.
+
+## Weekly schedule changes
+
+Save the original schedule list and device time zone before testing changes. Use a new unique uint32 plan ID. `createSchedule` and `changeSchedule` accept complete JSON plans; the format and numeric enums are documented in [SourceContract.md](SourceContract.md). Start/end are Unix **seconds** encoded as strings, weekdays 0=Sunday through 6=Saturday, duration 15 minutes through 24 hours. Choose future clock values in the device's time zone; an overnight end must be on the next day. Start with a disabled global plan (`status:2`) and compare all fields in the app and the subsequent readback before enabling anything.
+
+`deleteSchedule` accepts `{"id":<existing ID>}`. Delete only the temporary test plan and confirm its absence in the app and queried list. `deleteAllSchedules` is a separate destructive operation: it is implemented but is not required for the first hardware test. Restore the original configuration after testing. Active overlaps or unknown active schedule forms must reject changes, and reconnect must not replay canceled operations.
+
+Area plans and `mowAreas`/`mowEdges` require a native service providing the actual active map. When available, test that a replaced/deleted area cannot reuse an old selection. A failed map refresh must clear `currentMap`, `mapData` and `mowingAreas`. Cutting-height writes require connected BLE and device-confirmed min/max/step; confirm the independent preference readback and app before interpreting the change as successful.

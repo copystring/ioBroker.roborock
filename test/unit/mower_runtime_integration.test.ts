@@ -4,13 +4,15 @@ import { DeviceManager } from "../../src/lib/deviceManager";
 import { messageParser } from "../../src/lib/messageParser";
 import { MockAdapter } from "../../src/lib/mock/MockAdapter";
 import { mqtt_api } from "../../src/lib/mqttApi";
+import { MowerRuntime } from "../../src/lib/mower/MowerRuntime";
+import type { MowerServices } from "../../src/lib/mower/MowerSession";
 
 vi.mock("@iobroker/adapter-core", () => ({ Adapter: class MockIoBrokerAdapter {} }));
 vi.mock("go2rtc-static", () => ({ default: "" }));
 
 const localKey = "0011223344556677";
 
-async function setup() {
+async function setup(services?: MowerServices) {
 	const { Roborock } = await import("../../src/main");
 	const adapter = new MockAdapter() as any;
 	const devices = [
@@ -44,6 +46,10 @@ async function setup() {
 	adapter.mqtt_api.mqttUser = "client";
 	await adapter.mqtt_api.subscribe_mqtt_message(adapter.mqtt_api.client);
 	adapter.deviceManager = new DeviceManager(adapter);
+	if (services) {
+		adapter.deviceManager.mowerRuntime.stop();
+		adapter.deviceManager.mowerRuntime = new MowerRuntime(adapter, services);
+	}
 	adapter.mowerRuntime = adapter.deviceManager.mowerRuntime;
 	adapter.deviceFeatureHandlers = adapter.deviceManager.deviceFeatureHandlers;
 	vi.spyOn(BaseDeviceFeatures.prototype, "initialize").mockResolvedValue(undefined);
@@ -59,6 +65,78 @@ async function setup() {
 afterEach(() => vi.restoreAllMocks());
 
 describe("S108 mower runtime integration", () => {
+	it("reads a fresh schedule list before deleting and waits for independent list readback afterwards", async () => {
+		const { adapter, published, onStateChange, onMessage } = await setup();
+		const reply = async (index: number, result: unknown) => {
+			await vi.waitFor(() => expect(published.length).toBeGreaterThan(index));
+			const [frame] = adapter.requestsHandler.messageParser.decodeMsg(published[index].frame, "mower");
+			const rpc = JSON.parse(JSON.parse(frame.payload.toString("utf8")).dps["101"]);
+			const ack = await adapter.requestsHandler.messageParser.buildRoborockMessage("mower", 102, Math.floor(Date.now() / 1000), JSON.stringify({ dps: { "102": JSON.stringify({ id: rpc.id, result }) } }), "1.0");
+			await onMessage(ack as Buffer);
+			return rpc.params;
+		};
+		try {
+			const pending = onStateChange("deleteSchedule", '{"id":11}');
+			expect(await reply(0, { type: "MOW_SCHEDULE", mow_schedule: { plans: [{ id: 11 }] } })).toMatchObject({ type: "GET_MOW_SCHEDULE" });
+			expect(await reply(1, "ok")).toMatchObject({ type: "DELETE_MOWING_PLAN", mowing_plan: { id: 11 } });
+			await vi.waitFor(() => expect(published).toHaveLength(3));
+			expect(adapter.states["Devices.mower.mowerStatus.schedules"]).toBeUndefined();
+			expect(await reply(2, { type: "MOW_SCHEDULE", mow_schedule: {} })).toMatchObject({ type: "GET_MOW_SCHEDULE" });
+			await pending;
+			expect(JSON.parse(adapter.states["Devices.mower.mowerStatus.schedules"])).toEqual({ plans: [] });
+		} finally { adapter.mowerRuntime.stop(); }
+	});
+
+	it("queries source height parameters and preferences while disabling setters without Bluetooth", async () => {
+		const { adapter, published, onStateChange, onMessage } = await setup();
+		try {
+			const pending = onStateChange("refreshCuttingHeight");
+			for (const [index, result] of [
+				{ type: "HEIGHT_MOTOR_PARAMETER", height_motor_parameter: { min: 30, max: 70, step: 5 } },
+				{ type: "MOW_PREFERENCE_CONFIG", preference_config: { global: { height: 50 }, custom: [] } },
+			].entries()) {
+				await vi.waitFor(() => expect(published.length).toBeGreaterThan(index));
+				const [frame] = adapter.requestsHandler.messageParser.decodeMsg(published[index].frame, "mower");
+				const rpc = JSON.parse(JSON.parse(frame.payload.toString("utf8")).dps["101"]);
+				expect(rpc.params.type).toBe(index === 0 ? "GET_HEIGHT_MOTOR_PARAMETER" : "GET_MOW_PREFERENCE_CONFIG");
+				const ack = await adapter.requestsHandler.messageParser.buildRoborockMessage("mower", 102, Math.floor(Date.now() / 1000), JSON.stringify({ dps: { "102": JSON.stringify({ id: rpc.id, result }) } }), "1.0");
+				await onMessage(ack as Buffer);
+			}
+			await pending;
+			expect(adapter.states["Devices.mower.mowerStatus.cuttingHeightMin"]).toBe(30);
+			expect(adapter.states["Devices.mower.mowerStatus.cuttingHeight"]).toBe(50);
+			expect(adapter.objects["Devices.mower.mowerCommands.setCuttingHeight"].common.write).toBe(false);
+			await onStateChange("setCuttingHeight", 55);
+			expect(published).toHaveLength(2);
+		} finally { adapter.mowerRuntime.stop(); }
+	});
+
+	it("uses confirmed active-map boundaries for encrypted area commands and clears stale map data on failure", async () => {
+		let fail = false;
+		const maps = { isAvailable: () => true, readCurrentMap: vi.fn(async () => {
+			if (fail) throw new Error("download failed");
+			return { mapName: "current", navMap: { name: "current", boundaries: [{ id: 7, name: "Lawn" }] } };
+		}) };
+		const { adapter, published, onStateChange, onMessage } = await setup({ maps });
+		try {
+			const pending = onStateChange("mowAreas", '{"mapName":"current","boundaryIds":[7]}');
+			await vi.waitFor(() => expect(published).toHaveLength(1));
+			const [frame] = adapter.requestsHandler.messageParser.decodeMsg(published[0].frame, "mower");
+			const rpc = JSON.parse(JSON.parse(frame.payload.toString("utf8")).dps["101"]);
+			expect(rpc.params).toMatchObject({ type: "APP_BUTTON", app_button: "MOW_SELECT", modify_map: { boundaries: [{ id: 7, name: "Lawn" }] } });
+			expect(rpc.params.modify_map).not.toHaveProperty("name");
+			const ack = await adapter.requestsHandler.messageParser.buildRoborockMessage("mower", 102, Math.floor(Date.now() / 1000), JSON.stringify({ dps: { "102": JSON.stringify({ id: rpc.id }) } }), "1.0");
+			await onMessage(ack as Buffer);
+			await pending;
+			expect(adapter.states["Devices.mower.mowerStatus.currentMap"]).toBe("current");
+			fail = true;
+			await onStateChange("refreshMap");
+			expect(adapter.states["Devices.mower.mowerStatus.currentMap"]).toBeNull();
+			expect(adapter.states["Devices.mower.mowerStatus.mowingAreas"]).toBeNull();
+			await onStateChange("mowAreas", '{"mapName":"other","boundaryIds":[7]}');
+			expect(published).toHaveLength(1);
+		} finally { adapter.mowerRuntime.stop(); }
+	});
 	it("sends an atomic overnight not-disturb setting and publishes only validated subsequent readback", async () => {
 		const { adapter, published, onStateChange, onMessage } = await setup();
 		try {
@@ -136,7 +214,7 @@ describe("S108 mower runtime integration", () => {
 			adapter.setStateChanged = vi.fn().mockRejectedValueOnce(new Error("storage unavailable")).mockImplementation(async (id: string, state: ioBroker.State) => { written.push([id, state.val]); });
 			await expect(adapter.mowerRuntime.acceptRobotMessage("mower", { id: 3, type: 38, hardware: { battery: { percent: 30 } } })).rejects.toThrow("storage unavailable");
 			await adapter.mowerRuntime.acceptRobotMessage("mower", { id: 4, type: 38 });
-			expect(written.at(-1)).toEqual(["Devices.mower.mowerStatus.battery", 30]);
+			expect(written.filter(([id]) => id.endsWith(".battery")).at(-1)).toEqual(["Devices.mower.mowerStatus.battery", 30]);
 		} finally { release(); adapter.mowerRuntime.stop(); }
 	});
 

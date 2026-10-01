@@ -48,7 +48,7 @@ describe("legacy vacuum device boundary", () => {
 			http_api: { ...baseCatalog, getDevices: () => devices, productInfo: null },
 			getDeviceProtocolVersion: vi.fn(async (duid: string) => devices.find(d => d.duid === duid)?.pv ?? "1.0"),
 			extendObject: vi.fn(async () => {}), ensureState: vi.fn(async () => {}), ensureFolder: vi.fn(async () => {}),
-			setStateChanged: vi.fn(async () => {}), updateDeviceInfo: vi.fn(async () => {}),
+			setState: vi.fn(async () => {}), setStateChanged: vi.fn(async () => {}), updateDeviceInfo: vi.fn(async () => {}),
 			getDevicesAsync: vi.fn(async () => []),
 		};
 		const manager = new DeviceManager(adapter as never);
