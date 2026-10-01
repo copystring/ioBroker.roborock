@@ -1,4 +1,4 @@
-# RockMow S108 implementation preparation
+# RockMow S108 source contract
 
 This branch attaches an independent mower runtime to discovery, MQTT, polling and writable ioBroker buttons for `roborock.mower.a266` with L01/1.0 transport. It creates `mowerCommands` (start, pause, resume, stop, charge, refresh) and read-only `mowerStatus` objects. Vacuum consumables, maps and scenes remain outside this runtime.
 
@@ -62,11 +62,31 @@ Publication is serialized per device. Removed, reclassified or stopped sessions 
 
 Shadow is read through `GET devices/<deviceId>/shadow` (741369–741426). The APK IoT interceptor signs the decoded path, canonical query and request body in separate digest slots. The prepared HTTP implementation follows that central contract and prevents Axios from changing signed body bytes. `getDeviceShadow` accepts only a known device and returns the unchanged response body; it is not automatically polled. No shadow response structure is inferred from vacuum data.
 
+## Extended status and rainfall configuration
+
+`RobotMsg.mow_progress` is field 29: `mow_all_area` field 9/float (m²), `expected_time` field 10/float (seconds), `cur_mow_progress` field 11/float (percent). The UI projection uses these first, with fallback to `RobotMsg.navigation` field 12 → `nav_task_progress` field 15: `percentage` field 6/float or `percent` field 3/uint32, `area` field 4/float and `expected_time` field 7/float (448742–448768, 275200–275267, 448348–448374, 499002–499030, 493341–493455, 762932–763086).
+
+The progress helper supports navigation fallback, but its actual UI caller first converts missing/invalid mowing progress to 0 via `standardNumber`, making that branch unreachable (760103–760136, 765881–765908). The adapter preserves missing mowing progress and publishes `navigationProgress` separately; it does not treat navigation progress as mowing progress. Area and duration use the reachable source fallback.
+
+The runtime exposes progress, total task area and expected duration. The UI calculates the mowed area as `ceil(totalArea * progress / 100)` and remaining seconds as `expectedDuration * (100 - progress) / 100` (773380–773472). Derived values require valid inputs from the same message, so a partial update cannot combine progress from one task with retained area from another. Missing/invalid raw readings preserve prior readings rather than pretending to be zero. Previously published derived values become unknown (`null`) when the current message lacks their inputs.
+
+`BATTERY_PERCENT=79` takes `hardware.battery.percent` without an ID gate (758735–758797). It is published separately as `batteryBroadcast`. The app overrides its ordinary battery display for two UI projections; these also depend on maps, feature information and Bluetooth state (759635–759659, 759841–759903). That UI heuristic is not treated as a two-status-frame or timed device contract.
+
+Rain configuration uses `RemoteMsg{type:SET_RAINFALL,rainfall_config:{enable,delay_time}}`; SET_RAINFALL=28, GET_USER_MODE_CONFIG=29 (743632–743748, 268432–268439). The command accepts an atomic `{enable:boolean,delayHours:0|3|8}` input, matching the app's immediate/3-hour/8-hour strategies; enabled with zero hours is valid (1102870–1102933, 1103157–1103168). On the wire, rainfall_config is RemoteMsg field 18; RainFall enable=2/bool and delay_time=3/float (253079–253105, 342453–342491).
+
+Readback is `RobotMsg.Type.USER_MODE_CONFIG=25`, `user_mode_config` field 34 → `rainfall_config` field 1 (486090–486093, 448886–448912, 437939–437966). The app reads it without a status-ID freshness gate. A present RainFall container has proto3 defaults enable=false/delay_time=0; a missing container stays unknown (342395–342403, 437895–437899, 1102339–1102410). Validated readback is published independently of the command ACK. After setting, the runtime queries settings; `refreshSettings` can also request them explicitly. Correlated RPC results accept the decoded RobotMsg object or its JSON string, while a plain ACK does not change settings.
+
 ## Remaining integration gates
 
 1. Confirm the existing adapter 1.0 codec against an S108 response. The APK establishes the cloud version, header and key contract; the cipher implementation is behind native `rrcodec` and the prepared composition has only been exercised locally.
 2. Verify the supported JSON `remote_pb` path and status delivery on the reporter's S108. Local integration tests exercise discovery, actual adapter button dispatch, encrypted protocol 101 publication, independent protocol 102 acknowledgement and protocol 702 status reception, plus offline/reclassification/shutdown paths.
 3. Verify activity and categorized errors against the physical device. Source-derived fields, labels and fixed wire fixtures do not substitute for device validation.
-4. Maps, areas, schedules and full app feature parity are not implemented. The separate BATTERY_PERCENT event and its UI override rules are not projected; battery currently comes from ROBOT_STATUS_UPDATE.
+4. Maps, area selection, schedules and full app feature parity are not implemented. The cutting-height builder explicitly uses BLE, so its command is not exposed through the prepared cloud path (742258–742380). Separate battery broadcasts are available, but the app's UI override heuristic is not copied.
 
 Hardware tests confirm the source-derived implementation; logs do not serve as command discovery. The original routing-fix test PR is separate from this runtime branch.
+
+### Binary outbound route: documented partial contract
+
+The bundle's `sendProtobufMessage` encodes RemoteMsg and passes it to native `callMethodPb` (206715–206795). APK `PluginSDKModule.java:2132–2159,2177–2211` puts those bytes in AppToRobotMsg.method and assigns a separate outer callMarkId. AppToRobotMsg fields are t=1/int64, dp=2/string, id=3/int32, endpoint=4/string, nonce=5/string, method=6/bytes. The cloud publisher uses protocol 701, ASCII `PB` before this envelope, current seconds, and L01 normalized to 1.0 (`internal/common/mqtt/OooO0OO.java:89–114`, `o00oo0o/o00000OO.java:9–19`, `o00oo0o/o0000Ooo.java:32–77`). Incoming outer RPC type/id correlates the result bytes independently of RemoteMsg.id (`react/o00O00OO.java:150–184`).
+
+The SDK bridge between `IDevice.publishDpsPbMqtt` and that publisher is incompletely decompiled. How it supplies dp/endpoint/nonce, frame counters and the concrete key is not fully established. These partial facts are not used to activate a speculative protocol-701 path. JSON DP101 `remote_pb` remains the active source-proven alternative. Proprietary APK/bundle/decompiled files are excluded from the repository.

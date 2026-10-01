@@ -4,14 +4,21 @@ import type { MowerRequest } from "./mowerContract";
 // Minimal source-derived wire projection. Unknown RobotMsg fields are skipped, not reinterpreted.
 const root = protobuf.parse(`
 syntax = "proto3";
-message RemoteMsg { uint64 id = 1; int32 type = 2; int32 app_button = 5; }
+message RainFall { bool enable = 2; float delay_time = 3; }
+message UserModeConfig { RainFall rainfall_config = 1; }
+message RemoteMsg { uint64 id = 1; int32 type = 2; int32 app_button = 5; RainFall rainfall_config = 18; }
 message Battery { uint32 percent = 2; }
 message HardwareMsg { Battery battery = 1; }
+message MowProgress { float mow_all_area = 9; float expected_time = 10; float cur_mow_progress = 11; }
+message NavTaskProgress { uint32 percent = 3; float area = 4; float percentage = 6; float expected_time = 7; }
+message Navigation { NavTaskProgress nav_task_progress = 15; }
 message RobotTask { int32 working_state = 1; int32 robot_detail_state = 2; }
 message CheckResults { repeated int32 ignorable = 1; repeated int32 recoverable = 2; repeated int32 unrecoverable = 3; repeated int32 critical = 4; repeated int32 to_dock = 5; repeated int32 debounce = 6; }
 message RobotMsg {
- uint64 id = 1; int32 type = 2; Battery battery = 10; HardwareMsg hardware = 13;
+ uint64 id = 1; int32 type = 2; Battery battery = 10; Navigation navigation = 12; HardwareMsg hardware = 13;
+ MowProgress mow_progress = 29;
  int32 fsm_charge_state = 19; CheckResults fsm_errors = 46; repeated int32 user_errors = 52;
+ UserModeConfig user_mode_config = 34;
  CheckResults scheduler_errors = 62; CheckResults charge_errors = 63; RobotTask robot_task = 71;
 }
 message RobotToAppMsg { bytes result = 5; }
@@ -30,6 +37,11 @@ export function encodeMowerRemoteMessage(request: MowerRequest): Buffer {
 		fields.app_button = buttonValues[request.app_button];
 	} else if (request.type === "GET_ROBOT_INFO") {
 		fields.type = 66;
+	} else if (request.type === "GET_USER_MODE_CONFIG") {
+		fields.type = 29;
+	} else if (request.type === "SET_RAINFALL") {
+		fields.type = 28;
+		fields.rainfall_config = request.rainfall_config;
 	} else {
 		throw new Error("Unsupported mower protobuf request");
 	}

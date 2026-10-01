@@ -1,9 +1,9 @@
 import type { Roborock } from "../../main";
 import type { Device } from "../httpApi";
 import { createMowerCloudTransport } from "./mowerCloudTransport";
-import { isSourceSupportedMower, type MowerCommand } from "./mowerContract";
+import { isSourceSupportedMower, parseMowerRainfallSetting, type MowerCommand } from "./mowerContract";
 import { MowerSession } from "./MowerSession";
-import { decodeMowerJsonMessage } from "./mowerJsonMessage";
+import { decodeMowerJsonMessage, decodeMowerRpcResult } from "./mowerJsonMessage";
 import { decodeMowerPbPush } from "./mowerProtobuf";
 import statusEnums from "./statusEnums.json";
 
@@ -12,8 +12,9 @@ interface MowerEntry {
 	poll?: Promise<void>;
 }
 
-const COMMAND_NAMES: Record<MowerCommand | "refresh", string> = {
+const COMMAND_NAMES: Record<MowerCommand | "refresh" | "refreshSettings", string> = {
 	start: "Start mowing", pause: "Pause mowing", resume: "Resume mowing", stop: "Stop mowing", charge: "Return to charger", refresh: "Refresh mower status",
+	refreshSettings: "Refresh mower settings",
 };
 
 /** Own device lifecycle and object model. Never inherits vacuum features or dispatches vacuum methods. */
@@ -74,8 +75,15 @@ export class MowerRuntime {
 		for (const [command, name] of Object.entries(COMMAND_NAMES)) {
 			await this.adapter.ensureState(`${prefix}.mowerCommands.${command}`, { name, type: "boolean", role: "button", read: true, write: true, def: false });
 		}
+		await this.adapter.ensureState(`${prefix}.mowerCommands.setRainfall`, { name: "Set rainfall configuration: JSON enable and delayHours (0, 3, 8)", type: "string", role: "json", read: true, write: true, def: "" });
 		await this.adapter.ensureState(`${prefix}.mowerStatus.battery`, { name: "Battery", type: "number", role: "value.battery", min: 0, max: 100, unit: "%", read: true, write: false });
+		await this.adapter.ensureState(`${prefix}.mowerStatus.batteryBroadcast`, { name: "Battery from separate battery event", type: "number", role: "value.battery", min: 0, max: 100, unit: "%", read: true, write: false });
 		await this.adapter.ensureState(`${prefix}.mowerStatus.messageId`, { name: "Status message ID", type: "string", role: "text", read: true, write: false });
+		await this.adapter.ensureState(`${prefix}.mowerStatus.rainEnabled`, { name: "Rainfall delay enabled (device readback)", type: "boolean", role: "indicator", read: true, write: false });
+		await this.adapter.ensureState(`${prefix}.mowerStatus.rainDelayHours`, { name: "Rainfall delay (device readback)", type: "number", role: "value", unit: "h", min: 0, read: true, write: false });
+		for (const [field, name, unit] of [["mowingProgress", "Mowing progress", "%"], ["navigationProgress", "Navigation task progress", "%"], ["totalArea", "Mowing task area", "m²"], ["mowedArea", "Mowed area (derived)", "m²"], ["expectedDuration", "Expected mowing duration", "s"], ["remainingTime", "Remaining mowing time (derived)", "s"]]) {
+			await this.adapter.ensureState(`${prefix}.mowerStatus.${field}`, { name, type: "number", role: "value", unit, min: 0, ...(unit === "%" ? { max: 100 } : {}), read: true, write: false });
+		}
 		for (const [field, name] of [["detailState", "Mower detail state"], ["workingState", "Mower working state"], ["chargeState", "Charging state"]]) {
 			const symbols = field === "detailState" ? statusEnums.RobotDetailStateType : statusEnums.FsmStateType;
 			const states = Object.fromEntries(Object.entries(symbols).map(([symbol, value]) => [value, symbol]));
@@ -103,7 +111,9 @@ export class MowerRuntime {
 		const entry = this.devices.get(duid);
 		if (!entry || !this.isRegistered(duid) || !this.adapter.http_api.getDevices().some(device => device.duid === duid && device.online === true)) return;
 		if (entry.poll) return;
-		entry.poll = entry.session.requestStatus().then(() => undefined);
+		entry.poll = entry.session.requestStatus().then(async response => {
+			if (this.devices.get(duid) === entry) await this.acceptRobotMessage(duid, decodeMowerRpcResult(response));
+		});
 		try {
 			await entry.poll;
 		} finally {
@@ -113,14 +123,26 @@ export class MowerRuntime {
 
 	public async handleCommand(duid: string, command: string, state: ioBroker.State, id: string): Promise<void> {
 		const entry = this.devices.get(duid);
-		if (!entry || !this.isRegistered(duid) || !Object.hasOwn(COMMAND_NAMES, command) || state.ack || state.val !== true) return;
+		if (!entry || !this.isRegistered(duid) || state.ack) return;
+		const rainfall = command === "setRainfall";
+		if (!rainfall && (!Object.hasOwn(COMMAND_NAMES, command) || state.val !== true)) return;
+		if (rainfall && (typeof state.val !== "string" || state.val === "")) return;
 		if (id !== `${this.adapter.namespace}.Devices.${duid}.mowerCommands.${command}`) return;
 		const object = await this.adapter.getObjectAsync(id);
-		if (object?.type !== "state" || object.common.write !== true || object.common.type !== "boolean" || object.common.role !== "button") return;
+		if (object?.type !== "state" || object.common.write !== true || object.common.type !== (rainfall ? "string" : "boolean") || object.common.role !== (rainfall ? "json" : "button")) return;
 		if (this.devices.get(duid) !== entry || !this.isRegistered(duid)) return;
+		const setting = rainfall ? parseMowerRainfallSetting(JSON.parse(state.val as string)) : undefined;
 		// Acknowledge the button event; the separate RobotMsg stream is the source of device state.
-		await this.adapter.setState(id, { val: false, ack: true });
-		if (command === "refresh") await this.poll(duid);
+		await this.adapter.setState(id, { val: rainfall ? "" : false, ack: true });
+		if (setting) {
+			await entry.session.setRainfall(setting);
+			if (this.devices.get(duid) !== entry || !this.isRegistered(duid)) return;
+			const response = await entry.session.requestSettings();
+			if (this.devices.get(duid) === entry) await this.acceptRobotMessage(duid, decodeMowerRpcResult(response));
+		} else if (command === "refreshSettings") {
+			const response = await entry.session.requestSettings();
+			if (this.devices.get(duid) === entry) await this.acceptRobotMessage(duid, decodeMowerRpcResult(response));
+		} else if (command === "refresh") await this.poll(duid);
 		else await entry.session.command(command as MowerCommand);
 	}
 

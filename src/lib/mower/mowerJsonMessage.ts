@@ -11,3 +11,15 @@ export function decodeMowerJsonMessage(dps: Record<string, unknown>): unknown {
 		return undefined;
 	}
 }
+
+/** A correlated RPC can return a decoded RobotMsg object or its JSON string. */
+export function decodeMowerRpcResult(response: { result?: unknown }): unknown {
+	const result = response.result;
+	if (result && typeof result === "object" && !Array.isArray(result)) return result;
+	if (typeof result !== "string") return undefined;
+	try {
+		return JSON.parse(result);
+	} catch {
+		return undefined;
+	}
+}

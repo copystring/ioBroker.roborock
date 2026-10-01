@@ -52,13 +52,90 @@ async function setup() {
 		adapter, devices, published,
 		setMowerCategory: (category: string) => { mowerCategory = category; },
 		onMessage: async (frame: Buffer) => { if (!onMessage) throw new Error("MQTT callback missing"); await onMessage("rr/m/o/account/client/mower", frame); },
-		onStateChange: async (command: string) => Roborock.prototype.onStateChange.call(adapter, `roborock.0.Devices.mower.mowerCommands.${command}`, { val: true, ack: false } as ioBroker.State),
+		onStateChange: async (command: string, val: ioBroker.StateValue = true) => Roborock.prototype.onStateChange.call(adapter, `roborock.0.Devices.mower.mowerCommands.${command}`, { val, ack: false } as ioBroker.State),
 	};
 }
 
 afterEach(() => vi.restoreAllMocks());
 
 describe("S108 mower runtime integration", () => {
+	it("validates rainfall input before publishing and keeps settings readback independent of ACK", async () => {
+		const { adapter, published, onStateChange, onMessage } = await setup();
+		try {
+			await onStateChange("setRainfall", '{"enable":true,"delayHours":4}');
+			await onStateChange("setRainfall", '{"enable":true}');
+			await onStateChange("setRainfall", "invalid");
+			expect(published).toHaveLength(0);
+			const pending = onStateChange("setRainfall", '{"enable":true,"delayHours":3}');
+			await vi.waitFor(() => expect(published).toHaveLength(1));
+			const [outgoing] = adapter.requestsHandler.messageParser.decodeMsg(published[0].frame, "mower");
+			const rpc = JSON.parse(JSON.parse(outgoing.payload.toString("utf8")).dps["101"]);
+			expect(rpc.params).toMatchObject({ type: "SET_RAINFALL", rainfall_config: { enable: true, delay_time: 3 } });
+			const ack = await adapter.requestsHandler.messageParser.buildRoborockMessage("mower", 102, Math.floor(Date.now() / 1000), JSON.stringify({ dps: { "102": JSON.stringify({ id: rpc.id, result: "ok" }) } }), "1.0");
+			await onMessage(ack as Buffer);
+			expect(adapter.states["Devices.mower.mowerStatus.rainEnabled"]).toBeUndefined();
+			expect(adapter.states["Devices.mower.mowerStatus.rainDelayHours"]).toBeUndefined();
+			await vi.waitFor(() => expect(published).toHaveLength(2));
+			const [settingsFrame] = adapter.requestsHandler.messageParser.decodeMsg(published[1].frame, "mower");
+			const settingsRpc = JSON.parse(JSON.parse(settingsFrame.payload.toString("utf8")).dps["101"]);
+			expect(settingsRpc.params.type).toBe("GET_USER_MODE_CONFIG");
+			const result = { type: "USER_MODE_CONFIG", user_mode_config: { rainfall_config: { enable: false, delay_time: 0 } } };
+			const settingsAck = await adapter.requestsHandler.messageParser.buildRoborockMessage("mower", 102, Math.floor(Date.now() / 1000), JSON.stringify({ dps: { "102": JSON.stringify({ id: settingsRpc.id, result }) } }), "1.0");
+			await onMessage(settingsAck as Buffer);
+			await pending;
+			expect(adapter.states["Devices.mower.mowerStatus.rainEnabled"]).toBe(false);
+			expect(adapter.states["Devices.mower.mowerStatus.rainDelayHours"]).toBe(0);
+			expect(adapter.states["Devices.mower.mowerStatus.battery"]).toBeUndefined();
+		} finally { adapter.mowerRuntime.stop(); }
+	});
+
+	it("serializes status publication and recovers after a storage failure", async () => {
+		const { adapter } = await setup();
+		const written: Array<[string, unknown]> = [];
+		let release: () => void = () => {};
+		let entered: () => void = () => {};
+		const blocked = new Promise<void>(resolve => { release = resolve; });
+		const started = new Promise<void>(resolve => { entered = resolve; });
+		let first = true;
+		adapter.setStateChanged = async (id: string, state: ioBroker.State) => {
+			if (first) { first = false; entered(); await blocked; }
+			written.push([id, state.val]);
+		};
+		try {
+			const old = adapter.mowerRuntime.acceptRobotMessage("mower", { id: 1, type: 38, hardware: { battery: { percent: 10 } } });
+			await started;
+			const newer = adapter.mowerRuntime.acceptRobotMessage("mower", { id: 2, type: 38, hardware: { battery: { percent: 20 } } });
+			expect(written).toEqual([]);
+			release();
+			await Promise.all([old, newer]);
+			expect(written.filter(([id]) => id.endsWith(".battery")).map(([, value]) => value)).toEqual([10, 20]);
+			adapter.setStateChanged = vi.fn().mockRejectedValueOnce(new Error("storage unavailable")).mockImplementation(async (id: string, state: ioBroker.State) => { written.push([id, state.val]); });
+			await expect(adapter.mowerRuntime.acceptRobotMessage("mower", { id: 3, type: 38, hardware: { battery: { percent: 30 } } })).rejects.toThrow("storage unavailable");
+			await adapter.mowerRuntime.acceptRobotMessage("mower", { id: 4, type: 38 });
+			expect(written.at(-1)).toEqual(["Devices.mower.mowerStatus.battery", 30]);
+		} finally { release(); adapter.mowerRuntime.stop(); }
+	});
+
+	it("drops queued writes when a device is reclassified during publication", async () => {
+		const { adapter, devices, setMowerCategory } = await setup();
+		const written: string[] = [];
+		let release: () => void = () => {};
+		let entered: () => void = () => {};
+		const blocked = new Promise<void>(resolve => { release = resolve; });
+		const started = new Promise<void>(resolve => { entered = resolve; });
+		adapter.setStateChanged = async (id: string) => { entered(); await blocked; written.push(id); };
+		try {
+			const pending = adapter.mowerRuntime.acceptRobotMessage("mower", { id: 1, type: 38, hardware: { battery: { percent: 10 } } });
+			await started;
+			const queued = adapter.mowerRuntime.acceptRobotMessage("mower", { id: 2, type: 38, hardware: { battery: { percent: 20 } } });
+			setMowerCategory("robot.vacuum.cleaner");
+			await adapter.mowerRuntime.syncDevice(devices[0]);
+			release();
+			await Promise.all([pending, queued]);
+			expect(written).toEqual(["Devices.mower.mowerStatus.messageId"]);
+		} finally { release(); adapter.mowerRuntime.stop(); }
+	});
+
 	it("discovers separate mower states, sends an encrypted button frame and applies only a later status push", async () => {
 		const fixture = await setup();
 		const { adapter, published, onMessage, onStateChange } = fixture;
