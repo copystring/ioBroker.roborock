@@ -3,6 +3,7 @@ import * as mqtt from "mqtt";
 import * as protobuf from "protobufjs";
 import * as zlib from "node:zlib";
 import type { Roborock } from "../main";
+import { isLegacyVacuumDuid } from "./legacyDevicePolicy";
 import { Q10DpDispatcher } from "./b01/q10/Q10DpDispatcher";
 import { classifyB01MapPayload } from "./map/b01/B01MapPayloadClassifier";
 import { MapDecryptor as B01MapDecryptor } from "./map/b01/MapDecryptor";
@@ -247,7 +248,8 @@ export class mqtt_api {
 						}
 					}
 				}
-				const allMessages = this.adapter.requestsHandler.messageParser.decodeMsg(message, duid);
+				if (!knownDevices.some(d => d.duid === finalDuid) || !isLegacyVacuumDuid(this.adapter.http_api, finalDuid)) return;
+				const allMessages = this.adapter.requestsHandler.messageParser.decodeMsg(message, finalDuid);
 
 				for (const data of allMessages) {
 					await this.handleDecodedMessage(finalDuid, data);

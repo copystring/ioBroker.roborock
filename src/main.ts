@@ -11,6 +11,7 @@ import { commitInfo } from "./lib/commitInfo";
 import { AppPluginManager } from "./lib/AppPluginManager";
 import { B01Variant, getB01VariantFromModel } from "./lib/b01Variant";
 import { DeviceManager } from "./lib/deviceManager";
+import { isLegacyVacuumDuid } from "./lib/legacyDevicePolicy";
 import { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
 import type { CommandSpec } from "./lib/features/baseDeviceFeatures";
 import { Feature } from "./lib/features/features.enum";
@@ -247,6 +248,7 @@ export class Roborock extends utils.Adapter {
 			const allDevices = this.http_api.getDevices() || [];
 			const probePromises = allDevices.map(async (device) => {
 				const duid = device.duid;
+				if (!isLegacyVacuumDuid(this.http_api, duid)) return;
 				if (!device.online) return; // Skip devices cloud reports as offline
 				// If already local (UDP found it), skip
 				if (this.local_api.isConnected(duid)) return;
@@ -813,6 +815,7 @@ export class Roborock extends utils.Adapter {
 	private async resumeSceneQueues(): Promise<void> {
 		const duids = new Set<string>();
 		for (const device of this.http_api.getDevices() || []) {
+			if (!isLegacyVacuumDuid(this.http_api, device.duid)) continue;
 			if (typeof device.duid === "string" && device.duid.trim() !== "") {
 				duids.add(device.duid);
 			}
@@ -1587,6 +1590,7 @@ export class Roborock extends utils.Adapter {
 			}
 			const modelsInAccount = new Set<string>();
 			for (const d of devices) {
+				if (!isLegacyVacuumDuid(this.http_api, d.duid)) continue;
 				const m = this.http_api.getRobotModel(d.duid);
 				if (m && m !== "unknown" && m.includes(".")) modelsInAccount.add(m);
 			}
@@ -1618,6 +1622,7 @@ export class Roborock extends utils.Adapter {
 				const { enabled, id, name, param } = program;
 				const params = JSON.parse(param);
 				const duid = params.action.items[0].entityId;
+				if (!isLegacyVacuumDuid(this.http_api, duid)) continue;
 
 				if (!programs[duid]) programs[duid] = {};
 				programs[duid][id] = name;
@@ -1939,6 +1944,7 @@ export class Roborock extends utils.Adapter {
 
 		const pv = await this.getDeviceProtocolVersion(duid);
 		if (pv !== "B01") return null;
+		if (!isLegacyVacuumDuid(this.http_api, duid)) return null;
 
 		const model = this.http_api.getRobotModel(duid);
 		return model ? getB01VariantFromModel(model) : "Q7";
