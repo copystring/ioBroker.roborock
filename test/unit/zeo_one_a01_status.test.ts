@@ -115,6 +115,7 @@ describe("Zeo One incremental A01 status", () => {
     it("clears a previous program time when a new DP 222 arrives without DP 239", async () => {
         const values = new Map<string, unknown>();
         const adapter = {
+            language: "de",
             http_api: { getRobotModel: vi.fn().mockReturnValue("roborock.wm.a102") },
             ensureFolder: vi.fn().mockResolvedValue(undefined),
             ensureState: vi.fn().mockResolvedValue(undefined),
@@ -127,6 +128,7 @@ describe("Zeo One incremental A01 status", () => {
         expect(values.get(timePath)).toBe(75);
         await manager.updateZeoOneStatus("zeo-one", { "222": 1003031 });
         expect(values.get(timePath)).toBeNull();
+        expect(values.get("Devices.zeo-one.deviceStatus.custom_program.program_name")).toBe("Baumwolle");
     });
 
     it("uses the plugin program enum for custom programs beyond the two localized names", async () => {

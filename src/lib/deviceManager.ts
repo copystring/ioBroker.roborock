@@ -648,7 +648,7 @@ export class DeviceManager {
 		const valueText = (en: string, de: string): string => this.adapter.language?.toLowerCase().startsWith("de") ? de : en;
 		const programNames: Record<number, { en: string; de: string }> = {
 			2: { en: "Quick", de: "Schnell" },
-			23: { en: "Cotton/Linen", de: "Baumwolle/Leinen" },
+			23: { en: "Cotton/Linen", de: "Baumwolle" },
 		};
 		const pluginProgramName = ZEO_ONE_STATUS_LABELS["205"].values[program];
 		const programName = programNames[program] ?? {
