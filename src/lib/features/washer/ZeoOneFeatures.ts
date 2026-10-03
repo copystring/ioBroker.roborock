@@ -2,12 +2,12 @@ import { FeatureDependencies, RegisterModel } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
 import { FallbackBaseFeatures } from "../fallbackFeatures";
 
-// Zeo One AppPlugin output/801.js forceLoad: the unconditional washer DPs.
-// QueryDP reads them; it does not publish the individual DP keys. Feature-gated
-// DPs and metadata/history DPs are deliberately excluded from periodic polling.
+// Zeo One AppPlugin output/801.js forceLoad: status DPs selected for a102.
+// QueryDP reads them; it does not publish the individual DP keys. Other
+// feature-gated DPs and metadata/history DPs are excluded from periodic polling.
 const STATUS_DPS = [
 	200, 201, 203, 202, 204, 205, 206, 207, 208, 209, 210, 211,
-	217, 213, 218, 219, 220, 221, 222, 223, 224, 226,
+	217, 213, 218, 219, 220, 221, 222, 223, 224, 225, 226,
 ] as const;
 
 @RegisterModel("roborock.wm.a102")

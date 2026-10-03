@@ -83,6 +83,8 @@ export const ZEO_ONE_BOOLEAN_STATES: Record<string, string> = {
 	"211": "auto_detergent",
 	"212": "auto_softener",
 	"223": "sound",
+	// a102 AppPlugin exposes DP 225 as a 0/1 preference toggle.
+	"225": "cache_washing_preference",
 	"226": "detergent_empty",
 	"227": "softener_empty",
 	"232": "remote_control_authorized",

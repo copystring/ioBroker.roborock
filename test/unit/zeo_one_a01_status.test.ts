@@ -82,7 +82,7 @@ describe("Zeo One incremental A01 status", () => {
         };
         (adapter as any).deviceManager = new DeviceManager(adapter as any);
         const status = { "206": 1, "207": 3, "208": 2, "209": 6, "210": 2, "211": 0, "212": 1,
-            "217": 90, "218": 47, "223": 0, "224": 31, "226": 1, "227": 0, "232": 1 };
+            "217": 90, "218": 47, "223": 0, "224": 31, "225": 1, "226": 1, "227": 0, "232": 1 };
 
         await Roborock.prototype.processA01.call(adapter as any, "zeo-one", { dps: status });
 
@@ -100,16 +100,20 @@ describe("Zeo One incremental A01 status", () => {
         expect(values.get(base + "auto_detergent")).toBe(false);
         expect(values.get(base + "auto_softener")).toBe(true);
         expect(values.get(base + "sound")).toBe(false);
+        expect(values.get(base + "cache_washing_preference")).toBe(true);
+        expect(common.get(base + "cache_washing_preference")).toMatchObject({ type: "boolean", read: true, write: false });
         expect(values.get(base + "detergent_empty")).toBe(true);
         expect(values.get(base + "softener_empty")).toBe(false);
         expect(values.get(base + "remote_control_authorized")).toBe(true);
         expect(common.get(base + "remote_control_authorized")).toMatchObject({ type: "boolean", read: true, write: false });
 
-        await Roborock.prototype.processA01.call(adapter as any, "zeo-one", { dps: { "207": 1, "209": 9, "206": 2, "210": 9 } });
+        await Roborock.prototype.processA01.call(adapter as any, "zeo-one", { dps: { "207": 1, "209": 9, "206": 2, "210": 9, "225": 0, "237": 1 } });
         expect(values.get(base + "temperature_celsius")).toBeNull();
         expect(values.get(base + "spin_speed_rpm")).toBeNull();
         expect(values.get(base + "child_lock")).toBeNull();
         expect(values.get(base + "drying_mode_name")).toBeNull();
+        expect(values.get(base + "cache_washing_preference")).toBe(false);
+        expect(values.get(base + "237")).toBe(1);
     });
 
     it("clears a previous program time when a new DP 222 arrives without DP 239", async () => {
