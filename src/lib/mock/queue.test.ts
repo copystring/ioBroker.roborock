@@ -11,7 +11,11 @@ describe("Queue Deep Dive (requestsHandler)", () => {
 		// Mock sub-APIs required by requestsHandler
 		mockAdapter.mqtt_api = { ensureEndpoint: async () => "endpoint", isConnected: () => true, sendMessage: () => {}, clearIntervals: () => {} } as any;
 		mockAdapter.local_api = { isConnected: () => true, sendMessage: () => true, clearLocalDevicedTimeout: () => {} } as any;
-		mockAdapter.http_api = { getMatchedLocalKeys: () => new Map([["duid", Buffer.alloc(16)]]) } as any;
+		mockAdapter.http_api = {
+			getMatchedLocalKeys: () => new Map([["duid", Buffer.alloc(16)]]),
+			getRobotModel: () => "roborock.vacuum.test",
+			getProductCategory: () => "robot.vacuum.cleaner",
+		} as any;
 		mockAdapter.getDeviceProtocolVersion = async () => "1.0";
 
 		handler = new requestsHandler(mockAdapter as any);
