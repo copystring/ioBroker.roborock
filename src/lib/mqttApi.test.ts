@@ -1,6 +1,28 @@
 import { describe, expect, it, vi } from "vitest";
 import { mqtt_api } from "./mqttApi";
 
+describe("MQTT connection lifetime", () => {
+	it.each(["close", "offline", "disconnect", "error"])("registers %s handlers and cancels mower requests immediately", async event => {
+		const handlers = new Map<string, (...args: any[]) => void>();
+		const cancelPending = vi.fn();
+		const adapter = {
+			http_api: { get_rriot: () => ({ u: "account", r: { m: "broker" } }) },
+			deviceManager: { mowerRuntime: { cancelPending } },
+			rLog: vi.fn(), setTimeout: vi.fn(), setInterval: vi.fn(),
+		};
+		const api = new mqtt_api(adapter as any);
+		await api.subscribe_mqtt_events({ connected: true,
+			on: (name: string, callback: (...args: any[]) => void) => handlers.set(name, callback),
+			subscribe: (_topic: string, callback: (error: null) => void) => callback(null),
+		});
+		expect(api.isConnected()).toBe(true);
+		expect(handlers.has(event)).toBe(true);
+		handlers.get(event)!(new Error("disconnected"));
+		expect(api.isConnected()).toBe(false);
+		expect(cancelPending).toHaveBeenCalledOnce();
+	});
+});
+
 describe("mqtt_api B01 protocol 102 dispatch", () => {
 	it("resolves Q7-style dps.10001 RPC replies delivered as protocol 102 frames", async () => {
 		const duid = "duid-q7";

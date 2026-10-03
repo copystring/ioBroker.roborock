@@ -91,7 +91,8 @@ export class MockAdapter {
 		this.setStateChanged = this.setStateChanged.bind(this);
 		this.http_api = {
 			getMatchedRoomIDs: () => [],
-			getRobotModel: () => "",
+			getRobotModel: () => "roborock.vacuum.test",
+			getProductCategory: () => "robot.vacuum.cleaner",
 			getFwFeaturesResult: () => ({}),
 			storeFwFeaturesResult: () => {}
 		};
