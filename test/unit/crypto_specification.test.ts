@@ -52,13 +52,13 @@ describe("Protocol A01 Encryption Specification", () => {
     it("should correctly derive A01 IV and encrypt/decrypt", () => {
         const localKey = "l2xfVQ2fy2jhLV1H";
         const random = 0x12345678;
-        const payload = "hello world (a01)";
+        const payload = JSON.stringify({ dps: { "203": 4, "222": 994818 }, t: 1715600000 });
 
         const encrypted = cryptoEngine.encryptA01(payload, localKey, random);
         const decrypted = cryptoEngine.decryptA01(encrypted, localKey, random);
 
-        // Decrypted buffer might have padding if not handled by standard crypto decipher
-        expect(decrypted.toString().startsWith(payload)).toBe(true);
+        expect(decrypted).toEqual(Buffer.from(payload));
+        expect(JSON.parse(decrypted.toString())).toEqual({ dps: { "203": 4, "222": 994818 }, t: 1715600000 });
     });
 });
 

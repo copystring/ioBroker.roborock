@@ -188,10 +188,19 @@ export class RoborockRequest {
 			version = "1.0";
 		}
 
-		if (this.adapter.local_api.isConnected(this.duid) && version != "B01" && !["service.upload_by_maptype", "service.upload_record_by_url", "get_photo"].includes(this.method)) {
+		if (this.adapter.local_api.isConnected(this.duid) && version !== "A01" && version !== "B01" && !["service.upload_by_maptype", "service.upload_record_by_url", "get_photo"].includes(this.method)) {
 			protocol = 4;
 		}
 
+		// DP semantics follow the cloud protocol; a discovered local session has its own frame version.
+		const localQueryVersion = version === "A01" && this.method === "10000"
+			? this.adapter.local_api.getZeoOneQueryProtocolVersion(this.duid) : null;
+		if (localQueryVersion) protocol = 4;
+		const localQuerySession = localQueryVersion ? {
+			connectNonce: this.adapter.local_api.localDevices[this.duid].connectNonce,
+			ackNonce: this.adapter.local_api.localDevices[this.duid].ackNonce,
+		} : null;
+		const frameVersion = localQueryVersion ?? version;
 		const payload = await this.handler.messageParser.buildPayload(protocol, this.messageID, this.method, this.params, version);
 
 		const mqttConnectionState = this.adapter.mqtt_api.isConnected();
@@ -218,9 +227,9 @@ export class RoborockRequest {
 		if (connectionType === "MQTT") {
 			this.adapter.rLog("MQTT", this.duid, "->", `${version}`, protocol, `${this.method}${logParams} | qSize: ${qSize} | waited: ${queueDuration}ms`, logLevel, logMsgId);
 		} else {
-			this.adapter.rLog("TCP", this.duid, "->", `${version}`, protocol, `${this.method}${logParams}${tcpFrameLog} | qSize: ${qSize} | waited: ${queueDuration}ms`, "debug", logMsgId);
+			this.adapter.rLog("TCP", this.duid, "->", `${frameVersion}`, protocol, `${this.method}${logParams}${tcpFrameLog}${localQueryVersion ? " | payload=A01" : ""} | qSize: ${qSize} | waited: ${queueDuration}ms`, "debug", logMsgId);
 		}
-		const roborockMessage = await this.handler.messageParser.buildRoborockMessage(this.duid, protocol, timestamp, payload, version, transportMessageId);
+		const roborockMessage = await this.handler.messageParser.buildRoborockMessage(this.duid, protocol, timestamp, payload, frameVersion, transportMessageId);
 
 		const localConnectionState = this.adapter.local_api.isConnected(this.duid);
 
@@ -231,9 +240,29 @@ export class RoborockRequest {
 			return this.promise;
 		}
 
-		if (version == "A01") {
-			this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage);
-			this.resolve(null);
+		if (version === "A01") {
+			try {
+				// Completion confirms transport acceptance only. DPs arrive independently;
+				// a TCP PUBACK also cannot confirm a QueryDP device response.
+				if (localQueryVersion) {
+					const currentSession = this.adapter.local_api.localDevices[this.duid];
+					if (this.adapter.local_api.getZeoOneQueryProtocolVersion(this.duid) !== localQueryVersion
+						|| currentSession?.connectNonce !== localQuerySession?.connectNonce
+						|| currentSession?.ackNonce !== localQuerySession?.ackNonce) {
+						throw new Error("Local washer session changed before QueryDP publish");
+					}
+					const lengthBuffer = Buffer.alloc(4);
+					lengthBuffer.writeUInt32BE(roborockMessage.length, 0);
+					if (!this.adapter.local_api.sendMessage(this.duid, Buffer.concat([lengthBuffer, roborockMessage]))) {
+						throw new Error("Local washer transport rejected QueryDP publish");
+					}
+				} else {
+					await this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage);
+				}
+				this.resolve(null);
+			} catch (error) {
+				this.reject(error);
+			}
 			return this.promise;
 		}
 
@@ -267,7 +296,7 @@ export class RoborockRequest {
 
 		// Use the forced connectionType logic for decision making
 		if (protocol == 101) {
-			this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage);
+			void this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage).catch(error => this.reject(error));
 		} else {
 			const lengthBuffer = Buffer.alloc(4);
 			lengthBuffer.writeUInt32BE(roborockMessage.length, 0);
@@ -475,7 +504,7 @@ export class requestsHandler {
 			try {
 				const result = await manager.add(taskId, (signal) => req.send(signal), priority);
 
-				if (Array.isArray(result) && result[0] === "retry" && retryCount < MAX_REQUEST_RETRIES) {
+				if (version !== "A01" && Array.isArray(result) && result[0] === "retry" && retryCount < MAX_REQUEST_RETRIES) {
 					this.adapter.rLog("System", duid, "Debug", "Retry", undefined, `[sendRequest] Received 'retry' for ${method} on ${duid}. Retrying (${retryCount + 1}/${MAX_REQUEST_RETRIES + 1})...`, "debug");
 					await new Promise((resolve) => {
 						const timeout = this.adapter.setTimeout(() => resolve(undefined), 1000);
@@ -485,7 +514,12 @@ export class requestsHandler {
 				}
 				return result;
 			} catch (error) {
-				if (retryCount < MAX_REQUEST_RETRIES && isRetryableError(error)) {
+				// A pre-send failure (for example payload construction) can throw after
+				// RoborockRequest registered its ID but before it returned its promise.
+				if (this.adapter.pendingRequests.get(req.messageID) === req) {
+					req.reject(error);
+				}
+				if (version !== "A01" && retryCount < MAX_REQUEST_RETRIES && isRetryableError(error)) {
 					this.adapter.rLog("System", duid, "Warn", "Retry", undefined, `[sendRequest] ${method} failed (${(error as Error).message}). Retrying (${retryCount + 1}/${MAX_REQUEST_RETRIES + 1})...`, "warn");
 					await new Promise((resolve) => {
 						const timeout = this.adapter.setTimeout(() => resolve(undefined), 1000);
