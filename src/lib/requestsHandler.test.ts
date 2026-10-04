@@ -7,7 +7,7 @@ describe("A01 request transport", () => {
 		const adapter = {
 			pendingRequests: new Map(),
 			getDeviceProtocolVersion: vi.fn().mockResolvedValue("A01"),
-			local_api: { isConnected: vi.fn(() => true), getZeoOneQueryProtocolVersion: vi.fn(() => null) },
+			local_api: { isConnected: vi.fn(() => true) },
 			mqtt_api: { isConnected: vi.fn(() => true), ensureEndpoint: vi.fn().mockResolvedValue("endpoint"), sendMessage },
 			http_api: { getMatchedLocalKeys: () => new Map([["device", "0011223344556677"]]) },
 			rLog: vi.fn(),
@@ -46,7 +46,7 @@ describe("A01 request transport", () => {
 			instance: 0,
 			pendingRequests: new Map(),
 			getDeviceProtocolVersion: vi.fn().mockResolvedValue("A01"),
-			local_api: { isConnected: vi.fn(() => false), getZeoOneQueryProtocolVersion: vi.fn(() => null) },
+			local_api: { isConnected: vi.fn(() => false) },
 			setInterval: vi.fn(() => 1),
 			clearInterval: vi.fn(),
 			rLog: vi.fn(),

@@ -192,15 +192,6 @@ export class RoborockRequest {
 			protocol = 4;
 		}
 
-		// DP semantics follow the cloud protocol; a discovered local session has its own frame version.
-		const localQueryVersion = version === "A01" && this.method === "10000"
-			? this.adapter.local_api.getZeoOneQueryProtocolVersion(this.duid) : null;
-		if (localQueryVersion) protocol = 4;
-		const localQuerySession = localQueryVersion ? {
-			connectNonce: this.adapter.local_api.localDevices[this.duid].connectNonce,
-			ackNonce: this.adapter.local_api.localDevices[this.duid].ackNonce,
-		} : null;
-		const frameVersion = localQueryVersion ?? version;
 		const payload = await this.handler.messageParser.buildPayload(protocol, this.messageID, this.method, this.params, version);
 
 		const mqttConnectionState = this.adapter.mqtt_api.isConnected();
@@ -227,9 +218,9 @@ export class RoborockRequest {
 		if (connectionType === "MQTT") {
 			this.adapter.rLog("MQTT", this.duid, "->", `${version}`, protocol, `${this.method}${logParams} | qSize: ${qSize} | waited: ${queueDuration}ms`, logLevel, logMsgId);
 		} else {
-			this.adapter.rLog("TCP", this.duid, "->", `${frameVersion}`, protocol, `${this.method}${logParams}${tcpFrameLog}${localQueryVersion ? " | payload=A01" : ""} | qSize: ${qSize} | waited: ${queueDuration}ms`, "debug", logMsgId);
+			this.adapter.rLog("TCP", this.duid, "->", `${version}`, protocol, `${this.method}${logParams}${tcpFrameLog} | qSize: ${qSize} | waited: ${queueDuration}ms`, "debug", logMsgId);
 		}
-		const roborockMessage = await this.handler.messageParser.buildRoborockMessage(this.duid, protocol, timestamp, payload, frameVersion, transportMessageId);
+		const roborockMessage = await this.handler.messageParser.buildRoborockMessage(this.duid, protocol, timestamp, payload, version, transportMessageId);
 
 		const localConnectionState = this.adapter.local_api.isConnected(this.duid);
 
@@ -242,23 +233,9 @@ export class RoborockRequest {
 
 		if (version === "A01") {
 			try {
-				// Completion confirms transport acceptance only. DPs arrive independently;
-				// a TCP PUBACK also cannot confirm a QueryDP device response.
-				if (localQueryVersion) {
-					const currentSession = this.adapter.local_api.localDevices[this.duid];
-					if (this.adapter.local_api.getZeoOneQueryProtocolVersion(this.duid) !== localQueryVersion
-						|| currentSession?.connectNonce !== localQuerySession?.connectNonce
-						|| currentSession?.ackNonce !== localQuerySession?.ackNonce) {
-						throw new Error("Local washer session changed before QueryDP publish");
-					}
-					const lengthBuffer = Buffer.alloc(4);
-					lengthBuffer.writeUInt32BE(roborockMessage.length, 0);
-					if (!this.adapter.local_api.sendMessage(this.duid, Buffer.concat([lengthBuffer, roborockMessage]))) {
-						throw new Error("Local washer transport rejected QueryDP publish");
-					}
-				} else {
-					await this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage);
-				}
+				// A01 has no correlated RPC result. Completion means MQTT accepted the publish,
+				// while the requested DPs arrive separately through the A01 listener.
+				await this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage);
 				this.resolve(null);
 			} catch (error) {
 				this.reject(error);

@@ -145,7 +145,6 @@ export class local_api {
 	private reconnectPlanned = new Set<string>();
 	private connectPromises = new Map<string, Promise<void>>();
 	private sessionAckWaiters = new Map<string, { resolve: () => void; reject: (error: Error) => void; timer: ioBroker.Timeout }>();
-	private washerDpUpdates = new Map<string, Promise<void>>();
 	private discoveryServer: dgram.Socket | null = null;
 	private discoveryTimer: ioBroker.Timeout | null = null;
 	private gracePeriodTimer: ioBroker.Timeout | null = null;
@@ -645,22 +644,6 @@ export class local_api {
 	}
 
 	private resolveLocalProtocol4Payload(duid: string, version: string, protocol: number, parsedPayload: any): void {
-		if (protocol === 4 && (version === "1.0" || version === "L01")
-			&& this.adapter.http_api.getRobotModel(duid) === "roborock.wm.a102"
-			&& parsedPayload?.dps && typeof parsedPayload.dps === "object" && !Array.isArray(parsedPayload.dps)) {
-			// APK 4.54.02: local PUBLISH (4) carries the same {dps,t} as cloud A01,
-			// and dispatches unsolicited DPs without waiting for an RPC request id.
-			// Keep the synchronous frame parser intact, but serialize asynchronous state writes
-			// per washer so a slower earlier update cannot overwrite a newer one.
-			const previous = this.washerDpUpdates.get(duid) ?? Promise.resolve();
-			const update = previous.then(() => this.adapter.processA01(duid, parsedPayload)).catch(error => {
-				this.adapter.catchError(error, "Local washer DP update", duid);
-			}).finally(() => {
-				if (this.washerDpUpdates.get(duid) === update) this.washerDpUpdates.delete(duid);
-			});
-			this.washerDpUpdates.set(duid, update);
-			return;
-		}
 		const dps = parsedPayload?.dps;
 		let content: any = null;
 
@@ -1578,15 +1561,6 @@ export class local_api {
 
 	getLocalProtocolVersion(duid: string): string | null {
 		return this.localDevices?.[duid]?.version || null;
-	}
-
-	/** APK 4.54.02 supplies discovered localPv separately from cloud A01 to its socket client. */
-	getZeoOneQueryProtocolVersion(duid: string): "1.0" | "L01" | null {
-		if (this.adapter.http_api.getRobotModel(duid) !== "roborock.wm.a102") return null;
-		const dev = this.localDevices[duid];
-		if (!dev || !["udp", "udp_peer"].includes(dev.endpointSource ?? "") || !this.isConnected(duid)) return null;
-		if (dev.connectNonce === undefined || dev.ackNonce === undefined) return null;
-		return dev.version === "1.0" || dev.version === "L01" ? dev.version : null;
 	}
 
 	// --------------------
