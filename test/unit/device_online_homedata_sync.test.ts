@@ -162,7 +162,7 @@ describe("device online state sync from HomeData", () => {
 		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.222", { val: 994818, ack: true });
 		expect(adapter.ensureState).toHaveBeenCalledWith(
 			"Devices.zeo-one.deviceStatus.custom_program.temperature",
-			expect.objectContaining({ name: { en: "Temperature", de: "Temperatur" }, type: "number", unit: "°C" }),
+			expect.objectContaining({ name: expect.objectContaining({ en: "Wash Temp", de: "Waschtemperatur" }), type: "number", unit: "°C" }),
 		);
 		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.custom_program.program", { val: 2, ack: true });
 		expect(adapter.setStateChanged).toHaveBeenCalledWith("Devices.zeo-one.deviceStatus.custom_program.program_name", { val: "Schnell", ack: true });

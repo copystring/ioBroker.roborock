@@ -10,6 +10,7 @@ import { ProductHelper } from "./productHelper";
 import { Feature } from "./features/features.enum";
 import { getB01VariantFromModel } from "./b01Variant";
 import { isB01ParkedState } from "./map/b01/B01StateSemantics";
+import { getZeoOneAliasStates, getZeoOneDpMetadata } from "./zeoOneStateMetadata";
 import { parseZeoOnePackedProgram, ZEO_ONE_BOOLEAN_STATES, ZEO_ONE_DRYING_MODES, ZEO_ONE_NUMERIC_STATES, ZEO_ONE_STATUS_LABELS } from "./zeoOneStatusLabels";
 
 // Import indices to trigger decorators
@@ -94,6 +95,7 @@ function createFeaturesForModel(adapter: Roborock, duid: string, robotModel: str
 
 export class DeviceManager {
 	private static readonly ZEO_ONE_MODEL = "roborock.wm.a102";
+	private readonly zeoOneLocations = new Map<string, string>();
 	private adapter: Roborock;
 	private static readonly HOME_DATA_DEVICE_STATUS_MAP: Record<string, string> = {
 		"122": "battery",
@@ -514,6 +516,26 @@ export class DeviceManager {
 		await handler.updateExtraStatus();
 	}
 
+	/** Shared raw-state schema for HomeData and MQTT, so neither source resets labels. */
+	public getRawDeviceStatusCommon(duid: string, dp: string, type: ioBroker.CommonType, status: Record<string, unknown> = {}): Partial<ioBroker.StateCommon> {
+		const base = { name: dp, type, read: true, write: false };
+		if (this.adapter.http_api.getRobotModel?.(duid) !== DeviceManager.ZEO_ONE_MODEL) return base;
+		if ("10005" in status) {
+			let info = status["10005"];
+			if (typeof info === "string") {
+				try {
+					info = JSON.parse(info);
+				} catch {
+					info = undefined;
+				}
+			}
+			const location = (info as { oba?: { location?: unknown } } | undefined)?.oba?.location;
+			if (typeof location === "string") this.zeoOneLocations.set(duid, location);
+			else this.zeoOneLocations.delete(duid);
+		}
+		return { ...base, ...getZeoOneDpMetadata(dp, this.adapter.language, this.zeoOneLocations.get(duid)) };
+	}
+
 	/**
 	 * Applies all scalar device.status values from cloud HomeData.
 	 *
@@ -536,7 +558,7 @@ export class DeviceManager {
 			if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
 				const path = `${statusPath}.${attribute}`;
 				const type: ioBroker.CommonType = typeof value === "string" ? "string" : typeof value === "number" ? "number" : "boolean";
-				await this.adapter.ensureState(path, { name: attribute, type, read: true, write: false });
+				await this.adapter.ensureState(path, this.getRawDeviceStatusCommon(duid, attribute, type, status));
 				await this.adapter.setStateChanged(path, { val: value, ack: true });
 			}
 
@@ -581,7 +603,8 @@ export class DeviceManager {
 				? values[numeric] ?? `Unknown (${numeric})`
 				: null;
 			const path = `${statusPath}.${alias}`;
-			await this.adapter.ensureState(path, { name: alias.replace("_", " "), type: "string", read: true, write: false });
+			const metadata = this.getRawDeviceStatusCommon(duid, dp, "number", status);
+			await this.adapter.ensureState(path, { name: metadata.name, states: getZeoOneAliasStates(metadata, values), type: "string", read: true, write: false });
 			await this.adapter.setStateChanged(path, { val: label, ack: true });
 		}
 
@@ -594,7 +617,8 @@ export class DeviceManager {
 				? values ? values[numeric] ?? null : numeric
 				: null;
 			const path = `${statusPath}.${alias}`;
-			await this.adapter.ensureState(path, { name: alias.replaceAll("_", " "), type: "number", unit, read: true, write: false });
+			const metadata = this.getRawDeviceStatusCommon(duid, dp, "number", status);
+			await this.adapter.ensureState(path, { name: metadata.name, states: values ? getZeoOneAliasStates(metadata, values) : metadata.states, type: "number", unit, read: true, write: false });
 			await this.adapter.setStateChanged(path, { val: value, ack: true });
 		}
 
@@ -603,7 +627,8 @@ export class DeviceManager {
 			const raw = status[dp];
 			const value = raw === 0 || raw === "0" ? false : raw === 1 || raw === "1" ? true : null;
 			const path = `${statusPath}.${alias}`;
-			await this.adapter.ensureState(path, { name: alias.replaceAll("_", " "), type: "boolean", read: true, write: false });
+			const metadata = this.getRawDeviceStatusCommon(duid, dp, "number", status);
+			await this.adapter.ensureState(path, { name: metadata.name, states: getZeoOneAliasStates(metadata, { 0: false, 1: true }), type: "boolean", read: true, write: false });
 			await this.adapter.setStateChanged(path, { val: value, ack: true });
 		}
 
@@ -612,18 +637,19 @@ export class DeviceManager {
 			const numeric = typeof raw === "string" && /^\d+$/.test(raw) ? Number(raw) : raw;
 			const value = typeof numeric === "number" && Number.isSafeInteger(numeric) ? ZEO_ONE_DRYING_MODES[numeric] ?? null : null;
 			const path = `${statusPath}.drying_mode_name`;
-			await this.adapter.ensureState(path, { name: "drying mode name", type: "string", read: true, write: false });
+			const metadata = this.getRawDeviceStatusCommon(duid, "210", "number", status);
+			await this.adapter.ensureState(path, { name: metadata.name, states: getZeoOneAliasStates(metadata, ZEO_ONE_DRYING_MODES), type: "string", read: true, write: false });
 			await this.adapter.setStateChanged(path, { val: value, ack: true });
 		}
 
-		await this.updateZeoOneCustomProgram(status, statusPath);
+		await this.updateZeoOneCustomProgram(duid, status, statusPath);
 	}
 
 	/**
 	 * Decode Zeo One DP 222. Only use DP 239 when it arrived with DP 222,
 	 * so an old time cannot be attributed to a new program.
 	 */
-	private async updateZeoOneCustomProgram(status: Record<string, unknown>, statusPath: string): Promise<void> {
+	private async updateZeoOneCustomProgram(duid: string, status: Record<string, unknown>, statusPath: string): Promise<void> {
 		if (!("222" in status)) return;
 		const rawProgram = parseZeoOnePackedProgram(status["222"]);
 		if (rawProgram === undefined) return;
@@ -726,6 +752,23 @@ export class DeviceManager {
 			common: { name: localized("Total program time", "Gesamtdauer des Programms"), type: "number", unit: "min", read: true, write: false },
 			value: totalTime ?? null,
 		});
+
+		const displayFields: Record<string, { dp: string; values?: Record<string, string | number | null> }> = {
+			program: { dp: "205" }, mode: { dp: "204" },
+			temperature: { dp: "207", values: temperatureByLevel },
+			rinse_cycles: { dp: "208" }, spin_speed: { dp: "209", values: spinByLevel },
+			drying_degree: { dp: "210", values: dryingDegreeByMode },
+			soak_duration: { dp: "233", values: soakByLevel }, dry_care_mode: { dp: "244" },
+		};
+		for (const state of states) {
+			const field = displayFields[state.id];
+			if (!field) continue;
+			const metadata = this.getRawDeviceStatusCommon(duid, field.dp, "number", status);
+			// An unknown temperature remains an explicitly named level, without a physical unit.
+			if (typeof metadata.name === "object" && !(state.id === "temperature" && temperature === undefined)) state.common.name = metadata.name;
+			const labels = field.values ? getZeoOneAliasStates(metadata, field.values) : metadata.states;
+			if (labels) state.common.states = { ...state.common.states as Record<string, string>, ...labels as Record<string, string> };
+		}
 
 		await Promise.all(states.map(async ({ id, common, value }) => {
 			const path = `${customProgramPath}.${id}`;

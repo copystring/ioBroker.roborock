@@ -62,6 +62,8 @@ Modes: `1` wash, `2` wash and dry, `3` dry. Temperature levels: `1` cold, `2` 30
 
 Only combinations from the original regional AppPlugin charts are accepted. Omitted options use the chart defaults. `deviceStatus.program_options` lists the options after the device's GeneralInfo report. Existing numeric status IDs and named read-only aliases are retained.
 
+Raw DP states, named aliases and decoded app-program fields now include the available AppPlugin display names and enum labels. Names carry the plugin's translations; enum labels follow the ioBroker system language. Missing translations use the same English/Chinese fallback as the app. Numeric IDs, raw values and existing alias values remain unchanged. Unknown values and bit fields do not receive invented enum labels.
+
 These controls are reconstructed from the original AppPlugin and APK; write behaviour still requires confirmation on a real Zeo One.
 
 ## Zone cleaning

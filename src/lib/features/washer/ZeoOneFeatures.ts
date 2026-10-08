@@ -1,3 +1,4 @@
+import { getZeoOneDpMetadata } from "../../zeoOneStateMetadata";
 import { parseZeoOnePackedProgram } from "../../zeoOneStatusLabels";
 import { FeatureDependencies, RegisterModel } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
@@ -44,9 +45,10 @@ export class ZeoOneFeatures extends FallbackBaseFeatures {
 		await super.setupProtocolFeatures();
 		for (const [name, setting] of Object.entries(SETTINGS)) {
 			// Numeric settings allow both off (0) and on; boolean commands are buttons.
+			const metadata = getZeoOneDpMetadata(setting.dp, this.deps.adapter.language);
 			this.addCommand(name, {
-				name: setting.name, type: "number", min: 0, max: setting.max,
-				states: setting.max === 1 ? { 0: "Aus", 1: "Ein" } : { 0: "Aus", 1: "Niedrig", 2: "Mittel", 3: "Hoch" },
+				name: typeof metadata.name === "object" ? metadata.name : setting.name, type: "number", min: 0, max: setting.max,
+				states: metadata.states ?? { 0: "Aus", 1: "Ein" },
 				role: "level",
 			});
 		}

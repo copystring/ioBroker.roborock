@@ -2038,8 +2038,6 @@ export class Roborock extends utils.Adapter {
 		};
 
 		for (const [id, value] of Object.entries(response.dps)) {
-			// A01 states are not defined in main.ts anymore, this is just a fallback name
-			const stateName = id;
 			let parsedValue = value;
 			let isJson = false;
 
@@ -2060,7 +2058,8 @@ export class Roborock extends utils.Adapter {
 				await processNested(basePath, parsedValue as Record<string, unknown>);
 			} else {
 				const path = `Devices.${duid}.deviceStatus.${id}`;
-				await this.ensureState(path, { name: stateName, type: determineType(value), write: false });
+				const common = this.deviceManager.getRawDeviceStatusCommon(duid, id, determineType(value), response.dps);
+				await this.ensureState(path, common);
 				await this.setStateChanged(path, { val: parsedValue as ioBroker.StateValue, ack: true });
 			}
 		}
