@@ -2011,6 +2011,9 @@ export class Roborock extends utils.Adapter {
 			return;
 		}
 
+		// Match echoes at arrival, before asynchronous state writes can admit a new command.
+		await this.deviceFeatureHandlers?.get(duid)?.onDeviceStatus?.(response.dps);
+
 		const determineType = (value: unknown): ioBroker.CommonType => {
 			const t = typeof value;
 			if (t === "number") return "number";

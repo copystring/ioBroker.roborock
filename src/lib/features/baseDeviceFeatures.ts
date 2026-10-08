@@ -571,6 +571,14 @@ export abstract class BaseDeviceFeatures {
 
 	// --- Command Parameter Interception ---
 
+	/** Return true when a device-specific command owns transport and response handling. */
+	public async executeDeviceCommand(_method: string, _params?: unknown): Promise<boolean> {
+		return false;
+	}
+
+	/** Device status received independently of correlated RPC responses. */
+	public async onDeviceStatus(_status: Record<string, unknown>): Promise<void> {}
+
 	/**
 	 * Allows feature handlers to provide/modify parameters for a command before sending.
 	 * Override this to implement logic like 'app_segment_clean' gathering segments from states.

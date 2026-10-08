@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { DeviceManager } from "../../src/lib/deviceManager";
+import { ZeoOneFeatures } from "../../src/lib/features/washer/ZeoOneFeatures";
+import { messageParser } from "../../src/lib/messageParser";
+import { requestsHandler } from "../../src/lib/requestsHandler";
 import { mqtt_api } from "../../src/lib/mqttApi";
 
 vi.mock("@iobroker/adapter-core", () => ({
@@ -272,5 +275,74 @@ describe("Zeo One source labels", () => {
         expect(values.get(path)).toBe("Unknown (99)");
         await manager.updateZeoOneStatus("zeo-one", { "203": "invalid" });
         expect(values.get(path)).toBeNull();
+    });
+});
+
+
+describe("Zeo One writable commands through MQTT", () => {
+    it("sends off and saves a program without starting, acknowledging only actual A01 device reports", async () => {
+        const { Roborock } = await import("../../src/main");
+        const states = new Map<string, { val: unknown; ack: boolean }>();
+        const adapter = Object.assign(Object.create(Roborock.prototype), {
+            language: "de",
+            http_api: {
+                getRobotModel: vi.fn().mockReturnValue("roborock.wm.a102"),
+                getMatchedLocalKeys: () => new Map([["zeo-one", "0011223344556677"]]),
+            },
+            ensureFolder: vi.fn().mockResolvedValue(undefined),
+            ensureState: vi.fn().mockResolvedValue(undefined),
+            setStateChanged: vi.fn(async (id: string, state: { val: unknown; ack: boolean }) => { states.set(id, state); }),
+            setTimeout: (callback: () => void, ms: number) => setTimeout(callback, ms),
+            clearTimeout: (timer: ReturnType<typeof setTimeout>) => clearTimeout(timer),
+            setInterval: vi.fn(() => 1), clearInterval: vi.fn(),
+            rLog: vi.fn(),
+        });
+        adapter.deviceManager = new DeviceManager(adapter);
+        const parser = new messageParser(adapter);
+        adapter.mqtt_api = new mqtt_api(adapter);
+        const broker = vi.spyOn(adapter.mqtt_api, "sendMessage").mockResolvedValue(undefined);
+        adapter.requestsHandler = Object.assign(Object.create(requestsHandler.prototype), { adapter, messageParser: parser });
+        const features = new ZeoOneFeatures({ adapter } as any, "zeo-one");
+        features.protocolVersion = "A01";
+        await features.setupProtocolFeatures();
+        expect(Object.keys(features.commands).sort()).toEqual([
+            "cache_washing_preference", "child_lock", "detergent_level", "save_program", "softener_level", "sound",
+        ]);
+        adapter.deviceFeatureHandlers = new Map([["zeo-one", features]]);
+        const receive = (dps: Record<string, unknown>) => adapter.mqtt_api.handleDecodedMessage("zeo-one", {
+            version: "A01", protocol: 102, payload: Buffer.from(JSON.stringify({ dps })),
+        });
+        await receive({ "203": 1, "223": 1, "10005": JSON.stringify({ oba: { location: "de" } }) });
+        expect(states.get("Devices.zeo-one.deviceStatus.program_options")?.ack).toBe(true);
+        states.set("Devices.zeo-one.commands.sound", { val: 0, ack: false });
+        const off = (adapter as any).executeCommand(features, "zeo-one", "sound", { val: 0 }, features.getCommandSpec("commands", "sound"));
+        await Promise.resolve();
+        await Promise.resolve();
+        const offFrame = parser.decodeMsg(broker.mock.calls[0][1], "zeo-one")[0];
+        expect(JSON.parse(offFrame.payload.toString()).dps).toEqual({ "223": 0 });
+        expect(states.get("Devices.zeo-one.commands.sound")?.ack).toBe(false);
+        await receive({ "223": 0 });
+        await off;
+        expect(states.get("Devices.zeo-one.commands.sound")).toEqual({ val: 0, ack: true });
+
+        const input = { mode: 2, program: 2, temperatureLevel: 3, rinse: 1, spinLevel: 7, dryingLevel: 2 };
+        const value = JSON.stringify(input);
+        states.set("Devices.zeo-one.commands.save_program", { val: value, ack: false });
+        const save = (adapter as any).executeCommand(features, "zeo-one", "save_program", { val: value }, features.getCommandSpec("commands", "save_program"));
+        await Promise.resolve();
+        await Promise.resolve();
+        const saveFrame = parser.decodeMsg(broker.mock.calls[1][1], "zeo-one")[0];
+        expect(JSON.parse(saveFrame.payload.toString()).dps).toEqual({
+            "204": 2, "205": 2, "207": 3, "208": 1, "209": 7, "210": 1, "221": 1,
+        });
+        expect(JSON.parse(saveFrame.payload.toString()).dps).not.toHaveProperty("200");
+        await receive({ "204": 2, "221": 1 });
+        expect(states.get("Devices.zeo-one.commands.save_program")?.ack).toBe(false);
+        // Dominik's original "Schnell 40" example decoded from the official customMode bit fields.
+        await receive({ "222": "994818" });
+        await save;
+        expect(states.get("Devices.zeo-one.commands.save_program")).toEqual({ val: value, ack: true });
+        expect(states.get("Devices.zeo-one.deviceStatus.custom_program.temperature")?.val).toBe(40);
+        expect(states.get("Devices.zeo-one.deviceStatus.custom_program.spin_speed")?.val).toBe(1400);
     });
 });

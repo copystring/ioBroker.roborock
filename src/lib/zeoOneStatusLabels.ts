@@ -96,3 +96,9 @@ export const ZEO_ONE_DRYING_MODES: Record<number, string> = {
 	2: "Iron",
 	3: "Store",
 };
+
+/** The original customMode bit field occupies 28 bits; reject malformed device reports. */
+export function parseZeoOnePackedProgram(value: unknown): number | undefined {
+	const parsed = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
+	return typeof parsed === "number" && Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= 0x0fffffff ? parsed : undefined;
+}

@@ -10,7 +10,7 @@ import { ProductHelper } from "./productHelper";
 import { Feature } from "./features/features.enum";
 import { getB01VariantFromModel } from "./b01Variant";
 import { isB01ParkedState } from "./map/b01/B01StateSemantics";
-import { ZEO_ONE_BOOLEAN_STATES, ZEO_ONE_DRYING_MODES, ZEO_ONE_NUMERIC_STATES, ZEO_ONE_STATUS_LABELS } from "./zeoOneStatusLabels";
+import { parseZeoOnePackedProgram, ZEO_ONE_BOOLEAN_STATES, ZEO_ONE_DRYING_MODES, ZEO_ONE_NUMERIC_STATES, ZEO_ONE_STATUS_LABELS } from "./zeoOneStatusLabels";
 
 // Import indices to trigger decorators
 import "./features/vacuum/index";
@@ -625,9 +625,8 @@ export class DeviceManager {
 	 */
 	private async updateZeoOneCustomProgram(status: Record<string, unknown>, statusPath: string): Promise<void> {
 		if (!("222" in status)) return;
-		const programValue = status["222"];
-		const rawProgram = typeof programValue === "string" && /^\d+$/.test(programValue) ? Number(programValue) : programValue;
-		if (typeof rawProgram !== "number" || !Number.isSafeInteger(rawProgram) || rawProgram < 0 || rawProgram > 0x0fffffff) return;
+		const rawProgram = parseZeoOnePackedProgram(status["222"]);
+		if (rawProgram === undefined) return;
 
 		const timeValue = status["239"];
 		const rawTotalTime = typeof timeValue === "string" && /^\d+$/.test(timeValue) ? Number(timeValue) : timeValue;

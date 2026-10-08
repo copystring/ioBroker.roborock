@@ -528,7 +528,18 @@ export class requestsHandler {
 		this.adapter.rLog("MQTT", duid, "->", "B01", 101, `Q10 DP publish: ${JSON.stringify(dps)}`, "debug");
 	}
 
+	/** A01 writes one complete DP map; device confirmation arrives asynchronously. */
+	public async publishA01Dp(duid: string, dps: Record<string, unknown>): Promise<void> {
+		const timestamp = Math.floor(Date.now() / 1000);
+		const payload = JSON.stringify({ dps, t: timestamp });
+		const frame = await this.messageParser.buildRoborockMessage(duid, 101, timestamp, payload, "A01");
+		if (!frame) throw new Error("Failed to build A01 DP message");
+		await this.adapter.mqtt_api.sendMessage(duid, frame);
+		this.adapter.rLog("MQTT", duid, "->", "A01", 101, `DP publish: ${JSON.stringify(dps)}`, "debug");
+	}
+
 	async command(_handler: BaseDeviceFeatures, duid: string, method: string, params?: unknown, id?: string) {
+		if (await _handler?.executeDeviceCommand?.(method, params)) return;
 		const b01Variant = await this.adapter.getB01Variant?.(duid);
 		if (b01Variant === "Q10") {
 			await this.getQ10CommandHandler().handleCommand(_handler, duid, method, params);

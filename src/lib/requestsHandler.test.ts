@@ -57,3 +57,33 @@ describe("A01 request transport", () => {
 		expect(adapter.pendingRequests.size).toBe(0);
 	});
 });
+
+describe("A01 atomic setting writes", () => {
+	it("encodes the whole dosing pair in one MQTT A01 protocol 101 frame", async () => {
+		const adapter = {
+			http_api: { getMatchedLocalKeys: () => new Map([["device", "0011223344556677"]]) },
+			mqtt_api: { sendMessage: vi.fn().mockResolvedValue(undefined) },
+			local_api: { sendMessage: vi.fn() },
+			rLog: vi.fn(),
+		};
+		const parser = new messageParser(adapter as any);
+		const handler = Object.assign(Object.create(requestsHandler.prototype), { adapter, messageParser: parser });
+		await handler.publishA01Dp("device", { "211": 1, "213": 3 });
+		expect(adapter.mqtt_api.sendMessage).toHaveBeenCalledTimes(1);
+		const [duid, frame] = adapter.mqtt_api.sendMessage.mock.calls[0];
+		const decoded = parser.decodeMsg(frame, duid);
+		expect(decoded[0].version).toBe("A01");
+		expect(decoded[0].protocol).toBe(101);
+		expect(JSON.parse(decoded[0].payload.toString()).dps).toEqual({ "211": 1, "213": 3 });
+		expect(adapter.local_api.sendMessage).not.toHaveBeenCalled();
+	});
+
+	it("routes owned commands before RPC handling and propagates their errors", async () => {
+		const handler = Object.create(requestsHandler.prototype);
+		const feature = { executeDeviceCommand: vi.fn().mockResolvedValue(true) };
+		await handler.command(feature, "device", "sound", 0);
+		expect(feature.executeDeviceCommand).toHaveBeenCalledWith("sound", 0);
+		feature.executeDeviceCommand.mockRejectedValue(new Error("device timeout"));
+		await expect(handler.command(feature, "device", "sound", 0)).rejects.toThrow("device timeout");
+	});
+});
