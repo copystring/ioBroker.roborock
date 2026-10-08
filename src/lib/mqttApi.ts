@@ -337,10 +337,12 @@ export class mqtt_api {
 	 * Processes a single decoded Roborock message frame.
 	 */
 	async handleDecodedMessage(duid: string, data: any): Promise<void> {
-		// 1. Generic A01 / B01 JSON payloads. Specialized protocols (e.g. 102/500) are handled below exactly once.
+		// A01 protocol 102 carries DP status, including unsolicited updates, not V1/B01 RPC results.
+		// Interpret the frame protocol together with its version before dispatching it.
 		const isGenericJsonProtocol =
-			(data.version === "A01" || data.version === "B01") &&
-			![102, 300, 301, 500].includes(data.protocol);
+			(data.version === "A01" && data.protocol === 102) ||
+			((data.version === "A01" || data.version === "B01") &&
+				![102, 300, 301, 500].includes(data.protocol));
 		if (isGenericJsonProtocol) {
 			await this.handleProtocolA01B01(duid, data);
 			return;

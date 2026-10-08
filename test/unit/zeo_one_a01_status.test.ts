@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { DeviceManager } from "../../src/lib/deviceManager";
+import { mqtt_api } from "../../src/lib/mqttApi";
 
 vi.mock("@iobroker/adapter-core", () => ({
     Adapter: class MockAdapter {},
@@ -10,6 +11,37 @@ vi.mock("go2rtc-static", () => ({
 }));
 
 describe("Zeo One incremental A01 status", () => {
+    it("writes protocol 102 QueryDP replies and unsolicited changes without a polling pass", async () => {
+        const { Roborock } = await import("../../src/main");
+        const states = new Map<string, unknown>();
+        const adapter = {
+            http_api: { getRobotModel: vi.fn().mockReturnValue("roborock.wm.a102") },
+            ensureState: vi.fn().mockResolvedValue(undefined),
+            setStateChanged: vi.fn(async (id: string, state: { val: unknown }) => { states.set(id, state.val); }),
+            tryParseJson: Roborock.prototype.tryParseJson,
+            processA01: Roborock.prototype.processA01,
+            rLog: vi.fn(),
+            setInterval: vi.fn(() => 1),
+            clearInterval: vi.fn(),
+        };
+        (adapter as any).deviceManager = new DeviceManager(adapter as any);
+        const api = new mqtt_api(adapter as any);
+        const base = "Devices.zeo-one.deviceStatus.";
+
+        // QueryDP response, then the three unsolicited DP 209 changes from the device log.
+        for (const dps of [{ "203": 1, "209": 7, "225": 0 }, { "209": 6 }, { "209": 7 }, { "209": 6 }]) {
+            await api.handleDecodedMessage("zeo-one", {
+                version: "A01", protocol: 102,
+                payload: Buffer.from(JSON.stringify({ t: 1791454590, dps })),
+            });
+            expect(states.get(base + "209")).toBe(dps["209"]);
+            expect(states.get(base + "spin_speed_rpm")).toBe(dps["209"] === 6 ? 1200 : 1400);
+        }
+        expect(states.get(base + "203")).toBe(1);
+        expect(states.get(base + "cache_washing_preference")).toBe(false);
+        expect(adapter.rLog).not.toHaveBeenCalled();
+    });
+
     it("keeps raw DP 222/239 and refreshes the same decoded program from either update", async () => {
         const { Roborock } = await import("../../src/main");
         const states = new Map<string, unknown>();
