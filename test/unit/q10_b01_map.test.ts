@@ -247,6 +247,7 @@ function createQ10RequestsHandlerHarness() {
 		adapter: {
 			getB01Variant: ReturnType<typeof vi.fn>;
 			rLog: ReturnType<typeof vi.fn>;
+			http_api: { getRobotModel: () => string; getProductCategory: () => string };
 		};
 		publishB01Dp: ReturnType<typeof vi.fn>;
 		sendRequest: ReturnType<typeof vi.fn>;
@@ -255,7 +256,8 @@ function createQ10RequestsHandlerHarness() {
 
 	handler.adapter = {
 		getB01Variant: vi.fn().mockResolvedValue("Q10"),
-		rLog: vi.fn()
+		rLog: vi.fn(),
+		http_api: { getRobotModel: () => Q10_MODEL, getProductCategory: () => "robot.vacuum.cleaner" }
 	};
 	handler.publishB01Dp = vi.fn().mockResolvedValue(undefined);
 	handler.sendRequest = vi.fn();

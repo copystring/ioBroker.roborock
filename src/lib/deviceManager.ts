@@ -1,9 +1,11 @@
 // src/lib/DeviceManager.ts
 
 import type { Roborock } from "../main";
+import type { Device } from "./httpApi";
 // Import BaseDeviceFeatures value
 import { BaseDeviceFeatures, FeatureDependencies } from "./features/baseDeviceFeatures";
-import { FallbackBaseFeatures, FallbackVacuumFeatures } from "./features/fallbackFeatures";
+import { FallbackVacuumFeatures } from "./features/fallbackFeatures";
+import { isLegacyVacuumDevice, isLegacyVacuumDuid } from "./legacyDevicePolicy";
 import { DEFAULT_PROFILE, VacuumProfile } from "./features/vacuum/v1VacuumFeatures";
 
 import { ProductHelper } from "./productHelper";
@@ -16,7 +18,11 @@ import "./features/vacuum/index";
 
 import { Q7VacuumFeatures } from "./features/vacuum/b01/Q7VacuumFeatures";
 import { Q10VacuumFeatures } from "./features/vacuum/b01/Q10VacuumFeatures";
+import { MowerRuntime } from "./mower/MowerRuntime";
 function createFeaturesForModel(adapter: Roborock, duid: string, robotModel: string, productCategory: string | null, protocolVersion: string | null): BaseDeviceFeatures {
+	if (!isLegacyVacuumDevice(robotModel, productCategory)) {
+		throw new Error("Vacuum feature handler requested for a non-vacuum device");
+	}
 	const dependencies: FeatureDependencies = {
 		adapter: adapter,
 		config: adapter.config,
@@ -71,7 +77,7 @@ function createFeaturesForModel(adapter: Roborock, duid: string, robotModel: str
 	}
 
 	// No model-specific class: auto-detect by category. Log once so users report unknown models for full support.
-	const isVacuum = productCategory === "robot.vacuum.cleaner" || productCategory === "roborock.vacuum";
+	const isVacuum = isLegacyVacuumDevice(robotModel, productCategory);
 	if (isVacuum) {
 		adapter.rLog("System", duid, "Info", undefined, undefined, `Model "${robotModel}" is not explicitly supported yet; using auto-detected vacuum features. If something is missing or wrong, please report your model (e.g. via GitHub Issues) so we can add full support with correct parameters.`, "info");
 		const deducedFeatures = productInfo ? ProductHelper.deduceFeatures(productInfo, robotModel) : new Set<Feature>();
@@ -83,11 +89,7 @@ function createFeaturesForModel(adapter: Roborock, duid: string, robotModel: str
 		return handler;
 	}
 
-	// Unknown category: warn and use generic fallback
-	adapter.rLog("System", duid, "Warn", undefined, undefined, `Model "${robotModel}" (Category: ${productCategory}) not registered. Using fallback (Protocol: ${protocolVersion || "Unknown"}).`, "warn");
-	const handler = new FallbackBaseFeatures(dependencies, duid, robotModel);
-	handler.protocolVersion = protocolVersion;
-	return handler;
+	throw new Error("Vacuum model classification was lost before fallback selection");
 }
 
 export class DeviceManager {
@@ -107,10 +109,29 @@ export class DeviceManager {
 	// Interval handle
 	private mainUpdateInterval: ioBroker.Interval | undefined = undefined;
 	private pollingDevices = new Set<string>();
+	private unsupportedNoticeLogged = new Set<string>();
 	public deviceFeatureHandlers = new Map<string, BaseDeviceFeatures>();
+	public readonly mowerRuntime: MowerRuntime;
 
 	constructor(adapter: Roborock) {
 		this.adapter = adapter;
+		this.mowerRuntime = new MowerRuntime(adapter);
+	}
+
+	/** Publish only non-secret HomeData metadata for device classes without vacuum support. */
+	private async updatePassiveDeviceInfo(device: Device): Promise<void> {
+		const fields: Array<[string, string | boolean | undefined]> = [
+			["name", device.name || device.duid],
+			["online", device.online],
+			["pv", device.pv],
+			["productId", device.productId],
+		];
+		for (const [field, value] of fields) {
+			if (value === undefined) continue;
+			const path = `Devices.${device.duid}.deviceInfo.${field}`;
+			await this.adapter.ensureState(path, { name: field, type: typeof value as ioBroker.CommonType, read: true, write: false });
+			await this.adapter.setStateChanged(path, { val: value, ack: true });
+		}
 	}
 
 	private getHomeDataConsumableMap(handler: BaseDeviceFeatures): Record<string, string> {
@@ -139,7 +160,27 @@ export class DeviceManager {
 					const category = this.adapter.http_api.getProductCategory(duid);
 					// Ensure model exists
 					if (!model) {
+						this.deviceFeatureHandlers.delete(duid);
+						await this.mowerRuntime.syncDevice(device);
 						this.adapter.rLog("System", duid, "Warn", undefined, undefined, "Could not find model. Skipping init.", "warn");
+						return;
+					}
+					await this.adapter.extendObject(`Devices.${duid}`, {
+						type: "device",
+						common: {
+							name: device.name || duid,
+							statusStates: { onlineId: `${this.adapter.namespace}.Devices.${duid}.deviceInfo.online` },
+						},
+						native: { duid, model, category },
+					});
+					await this.mowerRuntime.syncDevice(device);
+					if (!isLegacyVacuumDevice(model, category)) {
+						this.deviceFeatureHandlers.delete(duid);
+						await this.updatePassiveDeviceInfo(device);
+						if (!this.mowerRuntime.isRegistered(duid) && !this.unsupportedNoticeLogged.has(duid)) {
+							this.unsupportedNoticeLogged.add(duid);
+							this.adapter.rLog("System", duid, "Info", undefined, undefined, `Model "${model}" (category: ${category || "unknown"}) is visible but vacuum control is not supported for this device class.`, "info");
+						}
 						return;
 					}
 
@@ -148,22 +189,6 @@ export class DeviceManager {
 
 					// Store handler and initialize
 					this.deviceFeatureHandlers.set(duid, handler);
-
-					await this.adapter.extendObject(`Devices.${duid}`, {
-						type: "device",
-						common: {
-							name: device.name || duid, // Use cloud name or DUID
-							// Link online status
-							statusStates: {
-								onlineId: `${this.adapter.namespace}.Devices.${duid}.deviceInfo.online`,
-							},
-						},
-						native: {
-							duid: duid,
-							model: model,
-							category: category,
-						},
-					});
 
 					await this.adapter.updateDeviceInfo(duid, devices);
 					await this.updateHomeDataDeviceStatus(duid, devices);
@@ -183,6 +208,7 @@ export class DeviceManager {
 		}
 
 		await Promise.all(initPromises);
+		this.mowerRuntime.retainDevices(new Set(devices.map(device => device.duid)));
 		const deviceSummaries: string[] = [];
 		for (const [duid, handler] of this.deviceFeatureHandlers) {
 			const model = (handler as any).robotModel || "Unknown";
@@ -300,8 +326,34 @@ export class DeviceManager {
 			}
 
 			const cloudDevices = this.adapter.http_api.getDevices();
+			if (isSlowTick) this.mowerRuntime.retainDevices(new Set(cloudDevices.map(device => device.duid)));
 			for (const device of cloudDevices) {
 				const duid = device.duid;
+				if (isSlowTick) {
+					try {
+						await this.mowerRuntime.syncDevice(device);
+					} catch (error: unknown) {
+						this.adapter.catchError(error, "mower initialization", duid);
+					}
+				}
+				if (!isLegacyVacuumDuid(this.adapter.http_api, duid)) {
+					if (isSlowTick) {
+						this.deviceFeatureHandlers.delete(duid);
+						try {
+							await this.updatePassiveDeviceInfo(device);
+						} catch (error: unknown) {
+							this.adapter.rLog("System", duid, "Warn", undefined, undefined, `Failed to update passive device info: ${this.adapter.errorMessage(error)}`, "warn");
+						}
+						if (this.mowerRuntime.isRegistered(duid)) {
+							try {
+								await this.mowerRuntime.poll(duid);
+							} catch (error: unknown) {
+								this.adapter.catchError(error, "mower status poll", duid);
+							}
+						}
+					}
+					continue;
+				}
 				if (this.skipPollUntilNextHomeData.has(duid)) continue;
 
 				const handler = this.deviceFeatureHandlers.get(duid);

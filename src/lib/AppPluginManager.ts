@@ -5,6 +5,8 @@ import { Roborock } from "../main";
 
 export class AppPluginManager {
 	adapter: Roborock;
+	private assetRootReady?: Promise<void>;
+	private readonly assetDownloads = new Map<string, Promise<boolean>>();
 
 	constructor(adapter: Roborock) {
 		this.adapter = adapter;
@@ -30,6 +32,32 @@ export class AppPluginManager {
 
 	private static readonly ASSETS_BASE = "assets";
 
+	/** File API calls require a meta object at the root of their namespace. */
+	private async ensureAssetRoot(): Promise<void> {
+		if (!this.assetRootReady) {
+			this.assetRootReady = (async () => {
+				const namespace = this.adapter.name;
+				const existing = await this.adapter.getForeignObjectAsync(namespace);
+				if (!existing) {
+					await this.adapter.setForeignObjectNotExistsAsync(namespace, {
+						type: "meta",
+						common: { name: "Roborock assets", type: "meta.user" },
+						native: {}
+					});
+				}
+				// setForeignObjectNotExistsAsync also handles another instance creating the root.
+				const root = await this.adapter.getForeignObjectAsync(namespace);
+				if (root?.type !== "meta") {
+					throw new Error(`File namespace ${namespace} is not a meta object`);
+				}
+			})().catch(error => {
+				this.assetRootReady = undefined;
+				throw error;
+			});
+		}
+		await this.assetRootReady;
+	}
+
 	private async hasAssetsForModel(model: string): Promise<boolean> {
 		if (!model || model === "default") return true;
 		const versionFilePath = `${AppPluginManager.ASSETS_BASE}/${model}/version`;
@@ -43,6 +71,12 @@ export class AppPluginManager {
 	/** Download assets for model if version file missing (startup only). */
 	public async downloadAssetsForModelIfMissing(model: string): Promise<void> {
 		if (!model || model === "default") return;
+		try {
+			await this.ensureAssetRoot();
+		} catch (e: unknown) {
+			this.adapter.rLog("System", null, "Error", undefined, undefined, `Could not initialize asset storage: ${this.adapter.errorMessage(e)}`, "error");
+			return;
+		}
 		if (await this.hasAssetsForModel(model)) return;
 
 		const loginApi = this.adapter.http_api.loginApi;
@@ -89,8 +123,35 @@ export class AppPluginManager {
 		newVersion: string,
 		duid: string | null
 	): Promise<boolean> {
+		const previous = this.assetDownloads.get(vacuumModel);
+		const download = (async () => {
+			// All versions of one model share the same files and version marker.
+			if (previous) await previous.catch(() => false);
+			return this.extractAssetZip(loginApi, zipUrl, vacuumModel, newVersion, duid);
+		})();
+		this.assetDownloads.set(vacuumModel, download);
+		try {
+			return await download;
+		} finally {
+			if (this.assetDownloads.get(vacuumModel) === download) this.assetDownloads.delete(vacuumModel);
+		}
+	}
+
+	private async extractAssetZip(
+		loginApi: AxiosInstance,
+		zipUrl: string,
+		vacuumModel: string,
+		newVersion: string,
+		duid: string | null
+	): Promise<boolean> {
 		const assetDir = `${AppPluginManager.ASSETS_BASE}/${vacuumModel}`;
 		const versionFilePath = `${assetDir}/version`;
+		try {
+			await this.ensureAssetRoot();
+		} catch (e: unknown) {
+			this.adapter.rLog("System", duid, "Error", undefined, undefined, `Could not initialize asset storage: ${this.adapter.errorMessage(e)}`, "error");
+			return false;
+		}
 
 		let reason = "";
 		const versionExists = await this.adapter.fileExistsAsync(this.adapter.name, versionFilePath);
@@ -125,7 +186,7 @@ export class AppPluginManager {
 			const zip = await JSZip.loadAsync(response.data);
 			let extractedCount = 0;
 			const filePromises: Promise<void>[] = [];
-			const createdDirs = new Set<string>();
+			const createdDirs = new Map<string, Promise<void>>();
 
 			zip.forEach((relativePath, file) => {
 				const isTarget = relativePath.startsWith("drawable-") || relativePath.startsWith("raw/");
@@ -135,10 +196,12 @@ export class AppPluginManager {
 						if (fileContent) {
 							const targetPath = `${assetDir}/${relativePath}`;
 							const targetDir = path.dirname(targetPath).replace(/\\/g, "/");
-							if (!createdDirs.has(targetDir)) {
-								createdDirs.add(targetDir);
-								await this.adapter.mkdirAsync(this.adapter.name, targetDir);
+							let createDir = createdDirs.get(targetDir);
+							if (!createDir) {
+								createDir = this.adapter.mkdirAsync(this.adapter.name, targetDir);
+								createdDirs.set(targetDir, createDir);
 							}
+							await createDir;
 							await this.adapter.writeFileAsync(this.adapter.name, targetPath, fileContent as Buffer);
 							extractedCount++;
 						}
@@ -146,7 +209,9 @@ export class AppPluginManager {
 				}
 			});
 
-			await Promise.all(filePromises);
+			const fileResults = await Promise.allSettled(filePromises);
+			const failure = fileResults.find(result => result.status === "rejected");
+			if (failure?.status === "rejected") throw failure.reason;
 
 			if (extractedCount > 0) {
 				this.adapter.rLog("Cloud", duid ?? null, "Info", undefined, undefined, `Extracted ${extractedCount} assets to ${assetDir}`, "info");
@@ -167,6 +232,12 @@ export class AppPluginManager {
 	}
 
 	async updateProduct(duid: string) {
+		try {
+			await this.ensureAssetRoot();
+		} catch (e: unknown) {
+			this.adapter.rLog("System", duid, "Error", undefined, undefined, `Could not initialize asset storage: ${this.adapter.errorMessage(e)}`, "error");
+			return;
+		}
 		const loginApi = this.adapter.http_api.loginApi;
 		if (!loginApi) {
 			this.adapter.rLog("System", null, "Error", undefined, undefined, "loginApi not initialized in AppPluginManager", "error");
