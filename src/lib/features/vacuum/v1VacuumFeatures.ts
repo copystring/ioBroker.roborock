@@ -340,6 +340,21 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 				return params;
 			}
 
+			// Refresh status before resolving the active floor so a recent relocation cannot
+			// use a stale in-memory map index.
+			try {
+				await this.updateStatus();
+			} catch (e: any) {
+				this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, "Cannot start segment cleaning: Failed to fetch fresh robot status (" + e.message + ")", "warn");
+				return [];
+			}
+
+			const currentMapStatus = this.mapService.currentStatus;
+			if (!Number.isFinite(currentMapStatus) || currentMapStatus < 0 || currentMapStatus >= 250) {
+				this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, "Cannot start segment cleaning because active map is unknown or robot is still positioning", "warn");
+				return [];
+			}
+
 			// Gather selected rooms from the currently active floor only.
 			// Old/stale room states can remain under other floor IDs and must not leak into
 			// a segment-clean request for the active map.

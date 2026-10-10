@@ -17,6 +17,9 @@ export class V1MapService {
 	}
 	private multiMaps: any[] = [];
 	private lastMapStatus: number = -1;
+	public get currentStatus(): number {
+		return this.lastMapStatus;
+	}
 
 	constructor(
 		private deps: FeatureDependencies,
