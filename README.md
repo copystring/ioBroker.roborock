@@ -38,6 +38,34 @@ This adapter allows you the control, get states, cleaning history and view the m
 - **Qrevo:** Qrevo Slim, Qrevo S, Qrevo Curve, Qrevo Curv Series, Qrevo Edge, Qrevo Edge Series, Qrevo L, Qrevo Master, Qrevo MaxV
 - **Saros:** Saros 10, Saros 10R, Saros 20 / Saros 20X, Saros Z70
 
+## Zeo One washer settings
+
+For `roborock.wm.a102`, writable settings are available under `Devices.<DUID>.commands`:
+
+| State | Values |
+| --- | --- |
+| `sound` | `0` off, `1` on |
+| `child_lock` | `0` off, `1` on |
+| `cache_washing_preference` | `0` off, `1` on |
+| `detergent_level`, `softener_level` | `0` off, `1` low, `2` medium, `3` high |
+| `save_program` | JSON configuration for the appliance's app-program shortcut; does not start a cycle |
+
+Write with `ack: false`. The numeric settings mirror device reports. Dosing changes require an idle, shut-down or completed appliance; saving a program requires standby. Device reports confirm writes, with a 10-second deadline. A broker acknowledgement alone does not confirm a setting.
+
+Example for `save_program` (Quick, wash and dry, 40 °C, one rinse, 1400 rpm, medium drying):
+
+```json
+{"mode":2,"program":2,"temperatureLevel":3,"rinse":1,"spinLevel":7,"dryingLevel":2}
+```
+
+Modes: `1` wash, `2` wash and dry, `3` dry. Temperature levels: `1` cold, `2` 30 °C, `3` 40 °C, `4` 60 °C, `5` 90 °C, `6` 20 °C. Spin levels: `1` off, `2` 400, `3` 600, `4` 800, `5` 1000, `6` 1200, `7` 1400 rpm. Drying levels: `1` low, `2` medium, `3` high.
+
+Only combinations from the original regional AppPlugin charts are accepted. Omitted options use the chart defaults. `deviceStatus.program_options` lists the options after the device's GeneralInfo report. Existing numeric status IDs and named read-only aliases are retained.
+
+Raw DP states, named aliases and decoded app-program fields now include the available AppPlugin display names and enum labels. Names carry the plugin's translations; enum labels follow the ioBroker system language. Missing translations use the same English/Chinese fallback as the app. Numeric IDs, raw values and existing alias values remain unchanged. Unknown values and bit fields do not receive invented enum labels.
+
+These controls are reconstructed from the original AppPlugin and APK; write behaviour still requires confirmation on a real Zeo One.
+
 ## Zone cleaning
 This feature only works when map creation is enabled in the adapter options. Open the map from the adapter’s web UI tab in the ioBroker admin interface; no manual URL needed.
 
