@@ -21,6 +21,10 @@ export class V1MapService {
 		return this.lastMapStatus;
 	}
 
+	public invalidateCurrentStatus(): void {
+		this.lastMapStatus = -1;
+	}
+
 	constructor(
 		private deps: FeatureDependencies,
 		private duid: string

@@ -270,8 +270,9 @@ describe("V1VacuumFeatures", () => {
 		);
 	});
 
-	it("should fail closed when fresh status does not resolve an active map", async () => {
+	it("should fail closed when fresh status omits map status even after a previously known floor", async () => {
 		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a144", { staticFeatures: [] });
+		(vacuum as any).mapService.updateCurrentMapIndex(0);
 		requestsHandlerMock.sendRequest.mockResolvedValue({});
 
 		const params = await vacuum.getCommandParams("app_segment_clean");

@@ -341,7 +341,9 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			}
 
 			// Refresh status before resolving the active floor so a recent relocation cannot
-			// use a stale in-memory map index.
+			// use a stale in-memory map index. Invalidate only the status freshness marker
+			// first so a successful response without map_status also fails closed.
+			this.mapService.invalidateCurrentStatus();
 			try {
 				await this.updateStatus();
 			} catch (e: any) {
