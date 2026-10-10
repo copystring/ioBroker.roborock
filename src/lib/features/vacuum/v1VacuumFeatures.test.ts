@@ -165,6 +165,7 @@ describe("V1VacuumFeatures", () => {
 
 	it("should use set_clean_repeat_times for generated segment clean payloads", async () => {
 		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a144", { staticFeatures: [] });
+		(vacuum as any).mapService.updateCurrentMapIndex(0);
 		adapterMock.getStateAsync.mockImplementation(async (id: string) => {
 			if (id === "Devices.duid1.commands.set_clean_repeat_times") return { val: 2 };
 			return undefined;
@@ -177,12 +178,52 @@ describe("V1VacuumFeatures", () => {
 
 		const params = await vacuum.getCommandParams("app_segment_clean");
 
+		expect(adapterMock.getStatesAsync).toHaveBeenCalledWith("roborock.0.Devices.duid1.floors.0.*");
 		expect(params).toEqual([{
 			segments: [7, 9],
 			repeat: 2,
 			clean_order_mode: 0,
 			clean_mop: 0
 		}]);
+	});
+
+	it("should ignore selected rooms from inactive or stale floors", async () => {
+		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a144", { staticFeatures: [] });
+		(vacuum as any).mapService.updateCurrentMapIndex(0);
+		adapterMock.getStatesAsync.mockImplementation(async (pattern: string) => {
+			expect(pattern).toBe("roborock.0.Devices.duid1.floors.0.*");
+			return {
+				"roborock.0.Devices.duid1.floors.0.17": { val: true },
+				"roborock.0.Devices.duid1.floors.0.18": { val: true }
+			};
+		});
+
+		const params = await vacuum.getCommandParams("app_segment_clean");
+
+		expect(params).toEqual([{
+			segments: [17, 18],
+			repeat: 1,
+			clean_order_mode: 0,
+			clean_mop: 0
+		}]);
+	});
+
+	it("should fail closed when the active map is unknown", async () => {
+		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a144", { staticFeatures: [] });
+
+		const params = await vacuum.getCommandParams("app_segment_clean");
+
+		expect(params).toEqual([]);
+		expect(adapterMock.getStatesAsync).not.toHaveBeenCalled();
+		expect(adapterMock.rLog).toHaveBeenCalledWith(
+			"System",
+			"duid1",
+			"Warn",
+			"1.0",
+			undefined,
+			"Cannot start segment cleaning because the active map is unknown",
+			"warn"
+		);
 	});
 
 	it("should use set_clean_repeat_times when explicit room ids are supplied", async () => {
