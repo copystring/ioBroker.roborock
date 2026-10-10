@@ -1018,7 +1018,7 @@ export class Roborock extends utils.Adapter {
 		if (handler) {
 			try {
 				await handler.updateStatus();
-			} catch (error: unknown) {
+			} catch {
 				// Error is already logged in updateStatus()
 			}
 		}
