@@ -78,6 +78,19 @@ describe("messageParser", () => {
 		expect(decodedPayload.dps["4"]).to.be.undefined;
 	});
 
+	it("builds an A01 DP payload without a generic MQTT endpoint", async () => {
+		const ensureEndpoint = mockAdapter.mqtt_api.ensureEndpoint;
+		mockAdapter.mqtt_api.ensureEndpoint = async () => {
+			throw new Error("endpoint unavailable");
+		};
+		try {
+			const payload = await parser.buildPayload(101, 1806, "10000", "[203,217,218]", "A01");
+			expect(JSON.parse(payload).dps).toEqual({ "10000": "[203,217,218]" });
+		} finally {
+			mockAdapter.mqtt_api.ensureEndpoint = ensureEndpoint;
+		}
+	});
+
 	it("tracks transport sequence per device and wraps without using zero", () => {
 		const localParser = new messageParser(mockAdapter);
 		localParser.resetTransportSequence("test-duid", 0xffff);

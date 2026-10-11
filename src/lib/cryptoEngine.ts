@@ -177,12 +177,9 @@ export const cryptoEngine = {
 		const iv = Buffer.from(ivHex, "utf-8");
 		const buf = toBuffer(payload);
 
-		// PKCS7 Padding
-		const pad = 16 - (buf.length % 16);
-		const padded = Buffer.concat([buf, Buffer.alloc(pad, pad)] as Uint8Array[]);
-
 		const cipher = crypto.createCipheriv("aes-128-cbc", key, iv);
-		return Buffer.concat([cipher.update(padded as Uint8Array), cipher.final()]);
+		// Node's cipher uses PKCS7 padding by default; adding it manually would pad twice.
+		return Buffer.concat([cipher.update(buf as Uint8Array), cipher.final()]);
 	},
 
 	decryptA01(payload: Buffer, localKey: string, random: number): Buffer {
