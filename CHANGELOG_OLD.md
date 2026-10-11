@@ -325,6 +325,13 @@
 
 ### 0.0.2-alpha.0 (2023-01-28)
 * (copystring) initial release
+## 0.7.0 (2026-05-04)
+
+* (copystring) Added support for Roborock Q10, including map handling for this model.
+* (copystring) Added support for Roborock Saros Z70.
+* (copystring) Improved local connections for newer Roborock models so reconnects, keepalive checks and map transfers are more reliable.
+* (copystring) Fixed empty images in `mapBase64` and `mapBase64Truncated`.
+
 ## 0.7.0-beta.0 (2026-03-11)
 * (copystring) **Maps:** Obstacle icons and map graphics are loaded automatically at startup so maps display correctly.
 * (copystring) **Breaking Change:** Major refactoring of the entire adapter structure.
