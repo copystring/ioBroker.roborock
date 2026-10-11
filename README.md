@@ -33,7 +33,7 @@ This adapter allows you the control, get states, cleaning history and view the m
 ## Supported robots
 
 - **S-Series:** S4, S4 Max, S5 Max, S6, S6 Pure, S6 MaxV, S7, S7 MaxV (Pro/Ultra), S7 Pro Ultra, S7 Max Ultra, S8, S8+, S8 Pro Ultra, S8 MaxV Ultra
-- **Q-Series:** Q5 Pro, Q7, Q7 Max, Q7 L5, Q8 Max
+- **Q-Series:** Q5 Pro, Q7, Q7 Pro, Q7 Max, Q7 L5, Q8 Max
 - **Q Revo:** Q Revo, Q Revo Pro
 - **Qrevo:** Qrevo Slim, Qrevo S, Qrevo Curve, Qrevo Curv Series, Qrevo Edge, Qrevo Edge Series, Qrevo L, Qrevo Master, Qrevo MaxV
 - **Saros:** Saros 10, Saros 10R, Saros 20 / Saros 20X, Saros Z70
@@ -47,10 +47,15 @@ This feature only works when map creation is enabled in the adapter options. Ope
  ![](https://github.com/copystring/ioBroker.roborock/blob/main/images/Rockrock_zone_cleaning.gif)
 
 ## Changelog
-<!--
-	Placeholder for the next version (at the beginning of the line):
-	### **WORK IN PROGRESS**
--->
+### **WORK IN PROGRESS**
+
+* (copystring) Added Roborock Q7 Pro support for maps, status and consumables.
+* (copystring) Improved multi-step scene execution and local connections for B01 devices.
+* (copystring) Coordinated UDP discovery when multiple adapter instances run.
+* (copystring) Corrected the Qrevo Edge 2 water mode mapping.
+* (gemsli) Fixed segment cleaning for rooms with inactive map states.
+* (copystring) Fixed cloud reauthentication after HomeData 401 responses and corrected S7 dock error handling.
+
 ### 0.7.4 (2026-06-07)
 
 * (copystring) Documented tested Roborock S8+ support.
