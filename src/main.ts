@@ -1018,16 +1018,8 @@ export class Roborock extends utils.Adapter {
 		if (handler) {
 			try {
 				await handler.updateStatus();
-			} catch (error: unknown) {
-				this.rLog(
-					"Requests",
-					duid,
-					"Warn",
-					handler.protocolVersion || undefined,
-					undefined,
-					`[Scene] Failed to update status while sequencing scene tasks: ${this.errorMessage(error)}`,
-					"warn"
-				);
+			} catch {
+				// Error is already logged in updateStatus()
 			}
 		}
 
@@ -2189,3 +2181,4 @@ if (require.main !== module) {
 	// otherwise start the instance directly
 	new Roborock();
 }
+

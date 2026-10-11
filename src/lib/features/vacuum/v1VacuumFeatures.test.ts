@@ -165,10 +165,12 @@ describe("V1VacuumFeatures", () => {
 
 	it("should use set_clean_repeat_times for generated segment clean payloads", async () => {
 		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a144", { staticFeatures: [] });
+		(vacuum as any).mapService.updateCurrentMapIndex(0);
 		adapterMock.getStateAsync.mockImplementation(async (id: string) => {
 			if (id === "Devices.duid1.commands.set_clean_repeat_times") return { val: 2 };
 			return undefined;
 		});
+		requestsHandlerMock.sendRequest.mockResolvedValue({ map_status: 0 });
 		adapterMock.getStatesAsync.mockResolvedValue({
 			"roborock.0.Devices.duid1.floors.0.7": { val: true },
 			"roborock.0.Devices.duid1.floors.0.8": { val: false },
@@ -177,12 +179,115 @@ describe("V1VacuumFeatures", () => {
 
 		const params = await vacuum.getCommandParams("app_segment_clean");
 
+		expect(adapterMock.getStatesAsync).toHaveBeenCalledWith("roborock.0.Devices.duid1.floors.0.*");
 		expect(params).toEqual([{
 			segments: [7, 9],
 			repeat: 2,
 			clean_order_mode: 0,
 			clean_mop: 0
 		}]);
+	});
+
+	it("should ignore selected rooms from inactive or stale floors", async () => {
+		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a144", { staticFeatures: [] });
+		(vacuum as any).mapService.updateCurrentMapIndex(0);
+		requestsHandlerMock.sendRequest.mockResolvedValue({ map_status: 0 });
+		adapterMock.getStatesAsync.mockImplementation(async (pattern: string) => {
+			expect(pattern).toBe("roborock.0.Devices.duid1.floors.0.*");
+			return {
+				"roborock.0.Devices.duid1.floors.0.17": { val: true },
+				"roborock.0.Devices.duid1.floors.0.18": { val: true }
+			};
+		});
+
+		const params = await vacuum.getCommandParams("app_segment_clean");
+
+		expect(params).toEqual([{
+			segments: [17, 18],
+			repeat: 1,
+			clean_order_mode: 0,
+			clean_mop: 0
+		}]);
+	});
+
+	it("should refresh a stale cached floor before collecting selected rooms", async () => {
+		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a144", { staticFeatures: [] });
+		(vacuum as any).mapService.updateCurrentMapIndex(0);
+		requestsHandlerMock.sendRequest.mockResolvedValue({ map_status: 4 });
+		adapterMock.getStatesAsync.mockResolvedValue({
+			"roborock.0.Devices.duid1.floors.1.21": { val: true }
+		});
+
+		const params = await vacuum.getCommandParams("app_segment_clean");
+
+		expect(requestsHandlerMock.sendRequest).toHaveBeenCalledWith("duid1", "get_prop", ["get_status"]);
+		expect(adapterMock.getStatesAsync).toHaveBeenCalledWith("roborock.0.Devices.duid1.floors.1.*");
+		expect(params).toEqual([{
+			segments: [21],
+			repeat: 1,
+			clean_order_mode: 0,
+			clean_mop: 0
+		}]);
+	});
+
+	it("should fail closed while the robot is positioning", async () => {
+		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a144", { staticFeatures: [] });
+		(vacuum as any).mapService.updateCurrentMapIndex(0);
+		requestsHandlerMock.sendRequest.mockResolvedValue({ map_status: 250 });
+
+		const params = await vacuum.getCommandParams("app_segment_clean");
+
+		expect(params).toEqual([]);
+		expect(adapterMock.getStatesAsync).not.toHaveBeenCalled();
+		expect(adapterMock.rLog).toHaveBeenCalledWith(
+			"System",
+			"duid1",
+			"Warn",
+			"1.0",
+			undefined,
+			"Cannot start segment cleaning because active map is unknown or robot is still positioning",
+			"warn"
+		);
+	});
+
+	it("should fail closed when refreshing robot status fails", async () => {
+		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a144", { staticFeatures: [] });
+		(vacuum as any).mapService.updateCurrentMapIndex(0);
+		requestsHandlerMock.sendRequest.mockRejectedValue(new Error("offline"));
+
+		const params = await vacuum.getCommandParams("app_segment_clean");
+
+		expect(params).toEqual([]);
+		expect(adapterMock.getStatesAsync).not.toHaveBeenCalled();
+		expect(adapterMock.rLog).toHaveBeenCalledWith(
+			"System",
+			"duid1",
+			"Warn",
+			"1.0",
+			undefined,
+			"Cannot start segment cleaning: Failed to fetch fresh robot status (offline)",
+			"warn"
+		);
+	});
+
+	it("should fail closed when fresh status omits map status even after a previously known floor", async () => {
+		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a144", { staticFeatures: [] });
+		(vacuum as any).mapService.updateCurrentMapIndex(0);
+		requestsHandlerMock.sendRequest.mockResolvedValue({});
+
+		const params = await vacuum.getCommandParams("app_segment_clean");
+
+		expect(params).toEqual([]);
+		expect(adapterMock.getStatesAsync).not.toHaveBeenCalled();
+		expect(adapterMock.rLog).toHaveBeenCalledWith(
+			"System",
+			"duid1",
+			"Warn",
+			"1.0",
+			undefined,
+			"Cannot start segment cleaning because active map is unknown or robot is still positioning",
+			"warn"
+		);
 	});
 
 	it("should use set_clean_repeat_times when explicit room ids are supplied", async () => {
