@@ -340,12 +340,37 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 				return params;
 			}
 
-			// Gather selected rooms from floors
+			// Refresh status before resolving the active floor so a recent relocation cannot
+			// use a stale in-memory map index. Invalidate only the status freshness marker
+			// first so a successful response without map_status also fails closed.
+			this.mapService.invalidateCurrentStatus();
+			try {
+				await this.updateStatus();
+			} catch (e: any) {
+				this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, "Cannot start segment cleaning: Failed to fetch fresh robot status (" + e.message + ")", "warn");
+				return [];
+			}
+
+			const currentMapStatus = this.mapService.currentStatus;
+			if (!Number.isFinite(currentMapStatus) || currentMapStatus < 0 || currentMapStatus >= 250) {
+				this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, "Cannot start segment cleaning because active map is unknown or robot is still positioning", "warn");
+				return [];
+			}
+
+			// Gather selected rooms from the currently active floor only.
+			// Old/stale room states can remain under other floor IDs and must not leak into
+			// a segment-clean request for the active map.
+			const currentMapIndex = this.getCurrentMapIndex();
+			if (currentMapIndex < 0) {
+				this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, "Cannot start segment cleaning because the active map is unknown", "warn");
+				return [];
+			}
+
 			const namespace = this.deps.adapter.namespace;
-			// Pattern to find states under floors. Structure: Devices.<duid>.floors.<floorID>.<roomID>
-			const pattern = `${namespace}.Devices.${this.duid}.floors.*.*`;
+			// Structure: Devices.<duid>.floors.<floorID>.<roomID>
+			const pattern = namespace + ".Devices." + this.duid + ".floors." + currentMapIndex + ".*";
 			const states = await this.deps.adapter.getStatesAsync(pattern);
-			const roomIds: number[] = [];
+			const roomIds = new Set<number>();
 
 			if (states) {
 				for (const [id, state] of Object.entries(states)) {
@@ -354,19 +379,20 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 						const parts = id.split(".");
 						const rid = Number(parts[parts.length - 1]);
 						if (!isNaN(rid)) {
-							roomIds.push(rid);
+							roomIds.add(rid);
 						}
 					}
 				}
 			}
 
-			if (roomIds.length > 0) {
-				this.deps.adapter.rLog("System", this.duid, "Info", "1.0", undefined, `Starting segment cleaning for rooms: ${roomIds.join(", ")} with repeat ${repeat}`, "info");
+			if (roomIds.size > 0) {
+				const selectedRoomIds = Array.from(roomIds);
+				this.deps.adapter.rLog("System", this.duid, "Info", "1.0", undefined, "Starting segment cleaning for rooms: " + selectedRoomIds.join(", ") + " with repeat " + repeat, "info");
 
 				// Params:
 				// params: [{"clean_mop":0,"clean_order_mode":0,"repeat":2,"segments":[2,1]}]
 				const payload = [{
-					segments: roomIds,
+					segments: selectedRoomIds,
 					repeat,
 					clean_order_mode: 0,
 					clean_mop: 0
