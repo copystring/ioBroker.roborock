@@ -13,7 +13,6 @@
 scripts/.githooks/*
 !scripts/.githooks/pre-push
 !.npmrc
-!.commitmessage
 
 *.code-workspace
 node_modules
