@@ -47,6 +47,10 @@ This feature only works when map creation is enabled in the adapter options. Ope
  ![](https://github.com/copystring/ioBroker.roborock/blob/main/images/Rockrock_zone_cleaning.gif)
 
 ## Changelog
+<!--
+	Placeholder for the next version (at the beginning of the line):
+	### **WORK IN PROGRESS**
+-->
 ### **WORK IN PROGRESS**
 
 * (copystring) Added Roborock Q7 Pro support for maps, status and consumables.
