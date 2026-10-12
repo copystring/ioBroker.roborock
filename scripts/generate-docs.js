@@ -96,7 +96,8 @@ function clearDocs(dir) {
             }
         } else {
             if (file === 'README.md') continue; // Preserve main README
-            if (file.endsWith('.md')) {
+            // Own only generated books; source contracts and test guides are authored documents.
+            if (file.endsWith('.md') && fs.readFileSync(filePath, 'utf8').includes('> **Auto-Generated**: This document is generated from the source code/tests')) {
                 fs.unlinkSync(filePath);
             }
         }

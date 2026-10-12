@@ -2,6 +2,7 @@ import PQueue from "p-queue";
 import type { Roborock } from "../main";
 import { Q10CommandHandler } from "./b01/q10/Q10CommandHandler";
 import { isConnectivityLikeError } from "./errorUtils";
+import { isLegacyVacuumDuid } from "./legacyDevicePolicy";
 import type { BaseDeviceFeatures } from "./features/baseDeviceFeatures";
 import { messageParser } from "./messageParser";
 
@@ -144,6 +145,7 @@ export class RoborockRequest {
 		const queueDuration = Date.now() - this.creationTime;
 
 		if (signal?.aborted) throw new Error("Aborted");
+		if (!isLegacyVacuumDuid(this.adapter.http_api, this.duid)) throw new Error("Vacuum RPC is not supported for this device class");
 
 		// Assign fresh Message ID right before sending
 		if (this.method === "get_photo") {
@@ -436,6 +438,7 @@ export class requestsHandler {
 	}
 
 	async sendRequest(duid: string, method: string, params: unknown, options: { priority?: number; timeout?: number } = {}) {
+		if (!isLegacyVacuumDuid(this.adapter.http_api, duid)) throw new Error("Vacuum RPC is not supported for this device class");
 		const version = await this.adapter.getDeviceProtocolVersion(duid);
 
 		let manager = this.globalManager;
@@ -505,6 +508,7 @@ export class requestsHandler {
 	 * correlated response. The device answers via async DP shadow / protocol 102 / 301.
 	 */
 	public async publishB01Dp(duid: string, dps: Record<string, unknown>): Promise<void> {
+		if (!isLegacyVacuumDuid(this.adapter.http_api, duid)) throw new Error("Vacuum RPC is not supported for this device class");
 		const timestamp = Math.floor(Date.now() / 1000);
 		const payload = JSON.stringify({ dps, t: timestamp });
 		const roborockMessage = await this.messageParser.buildRoborockMessage(duid, 101, timestamp, payload, "B01");
@@ -518,6 +522,7 @@ export class requestsHandler {
 	}
 
 	async command(_handler: BaseDeviceFeatures, duid: string, method: string, params?: unknown, id?: string) {
+		if (!isLegacyVacuumDuid(this.adapter.http_api, duid)) throw new Error("Vacuum RPC is not supported for this device class");
 		const b01Variant = await this.adapter.getB01Variant?.(duid);
 		if (b01Variant === "Q10") {
 			await this.getQ10CommandHandler().handleCommand(_handler, duid, method, params);
