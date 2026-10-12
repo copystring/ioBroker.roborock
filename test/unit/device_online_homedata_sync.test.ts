@@ -31,6 +31,8 @@ describe("device online state sync from HomeData", () => {
 			http_api: {
 				updateHomeData: vi.fn().mockResolvedValue(undefined),
 				getDevices: () => devices,
+				getRobotModel: () => "roborock.vacuum.test",
+				getProductCategory: () => "robot.vacuum.cleaner",
 			},
 			updateDeviceInfo: vi.fn().mockResolvedValue(undefined),
 			getDeviceProtocolVersion: vi.fn().mockResolvedValue("B01"),

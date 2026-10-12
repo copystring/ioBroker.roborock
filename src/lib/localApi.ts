@@ -5,6 +5,7 @@ import * as dgram from "node:dgram";
 import { isIP, Socket, SocketConstructorOpts } from "node:net";
 import * as ping from "ping";
 import type { Roborock } from "../main";
+import { isLegacyVacuumDuid } from "./legacyDevicePolicy";
 
 const UDP_DISCOVERY_PORT = 58866;
 const TCP_CONNECTION_PORT = 58867;
@@ -186,6 +187,7 @@ export class local_api {
 	 */
 
 	async initiateClient(duid: string, suppressLog: boolean = false, timeoutMs = 5000): Promise<void> {
+		if (!isLegacyVacuumDuid(this.adapter.http_api, duid)) return;
 		let promise = this.connectPromises.get(duid);
 
 		if (!promise) {
@@ -268,6 +270,10 @@ export class local_api {
 		// Handle incoming data
 		client.on("data", async (message: Buffer) => {
 			try {
+				if (!isLegacyVacuumDuid(this.adapter.http_api, duid)) {
+					this.resetDeviceSocket(duid, "device is outside vacuum control");
+					return;
+				}
 				client.lastReceivedAt = Date.now();
 				client.receivedBytes += message.length;
 				this.adapter.rLog("TCP", duid, "<-", this.getLocalProtocolVersion(duid) ?? undefined, undefined, `raw data | bytes=${message.length} | totalRx=${client.receivedBytes} | bufferedBefore=${client.chunkBuffer.length}`, "debug");
@@ -419,6 +425,10 @@ export class local_api {
 	}
 
 	private checkTcpActivity(duid: string): void {
+		if (!isLegacyVacuumDuid(this.adapter.http_api, duid)) {
+			this.resetDeviceSocket(duid, "device is outside vacuum control");
+			return;
+		}
 		const client = this.deviceSockets[duid];
 		if (!client?.connected || !this.isConnected(duid)) return;
 
@@ -503,6 +513,7 @@ export class local_api {
 
 	/** Schedules reconnect in 5s. */
 	scheduleReconnect(duid: string, reason: string, silent = false): void {
+		if (!isLegacyVacuumDuid(this.adapter.http_api, duid)) return;
 		this.adapter.rLog("TCP", duid, "Debug", undefined, undefined, `TCP ${reason} for ${duid}, retry in 5s`, "debug");
 		this.resetDeviceSocket(duid, reason);
 
@@ -708,6 +719,7 @@ export class local_api {
 	}
 
 	public updateLocalEndpoint(duid: string, ip: string, version: string, source: LocalEndpointSource = "network_info"): boolean {
+		if (!isLegacyVacuumDuid(this.adapter.http_api, duid)) return false;
 		if (!duid || typeof duid !== "string" || !ip || isIP(ip) === 0 || !version) return false;
 
 		const now = Date.now();
@@ -809,6 +821,7 @@ export class local_api {
 	}
 
 	private async refreshEndpointInternal(duid: string, reason: string): Promise<boolean> {
+		if (!isLegacyVacuumDuid(this.adapter.http_api, duid)) return false;
 		const endpoint = await this.fetchNetworkInfoEndpoint(duid, reason);
 		if (!endpoint) {
 			return false;
@@ -820,6 +833,7 @@ export class local_api {
 	}
 
 	public async probeLocalEndpointFromNetworkInfo(duid: string, reason = "endpoint probe", tcpTimeoutMs = 5000, suppressLog = false, networkInfoTimeoutMs = 5000): Promise<boolean> {
+		if (!isLegacyVacuumDuid(this.adapter.http_api, duid)) return false;
 		const endpoint = await this.fetchNetworkInfoEndpoint(duid, reason, networkInfoTimeoutMs);
 		if (!endpoint) {
 			return false;
@@ -831,7 +845,7 @@ export class local_api {
 	public async refreshStaleLocalEndpoints(reason = "scheduled endpoint refresh"): Promise<void> {
 		const duids = Object.keys(this.localDevices).filter((duid) => {
 			const dev = this.localDevices[duid];
-			return !!dev?.ip && !this.isConnected(duid);
+			return isLegacyVacuumDuid(this.adapter.http_api, duid) && !!dev?.ip && !this.isConnected(duid);
 		});
 
 		await Promise.all(duids.map((duid) => this.refreshEndpoint(duid, reason).catch((e: unknown) => {
@@ -1221,7 +1235,7 @@ export class local_api {
 
 		const localKeys = this.adapter.http_api.getMatchedLocalKeys();
 		for (const [duid, endpoint] of Object.entries(cache.endpoints)) {
-			if (!localKeys.get(duid)) continue;
+			if (!localKeys.get(duid) || !isLegacyVacuumDuid(this.adapter.http_api, duid)) continue;
 			if (!endpoint || now - endpoint.lastSeenAt > local_api.UDP_DISCOVERY_ENDPOINT_STALE_MS) continue;
 			this.updateLocalEndpoint(duid, endpoint.ip, endpoint.version, "udp_peer");
 		}
@@ -1371,7 +1385,7 @@ export class local_api {
 			const localKey = localKeys.get(duid);
 
 			// Only track devices we have a key for
-			if (!localKey) return;
+			if (!localKey || !isLegacyVacuumDuid(this.adapter.http_api, duid)) return;
 
 			this.updateLocalEndpoint(duid, ip, version, "udp");
 			this.publishUdpDiscoveryEndpoints().catch((e: unknown) => this.adapter.rLog("UDP", null, "Debug", undefined, undefined, `Could not publish UDP discovery endpoints: ${this.adapter.errorMessage(e)}`, "debug"));
@@ -1383,7 +1397,7 @@ export class local_api {
 	private getExpectedOwnedDiscoveryDuids(): string[] {
 		const allDevices = this.adapter.http_api.getDevices();
 		return allDevices
-			.filter((d) => d.online !== false && !this.adapter.http_api.isSharedDevice(d.duid))
+			.filter((d) => d.online !== false && !this.adapter.http_api.isSharedDevice(d.duid) && isLegacyVacuumDuid(this.adapter.http_api, d.duid))
 			.map((d) => d.duid);
 	}
 
@@ -1391,7 +1405,7 @@ export class local_api {
 		return Object.keys(this.localDevices).filter((duid) => {
 			const dev = this.localDevices[duid];
 			if (!dev?.lastSeenAt || dev.lastSeenAt < startedAt) return false;
-			return !onlyOwned || !this.adapter.http_api.isSharedDevice(duid);
+			return isLegacyVacuumDuid(this.adapter.http_api, duid) && (!onlyOwned || !this.adapter.http_api.isSharedDevice(duid));
 		});
 	}
 
@@ -1456,6 +1470,7 @@ export class local_api {
 	 */
 
 	async checkAndPromoteLocalConnection(duid: string, ip: string, timeoutMs = 5000, suppressLog = false): Promise<boolean> {
+		if (!isLegacyVacuumDuid(this.adapter.http_api, duid)) return false;
 		if (this.isConnected(duid)) return true;		// Register temporarily to allow initiateClient to work
 		if (!this.localDevices[duid]) {
 			// Fetch protocol version (mapped from cloud pv)
@@ -1506,6 +1521,7 @@ export class local_api {
 
 	/** App-style CONNECT packet, once per TCP socket session. */
 	async sendHello(duid: string, connectNonce: number, version: string): Promise<void> {
+		if (!isLegacyVacuumDuid(this.adapter.http_api, duid)) return;
 		const keepAliveSeconds = 10;
 		const protocol = 0; // SocketFrameType.CONNECT
 
