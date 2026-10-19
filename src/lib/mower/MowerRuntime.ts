@@ -92,7 +92,7 @@ export class MowerRuntime {
 		for (const [command, name] of [["mowAreas", "Mow selected areas"], ["mowEdges", "Mow selected area edges"]]) {
 			await this.adapter.ensureState(`${prefix}.mowerCommands.${command}`, { name: `${name}: JSON mapName and boundaryIds`, type: "string", role: "json", read: true, write: this.services.maps !== undefined, def: "" });
 		}
-		await this.adapter.ensureState(`${prefix}.mowerCommands.setRainfall`, { name: "Set rainfall configuration: JSON enable and delayHours (0, 3, 8)", type: "string", role: "json", read: true, write: true, def: "" });
+		await this.adapter.ensureState(`${prefix}.mowerCommands.setRainfall`, { name: "Set rainfall configuration: delayHours (0, 3, 8) or JSON enable and delayHours", type: "string", role: "json", read: true, write: true, def: "" });
 		await this.adapter.ensureState(`${prefix}.mowerCommands.setNotDisturb`, { name: "Set not-disturb: JSON enable, start and end (app clock HH:MM, five-minute steps)", type: "string", role: "json", read: true, write: true, def: "" });
 		await this.adapter.ensureState(`${prefix}.mowerCommands.setCuttingHeight`, { name: "Set cutting height via connected Bluetooth", type: "number", role: "level", unit: "mm", read: false, write: this.services.ble !== undefined });
 		for (const command of Object.keys(SCHEDULE_ACTIONS)) {
@@ -170,12 +170,18 @@ export class MowerRuntime {
 		const jsonCommand = rainfall || notDisturb || scheduleAction !== undefined || areas;
 		if (!jsonCommand && !cuttingHeight && (!Object.hasOwn(COMMAND_NAMES, command) || state.val !== true)) return;
 		if (cuttingHeight && typeof state.val !== "number") return;
-		if (jsonCommand && (typeof state.val !== "string" || state.val === "")) return;
+		if (rainfall) {
+			if ((typeof state.val !== "string" && typeof state.val !== "number") || state.val === "" || (typeof state.val === "number" && !Number.isFinite(state.val))) return;
+		} else if (jsonCommand && (typeof state.val !== "string" || state.val === "")) {
+			return;
+		}
 		if (id !== `${this.adapter.namespace}.Devices.${duid}.mowerCommands.${command}`) return;
 		const object = await this.adapter.getObjectAsync(id);
-		if (object?.type !== "state" || object.common.write !== true || object.common.type !== (cuttingHeight ? "number" : jsonCommand ? "string" : "boolean") || object.common.role !== (cuttingHeight ? "level" : jsonCommand ? "json" : "button")) return;
+		const expectedType = cuttingHeight ? "number" : jsonCommand ? "string" : "boolean";
+		const typeMatches = rainfall ? (object?.common?.type === "string" || object?.common?.type === "mixed") : object?.common?.type === expectedType;
+		if (object?.type !== "state" || object.common.write !== true || !typeMatches || object.common.role !== (cuttingHeight ? "level" : jsonCommand ? "json" : "button")) return;
 		if (this.devices.get(duid) !== entry || !this.isRegistered(duid)) return;
-		const setting = rainfall ? parseMowerRainfallSetting(JSON.parse(state.val as string)) : undefined;
+		const setting = rainfall ? parseMowerRainfallSetting(state.val) : undefined;
 		const dnd = notDisturb ? parseMowerNotDisturbSetting(JSON.parse(state.val as string)) : undefined;
 		const schedulePlan: unknown = scheduleAction ? JSON.parse(state.val as string) : undefined;
 		// Validate the complete plan before acknowledging input or requesting device data.

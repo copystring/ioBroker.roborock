@@ -167,6 +167,8 @@ describe("S108 mower runtime integration", () => {
 			await onStateChange("setRainfall", '{"enable":true,"delayHours":4}');
 			await onStateChange("setRainfall", '{"enable":true}');
 			await onStateChange("setRainfall", "invalid");
+			await onStateChange("setRainfall", 4);
+			await onStateChange("setRainfall", "4");
 			expect(published).toHaveLength(0);
 			const pending = onStateChange("setRainfall", '{"enable":true,"delayHours":3}');
 			await vi.waitFor(() => expect(published).toHaveLength(1));
@@ -188,6 +190,31 @@ describe("S108 mower runtime integration", () => {
 			expect(adapter.states["Devices.mower.mowerStatus.rainEnabled"]).toBe(false);
 			expect(adapter.states["Devices.mower.mowerStatus.rainDelayHours"]).toBe(0);
 			expect(adapter.states["Devices.mower.mowerStatus.battery"]).toBeUndefined();
+		} finally { adapter.mowerRuntime.stop(); }
+	});
+
+	it("accepts plain number and numeric string for setRainfall", async () => {
+		const { adapter, published, onStateChange, onMessage } = await setup();
+		const ackRpc = async (index: number) => {
+			await vi.waitFor(() => expect(published.length).toBeGreaterThan(index));
+			const [frame] = adapter.requestsHandler.messageParser.decodeMsg(published[index].frame, "mower");
+			const rpc = JSON.parse(JSON.parse(frame.payload.toString("utf8")).dps["101"]);
+			const ack = await adapter.requestsHandler.messageParser.buildRoborockMessage("mower", 102, Math.floor(Date.now() / 1000), JSON.stringify({ dps: { "102": JSON.stringify({ id: rpc.id, result: "ok" }) } }), "1.0");
+			await onMessage(ack as Buffer);
+			return rpc;
+		};
+		try {
+			const pending1 = onStateChange("setRainfall", 8);
+			const rpc1 = await ackRpc(0);
+			expect(rpc1.params).toMatchObject({ type: "SET_RAINFALL", rainfall_config: { enable: true, delay_time: 8 } });
+			await ackRpc(1);
+			await pending1;
+
+			const pending2 = onStateChange("setRainfall", "3");
+			const rpc2 = await ackRpc(2);
+			expect(rpc2.params).toMatchObject({ type: "SET_RAINFALL", rainfall_config: { enable: true, delay_time: 3 } });
+			await ackRpc(3);
+			await pending2;
 		} finally { adapter.mowerRuntime.stop(); }
 	});
 

@@ -58,6 +58,27 @@ export function buildMowerNotDisturbRequest(setting: MowerNotDisturbSetting, tim
 }
 
 export function parseMowerRainfallSetting(value: unknown): MowerRainfallSetting {
+	if (typeof value === "string") {
+		const trimmed = value.trim();
+		if (trimmed === "0" || trimmed === "3" || trimmed === "8") {
+			return { enable: true, delayHours: Number(trimmed) as 0 | 3 | 8 };
+		}
+		try {
+			const parsed = JSON.parse(value);
+			if (typeof parsed === "number" || (typeof parsed === "object" && parsed !== null)) {
+				return parseMowerRainfallSetting(parsed);
+			}
+		} catch {
+			// fall through to error
+		}
+		throw new Error("Rainfall setting requires boolean enable and delayHours of 0, 3 or 8");
+	}
+	if (typeof value === "number") {
+		if (value === 0 || value === 3 || value === 8) {
+			return { enable: true, delayHours: value };
+		}
+		throw new Error("Rainfall setting requires boolean enable and delayHours of 0, 3 or 8");
+	}
 	if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Rainfall setting must contain enable and delayHours");
 	const fields = value as Record<string, unknown>;
 	if (Object.keys(fields).length !== 2 || !Object.hasOwn(fields, "enable") || !Object.hasOwn(fields, "delayHours") || typeof fields.enable !== "boolean" || (fields.delayHours !== 0 && fields.delayHours !== 3 && fields.delayHours !== 8)) {

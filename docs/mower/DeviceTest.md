@@ -14,7 +14,7 @@ This guide validates the source-derived implementation on `roborock.mower.a266`.
 
 Write `true` to `mowerCommands.refreshSettings` and compare `mowerStatus.rainEnabled` and `rainDelayHours` with the app. Save those original values before testing a change.
 
-Write a JSON string to `mowerCommands.setRainfall`, for example `{"enable":true,"delayHours":3}`. Supported delay values are 0, 3 and 8 hours. Zero means immediate resumption, independently of enable/disable. The input clears after ingestion; a separate settings query follows the command acknowledgement. Only the actual USER_MODE_CONFIG response changes the read-only rainfall values. Verify the app's setting and then restore the saved original values with another complete JSON input.
+Write a delay number (`0`, `3`, `8`) or a complete JSON string to `mowerCommands.setRainfall`, for example `8` or `{"enable":true,"delayHours":3}`. Supported delay values are 0, 3 and 8 hours. Zero means immediate resumption, independently of enable/disable. The input clears after ingestion; a separate settings query follows the command acknowledgement. Only the actual USER_MODE_CONFIG response changes the read-only rainfall values. Verify the app's setting and then restore the saved original values with another complete JSON input or delay number.
 
 ## Not-disturb configuration
 

@@ -14,8 +14,22 @@ describe("original mower RemoteMsg JSON contract", () => {
 		expect(buildMowerRainfallRequest({ enable: true, delayHours }, 123)).toEqual({ id: "123", type: "SET_RAINFALL", rainfall_config: { enable: true, delay_time: delayHours } });
 		expect(buildMowerSettingsRequest(124)).toEqual({ id: "124", type: "GET_USER_MODE_CONFIG" });
 	});
-	it.each([null, {}, { enable: true }, { enable: "true", delayHours: 3 }, { enable: false, delayHours: 4 }, { enable: true, delayHours: 3, extra: 1 }])("rejects incomplete or unsupported rainfall input %j", value => {
+	it.each([null, {}, { enable: true }, { enable: "true", delayHours: 3 }, { enable: false, delayHours: 4 }, { enable: true, delayHours: 3, extra: 1 }, 4, -1, "4", "invalid"])("rejects incomplete or unsupported rainfall input %j", value => {
 		expect(() => parseMowerRainfallSetting(value)).toThrow("Rainfall setting");
+	});
+	it.each([
+		[0, { enable: true, delayHours: 0 }],
+		[3, { enable: true, delayHours: 3 }],
+		[8, { enable: true, delayHours: 8 }],
+		["0", { enable: true, delayHours: 0 }],
+		["3", { enable: true, delayHours: 3 }],
+		["8", { enable: true, delayHours: 8 }],
+		['{"enable":true,"delayHours":8}', { enable: true, delayHours: 8 }],
+		['{"enable":false,"delayHours":0}', { enable: false, delayHours: 0 }],
+		[{ enable: true, delayHours: 8 }, { enable: true, delayHours: 8 }],
+		[{ enable: false, delayHours: 3 }, { enable: false, delayHours: 3 }],
+	] as const)("accepts plain number and JSON rainfall input %j", (input, expected) => {
+		expect(parseMowerRainfallSetting(input)).toEqual(expected);
 	});
 	it.each([
 		["start", "MOW_GLOBAL"], ["pause", "MOW_PAUSE"], ["resume", "MOW_RESUME"], ["stop", "MOW_END"], ["charge", "CHARGE"],
