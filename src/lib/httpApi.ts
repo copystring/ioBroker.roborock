@@ -4,6 +4,7 @@ import * as crypto from "node:crypto";
 import { Roborock } from "../main";
 import { LoginV4Response, ProductV5Response } from "./apiTypes";
 import { cryptoEngine } from "./cryptoEngine";
+import { createIotHawkAuthorization } from "./iotHawk";
 
 // Constants
 const API_V3_SIGN = "api/v3/key/sign";
@@ -101,13 +102,6 @@ interface HomeData {
 	devices: Device[];
 	receivedDevices: Device[];
 	rooms: Room[];
-}
-
-/**
- * Helper to calculate MD5 hex string
- */
-function md5hex(str: string): string {
-	return crypto.createHash("md5").update(str).digest("hex");
 }
 
 function getHttpErrorResponse(error: unknown): { status?: number; data?: unknown; headers?: unknown } | undefined {
@@ -440,26 +434,42 @@ export class http_api {
 					.substring(0, 6)
 					.replace(/[+/]/g, (m) => (m === "+" ? "X" : "Y"));
 
-				// Calculate signature
-				let urlPath = "";
-				if (config.url) {
-					// Handle relative URLs correctly by creating a dummy base if needed
-					// or using the instance's baseURL if config.url is relative
-					const fullUrl = axios.getUri(config);
-					try {
-						// Provide a dummy base to handle relative URLs returned by getUri
-						const urlObj = new URL(fullUrl, "http://dummy");
-						urlPath = urlObj.pathname + urlObj.search;
-					} catch {
-						// Fallback if URL construction fails
-						urlPath = config.url || "";
+				let body: string | Buffer | undefined;
+				if (typeof config.data === "string" || Buffer.isBuffer(config.data)) {
+					body = config.data;
+				} else if (config.data instanceof URLSearchParams) {
+					body = config.data.toString();
+					config.data = body;
+					config.headers.setContentType("application/x-www-form-urlencoded; charset=utf-8");
+				} else if (Array.isArray(config.data) || (config.data != null && Object.getPrototypeOf(config.data) === Object.prototype)) {
+					if (String(config.headers.getContentType() ?? "").includes("application/x-www-form-urlencoded")) throw new Error("URL-encoded IoT body must be a string or URLSearchParams");
+					body = JSON.stringify(config.data);
+					config.data = body;
+					config.headers.setContentType("application/json; charset=utf-8");
+				} else if (config.data != null) {
+					throw new Error("Unsupported IoT request body type");
+				}
+				if (body !== undefined) {
+					const contentType = String(config.headers.getContentType() ?? "").toLowerCase();
+					if (!contentType.includes("application/json") && !contentType.includes("application/x-www-form-urlencoded")) {
+						throw new Error("IoT request body requires JSON or URL-encoded Content-Type");
 					}
+					// Axios normally transforms string bodies after request interceptors. Preserve signed bytes.
+					config.transformRequest = [(data: unknown) => data];
 				}
 
-				const prestr = [rriot.u, rriot.s, nonce, timestamp, md5hex(urlPath), "", ""].join(":");
-				const mac = crypto.createHmac("sha256", rriot.h).update(prestr).digest("base64");
-
-				config.headers["Authorization"] = `Hawk id="${rriot.u}", s="${rriot.s}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
+				const signed = createIotHawkAuthorization({
+					url: axios.getUri(config),
+					method: config.method ?? "GET",
+					contentType: config.headers.getContentType()?.toString(),
+					body,
+					uid: rriot.u,
+					session: rriot.s,
+					secret: rriot.h,
+					nonce,
+					timestamp,
+				});
+				config.headers["Authorization"] = signed.authorization;
 
 				return config;
 			});
@@ -807,6 +817,17 @@ export class http_api {
 			return [];
 		}
 		return [...(this.homeData.devices || []), ...(this.homeData.receivedDevices || [])];
+	}
+
+	/** Reads the manufacturer's raw IoT shadow for a device in the loaded home. */
+	async getDeviceShadow(duid: string): Promise<unknown> {
+		if (!this.getDevices().some(device => device.duid === duid)) {
+			throw new Error("Device not found in local homeData");
+		}
+		if (!this.realApi) throw new Error("realApi is not initialized.");
+
+		const res = await this.realApi.get(`devices/${encodeURIComponent(duid)}/shadow`);
+		return res.data;
 	}
 
 	getReceivedDevices(): Device[] {

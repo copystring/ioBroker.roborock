@@ -12,7 +12,7 @@ describe("local_api transport sequence", () => {
 		const parser = new messageParser(adapter);
 		const sentMessages: Buffer[] = [];
 
-		adapter.http_api = { getMatchedLocalKeys: () => new Map([[duid, "0011223344556677"]]) };
+		adapter.http_api = { getMatchedLocalKeys: () => new Map([[duid, "0011223344556677"]]), getRobotModel: () => "roborock.vacuum.test", getProductCategory: () => "robot.vacuum.cleaner" };
 		adapter.local_api = api;
 		adapter.requestsHandler = { messageParser: parser };
 		api.sendMessage = (_duid: string, message: Buffer) => {
@@ -492,6 +492,8 @@ describe("local_api transport sequence", () => {
 		adapter.namespace = "roborock.1";
 		adapter.http_api = {
 			getMatchedLocalKeys: () => new Map([[duid, "0011223344556677"]]),
+			getRobotModel: () => "roborock.vacuum.test",
+			getProductCategory: () => "robot.vacuum.cleaner",
 			getDevices: () => [],
 			isSharedDevice: () => false,
 		};
