@@ -294,6 +294,7 @@ export class Roborock extends utils.Adapter {
 				...Array.from(writableFolders).map((folder) => this.subscribeStatesAsync(`Devices.*.${folder}.*`)),
 				this.subscribeStatesAsync("Devices.*.resetConsumables.*"),
 				this.subscribeStatesAsync("Devices.*.programs.*"),
+				this.subscribeStatesAsync("Devices.*.floors.*.load"),
 				this.subscribeStatesAsync("Devices.*.deviceStatus.state"),
 				this.subscribeStatesAsync("Devices.*.deviceStatus.status"),
 				this.subscribeStatesAsync("loginCode")

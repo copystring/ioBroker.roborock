@@ -51,6 +51,10 @@ This feature only works when map creation is enabled in the adapter options. Ope
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (Gaspode69) Fixed floor map loading by subscribing to floor load states.
+
 ### 0.8.0 (2026-10-11)
 
 * (copystring) Added Roborock Q7 Pro support for maps, status and consumables.
