@@ -19,6 +19,7 @@ This adapter allows you the control, get states, cleaning history and view the m
 - [Requirements](#requirements)
 - [Supported robots](#supported-robots)
 - [Zone cleaning](#zone-cleaning)
+- [Script usage](#script-usage)
 - [Changelog](#changelog)
 - [License](#license)
 
@@ -46,11 +47,29 @@ This feature only works when map creation is enabled in the adapter options. Ope
 
  ![](https://github.com/copystring/ioBroker.roborock/blob/main/images/Rockrock_zone_cleaning.gif)
 
+## Script usage
+
+### Refresh device status
+
+The `refresh_status` sendTo command requests an immediate status update for one device. Replace `DEVICE_DUID` with the ID below `roborock.0.Devices`:
+
+```javascript
+sendTo("roborock.0", "refresh_status", { duid: "DEVICE_DUID" }, response => {
+    log(JSON.stringify(response));
+});
+```
+
+The callback receives `{ result: "ok" }` after a successful refresh or an `{ error: "..." }` response if the request cannot be completed.
+
 ## Changelog
 <!--
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (Gaspode69) Added a `refresh_status` sendTo command for on-demand device status updates.
+
 ### 0.8.0 (2026-10-11)
 
 * (copystring) Added Roborock Q7 Pro support for maps, status and consumables.

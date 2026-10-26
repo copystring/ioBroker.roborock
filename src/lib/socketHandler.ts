@@ -23,6 +23,7 @@ export class socketHandler {
 		// Initialize command map
 		this.commandHandlers = new Map<string, MessageHandler>();
 		this.commandHandlers.set("getDeviceList", () => this.handleGetDeviceList());
+		this.commandHandlers.set("refresh_status", (msg) => this.handleRefreshStatus(msg.duid));
 
 		this.commandHandlers.set("app_start", (msg, id) => this.handleSimpleCommand(msg.duid, "app_start", id));
 		this.commandHandlers.set("app_pause", (msg, id) => this.handleSimpleCommand(msg.duid, "app_pause", id));
@@ -249,6 +250,20 @@ export class socketHandler {
 
 		this.adapter.rLog("System", null, "Debug", undefined, undefined, `Returning robot list: ${JSON.stringify(robotList)}`, "debug");
 		return robotList;
+	}
+
+	/**
+	 * Refreshes the current status for a device.
+	 */
+	private async handleRefreshStatus(duid: string): Promise<{ result: string }> {
+		if (!duid) throw new Error("Invalid message: 'refresh_status' requires a 'duid'.");
+		this.adapter.rLog("System", duid, "Debug", undefined, undefined, "Refreshing device status on request.", "debug");
+
+		const handler = this.adapter.deviceFeatureHandlers.get(duid);
+		if (!handler) throw new Error(`No handler for DUID ${duid}`);
+
+		await handler.updateStatus();
+		return { result: "ok" };
 	}
 
 	/**
