@@ -3,6 +3,7 @@ import type { Roborock } from "../main";
 import { Q10CommandHandler } from "./b01/q10/Q10CommandHandler";
 import { isConnectivityLikeError } from "./errorUtils";
 import type { BaseDeviceFeatures } from "./features/baseDeviceFeatures";
+import { SKIP_COMMAND } from "./features/baseDeviceFeatures";
 import { messageParser } from "./messageParser";
 
 const REQUEST_TIMEOUT = 10000;
@@ -529,6 +530,9 @@ export class requestsHandler {
 
 		if (_handler) {
 			const intercepted = await _handler.getCommandParams(method, params, id);
+			if (intercepted === SKIP_COMMAND) {
+				return;
+			}
 			if (typeof intercepted === "object" && intercepted !== null && "method" in intercepted && "params" in intercepted) {
 				finalMethod = (intercepted as any).method;
 				finalParams = (intercepted as any).params;
