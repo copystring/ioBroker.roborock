@@ -8,6 +8,12 @@ import { Feature } from "./features.enum";
 // --- Types & Interfaces ---
 
 /**
+ * Returned by getCommandParams() when the command must not be sent at all
+ * (e.g. resolve_error while no error is pending).
+ */
+export const SKIP_COMMAND: unique symbol = Symbol("SKIP_COMMAND");
+
+/**
  * Command object properties.
  */
 export type CommandSpec = {
@@ -576,6 +582,7 @@ export abstract class BaseDeviceFeatures {
 	 * Override this to implement logic like 'app_segment_clean' gathering segments from states.
 	 * @param method Command method name.
 	 * @param params Existing parameters passed from caller.
+	 * @returns Params, `{ method, params }`, or SKIP_COMMAND to send nothing.
 	 */
 	public async getCommandParams(method: string, params?: unknown, id?: string): Promise<unknown> {
 		void method;
