@@ -74,10 +74,25 @@ export class MockRobot {
 				}
 				return ["ok"];
 			}
+			case "resolve_error":
+				return this.handleResolveError(params);
 			default:
 				// Return generic success for unknown commands to prevent crashes
 				return ["ok"];
 		}
+	}
+
+	private handleResolveError(params: unknown): any {
+		if (Array.isArray(params)) {
+			throw new Error("-10007 invalid params");
+		}
+		const errorCode = (params as { error_code?: unknown })?.error_code;
+		if (errorCode === this.state.dock_error_status) {
+			this.updateState({ dock_error_status: 0 });
+		} else if (errorCode === this.state.error_code) {
+			this.updateState({ error_code: 0 });
+		}
+		return ["ok"];
 	}
 
 	private handleGetProp(keys: string[]): any[] {

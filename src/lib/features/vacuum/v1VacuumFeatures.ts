@@ -1,5 +1,5 @@
 import PQueue from "p-queue";
-import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
+import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies, SKIP_COMMAND } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
 import { StationService } from "./services/StationService";
 import { V1ConsumableService } from "./services/V1ConsumableService";
@@ -88,6 +88,7 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 		this.addCommand("find_me", { type: "boolean", role: "button", name: translations["find_me"] || "Find Me", def: false });
 		this.addCommand("app_spot", { type: "boolean", role: "button", name: translations["app_spot"] || "Spot Cleaning", def: false });
 		this.addCommand("app_segment_clean", { type: "boolean", role: "button", name: "Segment Cleaning", def: false });
+		this.addCommand("resolve_error", { type: "boolean", role: "button", name: "Resolve Error", def: false });
 
 		// Restore missing standard V1 commands
 		this.addCommand("app_zoned_clean", { type: "json", role: "json", name: "Zone Clean" }); // No default for JSON usually, or "[]"
@@ -268,6 +269,10 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 	}
 
 	public override async getCommandParams(method: string, params?: unknown, id?: string): Promise<unknown> {
+		if (method === "resolve_error") {
+			return this.getResolveErrorParams();
+		}
+
 		if (method === "reset_consumable" && id) {
 			const obj = await this.deps.adapter.getObjectAsync(id);
 			if (obj && obj.native && obj.native.resetParam) {
@@ -454,6 +459,26 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 
 		const statusState = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.deviceStatus.repeat`);
 		return this.normalizeCleanRepeat(statusState?.val) ?? 1;
+	}
+
+	/**
+	 * Params for resolve_error, the request behind "Resolved" in the Roborock app.
+	 * Errors stay latched on the device until resolved, even after the cause is fixed.
+	 * A pending dock error wins over a robot error. The robot rejects array params
+	 * with -10007, so the code is always sent as an object.
+	 */
+	private async getResolveErrorParams(): Promise<{ error_code: number } | typeof SKIP_COMMAND> {
+		for (const key of ["dock_error_status", "error_code"]) {
+			const state = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.deviceStatus.${key}`);
+			const errorCode = Number(state?.val);
+			if (Number.isInteger(errorCode) && errorCode > 0) {
+				this.deps.adapter.rLog("System", this.duid, "Info", "1.0", undefined, `Resolving ${key} ${errorCode}`, "info");
+				return { error_code: errorCode };
+			}
+		}
+
+		this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, "resolve_error: no robot or dock error pending, nothing sent", "warn");
+		return SKIP_COMMAND;
 	}
 
 	public async updateCleanSummary(): Promise<void> {
