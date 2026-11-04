@@ -6,8 +6,10 @@ name: Auto-Merge Dependabot PRs
 
 on:
   # Trigger when a PR is opened or updated
-  # WARNING: This needs to be run in the PR base, DO NOT build untrusted code in this action
-  pull_request_target:
+  # Normally pull_request gets a GITHUB_TOKEN with read access only.
+  # But workflows run for PRs created by dependabot get write access anyway,
+  # so the less secure 'pull_request_target' trigger is not required.
+  pull_request:
     types: [opened, synchronize, reopened]
 
 jobs:
@@ -25,8 +27,11 @@ jobs:
         uses: iobroker-bot-orga/action-automerge-dependabot@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          config-file-path: '.github/auto-merge.yml'
+          # Optional: Path to your auto-merge configuration file
+          # config-file-path: '.github/auto-merge.yml'
           # Optional: Merge method (merge, squash, or rebase)
           # merge-method: 'squash'
-          wait-for-checks: 'true'
-          max-wait-time: '3600'
+          # Optional: Wait for other checks to complete
+          # wait-for-checks: 'true'
+          # Optional: Maximum time to wait for checks in seconds (default: 3600)
+          # max-wait-time: '3600'
