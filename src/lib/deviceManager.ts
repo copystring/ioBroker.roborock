@@ -278,13 +278,16 @@ export class DeviceManager {
 
 	/** Starts polling. updateInterval (UI) drives everything except TCP; TCP keepalive is fixed 30s. */
 	public startPolling(): void {
+		if (this.mainUpdateInterval) return;
 		const mainPollInterval = this.adapter.config.updateInterval; // e.g. 60s
 
 		this.adapter.rLog("System", null, "Info", undefined, undefined, `Starting main poll (every ${mainPollInterval}s). Heavy data updates only after activity finishes.`, "info");
 
 		let mainUpdateCount = mainPollInterval; // Slow loop counter
+		let fetchingHomeData = false;
 
-		this.mainUpdateInterval = this.adapter.setInterval(async () => {
+		const interval = this.adapter.setInterval(async () => {
+			if (fetchingHomeData) return;
 			mainUpdateCount++;
 
 			const isSlowTick = mainUpdateCount >= mainPollInterval;
@@ -293,7 +296,16 @@ export class DeviceManager {
 				mainUpdateCount = 0;
 				this.skipPollUntilNextHomeData.clear();
 				this.adapter.rLog("System", null, "Debug", undefined, undefined, "Running scheduled main device update...", "debug");
-				await this.adapter.http_api.updateHomeData();
+				fetchingHomeData = true;
+				try {
+					await this.adapter.http_api.updateHomeData();
+				} catch (error) {
+					this.adapter.catchError(error, "updateHomeData");
+					return;
+				} finally {
+					fetchingHomeData = false;
+				}
+				if (this.mainUpdateInterval !== interval) return;
 				void this.adapter.local_api?.refreshStaleLocalEndpoints?.("slow poll")?.catch((e: unknown) => {
 					this.adapter.rLog("TCP", null, "Debug", undefined, undefined, `Scheduled local endpoint refresh failed: ${this.adapter.errorMessage(e)}`, "debug");
 				});
@@ -351,6 +363,7 @@ export class DeviceManager {
 				}
 			}
 		}, 1000); // 1s ticker
+		this.mainUpdateInterval = interval;
 	}
 
 	/** On state change: history only when parked (4/8/100) or idle→parked (3→4); else only map. */

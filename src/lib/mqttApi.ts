@@ -1,4 +1,5 @@
 import * as crypto from "node:crypto";
+import type { EventEmitter } from "node:events";
 import * as mqtt from "mqtt";
 import * as protobuf from "protobufjs";
 import * as zlib from "node:zlib";
@@ -22,7 +23,8 @@ export class mqtt_api {
 	private chunkAssembler: B01ChunkAssembler;
 	private readonly q10DpDispatcher: Q10DpDispatcher;
 	mqttOptions: any;
-	reconnectTimer: any;
+	private connecting?: Promise<void>;
+	private closeClient?: () => void;
 
 	constructor(adapter: Roborock) {
 		this.adapter = adapter;
@@ -32,7 +34,6 @@ export class mqtt_api {
 		this.client = null;
 		this.connected = false;
 		this.mqttOptions = null;
-		this.reconnectTimer = null;
 
 		this.photoManager = new PhotoManager(this.adapter);
 		this.chunkAssembler = new B01ChunkAssembler(adapter);
@@ -63,6 +64,7 @@ export class mqtt_api {
 			password: this.mqttPassword,
 			keepalive: 30,
 			reconnectPeriod: 60000, // reconnect every 60s if disconnected
+			resubscribe: false, // wait for our own SUBACK on each connection
 			clean: true,
 		};
 	}
@@ -71,152 +73,110 @@ export class mqtt_api {
 	 * Establishes the connection to the Roborock MQTT broker.
 	 */
 	async connect_mqtt(): Promise<void> {
-		if (!this.mqttOptions) {
-			throw new Error("MQTT options not initialized. Call setup_mqtt_user() first.");
-		}
+		if (this.connecting) return this.connecting;
+		if (this.connected) return;
+		if (this.client) throw Object.assign(new Error("MQTT client is reconnecting"), { code: "ECONNRESET" });
+		if (!this.mqttOptions) throw new Error("MQTT options not initialized. Call setup_mqtt_user() first.");
 
 		const rriot = this.adapter.http_api.get_rriot();
-		this.adapter.rLog("MQTT", null, "Info", undefined, undefined, `Connecting to MQTT Broker at ${rriot.r.m}...`, "info");
-
+		const topic = `rr/m/o/${rriot.u}/${this.mqttUser}/#`;
 		const client = mqtt.connect(rriot.r.m, this.mqttOptions);
 		this.client = client;
+		const ready = Promise.withResolvers<void>();
+		this.connecting = ready.promise;
+		const removeMessageListener = this.subscribe_mqtt_message(client);
+		let timer: ioBroker.Timeout | undefined;
+		let generation = 0;
+		let subscribing = false;
+		let initial = true;
+		const clearTimer = () => {
+			if (timer !== undefined) this.adapter.clearTimeout(timer);
+			timer = undefined;
+		};
 
-		// Robust global error handling to prevent uncaught exceptions (like EPIPE)
-		client.on("error", (err: Error) => {
-			this.adapter.rLog("MQTT", null, "Error", "Info", undefined, `MQTT Client Error: ${err.message}`, "error");
-			this.connected = false;
-		});
-
-		// Set up persistent listeners early
-		this.subscribe_mqtt_message(client);
-
-		return new Promise((resolve, reject) => {
-			let connectionHandled = false;
-
-			const onConnect = () => {
-				if (!connectionHandled) {
-					connectionHandled = true;
-					this.connected = true;
-
-					// Now set up event listeners and WAIT for initial subscription
-					this.subscribe_mqtt_events(client)
-						.then(() => resolve())
-						.catch((err) => reject(err));
+		const onLost = (error: Error) => {
+			generation++;
+			subscribing = false;
+			clearTimer();
+			this.setConnected(false);
+			if (initial) ready.reject(error);
+		};
+		const onClose = () => onLost(Object.assign(new Error("MQTT connection closed"), { code: "ECONNRESET" }));
+		const onError = (error: Error) => {
+			this.adapter.rLog("MQTT", null, "Error", undefined, undefined, `MQTT connection error: ${error.message}`, "error");
+			onLost(error);
+		};
+		const onTimeout = () => {
+			onError(Object.assign(new Error("Timed out waiting for MQTT connection or subscription"), { code: "ETIMEDOUT" }));
+			// A broker may keep the socket open without acknowledging our subscription.
+			// Closing that stream lets MQTT.js reconnect at the configured interval.
+			if (!initial) client.stream.destroy();
+		};
+		const onConnect = () => {
+			if (subscribing || this.connected) return;
+			subscribing = true;
+			const attempt = ++generation;
+			clearTimer();
+			timer = this.adapter.setTimeout(onTimeout, 5000);
+			client.subscribe(topic, (error: Error | null) => {
+				if (attempt !== generation) return; // A late SUBACK from an older connection.
+				clearTimer();
+				subscribing = false;
+				if (error) {
+					onError(error);
+					// A broker refusal requires intervention; a lost response can recover on a new stream.
+					if (!initial && !("packet" in error && error.packet)) client.stream.destroy();
+					return;
 				}
-			};
-
-			if (client.connected) {
-				onConnect();
-			} else {
-				client.once("connect", onConnect);
-			}
-
-			client.once("error", (error: Error) => {
-				if (!connectionHandled) {
-					connectionHandled = true;
-					this.adapter.rLog("MQTT", null, "Error", "Info", undefined, `MQTT connection setup failed. Error: ${error.message}`, "error");
-					this.connected = false;
-					client.end();
-					reject(error);
-				}
+				initial = false;
+				this.setConnected(true);
+				ready.resolve();
 			});
+		};
 
-			// Timeout after 10s to prevent infinite wait
-			this.adapter.setTimeout(() => {
-				if (!connectionHandled) {
-					connectionHandled = true;
-					client.end();
-					reject(new Error("MQTT connection timeout after 10s"));
-				}
-			}, 10000);
-		});
+		client.on("connect", onConnect);
+		client.on("error", onError);
+		client.on("close", onClose);
+		client.on("offline", onClose);
+		client.on("disconnect", onClose);
+		this.closeClient = () => {
+			onLost(new Error("MQTT client stopped"));
+			removeMessageListener();
+			client.off("connect", onConnect);
+			client.off("error", onError);
+			client.off("close", onClose);
+			client.off("offline", onClose);
+			client.off("disconnect", onClose);
+			client.end(true);
+			this.client = null;
+			this.connecting = undefined;
+			this.closeClient = undefined;
+		};
+		try {
+			timer = this.adapter.setTimeout(onTimeout, 10000);
+			if (client.connected) onConnect();
+			await ready.promise;
+		} catch (error) {
+			if (this.client === client) this.closeClient?.();
+			throw error;
+		} finally {
+			if (this.connecting === ready.promise) this.connecting = undefined;
+		}
 	}
 
-	/**
-	 * Subscribes to MQTT client events (connect, error, offline, etc.).
-	 * @param client - The MQTT client instance.
-	 */
-	async subscribe_mqtt_events(client: any): Promise<void> {
-		const rriot = this.adapter.http_api.get_rriot();
-
-		return new Promise((resolveSubscription, rejectSubscription) => {
-			let initialSubscriptionHandled = false;
-
-			const doSubscribe = () => {
-				this.connected = true;
-				this.adapter.rLog("MQTT", null, "Info", undefined, undefined, `MQTT connection established. subscribing...`, "info");
-
-				const topic = `rr/m/o/${rriot.u}/${this.mqttUser}/#`;
-				client.subscribe(topic, (err: Error | null) => {
-					if (err) {
-						this.adapter.rLog("MQTT", null, "Error", "Info", undefined, `Failed to subscribe to ${topic}! Error: ${err}`, "error");
-						if (!initialSubscriptionHandled) {
-							initialSubscriptionHandled = true;
-							rejectSubscription(err);
-						}
-					} else {
-						this.adapter.rLog("MQTT", null, "Info", undefined, undefined, `Subscribed to ${topic}`, "debug");
-						if (!initialSubscriptionHandled) {
-							initialSubscriptionHandled = true;
-							resolveSubscription();
-						}
-					}
-				});
-			};
-
-			client.on("connect", doSubscribe);
-
-			if (client.connected) {
-				doSubscribe();
-			}
-
-			// Safety timeout for subscription
-			this.adapter.setTimeout(() => {
-				if (!initialSubscriptionHandled) {
-					initialSubscriptionHandled = true;
-					this.adapter.rLog("MQTT", null, "Warn", "MQTT", undefined, `Initial subscription timed out, continuing anyway.`, "warn");
-					resolveSubscription(); // Don't block forever if sub fails but conn is up
-				}
-			}, 5000);
-		});
-
-		client.on("disconnect", () => {
-			this.adapter.rLog("MQTT", null, "Info", undefined, undefined, `MQTT disconnected.`, "info");
-			this.connected = false;
-		});
-
-		client.on("error", (error: Error) => {
-			this.adapter.rLog("MQTT", null, "Error", "Info", undefined, `MQTT connection error: ${error.message}. Broker: ${rriot.r.m}`, "error");
-			this.connected = false;
-		});
-
-		client.on("close", () => {
-			this.adapter.rLog("MQTT", null, "Info", undefined, undefined, `MQTT connection closed. Reconnecting in 60 seconds...`, "info");
-			this.connected = false;
-		});
-
-		client.on("reconnect", () => {
-			this.adapter.rLog("MQTT", null, "Info", undefined, undefined, `MQTT attempting to reconnect...`, "info");
-			// Subscription is usually handled automatically by MQTT client on reconnect if clean=false,
-			// but if we need to re-subscribe manually:
-			const topic = `rr/m/o/${rriot.u}/${this.mqttUser}/#`;
-			client.subscribe(topic, (err: Error | null) => {
-				if (err) this.adapter.rLog("MQTT", null, "Error", "MQTT", undefined, `Failed to re-subscribe during reconnect: ${err}`, "error");
-			});
-		});
-
-		client.on("offline", () => {
-			this.adapter.rLog("MQTT", null, "Info", undefined, undefined, "MQTT connection went offline.", "warn");
-			this.connected = false;
-		});
+	private setConnected(connected: boolean): void {
+		if (this.connected === connected) return;
+		this.connected = connected;
+		this.adapter.rLog("MQTT", null, "Info", undefined, undefined, connected ? "MQTT subscription active." : "MQTT subscription offline.", "info");
+		this.adapter.onMqttConnectionChange(connected);
 	}
 
 	/**
 	 * Sets up the listener for incoming MQTT messages.
 	 * @param client - The MQTT client instance.
 	 */
-	async subscribe_mqtt_message(client: any): Promise<void> {
-		client.on("message", async (topic: string, message: Buffer) => {
+	subscribe_mqtt_message(client: EventEmitter): () => void {
+		const onMessage = async (topic: string, message: Buffer) => {
 			try {
 				/**
 				 * Listens for incoming MQTT messages and dispatches them to the appropriate handlers.
@@ -255,9 +215,9 @@ export class mqtt_api {
 			} catch (error: unknown) {
 				this.adapter.rLog("MQTT", null, "Error", "MQTT", undefined, `Error processing MQTT message on ${topic}: ${this.adapter.errorStack(error)}`, "error");
 			}
-		});
-
-		this.adapter.rLog("MQTT", null, "Info", undefined, undefined, `MQTT message listener initialized.`, "info");
+		};
+		client.on("message", onMessage);
+		return () => client.off("message", onMessage);
 	}
 
 	private decryptB01Payload(payload: Buffer, duid: string): Buffer {
@@ -928,14 +888,7 @@ export class mqtt_api {
 	}
 
 	async disconnectClient(): Promise<void> {
-		if (this.client) {
-			try {
-				this.client.end();
-				this.connected = false;
-			} catch (error) {
-				this.adapter.rLog("MQTT", null, "Error", "MQTT", undefined, `Failed to disconnect: ${error}`, "error");
-			}
-		}
+		this.closeClient?.();
 	}
 
 	md5hex(str: string): string {
@@ -947,26 +900,11 @@ export class mqtt_api {
 	}
 
 	public clearIntervals(): void {
-		if (this.reconnectTimer) {
-			this.adapter.clearTimeout(this.reconnectTimer);
-			this.reconnectTimer = null;
-		}
-
-		if (this.photoManager) {
-			this.photoManager.clearIntervals();
-		}
-
-		this.client?.end();
-		this.client = undefined;
+		this.closeClient?.();
+		this.photoManager.clearIntervals();
 	}
 
 	cleanup(): void {
-		if (this.client) {
-			this.client.removeAllListeners();
-			this.client.end();
-			this.client = null;
-		}
-		this.connected = false;
 		this.clearIntervals();
 	}
 }
