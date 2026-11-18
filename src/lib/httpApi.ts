@@ -183,7 +183,7 @@ export class http_api {
 
 	private fwFeaturesCache = new Map<string, number[]>();
 
-	constructor(adapter: Roborock) {
+	constructor(adapter: Roborock, private readonly signal?: AbortSignal, private readonly reportHomeConnection?: (connected: boolean) => void) {
 		this.adapter = adapter;
 	}
 
@@ -201,6 +201,8 @@ export class http_api {
 
 		this.loginApi = axios.create({
 			baseURL: regionConfig.apiBaseUrl,
+			signal: this.signal,
+			timeout: 30_000,
 			headers: {
 				header_clientid: crypto.createHash("md5").update(this.adapter.config.username).update(clientID).digest().toString("base64"),
 				header_appversion: "4.57.02",
@@ -341,9 +343,13 @@ export class http_api {
 					// 2. Wait for Code
 					let code = "";
 					let timeout: ioBroker.Timeout | undefined;
+					let cancel: (() => void) | undefined;
 					try {
+						this.signal?.throwIfAborted();
 						code = await new Promise<string>((resolve, reject) => {
 							this.loginCodeResolver = resolve;
+							cancel = () => reject(this.signal?.reason);
+							this.signal?.addEventListener("abort", cancel, { once: true });
 							// Timeout after 15 minutes
 							timeout = this.adapter.setTimeout(() => {
 								if (this.loginCodeResolver) {
@@ -352,14 +358,14 @@ export class http_api {
 								}
 							}, 15 * 60 * 1000); // 15 min
 						});
-					} catch (e: unknown) {
-						throw e;
 					} finally {
+						this.loginCodeResolver = null;
+						if (cancel) this.signal?.removeEventListener("abort", cancel);
 						if (timeout) this.adapter.clearTimeout(timeout);
+						await this.adapter.unsubscribeStatesAsync(stateId);
 					}
 
 					this.adapter.rLog("HTTP", null, "Info", "Cloud", undefined, "2FA code received. Proceeding with login...", "info");
-					await this.adapter.unsubscribeStatesAsync(stateId);
 
 					// 3. Login with Code
 					// Regenerate signature to avoid expiration
@@ -422,6 +428,8 @@ export class http_api {
 			// Initialize the real API with Hawk Authentication Interceptor
 			const realApi = axios.create({
 				baseURL: this.userData.rriot.r.a,
+				signal: this.signal,
+				timeout: 30_000,
 				headers: {
 					"x-iotsdk-version": "1.0.1",
 					"x-app-name": "com.roborock.smart",
@@ -465,11 +473,9 @@ export class http_api {
 			});
 
 			this.realApi = realApi;
-
-			await this.adapter.setState("info.connection", { val: true, ack: true });
 		} catch (error: unknown) {
 			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error in initializeRealApi: ${this.adapter.errorStack(error)}`, "error");
-			await this.adapter.setState("info.connection", { val: false, ack: true });
+			throw error;
 		}
 	}
 
@@ -504,7 +510,7 @@ export class http_api {
 			return res.data.data;
 		} catch (e: unknown) {
 			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `SignRequest failed: ${this.adapter.errorMessage(e)}`, "error");
-			return null;
+			throw e;
 		}
 	}
 
@@ -533,7 +539,7 @@ export class http_api {
 			const res = await this.loginApi.post(API_V4_LOGIN_CODE, params.toString(), { headers });
 			return res.data;
 		} catch (e: unknown) {
-			throw new Error(`Login with code failed: ${this.adapter.errorMessage(e)}`);
+			throw new Error(`Login with code failed: ${this.adapter.errorMessage(e)}`, { cause: e });
 		}
 	}
 
@@ -561,12 +567,12 @@ export class http_api {
 			return res.data;
 		} catch (e: unknown) {
 			const err = e as { response?: { data?: LoginV4Response } };
-			if (err?.response?.data) {
+			if (err?.response?.data?.code === 2031) {
 				const errData = err.response.data as LoginV4Response;
 				this.adapter.rLog("HTTP", null, "<-", "Cloud", undefined, `Login Failed. Code: ${errData.code}, Msg: ${errData.msg}`, "error");
 				return errData;
 			}
-			throw new Error(`Login with password failed: ${this.adapter.errorMessage(e)}`);
+			throw new Error(`Login with password failed: ${this.adapter.errorMessage(e)}`, { cause: e });
 		}
 	}
 
@@ -645,7 +651,7 @@ export class http_api {
 
 		try {
 			const response = await this.loginApi.get("api/v1/getHomeDetail");
-			if (response.data.data) {
+			if (response.data.data?.rrHomeId) {
 				this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, `getHomeDetail: ${JSON.stringify(response.data)}`, "debug");
 				this.homeID = response.data.data.rrHomeId;
 				this.adapter.rLog("HTTP", null, "Debug", "Cloud", undefined, `this.homeID: ${this.homeID}`, "debug");
@@ -655,6 +661,7 @@ export class http_api {
 				if (response.data.msg === "invalid token" || response.data.code === 401) {
 					throw new Error("invalid token");
 				}
+				throw new Error("Home detail response did not contain a home ID");
 			}
 		} catch (error: unknown) {
 			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error getting HomeID: ${this.adapter.errorMessage(error)}`, "error");
@@ -666,7 +673,7 @@ export class http_api {
 	 * Downloads the latest Home Data (Devices, Rooms, Products) and stores it in state.
 	 * Uses GET v3/user/homes/{homeID} only (same as Roborock app).
 	 */
-	async updateHomeData(): Promise<void> {
+	async updateHomeData(requireFresh = false): Promise<void> {
 		if (!this.loginApi) throw new Error("loginApi is not initialized. Call init() first.");
 		if (!this.realApi) throw new Error("realApi is not initialized. Call initializeRealApi() first");
 
@@ -687,10 +694,13 @@ export class http_api {
 				} else {
 					this.homeData = null;
 					this.adapter.rLog("HTTP", null, "Warn", "Cloud", undefined, "V3 HomeData response missing or not success.", "warn");
+					if (requireFresh) throw new Error("Invalid HomeData response");
 				}
 
 				await this.adapter.setState("HomeData", { val: JSON.stringify(this.homeData), ack: true });
+				this.reportHomeConnection?.(this.homeData !== null);
 			} catch (e: unknown) {
+				this.reportHomeConnection?.(false);
 				const clockSkewError = this.getRealApiClockSkewError(e);
 				if (clockSkewError) {
 					this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, clockSkewError.message, "error");
@@ -700,9 +710,12 @@ export class http_api {
 
 				this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `Error updating HomeData: ${this.adapter.errorStack(e)}`, "error");
 				this.homeData = null;
+				if (requireFresh) throw e;
 			}
 		} else {
+			this.reportHomeConnection?.(false);
 			this.adapter.rLog("HTTP", null, "Error", "Cloud", undefined, `No homeId found`, "error");
+			if (requireFresh) throw new Error("No home ID found");
 		}
 	}
 

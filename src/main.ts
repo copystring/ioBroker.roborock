@@ -99,6 +99,27 @@ const SCENE_SEGMENT_DOCK_SERVICE_STATES = new Set([
 	33, // Setting up the mop
 	34, // Removing the mop
 ]);
+const INITIAL_RETRY_MS = 30_000;
+const MAX_RETRY_MS = 300_000;
+const TRANSIENT_NETWORK_CODES = new Set([
+	"EAI_AGAIN", "ENOTFOUND", "EHOSTUNREACH", "EHOSTDOWN", "ENETDOWN", "ENETUNREACH",
+	"ECONNREFUSED", "ECONNRESET", "ECONNABORTED", "ETIMEDOUT", "EPIPE", "ERR_NETWORK",
+]);
+
+function isTransientConnectionError(error: unknown): boolean {
+	const seen = new Set<unknown>();
+	while (error && typeof error === "object" && !seen.has(error)) {
+		seen.add(error);
+		const { code, response, cause } = error as { code?: string; response?: { status?: number }; cause?: unknown };
+		if (typeof response?.status === "number") {
+			return [408, 425, 429, 500, 502, 503, 504].includes(response.status);
+		}
+		if (code && TRANSIENT_NETWORK_CODES.has(code)) return true;
+		error = cause;
+	}
+	return false;
+}
+
 export class Roborock extends utils.Adapter {
 	// --- Public APIs (accessible by helpers) ---
 	public http_api: http_api;
@@ -125,6 +146,14 @@ export class Roborock extends utils.Adapter {
 	private commandTimeouts: Map<string, ioBroker.Timeout> = new Map();
 	private activeSceneQueueProcessors: Set<string> = new Set();
 	private ensuredSceneQueueStates: Set<string> = new Set();
+	private readonly lifetime = new AbortController();
+	private readyStarted = false;
+	private startupComplete = false;
+	private cloudConnected = false;
+	private retryTimer: ioBroker.Timeout | undefined;
+	private connectionReported: boolean | undefined;
+	private connectionWrite: Promise<void> = Promise.resolve();
+	private refreshingMqtt = false;
 	private mqttReconnectInterval: ioBroker.Interval | undefined = undefined;
 	public instance: number = 0;
 	private go2rtcProcess: ChildProcess | null = null;
@@ -137,7 +166,10 @@ export class Roborock extends utils.Adapter {
 		this.instance = options.instance || 0;
 		this.nonce = randomBytes(16);
 		this.pendingRequests = new Map();
-		this.http_api = new http_api(this);
+		this.http_api = new http_api(this, this.lifetime.signal, connected => {
+			this.cloudConnected = connected;
+			void this.updateConnectionState();
+		});
 		this.local_api = new local_api(this);
 		this.mqtt_api = new mqtt_api(this);
 		this.requestsHandler = new requestsHandler(this);
@@ -157,15 +189,17 @@ export class Roborock extends utils.Adapter {
 		this.on("message", this.onMessage.bind(this));
 		this.on("unload", this.onUnload.bind(this));
 
-		// Global Error Handlers
-		process.on("uncaughtException", (err) => {
-			this.rLog("System", null, "Error", undefined, undefined, `Uncaught Exception: ${err.message}\n${err.stack}`, "error");
-		});
-
-		process.on("unhandledRejection", (reason) => {
-			this.rLog("System", null, "Error", undefined, undefined, `Unhandled Rejection: ${reason}`, "error");
-		});
+		process.on("uncaughtException", this.onProcessException);
+		process.on("unhandledRejection", this.onProcessRejection);
 	}
+
+	private readonly onProcessException = (err: Error) => {
+		this.rLog("System", null, "Error", undefined, undefined, `Uncaught Exception: ${err.message}\n${err.stack}`, "error");
+	};
+
+	private readonly onProcessRejection = (reason: unknown) => {
+		this.rLog("System", null, "Error", undefined, undefined, `Unhandled Rejection: ${reason}`, "error");
+	};
 
 	/**
 	 * Loads admin translations from the current short i18n format and keeps a fallback
@@ -187,7 +221,10 @@ export class Roborock extends utils.Adapter {
 	 * Adapter ready logic.
 	 */
 	async onReady() {
-		// Config properties are now type-safe thanks to types.d.ts
+		if (this.readyStarted || this.lifetime.signal.aborted) return;
+		this.readyStarted = true;
+		await this.updateConnectionState();
+		if (this.lifetime.signal.aborted) return;
 		if (!this.config.username) {
 			this.rLog("System", null, "Error", undefined, undefined, "Username missing!", "error");
 			this.isInitializing = false;
@@ -224,102 +261,131 @@ export class Roborock extends utils.Adapter {
 		};
 		this.rLog("System", null, "Info", undefined, undefined, `Config: ${JSON.stringify(configSummary)}`, "debug");
 
-		await this.setupBasicObjects();
+		// Keep completed stages when retrying. In particular, resume after device discovery
+		// without installing another MQTT client, subscription, camera process or poller.
+		const subscriptions = new Set<string>();
+		await this.runStartup([
+			() => this.setupBasicObjects(),
+			async () => this.http_api.init(await this.ensureClientID()),
+			() => this.http_api.updateHomeData(true),
+			() => this.downloadAssetsForAccountModels(),
+			() => this.connectStartupTransports(),
+			() => this.probeStartupEndpoints(),
+			() => this.deviceManager.initializeDevices(),
+			() => this.processScenes(),
+			async () => {
+				const folders = [...this.deviceFeatureHandlers.values()].flatMap(handler => handler.getCommandFolders());
+				const patterns = new Set([...folders.map(folder => `Devices.*.${folder}.*`),
+					"Devices.*.resetConsumables.*", "Devices.*.programs.*", "Devices.*.deviceStatus.state",
+					"Devices.*.deviceStatus.status", "loginCode"]);
+				for (const pattern of patterns) {
+					if (subscriptions.has(pattern)) continue;
+					this.lifetime.signal.throwIfAborted();
+					await this.subscribeStatesAsync(pattern);
+					subscriptions.add(pattern);
+				}
+			},
+			() => this.resumeSceneQueues(),
+			() => this.start_go2rtc(),
+		]);
+	}
 
+	private async runStartup(stages: Array<() => Promise<void>>, retryDelay = INITIAL_RETRY_MS): Promise<void> {
 		try {
-			const clientID = await this.ensureClientID();
-			await this.http_api.init(clientID);
-
-			// 1. Start Cloud Data Sync (Get Keys & DUIDs)
-			await this.http_api.updateHomeData();
-
-			// 1b. Asset download for account models (before device init)
-			await this.downloadAssetsForAccountModels();
-
-			// 2a. Start UDP Discovery (Essential for determining Local/Cloud mode before Init)
-			await this.local_api.startUdpDiscovery();
-
-			// 2b. Start MQTT and WAIT for the connection to be established
-			await this.mqtt_api.init();
-
-			// --- Pre-Init Network Probe (Docker/VLAN Support) ---
-			this.rLog("System", null, "Info", undefined, undefined, "Starting Pre-Init Network Probe...", "debug");
-			const allDevices = this.http_api.getDevices() || [];
-			const probePromises = allDevices.map(async (device) => {
-				const duid = device.duid;
-				if (!device.online) return; // Skip devices cloud reports as offline
-				// If already local (UDP found it), skip
-				if (this.local_api.isConnected(duid)) return;
-				const protocolVersion = device.pv || await this.getDeviceProtocolVersion(duid);
-				if (protocolVersion === "B01") {
-					const model = this.http_api.getRobotModel(duid) || "";
-					if (model && getB01VariantFromModel(model) === "Q10") {
-						return;
-					}
-				}
-
-				try {
-					const promoted = await this.local_api.probeLocalEndpointFromNetworkInfo(duid, "pre-init network probe", 1500, true, 10000);
-					if (!promoted) {
-						this.rLog("System", duid, "Debug", undefined, undefined, "Probe did not resolve a local TCP endpoint.", "debug");
-					}
-				} catch (e: unknown) {
-					const errorMsg = e instanceof Error ? e.message : String(e);
-					this.rLog("System", duid, "Debug", undefined, undefined, `Probe failed: ${errorMsg}`, "debug");
-				}
-			});
-
-			// Wait for all probes to finish (with timeout to not block forever)
-			await Promise.race([
-				Promise.all(probePromises),
-				this.delay(10000) // Max 10s probe time
-			]);
-			this.rLog("System", null, "Info", undefined, undefined, "Network Probe finished.", "info");
-			// ----------------------------------------------------
-
-			// 3. Initialize Devices (now that communication channels are ready)
-			await this.deviceManager.initializeDevices();
-
-			const writableFolders = new Set<string>();
-			for (const handler of this.deviceFeatureHandlers.values()) {
-				for (const folder of handler.getCommandFolders()) {
-					writableFolders.add(folder);
-				}
+			while (stages.length && !this.lifetime.signal.aborted) {
+				await stages[0]();
+				stages.shift();
 			}
-
-			// Parallelize non-dependent startup tasks
-			await Promise.all([
-				this.processScenes(),
-				this.start_go2rtc(),
-				...Array.from(writableFolders).map((folder) => this.subscribeStatesAsync(`Devices.*.${folder}.*`)),
-				this.subscribeStatesAsync("Devices.*.resetConsumables.*"),
-				this.subscribeStatesAsync("Devices.*.programs.*"),
-				this.subscribeStatesAsync("Devices.*.deviceStatus.state"),
-				this.subscribeStatesAsync("Devices.*.deviceStatus.status"),
-				this.subscribeStatesAsync("loginCode")
-			]);
-
-			await this.resumeSceneQueues();
+			if (this.lifetime.signal.aborted) return;
 
 			this.deviceManager.startPolling();
 			this.local_api.startTcpKeepaliveInterval();
-
+			this.mqttReconnectInterval = this.setInterval(() => void this.refreshMqtt(), 60 * 60 * 1000);
+			this.isInitializing = false;
+			this.startupComplete = true;
+			await this.updateConnectionState();
 			this.rLog("System", null, "Info", undefined, undefined, "Adapter startup finished. Let's go!", "info");
-			this.isInitializing = false;
-
-			// Schedule MQTT API reset every hour (legacy behavior to prevent stale connections)
-			this.mqttReconnectInterval = this.setInterval(() => {
-				this.rLog("System", null, "Debug", undefined, undefined, "Running scheduled MQTT reconnect...", "debug");
-				this.resetMqttApi().catch((e: unknown) => {
-					this.rLog("System", null, "Error", undefined, undefined, `Scheduled MQTT reconnect failed: ${e instanceof Error ? e.message : String(e)}`, "error");
-					this.catchError(e, "resetMqttApi (scheduled)");
-				});
-			}, 3600 * 1000);
-		} catch (e: unknown) {
-			this.rLog("System", null, "Error", undefined, undefined, `Failed to initialize adapter: ${this.errorMessage(e)}`, "error");
-			this.catchError(e, "onReady");
-			this.isInitializing = false;
+		} catch (error) {
+			if (this.lifetime.signal.aborted) return;
+			if (stages.length && isTransientConnectionError(error)) {
+				this.rLog("System", null, "Warn", undefined, undefined,
+					`Startup connection failed: ${this.errorMessage(error)}. Retrying in ${retryDelay / 1000}s.`, "warn");
+				this.retryTimer = this.setTimeout(() => {
+					this.retryTimer = undefined;
+					void this.runStartup(stages, Math.min(2 * retryDelay, MAX_RETRY_MS));
+				}, retryDelay);
+			} else {
+				this.isInitializing = false;
+				this.stopRuntime();
+				await this.catchError(error, "onReady");
+			}
 		}
+	}
+
+	private async connectStartupTransports(): Promise<void> {
+		try {
+			await this.local_api.startUdpDiscovery();
+			this.lifetime.signal.throwIfAborted();
+			await this.mqtt_api.init();
+		} catch (error) {
+			this.local_api.stopUdpDiscovery();
+			throw error;
+		}
+	}
+
+	private async probeStartupEndpoints(): Promise<void> {
+		this.rLog("System", null, "Info", undefined, undefined, "Starting Pre-Init Network Probe...", "debug");
+		const allDevices = this.http_api.getDevices() || [];
+		const probePromises = allDevices.map(async (device) => {
+			const duid = device.duid;
+			if (!device.online) return; // Skip devices cloud reports as offline
+			// If already local (UDP found it), skip
+			if (this.local_api.isConnected(duid)) return;
+			const protocolVersion = device.pv || await this.getDeviceProtocolVersion(duid);
+			if (protocolVersion === "B01") {
+				const model = this.http_api.getRobotModel(duid) || "";
+				if (model && getB01VariantFromModel(model) === "Q10") {
+					return;
+				}
+			}
+
+			try {
+				const promoted = await this.local_api.probeLocalEndpointFromNetworkInfo(duid, "pre-init network probe", 1500, true, 10000);
+				if (!promoted) {
+					this.rLog("System", duid, "Debug", undefined, undefined, "Probe did not resolve a local TCP endpoint.", "debug");
+				}
+			} catch (e: unknown) {
+				const errorMsg = e instanceof Error ? e.message : String(e);
+				this.rLog("System", duid, "Debug", undefined, undefined, `Probe failed: ${errorMsg}`, "debug");
+			}
+		});
+
+		// Wait for all probes to finish (with timeout to not block forever)
+		await Promise.race([
+			Promise.all(probePromises),
+			this.delay(10000) // Max 10s probe time
+		]);
+		this.rLog("System", null, "Info", undefined, undefined, "Network Probe finished.", "info");
+	}
+
+	public onMqttConnectionChange(connected: boolean): void {
+		void this.updateConnectionState(connected);
+	}
+
+	private updateConnectionState(mqttConnected = this.mqtt_api.isConnected()): Promise<void> {
+		const connected = !this.lifetime.signal.aborted && this.startupComplete && this.cloudConnected && mqttConnected;
+		if (this.connectionReported !== connected) {
+			this.connectionReported = connected;
+			this.connectionWrite = this.connectionWrite
+				.then(async () => {
+					await this.setState("info.connection", { val: connected, ack: true });
+				})
+				.catch((error: unknown) => {
+					this.connectionReported = undefined;
+					this.rLog("System", null, "Error", undefined, undefined, `Cannot update connection state: ${this.errorMessage(error)}`, "error");
+				});
+		}
+		return this.connectionWrite;
 	}
 
 	/**
@@ -1352,32 +1418,45 @@ export class Roborock extends utils.Adapter {
 	/**
 	 * Is called when adapter shuts down.
 	 */
-	onUnload(callback: () => void) {
+	async onUnload(callback: () => void) {
+		this.lifetime.abort();
+		process.off("uncaughtException", this.onProcessException);
+		process.off("unhandledRejection", this.onProcessRejection);
 		try {
-			if (this.mqttReconnectInterval) {
-				this.clearInterval(this.mqttReconnectInterval);
-			}
-			this.clearTimersAndIntervals();
-			this.mqtt_api.cleanup();
-			this.local_api.stopUdpDiscovery();
-			this.local_api.stopTcpKeepaliveInterval();
-
-			// Remove the global process exit listener to prevent memory leaks
-			if (this.onExitBound) {
-				process.removeListener("exit", this.onExitBound);
-				this.onExitBound = null;
-			}
-
-			if (this.go2rtcProcess) {
-				this.rLog("Local", null, "Info", undefined, undefined, "Stopping go2rtc process...", "info");
-				this.go2rtcProcess.kill();
-				this.go2rtcProcess = null;
-			}
-			this.setState("info.connection", { val: false, ack: true });
+			this.stopRuntime();
+		} catch (error) {
+			this.rLog("System", null, "Error", undefined, undefined, `Failed to unload adapter: ${this.errorMessage(error)}`, "error");
+		} finally {
+			await this.updateConnectionState();
 			callback();
-		} catch (e: unknown) {
-			this.rLog("System", null, "Error", undefined, undefined, `Failed to unload adapter: ${this.errorStack(e)}`, "error");
-			callback();
+		}
+	}
+
+	private stopRuntime(): void {
+		this.startupComplete = false;
+		if (this.retryTimer) {
+			this.clearTimeout(this.retryTimer);
+			this.retryTimer = undefined;
+		}
+		if (this.mqttReconnectInterval) {
+			this.clearInterval(this.mqttReconnectInterval);
+			this.mqttReconnectInterval = undefined;
+		}
+		this.mqtt_api.cleanup();
+		this.clearTimersAndIntervals();
+		this.local_api.stopUdpDiscovery();
+		this.local_api.stopTcpKeepaliveInterval();
+
+		// Remove the global process exit listener to prevent memory leaks
+		if (this.onExitBound) {
+			process.removeListener("exit", this.onExitBound);
+			this.onExitBound = null;
+		}
+
+		if (this.go2rtcProcess) {
+			this.rLog("Local", null, "Info", undefined, undefined, "Stopping go2rtc process...", "info");
+			this.go2rtcProcess.kill();
+			this.go2rtcProcess = null;
 		}
 	}
 
@@ -2055,9 +2134,27 @@ export class Roborock extends utils.Adapter {
 		}
 	}
 
-	/**
-	 * Resets the MQTT API instance.
-	 */
+	private async refreshMqtt(retryDelay = INITIAL_RETRY_MS): Promise<void> {
+		if (this.lifetime.signal.aborted || this.refreshingMqtt || this.retryTimer) return;
+		this.refreshingMqtt = true;
+		try {
+			await this.resetMqttApi();
+		} catch (error) {
+			if (this.lifetime.signal.aborted) return;
+			if (isTransientConnectionError(error)) {
+				this.rLog("System", null, "Warn", undefined, undefined, `MQTT reset failed. Retrying in ${retryDelay / 1000}s: ${this.errorMessage(error)}`, "warn");
+				this.retryTimer = this.setTimeout(() => {
+					this.retryTimer = undefined;
+					void this.refreshMqtt(Math.min(2 * retryDelay, MAX_RETRY_MS));
+				}, retryDelay);
+			} else {
+				await this.catchError(error, "resetMqttApi");
+			}
+		} finally {
+			this.refreshingMqtt = false;
+		}
+	}
+
 	async resetMqttApi() {
 		this.rLog("System", null, "Info", undefined, undefined, "Resetting MQTT API instance...", "info");
 		if (this.mqtt_api) {
@@ -2181,4 +2278,3 @@ if (require.main !== module) {
 	// otherwise start the instance directly
 	new Roborock();
 }
-
