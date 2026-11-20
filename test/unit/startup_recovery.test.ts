@@ -120,6 +120,13 @@ describe("adapter startup recovery", () => {
 		expect(updateStatus).toHaveBeenCalledTimes(2);
 	});
 
+	it("subscribes to nested floor load buttons after startup", async () => {
+		const { adapter, subscribe } = setup();
+		await adapter.onReady();
+
+		expect(subscribe).toHaveBeenCalledWith("Devices.*.floors.*.load");
+	});
+
 	it("backs off across repeated failures and resumes without duplicate subscriptions", async () => {
 		const { adapter, getHome, polling, subscribe } = setup();
 		getHome.mockRejectedValueOnce(dnsFailure()).mockRejectedValueOnce(dnsFailure());
@@ -137,6 +144,7 @@ describe("adapter startup recovery", () => {
 		expect(polling).toHaveBeenCalledTimes(1);
 		const subscribed = subscribe.mock.calls.map(([pattern]) => pattern);
 		expect(subscribed).toContain("loginCode");
+		expect(subscribed).toContain("Devices.*.floors.*.load");
 		expect(new Set(subscribed).size).toBe(subscribed.length);
 	});
 

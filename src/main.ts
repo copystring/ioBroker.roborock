@@ -276,7 +276,7 @@ export class Roborock extends utils.Adapter {
 			async () => {
 				const folders = [...this.deviceFeatureHandlers.values()].flatMap(handler => handler.getCommandFolders());
 				const patterns = new Set([...folders.map(folder => `Devices.*.${folder}.*`),
-					"Devices.*.resetConsumables.*", "Devices.*.programs.*", "Devices.*.deviceStatus.state",
+					"Devices.*.resetConsumables.*", "Devices.*.programs.*", "Devices.*.floors.*.load", "Devices.*.deviceStatus.state",
 					"Devices.*.deviceStatus.status", "loginCode"]);
 				for (const pattern of patterns) {
 					if (subscriptions.has(pattern)) continue;
