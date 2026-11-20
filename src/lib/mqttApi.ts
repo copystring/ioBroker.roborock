@@ -1,3 +1,4 @@
+import type { Q10StatusProcessor } from "./b01/q10/Q10DpDispatcher";
 import * as crypto from "node:crypto";
 import type { EventEmitter } from "node:events";
 import * as mqtt from "mqtt";
@@ -25,6 +26,7 @@ export class mqtt_api {
 	mqttOptions: any;
 	private connecting?: Promise<void>;
 	private closeClient?: () => void;
+	private readonly pendingPublishes = new Set<(error: Error) => void>();
 
 	constructor(adapter: Roborock) {
 		this.adapter = adapter;
@@ -209,8 +211,13 @@ export class mqtt_api {
 				}
 				const allMessages = this.adapter.requestsHandler.messageParser.decodeMsg(message, duid);
 
-				for (const data of allMessages) {
-					await this.handleDecodedMessage(finalDuid, data);
+				const received = allMessages.map(data => ({
+					data,
+					a01Processor: data.version === "A01" ? this.adapter.a01StatusRefresh.capture(finalDuid) : undefined,
+					q10Processor: this.q10DpDispatcher.captureStatusProcessor(finalDuid),
+				}));
+				for (const { data, a01Processor, q10Processor } of received) {
+					await this.handleDecodedMessage(finalDuid, data, a01Processor, q10Processor);
 				}
 			} catch (error: unknown) {
 				this.adapter.rLog("MQTT", null, "Error", "MQTT", undefined, `Error processing MQTT message on ${topic}: ${this.adapter.errorStack(error)}`, "error");
@@ -295,7 +302,18 @@ export class mqtt_api {
 	/**
 	 * Processes a single decoded Roborock message frame.
 	 */
-	async handleDecodedMessage(duid: string, data: any): Promise<void> {
+	async handleDecodedMessage(duid: string, data: any, a01Processor?: (response: { dps?: Record<string, unknown> }) => Promise<void>, q10Processor = this.q10DpDispatcher.captureStatusProcessor(duid)): Promise<void> {
+		// A01 RPC replies (102) and pushes use the same DP envelope, not V1 RPC IDs.
+		if (data.version === "A01") {
+			const process = a01Processor ?? this.adapter.a01StatusRefresh.capture(duid);
+			try {
+				const payload = Buffer.isBuffer(data.payload) ? data.payload.toString("utf8") : String(data.payload ?? "");
+				await process(JSON.parse(payload));
+			} catch (error) {
+				this.adapter.rLog("MQTT", duid, "Error", "A01", undefined, `Failed to process A01 payload: ${error}`, "error");
+			}
+			return;
+		}
 		// 1. Generic A01 / B01 JSON payloads. Specialized protocols (e.g. 102/500) are handled below exactly once.
 		const isGenericJsonProtocol =
 			(data.version === "A01" || data.version === "B01") &&
@@ -307,7 +325,7 @@ export class mqtt_api {
 
 		// 2. Protocol 102 (General Command Response)
 		if (data.protocol === 102) {
-			await this.handleProtocol102(duid, data);
+			await this.handleProtocol102(duid, data, q10Processor);
 			return;
 		}
 
@@ -398,7 +416,7 @@ export class mqtt_api {
 	/**
 	 * Handles Protocol 102 (General Command Response).
 	 */
-	private async handleProtocol102(duid: string, data: any): Promise<void> {
+	private async handleProtocol102(duid: string, data: any, q10Processor: Q10StatusProcessor): Promise<void> {
 		try {
 			const payloadStr = Buffer.isBuffer(data.payload) ? data.payload.toString("utf8") : String(data.payload ?? "");
 			const parsed = JSON.parse(payloadStr);
@@ -428,7 +446,7 @@ export class mqtt_api {
 
 			let handledByQ10 = false;
 			if (b01Variant === "Q10" && handler) {
-				handledByQ10 = await this.q10DpDispatcher.dispatchProtocol102(duid, parsed, dps102);
+				handledByQ10 = await this.q10DpDispatcher.dispatchProtocol102(duid, parsed, dps102, q10Processor);
 			}
 
 			if (!pendingRequest && !this.adapter.requestsHandler.isRequestRecentlyFinished(dps102.id) && !handledByQ10) {
@@ -875,12 +893,37 @@ export class mqtt_api {
 	/**
 	 * Publishes a message to the MQTT broker.
 	 */
-	async sendMessage(duid: string, roborockMessage: Buffer): Promise<void> {
-		if (this.client && this.connected) {
-			const rriot = this.adapter.http_api.get_rriot();
-			const topic = `rr/m/i/${rriot.u}/${this.mqttUser}/${duid}`;
-			this.client.publish(topic, roborockMessage, { qos: 1 });
+	async sendMessage(duid: string, roborockMessage: Buffer, signal?: AbortSignal): Promise<void> {
+		signal?.throwIfAborted();
+		if (!this.client || !this.connected) {
+			throw Object.assign(new Error("MQTT connection unavailable while publishing"), { code: "ECONNRESET" });
 		}
+		const client = this.client;
+		const rriot = this.adapter.http_api.get_rriot();
+		const topic = `rr/m/i/${rriot.u}/${this.mqttUser}/${duid}`;
+		await new Promise<void>((resolve, reject) => {
+			let settled = false;
+			const finish = (error?: Error | null) => {
+				if (settled) return;
+				settled = true;
+				if (timer !== undefined) this.adapter.clearTimeout(timer);
+				this.pendingPublishes.delete(finish);
+				signal?.removeEventListener("abort", onAbort);
+				if (error) reject(error);
+				else resolve();
+			};
+			const onAbort = () => finish(signal?.reason ?? new Error("MQTT publish aborted"));
+			this.pendingPublishes.add(finish);
+			signal?.addEventListener("abort", onAbort, { once: true });
+			const timer = this.adapter.setTimeout(() => {
+				finish(Object.assign(new Error("Timed out waiting for MQTT publish acknowledgement"), { code: "ETIMEDOUT" }));
+			}, 10000);
+			try {
+				client.publish(topic, roborockMessage, { qos: 1 }, finish);
+			} catch (error) {
+				finish(error as Error);
+			}
+		});
 	}
 
 	isConnected(): boolean {
@@ -900,6 +943,7 @@ export class mqtt_api {
 	}
 
 	public clearIntervals(): void {
+		for (const finish of this.pendingPublishes) finish(new Error("MQTT client stopped"));
 		this.closeClient?.();
 		this.photoManager.clearIntervals();
 	}

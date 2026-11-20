@@ -26,6 +26,7 @@ describe("V1VacuumFeatures", () => {
 		};
 
 		adapterMock = {
+			setTimeout, clearTimeout,
 			namespace: "roborock.0",
 			log: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() },
 			setStateChanged: vi.fn().mockResolvedValue(undefined),
@@ -70,6 +71,20 @@ describe("V1VacuumFeatures", () => {
 			return false;
 		}
 	}
+
+	it.each([null, undefined, [], {}, ["ok"], { state: "3" }])("rejects invalid refreshed V1 status %j without writes", async result => {
+		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a70", { staticFeatures: [] });
+		requestsHandlerMock.sendRequest.mockResolvedValue(result);
+		await expect(vacuum.refreshStatus()).rejects.toThrow("Invalid");
+		expect(adapterMock.setStateChanged).not.toHaveBeenCalled();
+	});
+
+	it("accepts wrapped V1 status and finishes after writes", async () => {
+		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a70", { staticFeatures: [] });
+		requestsHandlerMock.sendRequest.mockResolvedValue({ data: [{ state: 3 }], version: "1.0" });
+		await vacuum.refreshStatus();
+		expect(adapterMock.setStateChanged).toHaveBeenCalledWith("Devices.duid1.deviceStatus.state", { val: 3, ack: true });
+	});
 
 	it("should parse dss bitmask correctly in updateDockingStationStatus", async () => {
 		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a70", { staticFeatures: [Feature.DockingStationStatus] });
@@ -170,7 +185,7 @@ describe("V1VacuumFeatures", () => {
 			if (id === "Devices.duid1.commands.set_clean_repeat_times") return { val: 2 };
 			return undefined;
 		});
-		requestsHandlerMock.sendRequest.mockResolvedValue({ map_status: 0 });
+		requestsHandlerMock.sendRequest.mockResolvedValue({ state: 3, map_status: 0 });
 		adapterMock.getStatesAsync.mockResolvedValue({
 			"roborock.0.Devices.duid1.floors.0.7": { val: true },
 			"roborock.0.Devices.duid1.floors.0.8": { val: false },
@@ -191,7 +206,7 @@ describe("V1VacuumFeatures", () => {
 	it("should ignore selected rooms from inactive or stale floors", async () => {
 		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a144", { staticFeatures: [] });
 		(vacuum as any).mapService.updateCurrentMapIndex(0);
-		requestsHandlerMock.sendRequest.mockResolvedValue({ map_status: 0 });
+		requestsHandlerMock.sendRequest.mockResolvedValue({ state: 3, map_status: 0 });
 		adapterMock.getStatesAsync.mockImplementation(async (pattern: string) => {
 			expect(pattern).toBe("roborock.0.Devices.duid1.floors.0.*");
 			return {
@@ -213,7 +228,7 @@ describe("V1VacuumFeatures", () => {
 	it("should refresh a stale cached floor before collecting selected rooms", async () => {
 		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a144", { staticFeatures: [] });
 		(vacuum as any).mapService.updateCurrentMapIndex(0);
-		requestsHandlerMock.sendRequest.mockResolvedValue({ map_status: 4 });
+		requestsHandlerMock.sendRequest.mockResolvedValue({ state: 3, map_status: 4 });
 		adapterMock.getStatesAsync.mockResolvedValue({
 			"roborock.0.Devices.duid1.floors.1.21": { val: true }
 		});
@@ -233,7 +248,7 @@ describe("V1VacuumFeatures", () => {
 	it("should fail closed while the robot is positioning", async () => {
 		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a144", { staticFeatures: [] });
 		(vacuum as any).mapService.updateCurrentMapIndex(0);
-		requestsHandlerMock.sendRequest.mockResolvedValue({ map_status: 250 });
+		requestsHandlerMock.sendRequest.mockResolvedValue({ state: 3, map_status: 250 });
 
 		const params = await vacuum.getCommandParams("app_segment_clean");
 
@@ -273,7 +288,7 @@ describe("V1VacuumFeatures", () => {
 	it("should fail closed when fresh status omits map status even after a previously known floor", async () => {
 		const vacuum = new TestVacuum(depsMock, "duid1", "roborock.vacuum.a144", { staticFeatures: [] });
 		(vacuum as any).mapService.updateCurrentMapIndex(0);
-		requestsHandlerMock.sendRequest.mockResolvedValue({});
+		requestsHandlerMock.sendRequest.mockResolvedValue({ state: 3 });
 
 		const params = await vacuum.getCommandParams("app_segment_clean");
 

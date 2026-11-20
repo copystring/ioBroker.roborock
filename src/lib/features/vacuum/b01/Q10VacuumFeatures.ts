@@ -9,6 +9,13 @@ type Q10ZoneArea = { points: Q10AreaPoint[]; name: string };
 type Q10ZoneCleanParams = { repeatCount: number; areas: Q10ZoneArea[] };
 
 export class Q10VacuumFeatures extends B01BaseVacuumFeatures {
+	private statusRefresh?: {
+		promise: Promise<void>;
+		finish: (error?: unknown) => void;
+		published: boolean;
+		processed: boolean;
+	};
+
 	private readonly q10CleanRecordService: Q10CleanRecordService;
 	private readonly q10ShadowDataService: Q10ShadowDataService;
 	private readonly q10LegacyCommandIds = [
@@ -288,11 +295,13 @@ export class Q10VacuumFeatures extends B01BaseVacuumFeatures {
 		await this.deleteObjectIfExists(`${folder}.map_id`);
 	}
 
-	private async requestQ10StatusSnapshot(): Promise<void> {
+	private async requestQ10StatusSnapshot(signal?: AbortSignal): Promise<void> {
 		try {
-			await this.deps.adapter.requestsHandler.publishB01Dp(this.duid, { "102": 1 });
+			if (signal) await this.deps.adapter.requestsHandler.publishB01Dp(this.duid, { "102": 1 }, signal);
+			else await this.deps.adapter.requestsHandler.publishB01Dp(this.duid, { "102": 1 });
 		} catch (e: unknown) {
 			this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `Q10 requestAllDps failed: ${this.deps.adapter.errorMessage(e)}`, "debug");
+			throw e;
 		}
 	}
 
@@ -495,38 +504,52 @@ export class Q10VacuumFeatures extends B01BaseVacuumFeatures {
 		}
 	}
 
-	private async applyQ10StatusSnapshot(resultObj: Record<string, unknown>): Promise<void> {
-		if (!this.runtimeDetectionComplete) {
-			await this.detectAndApplyRuntimeFeatures(resultObj);
-		}
-
-		await this.processStatus(resultObj);
-
-		if (resultObj.clean_time !== undefined || resultObj.clean_area !== undefined) {
-			await this.stateWriter.ensureFolder("cleaningInfo");
-
-			if (resultObj.clean_time !== undefined) {
-				const raw = Number(resultObj.clean_time);
-				const val = Number((raw / 3600).toFixed(2));
-				await this.stateWriter.ensureAndSetValueState(`cleaningInfo.clean_time`, {
-					name: "clean_time",
-					type: "number"
-				}, val);
+	private async applyQ10StatusSnapshot(resultObj: Record<string, unknown>, pending: typeof this.statusRefresh | null = this.statusRefresh): Promise<void> {
+		try {
+			if (!this.runtimeDetectionComplete) {
+				await this.detectAndApplyRuntimeFeatures(resultObj);
 			}
 
-			if (resultObj.clean_area !== undefined) {
-				const raw = Number(resultObj.clean_area);
-				const val = Number((raw / 1000000).toFixed(2));
-				await this.stateWriter.ensureAndSetValueState(`cleaningInfo.clean_area`, {
-					name: "clean_area",
-					type: "number"
-				}, val);
+			await this.processStatus(resultObj);
+
+			if (resultObj.clean_time !== undefined || resultObj.clean_area !== undefined) {
+				await this.stateWriter.ensureFolder("cleaningInfo");
+
+				if (resultObj.clean_time !== undefined) {
+					const raw = Number(resultObj.clean_time);
+					const val = Number((raw / 3600).toFixed(2));
+					await this.stateWriter.ensureAndSetValueState(`cleaningInfo.clean_time`, {
+						name: "clean_time",
+						type: "number"
+					}, val);
+				}
+
+				if (resultObj.clean_area !== undefined) {
+					const raw = Number(resultObj.clean_area);
+					const val = Number((raw / 1000000).toFixed(2));
+					await this.stateWriter.ensureAndSetValueState(`cleaningInfo.clean_area`, {
+						name: "clean_area",
+						type: "number"
+					}, val);
+				}
 			}
+			if (pending && typeof resultObj.status === "number" && Number.isFinite(resultObj.status)) {
+				pending.processed = true;
+				if (pending.published) pending.finish();
+			}
+		} catch (error) {
+			pending?.finish(error);
+			throw error;
 		}
 	}
 
-	public async applyQ10StatusFromDpResult(dpResult: Record<string, unknown>): Promise<void> {
-		await this.q10ShadowDataService.applyQ10StatusFromDpResult(dpResult);
+	public captureQ10StatusProcessor(): (status: Record<string, unknown>) => Promise<void> {
+		const pending = this.statusRefresh ?? null;
+		return status => this.applyQ10StatusSnapshot(status, pending);
+	}
+
+	public async applyQ10StatusFromDpResult(dpResult: Record<string, unknown>, process = this.captureQ10StatusProcessor()): Promise<void> {
+		await this.q10ShadowDataService.applyQ10StatusFromDpResult(dpResult, process);
 	}
 
 	public async applyQ10NetworkFromDp81(net81: Record<string, unknown>): Promise<void> {
@@ -577,8 +600,46 @@ export class Q10VacuumFeatures extends B01BaseVacuumFeatures {
 		await this.q10ShadowDataService.applyQ10MultiMapListFromDp61(dp61);
 	}
 
-	public async applyQ10ShadowDpPayload(dps: Record<string, unknown>): Promise<void> {
-		await this.q10ShadowDataService.applyQ10ShadowDpPayload(dps);
+	public async applyQ10ShadowDpPayload(dps: Record<string, unknown>, process = this.captureQ10StatusProcessor()): Promise<void> {
+		await this.q10ShadowDataService.applyQ10ShadowDpPayload(dps, process);
+	}
+
+	public override refreshStatus(signal?: AbortSignal): Promise<void> {
+		if (signal?.aborted) return Promise.reject(signal.reason);
+		if (this.statusRefresh) return this.statusRefresh.promise;
+
+		let resolve!: () => void;
+		let reject!: (error: unknown) => void;
+		const promise = new Promise<void>((res, rej) => {
+			resolve = res;
+			reject = rej;
+		});
+		const publishAbort = new AbortController();
+		const onAbort = () => pending.finish(signal?.reason ?? new Error("Status refresh aborted"));
+		const pending = {
+			promise, published: false, processed: false,
+			finish: (error?: unknown) => {
+				if (this.statusRefresh !== pending) return;
+				this.statusRefresh = undefined;
+				publishAbort.abort(error);
+				if (timer !== undefined) this.deps.adapter.clearTimeout(timer);
+				signal?.removeEventListener("abort", onAbort);
+				if (error !== undefined) reject(error);
+				else resolve();
+			}
+		};
+		this.statusRefresh = pending;
+		const timer = this.deps.adapter.setTimeout(() => pending.finish(new Error("Timed out waiting for fresh Q10 status")), 10_000);
+		signal?.addEventListener("abort", onAbort, { once: true });
+		void this.requestQ10StatusSnapshot(publishAbort.signal).then(() => {
+			pending.published = true;
+			if (pending.processed) pending.finish();
+		}, error => pending.finish(error));
+		return promise;
+	}
+
+	public override cancelStatusRefresh(): void {
+		this.statusRefresh?.finish(new Error("Adapter stopped during status refresh"));
 	}
 
 	public override async updateStatus(): Promise<void> {

@@ -53,7 +53,7 @@ class RequestManager {
 						throw error;
 					}
 				}
-			}, { priority });
+			}, { priority, signal: manualController.signal });
 		} finally {
 			this.tasks.delete(id);
 		}
@@ -106,6 +106,11 @@ export class RoborockRequest {
 	public binaryType: "photo" | "map" | undefined;
 	public sentConnectionType: "MQTT" | "TCP" | undefined;
 	timeoutTimer: ioBroker.Timeout | undefined;
+	private readonly publishAbort = new AbortController();
+	private awaitingPublish = false;
+	private earlyResponse?: { result: unknown; version?: string };
+	private settled = false;
+	private removeAbortListener?: () => void;
 
 	timeout: number;
 	manager: RequestManager;
@@ -144,6 +149,7 @@ export class RoborockRequest {
 		const queueDuration = Date.now() - this.creationTime;
 
 		if (signal?.aborted) throw new Error("Aborted");
+		if (this.settled) return this.promise;
 
 		// Assign fresh Message ID right before sending
 		if (this.method === "get_photo") {
@@ -173,14 +179,16 @@ export class RoborockRequest {
 
 		// Handle Manual Cancellation
 		if (signal) {
-			signal.addEventListener("abort", () => {
-				this.reject(new Error(`Task ${this.messageID} was cancelled manually.`));
-			}, { once: true });
+			const onAbort = () => this.reject(signal.reason ?? new Error(`Task ${this.messageID} was cancelled manually.`));
+			signal.addEventListener("abort", onAbort, { once: true });
+			this.removeAbortListener = () => signal.removeEventListener("abort", onAbort);
 		}
 
 		let protocol = 101;
 		let version = await this.adapter.getDeviceProtocolVersion(this.duid);
 		const timestamp = Math.floor(Date.now() / 1000);
+
+		if (this.settled) return this.promise;
 
 		// FORCE Protocol 1.0 for get_photo as it uses a specific RSA handshake
 		// that is known to work with 1.0 but fails/times out with L01.
@@ -231,9 +239,15 @@ export class RoborockRequest {
 			return this.promise;
 		}
 
+		if (this.settled) return this.promise;
+
 		if (version == "A01") {
-			this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage);
-			this.resolve(null);
+			try {
+				await this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage, this.publishAbort.signal);
+				this.resolve(null);
+			} catch (error) {
+				this.reject(error);
+			}
 			return this.promise;
 		}
 
@@ -267,7 +281,14 @@ export class RoborockRequest {
 
 		// Use the forced connectionType logic for decision making
 		if (protocol == 101) {
-			this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage);
+			this.awaitingPublish = true;
+			try {
+				await this.adapter.mqtt_api.sendMessage(this.duid, roborockMessage, this.publishAbort.signal);
+				this.awaitingPublish = false;
+				if (this.earlyResponse) this.resolve(this.earlyResponse.result, this.earlyResponse.version);
+			} catch (error) {
+				this.reject(error);
+			}
 		} else {
 			const lengthBuffer = Buffer.alloc(4);
 			lengthBuffer.writeUInt32BE(roborockMessage.length, 0);
@@ -281,6 +302,13 @@ export class RoborockRequest {
 	}
 
 	resolve(result: unknown, version?: string) {
+		if (this.settled) return;
+		if (this.awaitingPublish) {
+			this.earlyResponse = { result, version };
+			return;
+		}
+		this.settled = true;
+		this.removeAbortListener?.();
 		if (this.timeoutTimer) this.adapter.clearTimeout(this.timeoutTimer);
 		this.adapter.pendingRequests.delete(this.messageID);
 		// Return an object if version is present, otherwise just the result
@@ -292,6 +320,10 @@ export class RoborockRequest {
 	}
 
 	reject(reason: unknown) {
+		if (this.settled) return;
+		this.settled = true;
+		this.removeAbortListener?.();
+		this.publishAbort.abort(reason);
 		if (this.timeoutTimer) this.adapter.clearTimeout(this.timeoutTimer);
 
 		// Debug logging to verify deletion
@@ -435,8 +467,10 @@ export class requestsHandler {
 		promise.catch(() => {});
 	}
 
-	async sendRequest(duid: string, method: string, params: unknown, options: { priority?: number; timeout?: number } = {}) {
+	async sendRequest(duid: string, method: string, params: unknown, options: { priority?: number; timeout?: number; signal?: AbortSignal; retries?: number } = {}) {
+		options.signal?.throwIfAborted();
 		const version = await this.adapter.getDeviceProtocolVersion(duid);
+		options.signal?.throwIfAborted();
 
 		let manager = this.globalManager;
 		let queueName = "CommandQueue";
@@ -472,10 +506,18 @@ export class requestsHandler {
 			}
 			const taskId = `${method}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
+			const onAbort = () => {
+				req.reject(options.signal?.reason ?? new Error("Status refresh aborted"));
+				manager.cancel(taskId);
+			};
+			options.signal?.throwIfAborted();
+			options.signal?.addEventListener("abort", onAbort, { once: true });
 			try {
-				const result = await manager.add(taskId, (signal) => req.send(signal), priority);
+				const queued = manager.add(taskId, (signal) => req.send(signal), priority);
+				// Cancellation also settles a task which has not yet reached the queue's head.
+				const result = await Promise.race([queued, req.promise]);
 
-				if (Array.isArray(result) && result[0] === "retry" && retryCount < MAX_REQUEST_RETRIES) {
+				if (Array.isArray(result) && result[0] === "retry" && retryCount < (options.retries ?? MAX_REQUEST_RETRIES)) {
 					this.adapter.rLog("System", duid, "Debug", "Retry", undefined, `[sendRequest] Received 'retry' for ${method} on ${duid}. Retrying (${retryCount + 1}/${MAX_REQUEST_RETRIES + 1})...`, "debug");
 					await new Promise((resolve) => {
 						const timeout = this.adapter.setTimeout(() => resolve(undefined), 1000);
@@ -485,7 +527,7 @@ export class requestsHandler {
 				}
 				return result;
 			} catch (error) {
-				if (retryCount < MAX_REQUEST_RETRIES && isRetryableError(error)) {
+				if (!options.signal?.aborted && retryCount < (options.retries ?? MAX_REQUEST_RETRIES) && isRetryableError(error)) {
 					this.adapter.rLog("System", duid, "Warn", "Retry", undefined, `[sendRequest] ${method} failed (${(error as Error).message}). Retrying (${retryCount + 1}/${MAX_REQUEST_RETRIES + 1})...`, "warn");
 					await new Promise((resolve) => {
 						const timeout = this.adapter.setTimeout(() => resolve(undefined), 1000);
@@ -494,6 +536,8 @@ export class requestsHandler {
 					return attempt(retryCount + 1);
 				}
 				throw error;
+			} finally {
+				options.signal?.removeEventListener("abort", onAbort);
 			}
 		};
 
@@ -504,16 +548,18 @@ export class requestsHandler {
 	 * Q10/B01: publishes a raw DP payload via protocol 101 without waiting for a
 	 * correlated response. The device answers via async DP shadow / protocol 102 / 301.
 	 */
-	public async publishB01Dp(duid: string, dps: Record<string, unknown>): Promise<void> {
+	public async publishB01Dp(duid: string, dps: Record<string, unknown>, signal?: AbortSignal): Promise<void> {
+		signal?.throwIfAborted();
 		const timestamp = Math.floor(Date.now() / 1000);
 		const payload = JSON.stringify({ dps, t: timestamp });
 		const roborockMessage = await this.messageParser.buildRoborockMessage(duid, 101, timestamp, payload, "B01");
 
+		signal?.throwIfAborted();
 		if (!roborockMessage) {
 			throw new Error("Failed to build B01 DP message");
 		}
 
-		await this.adapter.mqtt_api.sendMessage(duid, roborockMessage);
+		await this.adapter.mqtt_api.sendMessage(duid, roborockMessage, signal);
 		this.adapter.rLog("MQTT", duid, "->", "B01", 101, `Q10 DP publish: ${JSON.stringify(dps)}`, "debug");
 	}
 

@@ -1,3 +1,5 @@
+import { withStatusRefreshDeadline } from "../statusRefreshDeadline";
+import { normalizeStatusResponse } from "../statusResponse";
 import PQueue from "p-queue";
 import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
@@ -789,15 +791,23 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 		return typeof value === "object" && value !== null && !Array.isArray(value) && !Buffer.isBuffer(value);
 	}
 
-	public override async updateStatus(): Promise<void> {
+	public override async refreshStatus(signal?: AbortSignal): Promise<void> {
+		await withStatusRefreshDeadline(this.deps.adapter, signal, inner => this.updateStatus(inner));
+	}
+
+	public override async updateStatus(signal?: AbortSignal): Promise<void> {
 		try {
-			const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_prop", ["get_status"]);
-			const statusData = Array.isArray(result) ? result[0] : result;
+			const result = signal
+				? await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_prop", ["get_status"], { signal, retries: 0 })
+				: await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_prop", ["get_status"]);
+			signal?.throwIfAborted();
+			const statusData = normalizeStatusResponse(result, "state");
 
 			if (statusData && typeof statusData === "object") {
 				if (!this.runtimeDetectionComplete) {
 					await this.detectAndApplyRuntimeFeatures(statusData);
 				}
+				signal?.throwIfAborted();
 				await this.processStatus(statusData);
 				const c = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.cleaningInfo.clean_count`);
 				this.deps.adapter.rLog("System", this.duid, "Debug", "1.0", undefined, `status=${statusData.state ?? "?"}, clean_count=${c?.val ?? "?"}`, "debug");

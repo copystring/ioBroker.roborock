@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import { createCanvas } from "@napi-rs/canvas";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Q10DpDispatcher } from "../../src/lib/b01/q10/Q10DpDispatcher";
@@ -280,6 +281,215 @@ describe("Q10 B01 Map Support", () => {
 		await harness.feature.updateStatus();
 		expect(harness.adapter.requestsHandler.publishB01Dp).toHaveBeenCalledWith(Q10_DUID, { "102": 1 });
 		expect(harness.adapter.requestsHandler.sendRequest).not.toHaveBeenCalled();
+	});
+
+	it("should propagate a Q10 status publish failure to the caller", async () => {
+		const error = new Error("Q10 status publish failed");
+		harness.adapter.requestsHandler.publishB01Dp.mockRejectedValueOnce(error);
+
+		await expect(harness.feature.updateStatus()).rejects.toBe(error);
+	});
+
+	it("waits for processed Q10 status and coalesces concurrent refreshes", async () => {
+		const done = vi.fn();
+		const first = harness.feature.refreshStatus().then(done);
+		const second = harness.feature.refreshStatus();
+		await Promise.resolve();
+		expect(done).not.toHaveBeenCalled();
+		expect(harness.adapter.requestsHandler.publishB01Dp).toHaveBeenCalledTimes(1);
+		await harness.feature.applyQ10StatusFromDpResult({ battery: 90 });
+		expect(done).not.toHaveBeenCalled();
+		await harness.feature.applyQ10StatusFromDpResult({ state: 2, battery: 90 });
+		await Promise.all([first, second]);
+		expect(await harness.adapter.getStateAsync(`Devices.${Q10_DUID}.deviceStatus.status`)).toMatchObject({ val: 2 });
+		expect(done).toHaveBeenCalledOnce();
+	});
+
+	it("rejects Q10 refresh on publish failure and permits another attempt", async () => {
+		const error = new Error("publish failed");
+		harness.adapter.requestsHandler.publishB01Dp.mockRejectedValueOnce(error);
+		await expect(harness.feature.refreshStatus()).rejects.toBe(error);
+		const retry = harness.feature.refreshStatus();
+		await harness.feature.applyQ10StatusFromDpResult({ state: 2 });
+		await retry;
+	});
+
+	it("times out Q10 refresh and cleans up its timer", async () => {
+		vi.useFakeTimers();
+		harness.adapter.setTimeout = setTimeout as any;
+		harness.adapter.clearTimeout = clearTimeout;
+		try {
+			const result = expect(harness.feature.refreshStatus()).rejects.toThrow("Timed out");
+			await vi.advanceTimersByTimeAsync(10_000);
+			await result;
+			expect(vi.getTimerCount()).toBe(0);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("aborts pending Q10 refresh on unload and ignores late status", async () => {
+		const controller = new AbortController();
+		const pending = expect(harness.feature.refreshStatus(controller.signal)).rejects.toThrow("stopped");
+		controller.abort(new Error("stopped"));
+		await pending;
+		await harness.feature.applyQ10StatusFromDpResult({ state: 2 });
+	});
+
+	it("does not acknowledge a snapshot before its writes complete", async () => {
+		let release!: () => void;
+		const original = harness.adapter.setStateChanged.bind(harness.adapter);
+		vi.spyOn(harness.adapter, "setStateChanged").mockImplementation(async (...args: Parameters<typeof original>) => {
+			if (args[0].endsWith(".status")) await new Promise<void>(resolve => { release = resolve; });
+			return original(...args);
+		});
+		const done = vi.fn();
+		const pending = harness.feature.refreshStatus().then(done);
+		const applied = harness.feature.applyQ10StatusFromDpResult({ state: 2 });
+		await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+		expect(done).not.toHaveBeenCalled();
+		release();
+		await applied;
+		await pending;
+	});
+
+	it("waits for publish confirmation even if Q10 status arrives first", async () => {
+		let acknowledge!: () => void;
+		harness.adapter.requestsHandler.publishB01Dp.mockImplementationOnce(() => new Promise<void>(resolve => { acknowledge = resolve; }));
+		const done = vi.fn();
+		const pending = harness.feature.refreshStatus().then(done);
+		await harness.feature.applyQ10StatusFromDpResult({ state: 2 });
+		expect(done).not.toHaveBeenCalled();
+		acknowledge();
+		await pending;
+	});
+
+	it("rejects pending Q10 refresh when status persistence fails", async () => {
+		const error = new Error("state write failed");
+		vi.spyOn(harness.adapter, "setStateChanged").mockRejectedValueOnce(error);
+		const pending = expect(harness.feature.refreshStatus()).rejects.toBe(error);
+		await harness.feature.applyQ10StatusFromDpResult({ state: 2 });
+		await pending;
+	});
+
+	it("completes Q10 refresh from processed shadow status", async () => {
+		const pending = harness.feature.refreshStatus();
+		await harness.feature.applyQ10ShadowDpPayload({ "121": 2, "122": 90 });
+		await pending;
+	});
+
+	it("cancels pending Q10 refresh explicitly and permits retry", async () => {
+		const pending = expect(harness.feature.refreshStatus()).rejects.toThrow("Adapter stopped");
+		harness.feature.cancelStatusRefresh();
+		await pending;
+		const retry = harness.feature.refreshStatus();
+		await harness.feature.applyQ10StatusFromDpResult({ state: 2 });
+		await retry;
+	});
+
+	it("does not count an old shadow blocked in preprocessing as fresh", async () => {
+		let release!: () => void;
+		const original = harness.adapter.getStateAsync.bind(harness.adapter);
+		vi.spyOn(harness.adapter, "getStateAsync").mockImplementation(async (id: string) => {
+			if (id.endsWith(".timer_type")) await new Promise<void>(resolve => { release = resolve; });
+			return original(id);
+		});
+		const oldShadow = harness.feature.applyQ10ShadowDpPayload({ "121": 2, "101": { "93": 0 } });
+		await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+		const done = vi.fn();
+		const pending = harness.feature.refreshStatus().then(done);
+		release();
+		await oldShadow;
+		await Promise.resolve();
+		expect(done).not.toHaveBeenCalled();
+		await harness.feature.applyQ10StatusFromDpResult({ state: 2 });
+		await pending;
+	});
+
+	it("does not count a pre-refresh MQTT frame delayed by variant lookup", async () => {
+		let release!: () => void;
+		const variant = vi.fn().mockImplementationOnce(() => new Promise(resolve => { release = () => resolve("Q10"); })).mockResolvedValue("Q10");
+		Object.assign(harness.adapter, {
+			getB01Variant: variant,
+			deviceFeatureHandlers: new Map([[Q10_DUID, harness.feature]]),
+			pendingRequests: new Map(),
+		});
+		harness.adapter.requestsHandler.isRequestRecentlyFinished = () => false;
+		const api = new mqtt_api(harness.adapter as any);
+		const frame = { version: "B01", protocol: 102, payload: JSON.stringify({ dps: { "121": 2 } }) };
+		const old = api.handleDecodedMessage(Q10_DUID, frame);
+		const done = vi.fn();
+		const pending = harness.feature.refreshStatus().then(done);
+		release();
+		await old;
+		await Promise.resolve();
+		expect(done).not.toHaveBeenCalled();
+		await api.handleDecodedMessage(Q10_DUID, frame);
+		await pending;
+	});
+
+	it("captures every frame in a single MQTT delivery before processing the first", async () => {
+		let release!: () => void;
+		const variant = vi.fn().mockImplementationOnce(() => new Promise(resolve => { release = () => resolve("Q10"); })).mockResolvedValue("Q10");
+		Object.assign(harness.adapter, {
+			getB01Variant: variant, deviceFeatureHandlers: new Map([[Q10_DUID, harness.feature]]), pendingRequests: new Map(),
+		});
+		const frame = { version: "B01", protocol: 102, payload: JSON.stringify({ dps: { "121": 2 } }) };
+		Object.assign(harness.adapter.requestsHandler, { isRequestRecentlyFinished: () => false, messageParser: { decodeMsg: () => [frame, frame] } });
+		const api = new mqtt_api(harness.adapter as any);
+		const client = new EventEmitter();
+		const unsubscribe = api.subscribe_mqtt_message(client);
+		const received = client.listeners("message")[0] as (topic: string, message: Buffer) => Promise<void>;
+		const delivery = received(`rr/m/o/user/endpoint/${Q10_DUID}`, Buffer.alloc(0));
+		const done = vi.fn();
+		const pending = harness.feature.refreshStatus().then(done);
+		release();
+		await delivery;
+		await Promise.resolve();
+		expect(done).not.toHaveBeenCalled();
+		await api.handleDecodedMessage(Q10_DUID, frame);
+		await pending;
+		unsubscribe();
+	});
+
+	it("does not publish a Q10 frame built after refresh cancellation", async () => {
+		let release!: () => void;
+		const publish = vi.fn();
+		const handler = Object.create(requestsHandler.prototype) as requestsHandler;
+		handler.adapter = { mqtt_api: { sendMessage: publish }, rLog: vi.fn() } as any;
+		handler.messageParser = { buildRoborockMessage: () => new Promise(resolve => { release = () => resolve(Buffer.alloc(1)); }) } as any;
+		harness.adapter.requestsHandler.publishB01Dp.mockImplementation((...args: Parameters<typeof handler.publishB01Dp>) => handler.publishB01Dp(...args));
+		const pending = harness.feature.refreshStatus().catch(error => error);
+		harness.feature.cancelStatusRefresh();
+		await pending;
+		release();
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(publish).not.toHaveBeenCalled();
+	});
+
+	it("cancels the real Q10 MQTT publish and its timer", async () => {
+		vi.useFakeTimers();
+		try {
+			harness.adapter.setTimeout = setTimeout as any;
+			harness.adapter.clearTimeout = clearTimeout;
+			const api = new mqtt_api(harness.adapter as any);
+			api.connected = true;
+			api.client = { publish: vi.fn() };
+			Object.assign(harness.adapter.http_api, { get_rriot: () => ({ u: "user" }) });
+			harness.adapter.mqtt_api = api;
+			const handler = new requestsHandler(harness.adapter as any);
+			harness.adapter.requestsHandler = handler as any;
+			const pending = harness.feature.refreshStatus().catch(error => error);
+			await vi.advanceTimersByTimeAsync(0);
+			harness.feature.cancelStatusRefresh();
+			await pending;
+			expect(api.client.publish).toHaveBeenCalledOnce();
+			expect(api["pendingPublishes"].size).toBe(0);
+		} finally {
+			vi.clearAllTimers();
+			vi.useRealTimers();
+		}
 	});
 
 	it("should request Q10 consumables via DP 102", async () => {

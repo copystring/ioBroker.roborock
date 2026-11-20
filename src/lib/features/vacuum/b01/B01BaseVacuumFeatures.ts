@@ -1,3 +1,5 @@
+import { withStatusRefreshDeadline } from "../../statusRefreshDeadline";
+import { normalizeStatusResponse } from "../../statusResponse";
 import { MapManager } from "../../../map/MapManager";
 import { RoborockLocales } from "../../../roborock_locales";
 import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies } from "../../baseDeviceFeatures";
@@ -367,26 +369,27 @@ export class B01BaseVacuumFeatures extends BaseDeviceFeatures {
 		void this.updateRoomMapping();
 	}
 
-	public override async updateStatus(): Promise<void> {
+	public override async refreshStatus(signal?: AbortSignal): Promise<void> {
+		await withStatusRefreshDeadline(this.deps.adapter, signal, inner => this.updateStatus(inner));
+	}
+
+	public override async updateStatus(signal?: AbortSignal): Promise<void> {
 		const props = VACUUM_CONSTANTS.b01StatusProps;
 		let resultObj: Record<string, any> | undefined;
 
 		try {
-			const result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "prop.get", { property: props });
+			const result = signal
+				? await this.deps.adapter.requestsHandler.sendRequest(this.duid, "prop.get", { property: props }, { signal, retries: 0 })
+				: await this.deps.adapter.requestsHandler.sendRequest(this.duid, "prop.get", { property: props });
 
-			if (Array.isArray(result) && result.length === props.length) {
-				resultObj = {};
-				props.forEach((key: string, index: number) => {
-                    resultObj![key] = result[index];
-				});
-			} else if (typeof result === "object" && result !== null) {
-				resultObj = result;
-			}
+			signal?.throwIfAborted();
+			resultObj = normalizeStatusResponse(result, "status", props);
 
 			if (resultObj) {
 				if (!this.runtimeDetectionComplete) {
 					await this.detectAndApplyRuntimeFeatures(resultObj);
 				}
+				signal?.throwIfAborted();
 				await this.processStatus(resultObj);
 				const c = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.cleaningInfo.clean_count`);
 				this.deps.adapter.rLog("System", this.duid, "Debug", "B01", undefined, `status=${resultObj.status ?? "?"}, clean_count=${c?.val ?? "?"}`, "debug");
@@ -523,7 +526,7 @@ export class B01BaseVacuumFeatures extends BaseDeviceFeatures {
 		const stateId = `Devices.${this.duid}.deviceStatus.${key}`;
 		await this.deps.ensureState(stateId, common);
 
-		this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.${key}`, { val: val as ioBroker.StateValue, ack: true });
+		await this.deps.adapter.setStateChanged(`Devices.${this.duid}.deviceStatus.${key}`, { val: val as ioBroker.StateValue, ack: true });
 	}
 
 	public override async updateMap(): Promise<void> {

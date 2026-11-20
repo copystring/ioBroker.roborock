@@ -111,6 +111,51 @@ describe("adapter startup recovery", () => {
 		expect(updateStatus).toHaveBeenCalledTimes(2);
 	});
 
+	it("refreshes an A01 washer through the real MQTT receive and state-write path", async () => {
+		const { adapter } = setup();
+		adapter.deviceFeatureHandlers.set("washer", {} as any);
+		adapter.getDeviceProtocolVersion = async () => "A01";
+		vi.spyOn(adapter.http_api, "getProductCategory").mockReturnValue("roborock.wm");
+		vi.spyOn(adapter.http_api, "getMatchedLocalKeys").mockReturnValue(new Map([["washer", "1234567890123456"]]));
+		adapter.mqtt_api.sendMessage = vi.fn().mockResolvedValue(undefined);
+		const write = vi.fn().mockResolvedValue(undefined);
+		adapter.setStateChanged = write;
+		const pending = adapter.refreshDeviceStatus("washer");
+		const outcome = expect(pending).resolves.toBeUndefined();
+		await vi.advanceTimersByTimeAsync(0);
+		await adapter.mqtt_api.handleDecodedMessage("washer", {
+			version: "A01", protocol: 102, payload: JSON.stringify({ dps: { "203": 4 } }),
+		});
+		await outcome;
+		expect(write).toHaveBeenCalledWith("Devices.washer.deviceStatus.203", { val: 4, ack: true });
+	});
+
+	it("passes lifetime cancellation to the device refresh", async () => {
+		const { adapter } = setup();
+		const refreshStatus = vi.fn(async (signal: AbortSignal) => { signal.throwIfAborted(); });
+		adapter.deviceFeatureHandlers.set("vacuum", { refreshStatus } as any);
+		await adapter.refreshDeviceStatus("vacuum");
+		expect(refreshStatus).toHaveBeenCalledWith(expect.any(AbortSignal));
+	});
+
+	it("coalesces concurrent device refreshes and starts again after completion", async () => {
+		const { adapter } = setup();
+		let finish!: () => void;
+		const refreshStatus = vi.fn(() => new Promise<void>(resolve => { finish = resolve; }));
+		adapter.deviceFeatureHandlers.set("vacuum", { refreshStatus } as any);
+		const first = adapter.refreshDeviceStatus("vacuum");
+		const second = adapter.refreshDeviceStatus("vacuum");
+		await Promise.resolve();
+		expect(refreshStatus).toHaveBeenCalledTimes(1);
+		finish();
+		await Promise.all([first, second]);
+		const next = adapter.refreshDeviceStatus("vacuum");
+		await Promise.resolve();
+		expect(refreshStatus).toHaveBeenCalledTimes(2);
+		finish();
+		await next;
+	});
+
 	it("starts one polling loop on a healthy first attempt", async () => {
 		const { adapter, connectionWrites, polling, updateStatus } = setup();
 		await adapter.onReady();
