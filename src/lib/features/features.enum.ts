@@ -11,6 +11,7 @@ export enum Feature {
 	CleanRouteFastMode = "CleanRouteFastMode", // Adds 'Fast' to mop modes
 	SmartPlan = "SmartPlan", // Adds 'SmartPlan' (306) to mop modes
 	CustomWaterBoxDistance = "CustomWaterBoxDistance", // Creates the special distance command state
+	ResolveDockError = "ResolveDockError", // Adds 'resolve_error' button (devices reporting dock_error_status)
 
 	// --- Actions primarily creating States (non-command) ---
 	LiveVideo = "LiveVideo", // Creates camera stream URL states

@@ -53,7 +53,7 @@ This feature only works when map creation is enabled in the adapter options. Ope
 -->
 ### **WORK IN PROGRESS**
 
-* (ttoebbe) Added the `resolve_error` button to clear a latched dock or robot error, like "Resolved" in the Roborock app.
+* (ttoebbe) Added the `resolve_error` button to clear a latched dock error, like "Resolved" in the Roborock app (devices reporting `dock_error_status`).
 
 ### 0.8.0 (2026-10-11)
 

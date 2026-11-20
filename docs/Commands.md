@@ -14,7 +14,7 @@ These are the standard commands supported by most Roborock vacuums (Protocol V1/
 | `app_charge` | `[]` | Returns to dock. |
 | `find_me` | `[]` | Plays a voice prompt to locate total robot. |
 | `app_spot` | `[]` | Starts spot cleaning. |
-| `resolve_error` | `{ "error_code": N }` | Clears the pending dock error (or, if none, the robot error), like "Resolved" in the Roborock app. Sent only while an error is pending; the robot rejects array params with `-10007`. |
+| `resolve_error` | `{ "error_code": N }` | Clears a latched dock error, like "Resolved" in the Roborock app. Only on devices that report `dock_error_status`. The code is read from a fresh `get_status`; nothing is sent if that fails or no dock error is pending. The robot rejects array params with `-10007`. |
 
 ---
 
