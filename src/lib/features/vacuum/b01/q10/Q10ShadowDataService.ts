@@ -179,14 +179,14 @@ export class Q10ShadowDataService {
 		return Math.max(0, Math.round(numericValue));
 	}
 
-	public async applyQ10StatusFromDpResult(dpResult: Record<string, unknown>): Promise<void> {
+	public async applyQ10StatusFromDpResult(dpResult: Record<string, unknown>, applyStatusSnapshot = this.host.applyStatusSnapshot): Promise<void> {
 		const resultObj: Record<string, unknown> = { ...dpResult };
 		if (resultObj.state !== undefined) resultObj.status = resultObj.state;
 		if (resultObj.fan_power !== undefined) resultObj.wind = resultObj.fan_power;
 		if (resultObj.water_box_mode !== undefined) resultObj.water = resultObj.water_box_mode;
 
 		try {
-			await this.host.applyStatusSnapshot(resultObj);
+			await applyStatusSnapshot(resultObj);
 		} catch (e: unknown) {
 			this.deps.adapter.rLog("System", this.duid, "Warn", "B01", undefined, `Q10 applyQ10StatusFromDpResult: ${this.deps.adapter.errorMessage(e)}`, "warn");
 		}
@@ -472,7 +472,7 @@ export class Q10ShadowDataService {
 		}
 	}
 
-	public async applyQ10ShadowDpPayload(dps: Record<string, unknown>): Promise<void> {
+	public async applyQ10ShadowDpPayload(dps: Record<string, unknown>, applyStatusSnapshot = this.host.applyStatusSnapshot): Promise<void> {
 		if (!dps || typeof dps !== "object") return;
 
 		const statusData: Record<string, unknown> = {};
@@ -652,7 +652,7 @@ export class Q10ShadowDataService {
 			if (statusData.fan_power !== undefined) statusData.wind = statusData.fan_power;
 			if (statusData.water_box_mode !== undefined) statusData.water = statusData.water_box_mode;
 			this.normalizeQ10BooleanNumberFlags(statusData);
-			await this.host.applyStatusSnapshot(statusData);
+			await applyStatusSnapshot(statusData);
 		}
 
 		if (net81) {

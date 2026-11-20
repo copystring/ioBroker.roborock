@@ -23,6 +23,10 @@ export class socketHandler {
 		// Initialize command map
 		this.commandHandlers = new Map<string, MessageHandler>();
 		this.commandHandlers.set("getDeviceList", () => this.handleGetDeviceList());
+		this.commandHandlers.set("refresh_status", async (msg) => {
+			await this.adapter.refreshDeviceStatus(msg?.duid);
+			return { result: "ok" };
+		});
 
 		this.commandHandlers.set("app_start", (msg, id) => this.handleSimpleCommand(msg.duid, "app_start", id));
 		this.commandHandlers.set("app_pause", (msg, id) => this.handleSimpleCommand(msg.duid, "app_pause", id));

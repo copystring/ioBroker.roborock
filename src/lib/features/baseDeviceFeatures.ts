@@ -691,6 +691,15 @@ export abstract class BaseDeviceFeatures {
 		return JSON.stringify(newStates) !== JSON.stringify(oldStates);
 	}
 
+	/** Explicit on-demand refresh contract; protocols opt in when completion is observable. */
+	public async refreshStatus(_signal?: AbortSignal): Promise<void> {
+		throw new Error("On-demand status refresh is not supported by this device");
+	}
+
+	public cancelStatusRefresh(): void {
+		// Synchronous request/response implementations have no additional waiter.
+	}
+
 	public async updateStatus(): Promise<void> {
 		// Default for vacuums
 		await this.requestAndProcess("get_prop", ["get_status"], "deviceStatus");

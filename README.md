@@ -19,6 +19,7 @@ This adapter allows you the control, get states, cleaning history and view the m
 - [Requirements](#requirements)
 - [Supported robots](#supported-robots)
 - [Zone cleaning](#zone-cleaning)
+- [Script usage](#script-usage)
 - [Changelog](#changelog)
 - [License](#license)
 
@@ -45,6 +46,25 @@ This feature only works when map creation is enabled in the adapter options. Ope
 - Draw your square meant for cleaning. Roborock supports up to 4 cleaning zones at once.
 
  ![](https://github.com/copystring/ioBroker.roborock/blob/main/images/Rockrock_zone_cleaning.gif)
+
+## Script usage
+
+### Refresh device status
+
+Based on Gaspode69's contribution in #1472, `refresh_status` requests fresh status for one supported device:
+
+```javascript
+sendTo("roborock.0", "refresh_status", { duid: "DEVICE_DUID" }, response => {
+    if (response.error) {
+        log(response.error, "warn");
+        return;
+    }
+    // Fresh status has been processed into the device's ioBroker states.
+    log("Device status refreshed");
+});
+```
+
+The callback returns `{ result: "ok" }` only after status processing, or `{ error: "..." }` on failure. Concurrent requests for the same device share one refresh. V1 and Q7/B01 use their normal request/response path, with a 10-second overall refresh deadline and no automatic retries inside that deadline. Cancellation removes queued requests and aborts outstanding publishing; an ioBroker write already handed to the state database cannot be revoked. Q10 waits up to 10 seconds for newly processed numeric status after requesting DP 102; because that protocol has no request correlation ID, a fresh unsolicited status can satisfy the request too. A broker acknowledgement alone is not enough. A01 washing machines (cloud category `roborock.wm`) query operating state DP 203; A01 wet/dry cleaners (`roborock.wetdryvac`) query DP 201 via ID_QUERY 10000. A01 also waits up to 10 seconds for the newly received operating-state value to be written successfully; it does not request or guarantee a full snapshot of every device property. Like Q10, A01 has no request correlation ID, so a fresh matching push can satisfy the refresh. Other A01 categories and generic handlers without confirmed refresh support return an explicit error. Adapter shutdown cancels pending refreshes. Normal polling remains unchanged. A01 framing and DP selection follow [python-roborock's A01 implementation](https://github.com/Python-roborock/python-roborock/blob/109f433556e3c30c08eae34dbb2549f516509967/roborock/devices/rpc/a01_channel.py); this implementation has automated tests but has not been verified on physical A01 hardware.
 
 ## Changelog
 <!--

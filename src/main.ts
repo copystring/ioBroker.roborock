@@ -12,6 +12,7 @@ import { AppPluginManager } from "./lib/AppPluginManager";
 import { B01Variant, getB01VariantFromModel } from "./lib/b01Variant";
 import { DeviceManager } from "./lib/deviceManager";
 import { BaseDeviceFeatures } from "./lib/features/baseDeviceFeatures";
+import { A01StatusRefresh } from "./lib/a01StatusRefresh";
 import type { CommandSpec } from "./lib/features/baseDeviceFeatures";
 import { Feature } from "./lib/features/features.enum";
 
@@ -147,6 +148,8 @@ export class Roborock extends utils.Adapter {
 	private activeSceneQueueProcessors: Set<string> = new Set();
 	private ensuredSceneQueueStates: Set<string> = new Set();
 	private readonly lifetime = new AbortController();
+	private readonly statusRefreshes = new Map<string, Promise<void>>();
+	public readonly a01StatusRefresh = new A01StatusRefresh(this);
 	private readyStarted = false;
 	private startupComplete = false;
 	private cloudConnected = false;
@@ -400,6 +403,28 @@ export class Roborock extends utils.Adapter {
 				this.rLog("Requests", null, "Error", undefined, undefined, `Failed to execute command ${obj.command}: ${this.errorMessage(err)}`, "error");
 				this.sendTo(obj.from, obj.command, { error: this.errorMessage(err) }, obj.callback);
 			}
+		}
+	}
+
+	/** Resolve only after a supported device has applied fresh status. */
+	public async refreshDeviceStatus(duid: unknown): Promise<void> {
+		this.lifetime.signal.throwIfAborted();
+		if (typeof duid !== "string" || !duid.trim()) throw new Error("Invalid device ID");
+		const existing = this.statusRefreshes.get(duid);
+		if (existing) return existing;
+		const handler = this.deviceFeatureHandlers.get(duid);
+		if (!handler) throw new Error(`No handler for DUID ${duid}`);
+		const operation = (async () => {
+			const protocol = await this.getDeviceProtocolVersion(duid);
+			this.lifetime.signal.throwIfAborted();
+			if (protocol === "A01") await this.a01StatusRefresh.refresh(duid, this.lifetime.signal);
+			else await handler.refreshStatus(this.lifetime.signal);
+		})();
+		this.statusRefreshes.set(duid, operation);
+		try {
+			await operation;
+		} finally {
+			if (this.statusRefreshes.get(duid) === operation) this.statusRefreshes.delete(duid);
 		}
 	}
 
@@ -1723,6 +1748,9 @@ export class Roborock extends utils.Adapter {
 	 * Clears all timeouts and intervals.
 	 */
 	clearTimersAndIntervals() {
+		for (const handler of this.deviceFeatureHandlers.values()) {
+			handler.cancelStatusRefresh();
+		}
 		this.commandTimeouts.forEach((timeout) => this.clearTimeout(timeout));
 		this.commandTimeouts.clear();
 

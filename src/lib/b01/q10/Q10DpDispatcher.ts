@@ -1,13 +1,16 @@
 import type { Roborock } from "../../../main";
 import { MapDecryptor as B01MapDecryptor } from "../../map/b01/MapDecryptor";
 
+export type Q10StatusProcessor = (status: Record<string, unknown>) => Promise<void>;
+
 type Q10FeatureHandler = {
+	captureQ10StatusProcessor?: () => Q10StatusProcessor;
 	applyQ10CleanRecordBlob?: (payload: Buffer) => Promise<boolean>;
 	applyQ10ConsumablesFromDpResult?: (data: Record<string, unknown>) => Promise<void>;
 	applyQ10MapInfoFromDpResult?: (result: Record<string, unknown>) => Promise<void>;
 	applyQ10NetworkFromDp81?: (net: Record<string, unknown>) => Promise<void>;
-	applyQ10ShadowDpPayload?: (dps: Record<string, unknown>) => Promise<void>;
-	applyQ10StatusFromDpResult?: (status: Record<string, unknown>) => Promise<void>;
+	applyQ10ShadowDpPayload?: (dps: Record<string, unknown>, process?: Q10StatusProcessor) => Promise<void>;
+	applyQ10StatusFromDpResult?: (status: Record<string, unknown>, process?: Q10StatusProcessor) => Promise<void>;
 	applyQ10TimersFromDpResult?: (timers: unknown[]) => Promise<void>;
 	hasPendingQ10CleanRecordBlobRequest?: () => boolean;
 };
@@ -117,7 +120,13 @@ export class Q10DpDispatcher {
 		};
 	}
 
-	public async dispatchProtocol102(duid: string, parsed: Record<string, unknown>, dps102: Record<string, unknown>): Promise<boolean> {
+	public captureStatusProcessor(duid: string): Q10StatusProcessor {
+		const handler = this.adapter.deviceFeatureHandlers?.get(duid) as unknown as Q10FeatureHandler | undefined;
+		// No captured operation must remain no operation, even if a refresh starts later.
+		return handler?.captureQ10StatusProcessor?.() ?? (async () => {});
+	}
+
+	public async dispatchProtocol102(duid: string, parsed: Record<string, unknown>, dps102: Record<string, unknown>, process = this.captureStatusProcessor(duid)): Promise<boolean> {
 		const handler = await this.getQ10Handler(duid);
 		if (!handler) return false;
 
@@ -157,7 +166,7 @@ export class Q10DpDispatcher {
 		this.logSummaryIfChanged(duid, summary || null);
 
 		if (hasStatusResult && !isPropPost && typeof handler.applyQ10StatusFromDpResult === "function") {
-			await handler.applyQ10StatusFromDpResult(result0 as Record<string, unknown>);
+			await handler.applyQ10StatusFromDpResult(result0 as Record<string, unknown>, process);
 		}
 		if (hasMapInfoResult && typeof handler.applyQ10MapInfoFromDpResult === "function") {
 			await handler.applyQ10MapInfoFromDpResult(result0 as Record<string, unknown>);
@@ -169,7 +178,7 @@ export class Q10DpDispatcher {
 			await handler.applyQ10TimersFromDpResult(resultList);
 		}
 		if (isFlatQ10Shadow && typeof handler.applyQ10ShadowDpPayload === "function") {
-			await handler.applyQ10ShadowDpPayload(dpsRoot!);
+			await handler.applyQ10ShadowDpPayload(dpsRoot!, process);
 		}
 
 		const net81 = dps101 && typeof dps101 === "object" && !Array.isArray(dps101)

@@ -9,6 +9,7 @@ function createDeps() {
 	const ensureFolder = vi.fn().mockResolvedValue(undefined);
 	const deps: FeatureDependencies = {
 		adapter: {
+			setTimeout, clearTimeout,
 			language: "en",
 			translations: {},
 			translationManager: { get: vi.fn((key: string, fallback?: string) => fallback ?? key) },
@@ -34,6 +35,14 @@ function createDeps() {
 }
 
 describe("B01 status normalization", () => {
+	it.each([null, undefined, [], {}, [1, 2], { status: "2" }])("rejects invalid B01 refresh %j", async result => {
+		const { deps, setStateChanged } = createDeps();
+		deps.adapter.requestsHandler = { sendRequest: vi.fn().mockResolvedValue(result) } as any;
+		const feature = new Q7VacuumFeatures(deps, "duid-q7", "roborock.vacuum.sc01", { staticFeatures: [] });
+		await expect(feature.refreshStatus()).rejects.toThrow("Invalid");
+		expect(setStateChanged).not.toHaveBeenCalled();
+	});
+
 	it("writes canonical adapter states from Q7/B01 raw status keys", async () => {
 		const { deps, updateB01DeviceStatus, setStateChanged } = createDeps();
 		const feature = new Q7VacuumFeatures(deps, "duid-q7", "roborock.vacuum.sc01", { staticFeatures: [] });
