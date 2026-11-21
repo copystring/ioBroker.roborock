@@ -52,3 +52,15 @@ test("rejects an invalid response id without sending", async () => {
     await assert.rejects(forwardBundleRequest(async () => { calls++; }, "device", { id: 0, method: "get_prop", params: [] }));
     assert.equal(calls, 0);
 });
+
+test("forwards an object-parameter mode change without rewriting the bundle's choices", async () => {
+    const params = { type: 0, fan_power: 105, water_box_mode: 201, mop_mode: 300 };
+    const observed = [];
+    const result = await forwardBundleRequest(async (...args) => {
+        observed.push(args);
+        return { data: ["ok"], version: "1.0" };
+    }, "device", { id: 51, method: "app_set_clean_sequence_type", params });
+    assert.deepEqual(observed[0].slice(0, 3), ["device", "app_set_clean_sequence_type", params]);
+    assert.equal(observed[0][3].retries, 0);
+    assert.deepEqual(result, { id: 51, result: ["ok"] });
+});
