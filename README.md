@@ -40,7 +40,7 @@ This adapter allows you the control, get states, cleaning history and view the m
 - **Saros:** Saros 10, Saros 10R, Saros 20 / Saros 20X, Saros Z70
 
 ## Zone cleaning
-This feature only works when map creation is enabled in the adapter options. Open the map from the adapter’s web UI tab in the ioBroker admin interface; no manual URL needed.
+This feature only works when map creation is enabled in the adapter options. Open the map from the Roborock tab in ioBroker Admin; no web adapter instance is required for this tab. The map is available through ioBroker Admin.
 
 ### Map creation does not work on raspberry pi
 - Draw your square meant for cleaning. Roborock supports up to 4 cleaning zones at once.

@@ -95,7 +95,7 @@
     "clean": "shx rm -rf www/*.d.ts www/*.tsbuildinfo",
     "build": "npm run clean && npm run build:www && npm run lint && npm run typecheck && npm run docs",
     "build:www": "esbuild src/www/map.ts --bundle --minify --sourcemap --outfile=www/app.js --format=esm",
-    "precommit": "npm run build:www && git add www/app.js www/app.js.map && node scripts/updateCommitInfo.js --force-current-date && git add src/lib/commitInfo.ts",
+    "precommit": "npm run build:www && git add www/app.js www/app.js.map admin/tab.html && node scripts/updateCommitInfo.js --force-current-date && git add src/lib/commitInfo.ts",
     "watch": "npm run clean && npm run watch:www",
     "watch:www": "esbuild src/www/map.ts --bundle --sourcemap --outfile=www/app.js --format=esm --watch",
     "test:unit": "vitest run",
