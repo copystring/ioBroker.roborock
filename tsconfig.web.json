@@ -4,6 +4,7 @@
     "noEmit": false,
     "target": "ES2022",
     "module": "ES2022",
+    "moduleResolution": "Bundler",
     "outDir": "./www",
     "rootDir": "./src/www",
     "composite": true,

@@ -120,6 +120,28 @@ describe("RoborockRequest MQTT publish failures", () => {
 		if (mode === "queued") expect(publish).not.toHaveBeenCalled();
 	});
 
+	it("clears waiting and active requests without retrying or retaining queue work", async () => {
+		const { adapter, handler, publish } = setup("1.0");
+		const manager = handler["globalManager"];
+		manager.queue.concurrency = 1;
+		const outcomes = [
+			handler.sendRequest("robot", "get_prop", ["get_status"], { retries: 0 }).catch(error => error),
+			handler.sendRequest("robot", "get_prop", ["get_status"], { retries: 0 }).catch(error => error),
+		];
+		await vi.advanceTimersByTimeAsync(0);
+		expect(manager.queue.size).toBe(1);
+		manager.clear();
+		const results = await Promise.all(outcomes);
+		await vi.advanceTimersByTimeAsync(0);
+		expect(results.every(error => error instanceof Error)).toBe(true);
+		expect(publish).toHaveBeenCalledOnce();
+		expect(manager.tasks.size).toBe(0);
+		expect(manager.queue.size).toBe(0);
+		expect(manager.queue.pending).toBe(0);
+		expect(adapter.pendingRequests.size).toBe(0);
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
 	it("keeps A01 pending until the broker acknowledges and then resolves without a device reply", async () => {
 		const { adapter, req, acknowledge } = setup("A01");
 		let settled = false;
