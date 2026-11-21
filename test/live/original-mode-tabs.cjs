@@ -2,7 +2,7 @@
 
 // Returns session-scoped choices. The callback and list membership are taken
 // from the same committed React snapshot; titles alone never select an action.
-function extractModeTabs(snapshot) {
+function readModeGroup(snapshot) {
     const { graph, menu, objects, graphRevision } = snapshot;
     if (!graph || graph.truncated !== false || !menu || graphRevision !== menu.revision ||
         !Array.isArray(graph.fibers) || !Array.isArray(graph.bindings) ||
@@ -31,11 +31,11 @@ function extractModeTabs(snapshot) {
             }
             return false;
         });
-        if (controls.length >= 2) groups.push(controls);
+        if (controls.length >= 2) groups.push({ owner, controls });
     }
 
     if (groups.length !== 1) throw Error("Original tab group is missing or ambiguous");
-    const tabs = groups[0].map(control => {
+    const tabs = groups[0].controls.map(control => {
         if (!/^(0|[1-9][0-9]*)$/.test(control.reactPath)) throw Error("Original tab position is unavailable");
         const matches = objects.objects.filter(object =>
             object.available === true && object.common?.write === true &&
@@ -47,7 +47,17 @@ function extractModeTabs(snapshot) {
     }).sort((a, b) => a.value - b.value);
 
     if (tabs.some((tab, index) => tab.value !== index)) throw Error("Original tab positions are incomplete");
-    return tabs;
+    return { tabs, owner: groups[0].owner };
+}
+function extractModeTabs(snapshot) { return readModeGroup(snapshot).tabs; }
+function extractModeView(snapshot) {
+    const {tabs, owner} = readModeGroup(snapshot);
+    const {currentTab, tabCount} = owner.props ?? {};
+    if (tabCount !== tabs.length) throw Error("Original tab count is unavailable or inconsistent");
+    if (!Number.isSafeInteger(currentTab) || currentTab < 0 || currentTab >= tabs.length) {
+        throw Error("Original current tab is unavailable or invalid");
+    }
+    return {tabs, current: currentTab};
 }
 
-module.exports = { extractModeTabs };
+module.exports = { extractModeTabs, extractModeView };

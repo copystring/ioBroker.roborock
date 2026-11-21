@@ -50,3 +50,15 @@ test("ignores other app navigation tabs without the original mode change handler
     }
     assert.equal(extractModeTabs(value).length, 2);
 });
+
+test("reads the active position and tab count from the original tab component", () => {
+    const {extractModeView} = require("./original-mode-tabs.cjs");
+    const value = fixture(); value.graph.fibers[0].props = {currentTab: 1, tabCount: 2};
+    const view = extractModeView(value);
+    assert.equal(view.current, 1);
+    assert.equal(view.tabs.length, 2);
+    value.graph.fibers[0].props.currentTab = 2;
+    assert.throws(() => extractModeView(value), /current/i);
+    value.graph.fibers[0].props = {currentTab: 1, tabCount: 3};
+    assert.throws(() => extractModeView(value), /count/i);
+});
