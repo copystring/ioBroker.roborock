@@ -19,6 +19,10 @@ async function forwardBundleRequest(sendRequest, deviceId, request, signal) {
     }
     const adapterResult = response && typeof response === "object" && !Array.isArray(response) &&
         Object.hasOwn(response, "data") && typeof response.version === "string" ? response.data : response;
+    if (adapterResult && typeof adapterResult === "object" && !Array.isArray(adapterResult) &&
+        Object.hasOwn(adapterResult, "error")) {
+        throw new Error("Device returned an error");
+    }
     const result = adapterResult && typeof adapterResult === "object" && !Array.isArray(adapterResult) &&
         Object.hasOwn(adapterResult, "result") ? adapterResult.result : adapterResult;
     if (Array.isArray(result) && result[0] === "retry") throw new Error("Device requested retry; not retried");

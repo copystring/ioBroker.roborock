@@ -64,3 +64,8 @@ test("forwards an object-parameter mode change without rewriting the bundle's ch
     assert.equal(observed[0][3].retries, 0);
     assert.deepEqual(result, { id: 51, result: ["ok"] });
 });
+
+test("does not treat a protocol-wrapped device error as a successful result", async () => {
+    await assert.rejects(forwardBundleRequest(async () => ({data: {error: {code: -1}}, version: "1.0"}),
+        "device", {id: 52, method: "change_setting", params: []}), /device returned an error/i);
+});
