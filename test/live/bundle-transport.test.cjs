@@ -1,0 +1,41 @@
+const { test } = require("node:test");
+const assert = require("node:assert/strict");
+const { forwardBundleRequest } = require("./bundle-transport.cjs");
+
+test("forwards original method and parameters once and returns the response to its originating request", async () => {
+    const calls = [];
+    const sendRequest = async (...args) => { calls.push(args); return { result: ["ok"] }; };
+    const result = await forwardBundleRequest(sendRequest, "device", { id: 42, method: "app_set_clean_sequence_type", params: [1] });
+    assert.deepEqual(calls, [["device", "app_set_clean_sequence_type", [1], { timeout: 15000, retries: 0 }]]);
+    assert.deepEqual(result, { id: 42, result: ["ok"] });
+});
+
+test("propagates errors without retrying or fabricating a success", async () => {
+    let count = 0;
+    const sendRequest = async () => { count++; throw Error("device timeout"); };
+    await assert.rejects(forwardBundleRequest(sendRequest, "device", { id: 8, method: "anything", params: [] }), /device timeout/);
+    assert.equal(count, 1);
+});
+
+test("rejects malformed requests before reaching the adapter", async () => {
+    let count = 0;
+    const sendRequest = async () => { count++; };
+    for (const request of [null, { id: 1, method: "", params: [] }, { id: 2, method: "a", params: "wrong" }]) {
+        await assert.rejects(forwardBundleRequest(sendRequest, "device", request));
+    }
+    assert.equal(count, 0);
+});
+
+test("forwards structured parameters without modification", async () => {
+    const params = { setting: 3, enabled: true };
+    const result = await forwardBundleRequest(async (_device, _method, received) => {
+        assert.deepEqual(received, params);
+        return ["ok"];
+    }, "other-device", { id: 11, method: "change_setting", params });
+    assert.deepEqual(result, { id: 11, result: ["ok"] });
+});
+
+test("does not turn a device retry response into success", async () => {
+    await assert.rejects(forwardBundleRequest(async () => ["retry"], "device",
+        { id: 12, method: "change_setting", params: [] }), /retry/i);
+});
