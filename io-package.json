@@ -161,17 +161,12 @@
         "es": "Roborock",
         "pl": "Roborock",
         "zh-cn": "Roborock"
-      },
-      "link": "%web_protocol%://%ip%:%web_port%/roborock/index.html?instance=%instance%"
-    },
-    "localLinks": {
-      "_default": "%web_protocol%://%ip%:%web_port%/roborock/index.html?instance=%instance%"
+      }
     },
     "messagebox": true,
     "dependencies": [
       {
-        "js-controller": ">=6.0.11",
-        "web": ">=4.0.0"
+        "js-controller": ">=6.0.11"
       }
     ],
     "globalDependencies": [
