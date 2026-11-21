@@ -204,12 +204,12 @@ export class messageParser {
 	 */
 	async buildPayload(protocol: number, messageID: number, method: string, params: any, version: string): Promise<string> {
 		const timestamp = Math.floor(Date.now() / 1000);
-		const endpoint = await this.adapter.mqtt_api.ensureEndpoint();
 
 		// Protocol A01 simplified payload
 		if (version === "A01") {
 			return JSON.stringify({ dps: { [method]: params }, t: timestamp });
 		}
+		const endpoint = await this.adapter.mqtt_api.ensureEndpoint();
 
 		// Standard payload
 		const inner: any = { id: messageID, method, params };
