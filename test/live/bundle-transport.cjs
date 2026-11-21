@@ -1,20 +1,26 @@
 "use strict";
 
 // Keep the request ID owned by Hermes; ioBroker uses its own ID on the wire.
-async function forwardBundleRequest(sendRequest, deviceId, request) {
+async function forwardBundleRequest(sendRequest, deviceId, request, signal) {
     if (typeof sendRequest !== "function" || typeof deviceId !== "string" || !deviceId ||
-        !request || !Number.isSafeInteger(request.id) || typeof request.method !== "string" ||
+        !request || !Number.isSafeInteger(request.id) || request.id < 1 || request.id > 0x7fffffff || typeof request.method !== "string" ||
         !request.method || request.params === undefined || (request.params !== null && typeof request.params !== "object")) {
         throw new TypeError("Invalid original bundle request");
     }
 
-    const response = await sendRequest(deviceId, request.method, request.params, { timeout: 15000, retries: 0 });
+    signal?.throwIfAborted();
+    const response = await sendRequest(deviceId, request.method, request.params, {
+        timeout: 15000, retries: 0, ...(signal ? { signal } : {})
+    });
+    signal?.throwIfAborted();
     if (response && typeof response === "object" && !Array.isArray(response) &&
         Object.hasOwn(response, "error")) {
         throw new Error("Device returned an error");
     }
-    const result = response && typeof response === "object" && !Array.isArray(response) &&
-        Object.hasOwn(response, "result") ? response.result : response;
+    const adapterResult = response && typeof response === "object" && !Array.isArray(response) &&
+        Object.hasOwn(response, "data") && typeof response.version === "string" ? response.data : response;
+    const result = adapterResult && typeof adapterResult === "object" && !Array.isArray(adapterResult) &&
+        Object.hasOwn(adapterResult, "result") ? adapterResult.result : adapterResult;
     if (Array.isArray(result) && result[0] === "retry") throw new Error("Device requested retry; not retried");
     if (result === undefined) throw new Error("Device response has no result");
     return { id: request.id, result };

@@ -39,3 +39,16 @@ test("does not turn a device retry response into success", async () => {
     await assert.rejects(forwardBundleRequest(async () => ["retry"], "device",
         { id: 12, method: "change_setting", params: [] }), /retry/i);
 });
+
+test("unwraps the adapter protocol-version envelope before returning to the original request", async () => {
+    const response = { data: [{ battery: 42 }], version: "1.0" };
+    assert.deepEqual(await forwardBundleRequest(async () => response, "device",
+        { id: 13, method: "get_prop", params: ["get_status"] }),
+        { id: 13, result: [{ battery: 42 }] });
+});
+
+test("rejects an invalid response id without sending", async () => {
+    let calls = 0;
+    await assert.rejects(forwardBundleRequest(async () => { calls++; }, "device", { id: 0, method: "get_prop", params: [] }));
+    assert.equal(calls, 0);
+});
