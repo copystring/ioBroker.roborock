@@ -196,7 +196,7 @@ export class RoborockRequest {
 			version = "1.0";
 		}
 
-		if (this.adapter.local_api.isConnected(this.duid) && version != "B01" && !["service.upload_by_maptype", "service.upload_record_by_url", "get_photo"].includes(this.method)) {
+		if (this.adapter.local_api.isConnected(this.duid) && version !== "A01" && version !== "B01" && !["service.upload_by_maptype", "service.upload_record_by_url", "get_photo"].includes(this.method)) {
 			protocol = 4;
 		}
 
@@ -527,7 +527,8 @@ export class requestsHandler {
 				}
 				return result;
 			} catch (error) {
-				if (!options.signal?.aborted && retryCount < (options.retries ?? MAX_REQUEST_RETRIES) && isRetryableError(error)) {
+				if (this.adapter.pendingRequests.get(req.messageID) === req) req.reject(error);
+				if (version !== "A01" && !options.signal?.aborted && retryCount < (options.retries ?? MAX_REQUEST_RETRIES) && isRetryableError(error)) {
 					this.adapter.rLog("System", duid, "Warn", "Retry", undefined, `[sendRequest] ${method} failed (${(error as Error).message}). Retrying (${retryCount + 1}/${MAX_REQUEST_RETRIES + 1})...`, "warn");
 					await new Promise((resolve) => {
 						const timeout = this.adapter.setTimeout(() => resolve(undefined), 1000);
@@ -563,7 +564,15 @@ export class requestsHandler {
 		this.adapter.rLog("MQTT", duid, "->", "B01", 101, `Q10 DP publish: ${JSON.stringify(dps)}`, "debug");
 	}
 
+	public async publishA01Dp(duid: string, dps: Record<string, unknown>): Promise<void> {
+		const timestamp = Math.floor(Date.now() / 1000);
+		const frame = await this.messageParser.buildRoborockMessage(duid, 101, timestamp, JSON.stringify({ dps, t: timestamp }), "A01");
+		if (!frame) throw new Error("Failed to build A01 DP message");
+		await this.adapter.mqtt_api.sendMessage(duid, frame);
+	}
+
 	async command(_handler: BaseDeviceFeatures, duid: string, method: string, params?: unknown, id?: string) {
+		if (await _handler?.executeDeviceCommand?.(method, params)) return;
 		const b01Variant = await this.adapter.getB01Variant?.(duid);
 		if (b01Variant === "Q10") {
 			await this.getQ10CommandHandler().handleCommand(_handler, duid, method, params);
