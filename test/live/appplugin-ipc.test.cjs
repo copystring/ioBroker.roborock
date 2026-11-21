@@ -93,3 +93,14 @@ test("passes transport cancellation across IPC", async () => {
     assert.equal(seenSignal.aborted, true);
     client.close(); stop();
 });
+
+test('supports independent requests in both directions over one channel', async () => {
+ const p=pair();
+ const stopHost=createServer(p.server, async request=>'device:'+request.method);
+ const stopWorker=createServer(p.client, async request=>'ui:'+request.method);
+ const deviceClient=createClient(p.client);
+ const uiClient=createClient(p.server);
+ const [device,ui]=await Promise.all([deviceClient.request('status',[]),uiClient.request('snapshot',[])]);
+ assert.equal(device,'device:status'); assert.equal(ui,'ui:snapshot');
+ deviceClient.close();uiClient.close();stopHost();stopWorker();
+});

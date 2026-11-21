@@ -1,0 +1,179 @@
+--- a/src/original-presentation-bootstrap.ts
++++ b/src/original-presentation-bootstrap.ts
+@@ -6,22 +6,24 @@
+ function presentationEquivalent(left,right){if(left===right)return true;return typeof originalCallbacksEquivalent==="function"&&originalCallbacksEquivalent(left,right)===true;}
+ function presentationEventId(state,key,callback,semantic,kind,status){var previous=state.prior[key],kindSame=!!previous&&previous.kind===kind,statusSame=!!previous&&previous.status===status,callbackSame=!!previous&&previous.callback===callback,callbackEquivalent=!!previous&&presentationEquivalent(previous.callback,callback),semanticSame=!!previous&&previous.semantic===semantic,semanticEquivalent=!!previous&&presentationEquivalent(previous.semantic,semantic),equivalent=!!previous&&kindSame&&statusSame&&(kind==="pressability"?callbackEquivalent&&semanticEquivalent:callbackEquivalent),diagnostic={previousFound:!!previous,previousSource:state.priorSource,alternatePresent:state.alternatePresent,alternateReciprocal:state.alternateReciprocal,kindSame:kindSame,statusSame:statusSame,callbackSame:callbackSame,callbackEquivalent:callbackEquivalent,semanticSame:semanticSame,semanticEquivalent:semanticEquivalent,reused:equivalent};if(previous&&!callbackSame&&typeof originalBoundCallbackState!=="undefined"&&typeof originalBoundCallbackState.compare==="function")diagnostic.boundComparison=originalBoundCallbackState.compare(previous.callback,callback);var id=equivalent?previous.id:++presentationNextId;state.current[key]={id:id,callback:callback,semantic:semantic,kind:kind,status:status};return {id:id,diagnostic:diagnostic};}
+ function presentationStoreEventState(state){var next={events:state.current};presentationEventBindings.set(state.fiber,next);if(state.alternate)presentationEventBindings.set(state.alternate,next);}
++var originalModeEntry=null;
+ function originalPresentationGraph(){
++ originalModeEntry=null;
+  var own=originalControlOwn,roots=new Set(),fibers=[],nativeNodes=[],bindings=[],seen=new Set(),committedParents=new Map(),eventIdsByFiber=new WeakMap(),limit=12000,truncated=false,ancestryDiagnostics={reusedParentLinks:0,currentTreeNodesRejectedByReturnPath:0};
+  function array(value){return Array.isArray(value)?value:[];}
+- function props(value){var out={};["accessible","accessibilityRole","accessibilityLabel","accessibilityHint","disabled","visible","selected","checked","secureTextEntry","pointerEvents","responsible","display","opacity","title"].forEach(function(key){var v=own(value,key);if(typeof v==="string"||typeof v==="boolean"||typeof v==="number")out[key]=v;});return out;}
++ function props(value){var out={};if(typeof own(value,"tabWillChange")==="function"&&typeof own(value,"onPressTab")==="function"){var currentTab=own(value,"current"),sourceTabs=own(value,"tabs");if(typeof currentTab==="number"||typeof currentTab==="string")out.currentTab=currentTab;if(Array.isArray(sourceTabs))out.tabCount=sourceTabs.length;}["accessible","accessibilityRole","accessibilityLabel","accessibilityHint","disabled","visible","selected","checked","secureTextEntry","pointerEvents","responsible","display","opacity","title","isInHomePage"].forEach(function(key){var v=own(value,key);if(typeof v==="string"||typeof v==="boolean"||typeof v==="number")out[key]=v;});return out;}
+  function sliderNumericProps(value){if(!value||typeof value!=="object"||typeof own(value,"onSliderMove")!=="function"||typeof own(value,"onSliderComplete")!=="function")return null;var result={},fields={};for(var key of ["min","max","step","value"]){var descriptor;try{descriptor=Object.getOwnPropertyDescriptor(value,key);}catch(_){descriptor=null;}if(!descriptor){fields[key]={status:"missing"};continue;}if(!Object.prototype.hasOwnProperty.call(descriptor,"value")){fields[key]={status:"accessor"};continue;}var number=descriptor.value;if(typeof number==="number"&&Number.isFinite(number)){result[key]=number;fields[key]={status:"finite-number",value:number};}else{fields[key]={status:"non-finite-or-nonnumeric",type:number===null?"null":typeof number};}}return {values:result,fields:fields,complete:Object.keys(result).length===4};}
+  function style(value){var out={},seenStyles=new Set(),stack=[value];while(stack.length){var s=stack.pop();if(!s||typeof s!=="object"||seenStyles.has(s))continue;seenStyles.add(s);if(Array.isArray(s)){for(var i=0;i<s.length;i++)stack.push(own(s,String(i)));continue;}["display","opacity","flexDirection","flex","width","height","position"].forEach(function(key){if(Object.prototype.hasOwnProperty.call(out,key))return;var v=own(s,key);if(typeof v==="string"||typeof v==="number")out[key]=v;});}return out;}
+  function current(f){if(originalControlCommittedRoot(f))return f;var alt=own(f,"alternate");return alt&&originalControlCommittedRoot(alt)?alt:null;}
+  nativeInputFibers.forEach(function(f){var c=current(f),r=c&&originalControlCommittedRoot(c);if(r)roots.add(r);});
+  var stack=[];roots.forEach(function(root){stack.push({f:root,parent:null,parentFiber:null});});
+  while(stack.length){var entry=stack.pop(),f=entry.f;if(!f||seen.has(f))continue;if(seen.size>=limit){truncated=true;break;}seen.add(f);committedParents.set(f,entry.parentFiber);var p=own(f,"memoizedProps"),id=presentationIdentity(f),events=[],eventState=presentationEventState(f),eventIds=[];
+-  if(p&&(typeof p==="object"||typeof p==="function")){Reflect.ownKeys(p).forEach(function(key){if(typeof key!=="string"||!/^on[A-Z]/.test(key))return;var callback=own(p,key);if(typeof callback!=="function")return;var event={event:key,callbackId:presentationIdentity(callback)},semantic=callback,kind="direct",status="direct";
++  if(p&&(typeof p==="object"||typeof p==="function")){Reflect.ownKeys(p).forEach(function(key){if(typeof key!=="string"||!/^on[A-Z]/.test(key)&&key!=="tabWillChange")return;var callback=own(p,key);if(typeof callback!=="function")return;var event={event:key,callbackId:presentationIdentity(callback)},semantic=callback,kind="direct",status="direct";
+    if(key==="onClick"){var resolution=typeof originalPressabilityResolve==="function"?originalPressabilityResolve(callback):null;status=resolution&&resolution.status||"unobserved-callback";event.pressabilityStatus=status;if(status==="resolved"&&resolution&&typeof resolution.onPress==="function"){semantic=resolution.onPress;kind="pressability";}else{kind="unresolved-pressability";}}
+-   var binding=presentationEventId(eventState,key,callback,semantic,kind,status);event.bindingIdentity=binding.id;event.bindingDiagnostic=binding.diagnostic;if(key==="onClick"&&kind==="pressability"){event.originalPressCallbackId=presentationIdentity(semantic);event.originalPressBindingIdentity=event.bindingIdentity;}events.push(event);eventIds.push({event:key,callback:callback,semantic:semantic,kind:kind,callbackId:event.callbackId,bindingIdentity:event.bindingIdentity});
++   var binding=presentationEventId(eventState,key,callback,semantic,kind,status);event.bindingIdentity=binding.id;event.bindingDiagnostic=binding.diagnostic;if(key==="onPressModeSettingButton"){var candidate={fiber:f,fiberId:id,callback:callback,callbackId:event.callbackId,bindingIdentity:event.bindingIdentity,commit:originalControlCommitEpoch()};originalModeEntry=originalModeEntry?{ambiguous:true}:candidate;}if(key==="onClick"&&kind==="pressability"){event.originalPressCallbackId=presentationIdentity(semantic);event.originalPressBindingIdentity=event.bindingIdentity;}events.push(event);eventIds.push({event:key,callback:callback,semantic:semantic,kind:kind,callbackId:event.callbackId,bindingIdentity:event.bindingIdentity});
+   });}presentationStoreEventState(eventState);var previousEventIds=eventIdsByFiber;previousEventIds.set(f,eventIds);
+   if(entry.parentFiber&&own(f,"return")!==entry.parentFiber)ancestryDiagnostics.reusedParentLinks++;if(!originalControlCommittedRoot(f))ancestryDiagnostics.currentTreeNodesRejectedByReturnPath++;
+-  var kind=originalControlType(f),stateNodeDescriptor=Object.getOwnPropertyDescriptor(f,"stateNode"),stateNode=stateNodeDescriptor&&Object.prototype.hasOwnProperty.call(stateNodeDescriptor,"value")?stateNodeDescriptor.value:null,stateNodeIdentity=kind===null&&(typeof stateNode==="object"&&stateNode!==null||typeof stateNode==="function")?presentationIdentity(stateNode):null;fibers.push({id:id,parentId:entry.parent,reactTag:own(f,"tag"),nativeType:kind,stateNodeIdentity:stateNodeIdentity,props:props(p),sliderNumericProps:sliderNumericProps(p),style:style(own(p,"style")),events:events});
++  var kind=originalControlType(f),stateNodeDescriptor=Object.getOwnPropertyDescriptor(f,"stateNode"),stateNode=stateNodeDescriptor&&Object.prototype.hasOwnProperty.call(stateNodeDescriptor,"value")?stateNodeDescriptor.value:null,stateNodeIdentity=kind===null&&(typeof stateNode==="object"&&stateNode!==null||typeof stateNode==="function")?presentationIdentity(stateNode):null;fibers.push({id:id,parentId:entry.parent,reactTag:own(f,"tag"),nativeType:kind,stateNodeIdentity:stateNodeIdentity,pressState:{enabled:typeof own(own(stateNode,"state"),"enabled")==="boolean"?own(own(stateNode,"state"),"enabled"):null,isAnimating:typeof own(stateNode,"isAnimating")==="boolean"?own(stateNode,"isAnimating"):null},props:props(p),sliderNumericProps:sliderNumericProps(p),style:style(own(p,"style")),tabLayoutWidths:(function(){if(typeof own(p,"tabWillChange")!=="function"||typeof own(p,"onPressTab")!=="function")return null;var tabs=own(p,"tabs"),layouts=own(stateNode,"layoutMap");if(!Array.isArray(tabs))return null;return tabs.map(function(_,i){var width=own(own(layouts,String(i)),"width");return typeof width==="number"?width:null;});})(),events:events});
+   var children=[],siblings=new Set();for(var child=own(f,"child");child&&!siblings.has(child);child=own(child,"sibling")){siblings.add(child);children.push(child);}for(var i=children.length-1;i>=0;i--)stack.push({f:children[i],parent:id,parentFiber:f});
+  }
+  var walk=array(nativeInputNodes).slice().reverse().map(function(node){return {node:node,parent:null,screen:null,secure:false};}),visitedNative=new Set();
+--- a/src/original-menu-bootstrap.ts
++++ b/src/original-menu-bootstrap.ts
+@@ -258,6 +258,13 @@
+       lastCapturedInspection=valid&&current.revision===expectedRevision?{status:"current-captured-paths-observed",revision:current.revision,results:originalCallbackSource.inspectCapturedPaths(requests)}:{status:"captured-path-request-rejected",revision:current.revision,results:[]};publish();
+     },
+     presentationSnapshot:function(){var value=snapshot();value.presentationGraph=originalPresentationGraph();g.__apkNativeInvoke("StandaloneOriginalMenuHost","update",[value],"sync");},
++    openPresentedMode:function(expected){
++      var current=snapshot(false,false), freshGraph=originalPresentationGraph(), target=originalModeEntry, props=target&&target.fiber&&originalControlOwn(target.fiber,"memoizedProps");
++      var valid=expected&&current.screen&&current.screen.route===expected.route&&freshGraph.truncated===false&&freshGraph.screenNativeRootTag===current.screen.nativeRootTag&&target&&!target.ambiguous&&target.commit===originalControlCommitEpoch()&&originalControlCommittedRoot(target.fiber)&&originalControlOwn(props,"onPressModeSettingButton")===target.callback;
++      lastActivation={reference:"original-mode-entry",revision:expected&&expected.revision,accepted:!!valid};
++      if(valid)target.callback.call(props);
++      publish();
++    },
+     activate:function(ref,expectedRevision,value,navigationProof){
+       var revisionBeforeRefresh=revision,revisionAfterInputs=null,revisionAfterDialogs=null,a=null;
+       function reject(reason,receiptStatus){lastActivation={reference:ref,revision:expectedRevision,accepted:false,rejectionReason:reason,revisionBeforeRefresh:revisionBeforeRefresh,revisionAfterInputs:revisionAfterInputs,revisionAfterDialogs:revisionAfterDialogs,currentRevision:revision,receiptStatus:receiptStatus||null,hasBinding:!!a,focusedBinding:!!a&&focused(a.owner),receiptCapture:typeof originalActionReceiptCaptureDiagnostics==="function"?originalActionReceiptCaptureDiagnostics(ref):null,receiptDiagnostics:typeof originalActionReceiptDiagnostics==="function"?originalActionReceiptDiagnostics(ref,expectedRevision,a,{focused:!!a&&focused(a.owner),focusOwner:focusOwner,screenNativeRootTag:screenNativeRootTag,snapshot:currentActionSnapshot}):null};publish();return false;}
+--- a/src/headless-session.ts
++++ b/src/headless-session.ts
+@@ -1,3 +1,4 @@
++import {captureModeGraph} from './mode-graph-transaction.ts';
+ import {createHash,randomUUID} from 'node:crypto';
+ import {settleOriginalPresentationTransaction} from './headless-presentation-transaction.ts';
+ import {NativeInputReceipts} from './native-input-receipts.ts';
+@@ -62,6 +63,8 @@
+  onNativeActivity?:{openPersonalCenterPage(name:'RRDeviceShareDetail'|'RRFirewareUpdateDetail'):void;closeCurrentPage():void};
+  /** Transport remains caller-owned; false is required for an Activity worker. Kept for compatibility. */
+  ownsTransport?:boolean;
++ fastModeGraph?:boolean;
++ allowLiveMode?:boolean;
+  onRuntimeResult?(result:import('./host.ts').ProbeResult):void;
+  /** Analysis-only original-runtime codec probe, accepted exclusively for explicit mock sessions. */
+  testOnlyRuntimeProbe?:Readonly<{bundleSha256:string;bootstrapJavaScript:string;hostService:object;onPorts?(ports:HostSessionPorts):void;onStarted?(ports:HostSessionPorts):void;onProbeResult?(result:import('./host.ts').ProbeResult):void}>;
+@@ -94,7 +97,7 @@
+  if(options.activityFeature&&options.ownsTransport!==false)throw Error('Eine Original-Feature-Activity verlangt einen ausdrücklich geteilten, außen besessenen Transport.');
+  if(options.activityFeature&&(!options.activityFeature.packageDirectory||options.activityFeature.signature!=='verified'))throw Error('ProfilePage verlangt ein unverändertes, signaturgeprüftes APK-Featurepaket.');
+  const activityBundleRoot=options.activityFeature?.packageDirectory??plugin.pluginRoot;
+- const resourceRoot=resolve(pocRoot,'../../Apks/resources/res');
++ const resourceRoot='/shared/Reverse engineering/Roborock/Apks/resources/res';
+  const pluginResources=await createDrawableResolver(activityBundleRoot),apkResources=await createDrawableResolver(resourceRoot);
+  const task=runProbe(options.activityFeature?.bundlePath??plugin.bundlePath,{hostRole:'device',renderer:'fabric',originalMenus:!options.activityFeature,callbackLocations:!options.activityFeature,mount:true,appKey:options.activityFeature?'ProfilePage':'App',mock:options.mock,
+   ...(backend.fontFaces?.length?{skia:{fontPaths:backend.fontFaces.map(face=>face.path)}}:{}),
+@@ -147,6 +150,8 @@
+  async function settleNativeFrame(includePresentation=false){const runtime=current();
+   await settleOriginalPresentationTransaction({flushWorker:()=>runtime.ports.flush(),flushLayout:()=>runtime.ui.flushLayout(),publishMenu:()=>{runtime.ports.send({type:'callJsFunction',moduleName:'StandaloneOriginalStore',methodName:'snapshot',arguments:[]});if(!options.activityFeature){runtime.ports.send({type:'callJsFunction',moduleName:'StandaloneOriginalMenu',methodName:'snapshot',arguments:[]});if(includePresentation)runtime.ports.send({type:'callJsFunction',moduleName:'StandaloneOriginalMenu',methodName:'presentationSnapshot',arguments:[]});}},frame:()=>{current();const root=runtime.ui.uiManager.root(runtime.ui.rootTag);return {operationCount:root.operationCount(),visualMutationRevision:root.visualMutationRevision(),reactCommitCount};}});current();
+  }
++ async function modeGraph(){const runtime=current();return captureModeGraph({flush:()=>runtime.ports.flush(),publish:()=>runtime.ports.send({type:'callJsFunction',moduleName:'StandaloneOriginalMenu',methodName:'presentationSnapshot',arguments:[]}),read:()=>snapshot()});}
++ async function waitModeGraph(predicate:(graph:any)=>boolean,timeout=20000){const deadline=Date.now()+timeout;for(;;){const state=await modeGraph();if(predicate(state.menu.presentationGraph))return state;const before=epoch;await new Promise<void>((yes,no)=>{const wake=()=>{clearTimeout(timer);changed.delete(wake);yes();};const timer=setTimeout(()=>{changed.delete(wake);no(Error('Original mode graph timed out'));},Math.max(1,deadline-Date.now()));changed.add(wake);if(epoch!==before)wake();});if(Date.now()>=deadline)throw Error('Original mode graph timed out');}}
+  async function settle(){await settleAndInspectNavigation();await settleNativeFrame();}
+  async function settleAndInspectNavigation(){const runtime=current();
+   await settleNativeFrame();
+@@ -212,7 +217,7 @@
+   return {status:'current-captured-navigation-inspected',revision:originalRevision,graphs:graphs.map(graph=>graph.snapshot()),snapshotOnly:true,navigationOnlyProven:false};
+  }
+  async function inspectNativeHierarchy(){
+-  if(!options.mock)throw Error('Native-Hierarchie-Readback ist ausschließlich für explizite Mock-Sitzungen verfügbar.');
++  if(!options.mock&&!options.allowLiveMode)throw Error('Native hierarchy requires a scoped mode session');
+   await settle();
+   return captureNativeHierarchy();
+  }
+@@ -248,7 +253,7 @@
+   return {sessionId:instance,route:observedRoute??null,revision:observedRevision,rootTag:hierarchy.root.rootTag,root:walk(hierarchy.root),layoutCount:hierarchy.layouts.length,collapsedTags:hierarchy.collapsedTags.length,collapsedNativeTags:[...hierarchy.collapsedTags],virtualTags:hierarchy.virtualTags.length,...runtime.ui.presentationDiagnostics()};
+  }
+  async function inspectOriginalPresentation(inputTarget?:Readonly<{nativeTag:number;x:number;y:number}>){
+-  if(!options.mock)throw Error('Original-Präsentations-Readback erfordert eine explizite Mock-Sitzung.');
++  if(!options.mock&&!options.allowLiveMode)throw Error('Original presentation requires a scoped mode session');
+   await settle();const runtime=current(),previous=menu.presentationGraph;
+   // Introspection yields to the original timer bridge too. Publish graph/menu
+   // within the native-frame transaction instead of reading a dirty layout.
+@@ -260,7 +265,7 @@
+   // Keep the observed controls and geometry together. Separate asynchronous
+   // read()/hierarchy calls may describe different original React commits.
+   const projection=structuredClone({revision:menu.revision,screen:menu.screen,sliders:menu.sliders??[],diagnostics:{sliders:menu.diagnostics?.sliders??null,commitTimings:menu.diagnostics?.commitTimings??null}});
+-  const presentation={status:'current-original-presentation',revision,executionAuthorized:false,graph:structuredClone(graph),projection,hierarchy};
++  const presentation={status:'current-original-presentation',revision,executionAuthorized:false,graph:structuredClone(graph),projection,hierarchy,snapshot:structuredClone(snapshot())};
+   if(!inputTarget)return presentation;
+   const witness=targetInputWitness(presentation,inputTarget),diagnostics=runtime.ui.presentationDiagnostics();
+   if(!runtime.ui.presentationIsCurrent()||!diagnostics.hasStableHierarchy||diagnostics.pendingNativeMeasurements!==0)throw Error('Originaler Eingabebeleg verlangt eine stabile native Präsentation.');
+@@ -460,7 +465,7 @@
+   }
+  }
+  function currentActionBinding(id:string,value:boolean):Readonly<{identity:OriginalCurrentActionBinding;reference:string;revision:number}>{
+-  if(!options.mock||options.activityFeature)throw Error('Current-Binding-Aktionen benötigen eine isolierte Mock-Session ohne Activity-Feature.');
++  if((!options.mock&&!options.allowLiveMode)||options.activityFeature)throw Error('Current actions require a scoped mode session');
+   const rows=objects.snapshot().objects.filter((row:any)=>row._id===id);
+   if(rows.length!==1||rows[0].available!==true)throw Error('Current-Binding-Aktion ist nicht eindeutig aktiv.');
+   const row=rows[0],native=row.native??{},route=menu.screen?.route,rootTag=menu.screen?.nativeRootTag;
+@@ -492,7 +497,7 @@
+    if(!Number.isSafeInteger(screenRootTag))throw Error('Originale Native-Press-Aktion besitzt keinen aktuellen Screenroot.');
+    await executeOriginalNativePress(runtime.ui,receipt.nativePressTarget,()=>!closed&&foreground&&ports===runtime.ports&&menu.screen?.route===route&&menu.screen?.nativeRootTag===screenRootTag,settle,screenRootTag);
+   }
+-  await settle();if(expectedRoute)await waitForRoute(expectedRoute);
++  if(options.fastModeGraph)await modeGraph();else await settle();if(expectedRoute)await waitForRoute(expectedRoute);
+   return {status:alerts?.snapshot().length?'original-action-awaiting-confirmation':'original-action-dispatched',deviceAcknowledged:false,activation:receipt,...snapshot()};
+  }
+  async function dispatchResolvedAction(binding:any,expectedRoute?:string){
+@@ -507,14 +512,14 @@
+  async function execute(action:HeadlessAction){requireForeground();await settle();if(action.expectedRevision!==undefined&&action.expectedRevision!==menu.revision||action.expectedCurrentRoute!==undefined&&action.expectedCurrentRoute!==menu.screen?.route)throw Error('Originalaktions-Vorbedingungen wurden geändert.');const binding=objects.resolve(action.id,action.value);return dispatchResolvedAction(binding,action.expectedRoute);}
+  async function planCurrentAction(action:HeadlessCurrentActionRequest):Promise<HeadlessCurrentActionPlan>{
+   if(closed)throw Error('Headless-Sitzung ist beendet.');requireForeground();if(!action||typeof action.id!=='string'||typeof action.value!=='boolean')throw Error('Current-Binding-Plan erwartet eine aktuelle boolesche Originalaktion.');
+-  await settle();await settleNativeFrame(true);if(closed)throw Error('Headless-Sitzung ist beendet.');
++  if(options.fastModeGraph)await modeGraph();else{await settle();await settleNativeFrame(true);}if(closed)throw Error('Headless-Sitzung ist beendet.');
+   if(action.expectedCurrentRoute!==undefined&&action.expectedCurrentRoute!==menu.screen?.route)throw Error('Current-Binding-Plan gehört nicht zur erwarteten Originalroute.');
+   const currentBinding=currentActionBinding(action.id,action.value);
+   return currentActionPlans.create({binding:currentBinding.identity,value:action.value,...action.expectedRoute?{expectedRoute:action.expectedRoute}:{}});
+  }
+  async function executeCurrentAction(plan:HeadlessCurrentActionPlan){
+   if(closed)throw Error('Headless-Sitzung ist beendet.');const pending=currentActionPlans.consume(plan);requireForeground();
+-  await settle();await settleNativeFrame(true);if(closed)throw Error('Headless-Sitzung ist beendet.');
++  if(options.fastModeGraph)await modeGraph();else{await settle();await settleNativeFrame(true);}if(closed)throw Error('Headless-Sitzung ist beendet.');
+   const currentBinding=currentActionBinding(pending.binding.objectId,pending.value);
+   const selected=selectCurrentActionBinding([currentBinding.identity],pending.binding);
+   if(selected.status!=='unique')throw Error('Originale Current-Binding-Aktion hat sich seit dem Plan geändert.');
+@@ -549,6 +554,24 @@
+   subscribeStatus:(listener:(event:import('./original-store-status.ts').OriginalStatusChange)=>void)=>{current();return originalStatus!.subscribeChanges(listener);},
+   inspectNativeHierarchy:()=>queue(inspectNativeHierarchy),
+   inspectOriginalPresentation:(inputTarget?:Readonly<{nativeTag:number;x:number;y:number}>)=>queue(()=>inspectOriginalPresentation(inputTarget)),
++  modeSnapshot:()=>queue(async()=>{const value=await modeGraph();return {graph:value.menu.presentationGraph,revision:value.menu.revision,...value};}),
++  openOriginalMode:()=>queue(async()=>{
++   if(!options.mock&&!options.allowLiveMode)throw Error('Mode entry requires a scoped mode session');
++   if(options.fastModeGraph)await waitModeGraph(graph=>(graph.fibers??[]).some((fiber:any)=>(fiber.events??[]).some((event:any)=>event.event==='onPressModeSettingButton')));else{await settle();await settleNativeFrame(true);}
++   const runtime=current(),graph=menu.presentationGraph;
++   if(!graph||graph.truncated!==false||graph.screenNativeRootTag!==menu.screen?.nativeRootTag)throw Error('Mode entry graph unavailable');
++   const matches=(graph.fibers??[]).flatMap((fiber:any)=>(fiber.events??[]).filter((event:any)=>event.event==='onPressModeSettingButton').map((event:any)=>({fiberId:fiber.id,callbackId:event.callbackId,bindingIdentity:event.bindingIdentity,revision:menu.revision,route:menu.screen?.route})));
++   if(matches.length!==1)throw Error('Mode entry ambiguous');
++   runtime.ports.send({type:'callJsFunction',moduleName:'StandaloneOriginalMenu',methodName:'openPresentedMode',arguments:[matches[0]]});await runtime.ports.flush();
++   if(menu.activation?.reference!=='original-mode-entry'||menu.activation?.accepted!==true)throw Error('Mode entry rejected');
++   if(options.fastModeGraph){
++    await runtime.ui.flushLayout();
++    const value=await waitModeGraph(graph=>(graph.fibers??[]).some((fiber:any)=>
++     Array.isArray(fiber.tabLayoutWidths)&&fiber.tabLayoutWidths.length>0&&fiber.tabLayoutWidths.every((width:unknown)=>typeof width==='number'&&Number.isFinite(width))));
++    return {graph:value.menu.presentationGraph,revision:value.menu.revision,...value};
++   }
++   await settle();await settleNativeFrame(true);return {graph:structuredClone(menu.presentationGraph),revision:menu.revision,...structuredClone(snapshot())};
++  }),
+   inspectNativeImagePixels:()=>queue(inspectNativeImagePixels),
+   inspectNativeServices:()=>queue(inspectNativeServices),
+   waitForMenu:(predicate:(state:ReturnType<typeof snapshot>)=>boolean,timeoutMs=10000)=>queue(async()=>{
+--- /dev/null
++++ b/src/mode-graph-transaction.ts
+@@ -0,0 +1,8 @@
++/** Capture a committed original menu and its React graph in one worker barrier. */
++export async function captureModeGraph(port:{flush():Promise<void>;publish():void;read():any}) {
++ const previous=port.read()?.menu?.presentationGraph;
++ await port.flush();port.publish();await port.flush();
++ const value=port.read(),menu=value?.menu,graph=menu?.presentationGraph;
++ if(!Number.isSafeInteger(menu?.revision)||!Number.isSafeInteger(menu?.screen?.nativeRootTag)||!graph||graph===previous||graph.truncated!==false||graph.screenNativeRootTag!==menu.screen.nativeRootTag)throw Error('Original mode graph is unavailable or stale');
++ return structuredClone(value);
++}
