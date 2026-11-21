@@ -5,7 +5,8 @@
 		"allowJs": true,
 		"checkJs": false,
 		"noEmit": true,
-		"module": "CommonJS",
+		"module": "Preserve",
+		"moduleResolution": "Bundler",
 		"target": "ES2022",
 		"rootDir": ".."
 	},
