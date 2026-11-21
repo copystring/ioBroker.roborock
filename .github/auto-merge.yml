@@ -1,14 +1,14 @@
 # Configure which Dependabot updates should be merged automatically.
-# semver:major includes minor and patch updates. The workflow still waits for CI.
+# semver:minor includes patch updates. Major updates require manual review.
 - match:
     # Merge production dependency updates after successful checks
     dependency_type: production
-    update_type: "semver:major"
+    update_type: "semver:minor"
 - match:
     # Merge development dependency updates after successful checks
     dependency_type: development
-    update_type: "semver:major"
+    update_type: "semver:minor"
 - match:
     # Merge lockfile-only updates after successful checks
     dependency_type: package-lock
-    update_type: "semver:major"
+    update_type: "semver:minor"
