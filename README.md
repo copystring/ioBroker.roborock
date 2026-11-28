@@ -99,6 +99,10 @@ The callback returns `{ result: "ok" }` only after status processing, or `{ erro
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
+* (ttoebbe) Added the `resolve_error` button to clear a latched dock error, like "Resolved" in the Roborock app (devices reporting `dock_error_status`).
+
 ### 0.8.0 (2026-10-11)
 
 * (copystring) Added Roborock Q7 Pro support for maps, status and consumables.

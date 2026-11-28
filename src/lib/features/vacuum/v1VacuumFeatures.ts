@@ -1,7 +1,7 @@
 import { withStatusRefreshDeadline } from "../statusRefreshDeadline";
 import { normalizeStatusResponse } from "../statusResponse";
 import PQueue from "p-queue";
-import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies } from "../baseDeviceFeatures";
+import { BaseDeviceFeatures, DeviceModelConfig, FeatureDependencies, SKIP_COMMAND } from "../baseDeviceFeatures";
 import { Feature } from "../features.enum";
 import { StationService } from "./services/StationService";
 import { V1ConsumableService } from "./services/V1ConsumableService";
@@ -188,6 +188,10 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			changed = true;
 		}
 
+		if ("dock_error_status" in statusData && await this.applyFeature(Feature.ResolveDockError)) {
+			changed = true;
+		}
+
 		// Consumables detection (usually static, but can check for keys)
 		if (await this.applyFeature(Feature.Consumables)) changed = true;
 
@@ -270,6 +274,10 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 	}
 
 	public override async getCommandParams(method: string, params?: unknown, id?: string): Promise<unknown> {
+		if (method === "resolve_error") {
+			return this.getResolveErrorParams();
+		}
+
 		if (method === "reset_consumable" && id) {
 			const obj = await this.deps.adapter.getObjectAsync(id);
 			if (obj && obj.native && obj.native.resetParam) {
@@ -456,6 +464,51 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 
 		const statusState = await this.deps.adapter.getStateAsync(`Devices.${this.duid}.deviceStatus.repeat`);
 		return this.normalizeCleanRepeat(statusState?.val) ?? 1;
+	}
+
+	/**
+	 * Params for resolve_error, the request behind "Resolved" for dock errors in the Roborock app.
+	 * Dock errors stay latched on the device until resolved, even after the cause is fixed.
+	 * The code comes from a fresh get_status, never from cached states, so a stale or already
+	 * cleared error is not acknowledged. Robot errors are out of scope (no device evidence yet).
+	 * The robot rejects array params with -10007, so the code is always sent as an object.
+	 */
+	private async getResolveErrorParams(): Promise<{ error_code: number } | typeof SKIP_COMMAND> {
+		const status = await this.fetchFreshStatus();
+		if (!status) {
+			return SKIP_COMMAND;
+		}
+
+		const dockErrorCode = Number(status.dock_error_status);
+		if (!Number.isInteger(dockErrorCode) || dockErrorCode <= 0) {
+			this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, "resolve_error: no dock error pending, nothing sent", "warn");
+			return SKIP_COMMAND;
+		}
+
+		this.deps.adapter.rLog("System", this.duid, "Info", "1.0", undefined, `Resolving dock_error_status ${dockErrorCode}`, "info");
+		return { error_code: dockErrorCode };
+	}
+
+	/**
+	 * Requests get_status and accepts the response formats seen from V1 devices:
+	 * the plain status object or the object wrapped in (nested) single-element arrays.
+	 * @returns The status object, or undefined if the request failed or the response is invalid.
+	 */
+	private async fetchFreshStatus(): Promise<Record<string, unknown> | undefined> {
+		let result: unknown;
+		try {
+			result = await this.deps.adapter.requestsHandler.sendRequest(this.duid, "get_prop", ["get_status"]);
+		} catch (e: unknown) {
+			this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, `resolve_error: status request failed (${this.deps.adapter.errorMessage(e)}), nothing sent`, "warn");
+			return undefined;
+		}
+
+		const status = this.unwrapSingleElementArrays(result);
+		if (!this.isPlainObject(status)) {
+			this.deps.adapter.rLog("System", this.duid, "Warn", "1.0", undefined, `resolve_error: invalid status response ${JSON.stringify(result)}, nothing sent`, "warn");
+			return undefined;
+		}
+		return status;
 	}
 
 	public async updateCleanSummary(): Promise<void> {
@@ -956,6 +1009,23 @@ export class V1VacuumFeatures extends BaseDeviceFeatures {
 			name: "Start Collect Dust",
 			def: false
 		});
+	}
+
+	/**
+	 * Detected at runtime from get_status, i.e. usually after the command objects were created,
+	 * so the button object is created here as well.
+	 */
+	@BaseDeviceFeatures.DeviceFeature(Feature.ResolveDockError)
+	public async initResolveDockError(): Promise<void> {
+		this.addCommand("resolve_error", {
+			type: "boolean",
+			role: "button",
+			name: "Resolve Dock Error",
+			def: false
+		});
+		if (this.commandsCreated) {
+			await this.processCommand(`Devices.${this.duid}.commands`, "resolve_error", this.commands["resolve_error"]);
+		}
 	}
 
 	@BaseDeviceFeatures.DeviceFeature(Feature.MopWash)
